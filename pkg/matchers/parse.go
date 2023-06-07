@@ -116,7 +116,7 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 	if tok.Kind == TokenNone {
 		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
 	}
-	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.Start, tok.End, tok.Value)
+	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 }
 
 func (p *Parser) parse() (labels.Matchers, error) {
@@ -243,7 +243,7 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 	} else {
 		labelValue, err = strconv.Unquote(tok.Value)
 		if err != nil {
-			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.Start, tok.End, tok.Value)
+			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 		}
 	}
 

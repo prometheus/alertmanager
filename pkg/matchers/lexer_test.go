@@ -29,144 +29,329 @@ func TestLexer_Scan(t *testing.T) {
 	}{{
 		name:  "open paren",
 		input: "{",
-		expected: []Token{
-			{Kind: TokenOpenParen, Value: "{", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenOpenParen,
+			Value: "{",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 	}, {
 		name:  "open paren with space",
 		input: " {",
-		expected: []Token{
-			{Kind: TokenOpenParen, Value: "{", Start: 1, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOpenParen,
+			Value: "{",
+			Position: Position{
+				OffsetStart: 1,
+				OffsetEnd:   2,
+				ColumnStart: 1,
+				ColumnEnd:   2,
+			},
+		}},
 	}, {
 		name:  "close paren",
 		input: "}",
-		expected: []Token{
-			{Kind: TokenCloseParen, Value: "}", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenCloseParen,
+			Value: "}",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 	}, {
 		name:  "close paren with space",
 		input: "}",
-		expected: []Token{
-			{Kind: TokenCloseParen, Value: "}", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenCloseParen,
+			Value: "}",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 	}, {
 		name:  "open and closing parens",
 		input: "{}",
-		expected: []Token{
-			{Kind: TokenOpenParen, Value: "{", Start: 0, End: 1},
-			{Kind: TokenCloseParen, Value: "}", Start: 1, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOpenParen,
+			Value: "{",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}, {
+			Kind:  TokenCloseParen,
+			Value: "}",
+			Position: Position{
+				OffsetStart: 1,
+				OffsetEnd:   2,
+				ColumnStart: 1,
+				ColumnEnd:   2,
+			},
+		}},
 	}, {
 		name:  "open and closing parens with space",
 		input: "{ }",
-		expected: []Token{
-			{Kind: TokenOpenParen, Value: "{", Start: 0, End: 1},
-			{Kind: TokenCloseParen, Value: "}", Start: 2, End: 3},
-		},
+		expected: []Token{{
+			Kind:  TokenOpenParen,
+			Value: "{",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}, {
+			Kind:  TokenCloseParen,
+			Value: "}",
+			Position: Position{
+				OffsetStart: 2,
+				OffsetEnd:   3,
+				ColumnStart: 2,
+				ColumnEnd:   3,
+			},
+		}},
 	}, {
 		name:  "ident",
 		input: "hello",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello", Start: 0, End: 5},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   5,
+				ColumnStart: 0,
+				ColumnEnd:   5,
+			},
+		}},
 	}, {
 		name:  "ident with underscore",
 		input: "hello_world",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello_world", Start: 0, End: 11},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello_world",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   11,
+				ColumnStart: 0,
+				ColumnEnd:   11,
+			},
+		}},
 	}, {
 		name:  "ident with colon",
 		input: "hello:world",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello:world", Start: 0, End: 11},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello:world",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   11,
+				ColumnStart: 0,
+				ColumnEnd:   11,
+			},
+		}},
 	}, {
 		name:  "ident with numbers",
 		input: "hello0123456789",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello0123456789", Start: 0, End: 15},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello0123456789",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   15,
+				ColumnStart: 0,
+				ColumnEnd:   15,
+			},
+		}},
 	}, {
 		name:  "ident can start with underscore",
 		input: "_hello",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "_hello", Start: 0, End: 6},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "_hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   6,
+				ColumnStart: 0,
+				ColumnEnd:   6,
+			},
+		}},
 	}, {
 		name:  "idents separated with space",
 		input: "hello world",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello", Start: 0, End: 5},
-			{Kind: TokenIdent, Value: "world", Start: 6, End: 11},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   5,
+				ColumnStart: 0,
+				ColumnEnd:   5,
+			},
+		}, {
+			Kind:  TokenIdent,
+			Value: "world",
+			Position: Position{
+				OffsetStart: 6,
+				OffsetEnd:   11,
+				ColumnStart: 6,
+				ColumnEnd:   11,
+			},
+		}},
 	}, {
 		name:  "quoted",
 		input: "\"hello\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello\"", Start: 0, End: 7},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   7,
+				ColumnStart: 0,
+				ColumnEnd:   7,
+			},
+		}},
 	}, {
 		name:  "quoted with unicode",
 		input: "\"hello 🙂\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello 🙂\"", Start: 0, End: 12},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello 🙂\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   12,
+				ColumnStart: 0,
+				ColumnEnd:   9,
+			},
+		}},
 	}, {
 		name:  "quoted with space",
 		input: "\"hello world\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello world\"", Start: 0, End: 13},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello world\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   13,
+				ColumnStart: 0,
+				ColumnEnd:   13,
+			},
+		}},
 	}, {
 		name:  "quoted with newline",
 		input: "\"hello\nworld\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello\nworld\"", Start: 0, End: 13},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello\nworld\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   13,
+				ColumnStart: 0,
+				ColumnEnd:   13,
+			},
+		}},
 	}, {
 		name:  "quoted with tab",
 		input: "\"hello\tworld\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello\tworld\"", Start: 0, End: 13},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello\tworld\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   13,
+				ColumnStart: 0,
+				ColumnEnd:   13,
+			},
+		}},
 	}, {
 		name:  "quoted with escaped quotes",
 		input: "\"hello \\\"world\\\"\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello \\\"world\\\"\"", Start: 0, End: 17},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello \\\"world\\\"\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   17,
+				ColumnStart: 0,
+				ColumnEnd:   17,
+			},
+		}},
 	}, {
 		name:  "quoted with escaped backslash",
 		input: "\"hello world\\\\\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello world\\\\\"", Start: 0, End: 15},
-		},
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello world\\\\\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   15,
+				ColumnStart: 0,
+				ColumnEnd:   15,
+			},
+		}},
 	}, {
 		name:  "equals operator",
 		input: "=",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "=", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "=",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 	}, {
 		name:  "not equals operator",
 		input: "!=",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "!=", Start: 0, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "!=",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   2,
+				ColumnStart: 0,
+				ColumnEnd:   2,
+			},
+		}},
 	}, {
 		name:  "matches regex operator",
 		input: "=~",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "=~", Start: 0, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "=~",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   2,
+				ColumnStart: 0,
+				ColumnEnd:   2,
+			},
+		}},
 	}, {
 		name:  "not matches regex operator",
 		input: "!~",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "!~", Start: 0, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "!~",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   2,
+				ColumnStart: 0,
+				ColumnEnd:   2,
+			},
+		}},
 	}, {
 		name:  "unexpected $",
 		input: "$",
@@ -174,11 +359,11 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "unexpected emoji",
 		input: "🙂",
-		err:   "0:4: 🙂: invalid input",
+		err:   "0:1: 🙂: invalid input",
 	}, {
 		name:  "unexpected unicode letter",
 		input: "Σ",
-		err:   "0:2: Σ: invalid input",
+		err:   "0:1: Σ: invalid input",
 	}, {
 		name:  "unexpected : at start of ident",
 		input: ":hello",
@@ -186,24 +371,45 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "unexpected $ in ident",
 		input: "hello$",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello", Start: 0, End: 5},
-		},
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   5,
+				ColumnStart: 0,
+				ColumnEnd:   5,
+			},
+		}},
 		err: "5:6: $: invalid input",
 	}, {
 		name:  "unexpected unicode letter in ident",
 		input: "helloΣ",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello", Start: 0, End: 5},
-		},
-		err: "5:7: Σ: invalid input",
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   5,
+				ColumnStart: 0,
+				ColumnEnd:   5,
+			},
+		}},
+		err: "5:6: Σ: invalid input",
 	}, {
 		name:  "unexpected emoji in ident",
 		input: "hello🙂",
-		expected: []Token{
-			{Kind: TokenIdent, Value: "hello", Start: 0, End: 5},
-		},
-		err: "5:9: 🙂: invalid input",
+		expected: []Token{{
+			Kind:  TokenIdent,
+			Value: "hello",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   5,
+				ColumnStart: 0,
+				ColumnEnd:   5,
+			},
+		}},
+		err: "5:6: 🙂: invalid input",
 	}, {
 		name:  "invalid operator",
 		input: "!",
@@ -215,23 +421,44 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "unexpected $ in operator",
 		input: "=$",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "=", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "=",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 		err: "1:2: $: invalid input",
 	}, {
 		name:  "unexpected ! after operator",
 		input: "=!",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "=", Start: 0, End: 1},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "=",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
 		err: "1:2: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "unexpected !! after operator",
 		input: "!=!!",
-		expected: []Token{
-			{Kind: TokenOperator, Value: "!=", Start: 0, End: 2},
-		},
+		expected: []Token{{
+			Kind:  TokenOperator,
+			Value: "!=",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   2,
+				ColumnStart: 0,
+				ColumnEnd:   2,
+			},
+		}},
 		err: "2:3: !: expected one of '=~'",
 	}, {
 		name:  "unterminated quoted",
@@ -280,8 +507,26 @@ func TestLexer_ScanError(t *testing.T) {
 
 func TestLexer_Peek(t *testing.T) {
 	l := NewLexer("hello world")
-	expected1 := Token{Kind: TokenIdent, Value: "hello", Start: 0, End: 5}
-	expected2 := Token{Kind: TokenIdent, Value: "world", Start: 6, End: 11}
+	expected1 := Token{
+		Kind:  TokenIdent,
+		Value: "hello",
+		Position: Position{
+			OffsetStart: 0,
+			OffsetEnd:   5,
+			ColumnStart: 0,
+			ColumnEnd:   5,
+		},
+	}
+	expected2 := Token{
+		Kind:  TokenIdent,
+		Value: "world",
+		Position: Position{
+			OffsetStart: 6,
+			OffsetEnd:   11,
+			ColumnStart: 6,
+			ColumnEnd:   11,
+		},
+	}
 	// check that Peek() returns the first token
 	tok, err := l.Peek()
 	assert.NoError(t, err)

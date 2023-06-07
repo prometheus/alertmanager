@@ -34,41 +34,65 @@ func isNum(r rune) bool {
 
 // ExpectedError is returned when the next rune does not match what is expected.
 type ExpectedError struct {
-	input    string
-	start    int
-	end      int
-	expected string
+	input       string
+	offsetStart int
+	offsetEnd   int
+	columnStart int
+	columnEnd   int
+	expected    string
 }
 
 func (e ExpectedError) Error() string {
-	if e.end >= len(e.input) {
-		return fmt.Sprintf("%d:%d: unexpected end of input, expected one of '%s'", e.start, e.end, e.expected)
+	if e.offsetEnd >= len(e.input) {
+		return fmt.Sprintf("%d:%d: unexpected end of input, expected one of '%s'",
+			e.offsetStart,
+			e.offsetEnd,
+			e.expected,
+		)
 	}
-	return fmt.Sprintf("%d:%d: %s: expected one of '%s'", e.start, e.end, e.input[e.start:e.end], e.expected)
+	return fmt.Sprintf("%d:%d: %s: expected one of '%s'",
+		e.columnStart,
+		e.columnEnd,
+		e.input[e.offsetStart:e.offsetEnd],
+		e.expected,
+	)
 }
 
 // InvalidInputError is returned when the next rune in the input does not match
 // the grammar of Prometheus-like matchers.
 type InvalidInputError struct {
-	input string
-	start int
-	end   int
+	input       string
+	offsetStart int
+	offsetEnd   int
+	columnStart int
+	columnEnd   int
 }
 
 func (e InvalidInputError) Error() string {
-	return fmt.Sprintf("%d:%d: %s: invalid input", e.start, e.end, e.input[e.start:e.end])
+	return fmt.Sprintf("%d:%d: %s: invalid input",
+		e.columnStart,
+		e.columnEnd,
+		e.input[e.offsetStart:e.offsetEnd],
+	)
 }
 
 // UnterminatedError is returned when text in quotes does not have a closing quote.
 type UnterminatedError struct {
-	input string
-	start int
-	end   int
-	quote rune
+	input       string
+	offsetStart int
+	offsetEnd   int
+	columnStart int
+	columnEnd   int
+	quote       rune
 }
 
 func (e UnterminatedError) Error() string {
-	return fmt.Sprintf("%d:%d: %s: missing end %c", e.start, e.end, e.input[e.start:e.end], e.quote)
+	return fmt.Sprintf("%d:%d: %s: missing end %c",
+		e.columnStart,
+		e.columnEnd,
+		e.input[e.offsetStart:e.offsetEnd],
+		e.quote,
+	)
 }
 
 // Lexer scans a sequence of tokens that match the grammar of Prometheus-like
@@ -78,11 +102,13 @@ func (e UnterminatedError) Error() string {
 // subslice of the input. Once the input has been consumed successive calls to
 // Scan() return a TokenNone token.
 type Lexer struct {
-	input string
-	err   error
-	start int // the start of the current token
-	pos   int // the position of the cursor in the input
-	width int // the width of the last rune
+	input  string
+	err    error
+	start  int // the offset of the current token
+	pos    int // the position of the cursor in the input
+	width  int // the width of the last rune
+	column int // the column offset of the current token
+	cols   int // the number of columns (runes) decoded from the input
 }
 
 func NewLexer(input string) Lexer {
@@ -95,11 +121,15 @@ func (l *Lexer) Peek() (Token, error) {
 	start := l.start
 	pos := l.pos
 	width := l.width
+	column := l.column
+	cols := l.cols
 	// Do not reset l.err because we can return it on the next call to Scan()
 	defer func() {
 		l.start = start
 		l.pos = pos
 		l.width = width
+		l.column = column
+		l.cols = cols
 	}()
 	return l.Scan()
 }
@@ -139,7 +169,13 @@ func (l *Lexer) Scan() (Token, error) {
 		case unicode.IsSpace(r):
 			l.skip()
 		default:
-			l.err = InvalidInputError{input: l.input, start: l.start, end: l.pos}
+			l.err = InvalidInputError{
+				input:       l.input,
+				offsetStart: l.start,
+				offsetEnd:   l.pos,
+				columnStart: l.column,
+				columnEnd:   l.cols,
+			}
 			return tok, l.err
 		}
 	}
@@ -197,7 +233,14 @@ func (l *Lexer) scanQuoted() (Token, error) {
 		}
 	}
 	if err := l.expect("\""); err != nil {
-		return Token{}, UnterminatedError{input: l.input, start: l.start, end: l.pos, quote: '"'}
+		return Token{}, UnterminatedError{
+			input:       l.input,
+			offsetStart: l.start,
+			offsetEnd:   l.pos,
+			columnStart: l.column,
+			columnEnd:   l.cols,
+			quote:       '"',
+		}
 	}
 	return l.emit(TokenQuoted), nil
 }
@@ -220,10 +263,24 @@ func (l *Lexer) expect(valid string) error {
 	r := l.next()
 	if r == -1 {
 		l.rewind()
-		return ExpectedError{input: l.input, start: l.start, end: l.pos, expected: valid}
+		return ExpectedError{
+			input:       l.input,
+			offsetStart: l.start,
+			offsetEnd:   l.pos,
+			columnStart: l.column,
+			columnEnd:   l.cols,
+			expected:    valid,
+		}
 	} else if strings.IndexRune(valid, r) < 0 {
 		l.rewind()
-		return ExpectedError{input: l.input, start: l.start, end: l.pos, expected: valid}
+		return ExpectedError{
+			input:       l.input,
+			offsetStart: l.start,
+			offsetEnd:   l.pos,
+			columnStart: l.column,
+			columnEnd:   l.cols,
+			expected:    valid,
+		}
 	} else {
 		return nil
 	}
@@ -233,10 +290,15 @@ func (l *Lexer) emit(kind TokenKind) Token {
 	tok := Token{
 		Kind:  kind,
 		Value: l.input[l.start:l.pos],
-		Start: l.start,
-		End:   l.pos,
+		Position: Position{
+			OffsetStart: l.start,
+			OffsetEnd:   l.pos,
+			ColumnStart: l.column,
+			ColumnEnd:   l.cols,
+		},
 	}
 	l.start = l.pos
+	l.column = l.cols
 	return tok
 }
 
@@ -248,14 +310,19 @@ func (l *Lexer) next() rune {
 	r, width := utf8.DecodeRuneInString(l.input[l.pos:])
 	l.width = width
 	l.pos += width
+	l.cols += 1
 	return r
 }
 
 func (l *Lexer) rewind() {
-	l.pos -= l.width
-	l.width = 0
+	if l.width > 0 {
+		l.pos -= l.width
+		l.width = 0
+		l.cols -= 1
+	}
 }
 
 func (l *Lexer) skip() {
 	l.start = l.pos
+	l.column += 1
 }

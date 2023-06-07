@@ -51,8 +51,7 @@ func (k TokenKind) String() string {
 type Token struct {
 	Kind  TokenKind
 	Value string
-	Start int // The start position in the input
-	End   int // The end position in the input
+	Position
 }
 
 func (t Token) String() string {
@@ -61,4 +60,11 @@ func (t Token) String() string {
 
 func IsNone(t Token) bool {
 	return t == Token{}
+}
+
+type Position struct {
+	OffsetStart int // The start position in the input
+	OffsetEnd   int // The end position in the input
+	ColumnStart int // The column number
+	ColumnEnd   int // The end of the column
 }
