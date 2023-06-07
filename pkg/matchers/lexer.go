@@ -45,8 +45,8 @@ type ExpectedError struct {
 func (e ExpectedError) Error() string {
 	if e.offsetEnd >= len(e.input) {
 		return fmt.Sprintf("%d:%d: unexpected end of input, expected one of '%s'",
-			e.offsetStart,
-			e.offsetEnd,
+			e.columnStart,
+			e.columnEnd,
 			e.expected,
 		)
 	}
