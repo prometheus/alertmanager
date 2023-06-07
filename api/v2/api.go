@@ -484,7 +484,7 @@ func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAl
 	for _, alertGroup := range ags {
 
 		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
-		if params.NextToken != nil && *params.NextToken != "" && *params.NextToken >= alertGroup.ID {
+		if params.NextToken != nil && *params.NextToken >= alertGroup.ID {
 			continue
 		}
 
@@ -824,7 +824,7 @@ func validateMaxResult(maxItem *int64) error {
 }
 
 func validateNextToken(nextToken *string) error {
-	if nextToken != nil && *nextToken != "" {
+	if nextToken != nil {
 		match, _ := regexp.MatchString("^[a-fA-F0-9]{40}$", *nextToken)
 		if !match {
 			return fmt.Errorf("invalid nextToken: %s", *nextToken)

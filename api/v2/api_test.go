@@ -127,6 +127,10 @@ func convertIntToPointerInt64(x int64) *int64 {
 	return &x
 }
 
+func convertStringToPointer(x string) *string {
+	return &x
+}
+
 func TestGetAlertGroupInfosHandler(t *testing.T) {
 	aginfos := dispatch.AlertGroupInfos{
 		&dispatch.AlertGroupInfo{
@@ -165,56 +169,56 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		maxResult    *int64
-		nextToken    string
+		nextToken    *string
 		body         string
 		expectedCode int
 	}{
 		// Invalid next token.
 		{
 			convertIntToPointerInt64(int64(1)),
-			"$$$",
+			convertStringToPointer("$$$"),
 			`failed to parse NextToken param: $$$`,
 			400,
 		},
 		// Invalid next token.
 		{
 			convertIntToPointerInt64(int64(1)),
-			"1234s",
+			convertStringToPointer("1234s"),
 			`failed to parse NextToken param: 1234s`,
 			400,
 		},
 		// Invalid MaxResults.
 		{
 			convertIntToPointerInt64(int64(-1)),
-			"",
+			convertStringToPointer("478b4114226224a35910d449fdba8186ebfb441f"),
 			`failed to parse MaxResults param: -1`,
 			400,
 		},
 		// One item to return, no next token.
 		{
 			convertIntToPointerInt64(int64(1)),
-			"",
+			nil,
 			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
 			200,
 		},
 		// One item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(1)),
-			"478b4114226224a35910d449fdba8186ebfb441f",
+			convertStringToPointer("478b4114226224a35910d449fdba8186ebfb441f"),
 			`{"alertGroupInfoList":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
 			200,
 		},
 		// Five item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(5)),
-			"7f4084a078a3fe29d6de82fad15af8f1411e803f",
+			convertStringToPointer("7f4084a078a3fe29d6de82fad15af8f1411e803f"),
 			`{"alertGroupInfoList":[{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 		// Return all results.
 		{
 			nil,
-			"",
+			nil,
 			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
@@ -233,7 +237,7 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		p := runtime.TextProducer()
 		responder := api.getAlertGroupInfoListHandler(alertgroupinfolist_ops.GetAlertGroupInfoListParams{
 			MaxResults:  tc.maxResult,
-			NextToken:   &tc.nextToken,
+			NextToken:   tc.nextToken,
 			HTTPRequest: r,
 		})
 		responder.WriteResponse(w, p)
