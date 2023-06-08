@@ -515,6 +515,19 @@ func run() int {
 					r.Key(),
 				)
 			}
+
+			if r.RouteOpts.RepeatInterval < r.RouteOpts.GroupInterval {
+				level.Warn(configLogger).Log(
+					"msg",
+					"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
+					"repeat_interval",
+					r.RouteOpts.RepeatInterval,
+					"group_interval",
+					r.RouteOpts.GroupInterval,
+					"route",
+					r.Key(),
+				)
+			}
 		})
 
 		go disp.Run()

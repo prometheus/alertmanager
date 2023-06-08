@@ -197,7 +197,7 @@ matchers:
 # Note that this parameter is implicitly bound by Alertmanager's
 # `--data.retention` configuration flag. Notifications will be resent after either
 # repeat_interval or the data retention period have passed, whichever
-# occurs first.
+# occurs first. `repeat_interval` should not be less than `group_interval`.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
