@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -156,7 +155,7 @@ func TestParse(t *testing.T) {
 				require.EqualError(t, err, test.error)
 			} else {
 				require.Nil(t, err)
-				assert.EqualValues(t, test.expected, matchers)
+				require.EqualValues(t, test.expected, matchers)
 			}
 		})
 	}

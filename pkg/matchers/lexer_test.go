@@ -16,7 +16,6 @@ package matchers
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -477,18 +476,18 @@ func TestLexer_Scan(t *testing.T) {
 			for i := 0; i < len(test.expected); i++ {
 				tok, err := l.Scan()
 				require.NoError(t, err)
-				assert.Equal(t, test.expected[i], tok)
+				require.Equal(t, test.expected[i], tok)
 			}
 			if test.err == "" {
 				// check there are no more tokens
 				tok, err := l.Scan()
 				require.NoError(t, err)
-				assert.Equal(t, Token{}, tok)
+				require.Equal(t, Token{}, tok)
 			} else {
 				// check if expected error is returned
 				tok, err := l.Scan()
-				assert.Equal(t, Token{}, tok)
-				assert.EqualError(t, err, test.err)
+				require.Equal(t, Token{}, tok)
+				require.EqualError(t, err, test.err)
 			}
 		})
 	}
@@ -500,8 +499,8 @@ func TestLexer_ScanError(t *testing.T) {
 	l := NewLexer("\"hello")
 	for i := 0; i < 10; i++ {
 		tok, err := l.Scan()
-		assert.Equal(t, Token{}, tok)
-		assert.EqualError(t, err, "0:6: \"hello: missing end \"")
+		require.Equal(t, Token{}, tok)
+		require.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
 
@@ -529,27 +528,27 @@ func TestLexer_Peek(t *testing.T) {
 	}
 	// check that Peek() returns the first token
 	tok, err := l.Peek()
-	assert.NoError(t, err)
-	assert.Equal(t, expected1, tok)
+	require.NoError(t, err)
+	require.Equal(t, expected1, tok)
 	// check that Scan() returns the peeked token
 	tok, err = l.Scan()
-	assert.NoError(t, err)
-	assert.Equal(t, expected1, tok)
+	require.NoError(t, err)
+	require.Equal(t, expected1, tok)
 	// check that Peek() returns the second token until the next Scan()
 	for i := 0; i < 10; i++ {
 		tok, err = l.Peek()
-		assert.NoError(t, err)
-		assert.Equal(t, expected2, tok)
+		require.NoError(t, err)
+		require.Equal(t, expected2, tok)
 	}
 	// check that Scan() returns the last token
 	tok, err = l.Scan()
-	assert.NoError(t, err)
-	assert.Equal(t, expected2, tok)
+	require.NoError(t, err)
+	require.Equal(t, expected2, tok)
 	// should not be able to Peek() further tokens
 	for i := 0; i < 10; i++ {
 		tok, err = l.Peek()
-		assert.NoError(t, err)
-		assert.Equal(t, Token{}, tok)
+		require.NoError(t, err)
+		require.Equal(t, Token{}, tok)
 	}
 }
 
@@ -559,7 +558,7 @@ func TestLexer_PeekError(t *testing.T) {
 	l := NewLexer("\"hello")
 	for i := 0; i < 10; i++ {
 		tok, err := l.Peek()
-		assert.Equal(t, Token{}, tok)
-		assert.EqualError(t, err, "0:6: \"hello: missing end \"")
+		require.Equal(t, Token{}, tok)
+		require.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
