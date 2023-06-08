@@ -11,6 +11,16 @@
 {{ end }}Source: {{ .GeneratorURL }}
 {{ end }}{{ end }}
 
+{{ define "__text_alert_list_markdown" }}{{ range . }}
+Labels:
+{{ range .Labels.SortedPairs }}  - {{ .Name }} = {{ .Value }}
+{{ end }}
+Annotations:
+{{ range .Annotations.SortedPairs }}  - {{ .Name }} = {{ .Value }}
+{{ end }}
+Source: {{ .GeneratorURL }}
+{{ end }}
+{{ end }}
 
 {{ define "slack.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "slack.default.username" }}{{ template "__alertmanager" . }}{{ end }}
@@ -133,5 +143,17 @@ Alerts Firing:
 {{ if gt (len .Alerts.Resolved) 0 }}
 Alerts Resolved:
 {{ template "__text_alert_list" .Alerts.Resolved }}
+{{ end }}
+{{ end }}
+
+{{ define "msteams.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "msteams.default.text" }}
+{{ if gt (len .Alerts.Firing) 0 }}
+# Alerts Firing:
+{{ template "__text_alert_list_markdown" .Alerts.Firing }}
+{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 }}
+# Alerts Resolved:
+{{ template "__text_alert_list_markdown" .Alerts.Resolved }}
 {{ end }}
 {{ end }}

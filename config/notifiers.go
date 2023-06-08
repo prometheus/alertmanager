@@ -164,6 +164,14 @@ var (
 		Message:              `{{ template "telegram.default.message" . }}`,
 		ParseMode:            "HTML",
 	}
+
+	DefaultMSTeamsConfig = MSTeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title: `{{ template "msteams.default.title" . }}`,
+		Text:  `{{ template "msteams.default.text" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -777,4 +785,19 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
 	return nil
+}
+
+type MSTeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMSTeamsConfig
+	type plain MSTeamsConfig
+	return unmarshal((*plain)(c))
 }

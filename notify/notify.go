@@ -282,6 +282,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 	}
 	for _, integration := range []string{
 		"email",
+		"msteams",
 		"pagerduty",
 		"wechat",
 		"pushover",
