@@ -21,24 +21,24 @@ type TokenKind int
 
 const (
 	TokenNone TokenKind = iota
-	TokenCloseParen
+	TokenCloseBrace
 	TokenComma
 	TokenIdent
-	TokenOpenParen
+	TokenOpenBrace
 	TokenOperator
 	TokenQuoted
 )
 
 func (k TokenKind) String() string {
 	switch k {
-	case TokenCloseParen:
-		return "CloseParen"
+	case TokenCloseBrace:
+		return "CloseBrace"
 	case TokenComma:
 		return "Comma"
 	case TokenIdent:
 		return "Ident"
-	case TokenOpenParen:
-		return "OpenParen"
+	case TokenOpenBrace:
+		return "OpenBrace"
 	case TokenOperator:
 		return "Op"
 	case TokenQuoted:

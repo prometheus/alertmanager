@@ -146,10 +146,10 @@ func (l *Lexer) Scan() (Token, error) {
 	for r := l.next(); r != eof; r = l.next() {
 		switch {
 		case r == '{':
-			tok = l.emit(TokenOpenParen)
+			tok = l.emit(TokenOpenBrace)
 			return tok, l.err
 		case r == '}':
-			tok = l.emit(TokenCloseParen)
+			tok = l.emit(TokenCloseBrace)
 			return tok, l.err
 		case r == ',':
 			tok = l.emit(TokenComma)

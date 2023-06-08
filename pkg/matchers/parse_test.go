@@ -28,11 +28,11 @@ func TestParse(t *testing.T) {
 		expected labels.Matchers
 		error    string
 	}{{
-		name:     "no parens",
+		name:     "no braces",
 		input:    "",
 		expected: nil,
 	}, {
-		name:     "open and closing parens",
+		name:     "open and closing braces",
 		input:    "{}",
 		expected: nil,
 	}, {
@@ -48,11 +48,11 @@ func TestParse(t *testing.T) {
 		input:    "{foo=bar}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
-		name:     "equals without parens",
+		name:     "equals without braces",
 		input:    "foo=\"bar\"",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
-		name:     "equals without parens or quotes",
+		name:     "equals without braces or quotes",
 		input:    "foo=bar",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
@@ -60,7 +60,7 @@ func TestParse(t *testing.T) {
 		input:    "{foo=\"bar\",}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
-		name:     "equals without parens but trailing comma",
+		name:     "equals without braces but trailing comma",
 		input:    "foo=\"bar\",",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
@@ -106,35 +106,35 @@ func TestParse(t *testing.T) {
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
-		name:  "complex without parens",
+		name:  "complex without braces",
 		input: "foo=\"bar\",bar!=\"baz\"",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
-		name:  "complex without parens or quotes",
+		name:  "complex without braces or quotes",
 		input: "foo=bar,bar!=baz",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
-		name:  "open paren",
+		name:  "open brace",
 		input: "{",
-		error: "0:1: end of input: expected close paren",
+		error: "0:1: end of input: expected close brace",
 	}, {
-		name:  "close paren",
+		name:  "close brace",
 		input: "}",
-		error: "0:1: }: expected opening paren",
+		error: "0:1: }: expected opening brace",
 	}, {
-		name:  "no open paren",
+		name:  "no open brace",
 		input: "foo=\"bar\"}",
-		error: "0:10: }: expected opening paren",
+		error: "0:10: }: expected opening brace",
 	}, {
-		name:  "no close paren",
+		name:  "no close brace",
 		input: "{foo=\"bar\"",
-		error: "0:10: end of input: expected close paren",
+		error: "0:10: end of input: expected close brace",
 	}, {
 		name:  "invalid operator",
 		input: "{foo=:\"bar\"}",

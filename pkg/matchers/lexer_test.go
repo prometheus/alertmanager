@@ -27,10 +27,10 @@ func TestLexer_Scan(t *testing.T) {
 		expected []Token
 		err      string
 	}{{
-		name:  "open paren",
+		name:  "open brace",
 		input: "{",
 		expected: []Token{{
-			Kind:  TokenOpenParen,
+			Kind:  TokenOpenBrace,
 			Value: "{",
 			Position: Position{
 				OffsetStart: 0,
@@ -40,10 +40,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "open paren with space",
+		name:  "open brace with space",
 		input: " {",
 		expected: []Token{{
-			Kind:  TokenOpenParen,
+			Kind:  TokenOpenBrace,
 			Value: "{",
 			Position: Position{
 				OffsetStart: 1,
@@ -53,10 +53,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "close paren",
+		name:  "close brace",
 		input: "}",
 		expected: []Token{{
-			Kind:  TokenCloseParen,
+			Kind:  TokenCloseBrace,
 			Value: "}",
 			Position: Position{
 				OffsetStart: 0,
@@ -66,10 +66,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "close paren with space",
+		name:  "close brace with space",
 		input: "}",
 		expected: []Token{{
-			Kind:  TokenCloseParen,
+			Kind:  TokenCloseBrace,
 			Value: "}",
 			Position: Position{
 				OffsetStart: 0,
@@ -79,10 +79,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "open and closing parens",
+		name:  "open and closing braces",
 		input: "{}",
 		expected: []Token{{
-			Kind:  TokenOpenParen,
+			Kind:  TokenOpenBrace,
 			Value: "{",
 			Position: Position{
 				OffsetStart: 0,
@@ -91,7 +91,7 @@ func TestLexer_Scan(t *testing.T) {
 				ColumnEnd:   1,
 			},
 		}, {
-			Kind:  TokenCloseParen,
+			Kind:  TokenCloseBrace,
 			Value: "}",
 			Position: Position{
 				OffsetStart: 1,
@@ -101,10 +101,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "open and closing parens with space",
+		name:  "open and closing braces with space",
 		input: "{ }",
 		expected: []Token{{
-			Kind:  TokenOpenParen,
+			Kind:  TokenOpenBrace,
 			Value: "{",
 			Position: Position{
 				OffsetStart: 0,
@@ -113,7 +113,7 @@ func TestLexer_Scan(t *testing.T) {
 				ColumnEnd:   1,
 			},
 		}, {
-			Kind:  TokenCloseParen,
+			Kind:  TokenCloseBrace,
 			Value: "}",
 			Position: Position{
 				OffsetStart: 2,
