@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
+	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
 
@@ -993,7 +994,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := new_matchers.Parse(line)
 		if err != nil {
 			return err
 		}
@@ -1019,7 +1020,7 @@ func (m *Matchers) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := new_matchers.Parse(line)
 		if err != nil {
 			return err
 		}

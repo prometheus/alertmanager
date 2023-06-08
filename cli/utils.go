@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
 )
 
 // GetAlertmanagerURL appends the given path to the alertmanager base URL
@@ -39,18 +40,18 @@ func GetAlertmanagerURL(p string) url.URL {
 
 // parseMatchers parses a list of matchers (cli arguments).
 func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
-	matchers := make([]labels.Matcher, 0, len(inputMatchers))
+	m := make([]labels.Matcher, 0, len(inputMatchers))
 
 	for _, v := range inputMatchers {
-		matcher, err := labels.ParseMatcher(v)
+		matcher, err := new_matchers.Parse(v)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
 
-		matchers = append(matchers, *matcher)
+		m = append(m, *matcher[0])
 	}
 
-	return matchers, nil
+	return m, nil
 }
 
 // getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
@@ -107,10 +108,11 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		matcher, err := labels.ParseMatcher(l)
+		matchers, err := new_matchers.Parse(l)
 		if err != nil {
 			return models.LabelSet{}, err
 		}
+		matcher := matchers[0]
 		if matcher.Type != labels.MatchEqual {
 			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
 		}

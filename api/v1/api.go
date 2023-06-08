@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -257,7 +258,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = labels.ParseMatchers(filter)
+		matchers, err = new_matchers.Parse(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -578,7 +579,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 
 	matchers := []*labels.Matcher{}
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = labels.ParseMatchers(filter)
+		matchers, err = new_matchers.Parse(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,

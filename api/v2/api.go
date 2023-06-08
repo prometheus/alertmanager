@@ -15,6 +15,7 @@ package v2
 
 import (
 	"fmt"
+	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
 	"net/http"
 	"regexp"
 	"sort"
@@ -508,13 +509,13 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	matchers := []*labels.Matcher{}
 	if params.Filter != nil {
 		for _, matcherString := range params.Filter {
-			matcher, err := labels.ParseMatcher(matcherString)
+			matcher, err := new_matchers.Parse(matcherString)
 			if err != nil {
 				level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
 				return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
 			}
 
-			matchers = append(matchers, matcher)
+			matchers = append(matchers, matcher[0])
 		}
 	}
 
@@ -682,12 +683,12 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := labels.ParseMatcher(matcherString)
+		matcher, err := new_matchers.Parse(matcherString)
 		if err != nil {
 			return nil, err
 		}
 
-		matchers = append(matchers, matcher)
+		matchers = append(matchers, matcher[0])
 	}
 	return matchers, nil
 }
