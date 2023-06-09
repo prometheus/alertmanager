@@ -58,6 +58,7 @@ type API struct {
 	alerts         provider.Alerts
 	alertGroups    groupsFn
 	getAlertStatus getAlertStatusFn
+	apiLimit       *config.APILimitConfig
 	uptime         time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
@@ -86,6 +87,7 @@ func NewAPI(
 	gf groupsFn,
 	sf getAlertStatusFn,
 	silences *silence.Silences,
+	apiLimit *config.APILimitConfig,
 	peer cluster.ClusterPeer,
 	l log.Logger,
 	r prometheus.Registerer,
@@ -94,6 +96,7 @@ func NewAPI(
 		alerts:         alerts,
 		getAlertStatus: sf,
 		alertGroups:    gf,
+		apiLimit:       apiLimit,
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
@@ -266,7 +269,12 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	now := time.Now()
 
 	api.mtx.RLock()
+	alertCount := 0
 	for a := range alerts.Next() {
+		if api.apiLimit != nil && api.apiLimit.MaxAlertsCount > 0 && api.apiLimit.MaxAlertsCount <= alertCount {
+			break
+		}
+
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -291,6 +299,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
 
 		res = append(res, alert)
+		alertCount++
 	}
 	api.mtx.RUnlock()
 

@@ -1052,3 +1052,9 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(result)
 }
+
+// APILimitConfig represent the configuration for the APIs.
+type APILimitConfig struct {
+	// 0 means disable the api response limit
+	MaxAlertsCount int
+}

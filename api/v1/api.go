@@ -71,6 +71,7 @@ type API struct {
 	silences *silence.Silences
 	config   *config.Config
 	route    *dispatch.Route
+	apiLimit *config.APILimitConfig
 	uptime   time.Time
 	peer     cluster.ClusterPeer
 	logger   log.Logger
@@ -88,6 +89,7 @@ func New(
 	alerts provider.Alerts,
 	silences *silence.Silences,
 	sf getAlertStatusFn,
+	apiLimit *config.APILimitConfig,
 	peer cluster.ClusterPeer,
 	l log.Logger,
 	r prometheus.Registerer,
@@ -100,6 +102,7 @@ func New(
 		alerts:         alerts,
 		silences:       silences,
 		getAlertStatus: sf,
+		apiLimit:       apiLimit,
 		uptime:         time.Now(),
 		peer:           peer,
 		logger:         l,
@@ -305,7 +308,11 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	defer alerts.Close()
 
 	api.mtx.RLock()
+	alertCount := 0
 	for a := range alerts.Next() {
+		if api.apiLimit != nil && api.apiLimit.MaxAlertsCount > 0 && api.apiLimit.MaxAlertsCount <= alertCount {
+			break
+		}
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -358,6 +365,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		res = append(res, alert)
+		alertCount++
 	}
 	api.mtx.RUnlock()
 
