@@ -886,7 +886,7 @@ The fields are documented in the [PagerDuty API documentation](https://developer
 
 ```yaml
 href: <tmpl_string>
-source: <tmpl_string>
+src: <tmpl_string>
 alt: <tmpl_string>
 ```
 
