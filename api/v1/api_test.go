@@ -193,81 +193,101 @@ func TestListAlerts(t *testing.T) {
 	}
 
 	for i, tc := range []struct {
-		err    bool
-		params map[string]string
-
-		code   int
-		anames []string
+		err         bool
+		params      map[string]string
+		code        int
+		anames      []string
+		limitConfig *config.APILimitConfig
 	}{
 		{
 			false,
 			map[string]string{},
 			200,
 			[]string{"alert1", "alert2", "alert3", "alert4"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "true", "unprocessed": "true", "silenced": "true", "inhibited": "true"},
 			200,
 			[]string{"alert1", "alert2", "alert3", "alert4"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "false", "unprocessed": "true", "silenced": "true", "inhibited": "true"},
 			200,
 			[]string{"alert2", "alert3", "alert4"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "true", "unprocessed": "false", "silenced": "true", "inhibited": "true"},
 			200,
 			[]string{"alert1", "alert3", "alert4"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "true", "unprocessed": "true", "silenced": "false", "inhibited": "true"},
 			200,
 			[]string{"alert1", "alert2", "alert4"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "true", "unprocessed": "true", "silenced": "true", "inhibited": "false"},
 			200,
 			[]string{"alert1", "alert2", "alert3"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"filter": "{alertname=\"alert3\""},
 			200,
 			[]string{"alert3"},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"filter": "{alertname"},
 			400,
 			[]string{},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"receiver": "other"},
 			200,
 			[]string{},
+			nil,
 		},
 		{
 			false,
 			map[string]string{"active": "invalid"},
 			400,
 			[]string{},
+			nil,
 		},
 		{
 			true,
 			map[string]string{},
 			500,
 			[]string{},
+			nil,
+		},
+		{
+			false,
+			map[string]string{},
+			200,
+			[]string{"alert1", "alert2"},
+			&config.APILimitConfig{
+				MaxAlertsCount: 2,
+			},
 		},
 	} {
 		alertsProvider := newFakeAlerts(alerts, tc.err)
-		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), tc.limitConfig, nil, nil, nil)
 		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
 
 		r, err := http.NewRequest("GET", "/api/v1/alerts", nil)
