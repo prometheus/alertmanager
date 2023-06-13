@@ -308,9 +308,8 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	defer alerts.Close()
 
 	api.mtx.RLock()
-	alertCount := 0
 	for a := range alerts.Next() {
-		if api.apiLimit != nil && api.apiLimit.MaxAlertsCount > 0 && api.apiLimit.MaxAlertsCount <= alertCount {
+		if api.apiLimit != nil && api.apiLimit.MaxAlertsCount > 0 && api.apiLimit.MaxAlertsCount <= len(res) {
 			break
 		}
 		if err = alerts.Err(); err != nil {
@@ -365,7 +364,6 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		res = append(res, alert)
-		alertCount++
 	}
 	api.mtx.RUnlock()
 
