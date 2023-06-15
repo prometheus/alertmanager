@@ -410,7 +410,8 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	alertGroups, allReceivers := api.alertGroups(rf, af)
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
-
+	alertsCount := 0
+agLoop:
 	for _, alertGroup := range alertGroups {
 		ag := &open_api_models.AlertGroup{
 			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
@@ -419,11 +420,15 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 
 		for _, alert := range alertGroup.Alerts {
+			if api.apiLimit != nil && api.apiLimit.MaxAlertsCount > 0 && api.apiLimit.MaxAlertsCount <= alertsCount {
+				break agLoop
+			}
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
 			ag.Alerts = append(ag.Alerts, apiAlert)
+			alertsCount++
 		}
 		res = append(res, ag)
 	}

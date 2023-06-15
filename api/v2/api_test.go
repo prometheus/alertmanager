@@ -15,7 +15,11 @@ package v2
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	"github.com/prometheus/alertmanager/dispatch"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -509,4 +513,208 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func TestListAlertsHandler(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert5"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+	}
+
+	for i, tc := range []struct {
+		expectedCode int
+		anames       []string
+		limitConfig  *config.APILimitConfig
+	}{
+		// disable api limit
+		{
+			200,
+			[]string{"alert3", "alert2", "alert1", "alert5", "alert4"},
+			nil,
+		},
+		// maximum 1 alert
+		{
+			200,
+			[]string{"alert1"},
+			&config.APILimitConfig{
+				MaxAlertsCount: 1,
+			},
+		},
+		// maximum 3 alert
+		{
+			200,
+			[]string{"alert3", "alert2", "alert1"},
+			&config.APILimitConfig{
+				MaxAlertsCount: 3,
+			},
+		},
+	} {
+		alertsProvider := newFakeAlerts(alerts)
+		api := API{
+			uptime:         time.Now(),
+			getAlertStatus: getAlertStatus,
+			logger:         log.NewNopLogger(),
+			apiLimit:       tc.limitConfig,
+			alerts:         alertsProvider,
+			setAlertStatus: func(model.LabelSet) {},
+		}
+		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+		r, err := http.NewRequest("GET", "/api/v2/alerts", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		silence := false
+		inhibited := false
+		active := true
+		responder := api.getAlertsHandler(alert_ops.GetAlertsParams{
+			HTTPRequest: r,
+			Silenced:    &silence,
+			Inhibited:   &inhibited,
+			Active:      &active,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		retAlerts := open_api_models.GettableAlerts{}
+		err = json.Unmarshal(body, &retAlerts)
+		if err != nil {
+			t.Fatalf("Unexpected error %v", err)
+		}
+		anames := []string{}
+		for _, a := range retAlerts {
+			name, ok := a.Labels["alertname"]
+			if ok {
+				anames = append(anames, string(name))
+			}
+		}
+		require.Equal(t, tc.anames, anames, fmt.Sprintf("test case: %d, alert names are not equal", i))
+	}
+}
+
+func TestGetAlertGroupsHandler(t *testing.T) {
+	var startAt time.Time
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: startAt,
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: startAt,
+			},
+		},
+	}
+	aginfos := dispatch.AlertGroups{
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+			},
+			Receiver: "testing",
+			Alerts:   alerts[:1],
+		},
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+			},
+			Receiver: "prod",
+			Alerts:   alerts[:2],
+		},
+	}
+	for _, tc := range []struct {
+		body         string
+		expectedCode int
+		alertLimit   *config.APILimitConfig
+	}{
+		// maximum 1 alert
+		{
+			fmt.Sprintf(`[{"alerts":[{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert1","state":"active"}}],"labels":{"alertname":"TestingAlert"},"receiver":{"name":"testing"}}]`, alerts[0].Fingerprint()),
+			200,
+			&config.APILimitConfig{
+				MaxAlertsCount: 1,
+			},
+		},
+		// maximum 3 alert
+		{
+			fmt.Sprintf(`[{"alerts":[{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert1","state":"active"}}],"labels":{"alertname":"TestingAlert"},"receiver":{"name":"testing"}},{"alerts":[{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert1","state":"active"}},{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert2","state":"unprocessed"}}],"labels":{"alertname":"HighErrorRate"},"receiver":{"name":"prod"}}]`, alerts[0].Fingerprint(), alerts[0].Fingerprint(), alerts[1].Fingerprint()),
+			200,
+			&config.APILimitConfig{
+				MaxAlertsCount: 3,
+			},
+		},
+		// disable api limit
+		{
+			fmt.Sprintf(`[{"alerts":[{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert1","state":"active"}}],"labels":{"alertname":"TestingAlert"},"receiver":{"name":"testing"}},{"alerts":[{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert1","state":"active"}},{"annotations":{},"endsAt":"0001-01-01T00:00:00.000Z","fingerprint":"%s","receivers":[],"startsAt":"0001-01-01T00:00:00.000Z","status":{"inhibitedBy":[],"silencedBy":[],"state":"active"},"updatedAt":"0001-01-01T00:00:00.000Z","labels":{"alertname":"alert2","state":"unprocessed"}}],"labels":{"alertname":"HighErrorRate"},"receiver":{"name":"prod"}}]`, alerts[0].Fingerprint(), alerts[0].Fingerprint(), alerts[1].Fingerprint()),
+			200,
+			nil,
+		},
+	} {
+		api := API{
+			uptime: time.Now(),
+			alertGroups: func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+				return aginfos, nil
+			},
+			getAlertStatus: getAlertStatus,
+			logger:         log.NewNopLogger(),
+			apiLimit:       tc.alertLimit,
+		}
+		r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		silence := false
+		inhibited := false
+		active := true
+		responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+			HTTPRequest: r,
+			Silenced:    &silence,
+			Inhibited:   &inhibited,
+			Active:      &active,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		require.Equal(t, tc.body, string(body))
+	}
+}
+
+func getAlertStatus(model.Fingerprint) types.AlertStatus {
+	status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
+	status.State = types.AlertStateActive
+	return status
 }
