@@ -23,7 +23,10 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
+	"github.com/prometheus/alertmanager/dispatch"
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	"github.com/prometheus/alertmanager/util/callback"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
@@ -583,4 +586,223 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func TestListAlertsHandler(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert5"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name         string
+		expectedCode int
+		anames       []string
+		callback     callback.Callback
+	}{
+		{
+			"no call back",
+			200,
+			[]string{"alert3", "alert2", "alert1", "alert5", "alert4"},
+			callback.NoopAPICallback{},
+		},
+		{
+			"callback: only return 1 alert",
+			200,
+			[]string{"alert3"},
+			limitNumberOfAlertsReturnedCallback{limit: 1},
+		},
+		{
+			"callback: only return 3 alert",
+			200,
+			[]string{"alert3", "alert2", "alert1"},
+			limitNumberOfAlertsReturnedCallback{limit: 3},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			alertsProvider := newFakeAlerts(alerts)
+			api := API{
+				uptime:         time.Now(),
+				getAlertStatus: getAlertStatus,
+				logger:         log.NewNopLogger(),
+				apiCallback:    tc.callback,
+				alerts:         alertsProvider,
+				setAlertStatus: func(model.LabelSet) {},
+			}
+			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+			r, err := http.NewRequest("GET", "/api/v2/alerts", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			silence := false
+			inhibited := false
+			active := true
+			responder := api.getAlertsHandler(alert_ops.GetAlertsParams{
+				HTTPRequest: r,
+				Silenced:    &silence,
+				Inhibited:   &inhibited,
+				Active:      &active,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := io.ReadAll(w.Result().Body)
+
+			require.Equal(t, tc.expectedCode, w.Code)
+			retAlerts := open_api_models.GettableAlerts{}
+			err = json.Unmarshal(body, &retAlerts)
+			if err != nil {
+				t.Fatalf("Unexpected error %v", err)
+			}
+			anames := []string{}
+			for _, a := range retAlerts {
+				name, ok := a.Labels["alertname"]
+				if ok {
+					anames = append(anames, string(name))
+				}
+			}
+			require.Equal(t, tc.anames, anames)
+		})
+	}
+}
+
+func TestGetAlertGroupsHandler(t *testing.T) {
+	var startAt time.Time
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: startAt,
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: startAt,
+			},
+		},
+	}
+	aginfos := dispatch.AlertGroups{
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+			},
+			Receiver: "testing",
+			Alerts:   alerts[:1],
+		},
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+			},
+			Receiver: "prod",
+			Alerts:   alerts[:2],
+		},
+	}
+	for _, tc := range []struct {
+		name         string
+		numberOfAG   int
+		expectedCode int
+		callback     callback.Callback
+	}{
+		{
+			"no call back",
+			2,
+			200,
+			callback.NoopAPICallback{},
+		},
+		{
+			"callback: only return 1 alert group",
+			1,
+			200,
+			limitNumberOfAlertsReturnedCallback{limit: 1},
+		},
+		{
+			"callback: only return 2 alert group",
+			2,
+			200,
+			limitNumberOfAlertsReturnedCallback{limit: 2},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			api := API{
+				uptime: time.Now(),
+				alertGroups: func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+					return aginfos, nil
+				},
+				getAlertStatus: getAlertStatus,
+				logger:         log.NewNopLogger(),
+				apiCallback:    tc.callback,
+			}
+			r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			silence := false
+			inhibited := false
+			active := true
+			responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+				HTTPRequest: r,
+				Silenced:    &silence,
+				Inhibited:   &inhibited,
+				Active:      &active,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := io.ReadAll(w.Result().Body)
+
+			require.Equal(t, tc.expectedCode, w.Code)
+			retAlertGroups := open_api_models.AlertGroups{}
+			err = json.Unmarshal(body, &retAlertGroups)
+			if err != nil {
+				t.Fatalf("Unexpected error %v", err)
+			}
+			require.Equal(t, tc.numberOfAG, len(retAlertGroups))
+		})
+	}
+}
+
+type limitNumberOfAlertsReturnedCallback struct {
+	limit int
+}
+
+func (n limitNumberOfAlertsReturnedCallback) V2GetAlertsCallback(alerts open_api_models.GettableAlerts) (open_api_models.GettableAlerts, error) {
+	return alerts[:n.limit], nil
+}
+
+func (n limitNumberOfAlertsReturnedCallback) V2GetAlertGroupsCallback(alertgroups open_api_models.AlertGroups) (open_api_models.AlertGroups, error) {
+	return alertgroups[:n.limit], nil
+}
+
+func getAlertStatus(model.Fingerprint) types.AlertStatus {
+	status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
+	status.State = types.AlertStateActive
+	return status
 }
