@@ -72,8 +72,8 @@ type Message struct {
 	Version         string `json:"version"`
 	GroupKey        string `json:"groupKey"`
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
-	Firing          uint64 `json:"firing"`
-	Resolved        uint64 `json:"resolved"`
+	FiringAlerts    uint64 `json:"firingAlerts"`
+	ResolvedAlerts  uint64 `json:"resolvedAlerts"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
@@ -112,8 +112,8 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		Data:            data,
 		GroupKey:        groupKey.String(),
 		TruncatedAlerts: numTruncated,
-		Firing:          uint64(numFiring),
-		Resolved:        uint64(numResolved),
+		FiringAlerts:    numFiring,
+		ResolvedAlerts:  numResolved,
 	}
 
 	var buf bytes.Buffer
