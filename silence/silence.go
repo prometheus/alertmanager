@@ -33,11 +33,11 @@ import (
 	uuid "github.com/gofrs/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -48,12 +48,12 @@ var ErrNotFound = fmt.Errorf("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = fmt.Errorf("invalid state")
 
-type matcherCache map[*pb.Silence]labels.Matchers
+type matcherCache map[*pb.Silence]matchers.Matchers
 
 // Get retrieves the matchers for a given silence. If it is a missed cache
 // access, it compiles and adds the matchers of the requested silence to the
 // cache.
-func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
+func (c matcherCache) Get(s *pb.Silence) (matchers.Matchers, error) {
 	if m, ok := c[s]; ok {
 		return m, nil
 	}
@@ -62,24 +62,24 @@ func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
 
 // add compiles a silences' matchers and adds them to the cache.
 // It returns the compiled matchers.
-func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
-	ms := make(labels.Matchers, len(s.Matchers))
+func (c matcherCache) add(s *pb.Silence) (matchers.Matchers, error) {
+	ms := make(matchers.Matchers, len(s.Matchers))
 
 	for i, m := range s.Matchers {
-		var mt labels.MatchType
+		var mt matchers.MatchType
 		switch m.Type {
 		case pb.Matcher_EQUAL:
-			mt = labels.MatchEqual
+			mt = matchers.MatchEqual
 		case pb.Matcher_NOT_EQUAL:
-			mt = labels.MatchNotEqual
+			mt = matchers.MatchNotEqual
 		case pb.Matcher_REGEXP:
-			mt = labels.MatchRegexp
+			mt = matchers.MatchRegexp
 		case pb.Matcher_NOT_REGEXP:
-			mt = labels.MatchNotRegexp
+			mt = matchers.MatchNotRegexp
 		default:
 			return nil, errors.Errorf("unknown matcher type %q", m.Type)
 		}
-		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
+		matcher, err := matchers.NewMatcher(mt, m.Name, m.Pattern)
 		if err != nil {
 			return nil, err
 		}

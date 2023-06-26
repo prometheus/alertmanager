@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"net/http"
 	"regexp"
 	"sort"
@@ -34,8 +35,8 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/pkg/labels"
-	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
+	"github.com/prometheus/alertmanager/matchers"
+	matchers_parser "github.com/prometheus/alertmanager/matchers/adapter"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -231,7 +232,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
 		res      = []*Alert{}
-		matchers = []*labels.Matcher{}
+		matchers = matchers.Matchers{}
 		ctx      = r.Context()
 
 		showActive, showInhibited     bool
@@ -258,7 +259,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = new_matchers.Parse(filter)
+		matchers, err = matchers_parser.ParseMatchers(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -385,7 +386,7 @@ func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
 	return false
 }
 
-func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
+func alertMatchesFilterLabels(a *model.Alert, matchers matchers.Matchers) bool {
 	sms := make(map[string]string)
 	for name, value := range a.Labels {
 		sms[string(name)] = string(value)
@@ -577,9 +578,9 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matchers := []*labels.Matcher{}
+	matchers := matchers.Matchers{}
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = new_matchers.Parse(filter)
+		matchers, err = matchers_parser.ParseMatchers(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -639,7 +640,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	api.respond(w, silences)
 }
 
-func silenceMatchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
+func silenceMatchesFilterLabels(s *types.Silence, matchers matchers.Matchers) bool {
 	sms := make(map[string]string)
 	for _, m := range s.Matchers {
 		sms[m.Name] = m.Value
@@ -648,11 +649,11 @@ func silenceMatchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bo
 	return matchFilterLabels(matchers, sms)
 }
 
-func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
-	for _, m := range matchers {
+func matchFilterLabels(ms matchers.Matchers, sms map[string]string) bool {
+	for _, m := range ms {
 		v, prs := sms[m.Name]
 		switch m.Type {
-		case labels.MatchNotRegexp, labels.MatchNotEqual:
+		case matchers.MatchNotRegexp, matchers.MatchNotEqual:
 			if string(m.Value) == "" && prs {
 				continue
 			}
@@ -687,13 +688,13 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 			Pattern: m.Value,
 		}
 		switch m.Type {
-		case labels.MatchEqual:
+		case matchers.MatchEqual:
 			matcher.Type = silencepb.Matcher_EQUAL
-		case labels.MatchNotEqual:
+		case matchers.MatchNotEqual:
 			matcher.Type = silencepb.Matcher_NOT_EQUAL
-		case labels.MatchRegexp:
+		case matchers.MatchRegexp:
 			matcher.Type = silencepb.Matcher_REGEXP
-		case labels.MatchNotRegexp:
+		case matchers.MatchNotRegexp:
 			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
@@ -714,18 +715,18 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 		CreatedBy: s.CreatedBy,
 	}
 	for _, m := range s.Matchers {
-		var t labels.MatchType
+		var t matchers.MatchType
 		switch m.Type {
 		case silencepb.Matcher_EQUAL:
-			t = labels.MatchEqual
+			t = matchers.MatchEqual
 		case silencepb.Matcher_NOT_EQUAL:
-			t = labels.MatchNotEqual
+			t = matchers.MatchNotEqual
 		case silencepb.Matcher_REGEXP:
-			t = labels.MatchRegexp
+			t = matchers.MatchRegexp
 		case silencepb.Matcher_NOT_REGEXP:
-			t = labels.MatchNotRegexp
+			t = matchers.MatchNotRegexp
 		}
-		matcher, err := labels.NewMatcher(t, m.Name, m.Pattern)
+		matcher, err := matchers.NewMatcher(t, m.Name, m.Pattern)
 		if err != nil {
 			return nil, err
 		}

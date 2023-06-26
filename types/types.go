@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 )
 
 // AlertState is used as part of AlertStatus.
@@ -393,7 +393,7 @@ type Silence struct {
 	ID string `json:"id"`
 	// A set of matchers determining if a label set is affected
 	// by the silence.
-	Matchers labels.Matchers `json:"matchers"`
+	Matchers matchers.Matchers `json:"matchers"`
 
 	// Time range of the silence.
 	//

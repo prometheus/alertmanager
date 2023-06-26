@@ -30,7 +30,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -325,7 +325,7 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	// Equal
-	equal, err := labels.NewMatcher(labels.MatchEqual, "label1", "test1")
+	equal, err := matchers.NewMatcher(matchers.MatchEqual, "label1", "test1")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -337,13 +337,13 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := alertMatchesFilterLabels(test.alert, []*labels.Matcher{equal})
+		actual := alertMatchesFilterLabels(test.alert, []*matchers.Matcher{equal})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Not Equal
-	notEqual, err := labels.NewMatcher(labels.MatchNotEqual, "label1", "test1")
+	notEqual, err := matchers.NewMatcher(matchers.MatchNotEqual, "label1", "test1")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -355,13 +355,13 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := alertMatchesFilterLabels(test.alert, []*labels.Matcher{notEqual})
+		actual := alertMatchesFilterLabels(test.alert, []*matchers.Matcher{notEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Regexp Equal
-	regexpEqual, err := labels.NewMatcher(labels.MatchRegexp, "label1", "tes.*")
+	regexpEqual, err := matchers.NewMatcher(matchers.MatchRegexp, "label1", "tes.*")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -373,13 +373,13 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := alertMatchesFilterLabels(test.alert, []*labels.Matcher{regexpEqual})
+		actual := alertMatchesFilterLabels(test.alert, []*matchers.Matcher{regexpEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Regexp Not Equal
-	regexpNotEqual, err := labels.NewMatcher(labels.MatchNotRegexp, "label1", "tes.*")
+	regexpNotEqual, err := matchers.NewMatcher(matchers.MatchNotRegexp, "label1", "tes.*")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -391,7 +391,7 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := alertMatchesFilterLabels(test.alert, []*labels.Matcher{regexpNotEqual})
+		actual := alertMatchesFilterLabels(test.alert, []*matchers.Matcher{regexpNotEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
@@ -405,7 +405,7 @@ func TestSilenceFiltering(t *testing.T) {
 	}
 
 	// Equal
-	equal, err := labels.NewMatcher(labels.MatchEqual, "label1", "test1")
+	equal, err := matchers.NewMatcher(matchers.MatchEqual, "label1", "test1")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -429,13 +429,13 @@ func TestSilenceFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := silenceMatchesFilterLabels(test.silence, []*labels.Matcher{equal})
+		actual := silenceMatchesFilterLabels(test.silence, []*matchers.Matcher{equal})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Not Equal
-	notEqual, err := labels.NewMatcher(labels.MatchNotEqual, "label1", "test1")
+	notEqual, err := matchers.NewMatcher(matchers.MatchNotEqual, "label1", "test1")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -459,13 +459,13 @@ func TestSilenceFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := silenceMatchesFilterLabels(test.silence, []*labels.Matcher{notEqual})
+		actual := silenceMatchesFilterLabels(test.silence, []*matchers.Matcher{notEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Regexp Equal
-	regexpEqual, err := labels.NewMatcher(labels.MatchRegexp, "label1", "tes.*")
+	regexpEqual, err := matchers.NewMatcher(matchers.MatchRegexp, "label1", "tes.*")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -489,13 +489,13 @@ func TestSilenceFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := silenceMatchesFilterLabels(test.silence, []*labels.Matcher{regexpEqual})
+		actual := silenceMatchesFilterLabels(test.silence, []*matchers.Matcher{regexpEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
 
 	// Regexp Not Equal
-	regexpNotEqual, err := labels.NewMatcher(labels.MatchNotRegexp, "label1", "tes.*")
+	regexpNotEqual, err := matchers.NewMatcher(matchers.MatchNotRegexp, "label1", "tes.*")
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -519,7 +519,7 @@ func TestSilenceFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := silenceMatchesFilterLabels(test.silence, []*labels.Matcher{regexpNotEqual})
+		actual := silenceMatchesFilterLabels(test.silence, []*matchers.Matcher{regexpNotEqual})
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
@@ -543,44 +543,44 @@ func TestReceiversMatchFilter(t *testing.T) {
 
 func TestMatchFilterLabels(t *testing.T) {
 	testCases := []struct {
-		matcher  labels.MatchType
+		matcher  matchers.MatchType
 		expected bool
 	}{
-		{labels.MatchEqual, true},
-		{labels.MatchRegexp, true},
-		{labels.MatchNotEqual, false},
-		{labels.MatchNotRegexp, false},
+		{matchers.MatchEqual, true},
+		{matchers.MatchRegexp, true},
+		{matchers.MatchNotEqual, false},
+		{matchers.MatchNotRegexp, false},
 	}
 
 	for _, tc := range testCases {
-		l, err := labels.NewMatcher(tc.matcher, "foo", "")
+		l, err := matchers.NewMatcher(tc.matcher, "foo", "")
 		require.NoError(t, err)
 		sms := map[string]string{
 			"baz": "bar",
 		}
-		ls := []*labels.Matcher{l}
+		ls := []*matchers.Matcher{l}
 
 		require.Equal(t, tc.expected, matchFilterLabels(ls, sms))
 
-		l, err = labels.NewMatcher(tc.matcher, "foo", "")
+		l, err = matchers.NewMatcher(tc.matcher, "foo", "")
 		require.NoError(t, err)
 		sms = map[string]string{
 			"baz": "bar",
 			"foo": "quux",
 		}
-		ls = []*labels.Matcher{l}
+		ls = []*matchers.Matcher{l}
 		require.NotEqual(t, tc.expected, matchFilterLabels(ls, sms))
 	}
 }
 
-func newMatcher(labelSet model.LabelSet) labels.Matchers {
-	matchers := make([]*labels.Matcher, 0, len(labelSet))
+func newMatcher(labelSet model.LabelSet) matchers.Matchers {
+	m := make([]*matchers.Matcher, 0, len(labelSet))
 	for key, val := range labelSet {
-		matchers = append(matchers, &labels.Matcher{
-			Type:  labels.MatchEqual,
+		m = append(m, &matchers.Matcher{
+			Type:  matchers.MatchEqual,
 			Name:  string(key),
 			Value: string(val),
 		})
 	}
-	return matchers
+	return m
 }

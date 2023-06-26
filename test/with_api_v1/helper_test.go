@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -137,11 +137,11 @@ func TestAPI(t *testing.T) {
 
 	silOne := &types.Silence{
 		ID: "abc",
-		Matchers: []*labels.Matcher{
+		Matchers: []*matchers.Matcher{
 			{
 				Name:  "label1",
 				Value: "test1",
-				Type:  labels.MatchEqual,
+				Type:  matchers.MatchEqual,
 			},
 		},
 		StartsAt:  now,

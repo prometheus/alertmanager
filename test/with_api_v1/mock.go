@@ -24,8 +24,8 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/notify/webhook"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -107,14 +107,14 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *types.Silence {
 	nsil := &types.Silence{}
 
 	for i := 0; i < len(s.match); i += 2 {
-		nsil.Matchers = append(nsil.Matchers, &labels.Matcher{
-			Type:  labels.MatchEqual,
+		nsil.Matchers = append(nsil.Matchers, &matchers.Matcher{
+			Type:  matchers.MatchEqual,
 			Name:  s.match[i],
 			Value: s.match[i+1],
 		})
 	}
 	for i := 0; i < len(s.matchRE); i += 2 {
-		m, err := labels.NewMatcher(labels.MatchRegexp, s.matchRE[i], s.matchRE[i+1])
+		m, err := matchers.NewMatcher(matchers.MatchRegexp, s.matchRE[i], s.matchRE[i+1])
 		if err != nil {
 			panic(err)
 		}

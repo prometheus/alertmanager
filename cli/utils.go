@@ -27,8 +27,8 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
-	new_matchers "github.com/prometheus/alertmanager/pkg/matchers"
+	"github.com/prometheus/alertmanager/matchers"
+	matchers_parser "github.com/prometheus/alertmanager/matchers/adapter"
 )
 
 // GetAlertmanagerURL appends the given path to the alertmanager base URL
@@ -39,19 +39,19 @@ func GetAlertmanagerURL(p string) url.URL {
 }
 
 // parseMatchers parses a list of matchers (cli arguments).
-func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
-	m := make([]labels.Matcher, 0, len(inputMatchers))
+func parseMatchers(inputMatchers []string) ([]matchers.Matcher, error) {
+	ms := make([]matchers.Matcher, 0, len(inputMatchers))
 
 	for _, v := range inputMatchers {
-		matcher, err := new_matchers.Parse(v)
+		m, err := matchers_parser.ParseMatcher(v)
 		if err != nil {
-			return []labels.Matcher{}, err
+			return []matchers.Matcher{}, err
 		}
 
-		m = append(m, *matcher[0])
+		ms = append(ms, *m)
 	}
 
-	return m, nil
+	return ms, nil
 }
 
 // getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
@@ -108,41 +108,40 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		matchers, err := new_matchers.Parse(l)
+		m, err := matchers_parser.ParseMatcher(l)
 		if err != nil {
 			return models.LabelSet{}, err
 		}
-		matcher := matchers[0]
-		if matcher.Type != labels.MatchEqual {
+		if m.Type != matchers.MatchEqual {
 			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
 		}
 
-		labelSet[matcher.Name] = matcher.Value
+		labelSet[m.Name] = m.Value
 	}
 
 	return labelSet, nil
 }
 
 // TypeMatchers only valid for when you are going to add a silence
-func TypeMatchers(matchers []labels.Matcher) models.Matchers {
-	typeMatchers := make(models.Matchers, len(matchers))
-	for i, matcher := range matchers {
+func TypeMatchers(ms []matchers.Matcher) models.Matchers {
+	typeMatchers := make(models.Matchers, len(ms))
+	for i, matcher := range ms {
 		typeMatchers[i] = TypeMatcher(matcher)
 	}
 	return typeMatchers
 }
 
 // TypeMatcher only valid for when you are going to add a silence
-func TypeMatcher(matcher labels.Matcher) *models.Matcher {
-	name := matcher.Name
-	value := matcher.Value
+func TypeMatcher(m matchers.Matcher) *models.Matcher {
+	name := m.Name
+	value := m.Value
 	typeMatcher := models.Matcher{
 		Name:  &name,
 		Value: &value,
 	}
 
-	isEqual := (matcher.Type == labels.MatchEqual) || (matcher.Type == labels.MatchRegexp)
-	isRegex := (matcher.Type == labels.MatchRegexp) || (matcher.Type == labels.MatchNotRegexp)
+	isEqual := (m.Type == matchers.MatchEqual) || (m.Type == matchers.MatchRegexp)
+	isRegex := (m.Type == matchers.MatchRegexp) || (m.Type == matchers.MatchNotRegexp)
 	typeMatcher.IsEqual = &isEqual
 	typeMatcher.IsRegex = &isRegex
 	return &typeMatcher

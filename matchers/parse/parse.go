@@ -11,14 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package matchers
+package parse
 
 import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 )
 
 var (
@@ -43,7 +44,7 @@ type Parser struct {
 	hasOpenParen bool
 	input        string
 	lexer        Lexer
-	matchers     labels.Matchers
+	matchers     matchers.Matchers
 }
 
 func NewParser(input string) Parser {
@@ -61,7 +62,7 @@ func (p *Parser) Error() error {
 // Parse returns a series of matchers or an error. It can be called more than
 // once, however successive calls return the matchers and err from the first
 // call.
-func (p *Parser) Parse() (labels.Matchers, error) {
+func (p *Parser) Parse() (matchers.Matchers, error) {
 	if !p.done {
 		p.done = true
 		p.matchers, p.err = p.parse()
@@ -119,7 +120,7 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 }
 
-func (p *Parser) parse() (labels.Matchers, error) {
+func (p *Parser) parse() (matchers.Matchers, error) {
 	var (
 		err error
 		fn  = p.parseOpenParen
@@ -213,7 +214,7 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 		tok        Token
 		labelName  string
 		labelValue string
-		ty         labels.MatchType
+		ty         matchers.MatchType
 	)
 
 	// The next token is the label name. This can either be an ident which
@@ -247,7 +248,7 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 		}
 	}
 
-	m, err := labels.NewMatcher(ty, labelName, labelValue)
+	m, err := matchers.NewMatcher(ty, labelName, labelValue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create matcher: %s", err)
 	}
@@ -275,21 +276,35 @@ func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFn, error) {
 	}
 }
 
-func Parse(input string) (labels.Matchers, error) {
+func Parse(input string) (matchers.Matchers, error) {
 	p := NewParser(input)
 	return p.Parse()
 }
 
-func matchType(s string) (labels.MatchType, error) {
+func ParseMatcher(input string) (*matchers.Matcher, error) {
+	if strings.HasPrefix(input, "{") {
+		return nil, errors.New("Individual matchers cannot start and end with braces")
+	}
+	m, err := Parse(input)
+	if err != nil {
+		return nil, err
+	}
+	if len(m) > 1 {
+		return nil, fmt.Errorf("expected 1 matcher, found %d", len(m))
+	}
+	return m[0], nil
+}
+
+func matchType(s string) (matchers.MatchType, error) {
 	switch s {
 	case "=":
-		return labels.MatchEqual, nil
+		return matchers.MatchEqual, nil
 	case "!=":
-		return labels.MatchNotEqual, nil
+		return matchers.MatchNotEqual, nil
 	case "=~":
-		return labels.MatchRegexp, nil
+		return matchers.MatchRegexp, nil
 	case "!~":
-		return labels.MatchNotRegexp, nil
+		return matchers.MatchNotRegexp, nil
 	default:
 		return -1, fmt.Errorf("unexpected operator: %s", s)
 	}

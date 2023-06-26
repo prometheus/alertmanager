@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -153,10 +153,10 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 type InhibitRule struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
-	SourceMatchers labels.Matchers
+	SourceMatchers matchers.Matchers
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
-	TargetMatchers labels.Matchers
+	TargetMatchers matchers.Matchers
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
 	Equal map[model.LabelName]struct{}
@@ -168,47 +168,47 @@ type InhibitRule struct {
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	var (
-		sourcem labels.Matchers
-		targetm labels.Matchers
+		sourcem matchers.Matchers
+		targetm matchers.Matchers
 	)
 	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatch {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		m, err := matchers.NewMatcher(matchers.MatchEqual, ln, lv)
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		sourcem = append(sourcem, matcher)
+		sourcem = append(sourcem, m)
 	}
 	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		m, err := matchers.NewMatcher(matchers.MatchRegexp, ln, lv.String())
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		sourcem = append(sourcem, matcher)
+		sourcem = append(sourcem, m)
 	}
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	sourcem = append(sourcem, cr.SourceMatchers...)
 
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		m, err := matchers.NewMatcher(matchers.MatchEqual, ln, lv)
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		targetm = append(targetm, matcher)
+		targetm = append(targetm, m)
 	}
 	// cr.TargetMatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		m, err := matchers.NewMatcher(matchers.MatchRegexp, ln, lv.String())
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		targetm = append(targetm, matcher)
+		targetm = append(targetm, m)
 	}
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	targetm = append(targetm, cr.TargetMatchers...)

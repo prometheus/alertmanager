@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 )
 
@@ -62,9 +62,9 @@ func createSilenceMatcher(t *testing.T, name, pattern string, matcherType silenc
 	}
 }
 
-func createLabelMatcher(t *testing.T, name, value string, matchType labels.MatchType) *labels.Matcher {
+func createLabelMatcher(t *testing.T, name, value string, matchType matchers.MatchType) *matchers.Matcher {
 	t.Helper()
 
-	matcher, _ := labels.NewMatcher(matchType, name, value)
+	matcher, _ := matchers.NewMatcher(matchType, name, value)
 	return matcher
 }

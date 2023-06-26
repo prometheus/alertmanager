@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -238,13 +238,13 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 
 	rule1 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
-		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
+		SourceMatchers: config.Matchers{&matchers.Matcher{Type: matchers.MatchEqual, Name: "s1", Value: "1"}},
+		TargetMatchers: config.Matchers{&matchers.Matcher{Type: matchers.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          model.LabelNames{"e"},
 	}
 	rule2 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
-		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
+		SourceMatchers: config.Matchers{&matchers.Matcher{Type: matchers.MatchEqual, Name: "s2", Value: "1"}},
+		TargetMatchers: config.Matchers{&matchers.Matcher{Type: matchers.MatchEqual, Name: "t2", Value: "1"}},
 		Equal:          model.LabelNames{"e"},
 	}
 

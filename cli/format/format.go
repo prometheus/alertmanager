@@ -21,7 +21,7 @@ import (
 	"github.com/go-openapi/strfmt"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matchers"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
@@ -48,8 +48,8 @@ func FormatDate(input strfmt.DateTime) string {
 	return time.Time(input).Format(*dateFormat)
 }
 
-func labelsMatcher(m models.Matcher) *labels.Matcher {
-	var t labels.MatchType
+func labelsMatcher(m models.Matcher) *matchers.Matcher {
+	var t matchers.MatchType
 	// Support for older alertmanager releases, which did not support isEqual.
 	if m.IsEqual == nil {
 		isEqual := true
@@ -57,14 +57,14 @@ func labelsMatcher(m models.Matcher) *labels.Matcher {
 	}
 	switch {
 	case !*m.IsRegex && *m.IsEqual:
-		t = labels.MatchEqual
+		t = matchers.MatchEqual
 	case !*m.IsRegex && !*m.IsEqual:
-		t = labels.MatchNotEqual
+		t = matchers.MatchNotEqual
 	case *m.IsRegex && *m.IsEqual:
-		t = labels.MatchRegexp
+		t = matchers.MatchRegexp
 	case *m.IsRegex && !*m.IsEqual:
-		t = labels.MatchNotRegexp
+		t = matchers.MatchNotRegexp
 	}
 
-	return &labels.Matcher{Type: t, Name: *m.Name, Value: *m.Value}
+	return &matchers.Matcher{Type: t, Name: *m.Name, Value: *m.Value}
 }

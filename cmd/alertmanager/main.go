@@ -47,6 +47,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
+	matchers_parser "github.com/prometheus/alertmanager/matchers/adapter"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/discord"
@@ -211,8 +212,9 @@ func run() int {
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
-		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
-				Default(defaultClusterAddr).String()
+		useNewMatchersParser = kingpin.Flag("experimental.new_machers_parser", "").Bool()
+		clusterBindAddr      = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
+					Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout            = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
@@ -245,6 +247,18 @@ func run() int {
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
 		return 1
+	}
+
+	if *useNewMatchersParser {
+		level.Info(logger).Log("msg", "Using new matchers parser")
+		l := log.With(logger, "component", "matchers")
+		matchers_parser.ParseMatcher = matchers_parser.FallbackMatcherParser(l)
+		matchers_parser.ParseMatchers = matchers_parser.FallbackMatchersParser(l)
+	} else {
+		level.Info(logger).Log("msg", "Using old regular expressions matchers parser")
+		l := log.With(logger, "component", "matchers")
+		matchers_parser.ParseMatcher = matchers_parser.OldMatcherParser(l)
+		matchers_parser.ParseMatchers = matchers_parser.OldMatchersParser(l)
 	}
 
 	tlsTransportConfig, err := cluster.GetTLSTransportConfig(*tlsConfigFile)
