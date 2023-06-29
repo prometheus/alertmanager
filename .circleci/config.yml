@@ -18,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.19"
+          version: "1.20"
       - run:
           name: Remove generated code
           command: make clean
@@ -47,7 +47,7 @@ jobs:
   test:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.19-base
+      - image: quay.io/prometheus/golang-builder:1.20-base
       # maildev containers are for running the email tests against a "real" SMTP server.
       # See notify/email_test.go for details.
       - image: maildev/maildev:1.1.0
@@ -104,7 +104,7 @@ jobs:
   mixin:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.19-base
+      - image: quay.io/prometheus/golang-builder:1.20-base
     steps:
       - checkout
       - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
