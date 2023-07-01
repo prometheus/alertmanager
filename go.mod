@@ -11,7 +11,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.21.4
-	github.com/go-openapi/errors v0.20.3
+	github.com/go-openapi/errors v0.20.4
 	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.26.0
 	github.com/go-openapi/spec v0.20.8
