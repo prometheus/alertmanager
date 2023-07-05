@@ -180,25 +180,26 @@ func (r *Route) Key() string {
 	return b.String()
 }
 
-// ID returns a unique identifier for the route, unlike Key().
+// ID returns a unique identifier for the route, unlike Key(). This need to be called after full route tree
+// finish generated as it need to know the position of this route in the whole tree
 func (r *Route) ID() string {
 	b := strings.Builder{}
 
-	var position *int
+	position := -1
 	if r.parent != nil {
 		// Find the position in the same level leaf.
 		for i, cr := range r.parent.Routes {
 			if cr == r {
-				position = &i
+				position = i
 				break
 			}
 		}
 	}
 	b.WriteString(r.Key())
 
-	if position != nil {
+	if position > -1 {
 		b.WriteRune('/')
-		b.WriteString(fmt.Sprint(*position))
+		b.WriteString(fmt.Sprint(position))
 	}
 	return b.String()
 }
