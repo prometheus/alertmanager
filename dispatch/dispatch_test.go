@@ -188,21 +188,14 @@ func TestAggrGroup(t *testing.T) {
 
 	ag.stop()
 
-	// Add an alert that started more than group_interval in the past. We expect
-	// immediate flushing.
-	// Finally, set all alerts to be resolved. After successful notify the aggregation group
+	// Set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
 	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
 	go ag.run(ntfy)
-
 	ag.insert(a1)
 	ag.insert(a2)
 
-	// a2 lies way in the past so the initial group_wait should be skipped.
 	select {
-	case <-time.After(opts.GroupWait / 2):
-		t.Fatalf("expected immediate alert but received none")
-
 	case batch := <-alertsCh:
 		exp := removeEndsAt(types.AlertSlice{a1, a2})
 		sort.Sort(batch)

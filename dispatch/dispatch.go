@@ -383,7 +383,6 @@ type aggrGroup struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
-	hasFlushed bool
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -450,7 +449,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
 			ag.next.Reset(ag.opts.GroupInterval)
-			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
 			ag.flush(func(alerts ...*types.Alert) bool {
@@ -476,14 +474,6 @@ func (ag *aggrGroup) stop() {
 func (ag *aggrGroup) insert(alert *types.Alert) {
 	if err := ag.alerts.Set(alert); err != nil {
 		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
-	}
-
-	// Immediately trigger a flush if the wait duration for this
-	// alert is already over.
-	ag.mtx.Lock()
-	defer ag.mtx.Unlock()
-	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
-		ag.next.Reset(0)
 	}
 }
 
