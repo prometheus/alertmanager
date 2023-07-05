@@ -195,14 +195,12 @@ func TestAggrGroup(t *testing.T) {
 	ag.insert(a1)
 	ag.insert(a2)
 
-	select {
-	case batch := <-alertsCh:
-		exp := removeEndsAt(types.AlertSlice{a1, a2})
-		sort.Sort(batch)
+	batch := <-alertsCh
+	exp := removeEndsAt(types.AlertSlice{a1, a2})
+	sort.Sort(batch)
 
-		if !reflect.DeepEqual(batch, exp) {
-			t.Fatalf("expected alerts %v but got %v", exp, batch)
-		}
+	if !reflect.DeepEqual(batch, exp) {
+		t.Fatalf("expected alerts %v but got %v", exp, batch)
 	}
 
 	for i := 0; i < 3; i++ {
