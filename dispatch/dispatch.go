@@ -382,7 +382,7 @@ type aggrGroup struct {
 	next    *time.Timer
 	timeout func(time.Duration) time.Duration
 
-	mtx        sync.RWMutex
+	mtx sync.RWMutex
 }
 
 // newAggrGroup returns a new aggregation group.
