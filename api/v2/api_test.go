@@ -23,16 +23,19 @@ import (
 	"strconv"
 	"testing"
 	"time"
-	"github.com/prometheus/alertmanager/dispatch"
-	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
-	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
-	"github.com/prometheus/alertmanager/util/callback"
+
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/util/callback"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
@@ -121,6 +124,138 @@ func gettableSilence(id, state string,
 		Status: &open_api_models.SilenceStatus{
 			State: &state,
 		},
+	}
+}
+
+func convertIntToPointerInt64(x int64) *int64 {
+	return &x
+}
+
+func convertStringToPointer(x string) *string {
+	return &x
+}
+
+func TestGetAlertGroupInfosHandler(t *testing.T) {
+	aginfos := dispatch.AlertGroupInfos{
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			},
+			Receiver: "testing",
+			ID:       "478b4114226224a35910d449fdba8186ebfb441f",
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			ID:       "7f4084a078a3fe29d6de82fad15af8f1411e803f",
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "OtherAlert",
+			},
+			Receiver: "prod",
+			ID:       "d525244929240cbdb75a497913c1890ab8de1962",
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			},
+			Receiver: "prod",
+			ID:       "d73984d43949112ae1ea59dcc5af4af7b630a5b1",
+		},
+	}
+	for _, tc := range []struct {
+		maxResult    *int64
+		nextToken    *string
+		body         string
+		expectedCode int
+	}{
+		// Invalid next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			convertStringToPointer("$$$"),
+			`failed to parse NextToken param: $$$`,
+			400,
+		},
+		// Invalid next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			convertStringToPointer("1234s"),
+			`failed to parse NextToken param: 1234s`,
+			400,
+		},
+		// Invalid MaxResults.
+		{
+			convertIntToPointerInt64(int64(-1)),
+			convertStringToPointer("478b4114226224a35910d449fdba8186ebfb441f"),
+			`failed to parse MaxResults param: -1`,
+			400,
+		},
+		// One item to return, no next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			nil,
+			`{"alertGroupInfoList":[{"id":"478b4114226224a35910d449fdba8186ebfb441f","labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
+			200,
+		},
+		// One item to return, has next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			convertStringToPointer("478b4114226224a35910d449fdba8186ebfb441f"),
+			`{"alertGroupInfoList":[{"id":"7f4084a078a3fe29d6de82fad15af8f1411e803f","labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
+			200,
+		},
+		// Five item to return, has next token.
+		{
+			convertIntToPointerInt64(int64(5)),
+			convertStringToPointer("7f4084a078a3fe29d6de82fad15af8f1411e803f"),
+			`{"alertGroupInfoList":[{"id":"d525244929240cbdb75a497913c1890ab8de1962","labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"id":"d73984d43949112ae1ea59dcc5af4af7b630a5b1","labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			200,
+		},
+		// Return all results.
+		{
+			nil,
+			nil,
+			`{"alertGroupInfoList":[{"id":"478b4114226224a35910d449fdba8186ebfb441f","labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"id":"7f4084a078a3fe29d6de82fad15af8f1411e803f","labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"id":"d525244929240cbdb75a497913c1890ab8de1962","labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"id":"d73984d43949112ae1ea59dcc5af4af7b630a5b1","labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			200,
+		},
+		// return 0 result
+		{
+			convertIntToPointerInt64(int64(0)),
+			nil,
+			`{"alertGroupInfoList":[]}`,
+			200,
+		},
+	} {
+		api := API{
+			uptime: time.Now(),
+			alertGroupInfos: func(f func(*dispatch.Route) bool) dispatch.AlertGroupInfos {
+				return aginfos
+			},
+			logger: log.NewNopLogger(),
+		}
+		r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.getAlertGroupInfoListHandler(alertgroupinfolist_ops.GetAlertGroupInfoListParams{
+			MaxResults:  tc.maxResult,
+			NextToken:   tc.nextToken,
+			HTTPRequest: r,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		require.Equal(t, tc.body, string(body))
 	}
 }
 

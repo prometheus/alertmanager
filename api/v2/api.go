@@ -32,6 +32,8 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/rs/cors"
 
+	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
+
 	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
@@ -55,14 +57,15 @@ import (
 
 // API represents an Alertmanager API v2.
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	getAlertStatus getAlertStatusFn
-	groupMutedFunc groupMutedFunc
-	apiCallback    callback.Callback
-	uptime         time.Time
+	peer            cluster.ClusterPeer
+	silences        *silence.Silences
+	alerts          provider.Alerts
+	alertGroups     groupsFn
+	alertGroupInfos groupInfosFn
+	getAlertStatus  getAlertStatusFn
+	groupMutedFunc  groupMutedFunc
+	apiCallback     callback.Callback
+	uptime          time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -81,6 +84,7 @@ type API struct {
 type (
 	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
+	groupInfosFn     func(func(*dispatch.Route) bool) dispatch.AlertGroupInfos
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
 )
@@ -89,6 +93,7 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
+	gif groupInfosFn,
 	asf getAlertStatusFn,
 	gmf groupMutedFunc,
 	silences *silence.Silences,
@@ -101,16 +106,17 @@ func NewAPI(
 		apiCallback = callback.NoopAPICallback{}
 	}
 	api := API{
-		alerts:         alerts,
-		getAlertStatus: asf,
-		alertGroups:    gf,
-		groupMutedFunc: gmf,
-		peer:           peer,
-		silences:       silences,
-		apiCallback:    apiCallback,
-		logger:         l,
-		m:              metrics.NewAlerts(r),
-		uptime:         time.Now(),
+		alerts:          alerts,
+		getAlertStatus:  asf,
+		alertGroups:     gf,
+		alertGroupInfos: gif,
+		groupMutedFunc:  gmf,
+		peer:            peer,
+		silences:        silences,
+		apiCallback:     apiCallback,
+		logger:          l,
+		m:               metrics.NewAlerts(r),
+		uptime:          time.Now(),
 	}
 
 	// Load embedded swagger file.
@@ -134,6 +140,7 @@ func NewAPI(
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.AlertgroupGetAlertGroupsHandler = alertgroup_ops.GetAlertGroupsHandlerFunc(api.getAlertGroupsHandler)
+	openAPI.AlertgroupinfolistGetAlertGroupInfoListHandler = alertgroupinfolist_ops.GetAlertGroupInfoListHandlerFunc(api.getAlertGroupInfoListHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
 	openAPI.ReceiverGetReceiversHandler = receiver_ops.GetReceiversHandlerFunc(api.getReceiversHandler)
 	openAPI.SilenceDeleteSilenceHandler = silence_ops.DeleteSilenceHandlerFunc(api.deleteSilenceHandler)
@@ -453,6 +460,78 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(callbackRes)
 }
 
+func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAlertGroupInfoListParams) middleware.Responder {
+	logger := api.requestLogger(params.HTTPRequest)
+
+	var receiverFilter *regexp.Regexp
+	var err error
+	if params.Receiver != nil {
+		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
+		if err != nil {
+			logger.Error("Failed to compile receiver regex", "err", err)
+			return alertgroupinfolist_ops.
+				NewGetAlertGroupInfoListBadRequest().
+				WithPayload(
+					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
+				)
+		}
+	}
+
+	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
+		return func(r *dispatch.Route) bool {
+			receiver := r.RouteOpts.Receiver
+			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
+				return false
+			}
+			return true
+		}
+	}(receiverFilter)
+
+	if err = validateNextToken(params.NextToken); err != nil {
+		logger.Error("Failed to parse NextToken parameter", "err", err)
+		return alertgroupinfolist_ops.
+			NewGetAlertGroupInfoListBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
+			)
+	}
+
+	if err = validateMaxResult(params.MaxResults); err != nil {
+		logger.Error("Failed to parse MaxResults parameter", "err", err)
+		return alertgroupinfolist_ops.
+			NewGetAlertGroupInfoListBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse MaxResults param: %v", *params.MaxResults),
+			)
+	}
+
+	ags := api.alertGroupInfos(rf)
+	alertGroupInfos := make([]*open_api_models.AlertGroupInfo, 0, len(ags))
+	for _, alertGroup := range ags {
+
+		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
+		if params.NextToken != nil && *params.NextToken >= alertGroup.ID {
+			continue
+		}
+
+		ag := &open_api_models.AlertGroupInfo{
+			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
+			ID:       &alertGroup.ID,
+		}
+		alertGroupInfos = append(alertGroupInfos, ag)
+	}
+
+	returnAlertGroupInfos, nextItem := AlertGroupInfoListTruncate(alertGroupInfos, params.MaxResults)
+
+	response := &open_api_models.AlertGroupInfoList{
+		AlertGroupInfoList: returnAlertGroupInfos,
+		NextToken:          nextItem,
+	}
+
+	return alertgroupinfolist_ops.NewGetAlertGroupInfoListOK().WithPayload(response)
+}
+
 func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
 	return func(a *types.Alert, now time.Time) bool {
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
@@ -741,4 +820,23 @@ func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 	swaggerSpecCache = swaggerSpec
 	swaggerSpecAnalysisCache = analysis.New(swaggerSpec.Spec())
 	return swaggerSpec, swaggerSpecAnalysisCache, nil
+}
+
+func validateMaxResult(maxItem *int64) error {
+	if maxItem != nil {
+		if *maxItem < 0 {
+			return errors.New("the maxItem need to be larger than or equal to 0")
+		}
+	}
+	return nil
+}
+
+func validateNextToken(nextToken *string) error {
+	if nextToken != nil {
+		match, _ := regexp.MatchString("^[a-fA-F0-9]{40}$", *nextToken)
+		if !match {
+			return fmt.Errorf("invalid nextToken: %s", *nextToken)
+		}
+	}
+	return nil
 }
