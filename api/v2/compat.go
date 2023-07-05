@@ -207,3 +207,28 @@ func APILabelSetToModelLabelSet(apiLabelSet open_api_models.LabelSet) prometheus
 
 	return modelLabelSet
 }
+
+func AlertGroupInfoListTruncate(alertGroupInfos []*open_api_models.AlertGroupInfo, maxResult *int64) ([]*open_api_models.AlertGroupInfo, string) {
+	resultNumber := 0
+	var previousAgID *string
+	var returnPaginationToken string
+	returnAlertGroupInfos := make([]*open_api_models.AlertGroupInfo, 0, len(alertGroupInfos))
+	for _, alertGroup := range alertGroupInfos {
+
+		// Add the aggregation group to the return slice if the maxItem is not hit
+		if maxResult == nil || resultNumber < int(*maxResult) {
+			previousAgID = alertGroup.ID
+			returnAlertGroupInfos = append(returnAlertGroupInfos, alertGroup)
+			resultNumber++
+			continue
+		}
+
+		// Return the next token if there is more aggregation group
+		if resultNumber == int(*maxResult) && previousAgID != nil {
+			returnPaginationToken = *previousAgID
+			break
+		}
+	}
+
+	return returnAlertGroupInfos, returnPaginationToken
+}

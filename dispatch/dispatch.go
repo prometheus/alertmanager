@@ -15,7 +15,10 @@ package dispatch
 
 import (
 	"context"
+
 	"errors"
+
+	"crypto/sha1"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -286,6 +289,48 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	return groups, receivers
 }
 
+// AlertGroupInfo represents the aggrGroup information.
+type AlertGroupInfo struct {
+	Labels   model.LabelSet
+	Receiver string
+	ID       string
+}
+
+type AlertGroupInfos []*AlertGroupInfo
+
+func (ag AlertGroupInfos) Swap(i, j int) { ag[i], ag[j] = ag[j], ag[i] }
+func (ag AlertGroupInfos) Less(i, j int) bool {
+	return ag[i].ID < ag[j].ID
+}
+func (ag AlertGroupInfos) Len() int { return len(ag) }
+
+func (d *Dispatcher) GroupInfos(routeFilter func(*Route) bool) AlertGroupInfos {
+	groups := AlertGroupInfos{}
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	for route, ags := range d.aggrGroupsPerRoute {
+		if !routeFilter(route) {
+			continue
+		}
+
+		for _, ag := range ags {
+			receiver := route.RouteOpts.Receiver
+			alertGroup := &AlertGroupInfo{
+				Labels:   ag.labels,
+				Receiver: receiver,
+				ID:       ag.GroupID(),
+			}
+
+			groups = append(groups, alertGroup)
+		}
+	}
+	sort.Sort(groups)
+
+	return groups
+}
+
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
 	if d == nil {
@@ -384,6 +429,7 @@ type aggrGroup struct {
 	logger   *slog.Logger
 	routeID  string
 	routeKey string
+	routeID  string
 
 	alerts  *store.Alerts
 	ctx     context.Context
@@ -405,6 +451,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		labels:   labels,
 		routeID:  r.ID(),
 		routeKey: r.Key(),
+		routeID:  r.ID(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),
@@ -423,6 +470,12 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 
 func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
+}
+
+func (ag *aggrGroup) GroupID() string {
+	h := sha1.New()
+	h.Write([]byte(fmt.Sprintf("%s:%s", ag.routeID, ag.labels)))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (ag *aggrGroup) GroupKey() string {
