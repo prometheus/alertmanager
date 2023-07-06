@@ -493,6 +493,7 @@ func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAl
 			ag := &open_api_models.AlertGroupInfo{
 				Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
 				Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
+				ID:       &alertGroup.ID,
 			}
 
 			previousAgID = &alertGroup.ID

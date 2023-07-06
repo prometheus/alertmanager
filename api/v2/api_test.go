@@ -198,28 +198,28 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		{
 			convertIntToPointerInt64(int64(1)),
 			nil,
-			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
+			`{"alertGroupInfoList":[{"id":"478b4114226224a35910d449fdba8186ebfb441f","labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
 			200,
 		},
 		// One item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(1)),
 			convertStringToPointer("478b4114226224a35910d449fdba8186ebfb441f"),
-			`{"alertGroupInfoList":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
+			`{"alertGroupInfoList":[{"id":"7f4084a078a3fe29d6de82fad15af8f1411e803f","labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
 			200,
 		},
 		// Five item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(5)),
 			convertStringToPointer("7f4084a078a3fe29d6de82fad15af8f1411e803f"),
-			`{"alertGroupInfoList":[{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			`{"alertGroupInfoList":[{"id":"d525244929240cbdb75a497913c1890ab8de1962","labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"id":"d73984d43949112ae1ea59dcc5af4af7b630a5b1","labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 		// Return all results.
 		{
 			nil,
 			nil,
-			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			`{"alertGroupInfoList":[{"id":"478b4114226224a35910d449fdba8186ebfb441f","labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"id":"7f4084a078a3fe29d6de82fad15af8f1411e803f","labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"id":"d525244929240cbdb75a497913c1890ab8de1962","labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"id":"d73984d43949112ae1ea59dcc5af4af7b630a5b1","labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 	} {

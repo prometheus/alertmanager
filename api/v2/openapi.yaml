@@ -532,9 +532,12 @@ definitions:
         $ref: '#/definitions/labelSet'
       receiver:
         $ref: '#/definitions/receiver'
+      id:
+        type: string
     required:
       - labels
       - receiver
+      - id
   alertStatus:
     type: object
     properties:

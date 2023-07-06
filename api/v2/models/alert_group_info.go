@@ -33,6 +33,10 @@ import (
 // swagger:model alertGroupInfo
 type AlertGroupInfo struct {
 
+	// id
+	// Required: true
+	ID *string `json:"id"`
+
 	// labels
 	// Required: true
 	Labels LabelSet `json:"labels"`
@@ -46,6 +50,10 @@ type AlertGroupInfo struct {
 func (m *AlertGroupInfo) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateID(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateLabels(formats); err != nil {
 		res = append(res, err)
 	}
@@ -57,6 +65,15 @@ func (m *AlertGroupInfo) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *AlertGroupInfo) validateID(formats strfmt.Registry) error {
+
+	if err := validate.Required("id", "body", m.ID); err != nil {
+		return err
+	}
+
 	return nil
 }
 
