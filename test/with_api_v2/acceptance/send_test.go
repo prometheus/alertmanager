@@ -455,7 +455,7 @@ receivers:
 	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
 	// Timers are reset on reload regardless, so we count the 6 second group
 	// interval from 3 onwards.
-	co.Want(Between(9, 9.5),
+	co.Want(Between(4, 4.5),
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test2").Active(4),
 	)
