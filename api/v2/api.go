@@ -433,7 +433,6 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAlertGroupInfoListParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	var returnPaginationToken string
 	var receiverFilter *regexp.Regexp
 	var err error
 	if params.Receiver != nil {
@@ -458,8 +457,6 @@ func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAl
 		}
 	}(receiverFilter)
 
-	var previousAgID *string
-
 	if err = validateNextToken(params.NextToken); err != nil {
 		level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
 		return alertgroupinfolist_ops.
@@ -480,7 +477,6 @@ func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAl
 
 	ags := api.alertGroupInfos(rf)
 	alertGroupInfos := make([]*open_api_models.AlertGroupInfo, 0, len(ags))
-	resultNumber := 0
 	for _, alertGroup := range ags {
 
 		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
@@ -488,30 +484,19 @@ func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAl
 			continue
 		}
 
-		// Add the aggregation group to the response if the MaxResults is not hit
-		if params.MaxResults == nil || resultNumber < int(*params.MaxResults) {
-			ag := &open_api_models.AlertGroupInfo{
-				Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
-				Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
-				ID:       &alertGroup.ID,
-			}
-
-			previousAgID = &alertGroup.ID
-			alertGroupInfos = append(alertGroupInfos, ag)
-			resultNumber++
-			continue
+		ag := &open_api_models.AlertGroupInfo{
+			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
+			ID:       &alertGroup.ID,
 		}
-
-		// Return the pagination token if there is more aggregation group
-		if resultNumber == int(*params.MaxResults) {
-			returnPaginationToken = *previousAgID
-			break
-		}
+		alertGroupInfos = append(alertGroupInfos, ag)
 	}
 
+	returnAlertGroupInfos, nextItem := AlertGroupInfoListTruncate(alertGroupInfos, params.MaxResults)
+
 	response := &open_api_models.AlertGroupInfoList{
-		AlertGroupInfoList: alertGroupInfos,
-		NextToken:          returnPaginationToken,
+		AlertGroupInfoList: returnAlertGroupInfos,
+		NextToken:          nextItem,
 	}
 
 	return alertgroupinfolist_ops.NewGetAlertGroupInfoListOK().WithPayload(response)
