@@ -192,6 +192,7 @@ common-unused:
 	$(GO) mod tidy
 	@git diff --exit-code -- go.sum go.mod
 
+# NOTICE: must --cgo flag to build dynamically linked binary for FIPS compliance
 .PHONY: common-build
 common-build: promu
 ifneq ($(shell which promu), $(PROMU))
@@ -200,7 +201,7 @@ ifneq ($(shell which promu), $(PROMU))
 endif
 
 	@echo ">> building binaries"
-	$(PROMU) build --prefix $(PREFIX) $(PROMU_BINARIES)
+	$(PROMU) build --cgo --prefix $(PREFIX) $(PROMU_BINARIES)
 
 .PHONY: common-tarball
 common-tarball: promu
