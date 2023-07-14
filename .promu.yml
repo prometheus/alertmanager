@@ -5,6 +5,7 @@ go:
 repository:
     path: github.com/prometheus/alertmanager
 build:
+    static: false
     binaries:
         - name: alertmanager
           path: ./cmd/alertmanager
