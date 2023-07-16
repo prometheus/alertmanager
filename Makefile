@@ -62,3 +62,9 @@ clean:
 	- @rm -rf asset/assets_vfsdata.go \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
+
+govulncheck: install-govulncheck
+	govulncheck ./...
+
+install-govulncheck:
+	which govulncheck || go install golang.org/x/vuln/cmd/govulncheck@latest
