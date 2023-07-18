@@ -15,7 +15,11 @@ package v2
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alert_info_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
+	"github.com/prometheus/alertmanager/dispatch"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -509,4 +513,311 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func TestListAlertsHandler(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert5"},
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(-time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name          string
+		booleanParams map[string]*bool
+		expectedCode  int
+		anames        []string
+	}{
+		{
+			"no filter",
+			map[string]*bool{},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+		},
+		{
+			"status filter",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+		},
+		{
+			"status filter - active false",
+			map[string]*bool{"active": BoolPointer(false), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert2", "alert3", "alert4"},
+		},
+		{
+			"status filter - silenced false",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(false), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert1", "alert2", "alert4"},
+		},
+		{
+			"status filter - inhibited false",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(false)},
+			200,
+			[]string{"alert1", "alert2", "alert3"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			alertsProvider := newFakeAlerts(alerts)
+			api := API{
+				uptime:         time.Now(),
+				getAlertStatus: newGetAlertStatus(alertsProvider),
+				logger:         log.NewNopLogger(),
+				alerts:         alertsProvider,
+				setAlertStatus: func(model.LabelSet) {},
+			}
+			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+			r, err := http.NewRequest("GET", "/api/v2/alerts", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			silence := tc.booleanParams["silenced"]
+			if silence == nil {
+				silence = BoolPointer(true)
+			}
+			inhibited := tc.booleanParams["inhibited"]
+			if inhibited == nil {
+				inhibited = BoolPointer(true)
+			}
+			active := tc.booleanParams["active"]
+			if active == nil {
+				active = BoolPointer(true)
+			}
+			responder := api.getAlertsHandler(alert_ops.GetAlertsParams{
+				HTTPRequest: r,
+				Silenced:    silence,
+				Inhibited:   inhibited,
+				Active:      active,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := io.ReadAll(w.Result().Body)
+
+			require.Equal(t, tc.expectedCode, w.Code)
+			retAlerts := open_api_models.GettableAlerts{}
+			err = json.Unmarshal(body, &retAlerts)
+			if err != nil {
+				t.Fatalf("Unexpected error %v", err)
+			}
+			anames := []string{}
+			for _, a := range retAlerts {
+				name, ok := a.Labels["alertname"]
+				if ok {
+					anames = append(anames, string(name))
+				}
+			}
+			require.Equal(t, tc.anames, anames)
+		})
+	}
+}
+
+func TestListAlertInfosHandler(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name            string
+		booleanParams   map[string]*bool
+		expectedCode    int
+		maxResult       *int64
+		nextToken       *string
+		anames          []string
+		expectNextToken string
+	}{
+		{
+			"no filter",
+			map[string]*bool{},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter - active false",
+			map[string]*bool{"active": BoolPointer(false), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			nil,
+			nil,
+			[]string{"alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter - silenced false",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(false), "inhibited": BoolPointer(true)},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert4"},
+			"",
+		},
+		{
+			"status filter - inhibited false",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(false)},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3"},
+			"",
+		},
+		{
+			"MaxResults - only 1 alert return",
+			map[string]*bool{},
+			200,
+			convertIntToPointerInt64(int64(1)),
+			nil,
+			[]string{"alert1"},
+			alerts[0].Fingerprint().String(),
+		},
+		{
+			"MaxResults - all alert return",
+			map[string]*bool{},
+			200,
+			convertIntToPointerInt64(int64(8)),
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"MaxResults - has begin next token, max 2 alerts",
+			map[string]*bool{},
+			200,
+			convertIntToPointerInt64(int64(2)),
+			convertStringToPointer(alerts[0].Fingerprint().String()),
+			[]string{"alert2", "alert3"},
+			"",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			alertsProvider := newFakeAlerts(alerts)
+			api := API{
+				uptime:         time.Now(),
+				getAlertStatus: newGetAlertStatus(alertsProvider),
+				logger:         log.NewNopLogger(),
+				alerts:         alertsProvider,
+				setAlertStatus: func(model.LabelSet) {},
+			}
+			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+			r, err := http.NewRequest("GET", "/api/v2/alerts", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			silence := tc.booleanParams["silenced"]
+			if silence == nil {
+				silence = BoolPointer(true)
+			}
+			inhibited := tc.booleanParams["inhibited"]
+			if inhibited == nil {
+				inhibited = BoolPointer(true)
+			}
+			active := tc.booleanParams["active"]
+			if active == nil {
+				active = BoolPointer(true)
+			}
+			responder := api.getAlertInfosHandler(alert_info_ops.GetAlertInfosParams{
+				HTTPRequest: r,
+				Silenced:    silence,
+				Inhibited:   inhibited,
+				Active:      active,
+				MaxResults:  tc.maxResult,
+				NextToken:   tc.nextToken,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := io.ReadAll(w.Result().Body)
+
+			require.Equal(t, tc.expectedCode, w.Code)
+			response := open_api_models.GettableAlertInfos{}
+			err = json.Unmarshal(body, &response)
+			if err != nil {
+				t.Fatalf("Unexpected error %v", err)
+			}
+			anames := []string{}
+			for _, a := range response.Alerts {
+				name, ok := a.Labels["alertname"]
+				if ok {
+					anames = append(anames, string(name))
+				}
+			}
+			require.Equal(t, tc.anames, anames)
+			require.Equal(t, tc.expectNextToken, response.NextToken)
+		})
+	}
+}
+
+func BoolPointer(b bool) *bool {
+	return &b
+}
+
+func convertIntToPointerInt64(x int64) *int64 {
+	return &x
+}
+
+func convertStringToPointer(x string) *string {
+	return &x
 }

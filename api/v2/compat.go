@@ -196,3 +196,28 @@ func APILabelSetToModelLabelSet(apiLabelSet open_api_models.LabelSet) prometheus
 
 	return modelLabelSet
 }
+
+func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64) (open_api_models.GettableAlerts, string) {
+	resultNumber := 0
+	var previousAgID *string
+	var returnPaginationToken string
+	returnAlerts := make(open_api_models.GettableAlerts, 0, len(alerts))
+	for _, alert := range alerts {
+
+		// Add the alert to the return slice if the maxItem is not hit
+		if maxResult == nil || resultNumber < int(*maxResult) {
+			previousAgID = alert.Fingerprint
+			returnAlerts = append(returnAlerts, alert)
+			resultNumber++
+			continue
+		}
+
+		// Return the next token if there is more aggregation group
+		if resultNumber == int(*maxResult) {
+			returnPaginationToken = *previousAgID
+			break
+		}
+	}
+
+	return returnAlerts, returnPaginationToken
+}
