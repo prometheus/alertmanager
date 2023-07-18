@@ -180,6 +180,65 @@ paths:
           $ref: '#/responses/BadRequest'
         '500':
           $ref: '#/responses/InternalServerError'
+  /alertinfos:
+    get:
+      tags:
+        - alertinfo
+      operationId: getAlertInfos
+      description: Get a list of alerts
+      parameters:
+        - in: query
+          name: active
+          type: boolean
+          description: Show active alerts
+          default: true
+        - in: query
+          name: silenced
+          type: boolean
+          description: Show silenced alerts
+          default: true
+        - in: query
+          name: inhibited
+          type: boolean
+          description: Show inhibited alerts
+          default: true
+        - in: query
+          name: unprocessed
+          type: boolean
+          description: Show unprocessed alerts
+          default: true
+        - name: filter
+          in: query
+          description: A list of matchers to filter alerts by
+          required: false
+          type: array
+          collectionFormat: multi
+          items:
+            type: string
+        - name: receiver
+          in: query
+          description: A regex matching receivers to filter alerts by
+          required: false
+          type: string
+        - name: nextToken
+          in: query
+          description: The token for the next set of items to return
+          required: false
+          type: string
+        - name: maxResults
+          in: query
+          description: The maximum number of alert to return in one getAlertInfos operation.
+          required: false
+          type: integer
+      responses:
+        '200':
+          description: Get alerts response
+          schema:
+            '$ref': '#/definitions/gettableAlertInfos'
+        '400':
+          $ref: '#/responses/BadRequest'
+        '500':
+          $ref: '#/responses/InternalServerError'
     post:
       tags:
         - alert
@@ -417,6 +476,15 @@ definitions:
     type: array
     items:
       $ref: '#/definitions/gettableAlert'
+  gettableAlertInfos:
+    type: object
+    properties:
+      alerts:
+        type: array
+        items:
+          $ref: '#/definitions/gettableAlert'
+      nextToken:
+        type: string
   gettableAlert:
     allOf:
       - type: object

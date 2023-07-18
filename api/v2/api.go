@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -38,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
 	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	alertinfo_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
@@ -233,10 +235,7 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Responder {
 	var (
 		receiverFilter *regexp.Regexp
-		// Initialize result slice to prevent api returning `null` when there
-		// are no alerts present
-		res = open_api_models.GettableAlerts{}
-		ctx = params.HTTPRequest.Context()
+		ctx            = params.HTTPRequest.Context()
 
 		logger = api.requestLogger(params.HTTPRequest)
 	)
@@ -259,50 +258,59 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 	}
 
-	alerts := api.alerts.GetPending()
-	defer alerts.Close()
-
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	now := time.Now()
-
-	api.mtx.RLock()
-	for a := range alerts.Next() {
-		if err = alerts.Err(); err != nil {
-			break
-		}
-		if err = ctx.Err(); err != nil {
-			break
-		}
-
-		routes := api.route.Match(a.Labels)
-		receivers := make([]string, 0, len(routes))
-		for _, r := range routes {
-			receivers = append(receivers, r.RouteOpts.Receiver)
-		}
-
-		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
-			continue
-		}
-
-		if !alertFilter(a, now) {
-			continue
-		}
-
-		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
-
-		res = append(res, alert)
-	}
-	api.mtx.RUnlock()
+	alerts, err := api.getAlerts(ctx, receiverFilter, alertFilter, nil)
 
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to get alerts", "err", err)
 		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
 	}
-	sort.Slice(res, func(i, j int) bool {
-		return *res[i].Fingerprint < *res[j].Fingerprint
-	})
 
-	return alert_ops.NewGetAlertsOK().WithPayload(res)
+	return alert_ops.NewGetAlertsOK().WithPayload(alerts)
+}
+
+func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) middleware.Responder {
+	var (
+		receiverFilter *regexp.Regexp
+		ctx            = params.HTTPRequest.Context()
+
+		logger = api.requestLogger(params.HTTPRequest)
+	)
+
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
+		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
+	}
+
+	if params.Receiver != nil {
+		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
+		if err != nil {
+			level.Debug(logger).Log("msg", "Failed to compile receiver regex", "err", err)
+			return alert_ops.
+				NewGetAlertsBadRequest().
+				WithPayload(
+					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
+				)
+		}
+	}
+
+	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	alerts, err := api.getAlerts(ctx, receiverFilter, alertFilter, params.NextToken)
+
+	if err != nil {
+		level.Error(logger).Log("msg", "Failed to get alerts", "err", err)
+		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
+	}
+
+	returnAlertInfos, nextItem := AlertInfosTruncate(alerts, params.MaxResults)
+
+	response := &open_api_models.GettableAlertInfos{
+		Alerts:    returnAlertInfos,
+		NextToken: nextItem,
+	}
+
+	return alertinfo_ops.NewGetAlertInfosOK().WithPayload(response)
 }
 
 func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.Responder {
@@ -720,4 +728,57 @@ func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 	swaggerSpecCache = swaggerSpec
 	swaggerSpecAnalysisCache = analysis.New(swaggerSpec.Spec())
 	return swaggerSpec, swaggerSpecAnalysisCache, nil
+}
+
+func (api *API) getAlerts(ctx context.Context, receiverFilter *regexp.Regexp, alertFilter func(a *types.Alert, now time.Time) bool, nextToken *string) (open_api_models.GettableAlerts, error) {
+	var err error
+	res := open_api_models.GettableAlerts{}
+
+	alerts := api.alerts.GetPending()
+	defer alerts.Close()
+
+	now := time.Now()
+
+	api.mtx.RLock()
+	for a := range alerts.Next() {
+		if err = alerts.Err(); err != nil {
+			break
+		}
+		if err = ctx.Err(); err != nil {
+			break
+		}
+
+		routes := api.route.Match(a.Labels)
+		receivers := make([]string, 0, len(routes))
+		for _, r := range routes {
+			receivers = append(receivers, r.RouteOpts.Receiver)
+		}
+
+		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
+			continue
+		}
+
+		if !alertFilter(a, now) {
+			continue
+		}
+
+		// Skip the alert if the next token is set and hasn't arrived the nextToken item yet.
+		if nextToken != nil && *nextToken >= a.Fingerprint().String() {
+			continue
+		}
+
+		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
+
+		res = append(res, alert)
+	}
+	api.mtx.RUnlock()
+
+	if err != nil {
+		return res, err
+	}
+	sort.Slice(res, func(i, j int) bool {
+		return *res[i].Fingerprint < *res[j].Fingerprint
+	})
+
+	return res, nil
 }
