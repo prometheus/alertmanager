@@ -17,15 +17,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
-	alert_info_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
-	"github.com/prometheus/alertmanager/dispatch"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
+
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alert_info_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
+	"github.com/prometheus/alertmanager/dispatch"
 
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
@@ -732,7 +733,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 			convertIntToPointerInt64(int64(1)),
 			nil,
 			[]string{"alert1"},
-			alerts[0].Fingerprint().String(),
+			"878598a70ceb8a1d9fc194638818caf926b4efef",
 		},
 		{
 			"MaxResults - all alert return",
@@ -748,9 +749,9 @@ func TestListAlertInfosHandler(t *testing.T) {
 			map[string]*bool{},
 			200,
 			convertIntToPointerInt64(int64(2)),
-			convertStringToPointer(alerts[0].Fingerprint().String()),
+			convertStringToPointer("878598a70ceb8a1d9fc194638818caf926b4efef"),
 			[]string{"alert2", "alert3"},
-			"",
+			"9fd4173069fa809d5aa8041041061ec61d88a390",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

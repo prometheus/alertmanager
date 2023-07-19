@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"crypto/sha1"
 	"fmt"
 	"time"
 
@@ -197,16 +198,17 @@ func APILabelSetToModelLabelSet(apiLabelSet open_api_models.LabelSet) prometheus
 	return modelLabelSet
 }
 
+// AlertInfosTruncate truncate the open_api_models.GettableAlerts using maxResult and return a nextToken if there are items has been truncated.
 func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64) (open_api_models.GettableAlerts, string) {
 	resultNumber := 0
-	var previousAgID *string
+	var previousAlertID *string
 	var returnPaginationToken string
 	returnAlerts := make(open_api_models.GettableAlerts, 0, len(alerts))
 	for _, alert := range alerts {
 
 		// Add the alert to the return slice if the maxItem is not hit
 		if maxResult == nil || resultNumber < int(*maxResult) {
-			previousAgID = alert.Fingerprint
+			previousAlertID = alert.Fingerprint
 			returnAlerts = append(returnAlerts, alert)
 			resultNumber++
 			continue
@@ -214,9 +216,15 @@ func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64)
 
 		// Return the next token if there is more aggregation group
 		if resultNumber == int(*maxResult) {
-			returnPaginationToken = *previousAgID
+			returnPaginationToken = *previousAlertID
 			break
 		}
+	}
+
+	if len(returnPaginationToken) > 0 {
+		h := sha1.New()
+		h.Write([]byte(returnPaginationToken))
+		returnPaginationToken = fmt.Sprintf("%x", h.Sum(nil))
 	}
 
 	return returnAlerts, returnPaginationToken
