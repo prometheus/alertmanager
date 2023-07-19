@@ -15,6 +15,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -260,7 +261,6 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	alerts, err := api.getAlerts(ctx, receiverFilter, alertFilter, nil)
-
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to get alerts", "err", err)
 		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
@@ -280,24 +280,41 @@ func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) m
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
 		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
-		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
+		return alertinfo_ops.NewGetAlertInfosBadRequest().WithPayload(err.Error())
 	}
 
 	if params.Receiver != nil {
 		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
 		if err != nil {
 			level.Debug(logger).Log("msg", "Failed to compile receiver regex", "err", err)
-			return alert_ops.
-				NewGetAlertsBadRequest().
+			return alertinfo_ops.
+				NewGetAlertInfosBadRequest().
 				WithPayload(
 					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
 				)
 		}
 	}
 
+	if err = validateMaxResult(params.MaxResults); err != nil {
+		level.Error(logger).Log("msg", "Failed to parse MaxResults parameter", "err", err)
+		return alertinfo_ops.
+			NewGetAlertInfosBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse MaxResults param: %v", *params.MaxResults),
+			)
+	}
+
+	if err = validateNextToken(params.NextToken); err != nil {
+		level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
+		return alertinfo_ops.
+			NewGetAlertInfosBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
+			)
+	}
+
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	alerts, err := api.getAlerts(ctx, receiverFilter, alertFilter, params.NextToken)
-
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to get alerts", "err", err)
 		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
@@ -781,4 +798,23 @@ func (api *API) getAlerts(ctx context.Context, receiverFilter *regexp.Regexp, al
 	})
 
 	return res, nil
+}
+
+func validateMaxResult(maxItem *int64) error {
+	if maxItem != nil {
+		if *maxItem < 0 {
+			return errors.New("the maxItem need to be larger than or equal to 0")
+		}
+	}
+	return nil
+}
+
+func validateNextToken(nextToken *string) error {
+	if nextToken != nil {
+		match, _ := regexp.MatchString("^[a-fA-F0-9]{40}$", *nextToken)
+		if !match {
+			return fmt.Errorf("invalid nextToken: %s", *nextToken)
+		}
+	}
+	return nil
 }

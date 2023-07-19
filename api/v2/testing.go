@@ -15,11 +15,13 @@ package v2
 
 import (
 	"encoding/json"
-	"github.com/prometheus/alertmanager/provider"
-	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 	"testing"
 	"time"
+
+	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/require"
