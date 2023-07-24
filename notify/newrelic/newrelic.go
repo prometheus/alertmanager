@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright 2021 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
@@ -87,7 +87,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 }
 
 // Like Split but filter out empty strings.
-func safeSplit(s string, sep string) []string {
+func safeSplit(s, sep string) []string {
 	a := strings.Split(strings.TrimSpace(s), sep)
 	b := a[:0]
 	for _, x := range a {
@@ -124,7 +124,7 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		alias  = key.Hash()
 	)
 
-	message, truncated := notify.Truncate(tmpl(n.conf.Message), 130)
+	message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 130)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "incident", key)
 	}
@@ -137,7 +137,8 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		Source:      tmpl(n.conf.Source),
 		Tags:        safeSplit(string(tmpl(n.conf.Tags)), ","),
 		Note:        tmpl(n.conf.Note),
-		Priority:    tmpl(n.conf.Priority)}
+		Priority:    tmpl(n.conf.Priority),
+	}
 
 	if err != nil {
 		return nil, false, errors.Wrap(err, "templating error")
@@ -161,10 +162,6 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Api-Key", apiKey)
-
-	for k, v := range n.conf.Headers {
-		req.Header.Set(k, v)
-	}
 
 	return req.WithContext(ctx), true, nil
 }

@@ -1239,13 +1239,13 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 
 ## `<newrelic_config>`
 
-New Relic notifications are sent via the [New Relie Log API](https://log-api.newrelic.com/log/v1) by default.
+New Relic notifications are sent via the [New Relie Log API](https://docs.newrelic.com/docs/logs/log-api/introduction-log-api/) by default.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The New Relic Insert API key .
+# The New Relic license key .
 [ api_key: <secret> | default = global.newrelic_api_key ]
 
 # The New Relic API endpoint (default to https://log-api.newrelic.com/log/v1).
@@ -1274,10 +1274,6 @@ New Relic notifications are sent via the [New Relie Log API](https://log-api.new
 # Priority level of alert.
 [ priority: <tmpl_string> ]
 
-# Additional Headers.
-# for example, using `X-License-Key` header to provide the API license key
-[ headers: { <string>: <string>,...} ]
-
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
@@ -1293,9 +1289,6 @@ receivers:
         priority: P2
         message: '{{ template "newrelic.default.message" . }}'
         description: '{{ template "newrelic.default.description" . }}'
-        headers:
-          abc: value1
-          xyz: value2
 ```
 
 ### `<webex_config>`

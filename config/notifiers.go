@@ -807,7 +807,6 @@ type NewRelicConfig struct {
 	Description    string                      `yaml:"description,omitempty" json:"description,omitempty"`
 	Source         string                      `yaml:"source,omitempty" json:"source,omitempty"`
 	Details        map[string]string           `yaml:"details,omitempty" json:"details,omitempty"`
-	Headers        map[string]string           `yaml:"headers,omitempty" json:"headers,omitempty"`
 	Tags           string                      `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note           string                      `yaml:"note,omitempty" json:"note,omitempty"`
 	Priority       string                      `yaml:"priority,omitempty" json:"priority,omitempty"`
@@ -817,10 +816,7 @@ type NewRelicConfig struct {
 func (c *NewRelicConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultNewRelicConfig
 	type plain NewRelicConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	return nil
+	return unmarshal((*plain)(c))
 }
 
 type MSTeamsConfig struct {
