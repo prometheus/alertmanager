@@ -463,7 +463,7 @@ Here are some examples of valid string matchers:
     As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
 
     ```yaml
-    matchers: [ "foo = bar,baz", "dings != bums" ]
+    matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
     ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
