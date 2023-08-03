@@ -710,7 +710,11 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		i    = 0
 		iErr error
 	)
+
 	l = log.With(l, "receiver", r.groupName, "integration", r.integration.String())
+	if groupKey, ok := GroupKey(ctx); ok {
+		l = log.With(l, "aggrGroup", groupKey)
+	}
 
 	for {
 		i++
@@ -745,10 +749,11 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				lvl := level.Debug(l)
-				if i > 1 {
-					lvl = level.Info(l)
+				lvl := level.Info(l)
+				if i <= 1 {
+					lvl = level.Debug(log.With(l, "alerts", fmt.Sprintf("%v", alerts)))
 				}
+
 				lvl.Log("msg", "Notify success", "attempts", i)
 				return ctx, alerts, nil
 			}
