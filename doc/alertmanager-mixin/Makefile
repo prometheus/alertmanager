@@ -20,7 +20,6 @@ lint: build
 
 	mixtool lint mixin.libsonnet
 
-
 dashboards_out: mixin.libsonnet config.libsonnet $(wildcard dashboards/*)
 	@mkdir -p dashboards_out
 	jsonnet -J vendor -m dashboards_out dashboards.jsonnet
