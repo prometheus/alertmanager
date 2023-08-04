@@ -60,5 +60,6 @@ api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 .PHONY: clean
 clean:
 	- @rm -rf asset/assets_vfsdata.go \
+                  template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
