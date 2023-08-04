@@ -158,6 +158,13 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
+		if n.conf.UpdateAlerts {
+			retry, err := n.updateAlert(ctx, tmpl, key, alias, &requests)
+			if err != nil {
+				return requests, retry, err
+			}
+		}
+
 		resolvedEndpointURL := n.conf.APIURL.Copy()
 		resolvedEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/close", alias)
 		q := resolvedEndpointURL.Query()
@@ -173,50 +180,6 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			return nil, true, err
 		}
 		requests = append(requests, req.WithContext(ctx))
-
-		if n.conf.UpdateAlerts {
-			message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
-			if truncated {
-				level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
-			}
-
-			updateMessageEndpointURL := n.conf.APIURL.Copy()
-			updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
-			q := updateMessageEndpointURL.Query()
-			q.Set("identifierType", "alias")
-			updateMessageEndpointURL.RawQuery = q.Encode()
-			updateMsgMsg := &opsGenieUpdateMessageMessage{
-				Message: message,
-			}
-			var updateMessageBuf bytes.Buffer
-			if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
-				return nil, false, err
-			}
-			req, err := http.NewRequest("PUT", updateMessageEndpointURL.String(), &updateMessageBuf)
-			if err != nil {
-				return nil, true, err
-			}
-			requests = append(requests, req)
-
-			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
-			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
-			q = updateDescriptionEndpointURL.Query()
-			q.Set("identifierType", "alias")
-			updateDescriptionEndpointURL.RawQuery = q.Encode()
-			updateDescMsg := &opsGenieUpdateDescriptionMessage{
-				Description: tmpl(n.conf.Description),
-			}
-
-			var updateDescriptionBuf bytes.Buffer
-			if err := json.NewEncoder(&updateDescriptionBuf).Encode(updateDescMsg); err != nil {
-				return nil, false, err
-			}
-			req, err = http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
-			if err != nil {
-				return nil, true, err
-			}
-			requests = append(requests, req.WithContext(ctx))
-		}
 	default:
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
@@ -280,42 +243,10 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		requests = append(requests, req.WithContext(ctx))
 
 		if n.conf.UpdateAlerts {
-			updateMessageEndpointURL := n.conf.APIURL.Copy()
-			updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
-			q := updateMessageEndpointURL.Query()
-			q.Set("identifierType", "alias")
-			updateMessageEndpointURL.RawQuery = q.Encode()
-			updateMsgMsg := &opsGenieUpdateMessageMessage{
-				Message: msg.Message,
-			}
-			var updateMessageBuf bytes.Buffer
-			if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
-				return nil, false, err
-			}
-			req, err := http.NewRequest("PUT", updateMessageEndpointURL.String(), &updateMessageBuf)
+			retry, err := n.updateAlert(ctx, tmpl, key, alias, &requests)
 			if err != nil {
-				return nil, true, err
+				return requests, retry, err
 			}
-			requests = append(requests, req)
-
-			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
-			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
-			q = updateDescriptionEndpointURL.Query()
-			q.Set("identifierType", "alias")
-			updateDescriptionEndpointURL.RawQuery = q.Encode()
-			updateDescMsg := &opsGenieUpdateDescriptionMessage{
-				Description: msg.Description,
-			}
-
-			var updateDescriptionBuf bytes.Buffer
-			if err := json.NewEncoder(&updateDescriptionBuf).Encode(updateDescMsg); err != nil {
-				return nil, false, err
-			}
-			req, err = http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
-			if err != nil {
-				return nil, true, err
-			}
-			requests = append(requests, req.WithContext(ctx))
 		}
 	}
 
@@ -340,4 +271,51 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	}
 
 	return requests, true, nil
+}
+
+func (n *Notifier) updateAlert(ctx context.Context, tmpl func(string) string, key notify.Key, alias string, requests *[]*http.Request) (bool, error) {
+	message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
+	}
+
+	updateMessageEndpointURL := n.conf.APIURL.Copy()
+	updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
+	q := updateMessageEndpointURL.Query()
+	q.Set("identifierType", "alias")
+	updateMessageEndpointURL.RawQuery = q.Encode()
+	updateMsgMsg := &opsGenieUpdateMessageMessage{
+		Message: message,
+	}
+	var updateMessageBuf bytes.Buffer
+	if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
+		return false, err
+	}
+	req, err := http.NewRequest("PUT", updateMessageEndpointURL.String(), &updateMessageBuf)
+	if err != nil {
+		return true, err
+	}
+	*requests = append(*requests, req)
+
+	updateDescriptionEndpointURL := n.conf.APIURL.Copy()
+	updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
+	q = updateDescriptionEndpointURL.Query()
+	q.Set("identifierType", "alias")
+	updateDescriptionEndpointURL.RawQuery = q.Encode()
+	updateDescMsg := &opsGenieUpdateDescriptionMessage{
+		Description: tmpl(n.conf.Description),
+	}
+
+	var updateDescriptionBuf bytes.Buffer
+	if err := json.NewEncoder(&updateDescriptionBuf).Encode(updateDescMsg); err != nil {
+		return false, err
+	}
+
+	req, err = http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
+	if err != nil {
+		return true, err
+	}
+
+	*requests = append(*requests, req.WithContext(ctx))
+	return false, nil
 }
