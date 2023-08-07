@@ -29,6 +29,13 @@ import (
 
 var logger = log.NewNopLogger()
 
+func freeport() int {
+	lis, _ := net.Listen(network, "127.0.0.1:0")
+	defer lis.Close()
+
+	return lis.Addr().(*net.TCPAddr).Port
+}
+
 func newTLSTransport(file, address string, port int) (*TLSTransport, error) {
 	cfg, err := GetTLSTransportConfig(file)
 	if err != nil {
@@ -39,6 +46,7 @@ func newTLSTransport(file, address string, port int) (*TLSTransport, error) {
 }
 
 func TestNewTLSTransport(t *testing.T) {
+	port := freeport()
 	for _, tc := range []struct {
 		bindAddr    string
 		bindPort    int
@@ -72,7 +80,7 @@ func TestNewTLSTransport(t *testing.T) {
 		},
 		{
 			bindAddr:    localhost,
-			bindPort:    9094,
+			bindPort:    port,
 			tlsConfFile: "testdata/tls_config_node2.yml",
 		},
 		{
@@ -101,6 +109,7 @@ func TestNewTLSTransport(t *testing.T) {
 const localhost = "127.0.0.1"
 
 func TestFinalAdvertiseAddr(t *testing.T) {
+	ports := [...]int{freeport(), freeport(), freeport()}
 	testCases := []struct {
 		bindAddr      string
 		bindPort      int
@@ -110,11 +119,11 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 		expectedPort  int
 		expectedError string
 	}{
-		{bindAddr: localhost, bindPort: 9094, inputIP: "10.0.0.5", inputPort: 54231, expectedIP: "10.0.0.5", expectedPort: 54231},
-		{bindAddr: localhost, bindPort: 9093, inputIP: "invalid", inputPort: 54231, expectedError: "failed to parse advertise address \"invalid\""},
+		{bindAddr: localhost, bindPort: ports[0], inputIP: "10.0.0.5", inputPort: 54231, expectedIP: "10.0.0.5", expectedPort: 54231},
+		{bindAddr: localhost, bindPort: ports[1], inputIP: "invalid", inputPort: 54231, expectedError: "failed to parse advertise address \"invalid\""},
 		{bindAddr: "0.0.0.0", bindPort: 0, inputIP: "", inputPort: 0, expectedIP: "random"},
 		{bindAddr: localhost, bindPort: 0, inputIP: "", inputPort: 0, expectedIP: localhost},
-		{bindAddr: localhost, bindPort: 9095, inputIP: "", inputPort: 0, expectedIP: localhost, expectedPort: 9095},
+		{bindAddr: localhost, bindPort: ports[2], inputIP: "", inputPort: 0, expectedIP: localhost, expectedPort: ports[2]},
 	}
 	for _, tc := range testCases {
 		tlsConf := loadTLSTransportConfig(t, "testdata/tls_config_node1.yml")
@@ -127,7 +136,6 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 			require.Nil(t, err)
 			if tc.expectedPort == 0 {
 				require.True(t, tc.expectedPort < port)
-				require.True(t, uint32(port) <= uint32(1<<32-1))
 			} else {
 				require.Equal(t, tc.expectedPort, port)
 			}
