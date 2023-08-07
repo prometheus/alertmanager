@@ -293,8 +293,6 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 		ff: ff,
 	}
 
-	// If we aren't including receiver names then initialise the possible label combinations.
-	// We don't have receiver names here, so if we are including them then we can't do this here.
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
