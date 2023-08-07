@@ -25,10 +25,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -321,8 +321,18 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 	}
 
 	// When the feature flag is not enabled, we just carry on registering _all_ the integrations.
-	for _, integration := range []string{"email", "msteams", "pagerduty", "wechat", "pushover", "slack",
-		"opsgenie", "webhook", "victorops", "sns", "telegram",
+	for _, integration := range []string{
+		"email",
+		"msteams",
+		"pagerduty",
+		"wechat",
+		"pushover",
+		"slack",
+		"opsgenie",
+		"webhook",
+		"victorops",
+		"sns",
+		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
