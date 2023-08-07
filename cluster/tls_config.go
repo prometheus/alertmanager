@@ -14,6 +14,7 @@
 package cluster
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -31,15 +32,25 @@ func GetTLSTransportConfig(configPath string) (*TLSTransportConfig, error) {
 	if configPath == "" {
 		return nil, nil
 	}
+
 	bytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	cfg := &TLSTransportConfig{}
+
+	cfg := &TLSTransportConfig{
+		TLSClientConfig: &config.TLSConfig{},
+	}
 	if err := yaml.UnmarshalStrict(bytes, cfg); err != nil {
 		return nil, err
 	}
+
+	if cfg.TLSServerConfig == nil {
+		return nil, fmt.Errorf("missing 'tls_server_config' entry in the TLS configuration")
+	}
+
 	cfg.TLSServerConfig.SetDirectory(filepath.Dir(configPath))
 	cfg.TLSClientConfig.SetDirectory(filepath.Dir(configPath))
+
 	return cfg, nil
 }
