@@ -32,6 +32,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
@@ -196,23 +197,6 @@ func main() {
 	os.Exit(run())
 }
 
-type featureConfigs struct {
-	enableReceiverNamesInMetrics bool
-}
-
-func (c *featureConfigs) setFeatureListOptions(logger log.Logger, features []string) error {
-	for _, feature := range features {
-		switch feature {
-		case "receiver-names-in-metrics":
-			c.enableReceiverNamesInMetrics = true
-		default:
-			logger.Log("msg", "Unknown option for --enable-feature", "option", feature)
-		}
-	}
-
-	return nil
-}
-
 func run() int {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
@@ -248,7 +232,7 @@ func run() int {
 		tlsConfigFile          = kingpin.Flag("cluster.tls-config", "[EXPERIMENTAL] Path to config yaml file that can enable mutual TLS within the gossip protocol.").Default("").String()
 		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
 		label                  = kingpin.Flag("cluster.label", "The cluster label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages.").Default("").String()
-		featureFlags           = kingpin.Flag("enable-feature", "Comma separated feature names to enable. Valid options: receiver-names-in-metrics").Default("").Strings()
+		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
@@ -263,13 +247,13 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
 
-	featureConfig := featureConfigs{}
-	if err := featureConfig.setFeatureListOptions(logger, *featureFlags); err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Errorf("Error parsing feature list: %w", err))
-		os.Exit(1)
+	featureConfig, err := featurecontrol.NewFlags(logger, *featureFlags)
+	if err != nil {
+		level.Error(logger).Log("msg", "error parsing the feature flag list", "err", err)
+		return 1
 	}
 
-	err := os.MkdirAll(*dataDir, 0o777)
+	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
 		return 1
@@ -445,7 +429,7 @@ func run() int {
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, featureConfig.enableReceiverNamesInMetrics)
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, featureConfig)
 	configLogger := log.With(logger, "component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,

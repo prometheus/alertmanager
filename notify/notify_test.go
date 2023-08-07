@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/client_golang/prometheus"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
@@ -391,7 +392,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), false))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -444,7 +445,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			}),
 			rs: sendResolved(false),
 		}
-		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), false))
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 		alerts := []*types.Alert{
 			{
@@ -477,7 +478,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), false))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -528,7 +529,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), false))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
