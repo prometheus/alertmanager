@@ -257,6 +257,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.TessellWebhookConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -361,6 +364,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		for _, wh := range rcv.WebhookConfigs {
 			if wh.HTTPConfig == nil {
 				wh.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
+		for _, tc := range rcv.TessellWebhookConfigs {
+			if tc.HTTPConfig == nil {
+				tc.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
@@ -895,19 +903,20 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs   []*DiscordConfig   `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
+	DiscordConfigs        []*DiscordConfig        `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs          []*EmailConfig          `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs      []*PagerdutyConfig      `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs          []*SlackConfig          `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs        []*WebhookConfig        `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs       []*OpsGenieConfig       `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs         []*WechatConfig         `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs       []*PushoverConfig       `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs      []*VictorOpsConfig      `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs            []*SNSConfig            `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs       []*TelegramConfig       `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs          []*WebexConfig          `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs        []*MSTeamsConfig        `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
+	TessellWebhookConfigs []*TessellWebhookConfig `yaml:"tessell_webhook_configs,omitempty" json:"tessell_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

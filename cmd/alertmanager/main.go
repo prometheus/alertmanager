@@ -58,6 +58,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
+	"github.com/prometheus/alertmanager/notify/tessell"
 	"github.com/prometheus/alertmanager/notify/victorops"
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
@@ -184,6 +185,9 @@ func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.MSTeamsConfigs {
 		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
+	}
+	for i, c := range nc.TessellWebhookConfigs {
+		add("tessell_webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return tessell.New(c, tmpl, l) })
 	}
 
 	if errs.Len() > 0 {

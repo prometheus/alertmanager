@@ -57,6 +57,11 @@ func PostJSON(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "application/json", body)
 }
 
+// PatchJSON sends a PATCH request with JSON payload to the given URL.
+func PatchJSON(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+	return patch(ctx, client, url, "application/json", body)
+}
+
 // PostText sends a POST request with text payload to the given URL.
 func PostText(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
 	return post(ctx, client, url, "text/plain", body)
@@ -64,6 +69,10 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 
 func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
 	return request(ctx, client, http.MethodPost, url, bodyType, body)
+}
+
+func patch(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPatch, url, bodyType, body)
 }
 
 func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {

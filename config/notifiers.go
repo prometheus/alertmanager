@@ -172,6 +172,13 @@ var (
 		Title: `{{ template "msteams.default.title" . }}`,
 		Text:  `{{ template "msteams.default.text" . }}`,
 	}
+
+	// DefaultTessellWebhookConfig defines default values for TessellWebhook configurations.
+	DefaultTessellWebhookConfig = TessellWebhookConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -800,4 +807,41 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	return unmarshal((*plain)(c))
+}
+
+// TessellWebhookConfig configures notifications via a Tessell webhook.
+type TessellWebhookConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send PATCH request to.
+	URL     *SecretURL `yaml:"url" json:"url"`
+	URLFile string     `yaml:"url_file" json:"url_file"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TessellWebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTessellWebhookConfig
+	type plain TessellWebhookConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return fmt.Errorf("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return fmt.Errorf("at most one of url & url_file must be configured")
+	}
+	if c.URL != nil {
+		if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+			return fmt.Errorf("scheme required for webhook url")
+		}
+	}
+	return nil
 }
