@@ -481,10 +481,13 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/gettableAlert'
+      key:
+        type: string
     required:
       - labels
       - receiver
       - alerts
+      - key
   alertStatus:
     type: object
     properties:

@@ -24,6 +24,7 @@ type alias AlertGroup =
     { labels : Dict String String
     , receiver : Receiver
     , alerts : List GettableAlert
+    , key : String
     }
 
 
@@ -33,6 +34,7 @@ decoder =
         |> required "labels" (Decode.dict Decode.string)
         |> required "receiver" Receiver.decoder
         |> required "alerts" (Decode.list GettableAlert.decoder)
+        |> required "key" Decode.string
 
 
 encoder : AlertGroup -> Encode.Value
@@ -41,4 +43,5 @@ encoder model =
         [ ( "labels", Encode.dict identity Encode.string model.labels )
         , ( "receiver", Receiver.encoder model.receiver )
         , ( "alerts", Encode.list GettableAlert.encoder model.alerts )
+        , ( "key", Encode.string model.key )
         ]

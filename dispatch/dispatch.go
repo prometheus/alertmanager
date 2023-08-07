@@ -199,6 +199,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
 	Alerts   types.AlertSlice
+	Key      string
 	Labels   model.LabelSet
 	Receiver string
 }
@@ -236,6 +237,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 			receiver := route.RouteOpts.Receiver
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
+				Key:      ag.GroupKey(),
 				Receiver: receiver,
 			}
 

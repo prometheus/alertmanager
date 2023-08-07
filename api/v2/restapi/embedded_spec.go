@@ -402,7 +402,8 @@ func init() {
       "required": [
         "labels",
         "receiver",
-        "alerts"
+        "alerts",
+        "key"
       ],
       "properties": {
         "alerts": {
@@ -410,6 +411,9 @@ func init() {
           "items": {
             "$ref": "#/definitions/gettableAlert"
           }
+        },
+        "key": {
+          "type": "string"
         },
         "labels": {
           "$ref": "#/definitions/labelSet"
@@ -1219,7 +1223,8 @@ func init() {
       "required": [
         "labels",
         "receiver",
-        "alerts"
+        "alerts",
+        "key"
       ],
       "properties": {
         "alerts": {
@@ -1227,6 +1232,9 @@ func init() {
           "items": {
             "$ref": "#/definitions/gettableAlert"
           }
+        },
+        "key": {
+          "type": "string"
         },
         "labels": {
           "$ref": "#/definitions/labelSet"
