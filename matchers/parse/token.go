@@ -63,8 +63,8 @@ func IsNone(t Token) bool {
 }
 
 type Position struct {
-	OffsetStart int // The start position in the input
-	OffsetEnd   int // The end position in the input
-	ColumnStart int // The column number
-	ColumnEnd   int // The end of the column
+	OffsetStart int // The start position in the input.
+	OffsetEnd   int // The end position in the input.
+	ColumnStart int // The column number.
+	ColumnEnd   int // The end of the column.
 }

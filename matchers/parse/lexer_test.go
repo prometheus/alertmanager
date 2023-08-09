@@ -39,7 +39,7 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "open brace with space",
+		name:  "open brace with leading space",
 		input: " {",
 		expected: []Token{{
 			Kind:  TokenOpenBrace,
@@ -65,8 +65,8 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "close brace with space",
-		input: "}",
+		name:  "close brace with leading space",
+		input: " }",
 		expected: []Token{{
 			Kind:  TokenCloseBrace,
 			Value: "}",

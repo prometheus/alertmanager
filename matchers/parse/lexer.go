@@ -104,11 +104,11 @@ func (e UnterminatedError) Error() string {
 type Lexer struct {
 	input  string
 	err    error
-	start  int // the offset of the current token
-	pos    int // the position of the cursor in the input
-	width  int // the width of the last rune
-	column int // the column offset of the current token
-	cols   int // the number of columns (runes) decoded from the input
+	start  int // The offset of the current token.
+	pos    int // The position of the cursor in the input.
+	width  int // The width of the last rune.
+	column int // The column offset of the current token.
+	cols   int // The number of columns (runes) decoded from the input.
 }
 
 func NewLexer(input string) Lexer {
@@ -123,7 +123,7 @@ func (l *Lexer) Peek() (Token, error) {
 	width := l.width
 	column := l.column
 	cols := l.cols
-	// Do not reset l.err because we can return it on the next call to Scan()
+	// Do not reset l.err because we can return it on the next call to Scan().
 	defer func() {
 		l.start = start
 		l.pos = pos
@@ -137,12 +137,12 @@ func (l *Lexer) Peek() (Token, error) {
 func (l *Lexer) Scan() (Token, error) {
 	tok := Token{}
 
-	// Do not attempt to emit more tokens if the input is invalid
+	// Do not attempt to emit more tokens if the input is invalid.
 	if l.err != nil {
 		return tok, l.err
 	}
 
-	// Iterate over each rune in the input and either emit a token or an error
+	// Iterate over each rune in the input and either emit a token or an error.
 	for r := l.next(); r != eof; r = l.next() {
 		switch {
 		case r == '{':
@@ -198,11 +198,11 @@ func (l *Lexer) scanOperator() (Token, error) {
 		return Token{}, err
 	}
 
-	// Rewind because we need to know if the rune was an '!' or an '='
+	// Rewind because we need to know if the rune was an '!' or an '='.
 	l.rewind()
 
 	// If the first rune is an '!' then it must be followed with either an
-	// '=' or '~' to not match a string or regex
+	// '=' or '~' to not match a string or regex.
 	if l.accept("!") {
 		if err := l.expect("=~"); err != nil {
 			return Token{}, err
@@ -211,7 +211,7 @@ func (l *Lexer) scanOperator() (Token, error) {
 	}
 
 	// If the first rune is an '=' then it can be followed with an optional
-	// '~' to match a regex
+	// '~' to match a regex.
 	l.accept("=")
 	l.accept("~")
 	return l.emit(TokenOperator), nil

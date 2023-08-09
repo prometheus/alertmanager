@@ -139,7 +139,7 @@ func (p *Parser) parse() (labels.Matchers, error) {
 type parseFn func(l *Lexer) (parseFn, error)
 
 func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
-	// Can start with an optional open brace
+	// Can start with an optional open brace.
 	hasOpenParen, err := p.accept(l.Peek, TokenOpenBrace)
 	if err != nil {
 		if errors.Is(err, ErrEOF) {
@@ -149,14 +149,14 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
 	}
 	if hasOpenParen {
 		// If the token was an open brace it must be scanned so the token
-		// following it can be peeked
+		// following it can be peeked.
 		if _, err = l.Scan(); err != nil {
 			panic("Unexpected error scanning open brace")
 		}
 	}
 	p.hasOpenParen = hasOpenParen
 	// If the next token is a close brace there are no matchers in the input
-	// and we can just parse the close brace
+	// and we can just parse the close brace.
 	if hasCloseParen, err := p.accept(l.Peek, TokenCloseBrace); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
 	} else if hasCloseParen {
@@ -167,12 +167,12 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
 
 func (p *Parser) parseCloseParen(l *Lexer) (parseFn, error) {
 	if p.hasOpenParen {
-		// If there was an open brace there must be a matching close brace
+		// If there was an open brace there must be a matching close brace.
 		if _, err := p.expect(l.Scan, TokenCloseBrace); err != nil {
 			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
 		}
 	} else {
-		// If there was no open brace there must not be a close brace either
+		// If there was no open brace there must not be a close brace either.
 		if _, err := p.expect(l.Peek, TokenCloseBrace); err == nil {
 			return nil, fmt.Errorf("0:%d: }: %w", len(p.input), ErrNoOpenBrace)
 		}
@@ -185,7 +185,7 @@ func (p *Parser) parseComma(l *Lexer) (parseFn, error) {
 		return nil, fmt.Errorf("%s: %s", err, "expected a comma")
 	}
 	// The token after the comma can be another matcher, a close brace or the
-	// end of input
+	// end of input.
 	tok, err := p.expect(l.Peek, TokenCloseBrace, TokenIdent, TokenQuoted)
 	if err != nil {
 		if errors.Is(err, ErrEOF) {
@@ -219,13 +219,13 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 
 	// The next token is the label name. This can either be an ident which
 	// accepts just [a-zA-Z_] or a quoted which accepts all UTF-8 characters
-	// in double quotes
+	// in double quotes.
 	if tok, err = p.expect(l.Scan, TokenIdent, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
 	}
 	labelName = tok.Value
 
-	// The next token is the operator such as '=', '!=', '=~' and '!~'
+	// The next token is the operator such as '=', '!=', '=~' and '!~'.
 	if tok, err = p.expect(l.Scan, TokenOperator); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, ErrNoOperator)
 	}
@@ -235,7 +235,7 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 
 	// The next token is the label value. This too can either be an ident
 	// which accepts just [a-zA-Z_] or a quoted which accepts all UTF-8
-	// characters in double quotes
+	// characters in double quotes.
 	if tok, err = p.expect(l.Scan, TokenIdent, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
 	}
@@ -261,7 +261,7 @@ func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFn, error) {
 	tok, err := p.expect(l.Peek, TokenComma, TokenCloseBrace)
 	if err != nil {
 		// If this is the end of input we still need to check if the optional
-		// open brace has a matching close brace
+		// open brace has a matching close brace.
 		if errors.Is(err, ErrEOF) {
 			return p.parseCloseParen, nil
 		}
