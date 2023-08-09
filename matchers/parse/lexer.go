@@ -253,6 +253,7 @@ func (l *Lexer) accept(valid string) bool {
 	return false
 }
 
+// nolint:unused
 func (l *Lexer) acceptRun(valid string) {
 	for strings.ContainsRune(valid, l.next()) {
 	}
