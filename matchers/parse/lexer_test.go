@@ -71,10 +71,10 @@ func TestLexer_Scan(t *testing.T) {
 			Kind:  TokenCloseBrace,
 			Value: "}",
 			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+				OffsetStart: 1,
+				OffsetEnd:   2,
+				ColumnStart: 1,
+				ColumnEnd:   2,
 			},
 		}},
 	}, {
