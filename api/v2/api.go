@@ -317,7 +317,7 @@ func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) m
 	alerts, err := api.getAlerts(ctx, receiverFilter, alertFilter, params.NextToken)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to get alerts", "err", err)
-		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
+		return alertinfo_ops.NewGetAlertInfosInternalServerError().WithPayload(err.Error())
 	}
 
 	returnAlertInfos, nextItem := AlertInfosTruncate(alerts, params.MaxResults)
@@ -780,11 +780,12 @@ func (api *API) getAlerts(ctx context.Context, receiverFilter *regexp.Regexp, al
 		}
 
 		// Skip the alert if the next token is set and hasn't arrived the nextToken item yet.
-		if nextToken != nil && *nextToken >= a.Fingerprint().String() {
+		alertFP := a.Fingerprint()
+		if nextToken != nil && *nextToken >= alertFP.String() {
 			continue
 		}
 
-		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
+		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(alertFP), receivers)
 
 		res = append(res, alert)
 	}

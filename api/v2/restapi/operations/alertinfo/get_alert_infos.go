@@ -46,7 +46,7 @@ func NewGetAlertInfos(ctx *middleware.Context, handler GetAlertInfosHandler) *Ge
 /*
 	GetAlertInfos swagger:route GET /alertinfos alertinfo getAlertInfos
 
-Get a list of alerts
+Get a list of alert infos
 */
 type GetAlertInfos struct {
 	Context *middleware.Context

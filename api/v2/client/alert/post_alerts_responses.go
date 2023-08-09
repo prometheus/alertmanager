@@ -97,11 +97,11 @@ func (o *PostAlertsOK) IsCode(code int) bool {
 }
 
 func (o *PostAlertsOK) Error() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
 }
 
 func (o *PostAlertsOK) String() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
 }
 
 func (o *PostAlertsOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -149,11 +149,11 @@ func (o *PostAlertsBadRequest) IsCode(code int) bool {
 }
 
 func (o *PostAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
 }
 
 func (o *PostAlertsBadRequest) String() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
 }
 
 func (o *PostAlertsBadRequest) GetPayload() string {
@@ -210,11 +210,11 @@ func (o *PostAlertsInternalServerError) IsCode(code int) bool {
 }
 
 func (o *PostAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *PostAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[POST /alertinfos][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *PostAlertsInternalServerError) GetPayload() string {
