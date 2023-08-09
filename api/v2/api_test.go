@@ -764,7 +764,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 				setAlertStatus: func(model.LabelSet) {},
 			}
 			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
-			r, err := http.NewRequest("GET", "/api/v2/alerts", nil)
+			r, err := http.NewRequest("GET", "/api/v2/alertinfos", nil)
 			require.NoError(t, err)
 
 			w := httptest.NewRecorder()

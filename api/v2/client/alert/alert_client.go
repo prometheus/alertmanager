@@ -100,7 +100,7 @@ func (a *Client) PostAlerts(params *PostAlertsParams, opts ...ClientOption) (*Po
 	op := &runtime.ClientOperation{
 		ID:                 "postAlerts",
 		Method:             "POST",
-		PathPattern:        "/alertinfos",
+		PathPattern:        "/alerts",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

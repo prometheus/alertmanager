@@ -52,7 +52,7 @@ func init() {
   "paths": {
     "/alertinfos": {
       "get": {
-        "description": "Get a list of alerts",
+        "description": "Get a list of alert infos",
         "tags": [
           "alertinfo"
         ],
@@ -129,35 +129,6 @@ func init() {
             "$ref": "#/responses/InternalServerError"
           }
         }
-      },
-      "post": {
-        "description": "Create new Alerts",
-        "tags": [
-          "alert"
-        ],
-        "operationId": "postAlerts",
-        "parameters": [
-          {
-            "description": "The alerts to create",
-            "name": "alerts",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/postableAlerts"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Create alerts response"
-          },
-          "400": {
-            "$ref": "#/responses/BadRequest"
-          },
-          "500": {
-            "$ref": "#/responses/InternalServerError"
-          }
-        }
       }
     },
     "/alerts": {
@@ -219,6 +190,35 @@ func init() {
             "schema": {
               "$ref": "#/definitions/gettableAlerts"
             }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "description": "Create new Alerts",
+        "tags": [
+          "alert"
+        ],
+        "operationId": "postAlerts",
+        "parameters": [
+          {
+            "description": "The alerts to create",
+            "name": "alerts",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/postableAlerts"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Create alerts response"
           },
           "400": {
             "$ref": "#/responses/BadRequest"
@@ -934,7 +934,7 @@ func init() {
   "paths": {
     "/alertinfos": {
       "get": {
-        "description": "Get a list of alerts",
+        "description": "Get a list of alert infos",
         "tags": [
           "alertinfo"
         ],
@@ -1017,41 +1017,6 @@ func init() {
             }
           }
         }
-      },
-      "post": {
-        "description": "Create new Alerts",
-        "tags": [
-          "alert"
-        ],
-        "operationId": "postAlerts",
-        "parameters": [
-          {
-            "description": "The alerts to create",
-            "name": "alerts",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/postableAlerts"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Create alerts response"
-          },
-          "400": {
-            "description": "Bad request",
-            "schema": {
-              "type": "string"
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "type": "string"
-            }
-          }
-        }
       }
     },
     "/alerts": {
@@ -1113,6 +1078,41 @@ func init() {
             "schema": {
               "$ref": "#/definitions/gettableAlerts"
             }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create new Alerts",
+        "tags": [
+          "alert"
+        ],
+        "operationId": "postAlerts",
+        "parameters": [
+          {
+            "description": "The alerts to create",
+            "name": "alerts",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/postableAlerts"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Create alerts response"
           },
           "400": {
             "description": "Bad request",

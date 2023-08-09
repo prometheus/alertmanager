@@ -50,7 +50,7 @@ type ClientService interface {
 }
 
 /*
-GetAlertInfos Get a list of alerts
+GetAlertInfos Get a list of alert infos
 */
 func (a *Client) GetAlertInfos(params *GetAlertInfosParams, opts ...ClientOption) (*GetAlertInfosOK, error) {
 	// TODO: Validate the params before sending

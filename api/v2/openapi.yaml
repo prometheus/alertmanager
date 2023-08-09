@@ -180,12 +180,32 @@ paths:
           $ref: '#/responses/BadRequest'
         '500':
           $ref: '#/responses/InternalServerError'
+    post:
+      tags:
+        - alert
+      operationId: postAlerts
+      description: Create new Alerts
+      parameters:
+        - in: body
+          name: alerts
+          description: The alerts to create
+          required: true
+          schema:
+            $ref: '#/definitions/postableAlerts'
+      responses:
+        '200':
+          description: Create alerts response
+        '500':
+          $ref: '#/responses/InternalServerError'
+        '400':
+          $ref: '#/responses/BadRequest'
+
   /alertinfos:
     get:
       tags:
         - alertinfo
       operationId: getAlertInfos
-      description: Get a list of alerts
+      description: Get a list of alert infos
       parameters:
         - in: query
           name: active
@@ -239,25 +259,6 @@ paths:
           $ref: '#/responses/BadRequest'
         '500':
           $ref: '#/responses/InternalServerError'
-    post:
-      tags:
-        - alert
-      operationId: postAlerts
-      description: Create new Alerts
-      parameters:
-        - in: body
-          name: alerts
-          description: The alerts to create
-          required: true
-          schema:
-            $ref: '#/definitions/postableAlerts'
-      responses:
-        '200':
-          description: Create alerts response
-        '500':
-          $ref: '#/responses/InternalServerError'
-        '400':
-          $ref: '#/responses/BadRequest'
   /alerts/groups:
     get:
       tags:
