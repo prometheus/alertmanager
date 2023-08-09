@@ -26,39 +26,40 @@ func TestCompliance(t *testing.T) {
 		input string
 		want  labels.Matchers
 		err   string
+		skip  bool
 	}{
-		// Skipped due to non-compliance
-		//{
-		//	input: `{}`,
-		//	want:  labels.Matchers{},
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo='}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "'")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: "{foo=`}",
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "`")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: "{foo=\\\"}",
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
-		//		return append(ms, m)
-		//	}(),
-		//},
+		{
+			input: `{}`,
+			want:  labels.Matchers{},
+			skip:  true,
+		},
+		{
+			input: `{foo='}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "'")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: "{foo=`}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "`")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: "{foo=\\\"}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
 		{
 			input: `{foo=bar}`,
 			want: func() labels.Matchers {
@@ -75,15 +76,15 @@ func TestCompliance(t *testing.T) {
 				return append(ms, m)
 			}(),
 		},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=~bar.*}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
-		//		return append(ms, m)
-		//	}(),
-		//},
+		{
+			input: `{foo=~bar.*}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
 		{
 			input: `{foo=~"bar.*"}`,
 			want: func() labels.Matchers {
@@ -108,15 +109,15 @@ func TestCompliance(t *testing.T) {
 				return append(ms, m)
 			}(),
 		},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo!~bar.*}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
-		//		return append(ms, m)
-		//	}(),
-		//},
+		{
+			input: `{foo!~bar.*}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
 		{
 			input: `{foo!~"bar.*"}`,
 			want: func() labels.Matchers {
@@ -233,24 +234,24 @@ func TestCompliance(t *testing.T) {
 				return append(ms, m)
 			}(),
 		},
-		// Skipped due to non-compliance
-		//{
-		//	input: `tricky=~~~`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchRegexp, "tricky", "~~")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `trickier==\\=\=\"`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "trickier", `=\=\="`)
-		//		return append(ms, m)
-		//	}(),
-		//},
+		{
+			input: `tricky=~~~`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchRegexp, "tricky", "~~")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `trickier==\\=\=\"`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "trickier", `=\=\="`)
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
 		{
 			input: `contains_quote != "\"" , contains_comma !~ "foo,bar" , `,
 			want: func() labels.Matchers {
@@ -260,42 +261,42 @@ func TestCompliance(t *testing.T) {
 				return append(ms, m, m2)
 			}(),
 		},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=bar}}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=bar}},}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}}")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=,bar=}}`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m1, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
-		//		m2, _ := labels.NewMatcher(labels.MatchEqual, "bar", "}")
-		//		return append(ms, m1, m2)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `job=`,
-		//	want: func() labels.Matchers {
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "job", "")
-		//		return labels.Matchers{m}
-		//	}(),
-		//},
+		{
+			input: `{foo=bar}}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=bar}},}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}}")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=,bar=}}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m1, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				m2, _ := labels.NewMatcher(labels.MatchEqual, "bar", "}")
+				return append(ms, m1, m2)
+			}(),
+			skip: true,
+		},
+		{
+			input: `job=`,
+			want: func() labels.Matchers {
+				m, _ := labels.NewMatcher(labels.MatchEqual, "job", "")
+				return labels.Matchers{m}
+			}(),
+			skip: true,
+		},
 		{
 			input: `{,}`,
 			err:   "bad matcher format: ",
@@ -353,26 +354,29 @@ func TestCompliance(t *testing.T) {
 			input: `{{foo=`,
 			err:   `bad matcher format: {foo=`,
 		},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
-		//		return append(ms, m)
-		//	}(),
-		//},
-		// Skipped due to non-compliance
-		//{
-		//	input: `{foo=}b`,
-		//	want: func() labels.Matchers {
-		//		ms := labels.Matchers{}
-		//		m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "}b")
-		//		return append(ms, m)
-		//	}(),
-		//},
+		{
+			input: `{foo=`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=}b`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "}b")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
+			if tc.skip {
+				t.Skip()
+			}
 			got, err := parse.Parse(tc.input)
 			if err != nil && tc.err == "" {
 				t.Fatalf("got error where none expected: %v", err)
