@@ -276,11 +276,15 @@ func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFn, error) {
 	}
 }
 
+// Parse parses one or more matchers in the input string. It returns an error
+// if the input is invalid.
 func Parse(input string) (labels.Matchers, error) {
 	p := NewParser(input)
 	return p.Parse()
 }
 
+// ParseMatcher parses the matcher in the input string. It returns an error
+// if the input is invalid or contains two or more matchers.
 func ParseMatcher(input string) (*labels.Matcher, error) {
 	if strings.HasPrefix(input, "{") {
 		return nil, errors.New("Individual matchers cannot start and end with braces")

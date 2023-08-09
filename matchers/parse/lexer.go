@@ -117,6 +117,9 @@ func NewLexer(input string) Lexer {
 	}
 }
 
+// Peeks the next token in the input or an error if the input does not
+// conform to the grammar. Once the input has been consumed successive
+// calls Peek() return a TokenNone token.
 func (l *Lexer) Peek() (Token, error) {
 	start := l.start
 	pos := l.pos
@@ -134,6 +137,9 @@ func (l *Lexer) Peek() (Token, error) {
 	return l.Scan()
 }
 
+// Scans the next token in the input or an error if the input does not
+// conform to the grammar. Once the input has been consumed successive
+// calls Scan() return a TokenNone token.
 func (l *Lexer) Scan() (Token, error) {
 	tok := Token{}
 
