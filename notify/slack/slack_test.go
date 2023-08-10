@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,28 +117,75 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		statusCode     int
+		responseBody   string
 		expectedReason notify.Reason
+		expectedErr    string
+		expectedRetry  bool
 		noError        bool
 	}{
 		{
 			name:           "with a 4xx status code",
 			statusCode:     http.StatusUnauthorized,
 			expectedReason: notify.ClientErrorReason,
+			expectedRetry:  false,
+			expectedErr:    "unexpected status code 401",
 		},
 		{
 			name:           "with a 5xx status code",
 			statusCode:     http.StatusInternalServerError,
 			expectedReason: notify.ServerErrorReason,
+			expectedRetry:  true,
+			expectedErr:    "unexpected status code 500",
 		},
 		{
-			name:           "with any other status code",
+			name:           "with a 3xx status code",
 			statusCode:     http.StatusTemporaryRedirect,
 			expectedReason: notify.DefaultReason,
+			expectedRetry:  false,
+			expectedErr:    "unexpected status code 307",
 		},
 		{
-			name:       "with a 2xx status code",
-			statusCode: http.StatusOK,
-			noError:    true,
+			name:           "with a 1xx status code",
+			statusCode:     http.StatusSwitchingProtocols,
+			expectedReason: notify.DefaultReason,
+			expectedRetry:  false,
+			expectedErr:    "unexpected status code 101",
+		},
+		{
+			name:           "2xx response with invalid JSON",
+			statusCode:     http.StatusOK,
+			responseBody:   `{"not valid json"}`,
+			expectedReason: notify.ClientErrorReason,
+			expectedRetry:  true,
+			expectedErr:    "could not unmarshal",
+		},
+		{
+			name:           "2xx response with a JSON error",
+			statusCode:     http.StatusOK,
+			responseBody:   `{"ok":false,"error":"error_message"}`,
+			expectedReason: notify.ClientErrorReason,
+			expectedRetry:  false,
+			expectedErr:    "error response from Slack: error_message",
+		},
+		{
+			name:           "2xx response with a plaintext error",
+			statusCode:     http.StatusOK,
+			responseBody:   "no_channel",
+			expectedReason: notify.ClientErrorReason,
+			expectedRetry:  false,
+			expectedErr:    "error response from Slack: no_channel",
+		},
+		{
+			name:         "successful JSON response",
+			statusCode:   http.StatusOK,
+			responseBody: `{"ok":true}`,
+			noError:      true,
+		},
+		{
+			name:         "successful plaintext response",
+			statusCode:   http.StatusOK,
+			responseBody: "ok",
+			noError:      true,
 		},
 	}
 	for _, tt := range tests {
@@ -148,6 +196,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					NotifierConfig: config.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &config.SecretURL{URL: apiurl},
+					Channel:        "channelname",
 				},
 				test.CreateTmpl(t),
 				log.NewNopLogger(),
@@ -156,7 +205,11 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 
 			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
 				resp := httptest.NewRecorder()
+				if strings.HasPrefix(tt.responseBody, "{") {
+					resp.Header().Add("Content-Type", "application/json; charset=utf-8")
+				}
 				resp.WriteHeader(tt.statusCode)
+				resp.WriteString(tt.responseBody)
 				return resp.Result(), nil
 			}
 			ctx := context.Background()
@@ -168,13 +221,16 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = notifier.Notify(ctx, alert1)
+			retry, err := notifier.Notify(ctx, alert1)
+			require.Equal(t, tt.expectedRetry, retry)
 			if tt.noError {
 				require.NoError(t, err)
 			} else {
 				reasonError, ok := err.(*notify.ErrorWithReason)
 				require.True(t, ok)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
+				require.Contains(t, err.Error(), tt.expectedErr)
+				require.Contains(t, err.Error(), "channelname")
 			}
 		})
 	}
