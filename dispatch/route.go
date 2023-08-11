@@ -180,8 +180,7 @@ func (r *Route) Key() string {
 	return b.String()
 }
 
-// ID returns a unique identifier for the route, unlike Key(). This need to be called after full route tree
-// finish generated as it need to know the position of this route in the whole tree
+// ID returns a unique identifier for the route.
 func (r *Route) ID() string {
 	b := strings.Builder{}
 
