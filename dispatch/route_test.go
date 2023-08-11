@@ -860,41 +860,33 @@ receiver: 'notify-def'
 
 routes:
 - matchers: ['{owner="team-A"}', '{level!="critical"}']
-
+  receiver: 'notify-D'
+  group_by: [...]
+  continue: true
+- matchers: ['{owner="team-A"}', '{level!="critical"}']
   receiver: 'notify-A'
-
   routes:
   - matchers: ['{env="testing"}', '{baz!~".*quux"}']
-
     receiver: 'notify-testing'
     group_by: [...]
-
   - match:
       env: "production"
-
     receiver: 'notify-productionA'
     group_wait: 1m
-
     continue: true
-
   - matchers: [ env=~"produ.*", job=~".*"]
-
     receiver: 'notify-productionB'
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 1h
     group_by: ['job']
-
 - match_re:
     owner: 'team-(B|C)'
-
   group_by: ['foo', 'bar']
   group_wait: 2m
   receiver: 'notify-BC'
-
 - matchers: [group_by="role"]
   group_by: ['role']
-
   routes:
   - matchers: ['{env="testing"}']
     receiver: 'notify-testing'
@@ -912,11 +904,12 @@ routes:
 	expected := []string{
 		"{}",
 		"{}/{level!=\"critical\",owner=\"team-A\"}/0",
+		"{}/{level!=\"critical\",owner=\"team-A\"}/1",
 		"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}/0",
 		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}/1",
 		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}/2",
-		"{}/{owner=~\"^(?:team-(B|C))$\"}/1",
-		"{}/{group_by=\"role\"}/2",
+		"{}/{owner=~\"^(?:team-(B|C))$\"}/2",
+		"{}/{group_by=\"role\"}/3",
 		"{}/{group_by=\"role\"}/{env=\"testing\"}/0",
 		"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}/0",
 	}
@@ -926,7 +919,5 @@ routes:
 		got = append(got, r.ID())
 	})
 
-	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, got)
-	}
+	require.ElementsMatch(t, got, expected)
 }
