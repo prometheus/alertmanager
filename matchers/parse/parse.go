@@ -104,7 +104,7 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 func (p *Parser) peekNext(l *Lexer) (Token, error) {
 	tok, err := l.Peek()
 	if err != nil {
-		return Token{}, nil
+		return Token{}, err
 	}
 	if tok.Kind == TokenNone {
 		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
