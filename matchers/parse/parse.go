@@ -59,9 +59,8 @@ func (p *Parser) Error() error {
 	return p.err
 }
 
-// Parse returns a series of matchers or an error. It can be called more than
-// once, however successive calls return the matchers and err from the first
-// call.
+// Parse returns a series of matchers or an error. It is idempotent.
+// Successive calls return the same result.
 func (p *Parser) Parse() (labels.Matchers, error) {
 	if !p.done {
 		p.done = true
