@@ -58,10 +58,6 @@ func (t Token) String() string {
 	return fmt.Sprintf("(%s) '%s'", t.Kind, t.Value)
 }
 
-func IsNone(t Token) bool {
-	return t == Token{}
-}
-
 type Position struct {
 	OffsetStart int // The start position in the input.
 	OffsetEnd   int // The end position in the input.
