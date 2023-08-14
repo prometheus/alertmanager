@@ -39,12 +39,15 @@ var (
 // For example, the input is missing an opening bracket, has missing label
 // names or label values, a trailing comma, or missing closing bracket.
 type Parser struct {
-	done         bool
-	err          error
+	// The final state of the parser, makes it idempotent.
+	done     bool
+	err      error
+	matchers labels.Matchers
+
+	input string
+	lexer Lexer
+	// Tracks if the input starts with a `{` and if we should expect a `}`.
 	hasOpenParen bool
-	input        string
-	lexer        Lexer
-	matchers     labels.Matchers
 }
 
 func NewParser(input string) Parser {
@@ -61,6 +64,8 @@ func (p *Parser) Error() error {
 
 // Parse returns a series of matchers or an error. It is idempotent.
 // Successive calls return the same result.
+// once, however successive calls return the matchers and err from the first
+// call.
 func (p *Parser) Parse() (labels.Matchers, error) {
 	if !p.done {
 		p.done = true
