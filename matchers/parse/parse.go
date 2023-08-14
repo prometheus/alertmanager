@@ -74,31 +74,6 @@ func (p *Parser) Parse() (labels.Matchers, error) {
 	return p.matchers, p.err
 }
 
-// accept returns true if the next token is one of the expected kinds, or
-// an error if the next token that would be returned from the lexer does not
-// match the expected grammar, or if the lexer has reached the end of the input
-// and TokenNone is not one of the accepted kinds. It is possible to use either
-// Scan() or Peek() as fn depending on whether accept should consume or peek
-// the next token.
-func (p *Parser) accept(fn func() (Token, error), kind ...TokenKind) (bool, error) {
-	var (
-		err error
-		tok Token
-	)
-	if tok, err = fn(); err != nil {
-		return false, err
-	}
-	for _, k := range kind {
-		if tok.Kind == k {
-			return true, nil
-		}
-	}
-	if tok.Kind == TokenNone {
-		return false, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
-	}
-	return false, nil
-}
-
 // expect returns the next token if it is one of the expected kinds. It returns
 // an error if the next token that would be returned from the lexer does not
 // match the expected grammar, or if the lexer has reached the end of the input
@@ -124,6 +99,19 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 }
 
+// peekNext peeks the next token from the lexer. It returns an error if there is
+// no more input.
+func (p *Parser) peekNext(l *Lexer) (Token, error) {
+	tok, err := l.Peek()
+	if err != nil {
+		return Token{}, nil
+	}
+	if tok.Kind == TokenNone {
+		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
+	}
+	return tok, nil
+}
+
 func (p *Parser) parse() (labels.Matchers, error) {
 	var (
 		err error
@@ -144,28 +132,36 @@ type parseFn func(l *Lexer) (parseFn, error)
 
 func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
 	// Can start with an optional open brace.
-	hasOpenParen, err := p.accept(l.Peek, TokenOpenBrace)
+	tok, err := p.peekNext(l)
 	if err != nil {
 		if errors.Is(err, ErrEOF) {
 			return p.parseEOF, nil
 		}
 		return nil, err
 	}
-	if hasOpenParen {
-		// If the token was an open brace it must be scanned so the token
-		// following it can be peeked.
+	p.hasOpenParen = tok.IsOneOf(TokenOpenBrace)
+	// If the token was an open brace it must be scanned so the token
+	// following it can be peeked.
+	if p.hasOpenParen {
 		if _, err = l.Scan(); err != nil {
 			panic("Unexpected error scanning open brace")
 		}
+
+		// If the next token is a close brace there are no matchers in the input
+		// and we can just parse the close brace.
+		tok, err = p.peekNext(l)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
+		}
+		if tok.IsOneOf(TokenCloseBrace) {
+			return p.parseCloseParen, nil
+		}
 	}
-	p.hasOpenParen = hasOpenParen
-	// If the next token is a close brace there are no matchers in the input
-	// and we can just parse the close brace.
-	if hasCloseParen, err := p.accept(l.Peek, TokenCloseBrace); err != nil {
-		return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
-	} else if hasCloseParen {
+
+	if tok.IsOneOf(TokenCloseBrace) {
 		return p.parseCloseParen, nil
 	}
+
 	return p.parseLabelMatcher, nil
 }
 

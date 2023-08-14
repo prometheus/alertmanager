@@ -54,6 +54,16 @@ type Token struct {
 	Position
 }
 
+// IsOneOf returns true if the token is one of the specified kinds.
+func (t Token) IsOneOf(kinds ...TokenKind) bool {
+	for _, k := range kinds {
+		if k == t.Kind {
+			return true
+		}
+	}
+	return false
+}
+
 func (t Token) String() string {
 	return fmt.Sprintf("(%s) '%s'", t.Kind, t.Value)
 }
