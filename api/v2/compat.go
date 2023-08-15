@@ -213,7 +213,7 @@ func AlertGroupInfoListTruncate(alertGroupInfos []*open_api_models.AlertGroupInf
 		}
 
 		// Return the next token if there is more aggregation group
-		if resultNumber == int(*maxResult) {
+		if resultNumber == int(*maxResult) && previousAgID != nil {
 			returnPaginationToken = *previousAgID
 			break
 		}

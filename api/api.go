@@ -125,6 +125,7 @@ func New(opts Options) (*API, error) {
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
+		opts.GroupInfoFunc,
 		opts.StatusFunc,
 		opts.Silences,
 		opts.Peer,

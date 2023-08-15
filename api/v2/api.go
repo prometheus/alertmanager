@@ -89,6 +89,7 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
+	gif groupInfosFn,
 	sf getAlertStatusFn,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
@@ -96,14 +97,15 @@ func NewAPI(
 	r prometheus.Registerer,
 ) (*API, error) {
 	api := API{
-		alerts:         alerts,
-		getAlertStatus: sf,
-		alertGroups:    gf,
-		peer:           peer,
-		silences:       silences,
-		logger:         l,
-		m:              metrics.NewAlerts("v2", r),
-		uptime:         time.Now(),
+		alerts:          alerts,
+		getAlertStatus:  sf,
+		alertGroups:     gf,
+		alertGroupInfos: gif,
+		peer:            peer,
+		silences:        silences,
+		logger:          l,
+		m:               metrics.NewAlerts("v2", r),
+		uptime:          time.Now(),
 	}
 
 	// Load embedded swagger file.
