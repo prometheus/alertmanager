@@ -268,7 +268,7 @@ func (l *Lexer) acceptRun(valid string) {
 
 func (l *Lexer) expect(valid string) error {
 	r := l.next()
-	if r == -1 {
+	if r == eof {
 		l.rewind()
 		return ExpectedError{
 			input:       l.input,
