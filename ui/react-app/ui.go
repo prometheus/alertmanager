@@ -19,5 +19,4 @@ import (
 	"github.com/prometheus/common/assets"
 )
 
-//nolint:typecheck // Ignore undeclared embedFS, it is part of generated code.
 var Assets = http.FS(assets.New(embedFS))

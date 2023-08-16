@@ -29,6 +29,9 @@ build-all: assets apiv2 build
 .PHONY: build
 build: build-react-app assets-compress common-build
 
+.PHONY: lint
+lint: assets-compress common-lint
+
 .PHONY: build-react-app
 build-react-app:
 	cd ui/react-app && npm install && npm run build
