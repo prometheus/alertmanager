@@ -114,6 +114,6 @@ func TestWeLinkMockFail(t *testing.T) {
 	}...)
 
 	require.False(t, ok)
-	require.Equal(t, err.Error(), "not ok")
+	require.Equal(t, "not ok", err.Error())
 
 }

@@ -52,7 +52,7 @@ type welinkMessage struct {
 	Content     welinkContent `yaml:"context" json:"context"`
 	MessageType string        `yaml:"messageType" json:"messageType"`
 	TimeStamp   int64         `yaml:"timeStamp" json:"timeStamp"`
-	Uuid        string        `yaml:"uuid" json:"uuid"`
+	UUID        string        `yaml:"uuid" json:"uuid"`
 	IsAt        bool          `yaml:"isAt,omitempty" json:"isAt,omitempty"`
 	IsAtAll     bool          `yaml:"isAtAll,omitempty" json:"isAtAll,omitempty"`
 	AtAccounts  []string      `yaml:"atAccounts,omitempty" json:"atAccounts,omitempty"`
@@ -111,7 +111,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// init message
 	msg := &welinkMessage{
 		MessageType: n.conf.MessageType,
-		Uuid:        uuid.New().String(),
+		UUID:        uuid.New().String(),
 		TimeStamp:   time.Now().UnixMilli(), // microseconds
 		Content: welinkContent{
 			Text: messageText,
