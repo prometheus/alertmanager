@@ -21,11 +21,12 @@ import (
 	"path"
 
 	"github.com/go-kit/log"
-	"github.com/prometheus/alertmanager/asset"
-	reactApp "github.com/prometheus/alertmanager/ui/react-app"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/server"
+
+	"github.com/prometheus/alertmanager/asset"
+	reactApp "github.com/prometheus/alertmanager/ui/react-app"
 )
 
 var reactRouterPaths = []string{
