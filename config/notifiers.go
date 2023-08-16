@@ -172,6 +172,15 @@ var (
 		Title: `{{ template "msteams.default.title" . }}`,
 		Text:  `{{ template "msteams.default.text" . }}`,
 	}
+
+	DefaultWeLinkConfig = WeLinkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Content: Content{
+			Text: `{{ template "welink.default.text" . }}`,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -800,4 +809,48 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	return unmarshal((*plain)(c))
+}
+
+// WeLinkConfig configures notifications via welink.
+// See: https://open.welink.huaweicloud.com/docs/#/990hh0/whokyc/mmkx2n
+type WeLinkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	APIUrl     *URL                        `yaml:"api_url" json:"api_url,omitempty"`
+
+	Token       string   `yaml:"token" json:"token"`
+	Channel     string   `yaml:"channel" json:"channel"`
+	MessageType string   `yaml:"messageType" json:"messageType"`
+	IsAt        bool     `yaml:"isAt,omitempty" json:"isAt,omitempty"`
+	IsAtAll     bool     `yaml:"isAtAll,omitempty" json:"isAtAll,omitempty"`
+	AtAccounts  []string `yaml:"atAccounts,omitempty" json:"atAccounts,omitempty"`
+	Content     `yaml:",inline" json:",inline"`
+}
+
+type Content struct {
+	Text string `yaml:"text" json:"text"`
+}
+
+const welinkValidTypesRe = `^(text)$`
+
+var welinkTypeMatcher = regexp.MustCompile(welinkValidTypesRe)
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WeLinkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWeLinkConfig
+	type plain WeLinkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.MessageType == "" {
+		c.MessageType = "text"
+	}
+
+	if !welinkTypeMatcher.MatchString(c.MessageType) {
+		return errors.Errorf("welink message type %q does not match valid options %s", c.MessageType, welinkValidTypesRe)
+	}
+
+	return nil
 }

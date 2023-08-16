@@ -62,6 +62,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/notify/welink"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
@@ -185,7 +186,9 @@ func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	for i, c := range nc.MSTeamsConfigs {
 		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
 	}
-
+	for i, c := range nc.WeLinkConfigs {
+		add("welink", i, c, func(l log.Logger) (notify.Notifier, error) { return welink.New(c, tmpl, l) })
+	}
 	if errs.Len() > 0 {
 		return nil, &errs
 	}
