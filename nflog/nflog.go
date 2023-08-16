@@ -101,6 +101,8 @@ type metrics struct {
 	queryErrorsTotal        prometheus.Counter
 	queryDuration           prometheus.Histogram
 	propagatedMessagesTotal prometheus.Counter
+	maintenanceTotal        prometheus.Counter
+	maintenanceErrorsTotal  prometheus.Counter
 }
 
 func newMetrics(r prometheus.Registerer) *metrics {
@@ -119,6 +121,14 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_nflog_snapshot_size_bytes",
 		Help: "Size of the last notification log snapshot in bytes.",
+	})
+	m.maintenanceTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_nflog_maintenance_total",
+		Help: "How many maintenances were executed for the notification log.",
+	})
+	m.maintenanceErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_nflog_maintenance_errors_total",
+		Help: "How many maintenances were executed for the notification log that failed.",
 	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_queries_total",
@@ -146,6 +156,8 @@ func newMetrics(r prometheus.Registerer) *metrics {
 			m.queryErrorsTotal,
 			m.queryDuration,
 			m.propagatedMessagesTotal,
+			m.maintenanceTotal,
+			m.maintenanceErrorsTotal,
 		)
 	}
 	return m
@@ -317,12 +329,17 @@ func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan str
 	}
 
 	runMaintenance := func(do func() (int64, error)) error {
+		l.metrics.maintenanceTotal.Inc()
 		start := l.now().UTC()
 		level.Debug(l.logger).Log("msg", "Running maintenance")
 		size, err := do()
-		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
 		l.metrics.snapshotSize.Set(float64(size))
-		return err
+		if err != nil {
+			l.metrics.maintenanceErrorsTotal.Inc()
+			return err
+		}
+		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+		return nil
 	}
 
 Loop:

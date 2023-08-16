@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -101,13 +103,28 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
+	var url string
+	if n.conf.URL != nil {
+		url = n.conf.URL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.URLFile)
+		if err != nil {
+			return false, fmt.Errorf("read url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(content))
+	}
+
+	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, resp.Body)
+	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+	return shouldRetry, err
 }
 
 func errDetails(body io.Reader, url string) string {

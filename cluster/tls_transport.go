@@ -80,27 +80,33 @@ func NewTLSTransport(
 	if cfg == nil {
 		return nil, errors.New("must specify TLSTransportConfig")
 	}
+
 	tlsServerCfg, err := web.ConfigToTLSConfig(cfg.TLSServerConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid TLS server config")
 	}
+
 	tlsClientCfg, err := common.NewTLSConfig(cfg.TLSClientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid TLS client config")
 	}
+
 	ip := net.ParseIP(bindAddr)
 	if ip == nil {
 		return nil, fmt.Errorf("invalid bind address \"%s\"", bindAddr)
 	}
+
 	addr := &net.TCPAddr{IP: ip, Port: bindPort}
 	listener, err := tls.Listen(network, addr.String(), tlsServerCfg)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to start TLS listener on %q port %d", bindAddr, bindPort))
 	}
+
 	connPool, err := newConnectionPool(tlsClientCfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialize tls transport connection pool")
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	t := &TLSTransport{
 		ctx:          ctx,

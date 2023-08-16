@@ -16,6 +16,7 @@ package template
 import (
 	tmplhtml "html/template"
 	"net/url"
+	"sync"
 	"testing"
 	tmpltext "text/template"
 	"time"
@@ -329,6 +330,11 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "Abc",
 		},
 		{
+			title: "Template using TrimSpace",
+			in:    `{{ " a b c " | trimSpace }}`,
+			exp:   "a b c",
+		},
+		{
 			title: "Template using positive match",
 			in:    `{{ if match "^a" "abc"}}abc{{ end }}`,
 			exp:   "abc",
@@ -457,6 +463,63 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+// This test asserts that template functions are thread-safe.
+func TestTemplateFuncs(t *testing.T) {
+	tmpl, err := FromGlobs([]string{})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+		exp   string
+	}{{
+		title: "Template using toUpper",
+		in:    `{{ "abc" | toUpper }}`,
+		exp:   "ABC",
+	}, {
+		title: "Template using toLower",
+		in:    `{{ "ABC" | toLower }}`,
+		exp:   "abc",
+	}, {
+		title: "Template using title",
+		in:    `{{ "abc" | title }}`,
+		exp:   "Abc",
+	}, {
+		title: "Template using trimSpace",
+		in:    `{{ " abc " | trimSpace }}`,
+		exp:   "abc",
+	}, {
+		title: "Template using join",
+		in:    `{{ . | join "," }}`,
+		data:  []string{"abc", "def"},
+		exp:   "abc,def",
+	}, {
+		title: "Template using match",
+		in:    `{{ match "[a-z]+" "abc" }}`,
+		exp:   "true",
+	}, {
+		title: "Template using reReplaceAll",
+		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
+		exp:   "ABc",
+	}} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			wg := sync.WaitGroup{}
+			for i := 0; i < 10; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					got, err := tmpl.ExecuteTextString(tc.in, tc.data)
+					require.NoError(t, err)
+					require.Equal(t, tc.exp, got)
+				}()
+			}
+			wg.Wait()
 		})
 	}
 }

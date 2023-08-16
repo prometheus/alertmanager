@@ -110,7 +110,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 		notify.Drain(resp)
 		if err != nil {
-			return shouldRetry, err
+			return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 		}
 	}
 	return true, nil

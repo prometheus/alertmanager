@@ -164,6 +164,14 @@ var (
 		Message:              `{{ template "telegram.default.message" . }}`,
 		ParseMode:            "HTML",
 	}
+
+	DefaultMSTeamsConfig = MSTeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title: `{{ template "msteams.default.title" . }}`,
+		Text:  `{{ template "msteams.default.text" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -473,7 +481,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL *SecretURL `yaml:"url" json:"url"`
+	URL     *SecretURL `yaml:"url" json:"url"`
+	URLFile string     `yaml:"url_file" json:"url_file"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -488,11 +497,16 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil {
-		return fmt.Errorf("missing URL in webhook config")
+	if c.URL == nil && c.URLFile == "" {
+		return fmt.Errorf("one of url or url_file must be configured")
 	}
-	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
-		return fmt.Errorf("scheme required for webhook url")
+	if c.URL != nil && c.URLFile != "" {
+		return fmt.Errorf("at most one of url & url_file must be configured")
+	}
+	if c.URL != nil {
+		if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+			return fmt.Errorf("scheme required for webhook url")
+		}
 	}
 	return nil
 }
@@ -675,6 +689,7 @@ type PushoverConfig struct {
 	Message     string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL         string   `yaml:"url,omitempty" json:"url,omitempty"`
 	URLTitle    string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
+	Device      string   `yaml:"device,omitempty" json:"device,omitempty"`
 	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
@@ -740,6 +755,7 @@ type TelegramConfig struct {
 
 	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
 	BotToken             Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	BotTokenFile         string `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
 	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
 	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
@@ -753,8 +769,11 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.BotToken == "" {
-		return fmt.Errorf("missing bot_token on telegram_config")
+	if c.BotToken == "" && c.BotTokenFile == "" {
+		return fmt.Errorf("missing bot_token or bot_token_file on telegram_config")
+	}
+	if c.BotToken != "" && c.BotTokenFile != "" {
+		return fmt.Errorf("at most one of bot_token & bot_token_file must be configured")
 	}
 	if c.ChatID == 0 {
 		return fmt.Errorf("missing chat_id on telegram_config")
@@ -766,4 +785,19 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
 	return nil
+}
+
+type MSTeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMSTeamsConfig
+	type plain MSTeamsConfig
+	return unmarshal((*plain)(c))
 }

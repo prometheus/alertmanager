@@ -194,6 +194,10 @@ matchers:
 
 # How long to wait before sending a notification again if it has already
 # been sent successfully for an alert. (Usually ~3h or more).
+# Note that this parameter is implicitly bound by Alertmanager's
+# `--data.retention` configuration flag. Notifications will be resent after either
+# repeat_interval or the data retention period have passed, whichever
+# occurs first. `repeat_interval` should not be less than `group_interval`.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
@@ -459,7 +463,7 @@ Here are some examples of valid string matchers:
     As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
 
     ```yaml
-    matchers: [ "foo = bar,baz", "dings != bums" ]
+    matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
     ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
@@ -495,6 +499,8 @@ discord_configs:
   [ - <discord_config>, ... ]
 email_configs:
   [ - <email_config>, ... ]
+msteams_configs:
+  [ - <msteams_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
@@ -553,6 +559,15 @@ oauth2:
 
 # Optional proxy URL.
 [ proxy_url: <string> ]
+# Comma-separated string that can contain IPs, CIDR notation, domain names
+# that should be excluded from proxying. IP and domain names can
+# contain port numbers.
+[ no_proxy: <string> ]
+# Use proxy URL indicated by environment variables (HTTP_PROXY, https_proxy, HTTPs_PROXY, https_proxy, and no_proxy)
+[ proxy_from_environment: <boolean> | default: false ]
+# Specifies headers to send to proxies during CONNECT requests.
+[ proxy_connect_header:
+  [ <string>: [<secret>, ...] ] ]
 
 # Configure whether HTTP requests follow HTTP 3xx redirects.
 [ follow_redirects: <bool> | default = true ]
@@ -593,6 +608,15 @@ tls_config:
 
 # Optional proxy URL.
 [ proxy_url: <string> ]
+# Comma-separated string that can contain IPs, CIDR notation, domain names
+# that should be excluded from proxying. IP and domain names can
+# contain port numbers.
+[ no_proxy: <string> ]
+# Use proxy URL indicated by environment variables (HTTP_PROXY, https_proxy, HTTPs_PROXY, https_proxy, and no_proxy)
+[ proxy_from_environment: <boolean> | default: false ]
+# Specifies headers to send to proxies during CONNECT requests.
+[ proxy_connect_header:
+  [ <string>: [<secret>, ...] ] ]
 ```
 
 #### `<tls_config>`
@@ -693,6 +717,27 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+```
+
+### `<msteams_config>`
+
+Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors) API endpoint.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The incoming webhook URL.
+[ webhook_url: <secret> ]
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "teams.default.title" . }}' ]
+
+# Message body template.
+[ text: <tmpl_string> | default = '{{ template "teams.default.text" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 ### `<opsgenie_config>`
@@ -841,7 +886,7 @@ The fields are documented in the [PagerDuty API documentation](https://developer
 
 ```yaml
 href: <tmpl_string>
-source: <tmpl_string>
+src: <tmpl_string>
 alt: <tmpl_string>
 ```
 
@@ -862,7 +907,7 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user's key. 
+# The recipient user's key.
 # user_key and user_key_file are mutually exclusive.
 user_key: <secret>
 user_key_file: <filepath>
@@ -883,6 +928,12 @@ token_file: <filepath>
 # A supplementary URL shown alongside the message.
 [ url: <tmpl_string> | default = '{{ template "pushover.default.url" . }}' ]
 
+# Optional device to send notification to, see https://pushover.net/api#device
+[ device: <string> ]
+
+# Optional sound to use for notification, see https://pushover.net/api#sound
+[ sound: <string> ]
+
 # Priority, see https://pushover.net/api#priority
 [ priority: <tmpl_string> | default = '{{ if eq .Status "firing" }}2{{ else }}0{{ end }}' ]
 
@@ -900,9 +951,13 @@ token_file: <filepath>
 
 ### `<slack_config>`
 
-Slack notifications are sent via [Slack
-webhooks](https://api.slack.com/messaging/webhooks). The notification contains
-an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
+Slack notifications can be sent via [Incoming webhooks](https://api.slack.com/messaging/webhooks) or [Bot tokens](https://api.slack.com/authentication/token-types).
+
+If using an incoming webhook then `api_url` must be set to the URL of the incoming webhook, or written to the file referenced in `api_url_file`.
+
+If using Bot tokens then `api_url` must be set to [`https://slack.com/api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage), the bot token must be set as the authorization credentials in `http_config`, and `channel` must contain either the name of the channel or Channel ID to send notifications to. If using the name of the channel the # is optional.
+
+The notification contains an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1050,8 +1105,11 @@ attributes:
 # If not specified, default API URL will be used.
 [ api_url: <string> | default = global.telegram_api_url ]
 
-# Telegram bot token.
+# Telegram bot token. It is mutually exclusive with `bot_token_file`.
 [ bot_token: <secret> ]
+
+# Read the Telegram bot token from a file. It is mutually exclusive with `bot_token`.
+[ bot_token_file: <filepath> ]
 
 # ID of the chat where to send the messages.
 [ chat_id: <int> ]
@@ -1116,7 +1174,9 @@ The webhook receiver allows configuring a generic receiver.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
+# url and url_file are mutually exclusive.
 url: <secret>
+url_file: <filepath>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]

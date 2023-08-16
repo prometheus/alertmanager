@@ -66,8 +66,8 @@ type weChatMessageContent struct {
 }
 
 type weChatResponse struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Code  int    `json:"errcode"`
+	Error string `json:"errmsg"`
 }
 
 // New returns a new Wechat notifier.
@@ -168,7 +168,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer notify.Drain(resp)
 
 	if resp.StatusCode != 200 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+		return true, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), fmt.Errorf("unexpected status code %v", resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)

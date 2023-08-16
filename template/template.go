@@ -170,7 +170,12 @@ type FuncMap map[string]interface{}
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
-	"title":   cases.Title(language.AmericanEnglish).String,
+	"title": func(text string) string {
+		// Casers should not be shared between goroutines, instead
+		// create a new caser each time this function is called.
+		return cases.Title(language.AmericanEnglish).String(text)
+	},
+	"trimSpace": strings.TrimSpace,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {
