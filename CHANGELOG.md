@@ -1,3 +1,31 @@
+## 0.26.0.rc-0 / 2022-08-17
+
+* [CHANGE] Telegram Integration: `api_url` is now optional. #2981
+* [CHANGE] Telegram Integration: `ParseMode` default is now `HTML` instead of `MarkdownV2`. #2981
+* [CHANGE] Webhook Integration: `url` is now marked as a secret. It will no longer show up in the logs as clear-text. #3228
+* [CHANGE] Metrics: New label `reason` for `alertmanager_notifications_failed_total` metric to indicate the type of error of the alert delivery. #3094 #3307
+* [FEATURE] Clustering: New flag `--cluster.label`, to help to block any traffic that is not meant for the cluster. #3354
+* [FEATURE] Integrations: Add Microsoft Teams as a supported integration. #3324
+* [ENHANCEMENT] Telegram Integration: Support `bot_token_file` for loading this secret from a file. #3226
+* [ENHANCEMENT] Webhook Integration: Support `url_file` for loading this secret from a file. #3223
+* [ENHANCEMENT] Webhook Integration: Leading and trailing white space is now removed for the contents of `url_file`. #3363
+* [ENHANCEMENT] Pushover Integration: Support options `device` and `sound` (sound was previously supported but undocumented). #3318
+* [ENHANCEMENT] Pushover Integration: Support `user_key_file` and `token_file` for loading this secret from a file. #3200
+* [ENHANCEMENT] Slack Integration: Support errors wrapped in successful (HTTP status code 200) responses. #3121
+* [ENHANCEMENT] API: Add `CORS` and `Cache-Control` HTTP headers to all version 2 API routes. #3195
+* [ENHANCEMENT] UI: Receiver name is now visible as part of the alerts page. #3289
+* [ENHANCEMENT] Templating: Better default text when using `{{ .Annotations }}` and `{{ .Labels }}`. #3256
+* [ENHANCEMENT] Templating: Introduced a new function `trimSpace` which removes leading and trailing white spaces. #3223
+* [ENHANCEMENT] CLI: `amtool silence query` now supports the `--id` flag to query an individual silence. #3241
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286 
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_silences_maintenance_total` and `alertmanager_silences_maintenance_errors_total` to monitor maintenance of silences. #3285
+* [ENHANCEMENT] Logging: Log GroupKey and alerts on alert delivery when using debug mode. #3438
+* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209 
+* [BUGFIX] Templating: Fixed a race condition when using the `title` function. It is now race-safe. #3278
+* [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
+* [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352
+* [BUGFIX] Clustering: Fixes a panic when `tls_client_config` is empty. #3443
+
 ## 0.25.0 / 2022-12-22
 
 * [CHANGE] Change the default `parse_mode` value from `MarkdownV2` to `HTML` for Telegram. #2981
