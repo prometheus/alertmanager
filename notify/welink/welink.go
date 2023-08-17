@@ -26,11 +26,12 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	commoncfg "github.com/prometheus/common/config"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	commoncfg "github.com/prometheus/common/config"
 )
 
 // welink supports 500 chars max - from https://open.welink.huaweicloud.com/docs/#/990hh0/whokyc/mmkx2n
