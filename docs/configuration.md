@@ -99,6 +99,9 @@ global:
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
+  [ welink_api_url: <string> | default = "https://open.welink.huaweicloud.com/" ]
+  [ welink_api_token: <secret> ]
+  [ welink_api_channel: <string> ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -521,6 +524,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+welink_configs:
+  [ - <welink_config>, ... ]
 ```
 
 ### `<http_config>`
@@ -1267,4 +1272,33 @@ room_id: <string>
 
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<welink_config>`
+
+welink notifications are sent via the [welink
+API](https://open.welink.huaweicloud.com/docs/#/990hh0/whokyc/mmkx2n).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the welink API.
+[ token: <secret> | default = global.welink_api_token ]
+
+# The welink API URL.
+[ api_url: <string> | default = global.welink_api_url ]
+
+# The channel API Parameters.
+[ channel: <string> | default = global.welink_api_channel ]
+
+# API request data as defined by the welink API.
+[ text: <tmpl_string> | default = '{{ template "welink.default.text" . }}' ]
+# Type of the message type, supported values are `text`.
+[ message_type: <string> | default = 'text' ]
+
+# @ users
+[ is_at: <bool> | default = false ]
+[ is_at_all: <bool> | default = false ]
+[ at_accounts: '[' <string>, ... ']' | default = [] ]
 ```

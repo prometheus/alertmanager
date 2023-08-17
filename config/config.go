@@ -257,6 +257,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.WeLinkConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -539,6 +542,34 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				return fmt.Errorf("no msteams webhook URL provided")
 			}
 		}
+		for _, wlc := range rcv.WeLinkConfigs {
+			if wlc.HTTPConfig == nil {
+				wlc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if wlc.APIUrl == nil {
+				if c.Global.WeLinkAPIUrl == nil {
+					return fmt.Errorf("no global welink URL set")
+				}
+				wlc.APIUrl = c.Global.WeLinkAPIUrl
+			}
+			if wlc.Token == "" {
+				if c.Global.WeLinkAPIToken == "" {
+					return fmt.Errorf("no global welink API Token set")
+				}
+				wlc.Token = c.Global.WeLinkAPIToken
+			}
+
+			if wlc.Channel == "" {
+				if c.Global.WeLinkAPIChannel == "" {
+					return fmt.Errorf("no global welink Channel set")
+				}
+				wlc.Channel = c.Global.WeLinkAPIChannel
+			}
+
+			if !strings.HasSuffix(wlc.APIUrl.Path, "/") {
+				wlc.APIUrl.Path += "/"
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -640,6 +671,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
 		WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
+		WeLinkAPIUrl:    mustParseURL("https://open.welink.huaweicloud.com/"),
 	}
 }
 
@@ -764,6 +796,9 @@ type GlobalConfig struct {
 	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	WeLinkAPIUrl         *URL       `yaml:"welink_api_url,omitempty" json:"welink_api_url,omitempty"`
+	WeLinkAPIToken       Secret     `yaml:"welink_api_token,omitempty" json:"welink_api_token,omitempty"`
+	WeLinkAPIChannel     string     `yaml:"welink_api_channel,omitempty" json:"welink_api_channel,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

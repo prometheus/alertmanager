@@ -819,12 +819,12 @@ type WeLinkConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	APIUrl     *URL                        `yaml:"api_url" json:"api_url,omitempty"`
 
-	Token       string   `yaml:"token" json:"token"`
+	Token       Secret   `yaml:"token" json:"token"`
 	Channel     string   `yaml:"channel" json:"channel"`
-	MessageType string   `yaml:"messageType" json:"messageType"`
-	IsAt        bool     `yaml:"isAt,omitempty" json:"isAt,omitempty"`
-	IsAtAll     bool     `yaml:"isAtAll,omitempty" json:"isAtAll,omitempty"`
-	AtAccounts  []string `yaml:"atAccounts,omitempty" json:"atAccounts,omitempty"`
+	MessageType string   `yaml:"message_type" json:"message_type"`
+	IsAt        bool     `yaml:"is_at,omitempty" json:"is_at,omitempty"`
+	IsAtAll     bool     `yaml:"is_at_all,omitempty" json:"is_at_all,omitempty"`
+	AtAccounts  []string `yaml:"at_accounts,omitempty" json:"at_accounts,omitempty"`
 	Content     `yaml:",inline" json:",inline"`
 }
 
