@@ -99,8 +99,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	// Cache accessToken
-	n.Token = n.conf.Token
-	n.Channel = n.conf.Channel
+	n.Token = tmpl(string(n.conf.Token))
+	n.Channel = tmpl(n.conf.Channel)
 
 	// message lenth
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Content.Text), maxMessageLenRunes)
