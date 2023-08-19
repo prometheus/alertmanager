@@ -38,6 +38,10 @@ type AlertGroup struct {
 	// Required: true
 	Alerts []*GettableAlert `json:"alerts"`
 
+	// key
+	// Required: true
+	Key *string `json:"key"`
+
 	// labels
 	// Required: true
 	Labels LabelSet `json:"labels"`
@@ -52,6 +56,10 @@ func (m *AlertGroup) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateAlerts(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateKey(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -91,6 +99,15 @@ func (m *AlertGroup) validateAlerts(formats strfmt.Registry) error {
 			}
 		}
 
+	}
+
+	return nil
+}
+
+func (m *AlertGroup) validateKey(formats strfmt.Registry) error {
+
+	if err := validate.Required("key", "body", m.Key); err != nil {
+		return err
 	}
 
 	return nil
