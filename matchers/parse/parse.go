@@ -186,7 +186,7 @@ func (p *Parser) parseComma(l *Lexer) (parseFn, error) {
 	}
 	// The token after the comma can be another matcher, a close brace or the
 	// end of input.
-	tok, err := p.expect(l.Peek, TokenCloseBrace, TokenIdent, TokenQuoted)
+	tok, err := p.expect(l.Peek, TokenCloseBrace, TokenUnquoted, TokenQuoted)
 	if err != nil {
 		if errors.Is(err, ErrEOF) {
 			// If this is the end of input we still need to check if the optional
@@ -217,10 +217,10 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 		ty         labels.MatchType
 	)
 
-	// The next token is the label name. This can either be an ident which
+	// The next token is the label name. This can either be an unquoted which
 	// accepts just [a-zA-Z_] or a quoted which accepts all UTF-8 characters
 	// in double quotes.
-	if tok, err = p.expect(l.Scan, TokenIdent, TokenQuoted); err != nil {
+	if tok, err = p.expect(l.Scan, TokenUnquoted, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
 	}
 	labelName = tok.Value
@@ -233,13 +233,13 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 		panic("Unexpected operator")
 	}
 
-	// The next token is the label value. This too can either be an ident
+	// The next token is the label value. This too can either be an unquoted
 	// which accepts just [a-zA-Z_] or a quoted which accepts all UTF-8
 	// characters in double quotes.
-	if tok, err = p.expect(l.Scan, TokenIdent, TokenQuoted); err != nil {
+	if tok, err = p.expect(l.Scan, TokenUnquoted, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
 	}
-	if tok.Kind == TokenIdent {
+	if tok.Kind == TokenUnquoted {
 		labelValue = tok.Value
 	} else {
 		labelValue, err = strconv.Unquote(tok.Value)

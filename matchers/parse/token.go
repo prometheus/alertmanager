@@ -23,10 +23,10 @@ const (
 	TokenNone TokenKind = iota
 	TokenCloseBrace
 	TokenComma
-	TokenIdent
 	TokenOpenBrace
 	TokenOperator
 	TokenQuoted
+	TokenUnquoted
 )
 
 func (k TokenKind) String() string {
@@ -35,14 +35,14 @@ func (k TokenKind) String() string {
 		return "CloseBrace"
 	case TokenComma:
 		return "Comma"
-	case TokenIdent:
-		return "Ident"
 	case TokenOpenBrace:
 		return "OpenBrace"
 	case TokenOperator:
 		return "Op"
 	case TokenQuoted:
 		return "Quoted"
+	case TokenUnquoted:
+		return "Unquoted"
 	default:
 		return "None"
 	}

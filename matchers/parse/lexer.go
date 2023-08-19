@@ -170,7 +170,7 @@ func (l *Lexer) Scan() (Token, error) {
 			return tok, l.err
 		case r == '_' || isAlpha(r):
 			l.rewind()
-			tok, l.err = l.scanIdent()
+			tok, l.err = l.scanUnquoted()
 			return tok, l.err
 		case unicode.IsSpace(r):
 			l.skip()
@@ -187,16 +187,6 @@ func (l *Lexer) Scan() (Token, error) {
 	}
 
 	return tok, l.err
-}
-
-func (l *Lexer) scanIdent() (Token, error) {
-	for r := l.next(); r != eof; r = l.next() {
-		if !isAlpha(r) && !isNum(r) && r != '_' && r != ':' {
-			l.rewind()
-			break
-		}
-	}
-	return l.emit(TokenIdent), nil
 }
 
 func (l *Lexer) scanOperator() (Token, error) {
@@ -249,6 +239,16 @@ func (l *Lexer) scanQuoted() (Token, error) {
 		}
 	}
 	return l.emit(TokenQuoted), nil
+}
+
+func (l *Lexer) scanUnquoted() (Token, error) {
+	for r := l.next(); r != eof; r = l.next() {
+		if !isAlpha(r) && !isNum(r) && r != '_' && r != ':' {
+			l.rewind()
+			break
+		}
+	}
+	return l.emit(TokenUnquoted), nil
 }
 
 func (l *Lexer) accept(valid string) bool {

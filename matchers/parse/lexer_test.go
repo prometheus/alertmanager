@@ -122,10 +122,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "ident",
+		name:  "unquoted",
 		input: "hello",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -135,10 +135,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "ident with underscore",
+		name:  "unquoted with underscore",
 		input: "hello_world",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello_world",
 			Position: Position{
 				OffsetStart: 0,
@@ -148,10 +148,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "ident with colon",
+		name:  "unquoted with colon",
 		input: "hello:world",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello:world",
 			Position: Position{
 				OffsetStart: 0,
@@ -161,10 +161,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "ident with numbers",
+		name:  "unquoted with numbers",
 		input: "hello0123456789",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello0123456789",
 			Position: Position{
 				OffsetStart: 0,
@@ -174,10 +174,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "ident can start with underscore",
+		name:  "unquoted can start with underscore",
 		input: "_hello",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "_hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -187,10 +187,10 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "idents separated with space",
+		name:  "unquoted separated with space",
 		input: "hello world",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -199,7 +199,7 @@ func TestLexer_Scan(t *testing.T) {
 				ColumnEnd:   5,
 			},
 		}, {
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "world",
 			Position: Position{
 				OffsetStart: 6,
@@ -364,14 +364,14 @@ func TestLexer_Scan(t *testing.T) {
 		input: "Σ",
 		err:   "0:1: Σ: invalid input",
 	}, {
-		name:  "unexpected : at start of ident",
+		name:  "unexpected : at start of unquoted",
 		input: ":hello",
 		err:   "0:1: :: invalid input",
 	}, {
-		name:  "unexpected $ in ident",
+		name:  "unexpected $ in unquoted",
 		input: "hello$",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -382,10 +382,10 @@ func TestLexer_Scan(t *testing.T) {
 		}},
 		err: "5:6: $: invalid input",
 	}, {
-		name:  "unexpected unicode letter in ident",
+		name:  "unexpected unicode letter in unquoted",
 		input: "helloΣ",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -396,10 +396,10 @@ func TestLexer_Scan(t *testing.T) {
 		}},
 		err: "5:6: Σ: invalid input",
 	}, {
-		name:  "unexpected emoji in ident",
+		name:  "unexpected emoji in unquoted",
 		input: "hello🙂",
 		expected: []Token{{
-			Kind:  TokenIdent,
+			Kind:  TokenUnquoted,
 			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
@@ -507,7 +507,7 @@ func TestLexer_ScanError(t *testing.T) {
 func TestLexer_Peek(t *testing.T) {
 	l := NewLexer("hello world")
 	expected1 := Token{
-		Kind:  TokenIdent,
+		Kind:  TokenUnquoted,
 		Value: "hello",
 		Position: Position{
 			OffsetStart: 0,
@@ -517,7 +517,7 @@ func TestLexer_Peek(t *testing.T) {
 		},
 	}
 	expected2 := Token{
-		Kind:  TokenIdent,
+		Kind:  TokenUnquoted,
 		Value: "world",
 		Position: Position{
 			OffsetStart: 6,
