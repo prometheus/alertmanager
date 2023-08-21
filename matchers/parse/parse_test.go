@@ -210,6 +210,110 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseMatcher(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected *labels.Matcher
+		error    string
+	}{{
+		name:     "no input",
+		expected: nil,
+	}, {
+		name:     "equals",
+		input:    "foo=bar",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "equals with trailing comma",
+		input:    "foo=bar,",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "not equals",
+		input:    "foo!=bar",
+		expected: mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar"),
+	}, {
+		name:     "match regex",
+		input:    "foo=~[a-z]+",
+		expected: mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+"),
+	}, {
+		name:     "doesn't match regex",
+		input:    "foo!~[a-z]+",
+		expected: mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+"),
+	}, {
+		name:     "equals unicode emoji",
+		input:    "foo=🙂",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
+	}, {
+		name:     "equals unicode sentence",
+		input:    "foo=🙂bar",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar"),
+	}, {
+		name:     "equals in quotes",
+		input:    "\"foo\"=\"bar\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "equals in quotes and with trailing comma",
+		input:    "\"foo\"=\"bar\",",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "not equals in quotes",
+		input:    "\"foo\"!=\"bar\"",
+		expected: mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar"),
+	}, {
+		name:     "match regex in quotes",
+		input:    "\"foo\"=~\"[a-z]+\"",
+		expected: mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+"),
+	}, {
+		name:     "doesn't match regex in quotes",
+		input:    "\"foo\"!~\"[a-z]+\"",
+		expected: mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+"),
+	}, {
+		name:     "equals unicode emoji in quotes",
+		input:    "\"foo\"=\"🙂\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
+	}, {
+		name:     "equals unicode sentence in quotes",
+		input:    "\"foo\"=\"🙂bar\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar"),
+	}, {
+		name:     "equals with newline in quotes",
+		input:    "\"foo\"=\"bar\\n\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\n"),
+	}, {
+		name:     "equals with tab in quotes",
+		input:    "\"foo\"=\"bar\\t\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\t"),
+	}, {
+		name:     "equals with escaped quotes in quotes",
+		input:    "\"foo\"=\"\\\"bar\\\"\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "\"bar\""),
+	}, {
+		name:     "equals with escaped backslash in quotes",
+		input:    "\"foo\"=\"bar\\\\\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\"),
+	}, {
+		name:  "cannot start or end with braces",
+		input: "{foo=bar}",
+		error: "matcher cannot start or end with braces",
+	}, {
+		name:  "two or more returns error",
+		input: "foo=bar,bar=baz",
+		error: "expected 1 matcher, found 2",
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			matcher, err := ParseMatcher(test.input)
+			if test.error != "" {
+				require.EqualError(t, err, test.error)
+			} else {
+				require.Nil(t, err)
+				require.EqualValues(t, test.expected, matcher)
+			}
+		})
+	}
+}
+
 func mustNewMatcher(t *testing.T, op labels.MatchType, name, value string) *labels.Matcher {
 	m, err := labels.NewMatcher(op, name, value)
 	require.NoError(t, err)

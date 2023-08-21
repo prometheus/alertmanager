@@ -294,16 +294,20 @@ func Parse(input string) (labels.Matchers, error) {
 // if the input is invalid or contains two or more matchers.
 func ParseMatcher(input string) (*labels.Matcher, error) {
 	if strings.HasPrefix(input, "{") {
-		return nil, errors.New("Individual matchers cannot start and end with braces")
+		return nil, errors.New("matcher cannot start or end with braces")
 	}
 	m, err := Parse(input)
 	if err != nil {
 		return nil, err
 	}
-	if len(m) > 1 {
+	switch len(m) {
+	case 0:
+		return nil, nil
+	case 1:
+		return m[0], nil
+	default:
 		return nil, fmt.Errorf("expected 1 matcher, found %d", len(m))
 	}
-	return m[0], nil
 }
 
 func matchType(s string) (labels.MatchType, error) {
