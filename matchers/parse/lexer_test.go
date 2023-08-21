@@ -26,6 +26,9 @@ func TestLexer_Scan(t *testing.T) {
 		expected []Token
 		err      string
 	}{{
+		name:  "no input",
+		input: "",
+	}, {
 		name:  "open brace",
 		input: "{",
 		expected: []Token{{
