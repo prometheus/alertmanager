@@ -83,7 +83,6 @@ func TestCompliance(t *testing.T) {
 				m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
-			skip: true,
 		},
 		{
 			input: `{foo=~"bar.*"}`,
@@ -116,7 +115,6 @@ func TestCompliance(t *testing.T) {
 				m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
-			skip: true,
 		},
 		{
 			input: `{foo!~"bar.*"}`,
@@ -320,6 +318,7 @@ func TestCompliance(t *testing.T) {
 		{
 			input: `{invalid-name = "valid label"}`,
 			err:   `bad matcher format: invalid-name = "valid label"`,
+			skip:  true,
 		},
 		{
 			input: `{foo=~"invalid[regexp"}`,
