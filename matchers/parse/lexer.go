@@ -24,12 +24,8 @@ const (
 	eof rune = -1
 )
 
-func isAlpha(r rune) bool {
-	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
-}
-
-func isNum(r rune) bool {
-	return r >= '0' && r <= '9'
+func isReserved(r rune) bool {
+	return unicode.IsSpace(r) || strings.ContainsRune("{}!=~,\"'`", r)
 }
 
 // ExpectedError is returned when the next rune does not match what is expected.
@@ -168,7 +164,7 @@ func (l *Lexer) Scan() (Token, error) {
 			l.rewind()
 			tok, l.err = l.scanQuoted()
 			return tok, l.err
-		case r == '_' || isAlpha(r):
+		case !isReserved(r):
 			l.rewind()
 			tok, l.err = l.scanUnquoted()
 			return tok, l.err
@@ -243,7 +239,7 @@ func (l *Lexer) scanQuoted() (Token, error) {
 
 func (l *Lexer) scanUnquoted() (Token, error) {
 	for r := l.next(); r != eof; r = l.next() {
-		if !isAlpha(r) && !isNum(r) && r != '_' && r != ':' {
+		if isReserved(r) {
 			l.rewind()
 			break
 		}

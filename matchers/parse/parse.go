@@ -223,7 +223,14 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 	if tok, err = p.expect(l.Scan, TokenUnquoted, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
 	}
-	labelName = tok.Value
+	if tok.Kind == TokenUnquoted {
+		labelName = tok.Value
+	} else {
+		labelName, err = strconv.Unquote(tok.Value)
+		if err != nil {
+			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
+		}
+	}
 
 	// The next token is the operator such as '=', '!=', '=~' and '!~'.
 	if tok, err = p.expect(l.Scan, TokenOperator); err != nil {

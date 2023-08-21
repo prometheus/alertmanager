@@ -37,88 +37,140 @@ func TestParse(t *testing.T) {
 		expected: nil,
 	}, {
 		name:     "equals",
-		input:    "{foo=\"bar\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
-	}, {
-		name:     "equals unicode emoji",
-		input:    "{foo=\"🙂\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
-	}, {
-		name:     "equals without quotes",
 		input:    "{foo=bar}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
-		name:     "equals without braces",
-		input:    "foo=\"bar\"",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
-	}, {
-		name:     "equals without braces or quotes",
-		input:    "foo=bar",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
-	}, {
 		name:     "equals with trailing comma",
-		input:    "{foo=\"bar\",}",
+		input:    "{foo=bar,}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
-	}, {
-		name:     "equals without braces but trailing comma",
-		input:    "foo=\"bar\",",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
-	}, {
-		name:     "equals with newline",
-		input:    "{foo=\"bar\\n\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\n")},
-	}, {
-		name:     "equals with tab",
-		input:    "{foo=\"bar\\t\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\t")},
-	}, {
-		name:     "equals with escaped quotes",
-		input:    "{foo=\"\\\"bar\\\"\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "\"bar\"")},
-	}, {
-		name:     "equals with escaped backslash",
-		input:    "{foo=\"bar\\\\\"}",
-		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\")},
 	}, {
 		name:     "not equals",
-		input:    "{foo!=\"bar\"}",
+		input:    "{foo!=bar}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar")},
 	}, {
 		name:     "match regex",
-		input:    "{foo=~\"[a-z]+\"}",
+		input:    "{foo=~[a-z]+}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+")},
 	}, {
 		name:     "doesn't match regex",
-		input:    "{foo!~\"[a-z]+\"}",
+		input:    "{foo!~[a-z]+}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+")},
 	}, {
-		name:  "complex",
-		input: "{foo=\"bar\",bar!=\"baz\"}",
-		expected: labels.Matchers{
-			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
-			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
-		},
+		name:     "equals unicode emoji",
+		input:    "{foo=🙂}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
 	}, {
-		name:  "complex without quotes",
+		name:     "equals unicode sentence",
+		input:    "{foo=🙂bar}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar")},
+	}, {
+		name:     "equals without braces",
+		input:    "foo=bar",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals without braces but with trailing comma",
+		input:    "foo=bar,",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "not equals without braces",
+		input:    "foo!=bar",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar")},
+	}, {
+		name:     "match regex without braces",
+		input:    "foo=~[a-z]+",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+")},
+	}, {
+		name:     "doesn't match regex without braces",
+		input:    "foo!~[a-z]+",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+")},
+	}, {
+		name:     "equals in quotes",
+		input:    "{\"foo\"=\"bar\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals in quotes and with trailing comma",
+		input:    "{\"foo\"=\"bar\",}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "not equals in quotes",
+		input:    "{\"foo\"!=\"bar\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar")},
+	}, {
+		name:     "match regex in quotes",
+		input:    "{\"foo\"=~\"[a-z]+\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+")},
+	}, {
+		name:     "doesn't match regex in quotes",
+		input:    "{\"foo\"!~\"[a-z]+\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+")},
+	}, {
+		name:     "equals unicode emoji in quotes",
+		input:    "{\"foo\"=\"🙂\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
+	}, {
+		name:     "equals unicode sentence in quotes",
+		input:    "{\"foo\"=\"🙂bar\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar")},
+	}, {
+		name:     "equals with newline in quotes",
+		input:    "{\"foo\"=\"bar\\n\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\n")},
+	}, {
+		name:     "equals with tab in quotes",
+		input:    "{\"foo\"=\"bar\\t\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\t")},
+	}, {
+		name:     "equals with escaped quotes in quotes",
+		input:    "{\"foo\"=\"\\\"bar\\\"\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "\"bar\"")},
+	}, {
+		name:     "equals with escaped backslash in quotes",
+		input:    "{\"foo\"=\"bar\\\\\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\")},
+	}, {
+		name:     "equals without braces in quotes",
+		input:    "\"foo\"=\"bar\"",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals without braces in quotes with trailing comma",
+		input:    "\"foo\"=\"bar\",",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:  "complex",
 		input: "{foo=bar,bar!=baz}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
+		name:  "complex in quotes",
+		input: "{foo=\"bar\",bar!=\"baz\"}",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
+		},
+	}, {
 		name:  "complex without braces",
+		input: "foo=bar,bar!=baz",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
+		},
+	}, {
+		name:  "complex without braces in quotes",
 		input: "foo=\"bar\",bar!=\"baz\"",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
-		name:  "complex without braces or quotes",
-		input: "foo=bar,bar!=baz",
-		expected: labels.Matchers{
-			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
-			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
-		},
+		name:  "comma",
+		input: ",",
+		error: "0:1: unexpected ,: expected label name",
+	}, {
+		name:  "comma in braces",
+		input: "{,}",
+		error: "1:2: unexpected ,: expected label name",
 	}, {
 		name:  "open brace",
 		input: "{",
@@ -129,20 +181,16 @@ func TestParse(t *testing.T) {
 		error: "0:1: }: expected opening brace",
 	}, {
 		name:  "no open brace",
-		input: "foo=\"bar\"}",
-		error: "0:10: }: expected opening brace",
+		input: "foo=bar}",
+		error: "0:8: }: expected opening brace",
 	}, {
 		name:  "no close brace",
-		input: "{foo=\"bar\"",
-		error: "0:10: end of input: expected close brace",
+		input: "{foo=bar",
+		error: "0:8: end of input: expected close brace",
 	}, {
-		name:  "invalid operator",
+		name:  "invalid input after operator and before quotes",
 		input: "{foo=:\"bar\"}",
-		error: "5:6: :: invalid input: expected label value",
-	}, {
-		name:  "another invalid operator",
-		input: "{foo%=\"bar\"}",
-		error: "4:5: %: invalid input: expected an operator such as '=', '!=', '=~' or '!~'",
+		error: "6:11: unexpected \"bar\": expected a comma or close brace",
 	}, {
 		name:  "invalid escape sequence",
 		input: "{foo=\"bar\\w\"}",

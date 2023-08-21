@@ -209,6 +209,89 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
+		name:  "unquoted $",
+		input: "$",
+		expected: []Token{{
+			Kind:  TokenUnquoted,
+			Value: "$",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   1,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
+	}, {
+		name:  "unquoted emoji",
+		input: "🙂",
+		expected: []Token{{
+			Kind:  TokenUnquoted,
+			Value: "🙂",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   4,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
+	}, {
+		name:  "unquoted unicode",
+		input: "Σ",
+		expected: []Token{{
+			Kind:  TokenUnquoted,
+			Value: "Σ",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   2,
+				ColumnStart: 0,
+				ColumnEnd:   1,
+			},
+		}},
+	}, {
+		name:  "unquoted unicode sentence",
+		input: "hello🙂Σ world",
+		expected: []Token{{
+			Kind:  TokenUnquoted,
+			Value: "hello🙂Σ",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   11,
+				ColumnStart: 0,
+				ColumnEnd:   7,
+			},
+		}, {
+			Kind:  TokenUnquoted,
+			Value: "world",
+			Position: Position{
+				OffsetStart: 12,
+				OffsetEnd:   17,
+				ColumnStart: 8,
+				ColumnEnd:   13,
+			},
+		}},
+	}, {
+		name:  "unquoted unicode sentence with unicode space",
+		input: "hello🙂Σ\u202fworld",
+		expected: []Token{{
+			Kind:  TokenUnquoted,
+			Value: "hello🙂Σ",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   11,
+				ColumnStart: 0,
+				ColumnEnd:   7,
+			},
+		}, {
+			Kind:  TokenUnquoted,
+			Value: "world",
+			Position: Position{
+				OffsetStart: 14,
+				OffsetEnd:   19,
+				ColumnStart: 8,
+				ColumnEnd:   13,
+			},
+		}},
+	}, {
 		name:  "quoted",
 		input: "\"hello\"",
 		expected: []Token{{
@@ -243,6 +326,19 @@ func TestLexer_Scan(t *testing.T) {
 			Position: Position{
 				OffsetStart: 0,
 				OffsetEnd:   13,
+				ColumnStart: 0,
+				ColumnEnd:   13,
+			},
+		}},
+	}, {
+		name:  "quoted with unicode space",
+		input: "\"hello\u202fworld\"",
+		expected: []Token{{
+			Kind:  TokenQuoted,
+			Value: "\"hello\u202fworld\"",
+			Position: Position{
+				OffsetStart: 0,
+				OffsetEnd:   15,
 				ColumnStart: 0,
 				ColumnEnd:   13,
 			},
@@ -352,64 +448,6 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
-		name:  "unexpected $",
-		input: "$",
-		err:   "0:1: $: invalid input",
-	}, {
-		name:  "unexpected emoji",
-		input: "🙂",
-		err:   "0:1: 🙂: invalid input",
-	}, {
-		name:  "unexpected unicode letter",
-		input: "Σ",
-		err:   "0:1: Σ: invalid input",
-	}, {
-		name:  "unexpected : at start of unquoted",
-		input: ":hello",
-		err:   "0:1: :: invalid input",
-	}, {
-		name:  "unexpected $ in unquoted",
-		input: "hello$",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
-			},
-		}},
-		err: "5:6: $: invalid input",
-	}, {
-		name:  "unexpected unicode letter in unquoted",
-		input: "helloΣ",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
-			},
-		}},
-		err: "5:6: Σ: invalid input",
-	}, {
-		name:  "unexpected emoji in unquoted",
-		input: "hello🙂",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
-			},
-		}},
-		err: "5:6: 🙂: invalid input",
-	}, {
 		name:  "invalid operator",
 		input: "!",
 		err:   "0:1: unexpected end of input, expected one of '=~'",
@@ -418,19 +456,19 @@ func TestLexer_Scan(t *testing.T) {
 		input: "~",
 		err:   "0:1: ~: invalid input",
 	}, {
-		name:  "unexpected $ in operator",
-		input: "=$",
+		name:  "unexpected ! after unquoted",
+		input: "hello!",
 		expected: []Token{{
-			Kind:  TokenOperator,
-			Value: "=",
+			Kind:  TokenUnquoted,
+			Value: "hello",
 			Position: Position{
 				OffsetStart: 0,
-				OffsetEnd:   1,
+				OffsetEnd:   5,
 				ColumnStart: 0,
-				ColumnEnd:   1,
+				ColumnEnd:   5,
 			},
 		}},
-		err: "1:2: $: invalid input",
+		err: "5:6: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "unexpected ! after operator",
 		input: "=!",
