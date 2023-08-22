@@ -16,9 +16,10 @@ package parse
 import (
 	"errors"
 	"fmt"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 var (
@@ -139,11 +140,11 @@ func (p *Parser) parseOpenBrace(l *Lexer) (parseFunc, error) {
 			return p.parseCloseBrace, nil
 		}
 		return nil, err
-	} else if hasCloseBrace {
-		return p.parseCloseBrace, nil
-	} else {
-		return p.parseMatcher, nil
 	}
+	if hasCloseBrace {
+		return p.parseCloseBrace, nil
+	}
+	return p.parseMatcher, nil
 }
 
 func (p *Parser) parseCloseBrace(l *Lexer) (parseFunc, error) {
