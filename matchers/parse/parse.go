@@ -32,12 +32,18 @@ var (
 	ErrExpectedEOF  = errors.New("expected end of input")
 )
 
+// parseFn is state in the finite state automata.
+type parseFn func(l *Lexer) (parseFn, error)
+
 // Parser reads the sequence of tokens from the lexer and returns either a
-// series of matchers or an error. An error can occur if the lexer attempts
-// to scan text that does not match the expected grammar, or if the tokens
-// returned from the lexer cannot be parsed into a complete series of matchers.
-// For example, the input is missing an opening bracket, has missing label
-// names or label values, a trailing comma, or missing closing bracket.
+// series of matchers or an error. It works as a finite state automata, where
+// each state in the automata is a parseFn. The finite state automata can move
+// from one state to another by returning the next parseFn. It terminates when
+// a parseFn returns nil as the next parseFn.
+//
+// However, it can also terminate if the lexer attempts to scan text that does
+// not match the expected grammar, or if the tokens returned from the lexer
+// cannot be parsed into a complete series of matchers.
 type Parser struct {
 	// The final state of the parser, makes it idempotent.
 	done     bool
@@ -99,19 +105,6 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 }
 
-// peekNext peeks the next token from the lexer. It returns an error if there is
-// no more input.
-func (p *Parser) peekNext(l *Lexer) (Token, error) {
-	tok, err := l.Peek()
-	if err != nil {
-		return Token{}, err
-	}
-	if tok.IsEOF() {
-		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
-	}
-	return tok, nil
-}
-
 func (p *Parser) parse() (labels.Matchers, error) {
 	var (
 		err error
@@ -128,7 +121,18 @@ func (p *Parser) parse() (labels.Matchers, error) {
 	return p.matchers, nil
 }
 
-type parseFn func(l *Lexer) (parseFn, error)
+// peekNext peeks the next token from the lexer. It returns an error if there is
+// no more input.
+func (p *Parser) peekNext(l *Lexer) (Token, error) {
+	tok, err := l.Peek()
+	if err != nil {
+		return Token{}, err
+	}
+	if tok.IsEOF() {
+		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
+	}
+	return tok, nil
+}
 
 func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
 	// Can start with an optional open brace.
