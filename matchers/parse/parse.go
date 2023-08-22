@@ -249,9 +249,8 @@ func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
 	}
 	if tok.Kind == TokenCloseBrace {
 		return p.parseCloseBrace, nil
-	} else {
-		return p.parseMatcher, nil
 	}
+	return p.parseMatcher, nil
 }
 
 func (p *Parser) parseEOF(l *Lexer) (parseFunc, error) {
