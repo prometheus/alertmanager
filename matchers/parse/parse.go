@@ -32,14 +32,14 @@ var (
 	ErrExpectedEOF  = errors.New("expected end of input")
 )
 
-// parseFn is state in the finite state automata.
-type parseFn func(l *Lexer) (parseFn, error)
+// parseFunc is state in the finite state automata.
+type parseFunc func(l *Lexer) (parseFunc, error)
 
 // Parser reads the sequence of tokens from the lexer and returns either a
 // series of matchers or an error. It works as a finite state automata, where
-// each state in the automata is a parseFn. The finite state automata can move
-// from one state to another by returning the next parseFn. It terminates when
-// a parseFn returns nil as the next parseFn.
+// each state in the automata is a parseFunc. The finite state automata can move
+// from one state to another by returning the next parseFunc. It terminates when
+// a parseFunc returns nil as the next parseFunc.
 //
 // However, it can also terminate if the lexer attempts to scan text that does
 // not match the expected grammar, or if the tokens returned from the lexer
@@ -134,7 +134,7 @@ func (p *Parser) peekNext(l *Lexer) (Token, error) {
 	return tok, nil
 }
 
-func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
+func (p *Parser) parseOpenParen(l *Lexer) (parseFunc, error) {
 	// Can start with an optional open brace.
 	tok, err := p.peekNext(l)
 	if err != nil {
@@ -169,7 +169,7 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFn, error) {
 	return p.parseLabelMatcher, nil
 }
 
-func (p *Parser) parseCloseParen(l *Lexer) (parseFn, error) {
+func (p *Parser) parseCloseParen(l *Lexer) (parseFunc, error) {
 	if p.hasOpenParen {
 		// If there was an open brace there must be a matching close brace.
 		if _, err := p.expect(l.Scan, TokenCloseBrace); err != nil {
@@ -184,7 +184,7 @@ func (p *Parser) parseCloseParen(l *Lexer) (parseFn, error) {
 	return p.parseEOF, nil
 }
 
-func (p *Parser) parseComma(l *Lexer) (parseFn, error) {
+func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
 	if _, err := p.expect(l.Scan, TokenComma); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, "expected a comma")
 	}
@@ -205,14 +205,14 @@ func (p *Parser) parseComma(l *Lexer) (parseFn, error) {
 	return p.parseLabelMatcher, nil
 }
 
-func (p *Parser) parseEOF(l *Lexer) (parseFn, error) {
+func (p *Parser) parseEOF(l *Lexer) (parseFunc, error) {
 	if _, err := p.expect(l.Scan, TokenEOF); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrExpectedEOF)
 	}
 	return nil, nil
 }
 
-func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
+func (p *Parser) parseLabelMatcher(l *Lexer) (parseFunc, error) {
 	var (
 		err        error
 		tok        Token
@@ -268,7 +268,7 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 	return p.parseLabelMatcherEnd, nil
 }
 
-func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFn, error) {
+func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFunc, error) {
 	tok, err := p.expect(l.Peek, TokenComma, TokenCloseBrace)
 	if err != nil {
 		// If this is the end of input we still need to check if the optional
