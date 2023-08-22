@@ -77,7 +77,7 @@ func (p *Parser) Parse() (labels.Matchers, error) {
 // expect returns the next token if it is one of the expected kinds. It returns
 // an error if the next token that would be returned from the lexer does not
 // match the expected grammar, or if the lexer has reached the end of the input
-// and TokenNone is not one of the expected kinds. It is possible to use either
+// and TokenEOF is not one of the expected kinds. It is possible to use either
 // Scan() or Peek() as fn depending on whether expect should consume or peek
 // the next token.
 func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, error) {
@@ -93,7 +93,7 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 			return tok, nil
 		}
 	}
-	if tok.Kind == TokenNone {
+	if tok.IsEOF() {
 		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
 	}
 	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
@@ -106,7 +106,7 @@ func (p *Parser) peekNext(l *Lexer) (Token, error) {
 	if err != nil {
 		return Token{}, err
 	}
-	if tok.Kind == TokenNone {
+	if tok.IsEOF() {
 		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
 	}
 	return tok, nil
@@ -202,7 +202,7 @@ func (p *Parser) parseComma(l *Lexer) (parseFn, error) {
 }
 
 func (p *Parser) parseEOF(l *Lexer) (parseFn, error) {
-	if _, err := p.expect(l.Scan, TokenNone); err != nil {
+	if _, err := p.expect(l.Scan, TokenEOF); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrExpectedEOF)
 	}
 	return nil, nil

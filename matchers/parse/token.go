@@ -20,7 +20,7 @@ import (
 type TokenKind int
 
 const (
-	TokenNone TokenKind = iota
+	TokenEOF TokenKind = iota
 	TokenCloseBrace
 	TokenComma
 	TokenOpenBrace
@@ -44,7 +44,7 @@ func (k TokenKind) String() string {
 	case TokenUnquoted:
 		return "Unquoted"
 	default:
-		return "None"
+		return "EOF"
 	}
 }
 
@@ -52,6 +52,11 @@ type Token struct {
 	Kind  TokenKind
 	Value string
 	Position
+}
+
+// IsEOF returns true if the token is an end of file token.
+func (t Token) IsEOF() bool {
+	return t.Kind == TokenEOF
 }
 
 // IsOneOf returns true if the token is one of the specified kinds.

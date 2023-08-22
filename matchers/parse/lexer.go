@@ -96,7 +96,7 @@ func (e UnterminatedError) Error() string {
 // next token in the input or an error if the input does not conform to the
 // grammar. A token can be one of a number of kinds and corresponds to a
 // subslice of the input. Once the input has been consumed successive calls to
-// Scan() return a TokenNone token.
+// Scan() return a TokenEOF token.
 type Lexer struct {
 	input  string
 	err    error
@@ -115,7 +115,7 @@ func NewLexer(input string) Lexer {
 
 // Peeks the next token in the input or an error if the input does not
 // conform to the grammar. Once the input has been consumed successive
-// calls Peek() return a TokenNone token.
+// calls Peek() return a TokenEOF token.
 func (l *Lexer) Peek() (Token, error) {
 	start := l.start
 	pos := l.pos
@@ -135,7 +135,7 @@ func (l *Lexer) Peek() (Token, error) {
 
 // Scans the next token in the input or an error if the input does not
 // conform to the grammar. Once the input has been consumed successive
-// calls Scan() return a TokenNone token.
+// calls Scan() return a TokenEOF token.
 func (l *Lexer) Scan() (Token, error) {
 	tok := Token{}
 
