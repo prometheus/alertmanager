@@ -50,16 +50,17 @@ type Parser struct {
 	err      error
 	matchers labels.Matchers
 
-	input string
-	lexer Lexer
-	// Tracks if the input starts with a `{` and if we should expect a `}`.
-	hasOpenParen bool
+	// Tracks if the input starts with an open brace and if we should expect to
+	// parse a close brace at the end of the input.
+	hasOpenBrace bool
+	lexer        Lexer
+	input        string
 }
 
 func NewParser(input string) Parser {
 	return Parser{
-		input: input,
 		lexer: NewLexer(input),
+		input: input,
 	}
 }
 
@@ -143,10 +144,10 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFunc, error) {
 		}
 		return nil, err
 	}
-	p.hasOpenParen = tok.IsOneOf(TokenOpenBrace)
+	p.hasOpenBrace = tok.IsOneOf(TokenOpenBrace)
 	// If the token was an open brace it must be scanned so the token
 	// following it can be peeked.
-	if p.hasOpenParen {
+	if p.hasOpenBrace {
 		if _, err = l.Scan(); err != nil {
 			panic("Unexpected error scanning open brace")
 		}
@@ -170,7 +171,7 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFunc, error) {
 }
 
 func (p *Parser) parseCloseParen(l *Lexer) (parseFunc, error) {
-	if p.hasOpenParen {
+	if p.hasOpenBrace {
 		// If there was an open brace there must be a matching close brace.
 		if _, err := p.expect(l.Scan, TokenCloseBrace); err != nil {
 			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
