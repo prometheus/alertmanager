@@ -16,10 +16,9 @@ package parse
 import (
 	"errors"
 	"fmt"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"strconv"
 	"strings"
-
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 var (
@@ -31,6 +30,33 @@ var (
 	ErrNoOperator   = errors.New("expected an operator such as '=', '!=', '=~' or '!~'")
 	ErrExpectedEOF  = errors.New("expected end of input")
 )
+
+// Parse parses one or more matchers in the input string. It returns an error
+// if the input is invalid.
+func Parse(input string) (labels.Matchers, error) {
+	p := NewParser(input)
+	return p.Parse()
+}
+
+// ParseMatcher parses the matcher in the input string. It returns an error
+// if the input is invalid or contains two or more matchers.
+func ParseMatcher(input string) (*labels.Matcher, error) {
+	if strings.HasPrefix(input, "{") || strings.HasSuffix(input, "}") {
+		return nil, errors.New("matcher cannot start or end with braces")
+	}
+	m, err := Parse(input)
+	if err != nil {
+		return nil, err
+	}
+	switch len(m) {
+	case 0:
+		return nil, nil
+	case 1:
+		return m[0], nil
+	default:
+		return nil, fmt.Errorf("expected 1 matcher, found %d", len(m))
+	}
+}
 
 // parseFunc is state in the finite state automata.
 type parseFunc func(l *Lexer) (parseFunc, error)
@@ -54,14 +80,10 @@ type Parser struct {
 	// parse a close brace at the end of the input.
 	hasOpenBrace bool
 	lexer        Lexer
-	input        string
 }
 
 func NewParser(input string) Parser {
-	return Parser{
-		lexer: NewLexer(input),
-		input: input,
-	}
+	return Parser{lexer: NewLexer(input)}
 }
 
 // Error returns the error that caused parsing to fail.
@@ -70,40 +92,12 @@ func (p *Parser) Error() error {
 }
 
 // Parse returns a series of matchers or an error. It is idempotent.
-// Successive calls return the same result.
-// once, however successive calls return the matchers and err from the first
-// call.
 func (p *Parser) Parse() (labels.Matchers, error) {
 	if !p.done {
 		p.done = true
 		p.matchers, p.err = p.parse()
 	}
 	return p.matchers, p.err
-}
-
-// expect returns the next token if it is one of the expected kinds. It returns
-// an error if the next token that would be returned from the lexer does not
-// match the expected grammar, or if the lexer has reached the end of the input
-// and TokenEOF is not one of the expected kinds. It is possible to use either
-// Scan() or Peek() as fn depending on whether expect should consume or peek
-// the next token.
-func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, error) {
-	var (
-		err error
-		tok Token
-	)
-	if tok, err = fn(); err != nil {
-		return Token{}, err
-	}
-	for _, k := range kind {
-		if tok.Kind == k {
-			return tok, nil
-		}
-	}
-	if tok.IsEOF() {
-		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
-	}
-	return Token{}, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 }
 
 func (p *Parser) parse() (labels.Matchers, error) {
@@ -122,76 +116,128 @@ func (p *Parser) parse() (labels.Matchers, error) {
 	return p.matchers, nil
 }
 
-// peekNext peeks the next token from the lexer. It returns an error if there is
-// no more input.
-func (p *Parser) peekNext(l *Lexer) (Token, error) {
-	tok, err := l.Peek()
-	if err != nil {
-		return Token{}, err
-	}
-	if tok.IsEOF() {
-		return Token{}, fmt.Errorf("0:%d: %w", len(p.input), ErrEOF)
-	}
-	return tok, nil
-}
-
 func (p *Parser) parseOpenBrace(l *Lexer) (parseFunc, error) {
+	var (
+		hasCloseBrace bool
+		err           error
+	)
 	// Can start with an optional open brace.
-	tok, err := p.peekNext(l)
+	p.hasOpenBrace, err = p.accept(l, TokenOpenBrace)
 	if err != nil {
+		// If there is no input then parse the EOF.
 		if errors.Is(err, ErrEOF) {
 			return p.parseEOF, nil
 		}
 		return nil, err
 	}
-	p.hasOpenBrace = tok.IsOneOf(TokenOpenBrace)
-	// If the token was an open brace it must be scanned so the token
-	// following it can be peeked.
-	if p.hasOpenBrace {
-		if _, err = l.Scan(); err != nil {
-			panic("Unexpected error scanning open brace")
-		}
-
-		// If the next token is a close brace there are no matchers in the input
-		// and we can just parse the close brace.
-		tok, err = p.peekNext(l)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
-		}
-		if tok.IsOneOf(TokenCloseBrace) {
+	// If the next token is a close brace there are no matchers in the input.
+	hasCloseBrace, err = p.acceptPeek(l, TokenCloseBrace)
+	if err != nil {
+		// If there is no more input after the open brace then parse the close brace
+		// so the error message contains ErrNoCloseBrace.
+		if errors.Is(err, ErrEOF) {
 			return p.parseCloseBrace, nil
 		}
-	}
-
-	if tok.IsOneOf(TokenCloseBrace) {
+		return nil, err
+	} else if hasCloseBrace {
 		return p.parseCloseBrace, nil
+	} else {
+		return p.parseMatcher, nil
 	}
-
-	return p.parseLabelMatcher, nil
 }
 
 func (p *Parser) parseCloseBrace(l *Lexer) (parseFunc, error) {
 	if p.hasOpenBrace {
 		// If there was an open brace there must be a matching close brace.
-		if _, err := p.expect(l.Scan, TokenCloseBrace); err != nil {
+		if _, err := p.expect(l, TokenCloseBrace); err != nil {
 			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
 		}
 	} else {
 		// If there was no open brace there must not be a close brace either.
-		if _, err := p.expect(l.Peek, TokenCloseBrace); err == nil {
-			return nil, fmt.Errorf("0:%d: }: %w", len(p.input), ErrNoOpenBrace)
+		if _, err := p.expect(l, TokenCloseBrace); err == nil {
+			pos := l.Pos()
+			return nil, fmt.Errorf("0:%d: }: %w", pos.ColumnEnd, ErrNoOpenBrace)
 		}
 	}
 	return p.parseEOF, nil
 }
 
+func (p *Parser) parseMatcher(l *Lexer) (parseFunc, error) {
+	var (
+		err                   error
+		tok                   Token
+		matchName, matchValue string
+		matchTy               labels.MatchType
+	)
+	// The next token should be the match name. This can be either double-quoted
+	// UTF-8 or unquoted UTF-8 without reserved characters.
+	if tok, err = p.expect(l, TokenQuoted, TokenUnquoted); err != nil {
+		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
+	}
+	matchName = tok.Value
+	if tok.Kind == TokenQuoted {
+		// If the name is double-quoted it must be unquoted, and any escaped quotes
+		// must be unescaped.
+		matchName, err = strconv.Unquote(tok.Value)
+		if err != nil {
+			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
+		}
+	}
+	// The next token should be the operator.
+	if tok, err = p.expect(l, TokenOperator); err != nil {
+		return nil, fmt.Errorf("%s: %s", err, ErrNoOperator)
+	}
+	if matchTy, err = matchType(tok.Value); err != nil {
+		panic("Unexpected operator, this should never happen")
+	}
+	// The next token should be the match value. Like the match name, this too
+	// can be either double-quoted UTF-8 or unquoted UTF-8 without reserved characters.
+	if tok, err = p.expect(l, TokenUnquoted, TokenQuoted); err != nil {
+		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
+	}
+	matchValue = tok.Value
+	if tok.Kind == TokenQuoted {
+		// If the value is double-quoted it must be unquoted, and any escaped quotes
+		// must be unescaped.
+		matchValue, err = strconv.Unquote(tok.Value)
+		if err != nil {
+			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
+		}
+	}
+	m, err := labels.NewMatcher(matchTy, matchName, matchValue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create matcher: %s", err)
+	}
+	p.matchers = append(p.matchers, m)
+	return p.parseEndOfMatcher, nil
+}
+
+func (p *Parser) parseEndOfMatcher(l *Lexer) (parseFunc, error) {
+	tok, err := p.expectPeek(l, TokenComma, TokenCloseBrace)
+	if err != nil {
+		if errors.Is(err, ErrEOF) {
+			// If this is the end of input we still need to check if the optional
+			// open brace has a matching close brace
+			return p.parseCloseBrace, nil
+		}
+		return nil, fmt.Errorf("%s: %s", err, "expected a comma or close brace")
+	}
+	switch tok.Kind {
+	case TokenComma:
+		return p.parseComma, nil
+	case TokenCloseBrace:
+		return p.parseCloseBrace, nil
+	default:
+		panic("Unexpected token at the end of matcher, this should never happen")
+	}
+}
+
 func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
-	if _, err := p.expect(l.Scan, TokenComma); err != nil {
+	if _, err := p.expect(l, TokenComma); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, "expected a comma")
 	}
-	// The token after the comma can be another matcher, a close brace or the
-	// end of input.
-	tok, err := p.expect(l.Peek, TokenCloseBrace, TokenUnquoted, TokenQuoted)
+	// The token after the comma can be another matcher, a close brace or end of input.
+	tok, err := p.expectPeek(l, TokenCloseBrace, TokenUnquoted, TokenQuoted)
 	if err != nil {
 		if errors.Is(err, ErrEOF) {
 			// If this is the end of input we still need to check if the optional
@@ -202,8 +248,9 @@ func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
 	}
 	if tok.Kind == TokenCloseBrace {
 		return p.parseCloseBrace, nil
+	} else {
+		return p.parseMatcher, nil
 	}
-	return p.parseLabelMatcher, nil
 }
 
 func (p *Parser) parseEOF(l *Lexer) (parseFunc, error) {
@@ -217,106 +264,65 @@ func (p *Parser) parseEOF(l *Lexer) (parseFunc, error) {
 	return nil, nil
 }
 
-func (p *Parser) parseLabelMatcher(l *Lexer) (parseFunc, error) {
-	var (
-		err        error
-		tok        Token
-		labelName  string
-		labelValue string
-		ty         labels.MatchType
-	)
-
-	// The next token is the label name. This can either be an unquoted which
-	// accepts just [a-zA-Z_] or a quoted which accepts all UTF-8 characters
-	// in double quotes.
-	if tok, err = p.expect(l.Scan, TokenUnquoted, TokenQuoted); err != nil {
-		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
-	}
-	if tok.Kind == TokenUnquoted {
-		labelName = tok.Value
-	} else {
-		labelName, err = strconv.Unquote(tok.Value)
-		if err != nil {
-			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
+// accept returns true if the next token is one of the specified kinds,
+// otherwise false. If the token is accepted it is consumed. TokenEOF is
+// not an accepted kind  and instead accept returns ErrEOF if there is no
+// more input.
+func (p *Parser) accept(l *Lexer, kinds ...TokenKind) (ok bool, err error) {
+	ok, err = p.acceptPeek(l, kinds...)
+	if ok {
+		if _, err = l.Scan(); err != nil {
+			panic("Failed to scan peeked token, this should never happen")
 		}
 	}
-
-	// The next token is the operator such as '=', '!=', '=~' and '!~'.
-	if tok, err = p.expect(l.Scan, TokenOperator); err != nil {
-		return nil, fmt.Errorf("%s: %s", err, ErrNoOperator)
-	}
-	if ty, err = matchType(tok.Value); err != nil {
-		panic("Unexpected operator")
-	}
-
-	// The next token is the label value. This too can either be an unquoted
-	// which accepts just [a-zA-Z_] or a quoted which accepts all UTF-8
-	// characters in double quotes.
-	if tok, err = p.expect(l.Scan, TokenUnquoted, TokenQuoted); err != nil {
-		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
-	}
-	if tok.Kind == TokenUnquoted {
-		labelValue = tok.Value
-	} else {
-		labelValue, err = strconv.Unquote(tok.Value)
-		if err != nil {
-			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.ColumnStart, tok.ColumnEnd, tok.Value)
-		}
-	}
-
-	m, err := labels.NewMatcher(ty, labelName, labelValue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create matcher: %s", err)
-	}
-	p.matchers = append(p.matchers, m)
-
-	return p.parseLabelMatcherEnd, nil
+	return ok, err
 }
 
-func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFunc, error) {
-	tok, err := p.expect(l.Peek, TokenComma, TokenCloseBrace)
+// acceptPeek returns true if the next token is one of the specified kinds,
+// otherwise false. However, unlike accept, acceptPeek does not consume accepted
+// tokens. TokenEOF is not an accepted kind and instead accept returns ErrEOF
+// if there is no more input.
+func (p *Parser) acceptPeek(l *Lexer, kinds ...TokenKind) (bool, error) {
+	tok, err := l.Peek()
 	if err != nil {
-		// If this is the end of input we still need to check if the optional
-		// open brace has a matching close brace.
-		if errors.Is(err, ErrEOF) {
-			return p.parseCloseBrace, nil
-		}
-		return nil, fmt.Errorf("%s: %s", err, "expected a comma or close brace")
+		return false, err
 	}
-	if tok.Kind == TokenCloseBrace {
-		return p.parseCloseBrace, nil
-	} else if tok.Kind == TokenComma {
-		return p.parseComma, nil
-	} else {
-		panic("unreachable")
+	if tok.IsEOF() {
+		return false, unexpectedEOF(l)
 	}
+	return tok.IsOneOf(kinds...), nil
 }
 
-// Parse parses one or more matchers in the input string. It returns an error
-// if the input is invalid.
-func Parse(input string) (labels.Matchers, error) {
-	p := NewParser(input)
-	return p.Parse()
+// expect returns the next token if it is one of the specified kinds, otherwise
+// it returns an error. If the token is expected it is consumed. TokenEOF is not
+// an accepted kind and instead expect returns ErrEOF if there is no more input.
+func (p *Parser) expect(l *Lexer, kind ...TokenKind) (Token, error) {
+	tok, err := p.expectPeek(l, kind...)
+	if err != nil {
+		return tok, err
+	}
+	if _, err = l.Scan(); err != nil {
+		panic("Failed to scan peeked token, this should never happen")
+	}
+	return tok, nil
 }
 
-// ParseMatcher parses the matcher in the input string. It returns an error
-// if the input is invalid or contains two or more matchers.
-func ParseMatcher(input string) (*labels.Matcher, error) {
-	if strings.HasPrefix(input, "{") {
-		return nil, errors.New("matcher cannot start or end with braces")
-	}
-	m, err := Parse(input)
+// expect returns the next token if it is one of the specified kinds, otherwise
+// it returns an error. However, unlike expect, expectPeek does not consume tokens.
+// TokenEOF is not an accepted kind and instead expect returns ErrEOF if there is no
+// more input.
+func (p *Parser) expectPeek(l *Lexer, kind ...TokenKind) (Token, error) {
+	tok, err := l.Peek()
 	if err != nil {
-		return nil, err
+		return tok, err
 	}
-	switch len(m) {
-	case 0:
-		return nil, nil
-	case 1:
-		return m[0], nil
-	default:
-		return nil, fmt.Errorf("expected 1 matcher, found %d", len(m))
+	if tok.IsEOF() {
+		return tok, unexpectedEOF(l)
 	}
+	if !tok.IsOneOf(kind...) {
+		return tok, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
+	}
+	return tok, nil
 }
 
 func matchType(s string) (labels.MatchType, error) {
@@ -332,4 +338,10 @@ func matchType(s string) (labels.MatchType, error) {
 	default:
 		return -1, fmt.Errorf("unexpected operator: %s", s)
 	}
+}
+
+// unexpectedEOF
+func unexpectedEOF(l *Lexer) error {
+	pos := l.Pos()
+	return fmt.Errorf("0:%d: %w", pos.ColumnEnd, ErrEOF)
 }

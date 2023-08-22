@@ -603,3 +603,24 @@ func TestLexer_PeekError(t *testing.T) {
 		require.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
+
+func TestLexer_Pos(t *testing.T) {
+	l := NewLexer("hello🙂")
+	// The start position should be the zero-value.
+	require.Equal(t, Position{}, l.Pos())
+	_, err := l.Scan()
+	require.NoError(t, err)
+	// The position should contain the offset and column of the end.
+	expected := Position{
+		OffsetStart: 9,
+		OffsetEnd:   9,
+		ColumnStart: 6,
+		ColumnEnd:   6,
+	}
+	require.Equal(t, expected, l.Pos())
+	// The position should not change once the input has been consumed.
+	tok, err := l.Scan()
+	require.NoError(t, err)
+	require.True(t, tok.IsEOF())
+	require.Equal(t, expected, l.Pos())
+}

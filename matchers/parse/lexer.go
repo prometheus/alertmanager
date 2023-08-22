@@ -113,26 +113,6 @@ func NewLexer(input string) Lexer {
 	}
 }
 
-// Peeks the next token in the input or an error if the input does not
-// conform to the grammar. Once the input has been consumed successive
-// calls Peek() return a TokenEOF token.
-func (l *Lexer) Peek() (Token, error) {
-	start := l.start
-	pos := l.pos
-	width := l.width
-	column := l.column
-	cols := l.cols
-	// Do not reset l.err because we can return it on the next call to Scan().
-	defer func() {
-		l.start = start
-		l.pos = pos
-		l.width = width
-		l.column = column
-		l.cols = cols
-	}()
-	return l.Scan()
-}
-
 // Scans the next token in the input or an error if the input does not
 // conform to the grammar. Once the input has been consumed successive
 // calls Scan() return a TokenEOF token.
@@ -183,6 +163,36 @@ func (l *Lexer) Scan() (Token, error) {
 	}
 
 	return tok, l.err
+}
+
+// Peeks the next token in the input or an error if the input does not
+// conform to the grammar. Once the input has been consumed successive
+// calls Peek() return a TokenEOF token.
+func (l *Lexer) Peek() (Token, error) {
+	start := l.start
+	pos := l.pos
+	width := l.width
+	column := l.column
+	cols := l.cols
+	// Do not reset l.err because we can return it on the next call to Scan().
+	defer func() {
+		l.start = start
+		l.pos = pos
+		l.width = width
+		l.column = column
+		l.cols = cols
+	}()
+	return l.Scan()
+}
+
+// Pos returns the current position.
+func (l *Lexer) Pos() Position {
+	return Position{
+		OffsetStart: l.start,
+		OffsetEnd:   l.pos,
+		ColumnStart: l.column,
+		ColumnEnd:   l.cols,
+	}
 }
 
 func (l *Lexer) scanOperator() (Token, error) {
