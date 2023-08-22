@@ -207,8 +207,12 @@ func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
 }
 
 func (p *Parser) parseEOF(l *Lexer) (parseFunc, error) {
-	if _, err := p.expect(l.Scan, TokenEOF); err != nil {
+	tok, err := l.Scan()
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrExpectedEOF)
+	}
+	if !tok.IsEOF() {
+		return nil, fmt.Errorf("%d:%d: %s: %w", tok.ColumnStart, tok.ColumnEnd, tok.Value, ErrExpectedEOF)
 	}
 	return nil, nil
 }
