@@ -109,7 +109,7 @@ func (p *Parser) expect(fn func() (Token, error), kind ...TokenKind) (Token, err
 func (p *Parser) parse() (labels.Matchers, error) {
 	var (
 		err error
-		fn  = p.parseOpenParen
+		fn  = p.parseOpenBrace
 		l   = &p.lexer
 	)
 	for {
@@ -135,7 +135,7 @@ func (p *Parser) peekNext(l *Lexer) (Token, error) {
 	return tok, nil
 }
 
-func (p *Parser) parseOpenParen(l *Lexer) (parseFunc, error) {
+func (p *Parser) parseOpenBrace(l *Lexer) (parseFunc, error) {
 	// Can start with an optional open brace.
 	tok, err := p.peekNext(l)
 	if err != nil {
@@ -159,18 +159,18 @@ func (p *Parser) parseOpenParen(l *Lexer) (parseFunc, error) {
 			return nil, fmt.Errorf("%s: %w", err, ErrNoCloseBrace)
 		}
 		if tok.IsOneOf(TokenCloseBrace) {
-			return p.parseCloseParen, nil
+			return p.parseCloseBrace, nil
 		}
 	}
 
 	if tok.IsOneOf(TokenCloseBrace) {
-		return p.parseCloseParen, nil
+		return p.parseCloseBrace, nil
 	}
 
 	return p.parseLabelMatcher, nil
 }
 
-func (p *Parser) parseCloseParen(l *Lexer) (parseFunc, error) {
+func (p *Parser) parseCloseBrace(l *Lexer) (parseFunc, error) {
 	if p.hasOpenBrace {
 		// If there was an open brace there must be a matching close brace.
 		if _, err := p.expect(l.Scan, TokenCloseBrace); err != nil {
@@ -196,12 +196,12 @@ func (p *Parser) parseComma(l *Lexer) (parseFunc, error) {
 		if errors.Is(err, ErrEOF) {
 			// If this is the end of input we still need to check if the optional
 			// open brace has a matching close brace
-			return p.parseCloseParen, nil
+			return p.parseCloseBrace, nil
 		}
 		return nil, fmt.Errorf("%s: %s", err, "expected a matcher or close brace after comma")
 	}
 	if tok.Kind == TokenCloseBrace {
-		return p.parseCloseParen, nil
+		return p.parseCloseBrace, nil
 	}
 	return p.parseLabelMatcher, nil
 }
@@ -275,12 +275,12 @@ func (p *Parser) parseLabelMatcherEnd(l *Lexer) (parseFunc, error) {
 		// If this is the end of input we still need to check if the optional
 		// open brace has a matching close brace.
 		if errors.Is(err, ErrEOF) {
-			return p.parseCloseParen, nil
+			return p.parseCloseBrace, nil
 		}
 		return nil, fmt.Errorf("%s: %s", err, "expected a comma or close brace")
 	}
 	if tok.Kind == TokenCloseBrace {
-		return p.parseCloseParen, nil
+		return p.parseCloseBrace, nil
 	} else if tok.Kind == TokenComma {
 		return p.parseComma, nil
 	} else {
