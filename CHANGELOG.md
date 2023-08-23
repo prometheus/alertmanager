@@ -1,4 +1,4 @@
-## 0.26.0-rc.0 / 2023-08-17
+## 0.26.0 / 2022-08-23
 
 * [CHANGE] Telegram Integration: `api_url` is now optional. #2981
 * [CHANGE] Telegram Integration: `ParseMode` default is now `HTML` instead of `MarkdownV2`. #2981
@@ -25,6 +25,7 @@
 * [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
 * [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352
 * [BUGFIX] Clustering: Fixes a panic when `tls_client_config` is empty. #3443
+* [BUGFIX] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI.
 
 ## 0.25.0 / 2022-12-22
 
