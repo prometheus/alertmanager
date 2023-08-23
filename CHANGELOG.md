@@ -1,4 +1,4 @@
-## 0.26.0 / 2022-08-23
+## 0.26.0 / 2023-08-23
 
 * [CHANGE] Telegram Integration: `api_url` is now optional. #2981
 * [CHANGE] Telegram Integration: `ParseMode` default is now `HTML` instead of `MarkdownV2`. #2981
