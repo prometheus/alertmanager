@@ -694,6 +694,7 @@ type PushoverConfig struct {
 	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
 	HTML        bool     `yaml:"html" json:"html,omitempty"`
 }
 
