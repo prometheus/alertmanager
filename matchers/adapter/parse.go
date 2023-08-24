@@ -16,6 +16,7 @@ package adapter
 import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+
 	"github.com/prometheus/alertmanager/matchers/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
