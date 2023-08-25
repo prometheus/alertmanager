@@ -1,6 +1,6 @@
 ## 0.25.1 / 2023-08-23
 
-* [BUGFIX] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI.
+* [SECURITY] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI. CVE-2023-40577
 
 ## 0.25.0 / 2022-12-22
 
