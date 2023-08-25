@@ -31,7 +31,7 @@ func printMatchers(s string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	} else {
-		fmt.Fprintln(os.Stdout, m)
+		fmt.Println(m)
 	}
 }
 
@@ -40,7 +40,7 @@ func printTokens(s string) {
 	for {
 		tok, err := l.Scan()
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			break
 		} else if !tok.IsEOF() {
 			fmt.Println(tok)
