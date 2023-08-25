@@ -292,6 +292,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"victorops",
 		"sns",
 		"telegram",
+		"welink",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
