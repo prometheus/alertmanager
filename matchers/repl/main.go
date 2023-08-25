@@ -40,10 +40,10 @@ func printTokens(s string) {
 	for {
 		tok, err := l.Scan()
 		if err != nil {
-			fmt.Fprintln(os.Stdout, err)
+			fmt.Println(err)
 			break
 		} else if !tok.IsEOF() {
-			fmt.Fprintln(os.Stdout, tok)
+			fmt.Println(tok)
 		} else {
 			break
 		}
@@ -53,14 +53,14 @@ func printTokens(s string) {
 func switchMode() {
 	justLex = !justLex
 	if justLex {
-		fmt.Fprintln(os.Stderr, "Switched to lex mode")
+		fmt.Println("Switched to lex mode")
 	} else {
-		fmt.Fprintln(os.Stdout, "Switched to parse mode")
+		fmt.Println("Switched to parse mode")
 	}
 }
 
 func main() {
-	fmt.Fprintln(os.Stdout, "Welcome to the repl! Use w to switch between lex and parse modes.")
+	fmt.Println("Welcome to the repl! Use w to switch between lex and parse modes.")
 	r := bufio.NewReader(os.Stdin)
 	for {
 		in, err := r.ReadString('\n')
