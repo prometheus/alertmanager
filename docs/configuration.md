@@ -1297,7 +1297,7 @@ API](https://open.welink.huaweicloud.com/docs/#/990hh0/whokyc/mmkx2n).
 # Type of the message type, supported values are `text`.
 [ message_type: <string> | default = 'text' ]
 
-# @ users
+# notify weblink users @user. if is_at is true, at_accounts is not empty.
 [ is_at: <bool> | default = false ]
 [ is_at_all: <bool> | default = false ]
 [ at_accounts: '[' <string>, ... ']' | default = [] ]
