@@ -296,6 +296,13 @@ func TestCompliance(t *testing.T) {
 			skip: true,
 		},
 		{
+			input: `{name-with-dashes = "bar"}`,
+			want: func() labels.Matchers {
+				m, _ := labels.NewMatcher(labels.MatchEqual, "name-with-dashes", "bar")
+				return labels.Matchers{m}
+			}(),
+		},
+		{
 			input: `{,}`,
 			err:   "bad matcher format: ",
 		},
@@ -314,11 +321,6 @@ func TestCompliance(t *testing.T) {
 		{
 			input: `contains_unescaped_quote = foo"bar`,
 			err:   `matcher value contains unescaped double quote: foo"bar`,
-		},
-		{
-			input: `{invalid-name = "valid label"}`,
-			err:   `bad matcher format: invalid-name = "valid label"`,
-			skip:  true,
 		},
 		{
 			input: `{foo=~"invalid[regexp"}`,
