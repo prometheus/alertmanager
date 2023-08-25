@@ -1,5 +1,6 @@
 ## 0.26.0 / 2023-08-23
 
+* [SECURITY] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI. CVE-2023-40577
 * [CHANGE] Telegram Integration: `api_url` is now optional. #2981
 * [CHANGE] Telegram Integration: `ParseMode` default is now `HTML` instead of `MarkdownV2`. #2981
 * [CHANGE] Webhook Integration: `url` is now marked as a secret. It will no longer show up in the logs as clear-text. #3228
@@ -25,7 +26,6 @@
 * [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
 * [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352
 * [BUGFIX] Clustering: Fixes a panic when `tls_client_config` is empty. #3443
-* [BUGFIX] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI.
 
 ## 0.25.0 / 2022-12-22
 
