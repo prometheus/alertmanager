@@ -165,7 +165,7 @@ func (l *Lexer) Scan() (Token, error) {
 	return tok, l.err
 }
 
-// Peeks the next token in the input or an error if the input does not
+// Peek the next token in the input or an error if the input does not
 // conform to the grammar. Once the input has been consumed successive
 // calls Peek() return a TokenEOF token.
 func (l *Lexer) Peek() (Token, error) {
@@ -185,7 +185,7 @@ func (l *Lexer) Peek() (Token, error) {
 	return l.Scan()
 }
 
-// Pos returns the current position.
+// Pos returns the position of the last emitted token.
 func (l *Lexer) Pos() Position {
 	return Position{
 		OffsetStart: l.start,
@@ -265,16 +265,8 @@ func (l *Lexer) accept(valid string) bool {
 	return false
 }
 
-// nolint:unused
-func (l *Lexer) acceptRun(valid string) {
-	for strings.ContainsRune(valid, l.next()) {
-	}
-	l.rewind()
-}
-
 func (l *Lexer) expect(valid string) error {
-	r := l.next()
-	if r == eof {
+	if !strings.ContainsRune(valid, l.next()) {
 		l.rewind()
 		return ExpectedError{
 			input:       l.input,
@@ -284,31 +276,15 @@ func (l *Lexer) expect(valid string) error {
 			columnEnd:   l.cols,
 			expected:    valid,
 		}
-	} else if !strings.ContainsRune(valid, r) {
-		l.rewind()
-		return ExpectedError{
-			input:       l.input,
-			offsetStart: l.start,
-			offsetEnd:   l.pos,
-			columnStart: l.column,
-			columnEnd:   l.cols,
-			expected:    valid,
-		}
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (l *Lexer) emit(kind TokenKind) Token {
 	tok := Token{
-		Kind:  kind,
-		Value: l.input[l.start:l.pos],
-		Position: Position{
-			OffsetStart: l.start,
-			OffsetEnd:   l.pos,
-			ColumnStart: l.column,
-			ColumnEnd:   l.cols,
-		},
+		Kind:     kind,
+		Value:    l.input[l.start:l.pos],
+		Position: l.Pos(),
 	}
 	l.start = l.pos
 	l.column = l.cols
@@ -328,9 +304,11 @@ func (l *Lexer) next() rune {
 }
 
 func (l *Lexer) rewind() {
+	l.pos -= l.width
+	// When the next rune in the input is eof the width is zero. This check
+	// prevents cols from being decremented when the next rune being accepted
+	// is instead eof.
 	if l.width > 0 {
-		l.pos -= l.width
-		l.width = 0
 		l.cols--
 	}
 }
