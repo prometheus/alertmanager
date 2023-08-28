@@ -17,8 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/alertmanager/config"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type testReceiversCmd struct {
