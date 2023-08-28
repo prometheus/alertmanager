@@ -45,13 +45,11 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/text v0.13.0
 	golang.org/x/tools v0.13.0
-	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/telebot.v3 v3.1.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
