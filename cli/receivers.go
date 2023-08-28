@@ -50,7 +50,7 @@ var (
 
 type TestReceiversParams struct {
 	Alert     *TestReceiversAlertParams
-	Receivers []*config.Receiver
+	Receivers []config.Receiver
 }
 
 type TestReceiversAlertParams struct {
@@ -89,13 +89,13 @@ func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Te
 
 	// job contains all metadata required to test a receiver
 	type job struct {
-		Receiver    *config.Receiver
+		Receiver    config.Receiver
 		Integration *notify.Integration
 	}
 
 	// result contains the receiver that was tested and an error that is non-nil if the test failed
 	type result struct {
-		Receiver    *config.Receiver
+		Receiver    config.Receiver
 		Integration *notify.Integration
 		Error       error
 	}
@@ -252,7 +252,7 @@ type ReceiverIntegration struct {
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) []ReceiverIntegration {
+func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger) []ReceiverIntegration {
 	var (
 		integrations []ReceiverIntegration
 		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {

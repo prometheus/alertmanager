@@ -17,8 +17,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func Test_TestReceivers_Error(t *testing.T) {
