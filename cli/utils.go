@@ -165,7 +165,7 @@ func loadAlertConfigFile(filename string) (*TestReceiversAlertParams, error) {
 }
 
 func getTemplate(cfg *config.Config) (*template.Template, error) {
-	tmpl, err := template.FromGlobs(cfg.Templates...)
+	tmpl, err := template.FromGlobs(cfg.Templates)
 	if err != nil {
 		return nil, ErrInvalidTemplate
 	}
