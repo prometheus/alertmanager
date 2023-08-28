@@ -15,6 +15,7 @@ package ui
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
@@ -22,9 +23,16 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/server"
 
 	"github.com/prometheus/alertmanager/asset"
+	reactApp "github.com/prometheus/alertmanager/ui/react-app"
 )
+
+var reactRouterPaths = []string{
+	"/",
+	"/status",
+}
 
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
@@ -62,7 +70,38 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		fs.ServeHTTP(w, req)
 	})
 
-	r.Post("/-/reload", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	serveReactApp := func(w http.ResponseWriter, r *http.Request) {
+		f, err := reactApp.Assets.Open("/dist/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error opening React index.html: %v", err)
+			return
+		}
+		defer func() { _ = f.Close() }()
+		idx, err := io.ReadAll(f)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error reading React index.html: %v", err)
+			return
+		}
+		w.Write(idx)
+	}
+
+	// Static files required by the React app.
+	r.Get("/react-app/*filepath", func(w http.ResponseWriter, r *http.Request) {
+		for _, rt := range reactRouterPaths {
+			if r.URL.Path != "/react-app"+rt {
+				continue
+			}
+			serveReactApp(w, r)
+			return
+		}
+		r.URL.Path = path.Join("/dist", route.Param(r.Context(), "filepath"))
+		fs := server.StaticFileServer(reactApp.Assets)
+		fs.ServeHTTP(w, r)
+	})
+
+	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		errc := make(chan error)
 		defer close(errc)
 
@@ -70,22 +109,22 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		if err := <-errc; err != nil {
 			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 		}
-	}))
+	})
 
-	r.Get("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	}))
-	r.Head("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Head("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
-	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Get("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	}))
-	r.Head("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Head("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
