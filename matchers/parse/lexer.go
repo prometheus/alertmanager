@@ -280,6 +280,7 @@ func (l *Lexer) expect(valid string) error {
 	return nil
 }
 
+// emits returns the scanned input as a token.
 func (l *Lexer) emit(kind TokenKind) Token {
 	tok := Token{
 		Kind:     kind,
@@ -291,6 +292,7 @@ func (l *Lexer) emit(kind TokenKind) Token {
 	return tok
 }
 
+// next returns the next rune in the input or eof.
 func (l *Lexer) next() rune {
 	if l.pos >= len(l.input) {
 		l.width = 0
@@ -303,6 +305,8 @@ func (l *Lexer) next() rune {
 	return r
 }
 
+// rewind the last rune in the input. It should not be called more than once
+// between consecutive calls of next.
 func (l *Lexer) rewind() {
 	l.pos -= l.width
 	// When the next rune in the input is eof the width is zero. This check
@@ -313,6 +317,7 @@ func (l *Lexer) rewind() {
 	}
 }
 
+// skip the scanned input between start and pos.
 func (l *Lexer) skip() {
 	l.start = l.pos
 	l.column++
