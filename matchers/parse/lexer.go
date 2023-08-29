@@ -320,5 +320,5 @@ func (l *Lexer) rewind() {
 // skip the scanned input between start and pos.
 func (l *Lexer) skip() {
 	l.start = l.pos
-	l.column++
+	l.column = l.cols
 }
