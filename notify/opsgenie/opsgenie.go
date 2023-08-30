@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -52,13 +53,17 @@ func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger, httpOpts 
 	if err != nil {
 		return nil, err
 	}
-	return &Notifier{
+	n := &Notifier{
 		conf:    c,
 		tmpl:    t,
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
-	}, nil
+	}
+	if err := n.validate(); err != nil {
+		return nil, err
+	}
+	return n, nil
 }
 
 type opsGenieCreateMessage struct {
@@ -114,6 +119,35 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 	return true, nil
+}
+
+// Validate notifier configuration by creating (but not sending) requests for an
+// empty set of alerts.
+func (n *Notifier) validate() error {
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "validate")
+
+	// Validate a resolved alert.
+	if _, _, err := n.createRequests(ctx, &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now().Add(-time.Hour),
+			EndsAt:   time.Now().Add(-time.Hour),
+		},
+	}); err != nil {
+		return err
+	}
+
+	// Validate an unresolved alert.
+	if _, _, err := n.createRequests(ctx, &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now().Add(time.Hour),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Like Split but filter out empty strings.
