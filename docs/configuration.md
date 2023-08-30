@@ -948,7 +948,7 @@ token_file: <filepath>
 # acknowledges the notification.
 [ expire: <duration> | default = 1h ]
 
-# Optional time to live (ttl) to use for notification, see https://pushover.net/api#ttl
+# Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
 # The HTTP client's configuration.
