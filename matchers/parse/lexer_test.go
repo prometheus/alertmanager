@@ -513,19 +513,19 @@ func TestLexer_Scan(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			l := Lexer{input: test.input}
-			// Scan all expected tokens
+			// Scan all expected tokens.
 			for i := 0; i < len(test.expected); i++ {
 				tok, err := l.Scan()
 				require.NoError(t, err)
 				require.Equal(t, test.expected[i], tok)
 			}
 			if test.err == "" {
-				// check there are no more tokens
+				// Check there are no more tokens.
 				tok, err := l.Scan()
 				require.NoError(t, err)
 				require.Equal(t, Token{}, tok)
 			} else {
-				// check if expected error is returned
+				// Check if expected error is returned.
 				tok, err := l.Scan()
 				require.Equal(t, Token{}, tok)
 				require.EqualError(t, err, test.err)
@@ -534,7 +534,7 @@ func TestLexer_Scan(t *testing.T) {
 	}
 }
 
-// This test asserts that the Lexer does not emit more tokens after an
+// This test asserts that the lexer does not emit more tokens after an
 // error has occurred.
 func TestLexer_ScanError(t *testing.T) {
 	l := Lexer{input: "\"hello"}
@@ -567,25 +567,25 @@ func TestLexer_Peek(t *testing.T) {
 			ColumnEnd:   11,
 		},
 	}
-	// check that Peek() returns the first token
+	// Check that Peek() returns the first token.
 	tok, err := l.Peek()
 	require.NoError(t, err)
 	require.Equal(t, expected1, tok)
-	// check that Scan() returns the peeked token
+	// Check that Scan() returns the peeked token.
 	tok, err = l.Scan()
 	require.NoError(t, err)
 	require.Equal(t, expected1, tok)
-	// check that Peek() returns the second token until the next Scan()
+	// Check that Peek() returns the second token until the next Scan().
 	for i := 0; i < 10; i++ {
 		tok, err = l.Peek()
 		require.NoError(t, err)
 		require.Equal(t, expected2, tok)
 	}
-	// check that Scan() returns the last token
+	// Check that Scan() returns the last token.
 	tok, err = l.Scan()
 	require.NoError(t, err)
 	require.Equal(t, expected2, tok)
-	// should not be able to Peek() further tokens
+	// Should not be able to Peek() further tokens.
 	for i := 0; i < 10; i++ {
 		tok, err = l.Peek()
 		require.NoError(t, err)

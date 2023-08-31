@@ -69,15 +69,14 @@ func Matcher(input string) (*labels.Matcher, error) {
 // parseFunc is state in the finite state automata.
 type parseFunc func(l *Lexer) (parseFunc, error)
 
-// Parser reads the sequence of tokens from the Lexer and returns either a
+// Parser reads the sequence of tokens from the lexer and returns either a
 // series of matchers or an error. It works as a finite state automata, where
 // each state in the automata is a parseFunc. The finite state automata can move
 // from one state to another by returning the next parseFunc. It terminates when
-// a parseFunc returns nil as the next parseFunc, if the Lexer attempts to Scan
+// a parseFunc returns nil as the next parseFunc, if the lexer attempts to Scan
 // input that does not match the expected grammar, or if the tokens returned from
 // the Lexer cannot be parsed into a complete series of matchers.
 type Parser struct {
-	// The final state of the Parser, makes it idempotent.
 	matchers labels.Matchers
 
 	// Tracks if the input starts with an open brace and if we should expect to
@@ -254,7 +253,7 @@ func (p *Parser) accept(l *Lexer, kinds ...TokenKind) (ok bool, err error) {
 	ok, err = p.acceptPeek(l, kinds...)
 	if ok {
 		if _, err = l.Scan(); err != nil {
-			panic("Failed to Scan peeked token, this should never happen")
+			panic("Failed to scan peeked token, this should never happen")
 		}
 	}
 	return ok, err
@@ -284,7 +283,7 @@ func (p *Parser) expect(l *Lexer, kind ...TokenKind) (Token, error) {
 		return tok, err
 	}
 	if _, err = l.Scan(); err != nil {
-		panic("Failed to Scan peeked token, this should never happen")
+		panic("Failed to scan peeked token, this should never happen")
 	}
 	return tok, nil
 }
