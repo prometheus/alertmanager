@@ -151,7 +151,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	newttl := int64(time.Duration(n.conf.TTL).Seconds())
 	if newttl > 0 {
 		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
-
 	}
 
 	if err != nil {
