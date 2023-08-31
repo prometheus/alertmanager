@@ -21,24 +21,33 @@ type TokenKind int
 
 const (
 	TokenEOF TokenKind = iota
+	TokenOpenBrace
 	TokenCloseBrace
 	TokenComma
-	TokenOpenBrace
-	TokenOperator
+	TokenEquals
+	TokenNotEquals
+	TokenMatches
+	TokenNotMatches
 	TokenQuoted
 	TokenUnquoted
 )
 
 func (k TokenKind) String() string {
 	switch k {
+	case TokenOpenBrace:
+		return "OpenBrace"
 	case TokenCloseBrace:
 		return "CloseBrace"
 	case TokenComma:
 		return "Comma"
-	case TokenOpenBrace:
-		return "OpenBrace"
-	case TokenOperator:
-		return "Op"
+	case TokenEquals:
+		return "Equals"
+	case TokenNotEquals:
+		return "NotEquals"
+	case TokenMatches:
+		return "Matches"
+	case TokenNotMatches:
+		return "NotMatches"
 	case TokenQuoted:
 		return "Quoted"
 	case TokenUnquoted:

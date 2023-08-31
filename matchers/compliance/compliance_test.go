@@ -378,7 +378,7 @@ func TestCompliance(t *testing.T) {
 			if tc.skip {
 				t.Skip()
 			}
-			got, err := parse.Parse(tc.input)
+			got, err := parse.Matchers(tc.input)
 			if err != nil && tc.err == "" {
 				t.Fatalf("got error where none expected: %v", err)
 			}

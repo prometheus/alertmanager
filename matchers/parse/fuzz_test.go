@@ -17,11 +17,11 @@ import (
 	"testing"
 )
 
-// FuzzParse fuzz tests the parser to see if we can make it panic.
+// FuzzParse fuzz tests the Parser to see if we can make it panic.
 func FuzzParse(f *testing.F) {
 	f.Add("{foo=bar,bar=~[a-zA-Z]+,baz!=qux,qux!~[0-9]+")
 	f.Fuzz(func(t *testing.T, s string) {
-		matchers, err := Parse(s)
+		matchers, err := Matchers(s)
 		if matchers != nil && err != nil {
 			t.Errorf("Unexpected matchers and err: %v %s", matchers, err)
 		}

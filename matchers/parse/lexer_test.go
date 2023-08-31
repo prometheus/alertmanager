@@ -402,7 +402,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "equals operator",
 		input: "=",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenEquals,
 			Value: "=",
 			Position: Position{
 				OffsetStart: 0,
@@ -415,7 +415,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "not equals operator",
 		input: "!=",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenNotEquals,
 			Value: "!=",
 			Position: Position{
 				OffsetStart: 0,
@@ -428,7 +428,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "matches regex operator",
 		input: "=~",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenMatches,
 			Value: "=~",
 			Position: Position{
 				OffsetStart: 0,
@@ -441,7 +441,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "not matches regex operator",
 		input: "!~",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenNotMatches,
 			Value: "!~",
 			Position: Position{
 				OffsetStart: 0,
@@ -476,7 +476,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "unexpected ! after operator",
 		input: "=!",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenEquals,
 			Value: "=",
 			Position: Position{
 				OffsetStart: 0,
@@ -490,7 +490,7 @@ func TestLexer_Scan(t *testing.T) {
 		name:  "unexpected !! after operator",
 		input: "!=!!",
 		expected: []Token{{
-			Kind:  TokenOperator,
+			Kind:  TokenNotEquals,
 			Value: "!=",
 			Position: Position{
 				OffsetStart: 0,
@@ -512,8 +512,8 @@ func TestLexer_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			l := NewLexer(test.input)
-			// scan all expected tokens
+			l := Lexer{input: test.input}
+			// Scan all expected tokens
 			for i := 0; i < len(test.expected); i++ {
 				tok, err := l.Scan()
 				require.NoError(t, err)
@@ -534,10 +534,10 @@ func TestLexer_Scan(t *testing.T) {
 	}
 }
 
-// This test asserts that the lexer does not emit more tokens after an
+// This test asserts that the Lexer does not emit more tokens after an
 // error has occurred.
 func TestLexer_ScanError(t *testing.T) {
-	l := NewLexer("\"hello")
+	l := Lexer{input: "\"hello"}
 	for i := 0; i < 10; i++ {
 		tok, err := l.Scan()
 		require.Equal(t, Token{}, tok)
@@ -546,7 +546,7 @@ func TestLexer_ScanError(t *testing.T) {
 }
 
 func TestLexer_Peek(t *testing.T) {
-	l := NewLexer("hello world")
+	l := Lexer{input: "hello world"}
 	expected1 := Token{
 		Kind:  TokenUnquoted,
 		Value: "hello",
@@ -593,10 +593,10 @@ func TestLexer_Peek(t *testing.T) {
 	}
 }
 
-// This test asserts that the lexer does not emit more tokens after an
+// This test asserts that the Lexer does not emit more tokens after an
 // error has occurred.
 func TestLexer_PeekError(t *testing.T) {
-	l := NewLexer("\"hello")
+	l := Lexer{input: "\"hello"}
 	for i := 0; i < 10; i++ {
 		tok, err := l.Peek()
 		require.Equal(t, Token{}, tok)
@@ -605,7 +605,7 @@ func TestLexer_PeekError(t *testing.T) {
 }
 
 func TestLexer_Pos(t *testing.T) {
-	l := NewLexer("hello🙂")
+	l := Lexer{input: "hello🙂"}
 	// The start position should be the zero-value.
 	require.Equal(t, Position{}, l.Pos())
 	_, err := l.Scan()

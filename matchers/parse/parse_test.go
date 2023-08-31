@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
-func TestParse(t *testing.T) {
+func TestMatchers(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -199,7 +199,7 @@ func TestParse(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			matchers, err := Parse(test.input)
+			matchers, err := Matchers(test.input)
 			if test.error != "" {
 				require.EqualError(t, err, test.error)
 			} else {
@@ -210,16 +210,13 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestParseMatcher(t *testing.T) {
+func TestMatcher(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
 		expected *labels.Matcher
 		error    string
 	}{{
-		name:     "no input",
-		expected: nil,
-	}, {
 		name:     "equals",
 		input:    "foo=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
@@ -292,6 +289,9 @@ func TestParseMatcher(t *testing.T) {
 		input:    "\"foo\"=\"bar\\\\\"",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\"),
 	}, {
+		name:  "no input",
+		error: "no matchers",
+	}, {
 		name:  "cannot start or end with braces",
 		input: "{foo=bar}",
 		error: "matcher cannot start or end with braces",
@@ -303,7 +303,7 @@ func TestParseMatcher(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			matcher, err := ParseMatcher(test.input)
+			matcher, err := Matcher(test.input)
 			if test.error != "" {
 				require.EqualError(t, err, test.error)
 			} else {

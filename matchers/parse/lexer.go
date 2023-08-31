@@ -107,12 +107,6 @@ type Lexer struct {
 	cols   int // The number of columns (runes) decoded from the input.
 }
 
-func NewLexer(input string) Lexer {
-	return Lexer{
-		input: input,
-	}
-}
-
 // Scans the next token in the input or an error if the input does not
 // conform to the grammar. Once the input has been consumed successive
 // calls Scan() return a TokenEOF token.
@@ -196,27 +190,40 @@ func (l *Lexer) Pos() Position {
 }
 
 func (l *Lexer) scanOperator() (Token, error) {
-	if err := l.expect("!="); err != nil {
-		return Token{}, err
-	}
-
-	// Rewind because we need to know if the rune was an '!' or an '='.
-	l.rewind()
-
 	// If the first rune is an '!' then it must be followed with either an
 	// '=' or '~' to not match a string or regex.
 	if l.accept("!") {
-		if err := l.expect("=~"); err != nil {
-			return Token{}, err
+		if l.accept("=") {
+			return l.emit(TokenNotEquals), nil
 		}
-		return l.emit(TokenOperator), nil
+		if l.accept("~") {
+			return l.emit(TokenNotMatches), nil
+		}
+		return Token{}, ExpectedError{
+			input:       l.input,
+			offsetStart: l.start,
+			offsetEnd:   l.pos,
+			columnStart: l.column,
+			columnEnd:   l.cols,
+			expected:    "=~",
+		}
 	}
-
 	// If the first rune is an '=' then it can be followed with an optional
 	// '~' to match a regex.
-	l.accept("=")
-	l.accept("~")
-	return l.emit(TokenOperator), nil
+	if l.accept("=") {
+		if l.accept("~") {
+			return l.emit(TokenMatches), nil
+		}
+		return l.emit(TokenEquals), nil
+	}
+	return Token{}, ExpectedError{
+		input:       l.input,
+		offsetStart: l.start,
+		offsetEnd:   l.pos,
+		columnStart: l.column,
+		columnEnd:   l.cols,
+		expected:    "!=",
+	}
 }
 
 func (l *Lexer) scanQuoted() (Token, error) {
