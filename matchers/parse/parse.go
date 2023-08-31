@@ -24,17 +24,14 @@ import (
 
 var (
 	ErrEOF           = errors.New("end of input")
+	ErrExpectedEOF   = errors.New("expected end of input")
+	ErrUnexpectedEOF = func(p Position) error { return fmt.Errorf("0:%d: %w", p.ColumnEnd, ErrEOF) }
 	ErrNoOpenBrace   = errors.New("expected opening brace")
 	ErrNoCloseBrace  = errors.New("expected close brace")
 	ErrNoLabelName   = errors.New("expected label name")
 	ErrNoLabelValue  = errors.New("expected label value")
 	ErrNoOperator    = errors.New("expected an operator such as '=', '!=', '=~' or '!~'")
-	ErrExpectedEOF   = errors.New("expected end of input")
-	ErrUnexpectedEOF = func(l *Lexer) error { return fmt.Errorf("0:%d: %w", l.Pos().ColumnEnd, ErrEOF) }
-	ErrUnquotable    = func(t Token) error {
-		return fmt.Errorf("%d:%d: %s: invalid input", t.ColumnStart, t.ColumnEnd, t.Value)
-	}
-	ErrInvalidQuoted = func(t Token) error {
+	ErrInvalidInput  = func(t Token) error {
 		return fmt.Errorf("%d:%d: %s: invalid input", t.ColumnStart, t.ColumnEnd, t.Value)
 	}
 )
@@ -269,7 +266,7 @@ func (p *Parser) acceptPeek(l *Lexer, kinds ...TokenKind) (bool, error) {
 		return false, err
 	}
 	if tok.IsEOF() {
-		return false, ErrUnexpectedEOF(l)
+		return false, ErrUnexpectedEOF(l.Pos())
 	}
 	return tok.IsOneOf(kinds...), nil
 }
@@ -298,7 +295,7 @@ func (p *Parser) expectPeek(l *Lexer, kind ...TokenKind) (Token, error) {
 		return tok, err
 	}
 	if tok.IsEOF() {
-		return tok, ErrUnexpectedEOF(l)
+		return tok, ErrUnexpectedEOF(l.Pos())
 	}
 	if !tok.IsOneOf(kind...) {
 		return tok, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
@@ -311,7 +308,7 @@ func (p *Parser) unquote(t Token) (string, error) {
 	if t.Kind == TokenQuoted {
 		s, err := strconv.Unquote(t.Value)
 		if err != nil {
-			return "", ErrInvalidQuoted(t)
+			return "", ErrInvalidInput(t)
 		}
 		return s, nil
 	}
