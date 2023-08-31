@@ -218,83 +218,111 @@ func TestMatcher(t *testing.T) {
 		error    string
 	}{{
 		name:     "equals",
-		input:    "foo=bar",
+		input:    "{foo=bar}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 	}, {
 		name:     "equals with trailing comma",
-		input:    "foo=bar,",
+		input:    "{foo=bar,}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 	}, {
 		name:     "not equals",
-		input:    "foo!=bar",
+		input:    "{foo!=bar}",
 		expected: mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar"),
 	}, {
 		name:     "match regex",
-		input:    "foo=~[a-z]+",
+		input:    "{foo=~[a-z]+}",
 		expected: mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+"),
 	}, {
 		name:     "doesn't match regex",
-		input:    "foo!~[a-z]+",
+		input:    "{foo!~[a-z]+}",
 		expected: mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+"),
 	}, {
 		name:     "equals unicode emoji",
-		input:    "foo=🙂",
+		input:    "{foo=🙂}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
 	}, {
 		name:     "equals unicode sentence",
-		input:    "foo=🙂bar",
+		input:    "{foo=🙂bar}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar"),
 	}, {
+		name:     "equals without braces",
+		input:    "foo=bar",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "equals without braces but with trailing comma",
+		input:    "foo=bar,",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "not equals without braces",
+		input:    "foo!=bar",
+		expected: mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar"),
+	}, {
+		name:     "match regex without braces",
+		input:    "foo=~[a-z]+",
+		expected: mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+"),
+	}, {
+		name:     "doesn't match regex without braces",
+		input:    "foo!~[a-z]+",
+		expected: mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+"),
+	}, {
 		name:     "equals in quotes",
-		input:    "\"foo\"=\"bar\"",
+		input:    "{\"foo\"=\"bar\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 	}, {
 		name:     "equals in quotes and with trailing comma",
-		input:    "\"foo\"=\"bar\",",
+		input:    "{\"foo\"=\"bar\",}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 	}, {
 		name:     "not equals in quotes",
-		input:    "\"foo\"!=\"bar\"",
+		input:    "{\"foo\"!=\"bar\"}",
 		expected: mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar"),
 	}, {
 		name:     "match regex in quotes",
-		input:    "\"foo\"=~\"[a-z]+\"",
+		input:    "{\"foo\"=~\"[a-z]+\"}",
 		expected: mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+"),
 	}, {
 		name:     "doesn't match regex in quotes",
-		input:    "\"foo\"!~\"[a-z]+\"",
+		input:    "{\"foo\"!~\"[a-z]+\"}",
 		expected: mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+"),
 	}, {
 		name:     "equals unicode emoji in quotes",
-		input:    "\"foo\"=\"🙂\"",
+		input:    "{\"foo\"=\"🙂\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
 	}, {
 		name:     "equals unicode sentence in quotes",
-		input:    "\"foo\"=\"🙂bar\"",
+		input:    "{\"foo\"=\"🙂bar\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar"),
 	}, {
 		name:     "equals with newline in quotes",
-		input:    "\"foo\"=\"bar\\n\"",
+		input:    "{\"foo\"=\"bar\\n\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\n"),
 	}, {
 		name:     "equals with tab in quotes",
-		input:    "\"foo\"=\"bar\\t\"",
+		input:    "{\"foo\"=\"bar\\t\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\t"),
 	}, {
 		name:     "equals with escaped quotes in quotes",
-		input:    "\"foo\"=\"\\\"bar\\\"\"",
+		input:    "{\"foo\"=\"\\\"bar\\\"\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "\"bar\""),
 	}, {
 		name:     "equals with escaped backslash in quotes",
-		input:    "\"foo\"=\"bar\\\\\"",
+		input:    "{\"foo\"=\"bar\\\\\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\"),
+	}, {
+		name:     "equals without braces in quotes",
+		input:    "\"foo\"=\"bar\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+	}, {
+		name:     "equals without braces in quotes with trailing comma",
+		input:    "\"foo\"=\"bar\",",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 	}, {
 		name:  "no input",
 		error: "no matchers",
 	}, {
-		name:  "cannot start or end with braces",
-		input: "{foo=bar}",
-		error: "matcher cannot start or end with braces",
+		name:  "open and closing braces",
+		input: "{}",
+		error: "no matchers",
 	}, {
 		name:  "two or more returns error",
 		input: "foo=bar,bar=baz",

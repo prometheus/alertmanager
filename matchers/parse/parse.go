@@ -16,10 +16,8 @@ package parse
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"strconv"
 )
 
 var (
@@ -46,9 +44,6 @@ func Matchers(input string) (labels.Matchers, error) {
 // Matcher parses the matcher in the input string. It returns an error
 // if the input is invalid or contains two or more matchers.
 func Matcher(input string) (*labels.Matcher, error) {
-	if strings.HasPrefix(input, "{") || strings.HasSuffix(input, "}") {
-		return nil, errors.New("matcher cannot start or end with braces")
-	}
 	m, err := Matchers(input)
 	if err != nil {
 		return nil, err
