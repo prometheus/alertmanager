@@ -118,7 +118,7 @@ func (p *Parser) parseOpenBrace(l *Lexer) (parseFunc, error) {
 	// If the next token is a close brace there are no matchers in the input.
 	hasCloseBrace, err = p.acceptPeek(l, TokenCloseBrace)
 	if err != nil {
-		// If there is no more input after the open brace then Parser the close brace
+		// If there is no more input after the open brace then parse the close brace
 		// so the error message contains ErrNoCloseBrace.
 		if errors.Is(err, ErrEOF) {
 			return p.parseCloseBrace, nil
