@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/prometheus/alertmanager/pkg/labels"
-	"strconv"
 )
 
 var (
@@ -149,9 +148,9 @@ func (p *Parser) parseMatcher(l *Lexer) (parseFunc, error) {
 	if tok, err = p.expect(l, TokenQuoted, TokenUnquoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelName)
 	}
-	matchName, err = p.unquote(tok)
+	matchName, err = tok.Unquote()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidInput(tok)
 	}
 	// The next token should be the operator.
 	if tok, err = p.expect(l, TokenEquals, TokenNotEquals, TokenMatches, TokenNotMatches); err != nil {
@@ -174,9 +173,9 @@ func (p *Parser) parseMatcher(l *Lexer) (parseFunc, error) {
 	if tok, err = p.expect(l, TokenUnquoted, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
 	}
-	matchValue, err = p.unquote(tok)
+	matchValue, err = tok.Unquote()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidInput(tok)
 	}
 	m, err := labels.NewMatcher(matchTy, matchName, matchValue)
 	if err != nil {
@@ -296,16 +295,4 @@ func (p *Parser) expectPeek(l *Lexer, kind ...TokenKind) (Token, error) {
 		return tok, fmt.Errorf("%d:%d: unexpected %s", tok.ColumnStart, tok.ColumnEnd, tok.Value)
 	}
 	return tok, nil
-}
-
-// Unquote the value in token. If unquoted returns it unmodified.
-func (p *Parser) unquote(t Token) (string, error) {
-	if t.Kind == TokenQuoted {
-		s, err := strconv.Unquote(t.Value)
-		if err != nil {
-			return "", ErrInvalidInput(t)
-		}
-		return s, nil
-	}
-	return t.Value, nil
 }

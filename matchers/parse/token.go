@@ -15,6 +15,7 @@ package parse
 
 import (
 	"fmt"
+	"strconv"
 )
 
 type TokenKind int
@@ -76,6 +77,14 @@ func (t Token) IsOneOf(kinds ...TokenKind) bool {
 		}
 	}
 	return false
+}
+
+// Unquote the value in token. If unquoted returns it unmodified.
+func (t Token) Unquote() (string, error) {
+	if t.Kind == TokenQuoted {
+		return strconv.Unquote(t.Value)
+	}
+	return t.Value, nil
 }
 
 func (t Token) String() string {
