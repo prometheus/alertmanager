@@ -154,7 +154,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	}
 	// The next token should be the operator.
 	if tok, err = p.expect(l, tokenEquals, tokenNotEquals, tokenMatches, tokenNotMatches); err != nil {
-		return nil, fmt.Errorf("%s: %s", err, ErrNoOperator)
+		return nil, fmt.Errorf("%s: %w", err, ErrNoOperator)
 	}
 	switch tok.kind {
 	case tokenEquals:
@@ -171,7 +171,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	// The next token should be the match value. Like the match name, this too
 	// can be either double-quoted UTF-8 or unquoted UTF-8 without reserved characters.
 	if tok, err = p.expect(l, tokenUnquoted, tokenQuoted); err != nil {
-		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
+		return nil, fmt.Errorf("%s: %w", err, ErrNoLabelValue)
 	}
 	matchValue, err = tok.unquote()
 	if err != nil {
