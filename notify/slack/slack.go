@@ -55,14 +55,28 @@ func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...
 		return nil, err
 	}
 
-	return &Notifier{
+	n := &Notifier{
 		conf:         c,
 		tmpl:         t,
 		logger:       l,
 		client:       client,
 		retrier:      &notify.Retrier{},
 		postJSONFunc: notify.PostJSON,
-	}, nil
+	}
+
+	if err := n.validate(); err != nil {
+		return nil, err
+	}
+
+	return n, nil
+}
+
+func (n *Notifier) validate() error {
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "validate")
+
+	_, err := n.createRequest(ctx, &template.Data{})
+	return err
 }
 
 // request is the request for sending a slack notification.
@@ -94,11 +108,57 @@ type attachment struct {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+
+	req, err := n.createRequest(ctx, data)
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return false, err
+	}
+
+	var u string
+	if n.conf.APIURL != nil {
+		u = n.conf.APIURL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.APIURLFile)
+		if err != nil {
+			return false, err
+		}
+		u = strings.TrimSpace(string(content))
+	}
+
+	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
+	if err != nil {
+		return true, notify.RedactURL(err)
+	}
+	defer notify.Drain(resp)
+
+	// Use a retrier to generate an error message for non-200 responses and
+	// classify them as retriable or not.
+	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+
+	// Slack web API might return errors with a 200 response code.
+	// https://slack.dev/node-slack-sdk/web-api#handle-errors
+	retry, err = checkResponseError(resp)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+	}
+
+	return retry, nil
+}
+
+func (n *Notifier) createRequest(ctx context.Context, data *template.Data) (*request, error) {
 	var err error
-	var (
-		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-		tmplText = notify.TmplText(n.tmpl, data, &err)
-	)
+	tmplText := notify.TmplText(n.tmpl, data, &err)
 	var markdownIn []string
 
 	if len(n.conf.MrkdwnIn) == 0 {
@@ -111,7 +171,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if truncated {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
@@ -178,57 +238,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	req := &request{
+	if err != nil {
+		return nil, err
+	}
+
+	return &request{
 		Channel:     tmplText(n.conf.Channel),
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
 		LinkNames:   n.conf.LinkNames,
 		Attachments: []attachment{*att},
-	}
-	if err != nil {
-		return false, err
-	}
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
-	}
-
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = strings.TrimSpace(string(content))
-	}
-
-	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
-	if err != nil {
-		return true, notify.RedactURL(err)
-	}
-	defer notify.Drain(resp)
-
-	// Use a retrier to generate an error message for non-200 responses and
-	// classify them as retriable or not.
-	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
-	}
-
-	// Slack web API might return errors with a 200 response code.
-	// https://slack.dev/node-slack-sdk/web-api#handle-errors
-	retry, err = checkResponseError(resp)
-	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
-	}
-
-	return retry, nil
+	}, nil
 }
 
 // checkResponseError parses out the error message from Slack API response.

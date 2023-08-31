@@ -52,6 +52,22 @@ func TestSlackRetry(t *testing.T) {
 	}
 }
 
+func TestSlackValidation(t *testing.T) {
+	_, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	_, err := New(
+		&config.SlackConfig{
+			APIURL:     &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			Title:      "{{ invalid",
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.ErrorContains(t, err, `function "invalid" not defined`)
+}
+
 func TestSlackRedactedURL(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()

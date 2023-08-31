@@ -114,15 +114,13 @@ func TestOpsGenieValidation(t *testing.T) {
 			APIKey:     config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			Message:    "{{ invalid",
-			// Details: map[string]string{
-			// 	"label": "{{ invalid",
-			// },
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
 	)
 	require.ErrorContains(t, err, `function "invalid" not defined`)
 }
+
 func TestOpsGenie(t *testing.T) {
 	u, err := url.Parse("https://opsgenie/api")
 	if err != nil {
