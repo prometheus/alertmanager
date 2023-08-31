@@ -30,12 +30,9 @@ func isReserved(r rune) bool {
 
 // expectedError is returned when the next rune does not match what is expected.
 type expectedError struct {
-	input       string
-	offsetStart int
-	offsetEnd   int
-	columnStart int
-	columnEnd   int
-	expected    string
+	position
+	input    string
+	expected string
 }
 
 func (e expectedError) Error() string {
@@ -57,11 +54,8 @@ func (e expectedError) Error() string {
 // invalidInputError is returned when the next rune in the input does not match
 // the grammar of Prometheus-like matchers.
 type invalidInputError struct {
-	input       string
-	offsetStart int
-	offsetEnd   int
-	columnStart int
-	columnEnd   int
+	position
+	input string
 }
 
 func (e invalidInputError) Error() string {
@@ -74,12 +68,9 @@ func (e invalidInputError) Error() string {
 
 // unterminatedError is returned when text in quotes does not have a closing quote.
 type unterminatedError struct {
-	input       string
-	offsetStart int
-	offsetEnd   int
-	columnStart int
-	columnEnd   int
-	quote       rune
+	position
+	input string
+	quote rune
 }
 
 func (e unterminatedError) Error() string {
@@ -146,11 +137,8 @@ func (l *lexer) scan() (token, error) {
 			l.skip()
 		default:
 			l.err = invalidInputError{
-				input:       l.input,
-				offsetStart: l.start,
-				offsetEnd:   l.pos,
-				columnStart: l.column,
-				columnEnd:   l.cols,
+				position: l.position(),
+				input:    l.input,
 			}
 			return tok, l.err
 		}
@@ -200,12 +188,9 @@ func (l *lexer) scanOperator() (token, error) {
 			return l.emit(tokenNotMatches), nil
 		}
 		return token{}, expectedError{
-			input:       l.input,
-			offsetStart: l.start,
-			offsetEnd:   l.pos,
-			columnStart: l.column,
-			columnEnd:   l.cols,
-			expected:    "=~",
+			position: l.position(),
+			input:    l.input,
+			expected: "=~",
 		}
 	}
 	// If the first rune is an '=' then it can be followed with an optional
@@ -217,12 +202,9 @@ func (l *lexer) scanOperator() (token, error) {
 		return l.emit(tokenEquals), nil
 	}
 	return token{}, expectedError{
-		input:       l.input,
-		offsetStart: l.start,
-		offsetEnd:   l.pos,
-		columnStart: l.column,
-		columnEnd:   l.cols,
-		expected:    "!=",
+		position: l.position(),
+		input:    l.input,
+		expected: "!=",
 	}
 }
 
@@ -243,12 +225,9 @@ func (l *lexer) scanQuoted() (token, error) {
 	}
 	if err := l.expect("\""); err != nil {
 		return token{}, unterminatedError{
-			input:       l.input,
-			offsetStart: l.start,
-			offsetEnd:   l.pos,
-			columnStart: l.column,
-			columnEnd:   l.cols,
-			quote:       '"',
+			position: l.position(),
+			input:    l.input,
+			quote:    '"',
 		}
 	}
 	return l.emit(tokenQuoted), nil
@@ -276,12 +255,9 @@ func (l *lexer) expect(valid string) error {
 	if !strings.ContainsRune(valid, l.next()) {
 		l.rewind()
 		return expectedError{
-			input:       l.input,
-			offsetStart: l.start,
-			offsetEnd:   l.pos,
-			columnStart: l.column,
-			columnEnd:   l.cols,
-			expected:    valid,
+			position: l.position(),
+			input:    l.input,
+			expected: valid,
 		}
 	}
 	return nil
