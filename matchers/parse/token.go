@@ -18,82 +18,82 @@ import (
 	"strconv"
 )
 
-type TokenKind int
+type tokenKind int
 
 const (
-	TokenEOF TokenKind = iota
-	TokenOpenBrace
-	TokenCloseBrace
-	TokenComma
-	TokenEquals
-	TokenNotEquals
-	TokenMatches
-	TokenNotMatches
-	TokenQuoted
-	TokenUnquoted
+	tokenEOF tokenKind = iota
+	tokenOpenBrace
+	tokenCloseBrace
+	tokenComma
+	tokenEquals
+	tokenNotEquals
+	tokenMatches
+	tokenNotMatches
+	tokenQuoted
+	tokenUnquoted
 )
 
-func (k TokenKind) String() string {
+func (k tokenKind) String() string {
 	switch k {
-	case TokenOpenBrace:
+	case tokenOpenBrace:
 		return "OpenBrace"
-	case TokenCloseBrace:
+	case tokenCloseBrace:
 		return "CloseBrace"
-	case TokenComma:
+	case tokenComma:
 		return "Comma"
-	case TokenEquals:
+	case tokenEquals:
 		return "Equals"
-	case TokenNotEquals:
+	case tokenNotEquals:
 		return "NotEquals"
-	case TokenMatches:
+	case tokenMatches:
 		return "Matches"
-	case TokenNotMatches:
+	case tokenNotMatches:
 		return "NotMatches"
-	case TokenQuoted:
+	case tokenQuoted:
 		return "Quoted"
-	case TokenUnquoted:
+	case tokenUnquoted:
 		return "Unquoted"
 	default:
 		return "EOF"
 	}
 }
 
-type Token struct {
-	Kind  TokenKind
-	Value string
-	Position
+type token struct {
+	kind  tokenKind
+	value string
+	position
 }
 
-// IsEOF returns true if the token is an end of file token.
-func (t Token) IsEOF() bool {
-	return t.Kind == TokenEOF
+// isEOF returns true if the token is an end of file token.
+func (t token) isEOF() bool {
+	return t.kind == tokenEOF
 }
 
-// IsOneOf returns true if the token is one of the specified kinds.
-func (t Token) IsOneOf(kinds ...TokenKind) bool {
+// isOneOf returns true if the token is one of the specified kinds.
+func (t token) isOneOf(kinds ...tokenKind) bool {
 	for _, k := range kinds {
-		if k == t.Kind {
+		if k == t.kind {
 			return true
 		}
 	}
 	return false
 }
 
-// Unquote the value in token. If unquoted returns it unmodified.
-func (t Token) Unquote() (string, error) {
-	if t.Kind == TokenQuoted {
-		return strconv.Unquote(t.Value)
+// unquote the value in token. If unquoted returns it unmodified.
+func (t token) unquote() (string, error) {
+	if t.kind == tokenQuoted {
+		return strconv.Unquote(t.value)
 	}
-	return t.Value, nil
+	return t.value, nil
 }
 
-func (t Token) String() string {
-	return fmt.Sprintf("(%s) '%s'", t.Kind, t.Value)
+func (t token) String() string {
+	return fmt.Sprintf("(%s) '%s'", t.kind, t.value)
 }
 
-type Position struct {
-	OffsetStart int // The start position in the input.
-	OffsetEnd   int // The end position in the input.
-	ColumnStart int // The column number.
-	ColumnEnd   int // The end of the column.
+type position struct {
+	offsetStart int // The start position in the input.
+	offsetEnd   int // The end position in the input.
+	columnStart int // The column number.
+	columnEnd   int // The end of the column.
 }

@@ -23,7 +23,7 @@ func TestLexer_Scan(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected []Token
+		expected []token
 		err      string
 	}{{
 		name:  "no input",
@@ -31,423 +31,423 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "open brace",
 		input: "{",
-		expected: []Token{{
-			Kind:  TokenOpenBrace,
-			Value: "{",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenOpenBrace,
+			value: "{",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "open brace with leading space",
 		input: " {",
-		expected: []Token{{
-			Kind:  TokenOpenBrace,
-			Value: "{",
-			Position: Position{
-				OffsetStart: 1,
-				OffsetEnd:   2,
-				ColumnStart: 1,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenOpenBrace,
+			value: "{",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   2,
+				columnStart: 1,
+				columnEnd:   2,
 			},
 		}},
 	}, {
 		name:  "close brace",
 		input: "}",
-		expected: []Token{{
-			Kind:  TokenCloseBrace,
-			Value: "}",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenCloseBrace,
+			value: "}",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "close brace with leading space",
 		input: " }",
-		expected: []Token{{
-			Kind:  TokenCloseBrace,
-			Value: "}",
-			Position: Position{
-				OffsetStart: 1,
-				OffsetEnd:   2,
-				ColumnStart: 1,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenCloseBrace,
+			value: "}",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   2,
+				columnStart: 1,
+				columnEnd:   2,
 			},
 		}},
 	}, {
 		name:  "open and closing braces",
 		input: "{}",
-		expected: []Token{{
-			Kind:  TokenOpenBrace,
-			Value: "{",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenOpenBrace,
+			value: "{",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}, {
-			Kind:  TokenCloseBrace,
-			Value: "}",
-			Position: Position{
-				OffsetStart: 1,
-				OffsetEnd:   2,
-				ColumnStart: 1,
-				ColumnEnd:   2,
+			kind:  tokenCloseBrace,
+			value: "}",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   2,
+				columnStart: 1,
+				columnEnd:   2,
 			},
 		}},
 	}, {
 		name:  "open and closing braces with space",
 		input: "{ }",
-		expected: []Token{{
-			Kind:  TokenOpenBrace,
-			Value: "{",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenOpenBrace,
+			value: "{",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}, {
-			Kind:  TokenCloseBrace,
-			Value: "}",
-			Position: Position{
-				OffsetStart: 2,
-				OffsetEnd:   3,
-				ColumnStart: 2,
-				ColumnEnd:   3,
+			kind:  tokenCloseBrace,
+			value: "}",
+			position: position{
+				offsetStart: 2,
+				offsetEnd:   3,
+				columnStart: 2,
+				columnEnd:   3,
 			},
 		}},
 	}, {
 		name:  "unquoted",
 		input: "hello",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
 			},
 		}},
 	}, {
 		name:  "unquoted with underscore",
 		input: "hello_world",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello_world",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   11,
-				ColumnStart: 0,
-				ColumnEnd:   11,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello_world",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   11,
+				columnStart: 0,
+				columnEnd:   11,
 			},
 		}},
 	}, {
 		name:  "unquoted with colon",
 		input: "hello:world",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello:world",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   11,
-				ColumnStart: 0,
-				ColumnEnd:   11,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello:world",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   11,
+				columnStart: 0,
+				columnEnd:   11,
 			},
 		}},
 	}, {
 		name:  "unquoted with numbers",
 		input: "hello0123456789",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello0123456789",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   15,
-				ColumnStart: 0,
-				ColumnEnd:   15,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello0123456789",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   15,
+				columnStart: 0,
+				columnEnd:   15,
 			},
 		}},
 	}, {
 		name:  "unquoted can start with underscore",
 		input: "_hello",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "_hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   6,
-				ColumnStart: 0,
-				ColumnEnd:   6,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "_hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   6,
+				columnStart: 0,
+				columnEnd:   6,
 			},
 		}},
 	}, {
 		name:  "unquoted separated with space",
 		input: "hello world",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
 			},
 		}, {
-			Kind:  TokenUnquoted,
-			Value: "world",
-			Position: Position{
-				OffsetStart: 6,
-				OffsetEnd:   11,
-				ColumnStart: 6,
-				ColumnEnd:   11,
+			kind:  tokenUnquoted,
+			value: "world",
+			position: position{
+				offsetStart: 6,
+				offsetEnd:   11,
+				columnStart: 6,
+				columnEnd:   11,
 			},
 		}},
 	}, {
 		name:  "unquoted $",
 		input: "$",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "$",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "$",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "unquoted emoji",
 		input: "🙂",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "🙂",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   4,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "🙂",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   4,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "unquoted unicode",
 		input: "Σ",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "Σ",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   2,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "Σ",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   2,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "unquoted unicode sentence",
 		input: "hello🙂Σ world",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello🙂Σ",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   11,
-				ColumnStart: 0,
-				ColumnEnd:   7,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello🙂Σ",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   11,
+				columnStart: 0,
+				columnEnd:   7,
 			},
 		}, {
-			Kind:  TokenUnquoted,
-			Value: "world",
-			Position: Position{
-				OffsetStart: 12,
-				OffsetEnd:   17,
-				ColumnStart: 8,
-				ColumnEnd:   13,
+			kind:  tokenUnquoted,
+			value: "world",
+			position: position{
+				offsetStart: 12,
+				offsetEnd:   17,
+				columnStart: 8,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "unquoted unicode sentence with unicode space",
 		input: "hello🙂Σ\u202fworld",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello🙂Σ",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   11,
-				ColumnStart: 0,
-				ColumnEnd:   7,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello🙂Σ",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   11,
+				columnStart: 0,
+				columnEnd:   7,
 			},
 		}, {
-			Kind:  TokenUnquoted,
-			Value: "world",
-			Position: Position{
-				OffsetStart: 14,
-				OffsetEnd:   19,
-				ColumnStart: 8,
-				ColumnEnd:   13,
+			kind:  tokenUnquoted,
+			value: "world",
+			position: position{
+				offsetStart: 14,
+				offsetEnd:   19,
+				columnStart: 8,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "quoted",
 		input: "\"hello\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   7,
-				ColumnStart: 0,
-				ColumnEnd:   7,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   7,
+				columnStart: 0,
+				columnEnd:   7,
 			},
 		}},
 	}, {
 		name:  "quoted with unicode",
 		input: "\"hello 🙂\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello 🙂\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   12,
-				ColumnStart: 0,
-				ColumnEnd:   9,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello 🙂\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   12,
+				columnStart: 0,
+				columnEnd:   9,
 			},
 		}},
 	}, {
 		name:  "quoted with space",
 		input: "\"hello world\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello world\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   13,
-				ColumnStart: 0,
-				ColumnEnd:   13,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello world\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   13,
+				columnStart: 0,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "quoted with unicode space",
 		input: "\"hello\u202fworld\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello\u202fworld\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   15,
-				ColumnStart: 0,
-				ColumnEnd:   13,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello\u202fworld\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   15,
+				columnStart: 0,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "quoted with newline",
 		input: "\"hello\nworld\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello\nworld\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   13,
-				ColumnStart: 0,
-				ColumnEnd:   13,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello\nworld\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   13,
+				columnStart: 0,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "quoted with tab",
 		input: "\"hello\tworld\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello\tworld\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   13,
-				ColumnStart: 0,
-				ColumnEnd:   13,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello\tworld\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   13,
+				columnStart: 0,
+				columnEnd:   13,
 			},
 		}},
 	}, {
 		name:  "quoted with escaped quotes",
 		input: "\"hello \\\"world\\\"\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello \\\"world\\\"\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   17,
-				ColumnStart: 0,
-				ColumnEnd:   17,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello \\\"world\\\"\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   17,
+				columnStart: 0,
+				columnEnd:   17,
 			},
 		}},
 	}, {
 		name:  "quoted with escaped backslash",
 		input: "\"hello world\\\\\"",
-		expected: []Token{{
-			Kind:  TokenQuoted,
-			Value: "\"hello world\\\\\"",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   15,
-				ColumnStart: 0,
-				ColumnEnd:   15,
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"hello world\\\\\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   15,
+				columnStart: 0,
+				columnEnd:   15,
 			},
 		}},
 	}, {
 		name:  "equals operator",
 		input: "=",
-		expected: []Token{{
-			Kind:  TokenEquals,
-			Value: "=",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenEquals,
+			value: "=",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 	}, {
 		name:  "not equals operator",
 		input: "!=",
-		expected: []Token{{
-			Kind:  TokenNotEquals,
-			Value: "!=",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   2,
-				ColumnStart: 0,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenNotEquals,
+			value: "!=",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   2,
+				columnStart: 0,
+				columnEnd:   2,
 			},
 		}},
 	}, {
 		name:  "matches regex operator",
 		input: "=~",
-		expected: []Token{{
-			Kind:  TokenMatches,
-			Value: "=~",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   2,
-				ColumnStart: 0,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenMatches,
+			value: "=~",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   2,
+				columnStart: 0,
+				columnEnd:   2,
 			},
 		}},
 	}, {
 		name:  "not matches regex operator",
 		input: "!~",
-		expected: []Token{{
-			Kind:  TokenNotMatches,
-			Value: "!~",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   2,
-				ColumnStart: 0,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenNotMatches,
+			value: "!~",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   2,
+				columnStart: 0,
+				columnEnd:   2,
 			},
 		}},
 	}, {
@@ -461,42 +461,42 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "unexpected ! after unquoted",
 		input: "hello!",
-		expected: []Token{{
-			Kind:  TokenUnquoted,
-			Value: "hello",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   5,
-				ColumnStart: 0,
-				ColumnEnd:   5,
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
 			},
 		}},
 		err: "5:6: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "unexpected ! after operator",
 		input: "=!",
-		expected: []Token{{
-			Kind:  TokenEquals,
-			Value: "=",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   1,
-				ColumnStart: 0,
-				ColumnEnd:   1,
+		expected: []token{{
+			kind:  tokenEquals,
+			value: "=",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   1,
+				columnStart: 0,
+				columnEnd:   1,
 			},
 		}},
 		err: "1:2: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "unexpected !! after operator",
 		input: "!=!!",
-		expected: []Token{{
-			Kind:  TokenNotEquals,
-			Value: "!=",
-			Position: Position{
-				OffsetStart: 0,
-				OffsetEnd:   2,
-				ColumnStart: 0,
-				ColumnEnd:   2,
+		expected: []token{{
+			kind:  tokenNotEquals,
+			value: "!=",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   2,
+				columnStart: 0,
+				columnEnd:   2,
 			},
 		}},
 		err: "2:3: !: expected one of '=~'",
@@ -512,22 +512,22 @@ func TestLexer_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			l := Lexer{input: test.input}
-			// Scan all expected tokens.
+			l := lexer{input: test.input}
+			// scan all expected tokens.
 			for i := 0; i < len(test.expected); i++ {
-				tok, err := l.Scan()
+				tok, err := l.scan()
 				require.NoError(t, err)
 				require.Equal(t, test.expected[i], tok)
 			}
 			if test.err == "" {
 				// Check there are no more tokens.
-				tok, err := l.Scan()
+				tok, err := l.scan()
 				require.NoError(t, err)
-				require.Equal(t, Token{}, tok)
+				require.Equal(t, token{}, tok)
 			} else {
 				// Check if expected error is returned.
-				tok, err := l.Scan()
-				require.Equal(t, Token{}, tok)
+				tok, err := l.scan()
+				require.Equal(t, token{}, tok)
 				require.EqualError(t, err, test.err)
 			}
 		})
@@ -537,90 +537,90 @@ func TestLexer_Scan(t *testing.T) {
 // This test asserts that the lexer does not emit more tokens after an
 // error has occurred.
 func TestLexer_ScanError(t *testing.T) {
-	l := Lexer{input: "\"hello"}
+	l := lexer{input: "\"hello"}
 	for i := 0; i < 10; i++ {
-		tok, err := l.Scan()
-		require.Equal(t, Token{}, tok)
+		tok, err := l.scan()
+		require.Equal(t, token{}, tok)
 		require.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
 
 func TestLexer_Peek(t *testing.T) {
-	l := Lexer{input: "hello world"}
-	expected1 := Token{
-		Kind:  TokenUnquoted,
-		Value: "hello",
-		Position: Position{
-			OffsetStart: 0,
-			OffsetEnd:   5,
-			ColumnStart: 0,
-			ColumnEnd:   5,
+	l := lexer{input: "hello world"}
+	expected1 := token{
+		kind:  tokenUnquoted,
+		value: "hello",
+		position: position{
+			offsetStart: 0,
+			offsetEnd:   5,
+			columnStart: 0,
+			columnEnd:   5,
 		},
 	}
-	expected2 := Token{
-		Kind:  TokenUnquoted,
-		Value: "world",
-		Position: Position{
-			OffsetStart: 6,
-			OffsetEnd:   11,
-			ColumnStart: 6,
-			ColumnEnd:   11,
+	expected2 := token{
+		kind:  tokenUnquoted,
+		value: "world",
+		position: position{
+			offsetStart: 6,
+			offsetEnd:   11,
+			columnStart: 6,
+			columnEnd:   11,
 		},
 	}
-	// Check that Peek() returns the first token.
-	tok, err := l.Peek()
+	// Check that peek() returns the first token.
+	tok, err := l.peek()
 	require.NoError(t, err)
 	require.Equal(t, expected1, tok)
-	// Check that Scan() returns the peeked token.
-	tok, err = l.Scan()
+	// Check that scan() returns the peeked token.
+	tok, err = l.scan()
 	require.NoError(t, err)
 	require.Equal(t, expected1, tok)
-	// Check that Peek() returns the second token until the next Scan().
+	// Check that peek() returns the second token until the next scan().
 	for i := 0; i < 10; i++ {
-		tok, err = l.Peek()
+		tok, err = l.peek()
 		require.NoError(t, err)
 		require.Equal(t, expected2, tok)
 	}
-	// Check that Scan() returns the last token.
-	tok, err = l.Scan()
+	// Check that scan() returns the last token.
+	tok, err = l.scan()
 	require.NoError(t, err)
 	require.Equal(t, expected2, tok)
-	// Should not be able to Peek() further tokens.
+	// Should not be able to peek() further tokens.
 	for i := 0; i < 10; i++ {
-		tok, err = l.Peek()
+		tok, err = l.peek()
 		require.NoError(t, err)
-		require.Equal(t, Token{}, tok)
+		require.Equal(t, token{}, tok)
 	}
 }
 
-// This test asserts that the Lexer does not emit more tokens after an
+// This test asserts that the lexer does not emit more tokens after an
 // error has occurred.
 func TestLexer_PeekError(t *testing.T) {
-	l := Lexer{input: "\"hello"}
+	l := lexer{input: "\"hello"}
 	for i := 0; i < 10; i++ {
-		tok, err := l.Peek()
-		require.Equal(t, Token{}, tok)
+		tok, err := l.peek()
+		require.Equal(t, token{}, tok)
 		require.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
 
 func TestLexer_Pos(t *testing.T) {
-	l := Lexer{input: "hello🙂"}
+	l := lexer{input: "hello🙂"}
 	// The start position should be the zero-value.
-	require.Equal(t, Position{}, l.Pos())
-	_, err := l.Scan()
+	require.Equal(t, position{}, l.position())
+	_, err := l.scan()
 	require.NoError(t, err)
 	// The position should contain the offset and column of the end.
-	expected := Position{
-		OffsetStart: 9,
-		OffsetEnd:   9,
-		ColumnStart: 6,
-		ColumnEnd:   6,
+	expected := position{
+		offsetStart: 9,
+		offsetEnd:   9,
+		columnStart: 6,
+		columnEnd:   6,
 	}
-	require.Equal(t, expected, l.Pos())
+	require.Equal(t, expected, l.position())
 	// The position should not change once the input has been consumed.
-	tok, err := l.Scan()
+	tok, err := l.scan()
 	require.NoError(t, err)
-	require.True(t, tok.IsEOF())
-	require.Equal(t, expected, l.Pos())
+	require.True(t, tok.isEOF())
+	require.Equal(t, expected, l.position())
 }
