@@ -45,9 +45,7 @@ const (
 	maxTestReceiversWorkers = 10
 )
 
-var (
-	ErrNoReceivers = errors.New("no receivers with configuration set")
-)
+var ErrNoReceivers = errors.New("no receivers with configuration set")
 
 type TestReceiversParams struct {
 	Alert     *TestReceiversAlertParams
