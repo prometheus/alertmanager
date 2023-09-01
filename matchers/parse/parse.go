@@ -16,6 +16,9 @@ package parse
 import (
 	"errors"
 	"fmt"
+	"os"
+	"runtime/debug"
+
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -34,7 +37,13 @@ var (
 
 // Matchers parses one or more matchers in the input string. It returns an error
 // if the input is invalid.
-func Matchers(input string) (labels.Matchers, error) {
+func Matchers(input string) (matchers labels.Matchers, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "parser panic: %s, %s", r, debug.Stack())
+			err = errors.New("parser panic: this should never happen, check stderr for the stack trace")
+		}
+	}()
 	p := parser{lexer: lexer{input: input}}
 	return p.parse()
 }
@@ -164,7 +173,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	case tokenNotMatches:
 		matchTy = labels.MatchNotRegexp
 	default:
-		return nil, errors.New("Unexpected operator, this should never happen")
+		panic(fmt.Sprintf("bad operator %s", tok))
 	}
 	// The next token should be the match value. Like the match name, this too
 	// can be either double-quoted UTF-8 or unquoted UTF-8 without reserved characters.
@@ -199,7 +208,7 @@ func (p *parser) parseEndOfMatcher(l *lexer) (parseFunc, error) {
 	case tokenCloseBrace:
 		return p.parseCloseBrace, nil
 	default:
-		panic("Unexpected token at the end of matcher, this should never happen")
+		panic(fmt.Sprintf("bad token %s", tok))
 	}
 }
 
@@ -242,7 +251,7 @@ func (p *parser) accept(l *lexer, kinds ...tokenKind) (ok bool, err error) {
 	ok, err = p.acceptPeek(l, kinds...)
 	if ok {
 		if _, err = l.scan(); err != nil {
-			panic("Failed to scan peeked token, this should never happen")
+			panic("failed to scan peeked token")
 		}
 	}
 	return ok, err
@@ -272,7 +281,7 @@ func (p *parser) expect(l *lexer, kind ...tokenKind) (token, error) {
 		return tok, err
 	}
 	if _, err = l.scan(); err != nil {
-		panic("Failed to scan peeked token, this should never happen")
+		panic("failed to scan peeked token")
 	}
 	return tok, nil
 }
