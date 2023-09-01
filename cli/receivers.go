@@ -20,6 +20,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promlog"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/discord"
@@ -35,9 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/common/promlog"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
