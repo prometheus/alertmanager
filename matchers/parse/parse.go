@@ -146,23 +146,23 @@ func (p *parser) parseCloseBrace(l *lexer) (parseFunc, error) {
 func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	var (
 		err                   error
-		tok                   token
+		t                     token
 		matchName, matchValue string
 		matchTy               labels.MatchType
 	)
 	// The first token should be the label name.
-	if tok, err = p.expect(l, tokenQuoted, tokenUnquoted); err != nil {
+	if t, err = p.expect(l, tokenQuoted, tokenUnquoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, errNoLabelName)
 	}
-	matchName, err = tok.unquote()
+	matchName, err = t.unquote()
 	if err != nil {
-		return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.columnStart, tok.columnEnd, tok.value)
+		return nil, fmt.Errorf("%d:%d: %s: invalid input", t.columnStart, t.columnEnd, t.value)
 	}
 	// The next token should be the operator.
-	if tok, err = p.expect(l, tokenEquals, tokenNotEquals, tokenMatches, tokenNotMatches); err != nil {
+	if t, err = p.expect(l, tokenEquals, tokenNotEquals, tokenMatches, tokenNotMatches); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, errNoOperator)
 	}
-	switch tok.kind {
+	switch t.kind {
 	case tokenEquals:
 		matchTy = labels.MatchEqual
 	case tokenNotEquals:
@@ -172,16 +172,16 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	case tokenNotMatches:
 		matchTy = labels.MatchNotRegexp
 	default:
-		panic(fmt.Sprintf("bad operator %s", tok))
+		panic(fmt.Sprintf("bad operator %s", t))
 	}
 	// The next token should be the match value. Like the match name, this too
 	// can be either double-quoted UTF-8 or unquoted UTF-8 without reserved characters.
-	if tok, err = p.expect(l, tokenUnquoted, tokenQuoted); err != nil {
+	if t, err = p.expect(l, tokenUnquoted, tokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %w", err, errNoLabelValue)
 	}
-	matchValue, err = tok.unquote()
+	matchValue, err = t.unquote()
 	if err != nil {
-		return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.columnStart, tok.columnEnd, tok.value)
+		return nil, fmt.Errorf("%d:%d: %s: invalid input", t.columnStart, t.columnEnd, t.value)
 	}
 	m, err := labels.NewMatcher(matchTy, matchName, matchValue)
 	if err != nil {
@@ -192,7 +192,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 }
 
 func (p *parser) parseEndOfMatcher(l *lexer) (parseFunc, error) {
-	tok, err := p.expectPeek(l, tokenComma, tokenCloseBrace)
+	t, err := p.expectPeek(l, tokenComma, tokenCloseBrace)
 	if err != nil {
 		if errors.Is(err, errEOF) {
 			// If this is the end of input we still need to check if the optional
@@ -201,13 +201,13 @@ func (p *parser) parseEndOfMatcher(l *lexer) (parseFunc, error) {
 		}
 		return nil, fmt.Errorf("%s: %w", err, errExpectedCommaOrCloseBrace)
 	}
-	switch tok.kind {
+	switch t.kind {
 	case tokenComma:
 		return p.parseComma, nil
 	case tokenCloseBrace:
 		return p.parseCloseBrace, nil
 	default:
-		panic(fmt.Sprintf("bad token %s", tok))
+		panic(fmt.Sprintf("bad token %s", t))
 	}
 }
 
@@ -216,7 +216,7 @@ func (p *parser) parseComma(l *lexer) (parseFunc, error) {
 		return nil, fmt.Errorf("%s: %w", err, errExpectedComma)
 	}
 	// The token after the comma can be another matcher, a close brace or end of input.
-	tok, err := p.expectPeek(l, tokenCloseBrace, tokenUnquoted, tokenQuoted)
+	t, err := p.expectPeek(l, tokenCloseBrace, tokenUnquoted, tokenQuoted)
 	if err != nil {
 		if errors.Is(err, errEOF) {
 			// If this is the end of input we still need to check if the optional
@@ -225,19 +225,19 @@ func (p *parser) parseComma(l *lexer) (parseFunc, error) {
 		}
 		return nil, fmt.Errorf("%s: %w", err, errExpectedMatcherOrCloseBrace)
 	}
-	if tok.kind == tokenCloseBrace {
+	if t.kind == tokenCloseBrace {
 		return p.parseCloseBrace, nil
 	}
 	return p.parseMatcher, nil
 }
 
 func (p *parser) parseEOF(l *lexer) (parseFunc, error) {
-	tok, err := l.scan()
+	t, err := l.scan()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", err, errExpectedEOF)
 	}
-	if !tok.isEOF() {
-		return nil, fmt.Errorf("%d:%d: %s: %w", tok.columnStart, tok.columnEnd, tok.value, errExpectedEOF)
+	if !t.isEOF() {
+		return nil, fmt.Errorf("%d:%d: %s: %w", t.columnStart, t.columnEnd, t.value, errExpectedEOF)
 	}
 	return nil, nil
 }
@@ -261,28 +261,28 @@ func (p *parser) accept(l *lexer, kinds ...tokenKind) (ok bool, err error) {
 // tokens. tokenEOF is not an accepted kind and instead accept returns ErrEOF
 // if there is no more input.
 func (p *parser) acceptPeek(l *lexer, kinds ...tokenKind) (bool, error) {
-	tok, err := l.peek()
+	t, err := l.peek()
 	if err != nil {
 		return false, err
 	}
-	if tok.isEOF() {
+	if t.isEOF() {
 		return false, errEOF
 	}
-	return tok.isOneOf(kinds...), nil
+	return t.isOneOf(kinds...), nil
 }
 
 // expect returns the next token if it is one of the specified kinds, otherwise
 // it returns an error. If the token is expected it is consumed. tokenEOF is not
 // an accepted kind and instead expect returns ErrEOF if there is no more input.
 func (p *parser) expect(l *lexer, kind ...tokenKind) (token, error) {
-	tok, err := p.expectPeek(l, kind...)
+	t, err := p.expectPeek(l, kind...)
 	if err != nil {
-		return tok, err
+		return t, err
 	}
 	if _, err = l.scan(); err != nil {
 		panic("failed to scan peeked token")
 	}
-	return tok, nil
+	return t, nil
 }
 
 // expect returns the next token if it is one of the specified kinds, otherwise
@@ -290,15 +290,15 @@ func (p *parser) expect(l *lexer, kind ...tokenKind) (token, error) {
 // tokenEOF is not an accepted kind and instead expect returns ErrEOF if there is no
 // more input.
 func (p *parser) expectPeek(l *lexer, kind ...tokenKind) (token, error) {
-	tok, err := l.peek()
+	t, err := l.peek()
 	if err != nil {
-		return tok, err
+		return t, err
 	}
-	if tok.isEOF() {
-		return tok, errEOF
+	if t.isEOF() {
+		return t, errEOF
 	}
-	if !tok.isOneOf(kind...) {
-		return tok, fmt.Errorf("%d:%d: unexpected %s", tok.columnStart, tok.columnEnd, tok.value)
+	if !t.isOneOf(kind...) {
+		return t, fmt.Errorf("%d:%d: unexpected %s", t.columnStart, t.columnEnd, t.value)
 	}
-	return tok, nil
+	return t, nil
 }
