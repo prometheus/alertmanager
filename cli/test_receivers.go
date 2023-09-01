@@ -98,8 +98,8 @@ func printTestReceiversResults(result *TestReceiversResult) {
 		successfulCounts[rcv.Name] = 0
 		for _, cfg := range rcv.ConfigResults {
 			if cfg.Error == nil {
-				successful += 1
-				successfulCounts[rcv.Name] += 1
+				successful++
+				successfulCounts[rcv.Name]++
 			}
 		}
 	}
