@@ -77,7 +77,6 @@ type parseFunc func(l *lexer) (parseFunc, error)
 // the lexer cannot be parsed into a complete series of matchers.
 type parser struct {
 	matchers labels.Matchers
-
 	// Tracks if the input starts with an open brace and if we should expect to
 	// parse a close brace at the end of the input.
 	hasOpenBrace bool

@@ -102,37 +102,35 @@ type lexer struct {
 // conform to the grammar. Once the input has been consumed successive
 // calls scan() return a tokenEOF token.
 func (l *lexer) scan() (token, error) {
-	tok := token{}
-
+	t := token{}
 	// Do not attempt to emit more tokens if the input is invalid.
 	if l.err != nil {
-		return tok, l.err
+		return t, l.err
 	}
-
 	// Iterate over each rune in the input and either emit a token or an error.
 	for r := l.next(); r != eof; r = l.next() {
 		switch {
 		case r == '{':
-			tok = l.emit(tokenOpenBrace)
-			return tok, l.err
+			t = l.emit(tokenOpenBrace)
+			return t, l.err
 		case r == '}':
-			tok = l.emit(tokenCloseBrace)
-			return tok, l.err
+			t = l.emit(tokenCloseBrace)
+			return t, l.err
 		case r == ',':
-			tok = l.emit(tokenComma)
-			return tok, l.err
+			t = l.emit(tokenComma)
+			return t, l.err
 		case r == '=' || r == '!':
 			l.rewind()
-			tok, l.err = l.scanOperator()
-			return tok, l.err
+			t, l.err = l.scanOperator()
+			return t, l.err
 		case r == '"':
 			l.rewind()
-			tok, l.err = l.scanQuoted()
-			return tok, l.err
+			t, l.err = l.scanQuoted()
+			return t, l.err
 		case !isReserved(r):
 			l.rewind()
-			tok, l.err = l.scanUnquoted()
-			return tok, l.err
+			t, l.err = l.scanUnquoted()
+			return t, l.err
 		case unicode.IsSpace(r):
 			l.skip()
 		default:
@@ -140,41 +138,10 @@ func (l *lexer) scan() (token, error) {
 				position: l.position(),
 				input:    l.input,
 			}
-			return tok, l.err
+			return t, l.err
 		}
 	}
-
-	return tok, l.err
-}
-
-// peek the next token in the input or an error if the input does not
-// conform to the grammar. Once the input has been consumed successive
-// calls peek() return a tokenEOF token.
-func (l *lexer) peek() (token, error) {
-	start := l.start
-	pos := l.pos
-	width := l.width
-	column := l.column
-	cols := l.cols
-	// Do not reset l.err because we can return it on the next call to scan().
-	defer func() {
-		l.start = start
-		l.pos = pos
-		l.width = width
-		l.column = column
-		l.cols = cols
-	}()
-	return l.scan()
-}
-
-// position returns the position of the last emitted token.
-func (l *lexer) position() position {
-	return position{
-		offsetStart: l.start,
-		offsetEnd:   l.pos,
-		columnStart: l.column,
-		columnEnd:   l.cols,
-	}
+	return t, l.err
 }
 
 func (l *lexer) scanOperator() (token, error) {
@@ -243,36 +210,71 @@ func (l *lexer) scanUnquoted() (token, error) {
 	return l.emit(tokenUnquoted), nil
 }
 
+// peek the next token in the input or an error if the input does not
+// conform to the grammar. Once the input has been consumed successive
+// calls peek() return a tokenEOF token.
+func (l *lexer) peek() (token, error) {
+	start := l.start
+	pos := l.pos
+	width := l.width
+	column := l.column
+	cols := l.cols
+	// Do not reset l.err because we can return it on the next call to scan().
+	defer func() {
+		l.start = start
+		l.pos = pos
+		l.width = width
+		l.column = column
+		l.cols = cols
+	}()
+	return l.scan()
+}
+
+// position returns the position of the last emitted token.
+func (l *lexer) position() position {
+	return position{
+		offsetStart: l.start,
+		offsetEnd:   l.pos,
+		columnStart: l.column,
+		columnEnd:   l.cols,
+	}
+}
+
+// accept consumes the next if its one of the valid runes.
+// It returns true if the next rune was accepted, otherwise false.
 func (l *lexer) accept(valid string) bool {
-	if strings.ContainsRune(valid, l.next()) {
+	if !strings.ContainsRune(valid, l.next()) {
 		return true
 	}
 	l.rewind()
 	return false
 }
 
+// expect consumes the next rune if its one of the valid runes.
+// it returns nil if the next rune is valid, otherwise an expectedError
+// error.
 func (l *lexer) expect(valid string) error {
-	if !strings.ContainsRune(valid, l.next()) {
-		l.rewind()
-		return expectedError{
-			position: l.position(),
-			input:    l.input,
-			expected: valid,
-		}
+	if strings.ContainsRune(valid, l.next()) {
+		return nil
 	}
-	return nil
+	l.rewind()
+	return expectedError{
+		position: l.position(),
+		input:    l.input,
+		expected: valid,
+	}
 }
 
 // emits returns the scanned input as a token.
 func (l *lexer) emit(kind tokenKind) token {
-	tok := token{
+	t := token{
 		kind:     kind,
 		value:    l.input[l.start:l.pos],
 		position: l.position(),
 	}
 	l.start = l.pos
 	l.column = l.cols
-	return tok
+	return t
 }
 
 // next returns the next rune in the input or eof.
