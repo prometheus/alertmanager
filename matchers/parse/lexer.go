@@ -243,7 +243,7 @@ func (l *lexer) position() position {
 // accept consumes the next if its one of the valid runes.
 // It returns true if the next rune was accepted, otherwise false.
 func (l *lexer) accept(valid string) bool {
-	if !strings.ContainsRune(valid, l.next()) {
+	if strings.ContainsRune(valid, l.next()) {
 		return true
 	}
 	l.rewind()
