@@ -168,3 +168,36 @@ receivers:
 		t.Errorf("Incorrect number of silences queried, expected: %v, actual: %v", expectedSils, len(sils))
 	}
 }
+
+func TestRoutesShow(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1ms
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := NewWebhook(co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+	_, err := am.ShowRoute()
+	require.NoError(t, err)
+}
