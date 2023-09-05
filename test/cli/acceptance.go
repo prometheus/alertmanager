@@ -669,6 +669,17 @@ func (am *Alertmanager) showRouteCommand() ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+func (am *Alertmanager) TestRoute() ([]byte, error) {
+	return am.testRouteCommand()
+}
+
+func (am *Alertmanager) testRouteCommand() ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "config", "routes", "test"}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
+}
+
 func (am *Alertmanager) getURL(path string) string {
 	return fmt.Sprintf("http://%s%s%s", am.apiAddr, am.opts.RoutePrefix, path)
 }
