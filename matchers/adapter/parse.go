@@ -30,10 +30,10 @@ var (
 	ParseMatchers = FallbackMatchersParser(log.NewNopLogger())
 )
 
-// MatcherParser is an interface for parsing individual matchers.
+// MatcherParser is an interface for parsing a single matcher in the input string.
 type MatcherParser func(s string) (*labels.Matcher, error)
 
-// MatchersParser is an interface for parsing a series of zero or more matchers.
+// MatchersParser is an interface for parsing one or more matchers in the input string.
 type MatchersParser func(s string) (labels.Matchers, error)
 
 // OldMatcherParser uses the old pkg/labels parser to parse the matcher in
@@ -51,7 +51,7 @@ func OldMatcherParser(l log.Logger) MatcherParser {
 }
 
 // OldMatchersParser uses the old pkg/labels parser to parse zero or more
-// matchers in the string.  It returns an error if the input is invalid.
+// matchers in the string. It returns an error if the input is invalid.
 func OldMatchersParser(l log.Logger) MatchersParser {
 	return func(s string) (labels.Matchers, error) {
 		level.Debug(l).Log(
@@ -60,45 +60,6 @@ func OldMatchersParser(l log.Logger) MatchersParser {
 			"matchers",
 			s)
 		return labels.ParseMatchers(s)
-	}
-}
-
-// FallbackMatchersParser uses the new matchers/parse parser to parse the
-// matcher in the input string. If this fails it falls back to the old
-// pkg/labels parser and emits a warning log line.
-func FallbackMatchersParser(l log.Logger) MatchersParser {
-	return func(s string) (labels.Matchers, error) {
-		var (
-			m          []*labels.Matcher
-			err        error
-			invalidErr error
-		)
-		level.Debug(l).Log(
-			"msg",
-			"Parsing matchers with new parser",
-			"matchers",
-			s,
-		)
-		m, err = parse.Parse(s)
-		if err != nil {
-			// The input is not valid in the old pkg/labels parser either,
-			// it cannot be valid input.
-			m, invalidErr = labels.ParseMatchers(s)
-			if invalidErr != nil {
-				return nil, invalidErr
-			}
-			// The input is valid in the old pkg/labels parser, but not the
-			// new matchers/parse parser.
-			level.Warn(l).Log(
-				"msg",
-				"Failed to parse input with matchers/parse, falling back to pkg/labels parser",
-				"matchers",
-				s,
-				"err",
-				err,
-			)
-		}
-		return m, nil
 	}
 }
 
@@ -118,7 +79,7 @@ func FallbackMatcherParser(l log.Logger) MatcherParser {
 			"matcher",
 			s,
 		)
-		m, err = parse.ParseMatcher(s)
+		m, err = parse.Matcher(s)
 		if err != nil {
 			// The input is not valid in the old pkg/labels parser either,
 			// it cannot be valid input.
@@ -132,6 +93,45 @@ func FallbackMatcherParser(l log.Logger) MatcherParser {
 				"msg",
 				"Failed to parse input with matchers/parse, falling back to pkg/labels parser",
 				"matcher",
+				s,
+				"err",
+				err,
+			)
+		}
+		return m, nil
+	}
+}
+
+// FallbackMatchersParser uses the new matchers/parse parser to parse the
+// matcher in the input string. If this fails it falls back to the old
+// pkg/labels parser and emits a warning log line.
+func FallbackMatchersParser(l log.Logger) MatchersParser {
+	return func(s string) (labels.Matchers, error) {
+		var (
+			m          []*labels.Matcher
+			err        error
+			invalidErr error
+		)
+		level.Debug(l).Log(
+			"msg",
+			"Parsing matchers with new parser",
+			"matchers",
+			s,
+		)
+		m, err = parse.Matchers(s)
+		if err != nil {
+			// The input is not valid in the old pkg/labels parser either,
+			// it cannot be valid input.
+			m, invalidErr = labels.ParseMatchers(s)
+			if invalidErr != nil {
+				return nil, invalidErr
+			}
+			// The input is valid in the old pkg/labels parser, but not the
+			// new matchers/parse parser.
+			level.Warn(l).Log(
+				"msg",
+				"Failed to parse input with matchers/parse, falling back to pkg/labels parser",
+				"matchers",
 				s,
 				"err",
 				err,
