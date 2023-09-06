@@ -304,8 +304,17 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 
 func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 	if m.ff.EnableReceiverNamesInMetrics() {
+
+		// Reset the vectors to take into account receiver names changing after hot reloads.
+		m.numNotifications.Reset()
+		m.numNotificationRequestsTotal.Reset()
+		m.numNotificationRequestsFailedTotal.Reset()
+		m.notificationLatencySeconds.Reset()
+		m.numTotalFailedNotifications.Reset()
+
 		for name, integrations := range receiver {
 			for _, integration := range integrations {
+
 				m.numNotifications.WithLabelValues(integration.Name(), name)
 				m.numNotificationRequestsTotal.WithLabelValues(integration.Name(), name)
 				m.numNotificationRequestsFailedTotal.WithLabelValues(integration.Name(), name)
