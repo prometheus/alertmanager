@@ -51,8 +51,8 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 				},
 			},
 			exp: []notify.Integration{
-				notify.NewIntegration(nil, sendResolved(false), "webhook", 0),
-				notify.NewIntegration(nil, sendResolved(true), "webhook", 1),
+				notify.NewIntegration(nil, sendResolved(false), "webhook", 0, "foo"),
+				notify.NewIntegration(nil, sendResolved(true), "webhook", 1, "foo"),
 			},
 		},
 		{
