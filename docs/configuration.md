@@ -566,7 +566,7 @@ oauth2:
 # that should be excluded from proxying. IP and domain names can
 # contain port numbers.
 [ no_proxy: <string> ]
-# Use proxy URL indicated by environment variables (HTTP_PROXY, https_proxy, HTTPs_PROXY, https_proxy, and no_proxy)
+# Use proxy URL indicated by environment variables (HTTP_PROXY, http_proxy, HTTPS_PROXY, https_proxy, and no_proxy)
 [ proxy_from_environment: <boolean> | default: false ]
 # Specifies headers to send to proxies during CONNECT requests.
 [ proxy_connect_header:
