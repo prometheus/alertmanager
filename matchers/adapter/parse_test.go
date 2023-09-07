@@ -17,8 +17,9 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 func TestFallbackMatcherParser(t *testing.T) {
