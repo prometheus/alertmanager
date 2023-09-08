@@ -332,7 +332,6 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 	// When the feature flag is not enabled, we just carry on registering _all_ the integrations.
 	for _, integration := range []string{
 		"email",
-		"msteams",
 		"pagerduty",
 		"wechat",
 		"pushover",
