@@ -26,7 +26,7 @@ const (
 	fcDisabledNewLabelMatchers = "disable-new-label-matchers"
 )
 
-var AllowedFlags = []string{fcReceiverNameInMetrics}
+var AllowedFlags = []string{fcReceiverNameInMetrics, fcDisabledNewLabelMatchers}
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
