@@ -18,9 +18,11 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/go-kit/log"
 	"github.com/go-openapi/strfmt"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
@@ -29,6 +31,8 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/adapter"
 
 	clientruntime "github.com/go-openapi/runtime/client"
 )
@@ -40,6 +44,7 @@ var (
 	timeout         time.Duration
 	httpConfigFile  string
 	versionCheck    bool
+	featureFlags    string
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -137,6 +142,17 @@ func Execute() {
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
 	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
+	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
+
+	logger := log.NewLogfmtLogger(os.Stdout)
+	featureConfig, err := featurecontrol.NewFlags(logger, featureFlags)
+	if err != nil {
+		kingpin.Fatalf(":error parsing the feature flag list: %v\n", err)
+	}
+	if featureConfig.DisableNewLabelMatchers() {
+		adapter.ParseMatcher = adapter.OldMatcherParser(logger)
+		adapter.ParseMatchers = adapter.OldMatchersParser(logger)
+	}
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')

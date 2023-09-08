@@ -22,22 +22,29 @@ import (
 )
 
 const (
-	fcReceiverNameInMetrics = "receiver-name-in-metrics"
+	fcReceiverNameInMetrics    = "receiver-name-in-metrics"
+	fcDisabledNewLabelMatchers = "disable-new-label-matchers"
 )
 
 var AllowedFlags = []string{fcReceiverNameInMetrics}
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
+	DisableNewLabelMatchers() bool
 }
 
 type Flags struct {
 	logger                       log.Logger
 	enableReceiverNamesInMetrics bool
+	disableNewLabelMatchers      bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
 	return f.enableReceiverNamesInMetrics
+}
+
+func (f *Flags) DisableNewLabelMatchers() bool {
+	return f.disableNewLabelMatchers
 }
 
 type flagOption func(flags *Flags)
@@ -45,6 +52,12 @@ type flagOption func(flags *Flags)
 func enableReceiverNameInMetrics() flagOption {
 	return func(configs *Flags) {
 		configs.enableReceiverNamesInMetrics = true
+	}
+}
+
+func disableNewLabelMatchers() flagOption {
+	return func(configs *Flags) {
+		configs.disableNewLabelMatchers = true
 	}
 }
 
@@ -61,6 +74,9 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case fcReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			level.Warn(logger).Log("msg", "Experimental receiver name in metrics enabled")
+		case fcDisabledNewLabelMatchers:
+			opts = append(opts, disableNewLabelMatchers())
+			level.Warn(logger).Log("msg", "Disabled new label matchers")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -76,3 +92,5 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 type NoopFlags struct{}
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
+
+func (n NoopFlags) DisableNewLabelMatchers() bool { return false }
