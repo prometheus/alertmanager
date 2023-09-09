@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/api/v2/models"
 	. "github.com/prometheus/alertmanager/test/cli"
 )
 
@@ -114,13 +115,26 @@ receivers:
 	am.AddAlerts(alert1, alert2)
 
 	alerts, err := am.QueryAlerts()
-	if err != nil {
-		t.Fatal("Failed to query alerts", err)
-	}
-	expectedAlerts := 2
-	if len(alerts) != expectedAlerts {
-		t.Fatalf("Incorrect number of alerts, expected %v, got %v", expectedAlerts, len(alerts))
-	}
+	require.NoError(t, err)
+	require.Len(t, alerts, 2)
+
+	// Get the first alert using the alertname heuristic
+	alerts, err = am.QueryAlerts("test1")
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+
+	// QueryAlerts uses the simple output option, which means just the alertname
+	// label is printed. We can assert that querying works as expected as we know
+	// there are two alerts called "test1" and "test2".
+	expectedLabels := models.LabelSet{"name": "test1"}
+	require.True(t, alerts[0].HasLabels(expectedLabels))
+
+	// Get the second alert
+	alerts, err = am.QueryAlerts("alertname=test2")
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+	expectedLabels = models.LabelSet{"name": "test2"}
+	require.True(t, alerts[0].HasLabels(expectedLabels))
 }
 
 func TestQuerySilence(t *testing.T) {
@@ -153,18 +167,20 @@ receivers:
 
 	am := amc.Members()[0]
 
-	silence1 := Silence(0, 4).Match("alertname=test1", "severity=warn").Comment("test1")
+	silence1 := Silence(0, 4).Match("test1", "severity=warn").Comment("test1")
 	silence2 := Silence(0, 4).Match("foo").Comment("test foo")
 
 	am.SetSilence(0, silence1)
 	am.SetSilence(0, silence2)
 
+	// Get all silences
 	sils, err := am.QuerySilence()
-	if err != nil {
-		t.Error("Failed to query silences: ", err)
-	}
-	expectedSils := 2
-	if len(sils) != expectedSils {
-		t.Errorf("Incorrect number of silences queried, expected: %v, actual: %v", expectedSils, len(sils))
-	}
+	require.NoError(t, err)
+	require.Len(t, sils, 2)
+
+	// Get the first silence using the alertname heuristic
+	sils, err = am.QuerySilence("test1")
+	require.NoError(t, err)
+	require.Len(t, sils, 1)
+	require.Equal(t, []string{"alertname=\"test1\"", "severity=\"warn\""}, sils[0].GetMatches())
 }
