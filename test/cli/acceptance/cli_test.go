@@ -168,19 +168,27 @@ receivers:
 	am := amc.Members()[0]
 
 	silence1 := Silence(0, 4).Match("test1", "severity=warn").Comment("test1")
-	silence2 := Silence(0, 4).Match("foo").Comment("test foo")
+	silence2 := Silence(0, 4).Match("alertname=test2", "severity=warn").Comment("test2")
+	silence3 := Silence(0, 4).Match("{alertname=test3}", "severity=warn").Comment("test3")
 
 	am.SetSilence(0, silence1)
 	am.SetSilence(0, silence2)
+	am.SetSilence(0, silence3)
 
 	// Get all silences
 	sils, err := am.QuerySilence()
 	require.NoError(t, err)
-	require.Len(t, sils, 2)
+	require.Len(t, sils, 3)
+	expected1 := []string{"alertname=\"test1\"", "severity=\"warn\""}
+	require.Equal(t, expected1, sils[0].GetMatches())
+	expected2 := []string{"alertname=\"test2\"", "severity=\"warn\""}
+	require.Equal(t, expected2, sils[1].GetMatches())
+	expected3 := []string{"alertname=\"{alertname=test3}\"", "severity=\"warn\""}
+	require.Equal(t, expected3, sils[2].GetMatches())
 
 	// Get the first silence using the alertname heuristic
 	sils, err = am.QuerySilence("test1")
 	require.NoError(t, err)
 	require.Len(t, sils, 1)
-	require.Equal(t, []string{"alertname=\"test1\"", "severity=\"warn\""}, sils[0].GetMatches())
+	require.Equal(t, expected1, sils[0].GetMatches())
 }
