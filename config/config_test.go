@@ -864,6 +864,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPRequireTLS:  true,
 			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+			JSMAPIURL:       mustParseURL("https://api.atlassian/jsm/integration/"),
 			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
@@ -1116,6 +1117,70 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	_, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-old-team.yml", err)
+	}
+
+	const expectedErr = `yaml: unmarshal errors:
+  line 16: field teams not found in type config.plain`
+	if err.Error() != expectedErr {
+		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
+}
+
+
+func TestJSMDefaultAPIKey(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.jsm-default-apikey.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.jsm-default-apikey.yml", err)
+	}
+
+	defaultKey := conf.Global.JSMAPIKey
+	if defaultKey != conf.Receivers[0].JSMConfigs[0].APIKey {
+		t.Fatalf("Invalid JSM key: %s\nExpected: %s", conf.Receivers[0].JSMConfigs[0].APIKey, defaultKey)
+	}
+	if defaultKey == conf.Receivers[1].JSMConfigs[0].APIKey {
+		t.Errorf("Invalid JSM key: %s\nExpected: %s", conf.Receivers[0].JSMConfigs[0].APIKey, "qwe456")
+	}
+}
+
+func TestJSMDefaultAPIKeyFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.jsm-default-apikey-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.jsm-default-apikey-file.yml", err)
+	}
+
+	defaultKey := conf.Global.JSMAPIKeyFile
+	if defaultKey != conf.Receivers[0].JSMConfigs[0].APIKeyFile {
+		t.Fatalf("Invalid JSM key_file: %s\nExpected: %s", conf.Receivers[0].JSMConfigs[0].APIKeyFile, defaultKey)
+	}
+	if defaultKey == conf.Receivers[1].JSMConfigs[0].APIKeyFile {
+		t.Errorf("Invalid JSM key_file: %s\nExpected: %s", conf.Receivers[0].JSMConfigs[0].APIKeyFile, "/override_file")
+	}
+}
+
+func TestJSMBothAPIKeyAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.jsm-both-file-and-apikey.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.jsm-both-file-and-apikey.yml", err)
+	}
+	if err.Error() != "at most one of jsm_api_key & jsm_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of jsm_api_key & jsm_api_key_file must be configured", err.Error())
+	}
+}
+
+func TestJSMNoAPIKey(t *testing.T) {
+	_, err := LoadFile("testdata/conf.jsm-no-apikey.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.jsm-no-apikey.yml", err)
+	}
+	if err.Error() != "no global JSM API Key set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global JSM API Key set either inline or in a file", err.Error())
+	}
+}
+
+func TestJSMDeprecatedTeamSpecified(t *testing.T) {
+	_, err := LoadFile("testdata/conf.jsm-default-apikey-old-team.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.jsm-default-apikey-old-team.yml", err)
 	}
 
 	const expectedErr = `yaml: unmarshal errors:

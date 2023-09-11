@@ -224,6 +224,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.OpsGenieConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.JSMConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.PagerdutyConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -344,6 +347,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of opsgenie_api_key & opsgenie_api_key_file must be configured")
 	}
 
+	if c.Global.JSMAPIKey != "" && len(c.Global.JSMAPIKeyFile) > 0 {
+		return fmt.Errorf("at most one of jsm_api_key & jsm_api_key_file must be configured")
+	}
+
 	if c.Global.VictorOpsAPIKey != "" && len(c.Global.VictorOpsAPIKeyFile) > 0 {
 		return fmt.Errorf("at most one of victorops_api_key & victorops_api_key_file must be configured")
 	}
@@ -446,6 +453,28 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
+		for _, jsmc := range rcv.JSMConfigs {
+			if jsmc.HTTPConfig == nil {
+				jsmc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if jsmc.APIURL == nil {
+				if c.Global.JSMAPIURL == nil {
+					return fmt.Errorf("no global JSM URL set")
+				}
+				jsmc.APIURL = c.Global.JSMAPIURL
+			}
+			if !strings.HasSuffix(jsmc.APIURL.Path, "/") {
+				jsmc.APIURL.Path += "/"
+			}
+			if jsmc.APIKey == "" && len(jsmc.APIKeyFile) == 0 {
+				if c.Global.JSMAPIKey == "" && len(c.Global.JSMAPIKeyFile) == 0 {
+					return fmt.Errorf("no global JSM API Key set either inline or in a file")
+				}
+				jsmc.APIKey = c.Global.JSMAPIKey
+				jsmc.APIKeyFile = c.Global.JSMAPIKeyFile
+			}
+		}
+
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc.HTTPConfig == nil {
 				wcc.HTTPConfig = c.Global.HTTPConfig
@@ -636,6 +665,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+		JSMAPIURL:       mustParseURL("https://api.atlassian.com/jsm/integration/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
@@ -756,6 +786,9 @@ type GlobalConfig struct {
 	OpsGenieAPIURL       *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey       Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	OpsGenieAPIKeyFile   string     `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	JSMAPIURL            *URL       `yaml:"jsm_api_url,omitempty" json:"jsm_api_url,omitempty"`
+	JSMAPIKey            Secret     `yaml:"jsm_api_key,omitempty" json:"jsm_api_key,omitempty"`
+	JSMAPIKeyFile        string     `yaml:"jsm_api_key_file,omitempty" json:"jsm_api_key_file,omitempty"`
 	WeChatAPIURL         *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret      Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID      string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
@@ -901,6 +934,7 @@ type Receiver struct {
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	JSMConfigs       []*JSMConfig       `yaml:"jsm_configs,omitempty" json:"jsm_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`

@@ -813,6 +813,76 @@ responders:
 type: <tmpl_string>
 ```
 
+### `<jsm_config>`
+
+JSM notifications are sent via the [JSM API](https://docs.opsgenie.com/docs/alert-api).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the JSM API.
+[ api_key: <secret> | default = global.jsm_api_key ]
+
+# The filepath to API key to use when talking to the JSM API. Conflicts with api_key.
+[ api_key_file: <filepath> | default = global.jsm_api_key_file ]
+
+# The host to send JSM API requests to.
+[ api_url: <string> | default = global.jsm_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> | default = '{{ template "jsm.default.message" . }}' ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "jsm.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "jsm.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether to update message and description of the alert in JSM if it already exists
+# By default, the alert is never updated in JSM, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# Optional field that can be used to specify which domain alert is related to.
+[ entity: <tmpl_string> ]
+
+# Comma separated list of actions that will be available for the alert.
+[ actions: <tmpl_string> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# "team", "teams", "user", "escalation" or "schedule".
+type: <tmpl_string>
+```
+
 ### `<pagerduty_config>`
 
 PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).

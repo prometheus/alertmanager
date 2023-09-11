@@ -110,6 +110,17 @@ var (
 		// TODO: Add a details field with all the alerts.
 	}
 
+	// DefaultJSMConfig defines default values for JSM configurations.
+	DefaultJSMConfig = JSMConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:     `{{ template "jsm.default.message" . }}`,
+		Description: `{{ template "jsm.default.description" . }}`,
+		Source:      `{{ template "jsm.default.source" . }}`,
+		// TODO: Add a details field with all the alerts.
+	}
+
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
 		NotifierConfig: NotifierConfig{
@@ -606,6 +617,75 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 }
 
 type OpsGenieConfigResponder struct {
+	// One of those 3 should be filled.
+	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
+	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	// team, user, escalation, schedule etc.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+// JSMConfig configures notifications via JSM.
+type JSMConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIKey       Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKeyFile   string                    `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
+	APIURL       *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message      string                    `yaml:"message,omitempty" json:"message,omitempty"`
+	Description  string                    `yaml:"description,omitempty" json:"description,omitempty"`
+	Source       string                    `yaml:"source,omitempty" json:"source,omitempty"`
+	Details      map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
+	Entity       string                    `yaml:"entity,omitempty" json:"entity,omitempty"`
+	Responders   []JSMConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	Actions      string                    `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Tags         string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note         string                    `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority     string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
+	UpdateAlerts bool                      `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
+}
+
+const jsmValidTypesRe = `^(team|teams|user|escalation|schedule)$`
+
+var jsmTypeMatcher = regexp.MustCompile(jsmValidTypesRe)
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *JSMConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultJSMConfig
+	type plain JSMConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
+		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
+	}
+
+	for _, r := range c.Responders {
+		if r.ID == "" && r.Username == "" && r.Name == "" {
+			return errors.Errorf("jsmConfig responder %v has to have at least one of id, username or name specified", r)
+		}
+
+		if strings.Contains(r.Type, "{{") {
+			_, err := template.New("").Parse(r.Type)
+			if err != nil {
+				return errors.Errorf("jsmConfig responder %v type is not a valid template: %v", r, err)
+			}
+		} else {
+			r.Type = strings.ToLower(r.Type)
+			if !jsmTypeMatcher.MatchString(r.Type) {
+				return errors.Errorf("jsmConfig responder %v type does not match valid options %s", r, jsmValidTypesRe)
+			}
+		}
+	}
+
+	return nil
+}
+
+type JSMConfigResponder struct {
 	// One of those 3 should be filled.
 	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
 	Name     string `yaml:"name,omitempty" json:"name,omitempty"`

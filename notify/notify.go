@@ -337,6 +337,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"pushover",
 		"slack",
 		"opsgenie",
+		"jsm",
 		"webhook",
 		"victorops",
 		"sns",
