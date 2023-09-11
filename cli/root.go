@@ -23,12 +23,12 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
+	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
 
-	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
