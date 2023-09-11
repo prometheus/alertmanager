@@ -28,13 +28,12 @@ import (
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
 
+	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/adapter"
-
-	clientruntime "github.com/go-openapi/runtime/client"
+	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
 var (
@@ -150,8 +149,8 @@ func Execute() {
 		kingpin.Fatalf(":error parsing the feature flag list: %v\n", err)
 	}
 	if featureConfig.DisableNewLabelMatchers() {
-		adapter.ParseMatcher = adapter.OldMatcherParser(logger)
-		adapter.ParseMatchers = adapter.OldMatchersParser(logger)
+		compat.ParseMatcher = compat.OldMatcherParser(logger)
+		compat.ParseMatchers = compat.OldMatchersParser(logger)
 	}
 
 	app.Version(version.Print("amtool"))

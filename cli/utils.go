@@ -26,7 +26,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/matchers/adapter"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -35,7 +35,7 @@ func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0, len(inputMatchers))
 
 	for _, v := range inputMatchers {
-		matcher, err := adapter.ParseMatcher(v)
+		matcher, err := compat.ParseMatcher(v)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
@@ -100,7 +100,7 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		matcher, err := adapter.ParseMatcher(l)
+		matcher, err := compat.ParseMatcher(l)
 		if err != nil {
 			return models.LabelSet{}, err
 		}
