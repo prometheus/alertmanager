@@ -16,8 +16,8 @@ package compat
 import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/prometheus/alertmanager/featurecontrol"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -28,6 +28,7 @@ var (
 )
 
 type matcherParser func(s string) (*labels.Matcher, error)
+
 type matchersParser func(s string) (labels.Matchers, error)
 
 // Matcher parses the matcher in the input string. It returns an error
