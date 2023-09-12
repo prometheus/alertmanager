@@ -35,7 +35,7 @@ func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0, len(inputMatchers))
 
 	for _, v := range inputMatchers {
-		matcher, err := compat.ParseMatcher(v)
+		matcher, err := compat.Matcher(v)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
@@ -100,7 +100,7 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		matcher, err := compat.ParseMatcher(l)
+		matcher, err := compat.Matcher(l)
 		if err != nil {
 			return models.LabelSet{}, err
 		}

@@ -148,10 +148,7 @@ func Execute() {
 	if err != nil {
 		kingpin.Fatalf(":error parsing the feature flag list: %v\n", err)
 	}
-	if featureConfig.DisableNewLabelMatchers() {
-		compat.ParseMatcher = compat.OldMatcherParser(logger)
-		compat.ParseMatchers = compat.OldMatchersParser(logger)
-	}
+	compat.InitFromFlags(logger, featureConfig)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')

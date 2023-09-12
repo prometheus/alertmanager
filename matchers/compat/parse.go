@@ -16,68 +16,89 @@ package compat
 import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/alertmanager/featurecontrol"
 
 	"github.com/prometheus/alertmanager/matchers/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 var (
-	// ParseMatcher is the default parser for parsing individual matchers.
-	ParseMatcher = FallbackMatcherParser(log.NewNopLogger())
-
-	// ParseMatchers is the default parser for parsing a series of zero or
-	// more matchers.
-	ParseMatchers = FallbackMatchersParser(log.NewNopLogger())
+	parseMatcher  = stableMatcherParser(log.NewNopLogger())
+	parseMatchers = stableMatchersParser(log.NewNopLogger())
 )
 
-// MatcherParser is an interface for parsing a single matcher in the input string.
-type MatcherParser func(s string) (*labels.Matcher, error)
+type matcherParser func(s string) (*labels.Matcher, error)
+type matchersParser func(s string) (labels.Matchers, error)
 
-// MatchersParser is an interface for parsing one or more matchers in the input string.
-type MatchersParser func(s string) (labels.Matchers, error)
+// Matcher parses the matcher in the input string. It returns an error
+// if the input is invalid or contains two or more matchers.
+func Matcher(s string) (*labels.Matcher, error) {
+	return parseMatcher(s)
+}
 
-// OldMatcherParser uses the old pkg/labels parser to parse the matcher in
+// Matchers parses one or more matchers in the input string. It returns
+// an error if the input is invalid.
+func Matchers(s string) (labels.Matchers, error) {
+	return parseMatchers(s)
+}
+
+// InitFromFlags initializes the compat package from the flagger.
+func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
+	if f.StableMatchersParsing() {
+		parseMatcher = stableMatcherParser(l)
+		parseMatchers = stableMatchersParser(l)
+	} else if f.UTF8MatchersParsing() {
+		parseMatcher = utf8MatcherParser(l)
+		parseMatchers = utf8MatchersParser(l)
+	} else {
+		parseMatcher = fallbackMatcherParser(l)
+		parseMatchers = fallbackMatchersParser(l)
+	}
+}
+
+// stableMatcherParser uses the old pkg/labels parser to parse the matcher in
 // the input string.
-func OldMatcherParser(l log.Logger) MatcherParser {
+func stableMatcherParser(_ log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
-		level.Debug(l).Log(
-			"msg",
-			"Parsing matcher with old regular expressions parser",
-			"matcher",
-			s,
-		)
 		return labels.ParseMatcher(s)
 	}
 }
 
-// OldMatchersParser uses the old pkg/labels parser to parse zero or more
-// matchers in the string. It returns an error if the input is invalid.
-func OldMatchersParser(l log.Logger) MatchersParser {
+// stableMatchersParser uses the old pkg/labels parser to parse zero or more
+// matchers in the input string. It returns an error if the input is invalid.
+func stableMatchersParser(_ log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
-		level.Debug(l).Log(
-			"msg",
-			"Parsing matchers with old regular expressions parser",
-			"matchers",
-			s)
 		return labels.ParseMatchers(s)
 	}
 }
 
-// FallbackMatcherParser uses the new matchers/parse parser to parse
+// utf8MatcherParser uses the new matchers/parse parser to parse
+// the matcher in the input string. If this fails it does not fallback
+// to the old pkg/labels parser.
+func utf8MatcherParser(_ log.Logger) matcherParser {
+	return func(s string) (*labels.Matcher, error) {
+		return labels.ParseMatcher(s)
+	}
+}
+
+// utf8MatchersParser uses the new matchers/parse parser to parse
+// zero or more matchers in the input string. If this fails it
+// does not fallback to the old pkg/labels parser.
+func utf8MatchersParser(_ log.Logger) matchersParser {
+	return func(s string) (labels.Matchers, error) {
+		return labels.ParseMatchers(s)
+	}
+}
+
+// fallbackMatcherParser uses the new matchers/parse parser to parse
 // zero or more matchers in the string. If this fails it falls back to
 // the old pkg/labels parser and emits a warning log line.
-func FallbackMatcherParser(l log.Logger) MatcherParser {
+func fallbackMatcherParser(l log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
 		var (
 			m          *labels.Matcher
 			err        error
 			invalidErr error
-		)
-		level.Debug(l).Log(
-			"msg",
-			"Parsing matcher with new parser",
-			"matcher",
-			s,
 		)
 		m, err = parse.Matcher(s)
 		if err != nil {
@@ -102,21 +123,15 @@ func FallbackMatcherParser(l log.Logger) MatcherParser {
 	}
 }
 
-// FallbackMatchersParser uses the new matchers/parse parser to parse the
+// fallbackMatchersParser uses the new matchers/parse parser to parse the
 // matcher in the input string. If this fails it falls back to the old
 // pkg/labels parser and emits a warning log line.
-func FallbackMatchersParser(l log.Logger) MatchersParser {
+func fallbackMatchersParser(l log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
 		var (
 			m          []*labels.Matcher
 			err        error
 			invalidErr error
-		)
-		level.Debug(l).Log(
-			"msg",
-			"Parsing matchers with new parser",
-			"matchers",
-			s,
 		)
 		m, err = parse.Matchers(s)
 		if err != nil {

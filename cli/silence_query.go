@@ -98,7 +98,7 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := compat.ParseMatcher(c.matchers[0])
+		_, err := compat.Matcher(c.matchers[0])
 		if err != nil {
 			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
 		}

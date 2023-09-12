@@ -45,7 +45,7 @@ func TestFallbackMatcherParser(t *testing.T) {
 		input: "foo!bar",
 		err:   "bad matcher format: foo!bar",
 	}}
-	f := FallbackMatcherParser(log.NewNopLogger())
+	f := fallbackMatcherParser(log.NewNopLogger())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			matcher, err := f(test.input)
@@ -91,7 +91,7 @@ func TestFallbackMatchersParser(t *testing.T) {
 		input: "{foo!bar}",
 		err:   "bad matcher format: foo!bar",
 	}}
-	f := FallbackMatchersParser(log.NewNopLogger())
+	f := fallbackMatchersParser(log.NewNopLogger())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			matchers, err := f(test.input)

@@ -14,6 +14,7 @@
 package featurecontrol
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,29 +23,40 @@ import (
 )
 
 const (
-	fcReceiverNameInMetrics    = "receiver-name-in-metrics"
-	fcDisabledNewLabelMatchers = "disable-new-label-matchers"
+	fcReceiverNameInMetrics = "receiver-name-in-metrics"
+	fcStableMatchersParsing = "stable-matchers-parsing"
+	fcUTF8MatchersParsing   = "utf8-matchers-parsing"
 )
 
-var AllowedFlags = []string{fcReceiverNameInMetrics, fcDisabledNewLabelMatchers}
+var AllowedFlags = []string{
+	fcReceiverNameInMetrics,
+	fcStableMatchersParsing,
+	fcUTF8MatchersParsing,
+}
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
-	DisableNewLabelMatchers() bool
+	StableMatchersParsing() bool
+	UTF8MatchersParsing() bool
 }
 
 type Flags struct {
 	logger                       log.Logger
 	enableReceiverNamesInMetrics bool
-	disableNewLabelMatchers      bool
+	utf8MatchersParsing          bool
+	stableMatchersParsing        bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
 	return f.enableReceiverNamesInMetrics
 }
 
-func (f *Flags) DisableNewLabelMatchers() bool {
-	return f.disableNewLabelMatchers
+func (f *Flags) StableMatchersParsing() bool {
+	return f.stableMatchersParsing
+}
+
+func (f *Flags) UTF8MatchersParsing() bool {
+	return f.utf8MatchersParsing
 }
 
 type flagOption func(flags *Flags)
@@ -55,9 +67,15 @@ func enableReceiverNameInMetrics() flagOption {
 	}
 }
 
-func disableNewLabelMatchers() flagOption {
+func enableStableMatchersParsing() flagOption {
 	return func(configs *Flags) {
-		configs.disableNewLabelMatchers = true
+		configs.stableMatchersParsing = true
+	}
+}
+
+func enableUTF8MatchersParsing() flagOption {
+	return func(configs *Flags) {
+		configs.utf8MatchersParsing = true
 	}
 }
 
@@ -74,9 +92,12 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case fcReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			level.Warn(logger).Log("msg", "Experimental receiver name in metrics enabled")
-		case fcDisabledNewLabelMatchers:
-			opts = append(opts, disableNewLabelMatchers())
-			level.Warn(logger).Log("msg", "Disabled new label matchers")
+		case fcStableMatchersParsing:
+			opts = append(opts, enableStableMatchersParsing())
+			level.Warn(logger).Log("msg", "Enabled stable matchers parsing")
+		case fcUTF8MatchersParsing:
+			opts = append(opts, enableUTF8MatchersParsing())
+			level.Warn(logger).Log("msg", "Enabled UTF-8 matchers parsing")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -86,6 +107,10 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		opt(fc)
 	}
 
+	if fc.stableMatchersParsing && fc.utf8MatchersParsing {
+		return nil, errors.New("Both stable and UTF-8 matchers parsing is enabled, please choose one or remove the flag for both")
+	}
+
 	return fc, nil
 }
 
@@ -93,4 +118,6 @@ type NoopFlags struct{}
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 
-func (n NoopFlags) DisableNewLabelMatchers() bool { return false }
+func (n NoopFlags) StableMatchersParsing() bool { return false }
+
+func (n NoopFlags) UTF8MatchersParsing() bool { return false }
