@@ -315,7 +315,7 @@ func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) m
 	}
 
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	groupIdsFilter := api.groupIdFilter(params.GroupID)
+	groupIdsFilter := api.groupIDFilter(params.GroupID)
 	if len(params.GroupID) > 0 {
 		alerts, err = api.getAlertsFromAlertGroup(receiverFilter, alertFilter, groupIdsFilter)
 	} else {
@@ -422,7 +422,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	rf := api.routeFilter(receiverFilter)
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	gf := api.groupIdFilter([]string{})
+	gf := api.groupIDFilter([]string{})
 	alertGroups, allReceivers := api.alertGroups(rf, af, gf)
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
@@ -447,10 +447,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) groupIdFilter(groupIdsFilter []string) func(groupId string) bool {
+func (api *API) groupIDFilter(groupIDsFilter []string) func(groupId string) bool {
 	return func(groupId string) bool {
-		for _, groupIdFilter := range groupIdsFilter {
-			if groupIdFilter == groupId {
+		for _, groupIDFilter := range groupIDsFilter {
+			if groupIDFilter == groupId {
 				return true
 			}
 		}
