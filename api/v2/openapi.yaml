@@ -240,6 +240,14 @@ paths:
           description: A regex matching receivers to filter alerts by
           required: false
           type: string
+        - name: groupId
+          in: query
+          description: A list of group IDs to filter alerts by
+          required: false
+          type: array
+          collectionFormat: multi
+          items:
+            type: string
         - name: nextToken
           in: query
           description: The token for the next set of items to return

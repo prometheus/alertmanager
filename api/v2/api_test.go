@@ -671,10 +671,30 @@ func TestListAlertInfosHandler(t *testing.T) {
 			},
 		},
 	}
+	ags := dispatch.AlertGroups{
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			},
+			Receiver: "testing",
+			Alerts:   []*types.Alert{alerts[0], alerts[1]},
+		},
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			Alerts:   []*types.Alert{alerts[2], alerts[3]},
+		},
+	}
 
 	for _, tc := range []struct {
 		name            string
 		booleanParams   map[string]*bool
+		groupsFilter    []string
 		expectedCode    int
 		maxResult       *int64
 		nextToken       *string
@@ -684,6 +704,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"no filter",
 			map[string]*bool{},
+			[]string{},
 			200,
 			nil,
 			nil,
@@ -693,6 +714,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"status filter",
 			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{},
 			200,
 			nil,
 			nil,
@@ -702,6 +724,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"status filter - active false",
 			map[string]*bool{"active": BoolPointer(false), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{},
 			200,
 			nil,
 			nil,
@@ -711,6 +734,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"status filter - silenced false",
 			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(false), "inhibited": BoolPointer(true)},
+			[]string{},
 			200,
 			nil,
 			nil,
@@ -720,6 +744,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"status filter - inhibited false",
 			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(false)},
+			[]string{},
 			200,
 			nil,
 			nil,
@@ -727,8 +752,19 @@ func TestListAlertInfosHandler(t *testing.T) {
 			"",
 		},
 		{
+			"group filter",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{"123"},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
 			"MaxResults - only 1 alert return",
 			map[string]*bool{},
+			[]string{},
 			200,
 			convertIntToPointerInt64(int64(1)),
 			nil,
@@ -738,6 +774,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"MaxResults - all alert return",
 			map[string]*bool{},
+			[]string{},
 			200,
 			convertIntToPointerInt64(int64(8)),
 			nil,
@@ -747,6 +784,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 		{
 			"MaxResults - has begin next token, max 2 alerts",
 			map[string]*bool{},
+			[]string{},
 			200,
 			convertIntToPointerInt64(int64(2)),
 			convertStringToPointer("878598a70ceb8a1d9fc194638818caf926b4efef"),
@@ -761,6 +799,9 @@ func TestListAlertInfosHandler(t *testing.T) {
 				getAlertStatus: newGetAlertStatus(alertsProvider),
 				logger:         log.NewNopLogger(),
 				alerts:         alertsProvider,
+				alertGroups: func(f func(*dispatch.Route) bool, f2 func(*types.Alert, time.Time) bool, f3 func(string) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+					return ags, nil
+				},
 				setAlertStatus: func(model.LabelSet) {},
 			}
 			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
@@ -786,6 +827,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 				Silenced:    silence,
 				Inhibited:   inhibited,
 				Active:      active,
+				GroupID:     tc.groupsFilter,
 				MaxResults:  tc.maxResult,
 				NextToken:   tc.nextToken,
 			})

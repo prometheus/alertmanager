@@ -74,6 +74,11 @@ type GetAlertInfosParams struct {
 	  Collection Format: multi
 	*/
 	Filter []string
+	/*A list of group IDs to filter alerts by
+	  In: query
+	  Collection Format: multi
+	*/
+	GroupID []string
 	/*Show inhibited alerts
 	  In: query
 	  Default: true
@@ -121,6 +126,11 @@ func (o *GetAlertInfosParams) BindRequest(r *http.Request, route *middleware.Mat
 
 	qFilter, qhkFilter, _ := qs.GetOK("filter")
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qGroupID, qhkGroupID, _ := qs.GetOK("groupId")
+	if err := o.bindGroupID(qGroupID, qhkGroupID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -201,6 +211,28 @@ func (o *GetAlertInfosParams) bindFilter(rawData []string, hasKey bool, formats 
 	}
 
 	o.Filter = filterIR
+
+	return nil
+}
+
+// bindGroupID binds and validates array parameter GroupID from query.
+//
+// Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
+func (o *GetAlertInfosParams) bindGroupID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	// CollectionFormat: multi
+	groupIDIC := rawData
+	if len(groupIDIC) == 0 {
+		return nil
+	}
+
+	var groupIDIR []string
+	for _, groupIDIV := range groupIDIC {
+		groupIDI := groupIDIV
+
+		groupIDIR = append(groupIDIR, groupIDI)
+	}
+
+	o.GroupID = groupIDIR
 
 	return nil
 }

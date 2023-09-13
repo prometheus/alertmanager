@@ -90,6 +90,12 @@ type GetAlertInfosParams struct {
 	*/
 	Filter []string
 
+	/* GroupID.
+
+	   A list of group IDs to filter alerts by
+	*/
+	GroupID []string
+
 	/* Inhibited.
 
 	   Show inhibited alerts
@@ -227,6 +233,17 @@ func (o *GetAlertInfosParams) SetFilter(filter []string) {
 	o.Filter = filter
 }
 
+// WithGroupID adds the groupID to the get alert infos params
+func (o *GetAlertInfosParams) WithGroupID(groupID []string) *GetAlertInfosParams {
+	o.SetGroupID(groupID)
+	return o
+}
+
+// SetGroupID adds the groupId to the get alert infos params
+func (o *GetAlertInfosParams) SetGroupID(groupID []string) {
+	o.GroupID = groupID
+}
+
 // WithInhibited adds the inhibited to the get alert infos params
 func (o *GetAlertInfosParams) WithInhibited(inhibited *bool) *GetAlertInfosParams {
 	o.SetInhibited(inhibited)
@@ -325,6 +342,17 @@ func (o *GetAlertInfosParams) WriteToRequest(r runtime.ClientRequest, reg strfmt
 
 		// query array param filter
 		if err := r.SetQueryParam("filter", joinedFilter...); err != nil {
+			return err
+		}
+	}
+
+	if o.GroupID != nil {
+
+		// binding items for groupId
+		joinedGroupID := o.bindParamGroupID(reg)
+
+		// query array param groupId
+		if err := r.SetQueryParam("groupId", joinedGroupID...); err != nil {
 			return err
 		}
 	}
@@ -452,4 +480,21 @@ func (o *GetAlertInfosParams) bindParamFilter(formats strfmt.Registry) []string 
 	filterIS := swag.JoinByFormat(filterIC, "multi")
 
 	return filterIS
+}
+
+// bindParamGetAlertInfos binds the parameter groupId
+func (o *GetAlertInfosParams) bindParamGroupID(formats strfmt.Registry) []string {
+	groupIDIR := o.GroupID
+
+	var groupIDIC []string
+	for _, groupIDIIR := range groupIDIR { // explode []string
+
+		groupIDIIV := groupIDIIR // string as string
+		groupIDIC = append(groupIDIC, groupIDIIV)
+	}
+
+	// items.CollectionFormat: "multi"
+	groupIDIS := swag.JoinByFormat(groupIDIC, "multi")
+
+	return groupIDIS
 }

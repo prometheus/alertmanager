@@ -199,12 +199,18 @@ func APILabelSetToModelLabelSet(apiLabelSet open_api_models.LabelSet) prometheus
 }
 
 // AlertInfosTruncate truncate the open_api_models.GettableAlerts using maxResult and return a nextToken if there are items has been truncated.
-func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64) (open_api_models.GettableAlerts, string) {
+func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64, nextToken *string) (open_api_models.GettableAlerts, string) {
 	resultNumber := 0
 	var previousAlertID *string
 	var returnPaginationToken string
 	returnAlerts := make(open_api_models.GettableAlerts, 0, len(alerts))
 	for _, alert := range alerts {
+
+		// Skip the alert if the next token is set and hasn't arrived the nextToken item yet.
+		alertFP := alert.Fingerprint
+		if nextToken != nil && alertFP != nil && *nextToken >= *alertFP {
+			continue
+		}
 
 		// Add the alert to the return slice if the maxItem is not hit
 		if maxResult == nil || resultNumber < int(*maxResult) {

@@ -180,6 +180,29 @@ func (r *Route) Key() string {
 	return b.String()
 }
 
+// ID returns a unique identifier for the route.
+func (r *Route) ID() string {
+	b := strings.Builder{}
+
+	position := -1
+	if r.parent != nil {
+		// Find the position in the same level leaf.
+		for i, cr := range r.parent.Routes {
+			if cr == r {
+				position = i
+				break
+			}
+		}
+	}
+	b.WriteString(r.Key())
+
+	if position > -1 {
+		b.WriteRune('/')
+		b.WriteString(fmt.Sprint(position))
+	}
+	return b.String()
+}
+
 // Walk traverses the route tree in depth-first order.
 func (r *Route) Walk(visit func(*Route)) {
 	visit(r)
