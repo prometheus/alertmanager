@@ -98,6 +98,14 @@ type GetAlertsParams struct {
 	*/
 	Inhibited *bool
 
+	/* Muted.
+
+	   Show muted alerts
+
+	   Default: true
+	*/
+	Muted *bool
+
 	/* Receiver.
 
 	   A regex matching receivers to filter alerts by
@@ -142,6 +150,8 @@ func (o *GetAlertsParams) SetDefaults() {
 
 		inhibitedDefault = bool(true)
 
+		mutedDefault = bool(true)
+
 		silencedDefault = bool(true)
 
 		unprocessedDefault = bool(true)
@@ -150,6 +160,7 @@ func (o *GetAlertsParams) SetDefaults() {
 	val := GetAlertsParams{
 		Active:      &activeDefault,
 		Inhibited:   &inhibitedDefault,
+		Muted:       &mutedDefault,
 		Silenced:    &silencedDefault,
 		Unprocessed: &unprocessedDefault,
 	}
@@ -224,6 +235,17 @@ func (o *GetAlertsParams) WithInhibited(inhibited *bool) *GetAlertsParams {
 // SetInhibited adds the inhibited to the get alerts params
 func (o *GetAlertsParams) SetInhibited(inhibited *bool) {
 	o.Inhibited = inhibited
+}
+
+// WithMuted adds the muted to the get alerts params
+func (o *GetAlertsParams) WithMuted(muted *bool) *GetAlertsParams {
+	o.SetMuted(muted)
+	return o
+}
+
+// SetMuted adds the muted to the get alerts params
+func (o *GetAlertsParams) SetMuted(muted *bool) {
+	o.Muted = muted
 }
 
 // WithReceiver adds the receiver to the get alerts params
@@ -307,6 +329,23 @@ func (o *GetAlertsParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Reg
 		if qInhibited != "" {
 
 			if err := r.SetQueryParam("inhibited", qInhibited); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.Muted != nil {
+
+		// query param muted
+		var qrMuted bool
+
+		if o.Muted != nil {
+			qrMuted = *o.Muted
+		}
+		qMuted := swag.FormatBool(qrMuted)
+		if qMuted != "" {
+
+			if err := r.SetQueryParam("muted", qMuted); err != nil {
 				return err
 			}
 		}

@@ -420,6 +420,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			State:       &active,
 			InhibitedBy: []string{},
 			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),

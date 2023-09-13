@@ -82,6 +82,13 @@ func init() {
           {
             "type": "boolean",
             "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
             "description": "Show unprocessed alerts",
             "name": "unprocessed",
             "in": "query"
@@ -175,6 +182,13 @@ func init() {
             "default": true,
             "description": "Show inhibited alerts",
             "name": "inhibited",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
             "in": "query"
           },
           {
@@ -430,10 +444,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
@@ -869,6 +890,13 @@ func init() {
           {
             "type": "boolean",
             "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
             "description": "Show unprocessed alerts",
             "name": "unprocessed",
             "in": "query"
@@ -974,6 +1002,13 @@ func init() {
             "default": true,
             "description": "Show inhibited alerts",
             "name": "inhibited",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
             "in": "query"
           },
           {
@@ -1247,10 +1282,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"

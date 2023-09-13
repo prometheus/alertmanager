@@ -262,7 +262,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Muted, *params.Active)
 	now := time.Now()
 
 	api.mtx.RLock()
@@ -399,7 +399,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter)
 
-	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Muted, *params.Active)
 	alertGroups, allReceivers := api.alertGroups(rf, af)
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
@@ -424,7 +424,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
+func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, muted, active bool) func(a *types.Alert, now time.Time) bool {
 	return func(a *types.Alert, now time.Time) bool {
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 			return false
@@ -445,6 +445,10 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 		}
 
 		if !inhibited && len(status.InhibitedBy) != 0 {
+			return false
+		}
+
+		if !muted && len(status.MutedBy) != 0 {
 			return false
 		}
 

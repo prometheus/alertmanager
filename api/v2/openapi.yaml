@@ -154,6 +154,11 @@ paths:
           description: Show inhibited alerts
           default: true
         - in: query
+          name: muted
+          type: boolean
+          description: Show muted alerts
+          default: true
+        - in: query
           name: unprocessed
           type: boolean
           description: Show unprocessed alerts
@@ -220,6 +225,11 @@ paths:
           name: inhibited
           type: boolean
           description: Show inhibited alerts
+          default: true
+        - in: query
+          name: muted
+          type: boolean
+          description: Show muted alerts
           default: true
         - name: filter
           in: query
@@ -499,10 +509,15 @@ definitions:
         type: array
         items:
           type: string
+      mutedBy:
+        type: array
+        items:
+          type: string
     required:
       - state
       - silencedBy
       - inhibitedBy
+      - mutedBy
   receiver:
     type: object
     properties:

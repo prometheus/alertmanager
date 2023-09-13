@@ -144,6 +144,7 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 			State:       &state,
 			SilencedBy:  status.SilencedBy,
 			InhibitedBy: status.InhibitedBy,
+			MutedBy:     status.MutedBy,
 		},
 	}
 
@@ -153,6 +154,10 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 
 	if aa.Status.InhibitedBy == nil {
 		aa.Status.InhibitedBy = []string{}
+	}
+
+	if aa.Status.MutedBy == nil {
+		aa.Status.MutedBy = []string{}
 	}
 
 	return aa

@@ -839,12 +839,15 @@ func TestTimeMuteStage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
+
+	marker := types.NewMarker(prometheus.NewRegistry())
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	intervener := timeinterval.NewIntervener(m)
 	stage := NewTimeMuteStage(intervener)
 
-	outAlerts := []*types.Alert{}
-	nonMuteCount := 0
+	muted := []*types.Alert{}
+	notMuted := []*types.Alert{}
+	numNotMuted := 0
 	for _, tc := range cases {
 		now, err := time.Parse(time.RFC822Z, tc.fireTime)
 		if err != nil {
@@ -852,7 +855,7 @@ func TestTimeMuteStage(t *testing.T) {
 		}
 		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
 		if !tc.shouldMute {
-			nonMuteCount++
+			numNotMuted++
 		}
 		a := model.Alert{Labels: tc.labels}
 		alerts := []*types.Alert{{Alert: a}}
@@ -865,15 +868,27 @@ func TestTimeMuteStage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error in time mute stage %s", err)
 		}
-		outAlerts = append(outAlerts, out...)
+		// Since there is just one alert per Exec, we can do this.
+		if len(out) == 0 {
+			muted = append(muted, alerts...)
+		}
+		notMuted = append(notMuted, out...)
 	}
-	for _, alert := range outAlerts {
-		if _, ok := alert.Alert.Labels["mute"]; ok {
-			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
+	for _, a := range muted {
+		if _, ok := marker.Muted(a.Fingerprint()); !ok {
+			t.Fatalf("Expected muted to alert to be marked as muted %+v", a)
 		}
 	}
-	if len(outAlerts) != nonMuteCount {
-		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	for _, a := range notMuted {
+		if _, ok := a.Labels["mute"]; ok {
+			t.Fatalf("Expected alert to be muted %+v", a.Alert)
+		}
+		if _, ok := marker.Muted(a.Fingerprint()); ok {
+			t.Fatalf("Unmuted alert marked as muted %+v", a)
+		}
+	}
+	if len(notMuted) != numNotMuted {
+		t.Fatalf("Expected %d alerts after time mute stage but got %d", numNotMuted, len(notMuted))
 	}
 }
 

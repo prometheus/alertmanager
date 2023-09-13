@@ -44,6 +44,7 @@ type AlertStatus struct {
 	State       AlertState `json:"state"`
 	SilencedBy  []string   `json:"silencedBy"`
 	InhibitedBy []string   `json:"inhibitedBy"`
+	MutedBy     []string   `json:"mutedBy"`
 
 	// For internal tracking, not exposed in the API.
 	pendingSilences []string
@@ -69,6 +70,8 @@ type Marker interface {
 	// AlertStateActive. Otherwise, it sets the provided alert to
 	// AlertStateSuppressed.
 	SetInhibited(alert model.Fingerprint, alertIDs ...string)
+	// SetMuted
+	SetMuted(alert model.Fingerprint, alertIDs ...string)
 
 	// Count alerts of the given state(s). With no state provided, count all
 	// alerts.
@@ -88,6 +91,7 @@ type Marker interface {
 	Active(model.Fingerprint) bool
 	Silenced(model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool)
 	Inhibited(model.Fingerprint) ([]string, bool)
+	Muted(model.Fingerprint) ([]string, bool)
 }
 
 // NewMarker returns an instance of a Marker implementation.
@@ -167,7 +171,7 @@ func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, ac
 	// If there are any silence or alert IDs associated with the
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateActive.
-	if len(activeIDs) == 0 && len(s.InhibitedBy) == 0 {
+	if len(activeIDs) == 0 && len(s.InhibitedBy) == 0 && len(s.MutedBy) == 0 {
 		s.State = AlertStateActive
 		return
 	}
@@ -190,7 +194,29 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	// If there are any silence or alert IDs associated with the
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateActive.
-	if len(ids) == 0 && len(s.SilencedBy) == 0 {
+	if len(ids) == 0 && len(s.SilencedBy) == 0 && len(s.MutedBy) == 0 {
+		s.State = AlertStateActive
+		return
+	}
+
+	s.State = AlertStateSuppressed
+}
+
+func (m *memMarker) SetMuted(alert model.Fingerprint, ids ...string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	s, found := m.m[alert]
+	if !found {
+		s = &AlertStatus{}
+		m.m[alert] = s
+	}
+	s.MutedBy = ids
+
+	// If there are any silence or alert IDs associated with the
+	// fingerprint, it is suppressed. Otherwise, set it to
+	// AlertStateActive.
+	if len(ids) == 0 && len(s.SilencedBy) == 0 && len(s.InhibitedBy) == 0 {
 		s.State = AlertStateActive
 		return
 	}
@@ -210,6 +236,7 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 		State:       AlertStateUnprocessed,
 		SilencedBy:  []string{},
 		InhibitedBy: []string{},
+		MutedBy:     []string{},
 	}
 }
 
@@ -245,6 +272,13 @@ func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []s
 	s := m.Status(alert)
 	return s.SilencedBy, s.pendingSilences, s.silencesVersion,
 		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
+}
+
+// Muted implements Marker.
+func (m *memMarker) Muted(alert model.Fingerprint) ([]string, bool) {
+	s := m.Status(alert)
+	return s.MutedBy,
+		s.State == AlertStateSuppressed && len(s.MutedBy) > 0
 }
 
 // MultiError contains multiple errors and implements the error interface. Its
