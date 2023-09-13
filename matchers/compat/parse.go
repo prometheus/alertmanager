@@ -113,7 +113,7 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			// new matchers/parse parser.
 			level.Warn(l).Log(
 				"msg",
-				"Failed to parse input with matchers/parse, falling back to pkg/labels parser",
+				"Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.",
 				"matcher",
 				s,
 				"err",
