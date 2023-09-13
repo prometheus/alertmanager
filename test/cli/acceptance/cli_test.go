@@ -265,4 +265,9 @@ receivers:
 	am := amc.Members()[0]
 	_, err := am.TestRoute()
 	require.NoError(t, err)
+
+	// Bad labels should return error
+	out, err := am.TestRoute("{foo=bar}")
+	require.EqualError(t, err, "exit status 1")
+	require.Equal(t, "amtool: error: Failed to parse labels: bad matcher format: {foo=bar}\n\n", string(out))
 }

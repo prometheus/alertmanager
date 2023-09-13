@@ -683,13 +683,13 @@ func (am *Alertmanager) showRouteCommand() ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-func (am *Alertmanager) TestRoute() ([]byte, error) {
-	return am.testRouteCommand()
+func (am *Alertmanager) TestRoute(labels ...string) ([]byte, error) {
+	return am.testRouteCommand(labels...)
 }
 
-func (am *Alertmanager) testRouteCommand() ([]byte, error) {
+func (am *Alertmanager) testRouteCommand(labels ...string) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
-	args := []string{amURLFlag, "config", "routes", "test"}
+	args := append([]string{amURLFlag, "config", "routes", "test"}, labels...)
 	cmd := exec.Command(amtool, args...)
 	return cmd.CombinedOutput()
 }
