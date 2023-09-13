@@ -19,8 +19,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
-	kingpin "github.com/alecthomas/kingpin/v2"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/api/v2/client/general"
@@ -33,16 +34,16 @@ import (
 // parseMatchers parses a list of matchers (cli arguments).
 func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0, len(inputMatchers))
-
-	for _, v := range inputMatchers {
-		matcher, err := compat.Matcher(v)
+	for _, s := range inputMatchers {
+		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
+			return []labels.Matcher{}, fmt.Errorf("unexpected open or close brace: %s", s)
+		}
+		matcher, err := compat.Matcher(s)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
-
 		matchers = append(matchers, *matcher)
 	}
-
 	return matchers, nil
 }
 

@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"os/user"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -94,7 +95,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		// to the front.
 		_, err := parseMatchers([]string{c.matchers[0]})
 		if err != nil {
-			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}
 	}
 
