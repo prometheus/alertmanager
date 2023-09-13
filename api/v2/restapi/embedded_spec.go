@@ -103,6 +103,16 @@ func init() {
             "in": "query"
           },
           {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of group IDs to filter alerts by",
+            "name": "groupId",
+            "in": "query"
+          },
+          {
             "type": "string",
             "description": "The token for the next set of items to return",
             "name": "nextToken",
@@ -982,6 +992,16 @@ func init() {
             "type": "string",
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of group IDs to filter alerts by",
+            "name": "groupId",
             "in": "query"
           },
           {

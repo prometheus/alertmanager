@@ -31,6 +31,7 @@ import (
 type GetAlertInfosURL struct {
 	Active      *bool
 	Filter      []string
+	GroupID     []string
 	Inhibited   *bool
 	MaxResults  *int64
 	NextToken   *string
@@ -92,6 +93,20 @@ func (o *GetAlertInfosURL) Build() (*url.URL, error) {
 
 	for _, qsv := range filter {
 		qs.Add("filter", qsv)
+	}
+
+	var groupIDIR []string
+	for _, groupIDI := range o.GroupID {
+		groupIDIS := groupIDI
+		if groupIDIS != "" {
+			groupIDIR = append(groupIDIR, groupIDIS)
+		}
+	}
+
+	groupID := swag.JoinByFormat(groupIDIR, "multi")
+
+	for _, qsv := range groupID {
+		qs.Add("groupId", qsv)
 	}
 
 	var inhibitedQ string
