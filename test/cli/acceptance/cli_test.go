@@ -72,7 +72,7 @@ receivers:
 	am := amc.Members()[0]
 
 	alert1 := Alert("alertname", "test1").Active(1, 2)
-	am.AddAlertsAt(0, alert1)
+	am.AddAlertsAt(false, 0, alert1)
 	co.Want(Between(1, 2), Alert("alertname", "test1").Active(1))
 
 	at.Run()
@@ -111,12 +111,13 @@ receivers:
 	am := amc.Members()[0]
 
 	alert1 := Alert("alertname", "test1", "severity", "warning").Active(1)
-	alert2 := Alert("alertname", "test2", "severity", "info").Active(1)
-	am.AddAlerts(alert1, alert2)
+	alert2 := Alert("alertname", "alertname=test2", "severity", "info").Active(1)
+	alert3 := Alert("alertname", "{alertname=test3}", "severity", "info").Active(1)
+	am.AddAlerts(true, alert1, alert2, alert3)
 
 	alerts, err := am.QueryAlerts()
 	require.NoError(t, err)
-	require.Len(t, alerts, 2)
+	require.Len(t, alerts, 3)
 
 	// Get the first alert using the alertname heuristic
 	alerts, err = am.QueryAlerts("test1")
@@ -126,14 +127,21 @@ receivers:
 	// QueryAlerts uses the simple output option, which means just the alertname
 	// label is printed. We can assert that querying works as expected as we know
 	// there are two alerts called "test1" and "test2".
-	expectedLabels := models.LabelSet{"name": "test1"}
+	expectedLabels := models.LabelSet{"alertname": "test1"}
 	require.True(t, alerts[0].HasLabels(expectedLabels))
 
 	// Get the second alert
 	alerts, err = am.QueryAlerts("alertname=test2")
 	require.NoError(t, err)
 	require.Len(t, alerts, 1)
-	expectedLabels = models.LabelSet{"name": "test2"}
+	expectedLabels = models.LabelSet{"alertname": "test2"}
+	require.True(t, alerts[0].HasLabels(expectedLabels))
+
+	// Get the third alert
+	alerts, err = am.QueryAlerts("{alertname=test3}")
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+	expectedLabels = models.LabelSet{"alertname": "{alertname=test3}"}
 	require.True(t, alerts[0].HasLabels(expectedLabels))
 }
 

@@ -457,27 +457,40 @@ func Version() (string, error) {
 
 // AddAlertsAt declares alerts that are to be added to the Alertmanager
 // server at a relative point in time.
-func (am *Alertmanager) AddAlertsAt(at float64, alerts ...*TestAlert) {
+func (am *Alertmanager) AddAlertsAt(useHeuristic bool, at float64, alerts ...*TestAlert) {
 	am.t.Do(at, func() {
-		am.AddAlerts(alerts...)
+		am.AddAlerts(useHeuristic, alerts...)
 	})
 }
 
 // AddAlerts declares alerts that are to be added to the Alertmanager server.
-func (am *Alertmanager) AddAlerts(alerts ...*TestAlert) {
+func (am *Alertmanager) AddAlerts(useHeuristic bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
-		out, err := am.addAlertCommand(alert)
+		out, err := am.addAlertCommand(useHeuristic, alert)
 		if err != nil {
 			am.t.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
 
-func (am *Alertmanager) addAlertCommand(alert *TestAlert) ([]byte, error) {
+func (am *Alertmanager) addAlertCommand(useHeuristic bool, alert *TestAlert) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
-	for key, val := range alert.labels {
-		args = append(args, key+"="+val)
+	// Make a copy of the labels
+	labels := make(models.LabelSet, len(alert.labels))
+	for k, v := range alert.labels {
+		labels[k] = v
+	}
+	if useHeuristic {
+		// If alertname is present and useHeuristic is true then the command should
+		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
+		if alertname, ok := labels["alertname"]; ok {
+			args = append(args, alertname)
+			delete(labels, "alertname")
+		}
+	}
+	for k, v := range labels {
+		args = append(args, k+"="+v)
 	}
 	startsAt := strfmt.DateTime(am.opts.expandTime(alert.startsAt))
 	args = append(args, "--start="+startsAt.String())
@@ -522,7 +535,7 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 		}
 		summary := strings.TrimSpace(line[summPos:])
 		alert := TestAlert{
-			labels:   models.LabelSet{"name": alertName},
+			labels:   models.LabelSet{"alertname": alertName},
 			startsAt: float64(startsAt.Unix()),
 			summary:  summary,
 		}
