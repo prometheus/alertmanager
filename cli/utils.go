@@ -101,6 +101,9 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
+		if strings.HasPrefix(l, "{") || strings.HasSuffix(l, "}") {
+			return models.LabelSet{}, fmt.Errorf("unexpected open or close brace: %s", l)
+		}
 		matcher, err := compat.Matcher(l)
 		if err != nil {
 			return models.LabelSet{}, err
