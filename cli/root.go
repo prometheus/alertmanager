@@ -146,7 +146,7 @@ func Execute() {
 	logger := log.NewLogfmtLogger(os.Stdout)
 	featureConfig, err := featurecontrol.NewFlags(logger, featureFlags)
 	if err != nil {
-		kingpin.Fatalf(":error parsing the feature flag list: %v\n", err)
+		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
 	}
 	compat.InitFromFlags(logger, featureConfig)
 
