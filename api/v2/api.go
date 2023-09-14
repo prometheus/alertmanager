@@ -449,6 +449,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 func (api *API) groupIDFilter(groupIDsFilter []string) func(groupId string) bool {
 	return func(groupId string) bool {
+		if len(groupIDsFilter) <= 0 {
+			return true
+		}
 		for _, groupIDFilter := range groupIDsFilter {
 			if groupIDFilter == groupId {
 				return true
