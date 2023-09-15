@@ -99,6 +99,9 @@ func utf8MatcherParser(l log.Logger) matcherParser {
 			"input",
 			s,
 		)
+		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
+			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
+		}
 		return labels.ParseMatcher(s)
 	}
 }
@@ -114,9 +117,6 @@ func utf8MatchersParser(l log.Logger) matchersParser {
 			"input",
 			s,
 		)
-		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
-			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
-		}
 		return labels.ParseMatchers(s)
 	}
 }
