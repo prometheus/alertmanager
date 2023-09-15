@@ -78,3 +78,11 @@ clean:
                   template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
+
+# In github actions we skip the email test for now. Service containers in github
+# actions currently have a bug, see https://github.com/prometheus/alertmanager/pull/3299
+# So define a test target, that skips the email test for now.
+.PHONY: test
+test: $(GOTEST_DIR)
+	@echo ">> running all tests, except notify/email"
+	$(GOTEST) $(test-flags) $(GOOPTS) `go list ./... | grep -v notify/email`

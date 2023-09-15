@@ -17,41 +17,14 @@ jobs:
       - run: git diff --exit-code
 
   test:
-    name: Test with maildev
+    name: Test
     runs-on: ubuntu-latest
     # Whenever the Go version is updated here, .promu.yml
     # should also be updated.
     container:
       image: quay.io/prometheus/golang-builder:1.19-base
-    services:
-      # run two maildev containers for auth and noauth
-      maildev-noauth:
-        # image: docker.io/maildev/maildev
-        image: quay.io/jfajersk/prom-maildev:latest
-      maildev-auth:
-        # image: docker.io/maildev/maildev
-        image: quay.io/jfajersk/prom-maildev:latest
-        env:
-          MAILDEV_INCOMING_USER: user
-          MAILDEV_INCOMING_PASS: pass
-          MAILDEV_INCOMING_SECURE: true
-          MAILDEV_HIDE_STARTTLS: false
-    env:
-      EMAIL_NO_AUTH_CONFIG: /tmp/smtp_no_auth.yml
-      EMAIL_AUTH_CONFIG: /tmp/smtp_auth.yml
     steps:
       - uses: actions/checkout@v3
       - uses: prometheus/promci@v0.0.2
       - uses: ./.github/promci/actions/setup_environment
-      - run: |
-          cat <<EOF > "$EMAIL_NO_AUTH_CONFIG"
-          smarthost: maildev-noauth:1025
-          server: http://maildev-noauth:1080/
-          EOF
-          cat <<EOF > "$EMAIL_AUTH_CONFIG"
-          smarthost: maildev-auth:1025
-          server: http://maildev-auth:1080/
-          username: user
-          password: pass
-          EOF
       - run: make
