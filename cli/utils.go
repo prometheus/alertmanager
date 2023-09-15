@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
@@ -35,9 +34,6 @@ import (
 func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0, len(inputMatchers))
 	for _, s := range inputMatchers {
-		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
-			return []labels.Matcher{}, fmt.Errorf("unexpected open or close brace: %s", s)
-		}
 		matcher, err := compat.Matcher(s)
 		if err != nil {
 			return []labels.Matcher{}, err
@@ -101,9 +97,6 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		if strings.HasPrefix(l, "{") || strings.HasSuffix(l, "}") {
-			return models.LabelSet{}, fmt.Errorf("unexpected open or close brace: %s", l)
-		}
 		matcher, err := compat.Matcher(l)
 		if err != nil {
 			return models.LabelSet{}, err

@@ -14,6 +14,9 @@
 package compat
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 
@@ -59,16 +62,28 @@ func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 
 // stableMatcherParser uses the old pkg/labels parser to parse the matcher in
 // the input string.
-func stableMatcherParser(_ log.Logger) matcherParser {
+func stableMatcherParser(l log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with stable matchers parser",
+			"input",
+			s,
+		)
 		return labels.ParseMatcher(s)
 	}
 }
 
 // stableMatchersParser uses the old pkg/labels parser to parse zero or more
 // matchers in the input string. It returns an error if the input is invalid.
-func stableMatchersParser(_ log.Logger) matchersParser {
+func stableMatchersParser(l log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with stable matchers parser",
+			"input",
+			s,
+		)
 		return labels.ParseMatchers(s)
 	}
 }
@@ -76,8 +91,14 @@ func stableMatchersParser(_ log.Logger) matchersParser {
 // utf8MatcherParser uses the new matchers/parse parser to parse
 // the matcher in the input string. If this fails it does not fallback
 // to the old pkg/labels parser.
-func utf8MatcherParser(_ log.Logger) matcherParser {
+func utf8MatcherParser(l log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with UTF-8 matchers parser",
+			"input",
+			s,
+		)
 		return labels.ParseMatcher(s)
 	}
 }
@@ -85,8 +106,17 @@ func utf8MatcherParser(_ log.Logger) matcherParser {
 // utf8MatchersParser uses the new matchers/parse parser to parse
 // zero or more matchers in the input string. If this fails it
 // does not fallback to the old pkg/labels parser.
-func utf8MatchersParser(_ log.Logger) matchersParser {
+func utf8MatchersParser(l log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with UTF-8 matchers parser",
+			"input",
+			s,
+		)
+		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
+			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
+		}
 		return labels.ParseMatchers(s)
 	}
 }
@@ -101,6 +131,15 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			err        error
 			invalidErr error
 		)
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with UTF-8 matchers parser, with fallback to stable matchers parser",
+			"input",
+			s,
+		)
+		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
+			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
+		}
 		m, err = parse.Matcher(s)
 		if err != nil {
 			// The input is not valid in the old pkg/labels parser either,
@@ -111,13 +150,16 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			}
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
+			suggestion := m.String()
 			level.Warn(l).Log(
 				"msg",
-				"Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.",
-				"matcher",
+				"Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.",
+				"input",
 				s,
 				"err",
 				err,
+				"suggestion",
+				suggestion,
 			)
 		}
 		return m, nil
@@ -134,6 +176,12 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			err        error
 			invalidErr error
 		)
+		level.Debug(l).Log(
+			"msg",
+			"Parsing with UTF-8 matchers parser, with fallback to stable matchers parser",
+			"input",
+			s,
+		)
 		m, err = parse.Matchers(s)
 		if err != nil {
 			// The input is not valid in the old pkg/labels parser either,
@@ -142,15 +190,27 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			if invalidErr != nil {
 				return nil, invalidErr
 			}
+			var sb strings.Builder
+			sb.WriteRune('{')
+			for i, n := range m {
+				sb.WriteString(n.String())
+				if i < len(m)-1 {
+					sb.WriteRune(',')
+				}
+			}
+			sb.WriteRune('}')
+			suggestion := sb.String()
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
 			level.Warn(l).Log(
 				"msg",
-				"Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.",
-				"matchers",
+				"Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.",
+				"input",
 				s,
 				"err",
 				err,
+				"suggestion",
+				suggestion,
 			)
 		}
 		return m, nil

@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -74,7 +75,7 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.
 		if _, err := parseLabels([]string{a.labels[0]}); err != nil {
-			a.labels[0] = fmt.Sprintf("alertname=%s", a.labels[0])
+			a.labels[0] = fmt.Sprintf("alertname=%s", strconv.Quote(a.labels[0]))
 		}
 	}
 

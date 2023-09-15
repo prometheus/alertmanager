@@ -23,6 +23,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	promconfig "github.com/prometheus/common/config"
@@ -48,6 +49,21 @@ var (
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
+
+func initMatchersCompat(_ *kingpin.ParseContext) error {
+	logger := log.NewLogfmtLogger(os.Stdout)
+	if verbose {
+		logger = level.NewFilter(logger, level.AllowDebug())
+	} else {
+		logger = level.NewFilter(logger, level.AllowInfo())
+	}
+	featureConfig, err := featurecontrol.NewFlags(logger, featureFlags)
+	if err != nil {
+		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
+	}
+	compat.InitFromFlags(logger, featureConfig)
+	return nil
+}
 
 func requireAlertManagerURL(pc *kingpin.ParseContext) error {
 	// Return without error if any help flag is set.
@@ -143,13 +159,6 @@ func Execute() {
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
 
-	logger := log.NewLogfmtLogger(os.Stdout)
-	featureConfig, err := featurecontrol.NewFlags(logger, featureFlags)
-	if err != nil {
-		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
-	}
-	compat.InitFromFlags(logger, featureConfig)
-
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
@@ -165,6 +174,8 @@ func Execute() {
 	configureClusterCmd(app)
 	configureConfigCmd(app)
 	configureTemplateCmd(app)
+
+	app.Action(initMatchersCompat)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
