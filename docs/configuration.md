@@ -413,6 +413,17 @@ source_matchers:
 # alert for the inhibition to take effect.
 [ equal: '[' <labelname>, ... ']' ]
 
+# Label pairs that must have an equal value in the source and target
+# alert for the inhibition to take effect.
+equal_pairs:
+  [ - <label_pair> ... ]
+
+```
+
+#### `<label_pair>`
+```yaml
+source_label: <labelname>
+target_label: <labelname>
 ```
 
 ## Label matchers
