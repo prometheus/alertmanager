@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -62,12 +63,12 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 
 func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
 	var (
-		err  error
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-		tmpl = notify.TmplText(n.tmpl, data, &err)
+		tmplErr error
+		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
 	)
 
-	client, err := n.createSNSClient(tmpl)
+	client, err := n.createSNSClient(tmpl, &tmplErr)
 	if err != nil {
 		if e, ok := err.(awserr.RequestFailure); ok {
 			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
@@ -75,7 +76,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return true, err
 	}
 
-	publishInput, err := n.createPublishInput(ctx, tmpl)
+	publishInput, err := n.createPublishInput(ctx, tmpl, &tmplErr)
 	if err != nil {
 		return true, err
 	}
@@ -96,7 +97,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
+func (n *Notifier) createSNSClient(tmpl func(string) string, tmplErr *error) (*sns.SNS, error) {
 	var creds *credentials.Credentials
 	// If there are provided sigV4 credentials we want to use those to create a session.
 	if n.conf.Sigv4.AccessKey != "" && n.conf.Sigv4.SecretKey != "" {
@@ -111,6 +112,9 @@ func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if *tmplErr != nil {
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'api_url' template"))
 	}
 
 	if n.conf.Sigv4.RoleARN != "" {
@@ -141,13 +145,19 @@ func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
 	return client, nil
 }
 
-func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) string) (*sns.PublishInput, error) {
+func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) string, tmplErr *error) (*sns.PublishInput, error) {
 	publishInput := &sns.PublishInput{}
 	messageAttributes := n.createMessageAttributes(tmpl)
+	if *tmplErr != nil {
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'attributes' template"))
+	}
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
 	messageSizeLimit := 256 * 1024
 	if n.conf.TopicARN != "" {
 		topicARN := tmpl(n.conf.TopicARN)
+		if *tmplErr != nil {
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'topic_arn' template"))
+		}
 		publishInput.SetTopicArn(topicARN)
 		// If we are using a topic ARN, it could be a FIFO topic specified by the topic's suffix ".fifo".
 		if strings.HasSuffix(topicARN, ".fifo") {
@@ -162,14 +172,24 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	}
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(tmpl(n.conf.PhoneNumber))
+		if *tmplErr != nil {
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'phone_number' template"))
+		}
 		// If we have an SMS message, we need to truncate to 1600 characters/runes.
 		messageSizeLimit = 1600
 	}
 	if n.conf.TargetARN != "" {
 		publishInput.SetTargetArn(tmpl(n.conf.TargetARN))
+		if *tmplErr != nil {
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'target_arn' template"))
+		}
 	}
 
-	messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message), messageSizeLimit)
+	tmplMessage := tmpl(n.conf.Message)
+	if *tmplErr != nil {
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'message' template"))
+	}
+	messageToSend, isTrunc, err := validateAndTruncateMessage(tmplMessage, messageSizeLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +203,9 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 
 	if n.conf.Subject != "" {
 		publishInput.SetSubject(tmpl(n.conf.Subject))
+		if *tmplErr != nil {
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'subject' template"))
+		}
 	}
 
 	return publishInput, nil
