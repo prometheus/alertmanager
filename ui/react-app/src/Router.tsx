@@ -2,13 +2,17 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 
-const ViewStatus = lazy(() => import('./views/ViewStatus'));
+const StatusView = lazy(() => import('./views/StatusView'));
+const AlertView = lazy(() => import('./views/AlertView'));
+
+const routePrefix = '/react-app';
 
 function Router() {
   return (
     <Suspense>
       <Routes>
-        <Route path="/react-app/status" element={<ViewStatus />} />
+        <Route path={`${routePrefix}/status`} element={<StatusView />} />
+        <Route path={`${routePrefix}/alert`} element={<AlertView />} />
       </Routes>
     </Suspense>
   );

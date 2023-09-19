@@ -13,7 +13,7 @@ import {
   Theme,
   Typography,
 } from '@mui/material';
-import { useAMStatus } from '../client/am-client';
+import { useAMStatus } from '../client/status';
 
 const tableStyle: SxProps<Theme> = {
   [`& .${tableCellClasses.root}`]: {
@@ -42,9 +42,9 @@ function CustomTableCell(props: tableCellProperties) {
   );
 }
 
-export default function ViewStatus() {
+export default function StatusView() {
   const { data } = useAMStatus();
-  if (data === undefined || data === null) {
+  if (data === undefined || data === null || (Array.isArray(data) && data.length === 0)) {
     return null;
   }
 

@@ -27,8 +27,18 @@ export default function Navbar(): JSX.Element {
               AlertManager
             </Typography>
           </Button>
-          <Button variant="text">Alerts</Button>
-          <Button variant="text">Silences</Button>
+          <Button
+            variant="text"
+            onClick={() => {
+              navigate('/react-app/alert');
+            }}
+            disabled={location.pathname === '/react-app/alert'}
+          >
+            Alerts
+          </Button>
+          <Button variant="text" disabled>
+            Silences
+          </Button>
           <Button
             variant="text"
             onClick={() => {
@@ -38,7 +48,9 @@ export default function Navbar(): JSX.Element {
           >
             Status
           </Button>
-          <Button variant="text">Settings</Button>
+          <Button variant="text" disabled>
+            Settings
+          </Button>
           <Button variant="text" target="_blank" href="https://prometheus.io/docs/alerting/latest/alertmanager/">
             Help
           </Button>
