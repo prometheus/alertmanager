@@ -464,16 +464,22 @@ func (am *Alertmanager) AddAlertsAt(useHeuristic bool, at float64, alerts ...*Te
 }
 
 // AddAlerts declares alerts that are to be added to the Alertmanager server.
-func (am *Alertmanager) AddAlerts(useHeuristic bool, alerts ...*TestAlert) {
+// The omitEquals option tells amtool to omit alertname= from the args and write
+// the alertname value as the first argument to the command. For example
+// `amtool alert add foo` instead of `amtool alert add alertname=foo`. This has
+// been added to allow certain tests to test adding alerts both with and without
+// alertname=. All other tests that use AddAlerts as a fixture can set this to
+// false.
+func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
-		out, err := am.addAlertCommand(useHeuristic, alert)
+		out, err := am.addAlertCommand(omitEquals, alert)
 		if err != nil {
 			am.t.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
 
-func (am *Alertmanager) addAlertCommand(useHeuristic bool, alert *TestAlert) ([]byte, error) {
+func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
@@ -481,8 +487,8 @@ func (am *Alertmanager) addAlertCommand(useHeuristic bool, alert *TestAlert) ([]
 	for k, v := range alert.labels {
 		labels[k] = v
 	}
-	if useHeuristic {
-		// If alertname is present and useHeuristic is true then the command should
+	if omitEquals {
+		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
 		if alertname, ok := labels["alertname"]; ok {
 			args = append(args, alertname)
