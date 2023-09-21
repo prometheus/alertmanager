@@ -1,9 +1,9 @@
 ---
 name: Publish
-on:  # yamllint disable-line rule:truthy
-  push:
-    branches:
-      - main
+on:  :push # yamllint disable-line rule:truthy
+#  push:
+#    branches:
+#      - main
 jobs:
   ci:
     name: Run ci
