@@ -457,27 +457,46 @@ func Version() (string, error) {
 
 // AddAlertsAt declares alerts that are to be added to the Alertmanager
 // server at a relative point in time.
-func (am *Alertmanager) AddAlertsAt(at float64, alerts ...*TestAlert) {
+func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*TestAlert) {
 	am.t.Do(at, func() {
-		am.AddAlerts(alerts...)
+		am.AddAlerts(omitEquals, alerts...)
 	})
 }
 
 // AddAlerts declares alerts that are to be added to the Alertmanager server.
-func (am *Alertmanager) AddAlerts(alerts ...*TestAlert) {
+// The omitEquals option omits alertname= from the command line args passed to
+// amtool and instead uses the alertname value as the first argument to the command.
+// For example `amtool alert add foo` instead of `amtool alert add alertname=foo`.
+// This has been added to allow certain tests to test adding alerts both with and
+// without alertname=. All other tests that use AddAlerts as a fixture can set this
+// to false.
+func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
-		out, err := am.addAlertCommand(alert)
+		out, err := am.addAlertCommand(omitEquals, alert)
 		if err != nil {
 			am.t.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
 
-func (am *Alertmanager) addAlertCommand(alert *TestAlert) ([]byte, error) {
+func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
-	for key, val := range alert.labels {
-		args = append(args, key+"="+val)
+	// Make a copy of the labels
+	labels := make(models.LabelSet, len(alert.labels))
+	for k, v := range alert.labels {
+		labels[k] = v
+	}
+	if omitEquals {
+		// If alertname is present and omitEquals is true then the command should
+		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
+		if alertname, ok := labels["alertname"]; ok {
+			args = append(args, alertname)
+			delete(labels, "alertname")
+		}
+	}
+	for k, v := range labels {
+		args = append(args, k+"="+v)
 	}
 	startsAt := strfmt.DateTime(am.opts.expandTime(alert.startsAt))
 	args = append(args, "--start="+startsAt.String())
@@ -522,7 +541,7 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 		}
 		summary := strings.TrimSpace(line[summPos:])
 		alert := TestAlert{
-			labels:   models.LabelSet{"name": alertName},
+			labels:   models.LabelSet{"alertname": alertName},
 			startsAt: float64(startsAt.Unix()),
 			summary:  summary,
 		}
@@ -670,13 +689,13 @@ func (am *Alertmanager) showRouteCommand() ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-func (am *Alertmanager) TestRoute() ([]byte, error) {
-	return am.testRouteCommand()
+func (am *Alertmanager) TestRoute(labels ...string) ([]byte, error) {
+	return am.testRouteCommand(labels...)
 }
 
-func (am *Alertmanager) testRouteCommand() ([]byte, error) {
+func (am *Alertmanager) testRouteCommand(labels ...string) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
-	args := []string{amURLFlag, "config", "routes", "test"}
+	args := append([]string{amURLFlag, "config", "routes", "test"}, labels...)
 	cmd := exec.Command(amtool, args...)
 	return cmd.CombinedOutput()
 }
