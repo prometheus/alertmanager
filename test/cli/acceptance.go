@@ -464,12 +464,12 @@ func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*Test
 }
 
 // AddAlerts declares alerts that are to be added to the Alertmanager server.
-// The omitEquals option tells amtool to omit alertname= from the args and write
-// the alertname value as the first argument to the command. For example
-// `amtool alert add foo` instead of `amtool alert add alertname=foo`. This has
-// been added to allow certain tests to test adding alerts both with and without
-// alertname=. All other tests that use AddAlerts as a fixture can set this to
-// false.
+// The omitEquals option omits alertname= from the command line args passed to
+// amtool and instead uses the alertname value as the first argument to the command.
+// For example `amtool alert add foo` instead of `amtool alert add alertname=foo`.
+// This has been added to allow certain tests to test adding alerts both with and
+// without alertname=. All other tests that use AddAlerts as a fixture can set this
+// to false.
 func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
 		out, err := am.addAlertCommand(omitEquals, alert)
