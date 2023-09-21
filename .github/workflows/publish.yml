@@ -1,6 +1,6 @@
 ---
 name: Publish
-on:  :push # yamllint disable-line rule:truthy
+on:  push # yamllint disable-line rule:truthy
 #  push:
 #    branches:
 #      - main
