@@ -457,9 +457,9 @@ func Version() (string, error) {
 
 // AddAlertsAt declares alerts that are to be added to the Alertmanager
 // server at a relative point in time.
-func (am *Alertmanager) AddAlertsAt(useHeuristic bool, at float64, alerts ...*TestAlert) {
+func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*TestAlert) {
 	am.t.Do(at, func() {
-		am.AddAlerts(useHeuristic, alerts...)
+		am.AddAlerts(omitEquals, alerts...)
 	})
 }
 
