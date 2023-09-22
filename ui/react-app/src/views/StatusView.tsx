@@ -44,9 +44,10 @@ function CustomTableCell(props: tableCellProperties) {
 
 export default function StatusView() {
   const { data } = useAMStatus();
-  if (data === undefined || data === null || (Array.isArray(data) && data.length === 0)) {
+  if (data === undefined || data === null) {
     return null;
   }
+  console.log(data);
 
   return (
     <Container maxWidth="md">

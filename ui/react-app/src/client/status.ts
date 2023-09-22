@@ -34,7 +34,7 @@ export interface AMStatus {
 }
 
 export function useAMStatus() {
-  return useQuery<AMStatus, Error>([], () => {
+  return useQuery<AMStatus, Error>([resource], () => {
     const url = buildURL({ resource: resource });
     return fetchJson<AMStatus>(url);
   });

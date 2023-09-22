@@ -11,7 +11,7 @@ export interface Receiver {
 export interface AlertStatus {
   state: 'active' | 'unprocessed' | 'suppressed';
   inhibitedBy: string[];
-  silenceby: string[];
+  silenceBy: string[];
 }
 
 export interface Alert {
@@ -33,7 +33,7 @@ export interface AlertGroup {
 }
 
 export function useAlertGroups() {
-  return useQuery<AlertGroup[], Error>([], () => {
+  return useQuery<AlertGroup[], Error>([resource], () => {
     const url = buildURL({ resource: resource });
     return fetchJson<AlertGroup[]>(url);
   });
