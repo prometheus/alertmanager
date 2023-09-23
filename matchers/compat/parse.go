@@ -117,10 +117,10 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 		}
 		m, err = parse.Matcher(s)
 		if err != nil {
-			// The input is not valid in the old pkg/labels parser either,
-			// it cannot be valid input.
 			m, invalidErr = labels.ParseMatcher(s)
 			if invalidErr != nil {
+				// The input is not valid in the old pkg/labels parser either,
+				// it cannot be valid input.
 				return nil, invalidErr
 			}
 			// The input is valid in the old pkg/labels parser, but not the
@@ -145,10 +145,10 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to stable matchers parser", "input", s)
 		m, err = parse.Matchers(s)
 		if err != nil {
-			// The input is not valid in the old pkg/labels parser either,
-			// it cannot be valid input.
 			m, invalidErr = labels.ParseMatchers(s)
 			if invalidErr != nil {
+				// The input is not valid in the old pkg/labels parser either,
+				// it cannot be valid input.
 				return nil, invalidErr
 			}
 			var sb strings.Builder
