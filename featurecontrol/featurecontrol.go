@@ -94,10 +94,10 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 			level.Warn(logger).Log("msg", "Experimental receiver name in metrics enabled")
 		case fcStableMatchersParsing:
 			opts = append(opts, enableStableMatchersParsing())
-			level.Warn(logger).Log("msg", "Enabled stable matchers parsing")
+			level.Warn(logger).Log("msg", "Stable matchers parsing enabled")
 		case fcUTF8MatchersParsing:
 			opts = append(opts, enableUTF8MatchersParsing())
-			level.Warn(logger).Log("msg", "Enabled UTF-8 matchers parsing")
+			level.Warn(logger).Log("msg", "UTF-8 matchers parsing enabled")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
