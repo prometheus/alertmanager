@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	parseMatcher  = stableMatcherParser(log.NewNopLogger())
-	parseMatchers = stableMatchersParser(log.NewNopLogger())
+	parseMatcher  = classicMatcherParser(log.NewNopLogger())
+	parseMatchers = classicMatchersParser(log.NewNopLogger())
 )
 
 type matcherParser func(s string) (*labels.Matcher, error)
@@ -48,9 +48,9 @@ func Matchers(s string) (labels.Matchers, error) {
 
 // InitFromFlags initializes the compat package from the flagger.
 func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
-	if f.StableMatchersParsing() {
-		parseMatcher = stableMatcherParser(l)
-		parseMatchers = stableMatchersParser(l)
+	if f.ClassicMatchersParsing() {
+		parseMatcher = classicMatcherParser(l)
+		parseMatchers = classicMatchersParser(l)
 	} else if f.UTF8MatchersParsing() {
 		parseMatcher = utf8MatcherParser(l)
 		parseMatchers = utf8MatchersParser(l)
@@ -60,20 +60,20 @@ func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 	}
 }
 
-// stableMatcherParser uses the old pkg/labels parser to parse the matcher in
+// classicMatcherParser uses the old pkg/labels parser to parse the matcher in
 // the input string.
-func stableMatcherParser(l log.Logger) matcherParser {
+func classicMatcherParser(l log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
-		level.Debug(l).Log("msg", "Parsing with stable matchers parser", "input", s)
+		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", s)
 		return labels.ParseMatcher(s)
 	}
 }
 
-// stableMatchersParser uses the old pkg/labels parser to parse zero or more
+// classicMatchersParser uses the old pkg/labels parser to parse zero or more
 // matchers in the input string. It returns an error if the input is invalid.
-func stableMatchersParser(l log.Logger) matchersParser {
+func classicMatchersParser(l log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
-		level.Debug(l).Log("msg", "Parsing with stable matchers parser", "input", s)
+		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", s)
 		return labels.ParseMatchers(s)
 	}
 }
@@ -111,7 +111,7 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			err        error
 			invalidErr error
 		)
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to stable matchers parser", "input", s)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", s)
 		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
 			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
 		}
@@ -142,7 +142,7 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			err        error
 			invalidErr error
 		)
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to stable matchers parser", "input", s)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", s)
 		m, err = parse.Matchers(s)
 		if err != nil {
 			m, invalidErr = labels.ParseMatchers(s)
