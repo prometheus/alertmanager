@@ -126,7 +126,7 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
 			suggestion := m.String()
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
 		}
 		return m, nil
 	}
@@ -163,7 +163,7 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			suggestion := sb.String()
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for label matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
 		}
 		return m, nil
 	}
