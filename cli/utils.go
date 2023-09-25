@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
@@ -29,13 +28,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
-
-// GetAlertmanagerURL appends the given path to the alertmanager base URL
-func GetAlertmanagerURL(p string) url.URL {
-	amURL := *alertmanagerURL
-	amURL.Path = path.Join(alertmanagerURL.Path, p)
-	return amURL
-}
 
 // parseMatchers parses a list of matchers (cli arguments).
 func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
