@@ -15,6 +15,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -24,6 +25,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 type alertAddCmd struct {
@@ -74,29 +77,45 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.
-		if _, err := parseLabels([]string{a.labels[0]}); err != nil {
+		if _, err := compat.Matcher(a.labels[0]); err != nil {
 			a.labels[0] = fmt.Sprintf("alertname=%s", strconv.Quote(a.labels[0]))
 		}
 	}
 
-	labels, err := parseLabels(a.labels)
-	if err != nil {
-		return err
+	ls := make(models.LabelSet, len(a.labels))
+	for _, l := range a.labels {
+		matcher, err := compat.Matcher(l)
+		if err != nil {
+			return err
+		}
+		if matcher.Type != labels.MatchEqual {
+			return errors.New("labels must be specified as key=value pairs")
+		}
+		ls[matcher.Name] = matcher.Value
 	}
 
-	annotations, err := parseLabels(a.annotations)
-	if err != nil {
-		return err
+	annotations := make(models.LabelSet, len(a.annotations))
+	for _, a := range a.annotations {
+		matcher, err := compat.Matcher(a)
+		if err != nil {
+			return err
+		}
+		if matcher.Type != labels.MatchEqual {
+			return errors.New("annotations must be specified as key=value pairs")
+		}
+		annotations[matcher.Name] = matcher.Value
 	}
 
 	var startsAt, endsAt time.Time
 	if a.start != "" {
+		var err error
 		startsAt, err = time.Parse(time.RFC3339, a.start)
 		if err != nil {
 			return err
 		}
 	}
 	if a.end != "" {
+		var err error
 		endsAt, err = time.Parse(time.RFC3339, a.end)
 		if err != nil {
 			return err
@@ -106,7 +125,7 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 	pa := &models.PostableAlert{
 		Alert: models.Alert{
 			GeneratorURL: strfmt.URI(a.generatorURL),
-			Labels:       labels,
+			Labels:       ls,
 		},
 		Annotations: annotations,
 		StartsAt:    strfmt.DateTime(startsAt),
@@ -117,6 +136,6 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 
-	_, err = amclient.Alert.PostAlerts(alertParams)
+	_, err := amclient.Alert.PostAlerts(alertParams)
 	return err
 }
