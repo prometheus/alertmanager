@@ -383,6 +383,68 @@ routes:
 	require.Equal(t, child2.RouteOpts.GroupByAll, false)
 }
 
+func TestInheritParentMuteTimeIntervals(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['...']
+  mute_time_intervals: ['weekend_mute']
+
+  routes:
+  - match:
+      env: 'child1'
+
+  - match:
+      env: 'child2'
+    mute_time_intervals: ['override_mute']
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child1 := parent.Routes[0]
+	child2 := parent.Routes[1]
+	require.Equal(t, []string{"weekend_mute"}, parent.RouteOpts.MuteTimeIntervals)
+	require.Equal(t, []string{"weekend_mute"}, child1.RouteOpts.MuteTimeIntervals)
+	require.Equal(t, []string{"override_mute"}, child2.RouteOpts.MuteTimeIntervals)
+}
+
+func TestInheritParentActiveTimeIntervals(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['...']
+  active_time_intervals: ['weekend_active']
+
+  routes:
+  - match:
+      env: 'child1'
+
+  - match:
+      env: 'child2'
+    active_time_intervals: ['override_active']
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child1 := parent.Routes[0]
+	child2 := parent.Routes[1]
+	require.Equal(t, []string{"weekend_active"}, parent.RouteOpts.ActiveTimeIntervals)
+	require.Equal(t, []string{"weekend_active"}, child1.RouteOpts.ActiveTimeIntervals)
+	require.Equal(t, []string{"override_active"}, child2.RouteOpts.ActiveTimeIntervals)
+}
+
 func TestRouteMatchers(t *testing.T) {
 	in := `
 receiver: 'notify-def'
