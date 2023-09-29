@@ -318,7 +318,7 @@ func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) m
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	groupIdsFilter := api.groupIDFilter(params.GroupID)
 	if len(params.GroupID) > 0 {
-		alerts, err = api.getAlertsFromAlertGroup(receiverFilter, alertFilter, groupIdsFilter)
+		alerts, err = api.getAlertsFromAlertGroup(ctx, receiverFilter, alertFilter, groupIdsFilter)
 	} else {
 		alerts, err = api.getAlerts(ctx, receiverFilter, alertFilter)
 	}
@@ -772,12 +772,15 @@ func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 	return swaggerSpec, swaggerSpecAnalysisCache, nil
 }
 
-func (api *API) getAlertsFromAlertGroup(receiverFilter *regexp.Regexp, alertFilter func(a *types.Alert, now time.Time) bool, groupIdsFilter func(groupId string) bool) (open_api_models.GettableAlerts, error) {
+func (api *API) getAlertsFromAlertGroup(ctx context.Context, receiverFilter *regexp.Regexp, alertFilter func(a *types.Alert, now time.Time) bool, groupIdsFilter func(groupId string) bool) (open_api_models.GettableAlerts, error) {
 	res := open_api_models.GettableAlerts{}
 	routeFilter := api.routeFilter(receiverFilter)
 	alertGroups, allReceivers := api.alertGroups(routeFilter, alertFilter, groupIdsFilter)
 	for _, alertGroup := range alertGroups {
 		for _, alert := range alertGroup.Alerts {
+			if err := ctx.Err(); err != nil {
+				break
+			}
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
