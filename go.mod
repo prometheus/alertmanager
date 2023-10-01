@@ -42,7 +42,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/mod v0.12.0
 	golang.org/x/net v0.14.0
-	golang.org/x/text v0.12.0
+	golang.org/x/text v0.13.0
 	golang.org/x/tools v0.12.0
 	gopkg.in/telebot.v3 v3.1.3
 	gopkg.in/yaml.v2 v2.4.0
