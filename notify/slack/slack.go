@@ -261,13 +261,15 @@ func checkJSONResponseError(body []byte) (bool, error) {
 	type response struct {
 		OK    bool   `json:"ok"`
 		Error string `json:"error"`
+
+		Success bool `json:"success"` // RocketChat, which is mostly Slack compatible, returns {"success": true}
 	}
 
 	var data response
 	if err := json.Unmarshal(body, &data); err != nil {
 		return true, errors.Wrapf(err, "could not unmarshal JSON response %q", string(body))
 	}
-	if !data.OK {
+	if !data.OK && !data.Success {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
 	return false, nil

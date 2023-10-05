@@ -182,6 +182,12 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			noError:      true,
 		},
 		{
+			name:         "successful RocketChat JSON response",
+			statusCode:   http.StatusOK,
+			responseBody: `{"success":true}`,
+			noError:      true,
+		},
+		{
 			name:         "successful plaintext response",
 			statusCode:   http.StatusOK,
 			responseBody: "ok",
