@@ -16,6 +16,8 @@ package receiver
 import (
 	"github.com/go-kit/log"
 
+	commoncfg "github.com/prometheus/common/config"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/discord"
@@ -33,12 +35,11 @@ import (
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	commoncfg "github.com/prometheus/common/config"
 )
 
 type Wrapper func(string, notify.Notifier) notify.Notifier
 
-var NoWrap Wrapper = nil
+var NoWrap Wrapper
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.

@@ -89,7 +89,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 	t.Run("invokes notifier wrapper func", func(t *testing.T) {
 		calls := 0
 		wrap := func(_ string, n notify.Notifier) notify.Notifier {
-			calls += 1
+			calls++
 			return n
 		}
 		cfg := config.Receiver{

@@ -21,10 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type sendResolved bool
-
-func (s sendResolved) SendResolved() bool { return bool(s) }
-
 func TestExternalURL(t *testing.T) {
 	hostname := "foo"
 	for _, tc := range []struct {
