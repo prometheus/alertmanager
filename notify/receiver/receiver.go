@@ -36,9 +36,11 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 )
 
+type Wrapper func(string, notify.Notifier) notify.Notifier
+
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
+func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, wrap Wrapper, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
@@ -48,6 +50,7 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 				errs.Add(err)
 				return
 			}
+			n = wrap(name, n)
 			integrations = append(integrations, notify.NewIntegration(n, rs, name, i, nc.Name))
 		}
 	)
