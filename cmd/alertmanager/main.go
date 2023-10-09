@@ -385,7 +385,7 @@ func run() int {
 				level.Info(configLogger).Log("msg", "skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
 				continue
 			}
-			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger)
+			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger, receiver.NoWrap)
 			if err != nil {
 				return err
 			}

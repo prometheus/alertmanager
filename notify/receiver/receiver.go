@@ -38,6 +38,8 @@ import (
 
 type Wrapper func(string, notify.Notifier) notify.Notifier
 
+var NoWrap Wrapper = nil
+
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
 func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, wrap Wrapper, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
@@ -50,7 +52,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 				errs.Add(err)
 				return
 			}
-			n = wrap(name, n)
+			if wrap != nil {
+				n = wrap(name, n)
+			}
 			integrations = append(integrations, notify.NewIntegration(n, rs, name, i, nc.Name))
 		}
 	)

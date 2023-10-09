@@ -71,7 +71,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 	} {
 		tc := tc
 		t.Run("", func(t *testing.T) {
-			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
+			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil, NoWrap)
 			if tc.err {
 				require.Error(t, err)
 				return
@@ -85,4 +85,31 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("invokes notifier wrapper func", func(t *testing.T) {
+		calls := 0
+		wrap := func(_ string, n notify.Notifier) notify.Notifier {
+			calls += 1
+			return n
+		}
+		cfg := config.Receiver{
+			Name: "foo",
+			WebhookConfigs: []*config.WebhookConfig{
+				{
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+				},
+				{
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					NotifierConfig: config.NotifierConfig{
+						VSendResolved: true,
+					},
+				},
+			},
+		}
+
+		_, err := BuildReceiverIntegrations(cfg, nil, nil, wrap)
+		require.NoError(t, err)
+
+		require.Equal(t, 2, calls)
+	})
 }
