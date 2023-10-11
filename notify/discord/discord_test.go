@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -126,4 +127,44 @@ func TestDiscordTemplating(t *testing.T) {
 			require.Equal(t, tc.retry, ok)
 		})
 	}
+}
+
+func TestDiscordRedactedURL(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	secret := "secret"
+	notifier, err := New(
+		&config.DiscordConfig{
+			WebhookURL: &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestDiscordReadingURLFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	f, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(u.String() + "\n")
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.DiscordConfig{
+			WebhookURLFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }
