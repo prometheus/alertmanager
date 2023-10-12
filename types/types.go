@@ -381,6 +381,12 @@ type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
+// TODO
+type TimeMuter interface {
+	//TODO: I don't think this should return an error but let's keep it consistent for now.
+	Mutes(timeIntervalName []string, now time.Time) (bool, error)
+}
+
 // A MuteFunc is a function that implements the Muter interface.
 type MuteFunc func(model.LabelSet) bool
 

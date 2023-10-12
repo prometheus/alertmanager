@@ -478,6 +478,8 @@ func run() int {
 			timeIntervals[ti.Name] = ti.TimeIntervals
 		}
 
+		intervener := timeinterval.NewIntervener(timeIntervals)
+
 		inhibitor.Stop()
 		disp.Stop()
 
@@ -497,7 +499,7 @@ func run() int {
 			waitFunc,
 			inhibitor,
 			silencer,
-			timeIntervals,
+			intervener,
 			notificationLog,
 			pipelinePeer,
 		)
