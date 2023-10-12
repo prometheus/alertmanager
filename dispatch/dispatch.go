@@ -381,8 +381,6 @@ type aggrGroup struct {
 	done    chan struct{}
 	next    *time.Timer
 	timeout func(time.Duration) time.Duration
-
-	mtx sync.RWMutex
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -447,9 +445,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
 
 			// Wait the configured interval before calling flush again.
-			ag.mtx.Lock()
 			ag.next.Reset(ag.opts.GroupInterval)
-			ag.mtx.Unlock()
 
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
