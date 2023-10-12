@@ -909,7 +909,6 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 type TimeActiveStage timeStage
 
-// func NewTimeActiveStage(ti map[string][]timeinterval.TimeInterval) *TimeActiveStage {
 func NewTimeActiveStage(m types.TimeMuter) *TimeActiveStage {
 	return &TimeActiveStage{m}
 }
