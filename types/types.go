@@ -381,9 +381,8 @@ type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
-// TODO
+// TimeMuter determines if alerts should be muted based on the specified current time and active time interval on the route.
 type TimeMuter interface {
-	//TODO: I don't think this should return an error but let's keep it consistent for now.
 	Mutes(timeIntervalName []string, now time.Time) (bool, error)
 }
 

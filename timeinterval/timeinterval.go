@@ -27,6 +27,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Intervener determines whether a given time and active route time interval should mute outgoing notifications.
+// It implements the TimeMuter interface.
 type Intervener struct {
 	intervals map[string][]TimeInterval
 }

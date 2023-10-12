@@ -869,7 +869,6 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 
 type timeStage struct {
 	muter types.TimeMuter
-	//Times map[string][]timeinterval.TimeInterval
 }
 
 type TimeMuteStage timeStage
