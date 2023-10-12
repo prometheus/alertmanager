@@ -129,7 +129,11 @@ func NewAPI(
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
-	handleCORS := cors.Default().Handler
+	// Compared to `cors.Default() == cors.New(cors.Options{})`,
+	// additionally allow the `DELETE` request method.
+	handleCORS := cors.New(cors.Options{
+		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete},
+	}).Handler
 	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
 
 	return &api, nil
