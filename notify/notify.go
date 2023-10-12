@@ -894,7 +894,6 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		return ctx, alerts, nil
 	}
 
-	//muted, err := inTimeIntervals(now, tms.Times, muteTimeIntervalNames)
 	muted, err := tms.muter.Mutes(muteTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
