@@ -769,7 +769,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 			convertIntToPointerInt64(int64(1)),
 			nil,
 			[]string{"alert1"},
-			"878598a70ceb8a1d9fc194638818caf926b4efef",
+			alerts[0].Fingerprint().String(),
 		},
 		{
 			"MaxResults - all alert return",
@@ -787,9 +787,19 @@ func TestListAlertInfosHandler(t *testing.T) {
 			[]string{},
 			200,
 			convertIntToPointerInt64(int64(2)),
-			convertStringToPointer("878598a70ceb8a1d9fc194638818caf926b4efef"),
+			convertStringToPointer(alerts[0].Fingerprint().String()),
 			[]string{"alert2", "alert3"},
-			"9fd4173069fa809d5aa8041041061ec61d88a390",
+			alerts[2].Fingerprint().String(),
+		},
+		{
+			"MaxResults - has begin next token, max 2 alerts, no response next token",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(2)),
+			convertStringToPointer(alerts[1].Fingerprint().String()),
+			[]string{"alert3", "alert4"},
+			"",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

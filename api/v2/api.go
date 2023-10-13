@@ -306,7 +306,7 @@ func (api *API) getAlertInfosHandler(params alertinfo_ops.GetAlertInfosParams) m
 			)
 	}
 
-	if err = validateNextToken(params.NextToken); err != nil {
+	if err = validateAlertInfoNextToken(params.NextToken); err != nil {
 		level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
 		return alertinfo_ops.
 			NewGetAlertInfosBadRequest().
@@ -853,11 +853,11 @@ func validateMaxResult(maxItem *int64) error {
 	return nil
 }
 
-func validateNextToken(nextToken *string) error {
+func validateAlertInfoNextToken(nextToken *string) error {
 	if nextToken != nil {
-		match, _ := regexp.MatchString("^[a-fA-F0-9]{40}$", *nextToken)
-		if !match {
-			return fmt.Errorf("invalid nextToken: %s", *nextToken)
+		_, err := prometheus_model.ParseFingerprint(*nextToken)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

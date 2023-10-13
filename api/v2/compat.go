@@ -14,7 +14,6 @@
 package v2
 
 import (
-	"crypto/sha1"
 	"fmt"
 	"time"
 
@@ -225,12 +224,6 @@ func AlertInfosTruncate(alerts open_api_models.GettableAlerts, maxResult *int64,
 			returnPaginationToken = *previousAlertID
 			break
 		}
-	}
-
-	if len(returnPaginationToken) > 0 {
-		h := sha1.New()
-		h.Write([]byte(returnPaginationToken))
-		returnPaginationToken = fmt.Sprintf("%x", h.Sum(nil))
 	}
 
 	return returnAlerts, returnPaginationToken
