@@ -54,23 +54,29 @@ type AlertStatus struct {
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
-	// SetActiveOrSilenced replaces the previous SilencedBy by the provided IDs of
-	// active and pending silences, including the version number of the
-	// silences state. The set of provided IDs is supposed to represent the
-	// complete set of relevant silences. If no active silence IDs are provided and
-	// InhibitedBy is already empty, it sets the provided alert to AlertStateActive.
-	// Otherwise, it sets the provided alert to AlertStateSuppressed.
+	// SetActiveOrSilenced replaces the previous SilencedBy by the provided
+	// IDs of active and pending silences, including the version number of
+	// the silences state. The set of provided IDs is supposed to represent
+	// the complete set of relevant silences. If no active silence IDs are
+	// provided and both InhibitedBy and MutedBy are empty, it sets the
+	// provided alert to AlertStateActive. Otherwise, it sets the provided
+	// alert to AlertStateSuppressed.
 	SetActiveOrSilenced(alert model.Fingerprint, version int, activeSilenceIDs, pendingSilenceIDs []string)
-	// SetInhibited replaces the previous InhibitedBy by the provided IDs of
-	// alerts. In contrast to SetActiveOrSilenced, the set of provided IDs is not
-	// expected to represent the complete set of inhibiting alerts. (In
-	// practice, this method is only called with one or zero IDs. However,
+	// SetInhibited replaces the previous InhibitedBy by the provided IDs
+	// of alerts. In contrast to SetActiveOrSilenced, the set of provided
+	// IDs is not expected to represent the complete set of inhibiting alerts.
+	// In practice, this method is only called with one or zero IDs. However,
 	// this expectation might change in the future. If no IDs are provided
-	// and InhibitedBy is already empty, it sets the provided alert to
+	// and InhibitedBy and SilencedBy are empty, it sets the provided alert to
 	// AlertStateActive. Otherwise, it sets the provided alert to
 	// AlertStateSuppressed.
 	SetInhibited(alert model.Fingerprint, alertIDs ...string)
-	// SetMuted
+	// SetMuted replaces the previous MutedBy by the provided time intervals.
+	// Unlike SetInhibited, the set of provided time intervals is expected
+	// to represent the complete set of relevant time intervals. If no time
+	// intervals are provided and both InhibitedBy and SilencedBy are empty,
+	// it sets the provided alert to AlertStateActive. Otherwise, it sets the
+	// provided alert to AlertStateSuppressed.
 	SetMuted(alert model.Fingerprint, alertIDs ...string)
 
 	// Count alerts of the given state(s). With no state provided, count all
