@@ -840,7 +840,8 @@ func TestTimeMuteStage(t *testing.T) {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeMuteStage(m)
+	intervener := timeinterval.NewIntervener(m)
+	stage := NewTimeMuteStage(intervener)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -924,7 +925,8 @@ func TestTimeActiveStage(t *testing.T) {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeActiveStage(m)
+	intervener := timeinterval.NewIntervener(m)
+	stage := NewTimeActiveStage(intervener)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
