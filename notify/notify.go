@@ -518,15 +518,23 @@ func NewMuteStage(m types.Muter) *MuteStage {
 }
 
 // Exec implements the Stage interface.
-func (n *MuteStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var filtered []*types.Alert
+func (n *MuteStage) Exec(ctx context.Context, logger log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	var (
+		filtered []*types.Alert
+		muted    []*types.Alert
+	)
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if muted.
-		if !n.muter.Mutes(a.Labels) {
+		if n.muter.Mutes(a.Labels) {
+			muted = append(muted, a)
+		} else {
 			filtered = append(filtered, a)
 		}
 		// TODO(fabxc): increment muted alerts counter if muted.
+	}
+	if len(muted) > 0 {
+		level.Debug(logger).Log("msg", "Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted))
 	}
 	return ctx, filtered, nil
 }
