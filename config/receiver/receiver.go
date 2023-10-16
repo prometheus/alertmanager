@@ -37,13 +37,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-type Wrapper func(string, notify.Notifier) notify.Notifier
-
-var NoWrap Wrapper
-
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, wrap Wrapper, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
+func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
@@ -52,9 +48,6 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 			if err != nil {
 				errs.Add(err)
 				return
-			}
-			if wrap != nil {
-				n = wrap(name, n)
 			}
 			integrations = append(integrations, notify.NewIntegration(n, rs, name, i, nc.Name))
 		}
