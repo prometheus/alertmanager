@@ -1120,6 +1120,18 @@ attributes:
 # ID of the chat where to send the messages.
 [ chat_id: <int> ]
 
+# id of the message in response to which the notification will be sent.
+# Primarily intended for sending notifications to a specific Telegram topic.
+# see https://telegram.org/blog/topics-in-groups-collectible-usernames
+# To do this, you need to pass the id of the first message in the topic by this parameter.
+# In order to find out the id of the first message in a topic, in the Telegram desktop client,
+# right-click on the first message in the topic, select "Copy Message Link".
+# Get a link like:
+# https://t.me/c/1234567890/1234/1235
+# The second part of the link is the id of the first message in the topic:
+# 1234
+[ reply_to_message_id: <int> ]
+
 # Message template.
 [ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
 
