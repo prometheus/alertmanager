@@ -374,7 +374,8 @@ func (pb *PipelineBuilder) New(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
-	intervener *timeinterval.Intervener,
+	activeIntervener *timeinterval.ActiveIntervener,
+	muteIntervener *timeinterval.MuteIntervener,
 	notificationLog NotificationLog,
 	peer Peer,
 ) RoutingStage {
@@ -382,8 +383,8 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
-	tas := NewTimeActiveStage(intervener)
-	tms := NewTimeMuteStage(intervener)
+	tas := NewTimeActiveStage(activeIntervener)
+	tms := NewTimeMuteStage(muteIntervener)
 	ss := NewMuteStage(silencer)
 
 	for name := range receivers {

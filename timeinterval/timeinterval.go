@@ -27,31 +27,56 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Intervener determines whether a given time and active route time interval should mute outgoing notifications.
+// MuteIntervener determines whether the mute time interval should mute outgoing notifications.
 // It implements the TimeMuter interface.
-type Intervener struct {
+type MuteIntervener struct {
 	intervals map[string][]TimeInterval
 }
 
-func (i *Intervener) Mutes(names []string, now time.Time) (bool, error) {
+func (i *MuteIntervener) Mutes(names []string, now time.Time) (bool, error) {
 	for _, name := range names {
 		interval, ok := i.intervals[name]
 		if !ok {
-			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+			return false, fmt.Errorf("mute time interval %s doesn't exist in config", name)
 		}
-
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
 				return true, nil
 			}
 		}
 	}
-
 	return false, nil
 }
 
-func NewIntervener(ti map[string][]TimeInterval) *Intervener {
-	return &Intervener{
+func NewMuteIntervener(ti map[string][]TimeInterval) *MuteIntervener {
+	return &MuteIntervener{
+		intervals: ti,
+	}
+}
+
+// ActiveIntervener determines whether the active time interval should mute outgoing notifications.
+// It implements the TimeMuter interface.
+type ActiveIntervener struct {
+	intervals map[string][]TimeInterval
+}
+
+func (i *ActiveIntervener) Mutes(names []string, now time.Time) (bool, error) {
+	for _, name := range names {
+		interval, ok := i.intervals[name]
+		if !ok {
+			return false, fmt.Errorf("active time interval %s doesn't exist in config", name)
+		}
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
+}
+
+func NewActiveIntervener(ti map[string][]TimeInterval) *ActiveIntervener {
+	return &ActiveIntervener{
 		intervals: ti,
 	}
 }
