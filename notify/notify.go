@@ -792,7 +792,8 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(time.Since(now).Seconds())
+			dur := time.Since(now)
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
@@ -813,7 +814,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 					lvl = level.Debug(log.With(l, "alerts", fmt.Sprintf("%v", alerts)))
 				}
 
-				lvl.Log("msg", "Notify success", "attempts", i)
+				lvl.Log("msg", "Notify success", "attempts", i, "duration", dur)
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
