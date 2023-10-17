@@ -939,7 +939,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 	}
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
-	if !muted {
+	if muted {
 		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
 		return ctx, nil, nil
 	}

@@ -879,7 +879,7 @@ func TestTimeMuteStage(t *testing.T) {
 
 func TestTimeActiveStage(t *testing.T) {
 	// Route mutes alerts inside business hours if it is an active time interval
-	muteIn := `
+	muteOut := `
 ---
 - weekdays: ['monday:friday']
   times:
@@ -920,12 +920,12 @@ func TestTimeActiveStage(t *testing.T) {
 		},
 	}
 	var intervals []timeinterval.TimeInterval
-	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	err := yaml.Unmarshal([]byte(muteOut), &intervals)
 	if err != nil {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	intervener := timeinterval.NewMuteIntervener(m)
+	intervener := timeinterval.NewActiveIntervener(m)
 	stage := NewTimeActiveStage(intervener)
 
 	outAlerts := []*types.Alert{}
