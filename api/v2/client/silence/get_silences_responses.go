@@ -50,7 +50,7 @@ func (o *GetSilencesReader) ReadResponse(response runtime.ClientResponse, consum
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /silences] getSilences", response, response.Code())
 	}
 }
 
@@ -91,6 +91,11 @@ func (o *GetSilencesOK) IsServerError() bool {
 // IsCode returns true when this get silences o k response a status code equal to that given
 func (o *GetSilencesOK) IsCode(code int) bool {
 	return code == 200
+}
+
+// Code gets the status code for the get silences o k response
+func (o *GetSilencesOK) Code() int {
+	return 200
 }
 
 func (o *GetSilencesOK) Error() string {
@@ -152,6 +157,11 @@ func (o *GetSilencesInternalServerError) IsServerError() bool {
 // IsCode returns true when this get silences internal server error response a status code equal to that given
 func (o *GetSilencesInternalServerError) IsCode(code int) bool {
 	return code == 500
+}
+
+// Code gets the status code for the get silences internal server error response
+func (o *GetSilencesInternalServerError) Code() int {
+	return 500
 }
 
 func (o *GetSilencesInternalServerError) Error() string {

@@ -54,7 +54,7 @@ func (o *DeleteSilenceReader) ReadResponse(response runtime.ClientResponse, cons
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[DELETE /silence/{silenceID}] deleteSilence", response, response.Code())
 	}
 }
 
@@ -94,6 +94,11 @@ func (o *DeleteSilenceOK) IsServerError() bool {
 // IsCode returns true when this delete silence o k response a status code equal to that given
 func (o *DeleteSilenceOK) IsCode(code int) bool {
 	return code == 200
+}
+
+// Code gets the status code for the delete silence o k response
+func (o *DeleteSilenceOK) Code() int {
+	return 200
 }
 
 func (o *DeleteSilenceOK) Error() string {
@@ -147,6 +152,11 @@ func (o *DeleteSilenceNotFound) IsCode(code int) bool {
 	return code == 404
 }
 
+// Code gets the status code for the delete silence not found response
+func (o *DeleteSilenceNotFound) Code() int {
+	return 404
+}
+
 func (o *DeleteSilenceNotFound) Error() string {
 	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound ", 404)
 }
@@ -197,6 +207,11 @@ func (o *DeleteSilenceInternalServerError) IsServerError() bool {
 // IsCode returns true when this delete silence internal server error response a status code equal to that given
 func (o *DeleteSilenceInternalServerError) IsCode(code int) bool {
 	return code == 500
+}
+
+// Code gets the status code for the delete silence internal server error response
+func (o *DeleteSilenceInternalServerError) Code() int {
+	return 500
 }
 
 func (o *DeleteSilenceInternalServerError) Error() string {
