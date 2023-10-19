@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"os/user"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -26,6 +27,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 func username() string {
@@ -92,17 +95,20 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := parseMatchers([]string{c.matchers[0]})
+		_, err := compat.Matcher(c.matchers[0])
 		if err != nil {
-			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}
 	}
 
-	matchers, err := parseMatchers(c.matchers)
-	if err != nil {
-		return err
+	matchers := make([]labels.Matcher, 0, len(c.matchers))
+	for _, s := range c.matchers {
+		m, err := compat.Matcher(s)
+		if err != nil {
+			return err
+		}
+		matchers = append(matchers, *m)
 	}
-
 	if len(matchers) < 1 {
 		return fmt.Errorf("no matchers specified")
 	}

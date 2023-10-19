@@ -269,5 +269,5 @@ receivers:
 	// Bad labels should return error
 	out, err := am.TestRoute("{foo=bar}")
 	require.EqualError(t, err, "exit status 1")
-	require.Equal(t, "amtool: error: Failed to parse labels: bad matcher format: {foo=bar}\n\n", string(out))
+	require.Equal(t, "amtool: error: Failed to parse labels: unexpected open or close brace: {foo=bar}\n\n", string(out))
 }
