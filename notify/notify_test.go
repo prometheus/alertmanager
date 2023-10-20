@@ -841,7 +841,8 @@ func TestTimeMuteStage(t *testing.T) {
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	intervener := timeinterval.NewIntervener(m)
-	stage := NewTimeMuteStage(intervener)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeMuteStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -875,6 +876,10 @@ func TestTimeMuteStage(t *testing.T) {
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numAlertsSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(outAlerts), suppressed)
+	}
 }
 
 func TestTimeActiveStage(t *testing.T) {
@@ -897,6 +902,11 @@ func TestTimeActiveStage(t *testing.T) {
 		{
 			// Friday during business hours
 			fireTime:   "01 Jan 21 09:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			fireTime:   "02 Dec 20 16:59 +0000",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
@@ -926,7 +936,8 @@ func TestTimeActiveStage(t *testing.T) {
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	intervener := timeinterval.NewIntervener(m)
-	stage := NewTimeActiveStage(intervener)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeActiveStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -959,6 +970,10 @@ func TestTimeActiveStage(t *testing.T) {
 	}
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numAlertsSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(outAlerts), suppressed)
 	}
 }
 
