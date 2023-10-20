@@ -49,6 +49,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -179,6 +180,8 @@ func run() int {
 		level.Error(logger).Log("msg", "error parsing the feature flag list", "err", err)
 		return 1
 	}
+
+	compat.InitFromFlags(logger, featureConfig)
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {

@@ -44,6 +44,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -508,7 +509,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	matchers := []*labels.Matcher{}
 	if params.Filter != nil {
 		for _, matcherString := range params.Filter {
-			matcher, err := labels.ParseMatcher(matcherString)
+			matcher, err := compat.Matcher(matcherString)
 			if err != nil {
 				level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
 				return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
@@ -682,7 +683,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := labels.ParseMatcher(matcherString)
+		matcher, err := compat.Matcher(matcherString)
 		if err != nil {
 			return nil, err
 		}
