@@ -876,7 +876,7 @@ func TestTimeMuteStage(t *testing.T) {
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
-	suppressed := int(prom_testutil.ToFloat64(metrics.numAlertsSuppressedTotal))
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
 	if (len(cases) - nonMuteCount) != suppressed {
 		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
 	}
@@ -971,7 +971,7 @@ func TestTimeActiveStage(t *testing.T) {
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
-	suppressed := int(prom_testutil.ToFloat64(metrics.numAlertsSuppressedTotal))
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
 	if (len(cases) - nonMuteCount) != suppressed {
 		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
 	}

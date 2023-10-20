@@ -251,7 +251,7 @@ type Metrics struct {
 	numTotalFailedNotifications        *prometheus.CounterVec
 	numNotificationRequestsTotal       *prometheus.CounterVec
 	numNotificationRequestsFailedTotal *prometheus.CounterVec
-	numAlertsSuppressedTotal           prometheus.Counter
+	numNotificationSuppressedTotal     prometheus.Counter
 	notificationLatencySeconds         *prometheus.HistogramVec
 
 	ff featurecontrol.Flagger
@@ -285,10 +285,10 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
 		}, labels),
-		numAlertsSuppressedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+		numNotificationSuppressedTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "alertmanager",
-			Name:      "alerts_supressed_total",
-			Help:      "The total number of alerts suppressed for being outside of active time intervals or within muted time intervals.",
+			Name:      "notification_suppressed_total",
+			Help:      "The total number of notifications suppressed for being outside of active time intervals or within muted time intervals.",
 		}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
@@ -302,7 +302,7 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
-		m.numAlertsSuppressedTotal, m.notificationLatencySeconds,
+		m.numNotificationSuppressedTotal, m.notificationLatencySeconds,
 	)
 
 	return m
@@ -917,8 +917,8 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
-		tms.metrics.numAlertsSuppressedTotal.Add(float64(len(alerts)))
-		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
+		tms.metrics.numNotificationSuppressedTotal.Add(float64(len(alerts)))
+		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time", "alerts", len(alerts))
 		return ctx, nil, nil
 	}
 	return ctx, alerts, nil
@@ -955,8 +955,8 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
 	if !muted {
-		tas.metrics.numAlertsSuppressedTotal.Add(float64(len(alerts)))
-		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
+		tas.metrics.numNotificationSuppressedTotal.Add(float64(len(alerts)))
+		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time", "alerts", len(alerts))
 		return ctx, nil, nil
 	}
 
