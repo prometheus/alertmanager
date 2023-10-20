@@ -34,6 +34,7 @@ import (
 	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
+	alert_info_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/util/callback"
 
@@ -125,14 +126,6 @@ func gettableSilence(id, state string,
 			State: &state,
 		},
 	}
-}
-
-func convertIntToPointerInt64(x int64) *int64 {
-	return &x
-}
-
-func convertStringToPointer(x string) *string {
-	return &x
 }
 
 func TestGetAlertGroupInfosHandler(t *testing.T) {
@@ -728,66 +721,106 @@ func TestListAlertsHandler(t *testing.T) {
 	alerts := []*types.Alert{
 		{
 			Alert: model.Alert{
-				Labels:   model.LabelSet{"alertname": "alert1"},
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
 		{
 			Alert: model.Alert{
-				Labels:   model.LabelSet{"alertname": "alert2"},
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
 		{
 			Alert: model.Alert{
-				Labels:   model.LabelSet{"alertname": "alert3"},
+				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
 		{
 			Alert: model.Alert{
-				Labels:   model.LabelSet{"alertname": "alert4"},
+				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
 		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"alertname": "alert5"},
-				StartsAt: now.Add(-time.Minute),
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(-time.Minute),
 			},
 		},
 	}
 
 	for _, tc := range []struct {
-		name         string
-		expectedCode int
-		anames       []string
-		callback     callback.Callback
+		name          string
+		booleanParams map[string]*bool
+		expectedCode  int
+		anames        []string
+		callback      callback.Callback
 	}{
 		{
-			"no call back",
+			"no call back, no filter",
+			map[string]*bool{},
 			200,
-			[]string{"alert3", "alert2", "alert1", "alert5", "alert4"},
+			[]string{"alert1", "alert2", "alert3", "alert4"},
 			callback.NoopAPICallback{},
 		},
 		{
-			"callback: only return 1 alert",
+			"callback: only return 1 alert, no filter",
+			map[string]*bool{},
 			200,
-			[]string{"alert3"},
+			[]string{"alert1"},
 			limitNumberOfAlertsReturnedCallback{limit: 1},
 		},
 		{
-			"callback: only return 3 alert",
+			"callback: only return 3 alert, no filter",
+			map[string]*bool{},
 			200,
-			[]string{"alert3", "alert2", "alert1"},
+			[]string{"alert1", "alert2", "alert3"},
 			limitNumberOfAlertsReturnedCallback{limit: 3},
+		},
+		{
+			"no filter",
+			map[string]*bool{},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			callback.NoopAPICallback{},
+		},
+		{
+			"status filter",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			callback.NoopAPICallback{},
+		},
+		{
+			"status filter - active false",
+			map[string]*bool{"active": BoolPointer(false), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert2", "alert3", "alert4"},
+			callback.NoopAPICallback{},
+		},
+		{
+			"status filter - silenced false",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(false), "inhibited": BoolPointer(true)},
+			200,
+			[]string{"alert1", "alert2", "alert4"},
+			callback.NoopAPICallback{},
+		},
+		{
+			"status filter - inhibited false",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(false)},
+			200,
+			[]string{"alert1", "alert2", "alert3"},
+			callback.NoopAPICallback{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			alertsProvider := newFakeAlerts(alerts)
 			api := API{
 				uptime:         time.Now(),
-				getAlertStatus: getAlertStatus,
+				getAlertStatus: newGetAlertStatus(alertsProvider),
 				logger:         log.NewNopLogger(),
 				apiCallback:    tc.callback,
 				alerts:         alertsProvider,
@@ -799,14 +832,23 @@ func TestListAlertsHandler(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			p := runtime.TextProducer()
-			silence := false
-			inhibited := false
-			active := true
+			silence := tc.booleanParams["silenced"]
+			if silence == nil {
+				silence = BoolPointer(true)
+			}
+			inhibited := tc.booleanParams["inhibited"]
+			if inhibited == nil {
+				inhibited = BoolPointer(true)
+			}
+			active := tc.booleanParams["active"]
+			if active == nil {
+				active = BoolPointer(true)
+			}
 			responder := api.getAlertsHandler(alert_ops.GetAlertsParams{
 				HTTPRequest: r,
-				Silenced:    &silence,
-				Inhibited:   &inhibited,
-				Active:      &active,
+				Silenced:    silence,
+				Inhibited:   inhibited,
+				Active:      active,
 			})
 			responder.WriteResponse(w, p)
 			body, _ := io.ReadAll(w.Result().Body)
@@ -889,7 +931,7 @@ func TestGetAlertGroupsHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			api := API{
 				uptime: time.Now(),
-				alertGroups: func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+				alertGroups: func(f func(*dispatch.Route) bool, f2 func(*types.Alert, time.Time) bool, f3 func(string) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 					return aginfos, nil
 				},
 				getAlertStatus: getAlertStatus,
@@ -924,6 +966,236 @@ func TestGetAlertGroupsHandler(t *testing.T) {
 	}
 }
 
+func TestListAlertInfosHandler(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+	}
+	ags := dispatch.AlertGroups{
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			},
+			Receiver: "testing",
+			Alerts:   []*types.Alert{alerts[0], alerts[1]},
+		},
+		&dispatch.AlertGroup{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			Alerts:   []*types.Alert{alerts[2], alerts[3]},
+		},
+	}
+
+	for _, tc := range []struct {
+		name            string
+		booleanParams   map[string]*bool
+		groupsFilter    []string
+		expectedCode    int
+		maxResult       *int64
+		nextToken       *string
+		anames          []string
+		expectNextToken string
+	}{
+		{
+			"no filter",
+			map[string]*bool{},
+			[]string{},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter - active false",
+			map[string]*bool{"active": BoolPointer(false), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{},
+			200,
+			nil,
+			nil,
+			[]string{"alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"status filter - silenced false",
+			map[string]*bool{"active": BoolPointer(true), "silenced": BoolPointer(false), "inhibited": BoolPointer(true)},
+			[]string{},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert4"},
+			"",
+		},
+		{
+			"status filter - inhibited false",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(false)},
+			[]string{},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3"},
+			"",
+		},
+		{
+			"group filter",
+			map[string]*bool{"active": BoolPointer(true), "unprocessed": BoolPointer(true), "silenced": BoolPointer(true), "inhibited": BoolPointer(true)},
+			[]string{"123"},
+			200,
+			nil,
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"MaxResults - only 1 alert return",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(1)),
+			nil,
+			[]string{"alert1"},
+			alerts[0].Fingerprint().String(),
+		},
+		{
+			"MaxResults - 0 alert return",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(0)),
+			nil,
+			[]string{},
+			"",
+		},
+		{
+			"MaxResults - all alert return",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(8)),
+			nil,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+			"",
+		},
+		{
+			"MaxResults - has begin next token, max 2 alerts",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(2)),
+			convertStringToPointer(alerts[0].Fingerprint().String()),
+			[]string{"alert2", "alert3"},
+			alerts[2].Fingerprint().String(),
+		},
+		{
+			"MaxResults - has begin next token, max 2 alerts, no response next token",
+			map[string]*bool{},
+			[]string{},
+			200,
+			convertIntToPointerInt64(int64(2)),
+			convertStringToPointer(alerts[1].Fingerprint().String()),
+			[]string{"alert3", "alert4"},
+			"",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			alertsProvider := newFakeAlerts(alerts)
+			api := API{
+				uptime:         time.Now(),
+				getAlertStatus: newGetAlertStatus(alertsProvider),
+				logger:         log.NewNopLogger(),
+				alerts:         alertsProvider,
+				alertGroups: func(f func(*dispatch.Route) bool, f2 func(*types.Alert, time.Time) bool, f3 func(string) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+					return ags, nil
+				},
+				setAlertStatus: func(model.LabelSet) {},
+			}
+			api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+			r, err := http.NewRequest("GET", "/api/v2/alertinfos", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			silence := tc.booleanParams["silenced"]
+			if silence == nil {
+				silence = BoolPointer(true)
+			}
+			inhibited := tc.booleanParams["inhibited"]
+			if inhibited == nil {
+				inhibited = BoolPointer(true)
+			}
+			active := tc.booleanParams["active"]
+			if active == nil {
+				active = BoolPointer(true)
+			}
+			responder := api.getAlertInfosHandler(alert_info_ops.GetAlertInfosParams{
+				HTTPRequest: r,
+				Silenced:    silence,
+				Inhibited:   inhibited,
+				Active:      active,
+				GroupID:     tc.groupsFilter,
+				MaxResults:  tc.maxResult,
+				NextToken:   tc.nextToken,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := io.ReadAll(w.Result().Body)
+
+			require.Equal(t, tc.expectedCode, w.Code)
+			response := open_api_models.GettableAlertInfos{}
+			err = json.Unmarshal(body, &response)
+			if err != nil {
+				t.Fatalf("Unexpected error %v", err)
+			}
+			anames := []string{}
+			for _, a := range response.Alerts {
+				name, ok := a.Labels["alertname"]
+				if ok {
+					anames = append(anames, string(name))
+				}
+			}
+			require.Equal(t, tc.anames, anames)
+			require.Equal(t, tc.expectNextToken, response.NextToken)
+		})
+	}
+}
+
 type limitNumberOfAlertsReturnedCallback struct {
 	limit int
 }
@@ -940,4 +1212,16 @@ func getAlertStatus(model.Fingerprint) types.AlertStatus {
 	status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
 	status.State = types.AlertStateActive
 	return status
+}
+
+func BoolPointer(b bool) *bool {
+	return &b
+}
+
+func convertIntToPointerInt64(x int64) *int64 {
+	return &x
+}
+
+func convertStringToPointer(x string) *string {
+	return &x
 }

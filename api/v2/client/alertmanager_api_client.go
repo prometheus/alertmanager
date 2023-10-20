@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/client/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/client/alertgroupinfolist"
+	"github.com/prometheus/alertmanager/api/v2/client/alertinfo"
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/client/receiver"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
@@ -77,6 +78,7 @@ func New(transport runtime.ClientTransport, formats strfmt.Registry) *Alertmanag
 	cli.Alert = alert.New(transport, formats)
 	cli.Alertgroup = alertgroup.New(transport, formats)
 	cli.Alertgroupinfolist = alertgroupinfolist.New(transport, formats)
+	cli.Alertinfo = alertinfo.New(transport, formats)
 	cli.General = general.New(transport, formats)
 	cli.Receiver = receiver.New(transport, formats)
 	cli.Silence = silence.New(transport, formats)
@@ -130,6 +132,8 @@ type AlertmanagerAPI struct {
 
 	Alertgroupinfolist alertgroupinfolist.ClientService
 
+	Alertinfo alertinfo.ClientService
+
 	General general.ClientService
 
 	Receiver receiver.ClientService
@@ -145,6 +149,7 @@ func (c *AlertmanagerAPI) SetTransport(transport runtime.ClientTransport) {
 	c.Alert.SetTransport(transport)
 	c.Alertgroup.SetTransport(transport)
 	c.Alertgroupinfolist.SetTransport(transport)
+	c.Alertinfo.SetTransport(transport)
 	c.General.SetTransport(transport)
 	c.Receiver.SetTransport(transport)
 	c.Silence.SetTransport(transport)
