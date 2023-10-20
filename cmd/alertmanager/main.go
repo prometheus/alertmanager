@@ -404,7 +404,7 @@ func run() int {
 			timeIntervals[ti.Name] = ti.TimeIntervals
 		}
 
-		intervener := timeinterval.NewIntervener(timeIntervals)
+		intervener := timeinterval.NewIntervener(timeIntervals, marker)
 
 		inhibitor.Stop()
 		disp.Stop()

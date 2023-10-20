@@ -21,6 +21,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -117,7 +118,9 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
+// The alert group is optional, and allows active and mute time intervals from all routes to be filtered to
+// the route in use.
+func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string, alertGroup *dispatch.AlertGroup) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
@@ -125,6 +128,21 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	apiReceivers := make([]*open_api_models.Receiver, 0, len(receivers))
 	for i := range receivers {
 		apiReceivers = append(apiReceivers, &open_api_models.Receiver{Name: &receivers[i]})
+	}
+
+	// create a list of unique, active and mute time interval names.
+	seenMuted := make(map[string]struct{})
+	for groupKey, intervalNames := range status.MutedBy {
+		// If an optional alert group is present, filter to the route in use.
+		if alertGroup == nil || (alertGroup != nil && alertGroup.Key == groupKey) {
+			for _, intervalName := range intervalNames {
+				seenMuted[intervalName] = struct{}{}
+			}
+		}
+	}
+	mutedBy := make([]string, 0, len(seenMuted))
+	for k, _ := range seenMuted {
+		mutedBy = append(mutedBy, k)
 	}
 
 	fp := alert.Fingerprint().String()
@@ -144,7 +162,7 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 			State:       &state,
 			SilencedBy:  status.SilencedBy,
 			InhibitedBy: status.InhibitedBy,
-			MutedBy:     status.MutedBy,
+			MutedBy:     mutedBy,
 		},
 	}
 

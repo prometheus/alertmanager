@@ -841,8 +841,8 @@ func TestTimeMuteStage(t *testing.T) {
 	}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	intervener := timeinterval.NewIntervener(m)
+	ti := map[string][]timeinterval.TimeInterval{"test": intervals}
+	intervener := timeinterval.NewIntervener(ti, marker)
 	stage := NewTimeMuteStage(intervener)
 
 	muted := []*types.Alert{}
@@ -861,6 +861,7 @@ func TestTimeMuteStage(t *testing.T) {
 		alerts := []*types.Alert{{Alert: a}}
 		ctx := context.Background()
 		ctx = WithNow(ctx, now)
+		ctx = WithGroupKey(ctx, a.Fingerprint().String())
 		ctx = WithActiveTimeIntervals(ctx, []string{})
 		ctx = WithMuteTimeIntervals(ctx, []string{"test"})
 
@@ -894,7 +895,7 @@ func TestTimeMuteStage(t *testing.T) {
 
 func TestTimeActiveStage(t *testing.T) {
 	// Route mutes alerts inside business hours if it is an active time interval
-	muteIn := `
+	muteOut := `
 ---
 - weekdays: ['monday:friday']
   times:
@@ -935,12 +936,13 @@ func TestTimeActiveStage(t *testing.T) {
 		},
 	}
 	var intervals []timeinterval.TimeInterval
-	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	err := yaml.Unmarshal([]byte(muteOut), &intervals)
 	if err != nil {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
-	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	intervener := timeinterval.NewIntervener(m)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	ti := map[string][]timeinterval.TimeInterval{"test": intervals}
+	intervener := timeinterval.NewIntervener(ti, marker)
 	stage := NewTimeActiveStage(intervener)
 
 	outAlerts := []*types.Alert{}
@@ -958,6 +960,7 @@ func TestTimeActiveStage(t *testing.T) {
 		alerts := []*types.Alert{{Alert: a}}
 		ctx := context.Background()
 		ctx = WithNow(ctx, now)
+		ctx = WithGroupKey(ctx, a.Fingerprint().String())
 		ctx = WithActiveTimeIntervals(ctx, []string{"test"})
 		ctx = WithMuteTimeIntervals(ctx, []string{})
 

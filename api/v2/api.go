@@ -288,7 +288,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
+		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers, nil)
 
 		res = append(res, alert)
 	}
@@ -415,7 +415,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
+			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, alertGroup)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
 		res = append(res, ag)

@@ -201,6 +201,7 @@ type AlertGroup struct {
 	Alerts   types.AlertSlice
 	Labels   model.LabelSet
 	Receiver string
+	Key      string
 }
 
 type AlertGroups []*AlertGroup
@@ -237,6 +238,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
 				Receiver: receiver,
+				Key:      ag.GroupKey(),
 			}
 
 			alerts := ag.alerts.List()

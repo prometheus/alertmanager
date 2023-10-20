@@ -19,8 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
 var timeIntervalTestCases = []struct {
@@ -686,7 +689,7 @@ func TestIntervener_Mutes(t *testing.T) {
 	var intervals []TimeInterval
 	err := yaml.Unmarshal([]byte(muteIn), &intervals)
 	require.NoError(t, err)
-	m := map[string][]TimeInterval{intervalName: intervals}
+	ti := map[string][]TimeInterval{intervalName: intervals}
 
 	tc := []struct {
 		name     string
@@ -741,9 +744,10 @@ func TestIntervener_Mutes(t *testing.T) {
 			now, err := time.Parse(time.RFC822Z, tt.firedAt)
 			require.NoError(t, err)
 
-			intervener := NewIntervener(m)
+			m := types.NewMarker(prometheus.NewRegistry())
+			intervener := NewIntervener(ti, m)
 
-			expected, err := intervener.Mutes([]string{intervalName}, now)
+			expected, err := intervener.Mutes("", []*types.Alert{}, []string{intervalName}, now)
 			if err != nil {
 				require.Error(t, tt.err)
 				require.False(t, tt.expected)

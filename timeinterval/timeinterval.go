@@ -25,34 +25,60 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
 // Intervener determines whether a given time and active route time interval should mute outgoing notifications.
 // It implements the TimeMuter interface.
 type Intervener struct {
 	intervals map[string][]TimeInterval
+	marker    types.Marker
 }
 
-func (i *Intervener) Mutes(names []string, now time.Time) (bool, error) {
+func (i *Intervener) Active(groupKey string, alerts []*types.Alert, names []string, now time.Time) (bool, error) {
+	matches, err := i.inIntervals(names, now)
+	if err != nil {
+		return false, err
+	}
+	for _, a := range alerts {
+		i.marker.SetMuted(groupKey, a.Fingerprint(), names...)
+	}
+	return len(matches) > 0, nil
+}
+
+func (i *Intervener) Mutes(groupKey string, alerts []*types.Alert, names []string, now time.Time) (bool, error) {
+	matches, err := i.inIntervals(names, now)
+	if err != nil {
+		return false, err
+	}
+	for _, a := range alerts {
+		i.marker.SetMuted(groupKey, a.Fingerprint(), matches...)
+	}
+	return len(matches) > 0, nil
+}
+
+func (i *Intervener) inIntervals(names []string, now time.Time) ([]string, error) {
+	var matches []string
 	for _, name := range names {
 		interval, ok := i.intervals[name]
 		if !ok {
-			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+			return nil, fmt.Errorf("time interval %s doesn't exist in config", name)
 		}
-
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
-				return true, nil
+				matches = append(matches, name)
+				break
 			}
 		}
 	}
-
-	return false, nil
+	return matches, nil
 }
 
-func NewIntervener(ti map[string][]TimeInterval) *Intervener {
+func NewIntervener(ti map[string][]TimeInterval, m types.Marker) *Intervener {
 	return &Intervener{
 		intervals: ti,
+		marker:    m,
 	}
 }
 

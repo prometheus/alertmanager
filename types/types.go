@@ -41,10 +41,10 @@ const (
 // – in practice exactly one ID. (This somewhat confusing semantics might change
 // in the future.)
 type AlertStatus struct {
-	State       AlertState `json:"state"`
-	SilencedBy  []string   `json:"silencedBy"`
-	InhibitedBy []string   `json:"inhibitedBy"`
-	MutedBy     []string   `json:"mutedBy"`
+	State       AlertState          `json:"state"`
+	SilencedBy  []string            `json:"silencedBy"`
+	InhibitedBy []string            `json:"inhibitedBy"`
+	MutedBy     map[string][]string `json:"mutedBy"`
 
 	// For internal tracking, not exposed in the API.
 	pendingSilences []string
@@ -77,7 +77,7 @@ type Marker interface {
 	// intervals are provided and both InhibitedBy and SilencedBy are empty,
 	// it sets the provided alert to AlertStateActive. Otherwise, it sets the
 	// provided alert to AlertStateSuppressed.
-	SetMuted(alert model.Fingerprint, alertIDs ...string)
+	SetMuted(groupKey string, alert model.Fingerprint, intervalNames ...string)
 
 	// Count alerts of the given state(s). With no state provided, count all
 	// alerts.
@@ -97,7 +97,7 @@ type Marker interface {
 	Active(model.Fingerprint) bool
 	Silenced(model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool)
 	Inhibited(model.Fingerprint) ([]string, bool)
-	Muted(model.Fingerprint) ([]string, bool)
+	Muted(model.Fingerprint) (map[string][]string, bool)
 }
 
 // NewMarker returns an instance of a Marker implementation.
@@ -208,7 +208,7 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	s.State = AlertStateSuppressed
 }
 
-func (m *memMarker) SetMuted(alert model.Fingerprint, ids ...string) {
+func (m *memMarker) SetMuted(groupKey string, alert model.Fingerprint, intervalNames ...string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -217,12 +217,15 @@ func (m *memMarker) SetMuted(alert model.Fingerprint, ids ...string) {
 		s = &AlertStatus{}
 		m.m[alert] = s
 	}
-	s.MutedBy = ids
+	if s.MutedBy == nil {
+		s.MutedBy = make(map[string][]string)
+	}
+	s.MutedBy[groupKey] = intervalNames
 
 	// If there are any silence or alert IDs associated with the
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateActive.
-	if len(ids) == 0 && len(s.SilencedBy) == 0 && len(s.InhibitedBy) == 0 {
+	if len(intervalNames) == 0 && len(s.SilencedBy) == 0 && len(s.InhibitedBy) == 0 {
 		s.State = AlertStateActive
 		return
 	}
@@ -242,7 +245,7 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 		State:       AlertStateUnprocessed,
 		SilencedBy:  []string{},
 		InhibitedBy: []string{},
-		MutedBy:     []string{},
+		MutedBy:     map[string][]string{},
 	}
 }
 
@@ -281,7 +284,7 @@ func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []s
 }
 
 // Muted implements Marker.
-func (m *memMarker) Muted(alert model.Fingerprint) ([]string, bool) {
+func (m *memMarker) Muted(alert model.Fingerprint) (map[string][]string, bool) {
 	s := m.Status(alert)
 	return s.MutedBy,
 		s.State == AlertStateSuppressed && len(s.MutedBy) > 0
@@ -421,9 +424,18 @@ type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
-// TimeMuter determines if alerts should be muted based on the specified current time and active time interval on the route.
+// TimeMuter determines if alerts should be muted or not for active and mute
+// time intervals based on the specified current time.
 type TimeMuter interface {
-	Mutes(timeIntervalName []string, now time.Time) (bool, error)
+	// Active returns true if the alerts are within at least one active time
+	// interval in intervalNames. Otherwise, it returns false and marks the
+	// alerts as suppressed. It is undefined to use Active with mute time intervals.
+	Active(groupKey string, alerts []*Alert, intervalNames []string, now time.Time) (bool, error)
+
+	// Mutes returns true if the alerts are muted by at least one mute time
+	// interval in intervalNames and marks the alerts as suppressed. Otherwise,
+	// it returns false. It is undefined to use Mutes with active time intervals.
+	Mutes(groupKey string, alerts []*Alert, intervalNames []string, now time.Time) (bool, error)
 }
 
 // A MuteFunc is a function that implements the Muter interface.

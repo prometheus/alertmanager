@@ -882,28 +882,25 @@ func NewTimeMuteStage(m types.TimeMuter) *TimeMuteStage {
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
-	if !ok {
+	// Skip this stage if there are no mute timings.
+	if !ok || len(muteTimeIntervalNames) == 0 {
 		return ctx, alerts, nil
 	}
+
 	now, ok := Now(ctx)
 	if !ok {
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	// Skip this stage if there are no mute timings.
-	if len(muteTimeIntervalNames) == 0 {
-		return ctx, alerts, nil
+	groupKey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("group key missing")
 	}
 
-	muted, err := tms.muter.Mutes(muteTimeIntervalNames, now)
+	muted, err := tms.muter.Mutes(groupKey, alerts, muteTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
-	//for _, a := range alerts {
-	// If the alert is not muted then mutedBy is a nil slice. This will set the
-	// alerts back to active.
-	//tms.marker.SetMuted(a.Fingerprint(), mutedBy...)
-	//}
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
 		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
@@ -922,12 +919,8 @@ func NewTimeActiveStage(m types.TimeMuter) *TimeActiveStage {
 // TimeActiveStage is responsible for muting alerts whose route is not in an active time.
 func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
-	if !ok {
-		return ctx, alerts, nil
-	}
-
 	// if we don't have active time intervals at all it is always active.
-	if len(activeTimeIntervalNames) == 0 {
+	if !ok || len(activeTimeIntervalNames) == 0 {
 		return ctx, alerts, nil
 	}
 
@@ -936,13 +929,18 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	muted, err := tas.muter.Mutes(activeTimeIntervalNames, now)
+	groupKey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("group key missing")
+	}
+
+	active, err := tas.muter.Active(groupKey, alerts, activeTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
-	if !muted {
+	if !active {
 		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
 		return ctx, nil, nil
 	}
