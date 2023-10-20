@@ -251,6 +251,7 @@ type Metrics struct {
 	numTotalFailedNotifications        *prometheus.CounterVec
 	numNotificationRequestsTotal       *prometheus.CounterVec
 	numNotificationRequestsFailedTotal *prometheus.CounterVec
+	numAlertsSuppressedTotal           prometheus.Counter
 	notificationLatencySeconds         *prometheus.HistogramVec
 
 	ff featurecontrol.Flagger
@@ -284,6 +285,11 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
 		}, labels),
+		numAlertsSuppressedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "alerts_supressed_total",
+			Help:      "The total number of alerts suppressed for being outside of active time intervals or within muted time intervals.",
+		}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_latency_seconds",
@@ -296,7 +302,7 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
-		m.notificationLatencySeconds,
+		m.numAlertsSuppressedTotal, m.notificationLatencySeconds,
 	)
 
 	return m
@@ -382,8 +388,8 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
-	tas := NewTimeActiveStage(intervener)
-	tms := NewTimeMuteStage(intervener)
+	tas := NewTimeActiveStage(intervener, pb.metrics)
+	tms := NewTimeMuteStage(intervener, pb.metrics)
 	ss := NewMuteStage(silencer)
 
 	for name := range receivers {
@@ -877,13 +883,14 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 }
 
 type timeStage struct {
-	muter types.TimeMuter
+	muter   types.TimeMuter
+	metrics *Metrics
 }
 
 type TimeMuteStage timeStage
 
-func NewTimeMuteStage(m types.TimeMuter) *TimeMuteStage {
-	return &TimeMuteStage{m}
+func NewTimeMuteStage(m types.TimeMuter, metrics *Metrics) *TimeMuteStage {
+	return &TimeMuteStage{m, metrics}
 }
 
 // Exec implements the stage interface for TimeMuteStage.
@@ -910,6 +917,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
+		tms.metrics.numAlertsSuppressedTotal.Add(float64(len(alerts)))
 		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
 		return ctx, nil, nil
 	}
@@ -918,8 +926,8 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 type TimeActiveStage timeStage
 
-func NewTimeActiveStage(m types.TimeMuter) *TimeActiveStage {
-	return &TimeActiveStage{m}
+func NewTimeActiveStage(m types.TimeMuter, metrics *Metrics) *TimeActiveStage {
+	return &TimeActiveStage{m, metrics}
 }
 
 // Exec implements the stage interface for TimeActiveStage.
@@ -947,6 +955,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
 	if !muted {
+		tas.metrics.numAlertsSuppressedTotal.Add(float64(len(alerts)))
 		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
 		return ctx, nil, nil
 	}
