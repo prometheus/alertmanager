@@ -14,7 +14,11 @@
 package v2
 
 import (
+	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
+	mongodb "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/http"
 	"regexp"
 	"sort"
@@ -41,6 +45,8 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
+	stored_alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/stored_alert"
+
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -128,6 +134,7 @@ func NewAPI(
 	openAPI.SilenceGetSilenceHandler = silence_ops.GetSilenceHandlerFunc(api.getSilenceHandler)
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
+	openAPI.StoredAlertGetStoredAlertsHandler = stored_alert_ops.GetStoredAlertsHandlerFunc(api.getStoredAlertsHandler)
 
 	handleCORS := cors.Default().Handler
 	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
@@ -677,6 +684,122 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	return silence_ops.NewPostSilencesOK().WithPayload(&silence_ops.PostSilencesOKBody{
 		SilenceID: sid,
 	})
+}
+
+type AlertData struct {
+	Receiver          string            `json:"receiver"`
+	Status            string            `json:"status"`
+	Alerts            []Alert           `json:"alerts"`
+	GroupLabels       GroupLabels       `json:"grouplabels"`
+	CommonLabels      CommonLabels      `json:"commonlabels"`
+	CommonAnnotations CommonAnnotations `json:"commonannotations"`
+	ExternalURL       string            `json:"externalurl"`
+}
+
+type Alert struct {
+	Status       string      `json:"status"`
+	Labels       Labels      `json:"labels"`
+	Annotations  Annotations `json:"annotations"`
+	Startsat     time.Time   `json:"startsat"`
+	Endsat       time.Time   `json:"endsat"`
+	GeneratorURL string      `json:"generatorurl"`
+	Fingerprint  string      `json:"fingerprint"`
+}
+
+type GroupLabels struct {
+	AlertName string `json:"alertname"`
+}
+
+type CommonLabels struct {
+	Instance  string `json:"instance"`
+	AlertName string `json:"alertname"`
+	Service   string `json:"service"`
+	Severity  string `json:"severity"`
+}
+
+type CommonAnnotations struct {
+	Summary string `json:"summary"`
+}
+
+type Labels struct {
+	Instance  string `json:"instance"`
+	AlertName string `json:"alertname"`
+	Service   string `json:"service"`
+	Severity  string `json:"severity"`
+}
+
+type Annotations struct {
+	Summary string `json:"summary"`
+}
+type StoredAlerts struct {
+	Time      time.Time
+	AlertData AlertData `json:"alertdata,omitempty"`
+}
+
+func (api *API) getStoredAlertsHandler(params stored_alert_ops.GetStoredAlertsParams) middleware.Responder {
+	receivers := api.alertmanagerConfig.Receivers
+	var (
+		client         *mongodb.Client
+		databaseName   string
+		collectionName string
+	)
+	// Find the receiver which is MongoDB with search flag
+	for _, rc := range receivers {
+		if rc.MongoDbConfigs != nil {
+			for _, mongoConf := range rc.MongoDbConfigs {
+				if mongoConf.Search {
+					connectionString := fmt.Sprintf("mongodb://%s:%s", mongoConf.Url, mongoConf.Port)
+					databaseName = mongoConf.Database
+					collectionName = mongoConf.Collection
+					clientOptions := options.Client().ApplyURI(connectionString)
+					client, _ = mongodb.Connect(context.Background(), clientOptions)
+				}
+			}
+		}
+	}
+	startTimeString := params.TimeStart.String()
+	endTimeString := params.TimeEnd.String()
+
+	startTime, _ := time.Parse("2006-01-02", startTimeString)
+	endTime, _ := time.Parse("2006-01-02", endTimeString)
+
+	collection := client.Database(databaseName).Collection(collectionName)
+
+	filter := bson.M{
+		"$and": []bson.M{
+			{"time": bson.M{"$gte": startTime, "$lt": endTime}},
+		},
+	}
+
+	if params.Severity != nil {
+		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.severity": params.Severity})
+	}
+	if params.Instance != nil {
+		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.instance": params.Instance})
+	}
+	if params.Metric != nil {
+		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.alertname": params.Metric})
+	}
+
+	cursor, _ := collection.Find(context.Background(), filter)
+
+	defer cursor.Close(context.Background())
+	storedAlerts := open_api_models.StoredAlerts{}
+	for cursor.Next(context.Background()) {
+
+		doc := &StoredAlerts{}
+		_ = cursor.Decode(doc)
+
+		timeToStringPointer := func(t time.Time) *string {
+			timeString := t.Format(time.RFC3339)
+			return &timeString
+		}
+		timeStringPointer := timeToStringPointer(doc.Time)
+
+		storedAlert := &open_api_models.StoredAlert{Time: timeStringPointer, Alertdata: doc.AlertData}
+		storedAlerts = append(storedAlerts, storedAlert)
+	}
+	return stored_alert_ops.NewGetStoredAlertsOK().WithPayload(storedAlerts)
 }
 
 func parseFilter(filter []string) ([]*labels.Matcher, error) {

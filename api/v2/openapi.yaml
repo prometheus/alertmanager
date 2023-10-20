@@ -42,6 +42,46 @@ paths:
             type: array
             items:
               $ref: '#/definitions/receiver'
+  /stored_alerts:
+    get:
+      tags:
+        - stored_alert
+      operationId: getStoredAlerts
+      description: Get a list of stored alerts
+      responses:
+        '200':
+          description: Get stored alerts response
+          schema:
+            $ref: '#/definitions/storedAlerts'
+      parameters:
+        - in: query
+          name: timeStart
+          type: string
+          format: date
+          required: true
+          description: startTime of the stored alerts
+        - in: query
+          name: timeEnd
+          type: string
+          format: date
+          required: true
+          description: endTime of the stored alerts
+        - in: query
+          name: severity
+          type: string
+          required: false
+          description: severity of the stored alerts
+        - in: query
+          name: instance
+          type: string
+          required: false
+          description: instance of the stored alerts
+        - in: query
+          name: metric
+          type: string
+          required: false
+          description: metric of the stored alerts
+
   /silences:
     get:
       tags:
@@ -515,7 +555,20 @@ definitions:
     additionalProperties:
       type: string
 
-
+  storedAlerts:
+    type: array
+    items:
+      $ref: '#/definitions/storedAlert'
+  storedAlert:
+    type: object
+    properties:
+      time:
+        type: string
+      alertdata:
+        type: object
+    required:
+      - time
+      - alertdata
 tags:
   - name: general
     description: General Alertmanager operations
@@ -525,3 +578,5 @@ tags:
     description: Everything related to Alertmanager silences
   - name: alert
     description: Everything related to Alertmanager alerts
+  - name: stored_alert
+    description: Everything related to Alertmanager stored alerts

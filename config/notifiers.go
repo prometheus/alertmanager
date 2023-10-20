@@ -33,6 +33,11 @@ var (
 			VSendResolved: true,
 		},
 	}
+	DefaultMongoDBConfig = MongoDbConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
@@ -504,6 +509,23 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of url & url_file must be configured")
 	}
 	return nil
+}
+
+type MongoDbConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	Url            string `yaml:"url" json:"url"`
+	Port           string `yaml:"port" json:"port"`
+	Database       string `yaml:"database" json:"database"`
+	Collection     string `yaml:"collection" json:"collection"`
+	Username       string `yaml:"username" json:"username"`
+	Password       string `yaml:"password" json:"password"`
+	Search         bool   `yaml:"search" json:"search"`
+}
+
+func (c *MongoDbConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMongoDBConfig
+	type plain MongoDbConfig
+	return unmarshal((*plain)(c))
 }
 
 // WechatConfig configures notifications via Wechat.
