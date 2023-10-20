@@ -947,20 +947,3 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 
 	return ctx, alerts, nil
 }
-
-// inTimeIntervals returns true if the current time is contained in one of the given time intervals.
-func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, []string, error) {
-	var in []string
-	for _, name := range intervalNames {
-		interval, ok := intervals[name]
-		if !ok {
-			return false, nil, errors.Errorf("time interval %s doesn't exist in config", name)
-		}
-		for _, ti := range interval {
-			if ti.ContainsTime(now.UTC()) {
-				in = append(in, name)
-			}
-		}
-	}
-	return len(in) > 0, in, nil
-}
