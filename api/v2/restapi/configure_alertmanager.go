@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertinfo"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
@@ -70,6 +71,11 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 	if api.AlertgroupGetAlertGroupsHandler == nil {
 		api.AlertgroupGetAlertGroupsHandler = alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
 			return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
+		})
+	}
+	if api.AlertinfoGetAlertInfosHandler == nil {
+		api.AlertinfoGetAlertInfosHandler = alertinfo.GetAlertInfosHandlerFunc(func(params alertinfo.GetAlertInfosParams) middleware.Responder {
+			return middleware.NotImplemented("operation alertinfo.GetAlertInfos has not yet been implemented")
 		})
 	}
 	if api.AlertGetAlertsHandler == nil {

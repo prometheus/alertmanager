@@ -93,6 +93,97 @@ func init() {
         }
       }
     },
+    "/alertinfos": {
+      "get": {
+        "description": "Get a list of alert infos",
+        "tags": [
+          "alertinfo"
+        ],
+        "operationId": "getAlertInfos",
+        "parameters": [
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show active alerts",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show silenced alerts",
+            "name": "silenced",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show inhibited alerts",
+            "name": "inhibited",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show unprocessed alerts",
+            "name": "unprocessed",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of matchers to filter alerts by",
+            "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "A regex matching receivers to filter alerts by",
+            "name": "receiver",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of group IDs to filter alerts by",
+            "name": "groupId",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "The token for the next set of items to return",
+            "name": "nextToken",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "The maximum number of alert to return in one getAlertInfos operation.",
+            "name": "maxResults",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get alerts response",
+            "schema": {
+              "$ref": "#/definitions/gettableAlertInfos"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/alerts": {
       "get": {
         "description": "Get a list of alerts",
@@ -655,6 +746,20 @@ func init() {
           "$ref": "#/definitions/alert"
         }
       ]
+    },
+    "gettableAlertInfos": {
+      "type": "object",
+      "properties": {
+        "alerts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/gettableAlert"
+          }
+        },
+        "nextToken": {
+          "type": "string"
+        }
+      }
     },
     "gettableAlerts": {
       "type": "array",
@@ -979,6 +1084,103 @@ func init() {
         }
       }
     },
+    "/alertinfos": {
+      "get": {
+        "description": "Get a list of alert infos",
+        "tags": [
+          "alertinfo"
+        ],
+        "operationId": "getAlertInfos",
+        "parameters": [
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show active alerts",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show silenced alerts",
+            "name": "silenced",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show inhibited alerts",
+            "name": "inhibited",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Show unprocessed alerts",
+            "name": "unprocessed",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of matchers to filter alerts by",
+            "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "A regex matching receivers to filter alerts by",
+            "name": "receiver",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of group IDs to filter alerts by",
+            "name": "groupId",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "The token for the next set of items to return",
+            "name": "nextToken",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "The maximum number of alert to return in one getAlertInfos operation.",
+            "name": "maxResults",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get alerts response",
+            "schema": {
+              "$ref": "#/definitions/gettableAlertInfos"
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
     "/alerts": {
       "get": {
         "description": "Get a list of alerts",
@@ -1574,6 +1776,20 @@ func init() {
           "$ref": "#/definitions/alert"
         }
       ]
+    },
+    "gettableAlertInfos": {
+      "type": "object",
+      "properties": {
+        "alerts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/gettableAlert"
+          }
+        },
+        "nextToken": {
+          "type": "string"
+        }
+      }
     },
     "gettableAlerts": {
       "type": "array",

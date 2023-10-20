@@ -224,7 +224,7 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool, groupIDFilter func(groupId string) bool) (AlertGroups, map[model.Fingerprint][]string) {
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
@@ -242,6 +242,9 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		}
 
 		for _, ag := range ags {
+			if !groupIDFilter(ag.GroupID()) {
+				continue
+			}
 			receiver := route.RouteOpts.Receiver
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,

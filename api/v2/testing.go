@@ -105,3 +105,30 @@ func (f *fakeAlerts) GetPending() provider.AlertIterator {
 	}()
 	return provider.NewAlertIterator(ch, done, f.err)
 }
+
+func newGetAlertStatus(f *fakeAlerts) func(model.Fingerprint) types.AlertStatus {
+	return func(fp model.Fingerprint) types.AlertStatus {
+		status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
+
+		i, ok := f.fps[fp]
+		if !ok {
+			return status
+		}
+		alert := f.alerts[i]
+		switch alert.Labels["state"] {
+		case "active":
+			status.State = types.AlertStateActive
+		case "unprocessed":
+			status.State = types.AlertStateUnprocessed
+		case "suppressed":
+			status.State = types.AlertStateSuppressed
+		}
+		if alert.Labels["silenced_by"] != "" {
+			status.SilencedBy = append(status.SilencedBy, string(alert.Labels["silenced_by"]))
+		}
+		if alert.Labels["inhibited_by"] != "" {
+			status.InhibitedBy = append(status.InhibitedBy, string(alert.Labels["inhibited_by"]))
+		}
+		return status
+	}
+}
