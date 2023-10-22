@@ -55,7 +55,6 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	for i, c := range nc.MongoDbConfigs {
 		add("mongodb", i, c, func(l log.Logger) (notify.Notifier, error) { return mongodb.New(c, tmpl, l) })
 	}
-
 	for i, c := range nc.WebhookConfigs {
 		add("webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l, httpOpts...) })
 	}
