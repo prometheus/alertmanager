@@ -107,17 +107,18 @@ func utf8MatchersParser(l log.Logger) matchersParser {
 func fallbackMatcherParser(l log.Logger) matcherParser {
 	return func(s string) (*labels.Matcher, error) {
 		var (
-			m          *labels.Matcher
-			err        error
-			invalidErr error
+			classicMatcher *labels.Matcher
+			utf8Matcher    *labels.Matcher
+			invalidErr     error
+			err            error
 		)
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", s)
 		if strings.HasPrefix(s, "{") || strings.HasSuffix(s, "}") {
 			return nil, fmt.Errorf("unexpected open or close brace: %s", s)
 		}
-		m, err = parse.Matcher(s)
+		classicMatcher, invalidErr = labels.ParseMatcher(s)
+		utf8Matcher, err = parse.Matcher(s)
 		if err != nil {
-			m, invalidErr = labels.ParseMatcher(s)
 			if invalidErr != nil {
 				// The input is not valid in the old pkg/labels parser either,
 				// it cannot be valid input.
@@ -125,10 +126,19 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			}
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
-			suggestion := m.String()
+			suggestion := classicMatcher.String()
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			return classicMatcher, nil
 		}
-		return m, nil
+		// The input is valid in both parsers, so check it parses the same.
+		if utf8Matcher != nil && classicMatcher != nil && *utf8Matcher != *classicMatcher {
+			// The input is valid in both parsers but is producing different
+			// parsing. This should not happen and is a bug that needs to be
+			// reported.
+			level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Please report this issue on GitHub.", "input", s)
+			return classicMatcher, nil
+		}
+		return utf8Matcher, nil
 	}
 }
 
@@ -138,33 +148,45 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 func fallbackMatchersParser(l log.Logger) matchersParser {
 	return func(s string) (labels.Matchers, error) {
 		var (
-			m          []*labels.Matcher
-			err        error
-			invalidErr error
+			classicMatchers labels.Matchers
+			utf8Matchers    labels.Matchers
+			invalidErr      error
+			err             error
 		)
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", s)
-		m, err = parse.Matchers(s)
+		classicMatchers, invalidErr = labels.ParseMatchers(s)
+		utf8Matchers, err = parse.Matchers(s)
 		if err != nil {
-			m, invalidErr = labels.ParseMatchers(s)
 			if invalidErr != nil {
 				// The input is not valid in the old pkg/labels parser either,
 				// it cannot be valid input.
 				return nil, invalidErr
 			}
 			var sb strings.Builder
-			sb.WriteRune('{')
-			for i, n := range m {
+			for i, n := range classicMatchers {
 				sb.WriteString(n.String())
-				if i < len(m)-1 {
+				if i < len(classicMatchers)-1 {
 					sb.WriteRune(',')
 				}
 			}
-			sb.WriteRune('}')
 			suggestion := sb.String()
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			return classicMatchers, nil
 		}
-		return m, nil
+		// The input is valid in both parsers, so check it parses the same.
+		if len(utf8Matchers) == len(classicMatchers) {
+			for i := 0; i < len(utf8Matchers); i++ {
+				if utf8Matchers[i] != classicMatchers[i] {
+					// The input is valid in both parsers but is producing different
+					// parsing. This should not happen and is a bug that needs to be
+					// reported.
+					level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Please report this issue on GitHub.", "input", s)
+					return classicMatchers, nil
+				}
+			}
+		}
+		return utf8Matchers, nil
 	}
 }
