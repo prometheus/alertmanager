@@ -61,6 +61,24 @@ func TestCompliance(t *testing.T) {
 			skip: true,
 		},
 		{
+			input: "{foo=\\n}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\n")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: "{foo=\\t}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\t")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
 			input: `{foo=bar}`,
 			want: func() labels.Matchers {
 				ms := labels.Matchers{}
@@ -386,7 +404,7 @@ func TestCompliance(t *testing.T) {
 				t.Fatalf("expected error but got none: %v", tc.err)
 			}
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("labels not equal:\ngot %#v\nwant %#v", got, tc.want)
+				t.Fatalf("matchers not equal:\ngot %s\nwant %s", got, tc.want)
 			}
 		})
 	}
