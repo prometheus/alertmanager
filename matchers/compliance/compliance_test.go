@@ -52,16 +52,7 @@ func TestCompliance(t *testing.T) {
 			skip: true,
 		},
 		{
-			input: "{foo=\\\"}",
-			want: func() labels.Matchers {
-				ms := labels.Matchers{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
-				return append(ms, m)
-			}(),
-			skip: true,
-		},
-		{
-			input: "{foo=\\n}",
+			input: `{foo=\n}`,
 			want: func() labels.Matchers {
 				ms := labels.Matchers{}
 				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\n")
@@ -70,10 +61,61 @@ func TestCompliance(t *testing.T) {
 			skip: true,
 		},
 		{
-			input: "{foo=\\t}",
+			input: `{foo=bar\n}`,
 			want: func() labels.Matchers {
 				ms := labels.Matchers{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\t")
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\n")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=\t}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\\t")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\t}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\t")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\\}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=\"}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
+				return append(ms, m)
+			}(),
+			skip: true,
+		},
+		{
+			input: `{foo=bar\"}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\"")
 				return append(ms, m)
 			}(),
 			skip: true,
