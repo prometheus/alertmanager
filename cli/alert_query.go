@@ -86,7 +86,7 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 			a.matcherGroups[0] = fmt.Sprintf("alertname=%s", strconv.Quote(m))
 		}
 	}
-	
+
 	// If no selector was passed, default to showing active alerts.
 	if !a.silenced && !a.inhibited && !a.active && !a.unprocessed {
 		a.active = true
