@@ -200,7 +200,7 @@ matchers:
 # Note that this parameter is implicitly bound by Alertmanager's
 # `--data.retention` configuration flag. Notifications will be resent after either
 # repeat_interval or the data retention period have passed, whichever
-# occurs first. `repeat_interval` should not be less than `group_interval`.
+# occurs first. `repeat_interval` should be a multiple of `group_interval`.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
@@ -734,10 +734,10 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 [ webhook_url: <secret> ]
 
 # Message title template.
-[ title: <tmpl_string> | default = '{{ template "teams.default.title" . }}' ]
+[ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
 
 # Message body template.
-[ text: <tmpl_string> | default = '{{ template "teams.default.text" . }}' ]
+[ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
