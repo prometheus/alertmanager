@@ -25,7 +25,7 @@ const (
 )
 
 func isReserved(r rune) bool {
-	return unicode.IsSpace(r) || strings.ContainsRune("{}!=~,\"'`", r)
+	return unicode.IsSpace(r) || strings.ContainsRune("{}!=~,\\\"'`", r)
 }
 
 // expectedError is returned when the next rune does not match what is expected.

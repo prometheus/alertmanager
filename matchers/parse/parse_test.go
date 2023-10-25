@@ -195,6 +195,10 @@ func TestMatchers(t *testing.T) {
 		name:  "invalid escape sequence",
 		input: "{foo=\"bar\\w\"}",
 		error: "5:12: \"bar\\w\": invalid input",
+	}, {
+		name:  "no unquoted escape sequences",
+		input: "{foo=bar\\n}",
+		error: "8:9: \\: invalid input: expected a comma or close brace",
 	}}
 
 	for _, test := range tests {
