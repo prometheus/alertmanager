@@ -127,7 +127,7 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
 			suggestion := classicMatcher.String()
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
 			return classicMatcher, nil
 		}
 		// The input is valid in both parsers, so check it parses the same.
@@ -135,7 +135,7 @@ func fallbackMatcherParser(l log.Logger) matcherParser {
 			// The input is valid in both parsers but is producing different
 			// parsing. This should not happen and is a bug that needs to be
 			// reported.
-			level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Please report this issue on GitHub.", "input", s)
+			level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. Please report this issue on GitHub.", "input", s)
 			return classicMatcher, nil
 		}
 		return utf8Matcher, nil
@@ -172,7 +172,7 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			suggestion := sb.String()
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
 			return classicMatchers, nil
 		}
 		// The input is valid in both parsers, so check it parses the same.
@@ -182,7 +182,7 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 					// The input is valid in both parsers but is producing different
 					// parsing. This should not happen and is a bug that needs to be
 					// reported.
-					level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Please report this issue on GitHub.", "input", s)
+					level.Error(l).Log("msg", "The UTF-8 matchers parser and the classic matchers parser have produced different parsings. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. Please report this issue on GitHub.", "input", s)
 					return classicMatchers, nil
 				}
 			}
