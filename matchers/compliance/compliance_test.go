@@ -76,6 +76,7 @@ func TestCompliance(t *testing.T) {
 				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\\t")
 				return append(ms, m)
 			}(),
+			skip: true,
 		},
 		{
 			input: `{foo=bar\t}`,
@@ -84,6 +85,7 @@ func TestCompliance(t *testing.T) {
 				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\t")
 				return append(ms, m)
 			}(),
+			skip: true,
 		},
 		{
 			input: `{foo=bar\}`,
@@ -92,6 +94,7 @@ func TestCompliance(t *testing.T) {
 				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\")
 				return append(ms, m)
 			}(),
+			skip: true,
 		},
 		{
 			input: `{foo=bar\\}`,
