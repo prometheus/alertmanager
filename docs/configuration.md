@@ -421,27 +421,55 @@ source_matchers:
 
 ## Label matchers
 
-Label matchers are used both in routes and inhibition rules to match certain alerts.
+Label matchers match alerts to routes, silences, and inhibition rules.
+
+**Important**: Prometheus is adding support for UTF-8 in the metric name and labels. Alertmanager versions <version> and newer have a new parser for label matchers that has backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, and has provided a number of tools to help you prepare for the transition.
+
+By default, Alertmanager runs with support for both UTF-8 and classic matchers. As operators, you should not experience any difference in how your routes, silences or inhibition rules work. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will use the classic parser and log a warning. This warning also includes a suggestion on how to make the matcher compliant with the UTF-8 parser. For example:
+
+> Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure the regular expression or value is double-quoted. If you are still seeing this message please open an issue." input="foo=!bar" err="4:5: !: expected one of '=~': expected label value" suggestion="foo=\"!bar\""
+
+If you need to disable the new parser you can do so with the following feature flag:
+
+```
+./alertmanager --config.file=config.yml --enable-feature="classic-matchers-parsing"
+```
+
+Likewise, if you would like to disable the classic parser and use just the UTF-8 parser then you can do so too:
+
+```
+./alertmanager --config.file=config.yml --enable-feature="utf8-matchers-parsing"
+```
 
 ### `<matcher>`
 
-A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
+#### UTF-8 matchers
+
+A UTF-8 matcher consists of three tokens:
+
+- An unquoted literal or a double-quoted string for the label name.
+- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
+- An unquoted literal or a double-quoted string for the regular expression or label value.
+
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, curly braces, exclamation marks, equals, tilda, commas, backslashes, double quotes, single quotes and backticks. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Ancient Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+
+Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"` and `"baz qux\"` are valid double-quoted strings.
+
+#### Classic matchers
+
+A classic matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a classic matcher consists of three tokens:
 
 - A valid Prometheus label name.
-
 - One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
-
 - A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
-Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
+#### Composition
 
-```json
-{"alertname":"Watchdog","severity":"none"}
-```
+You can compose matchers to create more complex expressions. When composed, all matchers must match for the entire expression to match. For example, an alert with the labels `alertname=Watchdog, severity=none` will not match the expression `{alertname="Watchdog", severity=~"warning|critical"}` as while the alertname is Watchdog the severity is neither warning nor critical. Remember that both alertname and severity have to match for the whole expression to match.
 
-would NOT match this list of matchers:
+You can compose matchers into expressions with a Yaml list:
 
 ```yaml
 matchers:
@@ -449,37 +477,80 @@ matchers:
   - severity =~ "warning|critical"
 ```
 
-In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
+or as a PromQL inspired expression where each matcher is comma separated:
 
-Here are some examples of valid string matchers:
+```
+{alertname="Watchdog", severity=~"warning|critical"}
+```
 
-1. Shown below are two equality matchers combined in a long form YAML list.
+A single trailing comma is permitted:
+
+```
+{alertname="Watchdog", severity=~"warning|critical",}
+```
+
+The open `{` and close `}` brace are optional:
+
+```
+alertname="Watchdog", severity=~"warning|critical"
+```
+
+However, both must be either present or omitted. You cannot have incomplete open or close braces:
+
+```
+{alertname="Watchdog", severity=~"warning|critical"
+```
+
+```
+alertname="Watchdog", severity=~"warning|critical"}
+```
+
+You cannot have duplicate open or close braces either:
+
+```
+{{alertname="Watchdog", severity=~"warning|critical",}}
+```
+
+Whitespace (spaces, tabs and newlines) is permitted outside double quotes:
+
+```
+{
+   alertname = "Watchdog",
+   severity =~ "warning|critical",
+}
+```
+
+#### More examples
+
+Here are some more examples:
+
+1. Two equals matchers composed as a Yaml list:
 
     ```yaml
     matchers:
       - foo = bar
-      - dings !=bums
+      - dings != bums
     ```
 
-2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
+2. Two matchers combined composed as a short-form Yaml list:
 
     ```yaml
     matchers: [ foo = bar, dings != bums ]
     ```
 
-    As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+   As shown below, in the short-form, it's better to use double quotes to avoid problems with special characters like commas:
+   
+   ```yaml
+   matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
+   ```
+
+3. You can also put both matchers into one PromQL-like string. Single quotes work best here:
 
     ```yaml
-    matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
+    matchers: [ '{foo="bar", dings!="bums"}' ]
     ```
 
-3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
-
-    ```yaml
-    matchers: [ '{foo="bar",dings!="bums"}' ]
-    ```
-
-4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
+4. To avoid issues with escaping and quoting rules in Yaml, you can also use a YAML block:
 
     ```yaml
     matchers:
