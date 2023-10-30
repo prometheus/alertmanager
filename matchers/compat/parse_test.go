@@ -38,8 +38,8 @@ func TestFallbackMatcherParser(t *testing.T) {
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
 	}, {
 		name:     "is accepted in old parser but not new",
-		input:    "foo=!bar",
-		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "!bar"),
+		input:    "foo=!bar\\n",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "!bar\n"),
 	}, {
 		name:  "is accepted in neither",
 		input: "foo!bar",
@@ -81,10 +81,10 @@ func TestFallbackMatchersParser(t *testing.T) {
 		},
 	}, {
 		name:  "is accepted in old parser but not new",
-		input: "{foo=!bar,bar=$baz}",
+		input: "{foo=!bar,bar=$baz\\n}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "!bar"),
-			mustNewMatcher(t, labels.MatchEqual, "bar", "$baz"),
+			mustNewMatcher(t, labels.MatchEqual, "bar", "$baz\n"),
 		},
 	}, {
 		name:  "is accepted in neither",
