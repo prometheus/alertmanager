@@ -152,14 +152,12 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 				return nil, invalidErr
 			}
 			var sb strings.Builder
-			sb.WriteRune('{')
 			for i, n := range m {
 				sb.WriteString(n.String())
 				if i < len(m)-1 {
 					sb.WriteRune(',')
 				}
 			}
-			sb.WriteRune('}')
 			suggestion := sb.String()
 			// The input is valid in the old pkg/labels parser, but not the
 			// new matchers/parse parser.
