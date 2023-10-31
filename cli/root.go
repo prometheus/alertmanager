@@ -174,6 +174,7 @@ func Execute() {
 	configureClusterCmd(app)
 	configureConfigCmd(app)
 	configureTemplateCmd(app)
+	configureTestReceiversCmd(app)
 
 	app.Action(initMatchersCompat)
 
