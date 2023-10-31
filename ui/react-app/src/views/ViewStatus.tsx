@@ -13,7 +13,7 @@ import {
   Theme,
   Typography,
 } from '@mui/material';
-import { useAMStatus } from '../client/am-client';
+import { useAMStatus, AMStatusClusterPeersInfo } from '../client/am-client';
 
 const tableStyle: SxProps<Theme> = {
   [`& .${tableCellClasses.root}`]: {
@@ -73,7 +73,7 @@ export default function ViewStatus() {
           </TableCell>
           <TableCell>
             <List>
-              {data.cluster.peers.map((peer, i) => {
+              {data.cluster.peers.map((peer: AMStatusClusterPeersInfo, i: number) => {
                 return (
                   <ListItem disablePadding sx={{ display: 'list-item' }} key={i}>
                     <p>
