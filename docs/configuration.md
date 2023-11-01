@@ -84,6 +84,11 @@ global:
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
 
+  [ jira_api_url: <string> ]
+  [ jira_api_username: <string> ]
+  [ jira_api_token: <secret> ]
+  [ jira_api_token_file: <filepath> ]
+
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
@@ -504,6 +509,8 @@ email_configs:
   [ - <email_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
+jira_configs:
+  [ - <jira_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
@@ -741,6 +748,92 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<jira_config>`
+
+JIRA notification are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
+or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
+
+Both APIs have the same feature set. The difference is that V2 uses [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
+for format the issue description and V3 uses [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
+The default `jira.default.description` template only works with V2.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The incoming webhook URL.
+[ webhook_url: <secret> ]
+
+# The Atlassian Side to send Jira API requests to. API path must be included.
+# Example: https://company.atlassian.net/rest/api/2/
+[ api_url: <string> | default = global.jira_api_url ]
+[ api_username: <string> | default = global.jira_api_username ]
+[ api_token: <string> | default = global.jira_api_token ]
+[ api_token_file: <string> | default = global.jira_api_token_file ]
+
+# The project key where issues are created.
+project: <string>
+
+# Issue summary template.
+[ summary: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
+
+# Issue description template.
+[ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
+
+# Add labels to issues
+static_labels: 
+  [ - <string> ... ]
+  
+# Add specific group labels to issue
+group_labels: 
+  [ - <string> ... ]
+  
+# JIRA components
+components: 
+  [ - <string> ... ]
+
+# Priority of issue
+[ priority: <tmpl_string> ]
+
+# Type of issue, e.g. Bug
+[ issue_type: <string> ]
+
+# Name of the workflow transition to resolve an issue. The target status must have the category "done"
+[ resolve_transition: <string> ]
+
+# Name of the workflow transition to reopen an issue. The target status should not have the category "done"
+[ reopen_transition: <string> ]
+
+# If reopen_transition is defined, ignore issues with that resolution
+[ wont_fix_resolution: <string> ]
+
+# If reopen_transition is defined, reopen issue not older than ...
+[ reopen_duration: <duration> ]
+
+# Custom fields
+custom_fields:
+  [ <string>: <custom_fields> ... ]
+
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<custom_fields>`
+
+Jira custom field can have multiple types. Depends on the filed type, the values must be provided differently.
+See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types for further examples.
+
+```yaml
+fields:
+   # TextField
+   customfield_10001: "Random text"
+   # SelectList
+   customfield_10002: {"value": "red"}
+   # MultiSelect
+   customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
 ```
 
 ### `<opsgenie_config>`

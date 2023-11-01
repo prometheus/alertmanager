@@ -172,6 +172,14 @@ var (
 		Title: `{{ template "msteams.default.title" . }}`,
 		Text:  `{{ template "msteams.default.text" . }}`,
 	}
+
+	DefaultJiraConfig = JiraConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Summary:     `{{ template "jira.default.summary" . }}`,
+		Description: `{{ template "jira.default.description" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -796,4 +804,54 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	return unmarshal((*plain)(c))
+}
+
+type JiraConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL       *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIUsername  string `yaml:"api_username,omitempty" json:"api_username,omitempty"`
+	APIToken     Secret `yaml:"api_token,omitempty" json:"api_token,omitempty"`
+	APITokenFile string `yaml:"api_token_file,omitempty" json:"api_token_file,omitempty"`
+
+	Project      string   `yaml:"project,omitempty" json:"project,omitempty"`
+	Summary      string   `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description  string   `yaml:"description,omitempty" json:"description,omitempty"`
+	StaticLabels []string `yaml:"static_labels,omitempty" json:"static_labels,omitempty"`
+	GroupLabels  []string `yaml:"group_labels,omitempty" json:"group_labels,omitempty"`
+	Components   []string `yaml:"components,omitempty" json:"components,omitempty"`
+	Priority     string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	IssueType    string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
+
+	ReopenTransition  string   `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
+	ResolveTransition string   `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
+	WontFixResolution string   `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
+	ReopenDuration    duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
+
+	CustomFields map[string]any `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
+}
+
+func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultJiraConfig
+	type plain JiraConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APIToken == "" && c.APITokenFile == "" {
+		return fmt.Errorf("missing api_token or api_token_file on jira_config")
+	}
+
+	if c.APIToken != "" && len(c.APITokenFile) > 0 {
+		return fmt.Errorf("at most one of api_token & api_token_file must be configured")
+	}
+
+	if c.Project == "" {
+		return fmt.Errorf("missing project on jira_config")
+	}
+	if c.IssueType == "" {
+		return fmt.Errorf("missing issue_type on jira_config")
+	}
+
+	return nil
 }
