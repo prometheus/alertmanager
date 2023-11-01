@@ -381,6 +381,12 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
+	if am.cmd == nil {
+		panic("here1")
+	}
+	if am.cmd.Process == nil {
+		panic("here2")
+	}
 	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
 	}
