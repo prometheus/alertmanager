@@ -32,6 +32,5 @@ if ! [[ -d "${dist}" ]]; then
         </html>" > ${dist}/index.html
 fi
 
-find dist -type f -name '*.gz' -delete
-find dist -type f -exec gzip $GZIP_OPTS '{}' \; -print0 | xargs -0 -I % echo %.gz | sort | xargs echo //go:embed >> embed.go
+find dist -type f -name '*.gz' | sort | xargs echo //go:embed >> embed.go
 echo var embedFS embed.FS >> embed.go
