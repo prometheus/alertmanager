@@ -1,4 +1,4 @@
 node_modules/
 
-#dist/*
-#!dist/*.gz
+dist/*
+!dist/*.gz
