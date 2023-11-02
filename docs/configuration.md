@@ -110,6 +110,11 @@ global:
   [ opsgenie_api_key: <secret> ]
   [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
+  [ rocketchat_api_url: <string> | default = "https://open.rocket.chat/" ]
+  [ rocketchat_token: <secret> ]
+  [ rocketchat_token_file: <filepath> ]
+  [ rocketchat_token_id: <secret> ]
+  [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
@@ -708,6 +713,8 @@ pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
+rocket_configs:
+  [ - <rocketchat_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
@@ -1255,6 +1262,62 @@ token_file: <filepath>
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
+
+### `<rocketchat_config>`
+
+Rocketchat notifications are sent via the [Rocketchat REST API](https://developer.rocket.chat/reference/api/rest-api/endpoints/messaging/chat-endpoints/postmessage).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+[ api_url: <string> | default = global.rocketchat_api_url ]
+[ channel: <tmpl_string> | default = global.rocketchat_api_url' ]
+
+# The sender token and token_id
+# See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
+# token and token_file are mutually exclusive.
+# token_id and token_id_file are mutually exclusive.
+token: <secret>
+token_file: <filepath>
+token_id: <secret>
+token_id_file: <filepath>
+
+
+[ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
+[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
+[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
+[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
+[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+fields:
+  [ <rocketchat_field_config> ... ]
+[ image_url <tmpl_string> ]
+[ thumb_url <tmpl_string> ]
+[ link_names <tmpl_string> ]
+[ short_fields: <boolean> | default = false ]
+actions:
+  [ <rocketchat_action_config> ... ]
+```
+
+#### `<rocketchat_field_config>`
+
+The fields are documented in the [Rocketchat API documentation](https://developer.rocket.chat/reference/api/rest-api/endpoints/messaging/chat-endpoints/postmessage#attachment-field-objects).
+
+```yaml
+[ title: <tmpl_string> ]
+[ value: <tmpl_string> ]
+[ short: <boolean> | default = slack_config.short_fields ]
+```
+
+#### `<rocketchat_action_config>`
+The fields are documented in the [Rocketchat API api models](https://github.com/RocketChat/Rocket.Chat.Go.SDK/blob/master/models/message.go).
+
+```yaml
+[ type: <tmpl_string> | ignored, only "button" is supported ]
+[ text: <tmpl_string> ]
+[ url: <tmpl_string> ]
+[ msg: <tmpl_string> ]
 
 ### `<slack_config>`
 
