@@ -2,7 +2,7 @@
 version: 2.1
 orbs:
   prometheus: prometheus/prometheus@0.17.1
-  go: circleci/go@1.7.3
+  go: circleci/go@1.9.0
 jobs:
   test_frontend:
     # We need to use a machine executor because the front-end validation runs
