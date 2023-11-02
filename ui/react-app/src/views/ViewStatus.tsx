@@ -61,7 +61,7 @@ export default function ViewStatus() {
         <CustomTableCell header="Name" content={data.cluster.name} />
         <TableRow>
           <TableCell variant="head" sx={tableHeaderStyle}>
-            Status
+            Rule Status Changing to Test CI
           </TableCell>
           <TableCell>
             <Chip color={data.cluster.status === 'ready' ? 'success' : 'error'} label={data.cluster.status} />
