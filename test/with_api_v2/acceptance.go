@@ -167,20 +167,18 @@ func (t *AcceptanceTest) Run() {
 
 	for _, am := range t.amc.ams {
 		am.errc = errc
-		defer func(am *Alertmanager) {
-			am.Terminate()
-			am.cleanup()
-			t.Logf("stdout:\n%v", am.cmd.Stdout)
-			t.Logf("stderr:\n%v", am.cmd.Stderr)
-		}(am)
+		t.T.Cleanup(am.Terminate)
+		t.T.Cleanup(am.cleanup)
 	}
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Fatal(err)
+		t.T.Log(err)
+		t.T.Fail()
+		return
 	}
 
-	// Set the reference time right before running the test actions to avoid
+	// Set the reference time right before started the test actions to avoid
 	// test failures due to slow setup of the test environment.
 	t.opts.baseTime = time.Now()
 
@@ -249,11 +247,12 @@ type Alertmanager struct {
 	apiAddr     string
 	clusterAddr string
 	clientV2    *apiclient.AlertmanagerAPI
-	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
 
-	errc chan<- error
+	cmd     *exec.Cmd
+	started bool // true if cmd was started, otherwise false
+	errc    chan<- error
 }
 
 // AlertmanagerCluster represents a group of Alertmanager instances
@@ -322,7 +321,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	if err := am.cmd.Start(); err != nil {
 		return err
 	}
-
+	am.started = true
 	go func() {
 		if err := am.cmd.Wait(); err != nil {
 			am.errc <- err
@@ -381,8 +380,12 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if am.started {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
+			am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+		}
+		am.t.Logf("stdout:\n%v", am.cmd.Stdout)
+		am.t.Logf("stderr:\n%v", am.cmd.Stderr)
 	}
 }
 
@@ -396,8 +399,10 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if am.started {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
+			am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+		}
 	}
 }
 
