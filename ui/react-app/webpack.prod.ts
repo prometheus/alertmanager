@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const CompressionPlugin = require("compression-webpack-plugin");
+// const CompressionPlugin = require("compression-webpack-plugin");
 import { Configuration } from 'webpack';
 import { merge } from 'webpack-merge';
 import { ESBuildMinifyPlugin } from 'esbuild-loader';
@@ -30,12 +30,12 @@ const prodConfig: Configuration = {
     // TODO: Could this also be replaced with swc minifier?
     minimizer: [new ESBuildMinifyPlugin({ target: 'es2018' })],
   },
-  plugins: [
+  /*plugins: [
     new CompressionPlugin({
       deleteOriginalAssets: false,
       algorithm: 'gzip',
     })
-  ]
+  ]*/
 };
 
 const merged = merge(commonConfig, prodConfig);
