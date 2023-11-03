@@ -7,9 +7,9 @@ set -euo pipefail
 cd ui/react-app
 cp embed.go.tmpl embed.go
 
-GZIP_OPTS="-fk"
+GZIP_OPTS="-fkn"
 # gzip option '-k' may not always exist in the latest gzip available on different distros.
-if ! gzip -k -h &>/dev/null; then GZIP_OPTS="-f"; fi
+if ! gzip -k -h &>/dev/null; then GZIP_OPTS="-fn"; fi
 
 dist="dist"
 
@@ -33,5 +33,5 @@ if ! [[ -d "${dist}" ]]; then
 fi
 
 find dist -type f -name '*.gz' -delete
-find dist -type f -exec gzip $GZIP_OPTS '{}' \; -print0 | xargs -0 -I % echo %.gz | xargs echo //go:embed >> embed.go
+find dist -type f -exec gzip $GZIP_OPTS '{}' \; -print0 | xargs -0 -I % echo %.gz | sort | xargs echo //go:embed >> embed.go
 echo var embedFS embed.FS >> embed.go

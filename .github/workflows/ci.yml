@@ -43,3 +43,4 @@ jobs:
       - uses: prometheus/promci@v0.0.2
       - uses: ./.github/promci/actions/setup_environment
       - run: make
+      - run: git diff --exit-code
