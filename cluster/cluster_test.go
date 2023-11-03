@@ -334,6 +334,7 @@ func testTLSConnection(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p2.WaitReady(context.Background()))
 
 	require.Equal(t, 2, p1.ClusterSize())
 	p2.Leave(0 * time.Second)
