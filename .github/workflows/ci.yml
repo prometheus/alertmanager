@@ -37,7 +37,7 @@ jobs:
     # Whenever the Go version is updated here, .promu.yml
     # should also be updated.
     container:
-      image: quay.io/prometheus/golang-builder:1.19-base
+      image: quay.io/prometheus/golang-builder:1.21-base
     steps:
       - uses: actions/checkout@v3
       - uses: prometheus/promci@v0.0.2
