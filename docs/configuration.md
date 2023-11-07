@@ -817,6 +817,8 @@ type: <tmpl_string>
 
 JSM notifications are sent via the [JSM API](https://docs.opsgenie.com/docs/alert-api).
 
+:warning: If the feature isn’t available on your site, keep checking Jira Service Management for updates.
+
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]

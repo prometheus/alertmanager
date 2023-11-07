@@ -864,7 +864,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPRequireTLS:  true,
 			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
-			JSMAPIURL:       mustParseURL("https://api.atlassian/jsm/integration/"),
+			JSMAPIURL:       mustParseURL("https://api.atlassian.com/jsm/integration/"),
 			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
@@ -1125,7 +1125,6 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}
 }
-
 
 func TestJSMDefaultAPIKey(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.jsm-default-apikey.yml")

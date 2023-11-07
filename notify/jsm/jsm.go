@@ -61,17 +61,17 @@ func New(c *config.JSMConfig, t *template.Template, l log.Logger, httpOpts ...co
 }
 
 type jsmCreateMessage struct {
-	Alias       string                           `json:"alias"`
-	Message     string                           `json:"message"`
-	Description string                           `json:"description,omitempty"`
-	Details     map[string]string                `json:"details"`
-	Source      string                           `json:"source"`
+	Alias       string                      `json:"alias"`
+	Message     string                      `json:"message"`
+	Description string                      `json:"description,omitempty"`
+	Details     map[string]string           `json:"details"`
+	Source      string                      `json:"source"`
 	Responders  []jsmCreateMessageResponder `json:"responders,omitempty"`
-	Tags        []string                         `json:"tags,omitempty"`
-	Note        string                           `json:"note,omitempty"`
-	Priority    string                           `json:"priority,omitempty"`
-	Entity      string                           `json:"entity,omitempty"`
-	Actions     []string                         `json:"actions,omitempty"`
+	Tags        []string                    `json:"tags,omitempty"`
+	Note        string                      `json:"note,omitempty"`
+	Priority    string                      `json:"priority,omitempty"`
+	Entity      string                      `json:"entity,omitempty"`
+	Actions     []string                    `json:"actions,omitempty"`
 }
 
 type jsmCreateMessageResponder struct {

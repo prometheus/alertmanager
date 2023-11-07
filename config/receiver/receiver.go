@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/email"
+	"github.com/prometheus/alertmanager/notify/jsm"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
@@ -64,6 +65,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.OpsGenieConfigs {
 		add("opsgenie", i, c, func(l log.Logger) (notify.Notifier, error) { return opsgenie.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.JSMConfigs {
+		add("jsm", i, c, func(l log.Logger) (notify.Notifier, error) { return jsm.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.WechatConfigs {
 		add("wechat", i, c, func(l log.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l, httpOpts...) })
