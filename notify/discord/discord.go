@@ -31,6 +31,13 @@ import (
 )
 
 const (
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 256 characters or runes.
+	maxTitleLenRunes = 256
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
+	maxDescriptionLenRunes = 4096
+)
+
+const (
 	colorRed   = 0x992D22
 	colorGreen = 0x2ECC71
 	colorGrey  = 0x95A5A6
@@ -90,13 +97,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	title := tmpl(n.conf.Title)
+	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if err != nil {
 		return false, err
 	}
-	description := tmpl(n.conf.Message)
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
+	}
+	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
 		return false, err
+	}
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "max_runes", maxDescriptionLenRunes)
 	}
 
 	color := colorGrey
