@@ -25,7 +25,6 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -74,17 +73,19 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
+	parseMatcher, _ := matchersFromFeatureFlags()
+
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.
-		if _, err := compat.Matcher(a.labels[0]); err != nil {
+		if _, err := parseMatcher(a.labels[0]); err != nil {
 			a.labels[0] = fmt.Sprintf("alertname=%s", strconv.Quote(a.labels[0]))
 		}
 	}
 
 	ls := make(models.LabelSet, len(a.labels))
 	for _, l := range a.labels {
-		matcher, err := compat.Matcher(l)
+		matcher, err := parseMatcher(l)
 		if err != nil {
 			return err
 		}
@@ -96,7 +97,7 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	annotations := make(models.LabelSet, len(a.annotations))
 	for _, a := range a.annotations {
-		matcher, err := compat.Matcher(a)
+		matcher, err := parseMatcher(a)
 		if err != nil {
 			return err
 		}

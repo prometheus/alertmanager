@@ -25,7 +25,6 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
 type silenceQueryCmd struct {
@@ -95,11 +94,13 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 }
 
 func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
+	parseMatcher, _ := matchersFromFeatureFlags()
+
 	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := compat.Matcher(c.matchers[0])
+		_, err := parseMatcher(c.matchers[0])
 		if err != nil {
 			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}

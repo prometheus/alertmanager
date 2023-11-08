@@ -24,7 +24,6 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -73,6 +72,8 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 }
 
 func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseContext) error {
+	parseMatcher, _ := matchersFromFeatureFlags()
+
 	cfg, err := loadAlertmanagerConfig(ctx, alertmanagerURL, c.configFile)
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
@@ -84,7 +85,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	// Parse labels to LabelSet.
 	ls := make(models.LabelSet, len(c.labels))
 	for _, l := range c.labels {
-		matcher, err := compat.Matcher(l)
+		matcher, err := parseMatcher(l)
 		if err != nil {
 			kingpin.Fatalf("Failed to parse labels: %v\n", err)
 		}

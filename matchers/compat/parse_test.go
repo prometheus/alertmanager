@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
-func TestFallbackMatcherParser(t *testing.T) {
+func TestFallbackMatcher(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -45,7 +45,7 @@ func TestFallbackMatcherParser(t *testing.T) {
 		input: "foo!bar",
 		err:   "bad matcher format: foo!bar",
 	}}
-	f := fallbackMatcherParser(log.NewNopLogger())
+	f := fallbackMatcher(log.NewNopLogger())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			matcher, err := f(test.input)
@@ -59,7 +59,7 @@ func TestFallbackMatcherParser(t *testing.T) {
 	}
 }
 
-func TestFallbackMatchersParser(t *testing.T) {
+func TestFallbackMatchers(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -91,7 +91,7 @@ func TestFallbackMatchersParser(t *testing.T) {
 		input: "{foo!bar}",
 		err:   "bad matcher format: foo!bar",
 	}}
-	f := fallbackMatchersParser(log.NewNopLogger())
+	f := fallbackMatchers(log.NewNopLogger())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			matchers, err := f(test.input)

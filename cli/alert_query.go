@@ -22,7 +22,6 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
 type alertQueryCmd struct {
@@ -74,13 +73,15 @@ func configureQueryAlertsCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext) error {
+	parseMatcher, _ := matchersFromFeatureFlags()
+
 	if len(a.matcherGroups) > 0 {
 		// Attempt to parse the first argument. If the parser fails
 		// then we likely don't have a (=|=~|!=|!~) so lets assume that
 		// the user wants alertname=<arg> and prepend `alertname=` to
 		// the front.
 		m := a.matcherGroups[0]
-		_, err := compat.Matcher(m)
+		_, err := parseMatcher(m)
 		if err != nil {
 			a.matcherGroups[0] = fmt.Sprintf("alertname=%s", m)
 		}

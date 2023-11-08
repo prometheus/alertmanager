@@ -27,7 +27,6 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -91,11 +90,13 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
 	var err error
 
+	parseMatcher, _ := matchersFromFeatureFlags()
+
 	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := compat.Matcher(c.matchers[0])
+		_, err := parseMatcher(c.matchers[0])
 		if err != nil {
 			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}
@@ -103,7 +104,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 
 	matchers := make([]labels.Matcher, 0, len(c.matchers))
 	for _, s := range c.matchers {
-		m, err := compat.Matcher(s)
+		m, err := parseMatcher(s)
 		if err != nil {
 			return err
 		}

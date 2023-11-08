@@ -50,7 +50,7 @@ var (
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
-func initMatchersCompat(_ *kingpin.ParseContext) error {
+func matchersFromFeatureFlags() (compat.Matcher, compat.Matchers) {
 	logger := log.NewLogfmtLogger(os.Stdout)
 	if verbose {
 		logger = level.NewFilter(logger, level.AllowDebug())
@@ -61,8 +61,7 @@ func initMatchersCompat(_ *kingpin.ParseContext) error {
 	if err != nil {
 		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
 	}
-	compat.InitFromFlags(logger, featureConfig)
-	return nil
+	return compat.NewFromFlags(logger, featureConfig)
 }
 
 func requireAlertManagerURL(pc *kingpin.ParseContext) error {
@@ -174,8 +173,6 @@ func Execute() {
 	configureClusterCmd(app)
 	configureConfigCmd(app)
 	configureTemplateCmd(app)
-
-	app.Action(initMatchersCompat)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
