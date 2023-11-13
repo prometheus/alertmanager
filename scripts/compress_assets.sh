@@ -6,7 +6,7 @@ set -euo pipefail
 
 cd asset
 cp embed.go.tmpl embed.go
-echo -n "//go:embed " >> embed.go
+echo -n "//go:embed" >> embed.go
 
 GZIP_OPTS="-c"
 
@@ -17,7 +17,7 @@ function compress_asset() {
     target_path="$add_prefix${file#"$strip_prefix"}.gz"
     mkdir -p "${target_path%/*}" || true
     gzip "$GZIP_OPTS" "$file" > "$target_path"
-    echo -n "$target_path " >> embed.go
+    echo -n " $target_path" >> embed.go
 }
 
 find . -type f -name '*.gz' -delete
