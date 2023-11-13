@@ -30,7 +30,7 @@ build-all: apiv2 build
 build: assets build-react-app react-assets-compress common-build
 
 .PHONY: lint
-lint: react-assets-compress common-lint
+lint: assets react-assets-compress common-lint
 
 .PHONY: build-react-app
 build-react-app:
