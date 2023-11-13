@@ -24,10 +24,10 @@ STATICCHECK_IGNORE =
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
-build-all: assets apiv2 build
+build-all: apiv2 build
 
 .PHONY: build
-build: build-react-app react-assets-compress common-build
+build: assets build-react-app react-assets-compress common-build
 
 .PHONY: lint
 lint: react-assets-compress common-lint
