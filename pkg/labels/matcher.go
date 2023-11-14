@@ -76,7 +76,7 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 }
 
 func (m *Matcher) String() string {
-	if strings.IndexFunc(m.Name, isReserved) >= 0 {
+	if strings.ContainsFunc(m.Name, isReserved) {
 		return fmt.Sprintf(`%s%s%s`, strconv.Quote(m.Name), m.Type, strconv.Quote(m.Value))
 	}
 	return fmt.Sprintf(`%s%s"%s"`, m.Name, m.Type, openMetricsEscape(m.Value))
