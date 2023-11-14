@@ -26,6 +26,7 @@ import (
 	tmpltext "text/template"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -307,13 +308,21 @@ type Data struct {
 
 // Alert holds one alert for notification templates.
 type Alert struct {
-	Status       string    `json:"status"`
-	Labels       KV        `json:"labels"`
-	Annotations  KV        `json:"annotations"`
-	StartsAt     time.Time `json:"startsAt"`
-	EndsAt       time.Time `json:"endsAt"`
-	GeneratorURL string    `json:"generatorURL"`
-	Fingerprint  string    `json:"fingerprint"`
+	Status       string `json:"status"`
+	Labels       KV     `json:"labels"`
+	Annotations  KV     `json:"annotations"`
+	StartsAt     Time   `json:"startsAt"`
+	EndsAt       Time   `json:"endsAt"`
+	GeneratorURL string `json:"generatorURL"`
+	Fingerprint  string `json:"fingerprint"`
+}
+
+type Time struct {
+	time.Time
+}
+
+func (t Time) MarshalJSON() ([]byte, error) {
+	return strfmt.DateTime(t.Time).MarshalJSON()
 }
 
 // Alerts is a list of Alert objects.
@@ -360,8 +369,8 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),
 			Annotations:  make(KV, len(a.Annotations)),
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
+			StartsAt:     Time{a.StartsAt},
+			EndsAt:       Time{a.EndsAt},
 			GeneratorURL: a.GeneratorURL,
 			Fingerprint:  a.Fingerprint().String(),
 		}

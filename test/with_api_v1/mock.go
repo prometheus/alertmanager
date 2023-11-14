@@ -301,8 +301,8 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		alerts = append(alerts, &model.Alert{
 			Labels:       labels,
 			Annotations:  annotations,
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
+			StartsAt:     a.StartsAt.Time,
+			EndsAt:       a.EndsAt.Time,
 			GeneratorURL: a.GeneratorURL,
 		})
 	}
