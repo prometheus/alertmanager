@@ -102,14 +102,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
 		return false, err
 	}
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "max_runes", maxDescriptionLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
 	color := colorGrey
