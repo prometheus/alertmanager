@@ -1114,7 +1114,7 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
-func TestValidateMatcher(t *testing.T) {
+func TestValidateClassicMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher
 		err string
@@ -1156,6 +1156,13 @@ func TestValidateMatcher(t *testing.T) {
 			err: "invalid label name",
 		}, {
 			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label name",
+		}, {
+			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
@@ -1178,6 +1185,13 @@ func TestValidateMatcher(t *testing.T) {
 		}, {
 			m: &pb.Matcher{
 				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
 				Pattern: "b",
 				Type:    333,
 			},
@@ -1186,7 +1200,97 @@ func TestValidateMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checkErr(t, c.err, ValidateMatcher(c.m))
+		checkErr(t, c.err, validateClassicMatcher(c.m))
+	}
+}
+
+func TestValidateUTF8Matcher(t *testing.T) {
+	cases := []struct {
+		m   *pb.Matcher
+		err string
+	}{
+		{
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "00",
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "((",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "))",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xff",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label value",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    333,
+			},
+			err: "unknown matcher type",
+		},
+	}
+
+	for _, c := range cases {
+		checkErr(t, c.err, validateUTF8Matcher(c.m))
 	}
 }
 

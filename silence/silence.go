@@ -18,6 +18,7 @@ package silence
 import (
 	"bytes"
 	"fmt"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"io"
 	"math/rand"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
@@ -469,6 +471,20 @@ func (s *Silences) GC() (int, error) {
 
 // ValidateMatcher runs validation on the matcher name, type, and pattern.
 var ValidateMatcher = func(m *pb.Matcher) error {
+	return validateClassicMatcher(m)
+}
+
+// InitFromFlags initializes the validation function from the flagger.
+func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
+	if !f.ClassicMatchersParsing() {
+		ValidateMatcher = func(m *pb.Matcher) error {
+			return validateUTF8Matcher(m)
+		}
+	}
+}
+
+// validateClassicMatcher validates the matcher against the classic rules.
+func validateClassicMatcher(m *pb.Matcher) error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
@@ -478,6 +494,29 @@ var ValidateMatcher = func(m *pb.Matcher) error {
 			return fmt.Errorf("invalid label value %q", m.Pattern)
 		}
 	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
+		if _, err := regexp.Compile(m.Pattern); err != nil {
+			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
+		}
+	default:
+		return fmt.Errorf("unknown matcher type %q", m.Type)
+	}
+	return nil
+}
+
+// validateUTF8Matcher validates the matcher against the UTF-8 rules.
+func validateUTF8Matcher(m *pb.Matcher) error {
+	if !utf8.ValidString(m.Name) {
+		return fmt.Errorf("invalid label name %q", m.Name)
+	}
+	switch m.Type {
+	case pb.Matcher_EQUAL, pb.Matcher_NOT_EQUAL:
+		if !utf8.ValidString(m.Pattern) {
+			return fmt.Errorf("invalid label value %q", m.Pattern)
+		}
+	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
+		if !utf8.ValidString(m.Pattern) {
+			return fmt.Errorf("invalid regular expression %q", m.Pattern)
+		}
 		if _, err := regexp.Compile(m.Pattern); err != nil {
 			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
 		}
