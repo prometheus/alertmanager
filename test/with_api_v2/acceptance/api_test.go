@@ -58,18 +58,19 @@ receivers:
 
 	am := amc.Members()[0]
 
-	// assert we can create an alert with classic labels
+	// can create an alert with classic labels
 	now := time.Now()
-	expectedLabels := models.LabelSet{
-		"a": "b",
-		"b": "Σ",
-		"c": "\xf0\x9f\x99\x82",
-		"d": "eΘ",
-	}
 	pa := &models.PostableAlert{
 		StartsAt: strfmt.DateTime(now),
 		EndsAt:   strfmt.DateTime(now.Add(5 * time.Minute)),
-		Alert:    models.Alert{Labels: expectedLabels},
+		Alert: models.Alert{
+			Labels: models.LabelSet{
+				"a": "b",
+				"b": "Σ",
+				"c": "\xf0\x9f\x99\x82",
+				"d": "eΘ",
+			},
+		},
 	}
 	alertParams := alert.NewPostAlertsParams()
 	alertParams.Alerts = models.PostableAlerts{pa}
@@ -77,19 +78,18 @@ receivers:
 	_, err := am.Client().Alert.PostAlerts(alertParams)
 	require.NoError(t, err)
 
-	// assert we cannot create an alert with UTF-8 labels
+	// cannot create an alert with UTF-8 labels
 	now = time.Now()
-	expectedLabels = models.LabelSet{
-		"a":                "a",
-		"00":               "b",
-		"Σ":                "c",
-		"\xf0\x9f\x99\x82": "dΘ",
-	}
 	pa = &models.PostableAlert{
 		StartsAt: strfmt.DateTime(now),
 		EndsAt:   strfmt.DateTime(now.Add(5 * time.Minute)),
 		Alert: models.Alert{
-			Labels: expectedLabels,
+			Labels: models.LabelSet{
+				"a":                "a",
+				"00":               "b",
+				"Σ":                "c",
+				"\xf0\x9f\x99\x82": "dΘ",
+			},
 		},
 	}
 	alertParams = alert.NewPostAlertsParams()
@@ -129,7 +129,7 @@ receivers:
 	am := amc.Members()[0]
 
 	now := time.Now()
-	expectedLabels := models.LabelSet{
+	labels := models.LabelSet{
 		"a":                "a",
 		"00":               "b",
 		"Σ":                "c",
@@ -138,9 +138,7 @@ receivers:
 	pa := &models.PostableAlert{
 		StartsAt: strfmt.DateTime(now),
 		EndsAt:   strfmt.DateTime(now.Add(5 * time.Minute)),
-		Alert: models.Alert{
-			Labels: expectedLabels,
-		},
+		Alert:    models.Alert{Labels: labels},
 	}
 	alertParams := alert.NewPostAlertsParams()
 	alertParams.Alerts = models.PostableAlerts{pa}
@@ -153,7 +151,7 @@ receivers:
 	require.Len(t, resp.Payload, 1)
 
 	alert := resp.Payload[0]
-	require.Equal(t, expectedLabels, alert.Labels)
+	require.Equal(t, labels, alert.Labels)
 }
 
 // TestAlertGetReturnsCurrentStatus checks that querying the API returns the
