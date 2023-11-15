@@ -48,10 +48,10 @@ func Matchers(s string) (labels.Matchers, error) {
 
 // InitFromFlags initializes the compat package from the flagger.
 func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
-	if f.ClassicMatchersParsing() {
+	if f.ClassicMatchers() {
 		parseMatcher = classicMatcherParser(l)
 		parseMatchers = classicMatchersParser(l)
-	} else if f.UTF8MatchersParsing() {
+	} else if f.UTF8Matchers() {
 		parseMatcher = utf8MatcherParser(l)
 		parseMatchers = utf8MatchersParser(l)
 	} else {
