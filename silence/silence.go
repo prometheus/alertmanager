@@ -701,7 +701,28 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
-	return s.setSilence(sil, now)
+	// This code has been copied from setSilence to avoid an issue where
+	// silences created with UTF-8 label matchers cannot be deleted if
+	// Alertmanager is restarted with the classic matchers feature flag,
+	// as the silence is no longer valid.
+	// TODO(grobinson): Replace this with setSilence once we remove the
+	// feature flag.
+	sil.UpdatedAt = now
+	msil := &pb.MeshSilence{
+		Silence:   sil,
+		ExpiresAt: sil.EndsAt.Add(s.retention),
+	}
+	b, err := marshalMeshSilence(msil)
+	if err != nil {
+		return err
+	}
+
+	if s.st.merge(msil, now) {
+		s.version++
+	}
+	s.broadcast(b)
+
+	return nil
 }
 
 // QueryParam expresses parameters along which silences are queried.
