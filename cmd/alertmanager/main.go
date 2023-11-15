@@ -182,6 +182,7 @@ func run() int {
 	}
 	compat.InitFromFlags(logger, featureConfig)
 	silence.InitFromFlags(logger, featureConfig)
+	types.InitFromFlags(logger, featureConfig)
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
