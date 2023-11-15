@@ -28,6 +28,62 @@ import (
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
+func TestCreateUTF8Alerts(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  10m
+  repeat_interval: 1h
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := a.NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	now := time.Now()
+	expectedLabels := models.LabelSet{
+		"a":                "a",
+		"00":               "b",
+		"Σ":                "c",
+		"\xf0\x9f\x99\x82": "dΘ",
+	}
+	pa := &models.PostableAlert{
+		StartsAt: strfmt.DateTime(now),
+		EndsAt:   strfmt.DateTime(now.Add(5 * time.Minute)),
+		Alert: models.Alert{
+			Labels: expectedLabels,
+		},
+	}
+	alertParams := alert.NewPostAlertsParams()
+	alertParams.Alerts = models.PostableAlerts{pa}
+
+	_, err := am.Client().Alert.PostAlerts(alertParams)
+	require.NoError(t, err)
+
+	resp, err := am.Client().Alert.GetAlerts(nil)
+	require.NoError(t, err)
+	require.Len(t, resp.Payload, 1)
+
+	alert := resp.Payload[0]
+	require.Equal(t, expectedLabels, alert.Labels)
+}
+
 // TestAlertGetReturnsCurrentStatus checks that querying the API returns the
 // current status of each alert, i.e. if it is silenced or inhibited.
 func TestAlertGetReturnsCurrentAlertStatus(t *testing.T) {
