@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -51,9 +52,10 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
+	FeatureFlags []string
+	RoutePrefix  string
+	Tolerance    time.Duration
+	baseTime     time.Time
 }
 
 func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
@@ -301,6 +303,9 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
+	}
+	if len(am.opts.FeatureFlags) > 0 {
+		args = append(args, "--enable-feature", strings.Join(am.opts.FeatureFlags, ","))
 	}
 	if am.opts.RoutePrefix != "" {
 		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
