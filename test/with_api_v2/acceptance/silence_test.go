@@ -15,14 +15,15 @@ package test
 
 import (
 	"fmt"
-	"github.com/go-openapi/strfmt"
-	"github.com/prometheus/alertmanager/api/v2/client/silence"
-	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
+	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
