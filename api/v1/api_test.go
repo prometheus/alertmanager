@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alertobserver"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -134,7 +135,7 @@ func TestAddAlerts(t *testing.T) {
 		}
 
 		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
-		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil, nil)
 		defaultGlobalConfig := config.DefaultGlobalConfig()
 		route := config.Route{}
 		api.Update(&config.Config{
@@ -153,6 +154,74 @@ func TestAddAlerts(t *testing.T) {
 		body, _ := io.ReadAll(res.Body)
 
 		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, StartsAt %v, EndsAt %v, Response: %s", i, tc.start, tc.end, string(body)))
+
+		observer := alertobserver.NewFakeLifeCycleObserver()
+		api.alertLCObserver = observer
+		r, err = http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
+		w = httptest.NewRecorder()
+		if err != nil {
+			t.Errorf("Unexpected error %v", err)
+		}
+		api.addAlerts(w, r)
+		if tc.code == 200 {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertReceived][0].Fingerprint(), alerts[0].Fingerprint())
+		} else {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertRejected][0].Fingerprint(), alerts[0].Fingerprint())
+		}
+	}
+}
+
+func TestAddAlertsWithAlertLCObserver(t *testing.T) {
+	now := func(offset int) time.Time {
+		return time.Now().Add(time.Duration(offset) * time.Second)
+	}
+
+	for i, tc := range []struct {
+		start, end time.Time
+		err        bool
+		code       int
+	}{
+		{time.Time{}, time.Time{}, false, 200},
+		{now(1), now(0), false, 400},
+		{now(0), time.Time{}, true, 500},
+	} {
+		alerts := []model.Alert{{
+			StartsAt:    tc.start,
+			EndsAt:      tc.end,
+			Labels:      model.LabelSet{"label1": "test1"},
+			Annotations: model.LabelSet{"annotation1": "some text"},
+		}}
+		b, err := json.Marshal(&alerts)
+		if err != nil {
+			t.Errorf("Unexpected error %v", err)
+		}
+
+		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
+		observer := alertobserver.NewFakeLifeCycleObserver()
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil, observer)
+		defaultGlobalConfig := config.DefaultGlobalConfig()
+		route := config.Route{}
+		api.Update(&config.Config{
+			Global: &defaultGlobalConfig,
+			Route:  &route,
+		})
+
+		r, err := http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
+		w := httptest.NewRecorder()
+		if err != nil {
+			t.Errorf("Unexpected error %v", err)
+		}
+
+		api.addAlerts(w, r)
+		res := w.Result()
+		body, _ := io.ReadAll(res.Body)
+
+		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, StartsAt %v, EndsAt %v, Response: %s", i, tc.start, tc.end, string(body)))
+		if tc.code == 200 {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertReceived][0].Fingerprint(), alerts[0].Fingerprint())
+		} else {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertRejected][0].Fingerprint(), alerts[0].Fingerprint())
+		}
 	}
 }
 
@@ -267,7 +336,7 @@ func TestListAlerts(t *testing.T) {
 		},
 	} {
 		alertsProvider := newFakeAlerts(alerts, tc.err)
-		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil, nil)
 		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
 
 		r, err := http.NewRequest("GET", "/api/v1/alerts", nil)

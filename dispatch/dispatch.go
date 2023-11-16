@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alertobserver"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -90,7 +91,8 @@ type Dispatcher struct {
 	ctx    context.Context
 	cancel func()
 
-	logger log.Logger
+	logger          log.Logger
+	alertLCObserver alertobserver.LifeCycleObserver
 }
 
 // Limits describes limits used by Dispatcher.
@@ -111,19 +113,21 @@ func NewDispatcher(
 	lim Limits,
 	l log.Logger,
 	m *DispatcherMetrics,
+	o alertobserver.LifeCycleObserver,
 ) *Dispatcher {
 	if lim == nil {
 		lim = nilLimits{}
 	}
 
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		timeout: to,
-		logger:  log.With(l, "component", "dispatcher"),
-		metrics: m,
-		limits:  lim,
+		alerts:          ap,
+		stage:           s,
+		route:           r,
+		timeout:         to,
+		logger:          log.With(l, "component", "dispatcher"),
+		metrics:         m,
+		limits:          lim,
+		alertLCObserver: o,
 	}
 	return disp
 }
@@ -319,13 +323,20 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	ag, ok := routeGroups[fp]
 	if ok {
 		ag.insert(alert)
+		if d.alertLCObserver != nil {
+			d.alertLCObserver.Observe(alertobserver.EventAlertAddedToAggrGroup, []*types.Alert{alert}, alertobserver.AlertEventMeta{"groupKey": ag.GroupKey()})
+		}
 		return
 	}
 
 	// If the group does not exist, create it. But check the limit first.
 	if limit := d.limits.MaxNumberOfAggregationGroups(); limit > 0 && d.aggrGroupsNum >= limit {
 		d.metrics.aggrGroupLimitReached.Inc()
-		level.Error(d.logger).Log("msg", "Too many aggregation groups, cannot create new group for alert", "groups", d.aggrGroupsNum, "limit", limit, "alert", alert.Name())
+		errMsg := "Too many aggregation groups, cannot create new group for alert"
+		level.Error(d.logger).Log("msg", errMsg, "groups", d.aggrGroupsNum, "limit", limit, "alert", alert.Name())
+		if d.alertLCObserver != nil {
+			d.alertLCObserver.Observe(alertobserver.EventAlertFailedAddToAggrGroup, []*types.Alert{alert}, alertobserver.AlertEventMeta{"msg": errMsg})
+		}
 		return
 	}
 
@@ -338,6 +349,9 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
 	ag.insert(alert)
+	if d.alertLCObserver != nil {
+		d.alertLCObserver.Observe(alertobserver.EventAlertAddedToAggrGroup, []*types.Alert{alert}, alertobserver.AlertEventMeta{"groupKey": ag.GroupKey()})
+	}
 
 	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)

@@ -19,11 +19,14 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func createSilence(t *testing.T, ID, creator string, start, ends time.Time) (open_api_models.PostableSilence, []byte) {
@@ -67,4 +70,49 @@ func createLabelMatcher(t *testing.T, name, value string, matchType labels.Match
 
 	matcher, _ := labels.NewMatcher(matchType, name, value)
 	return matcher
+}
+
+func createAlert(t *testing.T, start, ends time.Time) (open_api_models.PostableAlerts, []byte) {
+	startsAt := strfmt.DateTime(start)
+	endsAt := strfmt.DateTime(ends)
+
+	alert := open_api_models.PostableAlert{
+		StartsAt:    startsAt,
+		EndsAt:      endsAt,
+		Annotations: open_api_models.LabelSet{"annotation1": "some text"},
+		Alert: open_api_models.Alert{
+			Labels:       open_api_models.LabelSet{"label1": "test1"},
+			GeneratorURL: "http://localhost:3000",
+		},
+	}
+	alerts := open_api_models.PostableAlerts{}
+	alerts = append(alerts, &alert)
+	b, err := json.Marshal(alerts)
+	require.NoError(t, err)
+	return alerts, b
+}
+
+type fakeAlerts struct {
+	fps    map[model.Fingerprint]int
+	alerts []*types.Alert
+	err    error
+}
+
+func newFakeAlerts(alerts []*types.Alert) *fakeAlerts {
+	fps := make(map[model.Fingerprint]int)
+	for i, a := range alerts {
+		fps[a.Fingerprint()] = i
+	}
+	f := &fakeAlerts{
+		alerts: alerts,
+		fps:    fps,
+	}
+	return f
+}
+
+func (f *fakeAlerts) Subscribe() provider.AlertIterator           { return nil }
+func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
+func (f *fakeAlerts) GetPending() provider.AlertIterator          { return nil }
+func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
+	return f.err
 }

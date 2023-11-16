@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alertobserver"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
@@ -377,18 +379,25 @@ func (pb *PipelineBuilder) New(
 	intervener *timeinterval.Intervener,
 	notificationLog NotificationLog,
 	peer Peer,
+	o alertobserver.LifeCycleObserver,
 ) RoutingStage {
-	rs := make(RoutingStage, len(receivers))
+	rs := RoutingStage{
+		stages:          make(map[string]Stage, len(receivers)),
+		alertLCObserver: o,
+	}
 
 	ms := NewGossipSettleStage(peer)
-	is := NewMuteStage(inhibitor)
+	is := NewMuteStage(inhibitor, o)
 	tas := NewTimeActiveStage(intervener)
 	tms := NewTimeMuteStage(intervener)
-	ss := NewMuteStage(silencer)
+	ss := NewMuteStage(silencer, o)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, o)
+		rs.stages[name] = MultiStage{
+			alertLCObserver: o,
+			stages:          []Stage{ms, is, tas, tms, ss, st},
+		}
 	}
 
 	pb.metrics.InitializeFor(receivers)
@@ -403,6 +412,7 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	o alertobserver.LifeCycleObserver,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -411,20 +421,23 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		var s MultiStage
+		var s []Stage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewRetryStage(integrations[i], name, metrics, o))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
-		fs = append(fs, s)
+		fs = append(fs, MultiStage{stages: s, alertLCObserver: o})
 	}
 	return fs
 }
 
 // RoutingStage executes the inner stages based on the receiver specified in
 // the context.
-type RoutingStage map[string]Stage
+type RoutingStage struct {
+	stages          map[string]Stage
+	alertLCObserver alertobserver.LifeCycleObserver
+}
 
 // Exec implements the Stage interface.
 func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
@@ -433,21 +446,28 @@ func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.
 		return ctx, nil, errors.New("receiver missing")
 	}
 
-	s, ok := rs[receiver]
+	s, ok := rs.stages[receiver]
 	if !ok {
 		return ctx, nil, errors.New("stage for receiver missing")
+	}
+
+	if rs.alertLCObserver != nil {
+		rs.alertLCObserver.Observe(alertobserver.EventAlertPipelineStart, alerts, alertobserver.AlertEventMeta{"ctx": ctx})
 	}
 
 	return s.Exec(ctx, l, alerts...)
 }
 
 // A MultiStage executes a series of stages sequentially.
-type MultiStage []Stage
+type MultiStage struct {
+	stages          []Stage
+	alertLCObserver alertobserver.LifeCycleObserver
+}
 
 // Exec implements the Stage interface.
 func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var err error
-	for _, s := range ms {
+	for _, s := range ms.stages {
 		if len(alerts) == 0 {
 			return ctx, nil, nil
 		}
@@ -455,6 +475,10 @@ func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 		ctx, alerts, err = s.Exec(ctx, l, alerts...)
 		if err != nil {
 			return ctx, nil, err
+		}
+		if ms.alertLCObserver != nil {
+			p := strings.Split(fmt.Sprintf("%T", s), ".")
+			ms.alertLCObserver.Observe(alertobserver.EventAlertPipelinePassStage, alerts, alertobserver.AlertEventMeta{"ctx": ctx, "stageName": p[len(p)-1]})
 		}
 	}
 	return ctx, alerts, nil
@@ -509,12 +533,13 @@ func (n *GossipSettleStage) Exec(ctx context.Context, _ log.Logger, alerts ...*t
 
 // MuteStage filters alerts through a Muter.
 type MuteStage struct {
-	muter types.Muter
+	muter           types.Muter
+	alertLCObserver alertobserver.LifeCycleObserver
 }
 
 // NewMuteStage return a new MuteStage.
-func NewMuteStage(m types.Muter) *MuteStage {
-	return &MuteStage{muter: m}
+func NewMuteStage(m types.Muter, o alertobserver.LifeCycleObserver) *MuteStage {
+	return &MuteStage{muter: m, alertLCObserver: o}
 }
 
 // Exec implements the Stage interface.
@@ -535,6 +560,9 @@ func (n *MuteStage) Exec(ctx context.Context, logger log.Logger, alerts ...*type
 	}
 	if len(muted) > 0 {
 		level.Debug(logger).Log("msg", "Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted))
+	}
+	if n.alertLCObserver != nil {
+		n.alertLCObserver.Observe(alertobserver.EventAlertMuted, muted, alertobserver.AlertEventMeta{"ctx": ctx})
 	}
 	return ctx, filtered, nil
 }
@@ -708,14 +736,15 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
-	groupName   string
-	metrics     *Metrics
-	labelValues []string
+	integration     Integration
+	groupName       string
+	metrics         *Metrics
+	labelValues     []string
+	alertLCObserver alertobserver.LifeCycleObserver
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics, o alertobserver.LifeCycleObserver) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {
@@ -723,16 +752,17 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 	}
 
 	return &RetryStage{
-		integration: i,
-		groupName:   groupName,
-		metrics:     metrics,
-		labelValues: labelValues,
+		integration:     i,
+		groupName:       groupName,
+		metrics:         metrics,
+		labelValues:     labelValues,
+		alertLCObserver: o,
 	}
 }
 
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
-	ctx, alerts, err := r.exec(ctx, l, alerts...)
+	ctx, alerts, sent, err := r.exec(ctx, l, alerts...)
 
 	failureReason := DefaultReason.String()
 	if err != nil {
@@ -740,11 +770,26 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			failureReason = e.Reason.String()
 		}
 		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason)...).Inc()
+		if r.alertLCObserver != nil {
+			m := alertobserver.AlertEventMeta{
+				"ctx":         ctx,
+				"integration": r.integration.Name(),
+				"stageName":   "RetryStage",
+			}
+			r.alertLCObserver.Observe(alertobserver.EventAlertSendFailed, sent, m)
+		}
+	} else if r.alertLCObserver != nil {
+		m := alertobserver.AlertEventMeta{
+			"ctx":         ctx,
+			"integration": r.integration.Name(),
+			"stageName":   "RetryStage",
+		}
+		r.alertLCObserver.Observe(alertobserver.EventAlertSent, sent, m)
 	}
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, []*types.Alert, error) {
 	var sent []*types.Alert
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
@@ -753,10 +798,10 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	if !r.integration.SendResolved() {
 		firing, ok := FiringAlerts(ctx)
 		if !ok {
-			return ctx, nil, errors.New("firing alerts missing")
+			return ctx, nil, nil, errors.New("firing alerts missing")
 		}
 		if len(firing) == 0 {
-			return ctx, alerts, nil
+			return ctx, alerts, sent, nil
 		}
 		for _, a := range alerts {
 			if a.Status() != model.AlertResolved {
@@ -792,7 +837,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				iErr = ctx.Err()
 			}
 
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			return ctx, nil, sent, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
 		default:
 		}
 
@@ -806,7 +851,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
 				if !retry {
-					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
+					return ctx, alerts, sent, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}
 				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
 					// Log the error if the context isn't done and the error isn't the same as before.
@@ -823,14 +868,13 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				}
 
 				lvl.Log("msg", "Notify success", "attempts", i, "duration", dur)
-				return ctx, alerts, nil
+				return ctx, alerts, sent, nil
 			}
 		case <-ctx.Done():
 			if iErr == nil {
 				iErr = ctx.Err()
 			}
-
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			return ctx, nil, sent, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
 		}
 	}
 }

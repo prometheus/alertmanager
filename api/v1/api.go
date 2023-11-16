@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 
+	"github.com/prometheus/alertmanager/alertobserver"
 	"github.com/prometheus/alertmanager/api/metrics"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -67,14 +68,15 @@ func setCORS(w http.ResponseWriter) {
 
 // API provides registration of handlers for API routes.
 type API struct {
-	alerts   provider.Alerts
-	silences *silence.Silences
-	config   *config.Config
-	route    *dispatch.Route
-	uptime   time.Time
-	peer     cluster.ClusterPeer
-	logger   log.Logger
-	m        *metrics.Alerts
+	alerts          provider.Alerts
+	silences        *silence.Silences
+	config          *config.Config
+	route           *dispatch.Route
+	uptime          time.Time
+	peer            cluster.ClusterPeer
+	logger          log.Logger
+	m               *metrics.Alerts
+	alertLCObserver alertobserver.LifeCycleObserver
 
 	getAlertStatus getAlertStatusFn
 
@@ -91,19 +93,21 @@ func New(
 	peer cluster.ClusterPeer,
 	l log.Logger,
 	r prometheus.Registerer,
+	o alertobserver.LifeCycleObserver,
 ) *API {
 	if l == nil {
 		l = log.NewNopLogger()
 	}
 
 	return &API{
-		alerts:         alerts,
-		silences:       silences,
-		getAlertStatus: sf,
-		uptime:         time.Now(),
-		peer:           peer,
-		logger:         l,
-		m:              metrics.NewAlerts("v1", r),
+		alerts:          alerts,
+		silences:        silences,
+		getAlertStatus:  sf,
+		uptime:          time.Now(),
+		peer:            peer,
+		logger:          l,
+		m:               metrics.NewAlerts("v1", r),
+		alertLCObserver: o,
 	}
 }
 
@@ -447,6 +451,10 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
 			api.m.Invalid().Inc()
+			if api.alertLCObserver != nil {
+				m := alertobserver.AlertEventMeta{"msg": err.Error()}
+				api.alertLCObserver.Observe(alertobserver.EventAlertRejected, []*types.Alert{a}, m)
+			}
 			continue
 		}
 		validAlerts = append(validAlerts, a)
@@ -456,7 +464,14 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 			typ: errorInternal,
 			err: err,
 		}, nil)
+		if api.alertLCObserver != nil {
+			m := alertobserver.AlertEventMeta{"msg": err.Error()}
+			api.alertLCObserver.Observe(alertobserver.EventAlertRejected, validAlerts, m)
+		}
 		return
+	}
+	if api.alertLCObserver != nil {
+		api.alertLCObserver.Observe(alertobserver.EventAlertReceived, validAlerts, alertobserver.AlertEventMeta{})
 	}
 
 	if validationErrs.Len() > 0 {
