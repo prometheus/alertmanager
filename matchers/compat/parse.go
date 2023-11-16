@@ -46,6 +46,14 @@ func Matchers(s string) (labels.Matchers, error) {
 	return parseMatchers(s)
 }
 
+// Init can be used to set the functions for parsing matchers. This is
+// useful for downstream users of which might want to add custom behaviour
+// and/or instrumentation.
+func Init(matcherFn matcherParser, matchersFn matchersParser) {
+	parseMatcher = matcherFn
+	parseMatchers = matchersFn
+}
+
 // InitFromFlags initializes the compat package from the flagger.
 func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 	if f.ClassicMatchersParsing() {
