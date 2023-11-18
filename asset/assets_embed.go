@@ -1,4 +1,4 @@
-// Copyright 2018 The Prometheus Authors
+// Copyright 2021 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,29 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build ignore
-// +build ignore
+//go:build !dev
+// +build !dev
 
-package main
+package asset
 
 import (
-	"log"
-	"time"
+	"net/http"
 
-	"github.com/shurcooL/vfsgen"
-
-	"github.com/prometheus/alertmanager/asset"
-	"github.com/prometheus/alertmanager/pkg/modtimevfs"
+	"github.com/prometheus/common/assets"
 )
 
-func main() {
-	fs := modtimevfs.New(asset.Assets, time.Unix(1, 0))
-	err := vfsgen.Generate(fs, vfsgen.Options{
-		PackageName:  "asset",
-		BuildTags:    "!dev",
-		VariableName: "Assets",
-	})
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
+var Assets = http.FS(assets.New(EmbedFS))

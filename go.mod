@@ -36,7 +36,6 @@ require (
 	github.com/prometheus/exporter-toolkit v0.10.0
 	github.com/rs/cors v1.10.1
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
-	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/stretchr/testify v1.8.4
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/atomic v1.11.0

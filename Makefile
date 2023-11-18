@@ -24,33 +24,33 @@ STATICCHECK_IGNORE =
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
-build-all: assets apiv2 build
+build-all: apiv2 build
 
 .PHONY: build
-build: build-react-app assets-compress common-build
+build: assets build-react-app react-assets-compress common-build
 
 .PHONY: lint
-lint: assets-compress common-lint
+lint: assets react-assets-compress common-lint
 
 .PHONY: build-react-app
 build-react-app:
 	cd ui/react-app && npm install && npm run build
 
-.PHONY: assets-compress
-assets-compress: build-react-app
-	@echo '>> compressing assets'
-	scripts/compress_assets.sh
+.PHONY: react-assets-compress
+react-assets-compress: build-react-app
+	@echo '>> compressing react assets'
+	scripts/compress_react.sh
 
-.PHONY: assets
-assets: asset/assets_vfsdata.go
-
-.PHONY: assets-tarball
 assets-tarball: ui/app/script.js ui/app/index.html
+	@echo '>> packaging assets'
 	scripts/package_assets.sh
 
-asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
-	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
-	@$(GOFMT) -w ./asset
+.PHONY: assets
+assets: asset/embed.go
+
+asset/embed.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
+	@echo '>> compressing assets'
+	scripts/compress_assets.sh
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
@@ -74,8 +74,7 @@ api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 
 .PHONY: clean
 clean:
-	- @rm -rf asset/assets_vfsdata.go \
-                  template/email.tmpl \
+	- @rm -rf template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
 

@@ -4,34 +4,30 @@
 
 set -euo pipefail
 
-cd ui/react-app
+cd asset
 cp embed.go.tmpl embed.go
+echo -n "//go:embed" >> embed.go
 
-GZIP_OPTS="-fkn"
-# gzip option '-k' may not always exist in the latest gzip available on different distros.
-if ! gzip -k -h &>/dev/null; then GZIP_OPTS="-fn"; fi
+GZIP_OPTS="-c"
 
-dist="dist"
+function compress_asset() {
+    file="$1"
+    strip_prefix="$2"
+    add_prefix="$3"
+    target_path="$add_prefix${file#"$strip_prefix"}.gz"
+    mkdir -p "${target_path%/*}" || true
+    gzip "$GZIP_OPTS" "$file" > "$target_path"
+    echo -n " $target_path" >> embed.go
+}
 
-if ! [[ -d "${dist}" ]]; then
-  mkdir -p ${dist}
-  echo "<!doctype html>
-        <html lang=\"en\">
-        <head>
-          <meta charset=\"utf-8\">
-          <title>Node</title>
-          <base href=\"/\">
-          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-          <link rel=\"icon\" type=\"image/x-icon\" href=\"favicon.ico\">
-        </head>
-        <body>
-        <div>
-          <p> This is the default index, looks like you forget to generate the react app before generating the golang endpoint.</p>
-        </div>
-        </body>
-        </html>" > ${dist}/index.html
-fi
-
-find dist -type f -name '*.gz' -delete
-find dist -type f -exec gzip $GZIP_OPTS '{}' \; -print0 | xargs -0 -I % echo %.gz | sort | xargs echo //go:embed >> embed.go
-echo var embedFS embed.FS >> embed.go
+find . -type f -name '*.gz' -delete
+# compress_asset  "../ui/app/script.js" "../ui/app/"
+compress_asset  "../ui/app/index.html" "../ui/app/" "static/"
+compress_asset  "../ui/app/favicon.ico" "../ui/app/" "static/"
+while IFS= read -rd $'\0' file; do
+    compress_asset "$file" "../ui/app/" "static/"
+done < <(find ../ui/app/lib -type f -print0)
+compress_asset  "../template/default.tmpl" "../template/" "templates/"
+compress_asset  "../template/email.tmpl" "../template/" "templates/"
+echo "" >> embed.go
+echo var EmbedFS embed.FS >> embed.go
