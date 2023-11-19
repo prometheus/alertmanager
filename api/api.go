@@ -20,6 +20,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/prometheus/alertmanager/util/callback"
+
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -74,6 +76,9 @@ type Options struct {
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
 	GroupFunc func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string)
+
+	// APICallback define the callback function that each api call will perform before returned.
+	APICallback callback.Callback
 }
 
 func (o Options) validate() error {
@@ -124,6 +129,7 @@ func New(opts Options) (*API, error) {
 		opts.GroupFunc,
 		opts.StatusFunc,
 		opts.Silences,
+		opts.APICallback,
 		opts.Peer,
 		log.With(l, "version", "v2"),
 		opts.Registry,
