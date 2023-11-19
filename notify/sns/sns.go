@@ -15,8 +15,10 @@ package sns
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -35,6 +37,30 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+const (
+	// Message components
+	MessageAttribute = "MessageAttribute"
+
+	// Modified Message attribute value format
+	ComponentAndModifiedReason = "%s: %s"
+
+	// The errors
+	MessageAttributeNotValidKeyOrValue = "Error - %d of message attributes have been removed because of invalid MessageAttributeKey or MessageAttributeValue"
+
+	// Message components size limit
+	messageAttributeKeyLimitInCharacters = 256
+)
+
+var isInvalidMessageAttributeKeyPrefix = regexp.MustCompile(`^(AWS\.)|^(Amazon\.)|^(\.)`).MatchString
+var isInvalidMessageAttributeKeySuffix = regexp.MustCompile(`\.$`).MatchString
+var isInvalidMessageAttributeKeySubstring = regexp.MustCompile(`\.{2}`).MatchString
+var isValidMessageAttributeKeyCharacters = regexp.MustCompile(`^[a-zA-Z0-9_\-.]*$`).MatchString
+
+var modifiedMessageAttributeKey = "modified"
+
+//Used for testing
+var jsonMarshal = json.Marshal
 
 // Notifier implements a Notifier for SNS notifications.
 type Notifier struct {
@@ -142,8 +168,9 @@ func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
 }
 
 func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) string) (*sns.PublishInput, error) {
+	var modifiedReasons []string
 	publishInput := &sns.PublishInput{}
-	messageAttributes := n.createMessageAttributes(tmpl)
+	messageAttributes := n.createAndValidateMessageAttributes(tmpl, &modifiedReasons)
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
 	messageSizeLimit := 256 * 1024
 	if n.conf.TopicARN != "" {
@@ -178,6 +205,11 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
 	}
 
+	err = addModifiedMessageAttributes(messageAttributes, modifiedReasons)
+	if err != nil {
+		return nil, err
+	}
+
 	publishInput.SetMessage(messageToSend)
 	publishInput.SetMessageAttributes(messageAttributes)
 
@@ -201,11 +233,71 @@ func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (stri
 	return string(truncated), true, nil
 }
 
-func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]*sns.MessageAttributeValue {
+func addModifiedMessageAttributes(attributes map[string]*sns.MessageAttributeValue, modifiedReasons []string) error {
+	if len(modifiedReasons) > 0 {
+		valueString, err := getModifiedReasonMessageAttributeValue(modifiedReasons)
+		if err != nil {
+			return err
+		}
+		attributes[modifiedMessageAttributeKey] = &sns.MessageAttributeValue{DataType: aws.String("String.Array"), StringValue: aws.String(valueString)}
+	}
+
+	return nil
+}
+
+func getModifiedReasonMessageAttributeValue(modifiedReasons []string) (string, error) {
+	jsonString, err := jsonMarshal(modifiedReasons)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonString), nil
+}
+
+func (n *Notifier) createAndValidateMessageAttributes(tmpl func(string) string, modifiedReasons *[]string) map[string]*sns.MessageAttributeValue {
+	numberOfInvalidMessageAttributes := 0
 	// Convert the given attributes map into the AWS Message Attributes Format.
 	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
 	for k, v := range n.conf.Attributes {
-		attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
+		attributeKey := tmpl(k)
+		attributeValue := tmpl(v)
+		if !isValidateMessageAttribute(attributeKey, attributeValue) {
+			numberOfInvalidMessageAttributes++
+			level.Debug(n.logger).Log("msg", "messageAttribute has been removed because of invalid key/value", "attributeKey", attributeKey, "attributeValue", attributeValue)
+			continue
+		}
+		attributes[attributeKey] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(attributeValue)}
+	}
+
+	if numberOfInvalidMessageAttributes > 0 {
+		level.Info(n.logger).Log("msg", "messageAttributes has been removed because of invalid key/value", "numberOfRemovedAttributes", numberOfInvalidMessageAttributes)
+		*modifiedReasons = append(
+			*modifiedReasons,
+			fmt.Sprintf(ComponentAndModifiedReason, MessageAttribute, fmt.Sprintf(MessageAttributeNotValidKeyOrValue, numberOfInvalidMessageAttributes)),
+		)
 	}
 	return attributes
+}
+
+func isValidateMessageAttribute(messageAttributeKey string, messageAttributeValue string) bool {
+	if len(messageAttributeKey) == 0 || len(messageAttributeValue) == 0 {
+		return false
+	}
+
+	if !isValidMessageAttributeKeyCharacters(messageAttributeKey) ||
+		isInvalidMessageAttributeKeyPrefix(messageAttributeKey) ||
+		isInvalidMessageAttributeKeySuffix(messageAttributeKey) ||
+		isInvalidMessageAttributeKeySubstring(messageAttributeKey) {
+		return false
+	}
+
+	if utf8.RuneCountInString(messageAttributeKey) > messageAttributeKeyLimitInCharacters {
+		return false
+	}
+
+	if !utf8.ValidString(messageAttributeValue) {
+		return false
+	}
+
+	return true
 }
