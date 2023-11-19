@@ -35,8 +35,15 @@ import (
 )
 
 func TestOpsGenieRetry(t *testing.T) {
+	_, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	key := "key"
+
 	notifier, err := New(
 		&config.OpsGenieConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKey:     config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -93,6 +100,25 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
+}
+
+func TestOpsGenieValidation(t *testing.T) {
+	_, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	key := "key"
+
+	_, err := New(
+		&config.OpsGenieConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKey:     config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			Message:    "{{ invalid",
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.ErrorContains(t, err, `function "invalid" not defined`)
 }
 
 func TestOpsGenie(t *testing.T) {
