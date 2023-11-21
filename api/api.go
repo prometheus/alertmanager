@@ -36,7 +36,9 @@ import (
 
 // API represents all APIs of Alertmanager.
 type API struct {
-	v2                       *apiv2.API
+	v2                *apiv2.API
+	deprecationRouter *V1DeprecationRouter
+
 	requestsInFlight         prometheus.Gauge
 	concurrencyLimitExceeded prometheus.Counter
 	timeout                  time.Duration
@@ -143,6 +145,7 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
+		deprecationRouter:        NewV1DeprecationRouter(log.With(l, "version", "v1")),
 		v2:                       v2,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -151,7 +154,7 @@ func New(opts Options) (*API, error) {
 	}, nil
 }
 
-// Register all APIs. As APIv2 works on the http.Handler level, this method also creates a new
+// Register API. As APIv2 works on the http.Handler level, this method also creates a new
 // http.ServeMux and then uses it to register both the provided router (to
 // handle "/") and APIv2 (to handle "<routePrefix>/api/v2"). The method returns
 // the newly created http.ServeMux. If a timeout has been set on construction of
@@ -159,6 +162,9 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
+	// TODO(gotjosh) API V1 was removed as of version 0.28, when we reach 1.0.0 we should removed these deprecation warnings.
+	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
+
 	mux := http.NewServeMux()
 	mux.Handle("/", api.limitHandler(r))
 
