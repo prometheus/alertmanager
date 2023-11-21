@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -1414,7 +1415,11 @@ func TestValidateSilence(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		checkErr(t, c.err, validateSilence(c.s))
+		ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+		if err != nil {
+			t.Fatal("unexpected err", err)
+		}
+		checkErr(t, c.err, validateSilence(c.s, ff))
 	}
 }
 

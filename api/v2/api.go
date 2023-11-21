@@ -44,6 +44,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -71,6 +72,7 @@ type API struct {
 
 	logger log.Logger
 	m      *metrics.Alerts
+	ff     featurecontrol.Flagger
 
 	Handler http.Handler
 }
@@ -89,8 +91,12 @@ func NewAPI(
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l log.Logger,
+	ff featurecontrol.Flagger,
 	r prometheus.Registerer,
 ) (*API, error) {
+	if ff == nil {
+		ff = featurecontrol.NoopFlags{}
+	}
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: sf,
@@ -98,7 +104,12 @@ func NewAPI(
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
+<<<<<<< HEAD
 		m:              metrics.NewAlerts(r),
+=======
+		ff:             ff,
+		m:              metrics.NewAlerts("v2", r),
+>>>>>>> aaece9a2 (Inject feature flags into APIs and Silencer)
 		uptime:         time.Now(),
 	}
 
@@ -348,7 +359,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	for _, a := range alerts {
 		removeEmptyLabels(a.Labels)
 
-		if err := a.Validate(); err != nil {
+		if err := a.Validate(api.ff); err != nil {
 			validationErrs.Add(err)
 			api.m.Invalid().Inc()
 			continue

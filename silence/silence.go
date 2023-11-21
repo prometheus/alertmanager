@@ -193,6 +193,7 @@ type Silences struct {
 
 	logger    log.Logger
 	metrics   *metrics
+	ff        featurecontrol.Flagger
 	retention time.Duration
 
 	mtx       sync.RWMutex
@@ -317,8 +318,9 @@ type Options struct {
 	Retention time.Duration
 
 	// A logger used by background processing.
-	Logger  log.Logger
-	Metrics prometheus.Registerer
+	Logger       log.Logger
+	Metrics      prometheus.Registerer
+	FeatureFlags featurecontrol.Flagger
 }
 
 func (o *Options) validate() error {
@@ -333,10 +335,12 @@ func New(o Options) (*Silences, error) {
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
+
 	s := &Silences{
 		clock:     clock.New(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
+		ff:        featurecontrol.NoopFlags{},
 		retention: o.Retention,
 		broadcast: func([]byte) {},
 		st:        state{},
@@ -345,6 +349,10 @@ func New(o Options) (*Silences, error) {
 
 	if o.Logger != nil {
 		s.logger = o.Logger
+	}
+
+	if o.FeatureFlags != nil {
+		s.ff = o.FeatureFlags
 	}
 
 	if o.SnapshotFile != "" {
@@ -469,20 +477,6 @@ func (s *Silences) GC() (int, error) {
 	return n, nil
 }
 
-// ValidateMatcher runs validation on the matcher name, type, and pattern.
-var ValidateMatcher = func(m *pb.Matcher) error {
-	return validateClassicMatcher(m)
-}
-
-// InitFromFlags initializes the validation function from the flagger.
-func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
-	if !f.ClassicMode() {
-		ValidateMatcher = func(m *pb.Matcher) error {
-			return validateUTF8Matcher(m)
-		}
-	}
-}
-
 // validateClassicMatcher validates the matcher against the classic rules.
 func validateClassicMatcher(m *pb.Matcher) error {
 	if !model.LabelName(m.Name).IsValid() {
@@ -538,7 +532,7 @@ func matchesEmpty(m *pb.Matcher) bool {
 	}
 }
 
-func validateSilence(s *pb.Silence) error {
+func validateSilence(s *pb.Silence, ff featurecontrol.Flagger) error {
 	if s.Id == "" {
 		return errors.New("ID missing")
 	}
@@ -546,8 +540,14 @@ func validateSilence(s *pb.Silence) error {
 		return errors.New("at least one matcher required")
 	}
 	allMatchEmpty := true
+
+	validateFunc := validateUTF8Matcher
+	if ff.ClassicMode() {
+		validateFunc = validateClassicMatcher
+	}
+
 	for i, m := range s.Matchers {
-		if err := ValidateMatcher(m); err != nil {
+		if err := validateFunc(m); err != nil {
 			return fmt.Errorf("invalid label matcher %d: %s", i, err)
 		}
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
@@ -587,7 +587,7 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
 	sil.UpdatedAt = now
 
-	if err := validateSilence(sil); err != nil {
+	if err := validateSilence(sil, s.ff); err != nil {
 		return errors.Wrap(err, "silence invalid")
 	}
 

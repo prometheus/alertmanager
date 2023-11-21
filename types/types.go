@@ -20,7 +20,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
@@ -306,8 +305,13 @@ type Alert struct {
 	Timeout   bool
 }
 
-var validateLs = func(ls model.LabelSet) error {
-	return validateClassicLs(ls)
+// validateLs validates the label set against either the classic rules
+// or the UTF-8 rules depending on the feature flag.
+func validateLs(ls model.LabelSet, ff featurecontrol.Flagger) error {
+	if ff.ClassicMode() {
+		return validateClassicLs(ls)
+	}
+	return validateUTF8Ls(ls)
 }
 
 // validateClassicLs validates the label set against the classic rules.
@@ -328,18 +332,9 @@ func validateUTF8Ls(ls model.LabelSet) error {
 	return nil
 }
 
-// InitFromFlags initializes the validation function from the flagger.
-func InitFromFlags(_ log.Logger, f featurecontrol.Flagger) {
-	if !f.ClassicMode() {
-		validateLs = func(ls model.LabelSet) error {
-			return validateUTF8Ls(ls)
-		}
-	}
-}
-
 // Validate overrides the same method in model.Alert to allow UTF-8 labels.
 // This can be removed once prometheus/common has support for UTF-8.
-func (a *Alert) Validate() error {
+func (a *Alert) Validate(ff featurecontrol.Flagger) error {
 	if a.StartsAt.IsZero() {
 		return fmt.Errorf("start time missing")
 	}
@@ -349,10 +344,10 @@ func (a *Alert) Validate() error {
 	if len(a.Labels) == 0 {
 		return fmt.Errorf("at least one label pair required")
 	}
-	if err := validateLs(a.Labels); err != nil {
+	if err := validateLs(a.Labels, ff); err != nil {
 		return fmt.Errorf("invalid label set: %s", err)
 	}
-	if err := validateLs(a.Annotations); err != nil {
+	if err := validateLs(a.Annotations, ff); err != nil {
 		return fmt.Errorf("invalid annotations: %s", err)
 	}
 	return nil
