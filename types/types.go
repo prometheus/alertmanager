@@ -330,7 +330,7 @@ func validateUTF8Ls(ls model.LabelSet) error {
 
 // InitFromFlags initializes the validation function from the flagger.
 func InitFromFlags(_ log.Logger, f featurecontrol.Flagger) {
-	if !f.ClassicMatchersParsing() {
+	if !f.ClassicMode() {
 		validateLs = func(ls model.LabelSet) error {
 			return validateUTF8Ls(ls)
 		}

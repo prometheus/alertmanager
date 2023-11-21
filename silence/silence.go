@@ -476,7 +476,7 @@ var ValidateMatcher = func(m *pb.Matcher) error {
 
 // InitFromFlags initializes the validation function from the flagger.
 func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
-	if !f.ClassicMatchersParsing() {
+	if !f.ClassicMode() {
 		ValidateMatcher = func(m *pb.Matcher) error {
 			return validateUTF8Matcher(m)
 		}
