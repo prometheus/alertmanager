@@ -55,16 +55,13 @@ func (dr *V1DeprecationRouter) deprecationHandler(w http.ResponseWriter, req *ht
 		Error  string `json:"error"`
 	}{
 		"deprecated",
-		"The Alertmanager v1 API was deprecated in version 0.16.0 and entirely removed since version 0.28.0 - please use the equivalent route in the v2 API",
+		"The Alertmanager v1 API was deprecated in version 0.16.0 and is removed as of version 0.28.0 - please use the equivalent route in the v2 API",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(410)
 
-	// We don't care about errors for this route.
-	b, _ := json.Marshal(resp)
-
-	if _, err := w.Write(b); err != nil {
-		level.Error(dr.logger).Log("msg", "failed to write data to connection", "err", err)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		level.Error(dr.logger).Log("msg", "failed to write response", "err", err)
 	}
 }
