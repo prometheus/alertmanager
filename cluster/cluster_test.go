@@ -342,3 +342,63 @@ func testTLSConnection(t *testing.T) {
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
 }
+
+func TestPeer_GetStates(t *testing.T) {
+	r := prometheus.NewRegistry()
+	p1, err := Create(
+		logger,
+		r,
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+	)
+	require.NoError(t, err)
+
+	p1.AddState("nflog", &fakeState{}, r)
+	p1.AddState("silences", &fakeState{}, r)
+
+	t.Run("all states are found", func(t *testing.T) {
+		states, missing := p1.GetStates("nflog", "silences")
+
+		require.Len(t, states, 2)
+		require.Equal(t, states, map[string]State{"nflog": &fakeState{}, "silences": &fakeState{}})
+		require.Len(t, missing, 0)
+		require.ElementsMatch(t, missing, []string{})
+	})
+
+	t.Run("some states are found", func(t *testing.T) {
+		states, missing := p1.GetStates("nflog", "notfound")
+
+		require.Len(t, states, 1)
+		require.Equal(t, states, map[string]State{"nflog": &fakeState{}})
+		require.Len(t, missing, 1)
+		require.ElementsMatch(t, missing, []string{"notfound"})
+	})
+
+	t.Run("no states are found", func(t *testing.T) {
+		states, missing := p1.GetStates("notfound", "missing")
+
+		require.Len(t, states, 0)
+		require.Len(t, missing, 2)
+		require.ElementsMatch(t, missing, []string{"notfound", "missing"})
+	})
+}
+
+type fakeState struct{}
+
+func (f fakeState) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (f fakeState) Merge(b []byte) error {
+	return nil
+}
