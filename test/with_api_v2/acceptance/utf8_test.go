@@ -102,7 +102,6 @@ receivers:
 	require.Len(t, alertGroupResp.Payload, 1)
 	require.Len(t, alertGroupResp.Payload[0].Alerts, 1)
 	require.Equal(t, labels, alertGroupResp.Payload[0].Alerts[0].Labels)
-
 }
 
 func TestCannotAddUTF8AlertsInClassicMode(t *testing.T) {
