@@ -15,7 +15,6 @@ package test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +26,7 @@ import (
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
-func TestAddClassicSilence(t *testing.T) {
+func TestAddSilence(t *testing.T) {
 	t.Parallel()
 
 	conf := `
@@ -58,7 +57,6 @@ receivers:
 
 	am := amc.Members()[0]
 
-	// can create a silence with classic matchers
 	now := time.Now()
 	ps := models.PostableSilence{
 		Silence: models.Silence{
@@ -69,81 +67,6 @@ receivers:
 				IsEqual: boolPtr(true),
 				IsRegex: boolPtr(false),
 				Value:   stringPtr("bar"),
-			}},
-			StartsAt: dateTimePtr(strfmt.DateTime(now)),
-			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
-		},
-	}
-	silenceParams := silence.NewPostSilencesParams()
-	silenceParams.Silence = &ps
-
-	_, err := am.Client().Silence.PostSilences(silenceParams)
-	require.NoError(t, err)
-
-	// cannot create a silence with UTF-8 matchers
-	now = time.Now()
-	ps = models.PostableSilence{
-		Silence: models.Silence{
-			Comment:   stringPtr("test"),
-			CreatedBy: stringPtr("test"),
-			Matchers: models.Matchers{{
-				Name:    stringPtr("fooΣ"),
-				IsEqual: boolPtr(true),
-				IsRegex: boolPtr(false),
-				Value:   stringPtr("bar🙂"),
-			}},
-			StartsAt: dateTimePtr(strfmt.DateTime(now)),
-			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
-		},
-	}
-	silenceParams = silence.NewPostSilencesParams()
-	silenceParams.Silence = &ps
-
-	_, err = am.Client().Silence.PostSilences(silenceParams)
-	require.NotNil(t, err)
-	require.True(t, strings.Contains(err.Error(), "silence invalid: invalid label matcher"))
-}
-
-func TestAddUTF8Silence(t *testing.T) {
-	t.Parallel()
-
-	conf := `
-route:
-  receiver: "default"
-  group_by: []
-  group_wait:      1s
-  group_interval:  1s
-  repeat_interval: 1ms
-
-receivers:
-- name: "default"
-  webhook_configs:
-  - url: 'http://%s'
-`
-
-	at := NewAcceptanceTest(t, &AcceptanceOpts{
-		Tolerance: 150 * time.Millisecond,
-	})
-
-	co := at.Collector("webhook")
-	wh := NewWebhook(t, co)
-
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
-	require.NoError(t, amc.Start())
-	defer amc.Terminate()
-
-	am := amc.Members()[0]
-
-	now := time.Now()
-	ps := models.PostableSilence{
-		Silence: models.Silence{
-			Comment:   stringPtr("test"),
-			CreatedBy: stringPtr("test"),
-			Matchers: models.Matchers{{
-				Name:    stringPtr("fooΣ"),
-				IsEqual: boolPtr(true),
-				IsRegex: boolPtr(false),
-				Value:   stringPtr("bar🙂"),
 			}},
 			StartsAt: dateTimePtr(strfmt.DateTime(now)),
 			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
