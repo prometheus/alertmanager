@@ -51,7 +51,7 @@ func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 	if f.ClassicMode() {
 		parseMatcher = classicMatcherParser(l)
 		parseMatchers = classicMatchersParser(l)
-	} else if f.UTF8Mode() {
+	} else if f.UTF8StrictMode() {
 		parseMatcher = utf8MatcherParser(l)
 		parseMatchers = utf8MatchersParser(l)
 	} else {
