@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
@@ -85,6 +86,23 @@ receivers:
 	require.NoError(t, err)
 	require.Len(t, resp.Payload, 1)
 	require.Equal(t, labels, resp.Payload[0].Labels)
+
+	// can get same alert in alert group from the API
+	alertGroupResp, err := am.Client().Alertgroup.GetAlertGroups(nil)
+	require.NoError(t, err)
+	require.Len(t, alertGroupResp.Payload, 1)
+	require.Len(t, alertGroupResp.Payload[0].Alerts, 1)
+	require.Equal(t, labels, alertGroupResp.Payload[0].Alerts[0].Labels)
+
+	// can filter alertGroups on UTF-8 labels
+	getAlertGroupsParams := alertgroup.NewGetAlertGroupsParams()
+	getAlertGroupsParams.Filter = []string{"00=b", "Σ=c", "\"\\xf0\\x9f\\x99\\x82\"=dΘ"}
+	alertGroupResp, err = am.Client().Alertgroup.GetAlertGroups(getAlertGroupsParams)
+	require.NoError(t, err)
+	require.Len(t, alertGroupResp.Payload, 1)
+	require.Len(t, alertGroupResp.Payload[0].Alerts, 1)
+	require.Equal(t, labels, alertGroupResp.Payload[0].Alerts[0].Labels)
+
 }
 
 func TestCannotAddUTF8AlertsInClassicMode(t *testing.T) {
