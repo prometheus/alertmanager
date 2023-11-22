@@ -14,6 +14,7 @@
 package template
 
 import (
+	"encoding/json"
 	tmplhtml "html/template"
 	"net/url"
 	"sync"
@@ -139,6 +140,8 @@ func TestData(t *testing.T) {
 	tmpl := &Template{ExternalURL: u}
 	startTime := time.Time{}.Add(1 * time.Second)
 	endTime := time.Time{}.Add(2 * time.Second)
+	expStartTime := Time{startTime}
+	expEndTime := Time{endTime}
 
 	for _, tc := range []struct {
 		receiver    string
@@ -201,15 +204,15 @@ func TestData(t *testing.T) {
 						Status:      "firing",
 						Labels:      KV{"severity": "warning", "job": "foo"},
 						Annotations: KV{"description": "something happened", "runbook": "foo"},
-						StartsAt:    startTime,
+						StartsAt:    expStartTime,
 						Fingerprint: "9266ef3da838ad95",
 					},
 					{
 						Status:      "resolved",
 						Labels:      KV{"severity": "critical", "job": "foo"},
 						Annotations: KV{"description": "something else happened", "runbook": "foo"},
-						StartsAt:    startTime,
-						EndsAt:      endTime,
+						StartsAt:    expStartTime,
+						EndsAt:      expEndTime,
 						Fingerprint: "3b15fd163d36582e",
 					},
 				},
@@ -259,15 +262,15 @@ func TestData(t *testing.T) {
 						Status:      "firing",
 						Labels:      KV{"severity": "warning", "job": "foo"},
 						Annotations: KV{"description": "something happened", "runbook": "foo"},
-						StartsAt:    startTime,
+						StartsAt:    expStartTime,
 						Fingerprint: "9266ef3da838ad95",
 					},
 					{
 						Status:      "resolved",
 						Labels:      KV{"severity": "critical", "job": "bar"},
 						Annotations: KV{"description": "something else happened", "runbook": "bar"},
-						StartsAt:    startTime,
-						EndsAt:      endTime,
+						StartsAt:    expStartTime,
+						EndsAt:      expEndTime,
 						Fingerprint: "c7e68cb08e3e67f9",
 					},
 				},
@@ -384,6 +387,19 @@ func TestTemplateExpansion(t *testing.T) {
 				},
 			},
 			exp: "[key2 key4]",
+		},
+		{
+			title: "Template StartsAt and EndsAt time formatting",
+			in:    `{{ range .Alerts }}{{ .StartsAt }} - {{ .EndsAt }}{{ end }}`,
+			data: Data{
+				Alerts: Alerts{
+					Alert{
+						StartsAt: Time{time.Date(2023, 11, 14, 15, 49, 0, 0, time.UTC)},
+						EndsAt:   Time{time.Date(2023, 11, 14, 18, 22, 36, 2000000, time.UTC)},
+					},
+				},
+			},
+			exp: "2023-11-14 15:49:00 +0000 UTC - 2023-11-14 18:22:36.002 +0000 UTC",
 		},
 	} {
 		tc := tc
@@ -522,4 +538,53 @@ func TestTemplateFuncs(t *testing.T) {
 			wg.Wait()
 		})
 	}
+}
+
+func TestTemplateDataJSONFormat(t *testing.T) {
+	data := Data{
+		Receiver: "some-receiver",
+		Status:   "resolved",
+		Alerts: Alerts{
+			Alert{
+				Status:       "resolved",
+				Labels:       KV{"testAlertLabel": "testAlertLabelValue"},
+				Annotations:  KV{"testAlertAnnotation": "testAlertAnnotationValue"},
+				StartsAt:     Time{time.Date(2023, 11, 14, 15, 49, 0, 0, time.UTC)},
+				EndsAt:       Time{time.Date(2023, 11, 14, 18, 22, 36, 2000000, time.UTC)},
+				GeneratorURL: "localhost:9090",
+				Fingerprint:  "someFingerprint",
+			},
+		},
+		GroupLabels:       KV{"testGroupLabel": "testGroupLabelValue"},
+		CommonLabels:      KV{"testCommonLabel": "testCommonLabelValue"},
+		CommonAnnotations: KV{"testCommonAnnotation": "testCommonAnnotationValue"},
+		ExternalURL:       "localhost:9090",
+	}
+
+	jsonBytes, err := json.Marshal(data)
+
+	require.NoError(t, err)
+	require.JSONEq(
+		t,
+		`{
+			"receiver":"some-receiver",
+			"status":"resolved",
+			"alerts":[
+				{
+					"status":"resolved",
+					"labels":{"testAlertLabel":"testAlertLabelValue"},
+					"annotations":{"testAlertAnnotation":"testAlertAnnotationValue"},
+					"startsAt":"2023-11-14T15:49:00.000Z",
+					"endsAt":"2023-11-14T18:22:36.002Z",
+					"generatorURL":"localhost:9090",
+					"fingerprint":"someFingerprint"
+				}
+			],
+			"groupLabels":{"testGroupLabel":"testGroupLabelValue"},
+			"commonLabels":{"testCommonLabel":"testCommonLabelValue"},
+			"commonAnnotations":{"testCommonAnnotation":"testCommonAnnotationValue"},
+			"externalURL":"localhost:9090"
+		}`,
+		string(jsonBytes),
+	)
 }

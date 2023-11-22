@@ -295,8 +295,8 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			annotations[k] = v
 		}
 
-		start := strfmt.DateTime(a.StartsAt)
-		end := strfmt.DateTime(a.EndsAt)
+		start := strfmt.DateTime(a.StartsAt.Time)
+		end := strfmt.DateTime(a.EndsAt.Time)
 
 		alerts = append(alerts, &models.GettableAlert{
 			Alert: models.Alert{
