@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
@@ -45,7 +46,7 @@ receivers:
 `
 
 	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
-		FeatureFlags: []string{"classic-matchers-parsing"},
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
 		Tolerance:    1 * time.Second,
 	})
 	co := at.Collector("webhook")

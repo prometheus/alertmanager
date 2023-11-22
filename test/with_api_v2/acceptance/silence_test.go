@@ -23,6 +23,7 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
@@ -44,7 +45,7 @@ receivers:
 `
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
-		FeatureFlags: []string{"classic-matchers-parsing"},
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
 		Tolerance:    150 * time.Millisecond,
 	})
 

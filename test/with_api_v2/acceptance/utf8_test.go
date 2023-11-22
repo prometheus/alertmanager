@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
@@ -121,7 +122,7 @@ receivers:
 `
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
-		FeatureFlags: []string{"classic-matchers-parsing"},
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
 		Tolerance:    1 * time.Second,
 	})
 	co := at.Collector("webhook")
@@ -235,17 +236,14 @@ receivers:
 `
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
-		FeatureFlags: []string{"classic-matchers-parsing"},
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
 		Tolerance:    150 * time.Millisecond,
 	})
-
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
-
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
 	defer amc.Terminate()
-
 	am := amc.Members()[0]
 
 	// cannot create a silence with UTF-8 matchers
@@ -295,8 +293,8 @@ receivers:
 	})
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
-
 	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
 	am.Push(At(1), Alert("foo🙂", "bar").Active(1))
 	co.Want(Between(2, 2.5), Alert("foo🙂", "bar").Active(1))
 	at.Run()
