@@ -75,6 +75,49 @@ func (o *GetSilencesOK) WriteResponse(rw http.ResponseWriter, producer runtime.P
 	}
 }
 
+// GetSilencesBadRequestCode is the HTTP code returned for type GetSilencesBadRequest
+const GetSilencesBadRequestCode int = 400
+
+/*
+GetSilencesBadRequest Bad request
+
+swagger:response getSilencesBadRequest
+*/
+type GetSilencesBadRequest struct {
+
+	/*
+	  In: Body
+	*/
+	Payload string `json:"body,omitempty"`
+}
+
+// NewGetSilencesBadRequest creates GetSilencesBadRequest with default headers values
+func NewGetSilencesBadRequest() *GetSilencesBadRequest {
+
+	return &GetSilencesBadRequest{}
+}
+
+// WithPayload adds the payload to the get silences bad request response
+func (o *GetSilencesBadRequest) WithPayload(payload string) *GetSilencesBadRequest {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get silences bad request response
+func (o *GetSilencesBadRequest) SetPayload(payload string) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(400)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+}
+
 // GetSilencesInternalServerErrorCode is the HTTP code returned for type GetSilencesInternalServerError
 const GetSilencesInternalServerErrorCode int = 500
 
