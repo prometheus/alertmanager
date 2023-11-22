@@ -198,7 +198,6 @@ receivers:
 	require.NoError(t, err)
 	require.Len(t, resp.Payload, 1)
 	require.Equal(t, matchers, resp.Payload[0].Matchers)
-
 }
 
 func TestCannotAddUTF8SilencesInClassicMode(t *testing.T) {
