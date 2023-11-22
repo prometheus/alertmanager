@@ -56,7 +56,7 @@ receivers:
 	defer amc.Terminate()
 	am := amc.Members()[0]
 
-	// add an alert with UTF-8 labels
+	// Add an alert with UTF-8 labels.
 	now := time.Now()
 	labels := models.LabelSet{
 		"a":                "a",
@@ -74,13 +74,13 @@ receivers:
 	_, err := am.Client().Alert.PostAlerts(postAlertParams)
 	require.NoError(t, err)
 
-	// can get same alert from the API
+	// Can get same alert from the API.
 	resp, err := am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
 	require.Len(t, resp.Payload, 1)
 	require.Equal(t, labels, resp.Payload[0].Labels)
 
-	// can filter alerts on UTF-8 labels
+	// Can filter alerts on UTF-8 labels.
 	getAlertParams := alert.NewGetAlertsParams()
 	getAlertParams = getAlertParams.WithFilter([]string{"00=b", "Σ=c", "\"\\xf0\\x9f\\x99\\x82\"=dΘ"})
 	resp, err = am.Client().Alert.GetAlerts(getAlertParams)
@@ -88,14 +88,14 @@ receivers:
 	require.Len(t, resp.Payload, 1)
 	require.Equal(t, labels, resp.Payload[0].Labels)
 
-	// can get same alert in alert group from the API
+	// Can get same alert in alert group from the API.
 	alertGroupResp, err := am.Client().Alertgroup.GetAlertGroups(nil)
 	require.NoError(t, err)
 	require.Len(t, alertGroupResp.Payload, 1)
 	require.Len(t, alertGroupResp.Payload[0].Alerts, 1)
 	require.Equal(t, labels, alertGroupResp.Payload[0].Alerts[0].Labels)
 
-	// can filter alertGroups on UTF-8 labels
+	// Can filter alertGroups on UTF-8 labels.
 	getAlertGroupsParams := alertgroup.NewGetAlertGroupsParams()
 	getAlertGroupsParams.Filter = []string{"00=b", "Σ=c", "\"\\xf0\\x9f\\x99\\x82\"=dΘ"}
 	alertGroupResp, err = am.Client().Alertgroup.GetAlertGroups(getAlertGroupsParams)
@@ -132,7 +132,7 @@ receivers:
 	defer amc.Terminate()
 	am := amc.Members()[0]
 
-	// cannot add an alert with UTF-8 labels
+	// Cannot add an alert with UTF-8 labels.
 	now := time.Now()
 	pa := &models.PostableAlert{
 		StartsAt: strfmt.DateTime(now),
@@ -181,7 +181,7 @@ receivers:
 	defer amc.Terminate()
 	am := amc.Members()[0]
 
-	// add a silence with UTF-8 label matchers
+	// Add a silence with UTF-8 label matchers.
 	now := time.Now()
 	matchers := models.Matchers{{
 		Name:    stringPtr("fooΣ"),
@@ -203,13 +203,13 @@ receivers:
 	_, err := am.Client().Silence.PostSilences(postSilenceParams)
 	require.NoError(t, err)
 
-	// can get the same silence from the API
+	// Can get the same silence from the API.
 	resp, err := am.Client().Silence.GetSilences(nil)
 	require.NoError(t, err)
 	require.Len(t, resp.Payload, 1)
 	require.Equal(t, matchers, resp.Payload[0].Matchers)
 
-	// can filter silences on UTF-8 label matchers
+	// Can filter silences on UTF-8 label matchers.
 	getSilenceParams := silence.NewGetSilencesParams()
 	getSilenceParams = getSilenceParams.WithFilter([]string{"fooΣ=bar🙂"})
 	resp, err = am.Client().Silence.GetSilences(getSilenceParams)
@@ -246,7 +246,7 @@ receivers:
 	defer amc.Terminate()
 	am := amc.Members()[0]
 
-	// cannot create a silence with UTF-8 matchers
+	// Cannot create a silence with UTF-8 matchers.
 	now := time.Now()
 	ps := models.PostableSilence{
 		Silence: models.Silence{
