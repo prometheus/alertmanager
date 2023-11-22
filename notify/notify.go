@@ -466,7 +466,7 @@ func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	return ctx, alerts, nil
 }
 
-// FanoutStage executes its stages concurrently
+// FanoutStage executes its stages concurrently.
 type FanoutStage []Stage
 
 // Exec attempts to execute all stages concurrently and discards the results.
@@ -613,7 +613,7 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
-// Wrap a slice in a struct so we can store a pointer in sync.Pool
+// Wrap a slice in a struct so we can store a pointer in sync.Pool.
 type hashBuffer struct {
 	buf []byte
 }

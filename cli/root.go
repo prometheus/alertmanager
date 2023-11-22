@@ -89,7 +89,7 @@ const (
 	defaultAmApiv2path = "/api/v2"
 )
 
-// NewAlertmanagerClient initializes an alertmanager client with the given URL
+// NewAlertmanagerClient initializes an alertmanager client with the given URL.
 func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	address := defaultAmHost + ":" + defaultAmPort
 	schemes := []string{"http"}
@@ -145,7 +145,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	return c
 }
 
-// Execute is the main function for the amtool command
+// Execute is the main function for the amtool command.
 func Execute() {
 	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 

@@ -46,7 +46,7 @@ var ErrInvalidState = errors.New("invalid state")
 // query currently allows filtering by and/or receiver group key.
 // It is configured via QueryParameter functions.
 //
-// TODO(fabxc): Future versions could allow querying a certain receiver
+// TODO(fabxc): Future versions could allow querying a certain receiver,
 // group or a given time interval.
 type query struct {
 	recv     *pb.Receiver

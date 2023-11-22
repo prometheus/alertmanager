@@ -972,7 +972,7 @@ func (re Regexp) MarshalYAML() (interface{}, error) {
 	return nil, nil
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface for Regexp
+// UnmarshalJSON implements the json.Unmarshaler interface for Regexp.
 func (re *Regexp) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
