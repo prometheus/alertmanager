@@ -517,17 +517,10 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	matchers := []*labels.Matcher{}
-	if params.Filter != nil {
-		for _, matcherString := range params.Filter {
-			matcher, err := compat.Matcher(matcherString)
-			if err != nil {
-				level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
-				return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
-			}
-
-			matchers = append(matchers, matcher)
-		}
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
+		return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
 	}
 
 	psils, _, err := api.silences.Query()
