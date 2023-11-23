@@ -68,7 +68,8 @@ type Options struct {
 	Concurrency int
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger log.Logger
-	// FeatureFlags contains the set of feature flags. If nil, NoopFlags are used.
+	// FeatureFlags contains the set of feature flags. If nil, NoopFlags are used,
+	// and all controlled features are disabled.
 	FeatureFlags featurecontrol.Flagger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
