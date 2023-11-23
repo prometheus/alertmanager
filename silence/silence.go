@@ -584,10 +584,10 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence, now time.Time, isDelete bool) error {
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool) error {
 	sil.UpdatedAt = now
 
-	if !isDelete {
+	if !skipValidate {
 		if err := validateSilence(sil, s.ff); err != nil {
 			return errors.Wrap(err, "silence invalid")
 		}
