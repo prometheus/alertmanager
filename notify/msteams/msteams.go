@@ -52,6 +52,7 @@ type teamsMessage struct {
 	Context    string `json:"@context"`
 	Type       string `json:"type"`
 	Title      string `json:"title"`
+	Summary    string `json:"summary"`
 	Text       string `json:"text"`
 	ThemeColor string `json:"themeColor"`
 }
@@ -98,6 +99,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	summary := tmpl(n.conf.Summary)
+	if err != nil {
+		return false, err
+	}
 
 	alerts := types.Alerts(as...)
 	color := colorGrey
@@ -112,6 +117,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Context:    "http://schema.org/extensions",
 		Type:       "MessageCard",
 		Title:      title,
+		Summary:    summary,
 		Text:       text,
 		ThemeColor: color,
 	}
