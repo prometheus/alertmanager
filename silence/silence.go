@@ -703,6 +703,8 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
+	// Skip validation of the silence when expiring it. Without this, silences created
+	// with valid UTF-8 matchers cannot be expired when Alertmanager is run in classic mode.
 	return s.setSilence(sil, now, true)
 }
 
