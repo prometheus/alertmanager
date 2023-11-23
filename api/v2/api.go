@@ -520,7 +520,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
 		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
-		return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
 	psils, _, err := api.silences.Query()
