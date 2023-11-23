@@ -584,11 +584,13 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time, isDelete bool) error {
 	sil.UpdatedAt = now
 
-	if err := validateSilence(sil, s.ff); err != nil {
-		return errors.Wrap(err, "silence invalid")
+	if !isDelete {
+		if err := validateSilence(sil, s.ff); err != nil {
+			return errors.Wrap(err, "silence invalid")
+		}
 	}
 
 	msil := &pb.MeshSilence{
@@ -622,7 +624,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	}
 	if ok {
 		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil, now)
+			return sil.Id, s.setSilence(sil, now, false)
 		}
 		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
@@ -642,7 +644,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	return sil.Id, s.setSilence(sil, now)
+	return sil.Id, s.setSilence(sil, now, false)
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -701,28 +703,7 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
-	// This code has been copied from setSilence to avoid an issue where
-	// silences created with UTF-8 label matchers cannot be deleted if
-	// Alertmanager is restarted with the classic matchers feature flag,
-	// as the silence is no longer valid.
-	// TODO(grobinson): Replace this with setSilence once we remove the
-	// feature flag.
-	sil.UpdatedAt = now
-	msil := &pb.MeshSilence{
-		Silence:   sil,
-		ExpiresAt: sil.EndsAt.Add(s.retention),
-	}
-	b, err := marshalMeshSilence(msil)
-	if err != nil {
-		return err
-	}
-
-	if s.st.merge(msil, now) {
-		s.version++
-	}
-	s.broadcast(b)
-
-	return nil
+	return s.setSilence(sil, now, true)
 }
 
 // QueryParam expresses parameters along which silences are queried.

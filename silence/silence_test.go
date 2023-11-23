@@ -293,7 +293,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		require.NoError(t, s.setSilence(sil, nowpb))
+		require.NoError(t, s.setSilence(sil, nowpb, false))
 	}()
 
 	// Ensure broadcast was called.
@@ -1040,6 +1040,46 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	count, err = s.CountState(types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
+}
+
+// This test checks that invalid silences can be expired.
+func TestSilenceExpireInvalid(t *testing.T) {
+	s, err := New(Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	clock := clock.NewMock()
+	s.clock = clock
+	now := s.nowUTC()
+
+	// In this test the matcher has an invalid type.
+	silence := pb.Silence{
+		Id:        "active",
+		Matchers:  []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+		StartsAt:  now.Add(-time.Minute),
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now.Add(-time.Hour),
+	}
+	// Assert that this silence is invalid.
+	require.EqualError(t, validateSilence(&silence, featurecontrol.NoopFlags{}), "invalid label matcher 0: unknown matcher type \"-1\"")
+
+	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+
+	// The silence should be active.
+	count, err := s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	clock.Add(time.Millisecond)
+	require.NoError(t, s.Expire("active"))
+	clock.Add(time.Millisecond)
+
+	// The silence should be expired.
+	count, err = s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }
 
 func TestSilencer(t *testing.T) {
