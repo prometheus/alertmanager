@@ -18,6 +18,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
+
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/require"
 
@@ -67,4 +72,68 @@ func createLabelMatcher(t *testing.T, name, value string, matchType labels.Match
 
 	matcher, _ := labels.NewMatcher(matchType, name, value)
 	return matcher
+}
+
+// fakeAlerts is a struct implementing the provider.Alerts interface for tests.
+type fakeAlerts struct {
+	fps    map[model.Fingerprint]int
+	alerts []*types.Alert
+	err    error
+}
+
+func newFakeAlerts(alerts []*types.Alert) *fakeAlerts {
+	fps := make(map[model.Fingerprint]int)
+	for i, a := range alerts {
+		fps[a.Fingerprint()] = i
+	}
+	f := &fakeAlerts{
+		alerts: alerts,
+		fps:    fps,
+	}
+	return f
+}
+
+func (f *fakeAlerts) Subscribe() provider.AlertIterator           { return nil }
+func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
+func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
+	return f.err
+}
+
+func (f *fakeAlerts) GetPending() provider.AlertIterator {
+	ch := make(chan *types.Alert)
+	done := make(chan struct{})
+	go func() {
+		defer close(ch)
+		for _, a := range f.alerts {
+			ch <- a
+		}
+	}()
+	return provider.NewAlertIterator(ch, done, f.err)
+}
+
+func newGetAlertStatus(f *fakeAlerts) func(model.Fingerprint) types.AlertStatus {
+	return func(fp model.Fingerprint) types.AlertStatus {
+		status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
+
+		i, ok := f.fps[fp]
+		if !ok {
+			return status
+		}
+		alert := f.alerts[i]
+		switch alert.Labels["state"] {
+		case "active":
+			status.State = types.AlertStateActive
+		case "unprocessed":
+			status.State = types.AlertStateUnprocessed
+		case "suppressed":
+			status.State = types.AlertStateSuppressed
+		}
+		if alert.Labels["silenced_by"] != "" {
+			status.SilencedBy = append(status.SilencedBy, string(alert.Labels["silenced_by"]))
+		}
+		if alert.Labels["inhibited_by"] != "" {
+			status.InhibitedBy = append(status.InhibitedBy, string(alert.Labels["inhibited_by"]))
+		}
+		return status
+	}
 }
