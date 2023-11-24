@@ -104,12 +104,8 @@ func NewAPI(
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
-<<<<<<< HEAD
 		m:              metrics.NewAlerts(r),
-=======
 		ff:             ff,
-		m:              metrics.NewAlerts("v2", r),
->>>>>>> aaece9a2 (Inject feature flags into APIs and Silencer)
 		uptime:         time.Now(),
 	}
 
