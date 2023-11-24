@@ -14,6 +14,7 @@
 package compat
 
 import (
+	"github.com/prometheus/common/model"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -109,4 +110,66 @@ func mustNewMatcher(t *testing.T, op labels.MatchType, name, value string) *labe
 	m, err := labels.NewMatcher(op, name, value)
 	require.NoError(t, err)
 	return m
+}
+
+func TestIsValidClassicLabelName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    model.LabelName
+		expected bool
+	}{{
+		name:     "is accepted",
+		input:    "foo",
+		expected: true,
+	}, {
+		name:     "is also accepted",
+		input:    "_foo1",
+		expected: true,
+	}, {
+		name:     "is not accepted",
+		input:    "0foo",
+		expected: false,
+	}, {
+		name:     "is also not accepted",
+		input:    "foo🙂",
+		expected: false,
+	}}
+
+	for _, test := range tests {
+		fn := isValidClassicLabelName(log.NewNopLogger())
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, fn(test.input))
+		})
+	}
+}
+
+func TestIsValidUTF8LabelName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    model.LabelName
+		expected bool
+	}{{
+		name:     "is accepted",
+		input:    "foo",
+		expected: true,
+	}, {
+		name:     "is also accepted",
+		input:    "_foo1",
+		expected: true,
+	}, {
+		name:     "is accepted in UTF-8",
+		input:    "0foo",
+		expected: true,
+	}, {
+		name:     "is also accepted with UTF-8",
+		input:    "foo🙂",
+		expected: true,
+	}}
+
+	for _, test := range tests {
+		fn := isValidUTF8LabelName(log.NewNopLogger())
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, fn(test.input))
+		})
+	}
 }
