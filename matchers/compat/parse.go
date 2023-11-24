@@ -16,9 +16,11 @@ package compat
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/parse"
@@ -26,9 +28,15 @@ import (
 )
 
 var (
-	parseMatcher  = classicMatcherParser(log.NewNopLogger())
-	parseMatchers = classicMatchersParser(log.NewNopLogger())
+	isValidLabelName = isValidClassicLabelName(log.NewNopLogger())
+	parseMatcher     = classicMatcherParser(log.NewNopLogger())
+	parseMatchers    = classicMatchersParser(log.NewNopLogger())
 )
+
+// IsValidLabelName returns true if the string is a valid label name.
+func IsValidLabelName(name model.LabelName) bool {
+	return isValidLabelName(name)
+}
 
 type matcherParser func(s string) (*labels.Matcher, error)
 
@@ -49,12 +57,15 @@ func Matchers(s string) (labels.Matchers, error) {
 // InitFromFlags initializes the compat package from the flagger.
 func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 	if f.ClassicMode() {
+		isValidLabelName = isValidClassicLabelName(l)
 		parseMatcher = classicMatcherParser(l)
 		parseMatchers = classicMatchersParser(l)
 	} else if f.UTF8StrictMode() {
+		isValidLabelName = isValidUTF8LabelName(l)
 		parseMatcher = utf8MatcherParser(l)
 		parseMatchers = utf8MatchersParser(l)
 	} else {
+		isValidLabelName = isValidUTF8LabelName(l)
 		parseMatcher = fallbackMatcherParser(l)
 		parseMatchers = fallbackMatchersParser(l)
 	}
@@ -164,5 +175,19 @@ func fallbackMatchersParser(l log.Logger) matchersParser {
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", s, "err", err, "suggestion", suggestion)
 		}
 		return m, nil
+	}
+}
+
+// isValidClassicLabelName returns true if the string is a valid classic label name.
+func isValidClassicLabelName(_ log.Logger) func(model.LabelName) bool {
+	return func(name model.LabelName) bool {
+		return name.IsValid()
+	}
+}
+
+// isValidUTF8LabelName returns true if the string is a valid UTF-8 label name.
+func isValidUTF8LabelName(_ log.Logger) func(model.LabelName) bool {
+	return func(name model.LabelName) bool {
+		return utf8.ValidString(string(name))
 	}
 }

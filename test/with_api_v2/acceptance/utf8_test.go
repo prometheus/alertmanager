@@ -280,6 +280,8 @@ route:
     - receiver: webhook
       matchers:
         - foo🙂=bar
+      group_by:
+        - foo🙂
       group_wait: 1s
 receivers:
 - name: default
