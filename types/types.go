@@ -345,10 +345,10 @@ func (a *Alert) Validate(ff featurecontrol.Flagger) error {
 		return fmt.Errorf("at least one label pair required")
 	}
 	if err := validateLs(a.Labels, ff); err != nil {
-		return fmt.Errorf("invalid label set: %s", err)
+		return fmt.Errorf("invalid label set: %w", err)
 	}
 	if err := validateLs(a.Annotations, ff); err != nil {
-		return fmt.Errorf("invalid annotations: %s", err)
+		return fmt.Errorf("invalid annotations: %w", err)
 	}
 	return nil
 }

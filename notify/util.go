@@ -16,6 +16,7 @@ package notify
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
@@ -39,8 +39,8 @@ var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
-	e, ok := err.(*url.Error)
-	if !ok {
+	var e *url.Error
+	if !errors.As(err, &e) {
 		return err
 	}
 	e.URL = "<redacted>"
@@ -160,7 +160,7 @@ type Key string
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return "", errors.Errorf("group key missing")
+		return "", fmt.Errorf("group key missing")
 	}
 	return Key(key), nil
 }

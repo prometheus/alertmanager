@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -31,7 +32,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
@@ -332,7 +332,7 @@ func run() int {
 		GroupFunc:    groupFn,
 	})
 	if err != nil {
-		level.Error(logger).Log("err", errors.Wrap(err, "failed to create API"))
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %w", err))
 		return 1
 	}
 
@@ -370,7 +370,7 @@ func run() int {
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse templates")
+			return fmt.Errorf("failed to parse templates: %w", err)
 		}
 		tmpl.ExternalURL = amURL
 
@@ -508,7 +508,7 @@ func run() int {
 	srvc := make(chan struct{})
 
 	go func() {
-		if err := web.ListenAndServe(srv, webConfig, logger); err != http.ErrServerClosed {
+		if err := web.ListenAndServe(srv, webConfig, logger); !errors.Is(err, http.ErrServerClosed) {
 			level.Error(logger).Log("msg", "Listen error", "err", err)
 			close(srvc)
 		}
@@ -572,7 +572,7 @@ func extURL(logger log.Logger, hostnamef func() (string, error), listen, externa
 		return nil, err
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, errors.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
+		return nil, fmt.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
 	}
 
 	ppref := strings.TrimRight(u.Path, "/")
