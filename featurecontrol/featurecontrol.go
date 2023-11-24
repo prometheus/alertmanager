@@ -25,26 +25,26 @@ import (
 const (
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
-	FeatureUTF8Mode              = "utf8-mode"
+	FeatureUTF8StrictMode        = "utf8-strict-mode"
 )
 
 var AllowedFlags = []string{
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
-	FeatureUTF8Mode,
+	FeatureUTF8StrictMode,
 }
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
 	ClassicMode() bool
-	UTF8Mode() bool
+	UTF8StrictMode() bool
 }
 
 type Flags struct {
 	logger                       log.Logger
 	enableReceiverNamesInMetrics bool
 	classicMode                  bool
-	utf8Mode                     bool
+	utf8StrictMode               bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -55,8 +55,8 @@ func (f *Flags) ClassicMode() bool {
 	return f.classicMode
 }
 
-func (f *Flags) UTF8Mode() bool {
-	return f.utf8Mode
+func (f *Flags) UTF8StrictMode() bool {
+	return f.utf8StrictMode
 }
 
 type flagOption func(flags *Flags)
@@ -73,9 +73,9 @@ func enableClassicMode() flagOption {
 	}
 }
 
-func enableUTF8Mode() flagOption {
+func enableUTF8StrictMode() flagOption {
 	return func(configs *Flags) {
-		configs.utf8Mode = true
+		configs.utf8StrictMode = true
 	}
 }
 
@@ -95,8 +95,8 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case FeatureClassicMode:
 			opts = append(opts, enableClassicMode())
 			level.Warn(logger).Log("msg", "Classic mode enabled")
-		case FeatureUTF8Mode:
-			opts = append(opts, enableUTF8Mode())
+		case FeatureUTF8StrictMode:
+			opts = append(opts, enableUTF8StrictMode())
 			level.Warn(logger).Log("msg", "UTF-8 mode enabled")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
@@ -107,7 +107,7 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		opt(fc)
 	}
 
-	if fc.classicMode && fc.utf8Mode {
+	if fc.classicMode && fc.utf8StrictMode {
 		return nil, errors.New("cannot have both classic and UTF-8 modes enabled")
 	}
 
@@ -120,4 +120,4 @@ func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 
 func (n NoopFlags) ClassicMode() bool { return false }
 
-func (n NoopFlags) UTF8Mode() bool { return false }
+func (n NoopFlags) UTF8StrictMode() bool { return false }

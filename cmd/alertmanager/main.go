@@ -49,6 +49,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -174,11 +175,12 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
 
-	featureConfig, err := featurecontrol.NewFlags(logger, *featureFlags)
+	ff, err := featurecontrol.NewFlags(logger, *featureFlags)
 	if err != nil {
 		level.Error(logger).Log("msg", "error parsing the feature flag list", "err", err)
 		return 1
 	}
+	compat.InitFromFlags(logger, ff)
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
@@ -249,6 +251,7 @@ func run() int {
 		Retention:    *retention,
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
+		FeatureFlags: ff,
 	}
 
 	silences, err := silence.New(silenceOpts)
@@ -317,15 +320,16 @@ func run() int {
 	}
 
 	api, err := api.New(api.Options{
-		Alerts:      alerts,
-		Silences:    silences,
-		StatusFunc:  marker.Status,
-		Peer:        clusterPeer,
-		Timeout:     *httpTimeout,
-		Concurrency: *getConcurrency,
-		Logger:      log.With(logger, "component", "api"),
-		Registry:    prometheus.DefaultRegisterer,
-		GroupFunc:   groupFn,
+		Alerts:       alerts,
+		Silences:     silences,
+		StatusFunc:   marker.Status,
+		Peer:         clusterPeer,
+		Timeout:      *httpTimeout,
+		Concurrency:  *getConcurrency,
+		Logger:       log.With(logger, "component", "api"),
+		FeatureFlags: ff,
+		Registry:     prometheus.DefaultRegisterer,
+		GroupFunc:    groupFn,
 	})
 	if err != nil {
 		level.Error(logger).Log("err", errors.Wrap(err, "failed to create API"))
@@ -356,7 +360,7 @@ func run() int {
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, featureConfig)
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := log.With(logger, "component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,
