@@ -15,12 +15,12 @@ package compat
 
 import (
 	"fmt"
-	"github.com/prometheus/common/model"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/parse"
