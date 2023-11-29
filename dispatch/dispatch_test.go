@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alertobserver"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -107,6 +108,9 @@ func TestAggrGroup(t *testing.T) {
 		}
 		if _, ok := notify.GroupKey(ctx); !ok {
 			t.Errorf("group key missing")
+		}
+		if _, ok := notify.GroupId(ctx); !ok {
+			t.Errorf("group id missing")
 		}
 		if lbls, ok := notify.GroupLabels(ctx); !ok || !reflect.DeepEqual(lbls, lset) {
 			t.Errorf("wrong group labels: %q", lbls)
@@ -399,7 +403,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), nil)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -553,7 +557,7 @@ route:
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m, nil)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -649,7 +653,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), nil)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -763,6 +767,74 @@ route:
 	}, alertGroupInfos)
 }
 
+func TestGroupsAlertLCObserver(t *testing.T) {
+	confData := `receivers:
+- name: 'testing'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'testing'`
+	conf, err := config.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logger := log.NewNopLogger()
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
+	observer := alertobserver.NewFakeLifeCycleObserver()
+	lim := limits{groups: 1}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m, observer)
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Create alerts. the dispatcher will automatically create the groups.
+	alert1 := newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"})
+	alert2 := newAlert(model.LabelSet{"alertname": "YetAnotherAlert", "cluster": "cc", "service": "db"})
+	err = alerts.Put(alert1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Let alerts get processed.
+	for i := 0; len(recorder.Alerts()) != 1 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	err = alerts.Put(alert2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Let alert get processed.
+	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	observer.Mtx.RLock()
+	defer observer.Mtx.RUnlock()
+	require.Equal(t, 1, len(recorder.Alerts()))
+	require.Equal(t, alert1.Fingerprint(), observer.AlertsPerEvent[alertobserver.EventAlertAddedToAggrGroup][0].Fingerprint())
+	groupFp := getGroupLabels(alert1, route).Fingerprint()
+	group := dispatcher.aggrGroupsPerRoute[route][groupFp]
+	groupKey := group.GroupKey()
+	groupId := group.GroupID()
+	routeId := group.routeID
+	require.Equal(t, groupKey, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["groupKey"].(string))
+	require.Equal(t, groupId, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["groupId"].(string))
+	require.Equal(t, routeId, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["routeId"].(string))
+
+	require.Equal(t, 1, len(observer.AlertsPerEvent[alertobserver.EventAlertFailedAddToAggrGroup]))
+	require.Equal(t, alert2.Fingerprint(), observer.AlertsPerEvent[alertobserver.EventAlertFailedAddToAggrGroup][0].Fingerprint())
+}
+
 type recordStage struct {
 	mtx    sync.RWMutex
 	alerts map[string]map[model.Fingerprint]*types.Alert
@@ -827,7 +899,7 @@ func TestDispatcherRace(t *testing.T) {
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), nil)
 	go dispatcher.Run()
 	dispatcher.Stop()
 }
@@ -855,7 +927,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), nil)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 

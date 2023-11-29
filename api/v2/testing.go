@@ -132,3 +132,23 @@ func newGetAlertStatus(f *fakeAlerts) func(model.Fingerprint) types.AlertStatus 
 		return status
 	}
 }
+
+func createAlert(t *testing.T, start, ends time.Time) (open_api_models.PostableAlerts, []byte) {
+	startsAt := strfmt.DateTime(start)
+	endsAt := strfmt.DateTime(ends)
+
+	alert := open_api_models.PostableAlert{
+		StartsAt:    startsAt,
+		EndsAt:      endsAt,
+		Annotations: open_api_models.LabelSet{"annotation1": "some text"},
+		Alert: open_api_models.Alert{
+			Labels:       open_api_models.LabelSet{"label1": "test1"},
+			GeneratorURL: "http://localhost:3000",
+		},
+	}
+	alerts := open_api_models.PostableAlerts{}
+	alerts = append(alerts, &alert)
+	b, err := json.Marshal(alerts)
+	require.NoError(t, err)
+	return alerts, b
+}
