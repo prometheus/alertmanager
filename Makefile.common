@@ -235,11 +235,12 @@ promu: $(PROMU)
 
 $(PROMU):
 	$(eval PROMU_TMP := $(shell mktemp -d))
-	curl -s -L $(PROMU_URL) | tar -xvzf - -C $(PROMU_TMP)
-	mkdir -p $(FIRST_GOPATH)/bin
-	cp $(PROMU_TMP)/promu-$(PROMU_VERSION).$(GO_BUILD_PLATFORM)/promu $(FIRST_GOPATH)/bin/promu
-	rm -r $(PROMU_TMP)
-
+	@if [ ! -f "$(FIRST_GOPATH)/bin/promu" ]; then \
+		curl -s -L $(PROMU_URL) | tar -xvzf - -C $(PROMU_TMP); \
+		mkdir -p $(FIRST_GOPATH)/bin; \
+		cp $(PROMU_TMP)/promu-$(PROMU_VERSION).$(GO_BUILD_PLATFORM)/promu $(FIRST_GOPATH)/bin/promu; \
+		rm -r $(PROMU_TMP); \
+	fi
 .PHONY: proto
 proto:
 	@echo ">> generating code from proto files"
