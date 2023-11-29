@@ -17,6 +17,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +33,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alertobserver"
+	"github.com/prometheus/alertmanager/api/metrics"
 	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
@@ -1193,6 +1197,67 @@ func TestListAlertInfosHandler(t *testing.T) {
 			require.Equal(t, tc.anames, anames)
 			require.Equal(t, tc.expectNextToken, response.NextToken)
 		})
+	}
+}
+
+func TestPostAlertHandler(t *testing.T) {
+	now := time.Now()
+	for i, tc := range []struct {
+		start, end time.Time
+		err        bool
+		code       int
+	}{
+		{time.Time{}, time.Time{}, false, 200},
+		{now, time.Time{}, false, 200},
+		{time.Time{}, now.Add(time.Duration(-1) * time.Second), false, 200},
+		{time.Time{}, now, false, 200},
+		{time.Time{}, now.Add(time.Duration(1) * time.Second), false, 200},
+		{now.Add(time.Duration(-2) * time.Second), now.Add(time.Duration(-1) * time.Second), false, 200},
+		{now.Add(time.Duration(1) * time.Second), now.Add(time.Duration(2) * time.Second), false, 200},
+		{now.Add(time.Duration(1) * time.Second), now, false, 400},
+	} {
+		alerts, alertsBytes := createAlert(t, tc.start, tc.end)
+		api := API{
+			uptime: time.Now(),
+			alerts: newFakeAlerts([]*types.Alert{}),
+			logger: log.NewNopLogger(),
+			m:      metrics.NewAlerts(prometheus.NewRegistry()),
+		}
+		api.Update(&config.Config{
+			Global: &config.GlobalConfig{
+				ResolveTimeout: model.Duration(5),
+			},
+			Route: &config.Route{},
+		}, nil)
+
+		r, err := http.NewRequest("POST", "/api/v2/alerts", bytes.NewReader(alertsBytes))
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.postAlertsHandler(alert_ops.PostAlertsParams{
+			HTTPRequest: r,
+			Alerts:      alerts,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+
+		observer := alertobserver.NewFakeLifeCycleObserver()
+		api.alertLCObserver = observer
+		r, err = http.NewRequest("POST", "/api/v2/alerts", bytes.NewReader(alertsBytes))
+		require.NoError(t, err)
+		api.postAlertsHandler(alert_ops.PostAlertsParams{
+			HTTPRequest: r,
+			Alerts:      alerts,
+		})
+		amAlert := OpenAPIAlertsToAlerts(alerts)
+		if tc.code == 200 {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertReceived][0].Fingerprint(), amAlert[0].Fingerprint())
+		} else {
+			require.Equal(t, observer.AlertsPerEvent[alertobserver.EventAlertRejected][0].Fingerprint(), amAlert[0].Fingerprint())
+		}
 	}
 }
 
