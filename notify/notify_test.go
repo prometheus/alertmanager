@@ -674,8 +674,8 @@ func TestMuteStage(t *testing.T) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
 	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if len(got) != suppressed {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(got), suppressed)
+	if (len(in) - len(got)) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressed)
 	}
 }
 
@@ -739,13 +739,12 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
-	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if len(got) != suppressed {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(got), suppressed)
+	suppressedRoundOne := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressedRoundOne {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundOne)
 	}
 
 	// Do it again to exercise the version tracking of silences.
-	metrics.numNotificationSuppressedTotal.Reset()
 	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
@@ -759,9 +758,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
-	suppressed = int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if len(got) != suppressed {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(got), suppressed)
+
+	suppressedRoundTwo := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundOne) != suppressedRoundTwo {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundTwo)
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
@@ -769,7 +769,6 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	metrics.numNotificationSuppressedTotal.Reset()
 	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
@@ -782,9 +781,9 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
 	}
-	suppressed = int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if len(got) != suppressed {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", len(got), suppressed)
+	suppressedRoundThree := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundTwo) != suppressedRoundThree {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundThree)
 	}
 }
 
