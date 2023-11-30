@@ -53,17 +53,21 @@ paths:
           description: Get stored alerts response
           schema:
             $ref: '#/definitions/storedAlerts'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/responses/InternalServerError'
       parameters:
         - in: query
           name: timeStart
           type: string
-          format: date
+          format: date-time
           required: true
           description: startTime of the stored alerts
         - in: query
           name: timeEnd
           type: string
-          format: date
+          format: date-time
           required: true
           description: endTime of the stored alerts
         - in: query
@@ -81,6 +85,34 @@ paths:
           type: string
           required: false
           description: metric of the stored alerts
+  /stored_alerts/severity_days:
+    get:
+      tags:
+        - stored_alert
+      operationId: getSeverityChart
+      description: Get chart of stored alerts
+      responses:
+        '200':
+          description: Get stored alerts response
+          schema:
+            $ref: '#/definitions/severityDays'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/responses/InternalServerError'
+      parameters:
+        - in: query
+          name: timeStart
+          type: string
+          format: date-time
+          required: true
+          description: startTime of the stored alerts
+        - in: query
+          name: timeEnd
+          type: string
+          format: date-time
+          required: true
+          description: endTime of the stored alerts
 
   /silences:
     get:
@@ -569,6 +601,23 @@ definitions:
     required:
       - time
       - alertdata
+  severityDays:
+    type: array
+    items:
+      $ref: '#/definitions/severityDay'
+  severityDay:
+    type: object
+    properties:
+      date:
+        type: string
+      P0:
+        type: integer
+      P1:
+        type: integer
+      P2:
+        type: integer
+      P3:
+        type: integer
 tags:
   - name: general
     description: General Alertmanager operations

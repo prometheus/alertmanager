@@ -15,8 +15,11 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	stored_alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/stored_alert"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	mongodb "go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/http"
@@ -45,8 +48,6 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
-	stored_alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/stored_alert"
-
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -135,6 +136,7 @@ func NewAPI(
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 	openAPI.StoredAlertGetStoredAlertsHandler = stored_alert_ops.GetStoredAlertsHandlerFunc(api.getStoredAlertsHandler)
+	openAPI.StoredAlertGetSeverityChartHandler = stored_alert_ops.GetSeverityChartHandlerFunc(api.getSeverityChartHandler)
 
 	handleCORS := cors.Default().Handler
 	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
@@ -687,13 +689,13 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 }
 
 type AlertData struct {
-	Receiver          string            `json:"receiver"`
-	Status            string            `json:"status"`
-	Alerts            []Alert           `json:"alerts"`
-	GroupLabels       GroupLabels       `json:"grouplabels"`
-	CommonLabels      CommonLabels      `json:"commonlabels"`
-	CommonAnnotations CommonAnnotations `json:"commonannotations"`
-	ExternalURL       string            `json:"externalurl"`
+	Receiver          string       `json:"receiver"`
+	Status            string       `json:"status"`
+	Alerts            []Alert      `json:"alerts"`
+	GroupLabels       GroupLabels  `json:"grouplabels"`
+	CommonLabels      CommonLabels `json:"commonlabels"`
+	CommonAnnotations Annotations  `json:"commonannotations"`
+	ExternalURL       string       `json:"externalurl"`
 }
 
 type Alert struct {
@@ -713,93 +715,167 @@ type GroupLabels struct {
 type CommonLabels struct {
 	Instance  string `json:"instance"`
 	AlertName string `json:"alertname"`
-	Service   string `json:"service"`
 	Severity  string `json:"severity"`
-}
-
-type CommonAnnotations struct {
-	Summary string `json:"summary"`
 }
 
 type Labels struct {
 	Instance  string `json:"instance"`
 	AlertName string `json:"alertname"`
-	Service   string `json:"service"`
 	Severity  string `json:"severity"`
 }
 
 type Annotations struct {
-	Summary string `json:"summary"`
+	Operator    string `json:"operator"`
+	Threshold   string `json:"threshold"`
+	Description string `json:"description"`
+	Instance    string `json:"instance"`
+	Metric      string `json:"metric"`
+	Summary     string `json:"summary"`
 }
 type StoredAlerts struct {
 	Time      time.Time
 	AlertData AlertData `json:"alertdata,omitempty"`
 }
 
-func (api *API) getStoredAlertsHandler(params stored_alert_ops.GetStoredAlertsParams) middleware.Responder {
-	receivers := api.alertmanagerConfig.Receivers
+func getMongoDbFromReceivers(receivers []config.Receiver) (*mongodb.Client, string, string, error) {
 	var (
-		client         *mongodb.Client
 		databaseName   string
 		collectionName string
 	)
-	// Find the receiver which is MongoDB with search flag
 	for _, rc := range receivers {
-		if rc.MongoDbConfigs != nil {
-			for _, mongoConf := range rc.MongoDbConfigs {
-				if mongoConf.Search {
-					connectionString := fmt.Sprintf("mongodb://%s:%s", mongoConf.Url, mongoConf.Port)
-					databaseName = mongoConf.Database
-					collectionName = mongoConf.Collection
-					clientOptions := options.Client().ApplyURI(connectionString)
-					client, _ = mongodb.Connect(context.Background(), clientOptions)
-				}
+		if rc.MongoDbConfig != nil {
+			connectionString := fmt.Sprintf("mongodb://%s:%s@%s:%s", rc.MongoDbConfig.Username, rc.MongoDbConfig.Password, rc.MongoDbConfig.Url, rc.MongoDbConfig.Port)
+			databaseName = rc.MongoDbConfig.Database
+			collectionName = rc.MongoDbConfig.Collection
+			clientOptions := options.Client().ApplyURI(connectionString).SetServerSelectionTimeout(3 * time.Second)
+			mongoClient, err := mongodb.Connect(context.Background(), clientOptions)
+			if err != nil {
+				return nil, "", "", fmt.Errorf("can not connect to mongodb: %v", err)
 			}
+			return mongoClient, databaseName, collectionName, nil
 		}
 	}
-	startTimeString := params.TimeStart.String()
-	endTimeString := params.TimeEnd.String()
+	return nil, "", "", errors.New("no mongodb receiver found")
+}
 
-	startTime, _ := time.Parse("2006-01-02", startTimeString)
-	endTime, _ := time.Parse("2006-01-02", endTimeString)
+func convertTime(timeString string) (time.Time, error) {
+	return time.Parse("2006-01-02T15:04:05.000Z", timeString)
+}
 
-	collection := client.Database(databaseName).Collection(collectionName)
+func (api *API) getStoredAlertsHandler(params stored_alert_ops.GetStoredAlertsParams) middleware.Responder {
+	mongoClient, databaseName, collectionName, err := getMongoDbFromReceivers(api.alertmanagerConfig.Receivers)
+	if err != nil {
+		return stored_alert_ops.NewGetStoredAlertsInternalServerError().WithPayload(err.Error())
+	}
+	mongoHandler := mongoClient.Database(databaseName).Collection(collectionName)
+
+	startTime, _ := convertTime(params.TimeStart.String())
+	endTime, _ := convertTime(params.TimeEnd.String())
 
 	filter := bson.M{
 		"$and": []bson.M{
 			{"time": bson.M{"$gte": startTime, "$lt": endTime}},
 		},
 	}
-
 	if params.Severity != nil {
 		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.severity": params.Severity})
 	}
 	if params.Instance != nil {
-		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.instance": params.Instance})
+		regex := primitive.Regex{Pattern: *params.Instance, Options: ""}
+		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.instance": regex})
 	}
 	if params.Metric != nil {
-		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonlabels.alertname": params.Metric})
+		filter["$and"] = append(filter["$and"].([]bson.M), bson.M{"alertdata.commonannotations.metric": params.Metric})
 	}
 
-	cursor, _ := collection.Find(context.Background(), filter)
+	cursor, _ := mongoHandler.Find(context.Background(), filter)
+	var alerts []*StoredAlerts
+	err = cursor.All(context.TODO(), &alerts)
+	if err != nil {
+		return stored_alert_ops.NewGetStoredAlertsInternalServerError().WithPayload(err.Error())
+	}
+
+	mongoClient.Disconnect(context.Background())
 
 	defer cursor.Close(context.Background())
 	storedAlerts := open_api_models.StoredAlerts{}
-	for cursor.Next(context.Background()) {
-
-		doc := &StoredAlerts{}
-		_ = cursor.Decode(doc)
-
+	for _, alert := range alerts {
 		timeToStringPointer := func(t time.Time) *string {
 			timeString := t.Format(time.RFC3339)
 			return &timeString
 		}
-		timeStringPointer := timeToStringPointer(doc.Time)
-
-		storedAlert := &open_api_models.StoredAlert{Time: timeStringPointer, Alertdata: doc.AlertData}
+		timeStringPointer := timeToStringPointer(alert.Time)
+		storedAlert := &open_api_models.StoredAlert{Time: timeStringPointer, Alertdata: alert.AlertData}
 		storedAlerts = append(storedAlerts, storedAlert)
 	}
 	return stored_alert_ops.NewGetStoredAlertsOK().WithPayload(storedAlerts)
+}
+
+type SeverityAggregation struct {
+	ID struct {
+		Date     string `json:"date"`
+		Severity string `json:"severity"`
+	} `bson:"_id"`
+	Count int64 `json:"count"`
+}
+
+func (api *API) getSeverityChartHandler(params stored_alert_ops.GetSeverityChartParams) middleware.Responder {
+	mongoClient, databaseName, collectionName, err := getMongoDbFromReceivers(api.alertmanagerConfig.Receivers)
+	mongoHandler := mongoClient.Database(databaseName).Collection(collectionName)
+	startTime, _ := convertTime(params.TimeStart.String())
+	endTime, _ := convertTime(params.TimeEnd.String())
+	pipeline := mongodb.Pipeline{
+		{{"$match", bson.M{
+			"time": bson.M{
+				"$gt": startTime,
+				"$lt": endTime,
+			},
+		}}},
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"date":     bson.M{"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$time"}},
+				"severity": "$alertdata.commonlabels.severity",
+			},
+			"count": bson.M{"$sum": 1},
+		}}},
+	}
+	cur, err := mongoHandler.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return stored_alert_ops.NewGetSeverityChartInternalServerError().WithPayload(err.Error())
+	}
+
+	dateMap := make(map[string]*open_api_models.SeverityDay)
+	for cur.Next(context.Background()) {
+		aggregation := &SeverityAggregation{}
+		_ = cur.Decode(aggregation)
+		var severityDay *open_api_models.SeverityDay
+		if _, ok := dateMap[aggregation.ID.Date]; !ok {
+			severityDay = &open_api_models.SeverityDay{Date: aggregation.ID.Date}
+		} else {
+			severityDay = dateMap[aggregation.ID.Date]
+		}
+		switch aggregation.ID.Severity {
+		case "P0":
+			severityDay.P0 = aggregation.Count
+		case "P1":
+			severityDay.P1 = aggregation.Count
+		case "P2":
+			severityDay.P2 = aggregation.Count
+		case "P3":
+			severityDay.P3 = aggregation.Count
+		}
+		dateMap[aggregation.ID.Date] = severityDay
+	}
+	severityDays := make([]*open_api_models.SeverityDay, 0, len(dateMap))
+	for _, value := range dateMap {
+		severityDays = append(severityDays, value)
+	}
+
+	sort.SliceStable(severityDays, func(i, j int) bool {
+		return severityDays[i].Date < severityDays[j].Date
+	})
+	mongoClient.Disconnect(context.Background())
+	return stored_alert_ops.NewGetSeverityChartOK().WithPayload(severityDays)
 }
 
 func parseFilter(filter []string) ([]*labels.Matcher, error) {

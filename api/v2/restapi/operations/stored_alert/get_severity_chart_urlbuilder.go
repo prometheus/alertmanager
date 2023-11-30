@@ -13,11 +13,8 @@ import (
 	"github.com/go-openapi/strfmt"
 )
 
-// GetStoredAlertsURL generates an URL for the get stored alerts operation
-type GetStoredAlertsURL struct {
-	Instance  *string
-	Metric    *string
-	Severity  *string
+// GetSeverityChartURL generates an URL for the get severity chart operation
+type GetSeverityChartURL struct {
 	TimeEnd   strfmt.DateTime
 	TimeStart strfmt.DateTime
 
@@ -29,7 +26,7 @@ type GetStoredAlertsURL struct {
 // WithBasePath sets the base path for this url builder, only required when it's different from the
 // base path specified in the swagger spec.
 // When the value of the base path is an empty string
-func (o *GetStoredAlertsURL) WithBasePath(bp string) *GetStoredAlertsURL {
+func (o *GetSeverityChartURL) WithBasePath(bp string) *GetSeverityChartURL {
 	o.SetBasePath(bp)
 	return o
 }
@@ -37,15 +34,15 @@ func (o *GetStoredAlertsURL) WithBasePath(bp string) *GetStoredAlertsURL {
 // SetBasePath sets the base path for this url builder, only required when it's different from the
 // base path specified in the swagger spec.
 // When the value of the base path is an empty string
-func (o *GetStoredAlertsURL) SetBasePath(bp string) {
+func (o *GetSeverityChartURL) SetBasePath(bp string) {
 	o._basePath = bp
 }
 
 // Build a url path and query string
-func (o *GetStoredAlertsURL) Build() (*url.URL, error) {
+func (o *GetSeverityChartURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/stored_alerts"
+	var _path = "/stored_alerts/severity_days"
 
 	_basePath := o._basePath
 	if _basePath == "" {
@@ -54,30 +51,6 @@ func (o *GetStoredAlertsURL) Build() (*url.URL, error) {
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
 
 	qs := make(url.Values)
-
-	var instanceQ string
-	if o.Instance != nil {
-		instanceQ = *o.Instance
-	}
-	if instanceQ != "" {
-		qs.Set("instance", instanceQ)
-	}
-
-	var metricQ string
-	if o.Metric != nil {
-		metricQ = *o.Metric
-	}
-	if metricQ != "" {
-		qs.Set("metric", metricQ)
-	}
-
-	var severityQ string
-	if o.Severity != nil {
-		severityQ = *o.Severity
-	}
-	if severityQ != "" {
-		qs.Set("severity", severityQ)
-	}
 
 	timeEndQ := o.TimeEnd.String()
 	if timeEndQ != "" {
@@ -95,7 +68,7 @@ func (o *GetStoredAlertsURL) Build() (*url.URL, error) {
 }
 
 // Must is a helper function to panic when the url builder returns an error
-func (o *GetStoredAlertsURL) Must(u *url.URL, err error) *url.URL {
+func (o *GetSeverityChartURL) Must(u *url.URL, err error) *url.URL {
 	if err != nil {
 		panic(err)
 	}
@@ -106,17 +79,17 @@ func (o *GetStoredAlertsURL) Must(u *url.URL, err error) *url.URL {
 }
 
 // String returns the string representation of the path with query string
-func (o *GetStoredAlertsURL) String() string {
+func (o *GetSeverityChartURL) String() string {
 	return o.Must(o.Build()).String()
 }
 
 // BuildFull builds a full url with scheme, host, path and query string
-func (o *GetStoredAlertsURL) BuildFull(scheme, host string) (*url.URL, error) {
+func (o *GetSeverityChartURL) BuildFull(scheme, host string) (*url.URL, error) {
 	if scheme == "" {
-		return nil, errors.New("scheme is required for a full url on GetStoredAlertsURL")
+		return nil, errors.New("scheme is required for a full url on GetSeverityChartURL")
 	}
 	if host == "" {
-		return nil, errors.New("host is required for a full url on GetStoredAlertsURL")
+		return nil, errors.New("host is required for a full url on GetSeverityChartURL")
 	}
 
 	base, err := o.Build()
@@ -130,6 +103,6 @@ func (o *GetStoredAlertsURL) BuildFull(scheme, host string) (*url.URL, error) {
 }
 
 // StringFull returns the string representation of a complete url
-func (o *GetStoredAlertsURL) StringFull(scheme, host string) string {
+func (o *GetSeverityChartURL) StringFull(scheme, host string) string {
 	return o.Must(o.BuildFull(scheme, host)).String()
 }

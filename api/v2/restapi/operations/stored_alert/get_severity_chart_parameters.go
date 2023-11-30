@@ -15,35 +15,23 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-// NewGetStoredAlertsParams creates a new GetStoredAlertsParams object
+// NewGetSeverityChartParams creates a new GetSeverityChartParams object
 //
 // There are no default values defined in the spec.
-func NewGetStoredAlertsParams() GetStoredAlertsParams {
+func NewGetSeverityChartParams() GetSeverityChartParams {
 
-	return GetStoredAlertsParams{}
+	return GetSeverityChartParams{}
 }
 
-// GetStoredAlertsParams contains all the bound params for the get stored alerts operation
+// GetSeverityChartParams contains all the bound params for the get severity chart operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters getStoredAlerts
-type GetStoredAlertsParams struct {
+// swagger:parameters getSeverityChart
+type GetSeverityChartParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
-	/*instance of the stored alerts
-	  In: query
-	*/
-	Instance *string
-	/*metric of the stored alerts
-	  In: query
-	*/
-	Metric *string
-	/*severity of the stored alerts
-	  In: query
-	*/
-	Severity *string
 	/*endTime of the stored alerts
 	  Required: true
 	  In: query
@@ -59,28 +47,13 @@ type GetStoredAlertsParams struct {
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls.
 //
-// To ensure default values, the struct must have been initialized with NewGetStoredAlertsParams() beforehand.
-func (o *GetStoredAlertsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+// To ensure default values, the struct must have been initialized with NewGetSeverityChartParams() beforehand.
+func (o *GetSeverityChartParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 
 	o.HTTPRequest = r
 
 	qs := runtime.Values(r.URL.Query())
-
-	qInstance, qhkInstance, _ := qs.GetOK("instance")
-	if err := o.bindInstance(qInstance, qhkInstance, route.Formats); err != nil {
-		res = append(res, err)
-	}
-
-	qMetric, qhkMetric, _ := qs.GetOK("metric")
-	if err := o.bindMetric(qMetric, qhkMetric, route.Formats); err != nil {
-		res = append(res, err)
-	}
-
-	qSeverity, qhkSeverity, _ := qs.GetOK("severity")
-	if err := o.bindSeverity(qSeverity, qhkSeverity, route.Formats); err != nil {
-		res = append(res, err)
-	}
 
 	qTimeEnd, qhkTimeEnd, _ := qs.GetOK("timeEnd")
 	if err := o.bindTimeEnd(qTimeEnd, qhkTimeEnd, route.Formats); err != nil {
@@ -97,62 +70,8 @@ func (o *GetStoredAlertsParams) BindRequest(r *http.Request, route *middleware.M
 	return nil
 }
 
-// bindInstance binds and validates parameter Instance from query.
-func (o *GetStoredAlertsParams) bindInstance(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	// Required: false
-	// AllowEmptyValue: false
-
-	if raw == "" { // empty values pass all other validations
-		return nil
-	}
-	o.Instance = &raw
-
-	return nil
-}
-
-// bindMetric binds and validates parameter Metric from query.
-func (o *GetStoredAlertsParams) bindMetric(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	// Required: false
-	// AllowEmptyValue: false
-
-	if raw == "" { // empty values pass all other validations
-		return nil
-	}
-	o.Metric = &raw
-
-	return nil
-}
-
-// bindSeverity binds and validates parameter Severity from query.
-func (o *GetStoredAlertsParams) bindSeverity(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	// Required: false
-	// AllowEmptyValue: false
-
-	if raw == "" { // empty values pass all other validations
-		return nil
-	}
-	o.Severity = &raw
-
-	return nil
-}
-
 // bindTimeEnd binds and validates parameter TimeEnd from query.
-func (o *GetStoredAlertsParams) bindTimeEnd(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetSeverityChartParams) bindTimeEnd(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	if !hasKey {
 		return errors.Required("timeEnd", "query", rawData)
 	}
@@ -183,7 +102,7 @@ func (o *GetStoredAlertsParams) bindTimeEnd(rawData []string, hasKey bool, forma
 }
 
 // validateTimeEnd carries on validations for parameter TimeEnd
-func (o *GetStoredAlertsParams) validateTimeEnd(formats strfmt.Registry) error {
+func (o *GetSeverityChartParams) validateTimeEnd(formats strfmt.Registry) error {
 
 	if err := validate.FormatOf("timeEnd", "query", "date-time", o.TimeEnd.String(), formats); err != nil {
 		return err
@@ -192,7 +111,7 @@ func (o *GetStoredAlertsParams) validateTimeEnd(formats strfmt.Registry) error {
 }
 
 // bindTimeStart binds and validates parameter TimeStart from query.
-func (o *GetStoredAlertsParams) bindTimeStart(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetSeverityChartParams) bindTimeStart(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	if !hasKey {
 		return errors.Required("timeStart", "query", rawData)
 	}
@@ -223,7 +142,7 @@ func (o *GetStoredAlertsParams) bindTimeStart(rawData []string, hasKey bool, for
 }
 
 // validateTimeStart carries on validations for parameter TimeStart
-func (o *GetStoredAlertsParams) validateTimeStart(formats strfmt.Registry) error {
+func (o *GetSeverityChartParams) validateTimeStart(formats strfmt.Registry) error {
 
 	if err := validate.FormatOf("timeStart", "query", "date-time", o.TimeStart.String(), formats); err != nil {
 		return err

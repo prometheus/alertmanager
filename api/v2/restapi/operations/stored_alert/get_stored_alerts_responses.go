@@ -60,3 +60,46 @@ func (o *GetStoredAlertsOK) WriteResponse(rw http.ResponseWriter, producer runti
 		panic(err) // let the recovery middleware deal with this
 	}
 }
+
+// GetStoredAlertsInternalServerErrorCode is the HTTP code returned for type GetStoredAlertsInternalServerError
+const GetStoredAlertsInternalServerErrorCode int = 500
+
+/*
+GetStoredAlertsInternalServerError Internal server error
+
+swagger:response getStoredAlertsInternalServerError
+*/
+type GetStoredAlertsInternalServerError struct {
+
+	/*
+	  In: Body
+	*/
+	Payload interface{} `json:"body,omitempty"`
+}
+
+// NewGetStoredAlertsInternalServerError creates GetStoredAlertsInternalServerError with default headers values
+func NewGetStoredAlertsInternalServerError() *GetStoredAlertsInternalServerError {
+
+	return &GetStoredAlertsInternalServerError{}
+}
+
+// WithPayload adds the payload to the get stored alerts internal server error response
+func (o *GetStoredAlertsInternalServerError) WithPayload(payload interface{}) *GetStoredAlertsInternalServerError {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get stored alerts internal server error response
+func (o *GetStoredAlertsInternalServerError) SetPayload(payload interface{}) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetStoredAlertsInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(500)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+}
