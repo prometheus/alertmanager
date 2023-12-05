@@ -270,6 +270,8 @@ const (
 	DefaultReason Reason = iota
 	ClientErrorReason
 	ServerErrorReason
+	ContextCanceledReason
+	ContextDeadlineExceededReason
 )
 
 func (s Reason) String() string {
@@ -280,13 +282,17 @@ func (s Reason) String() string {
 		return "clientError"
 	case ServerErrorReason:
 		return "serverError"
+	case ContextCanceledReason:
+		return "contextCanceled"
+	case ContextDeadlineExceededReason:
+		return "contextDeadlineExceeded"
 	default:
 		panic(fmt.Sprintf("unknown Reason: %d", s))
 	}
 }
 
 // possibleFailureReasonCategory is a list of possible failure reason.
-var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String()}
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String()}
 
 // GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
 func GetFailureReasonFromStatusCode(statusCode int) Reason {
