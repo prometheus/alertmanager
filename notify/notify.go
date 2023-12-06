@@ -833,7 +833,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			}
 		case <-ctx.Done():
 			if iErr == nil {
-				iErr := ctx.Err()
+				iErr = ctx.Err()
 				if errors.Is(iErr, context.Canceled) {
 					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
 				} else if errors.Is(iErr, context.DeadlineExceeded) {
