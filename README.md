@@ -102,7 +102,7 @@ route:
 
   # The child route trees.
   routes:
-  # This routes performs a regular expression match on alert labels to
+  # This route performs a regular expression match on alert labels to
   # catch alerts that are related to a list of services.
   - matchers:
     - service=~"^(foo1|foo2|baz)$"
