@@ -100,7 +100,7 @@ func (o Options) validate() error {
 // call is also needed to get the APIs into an operational state.
 func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
-		return nil, fmt.Errorf("invalid API options: %s", err)
+		return nil, fmt.Errorf("invalid API options: %w", err)
 	}
 	l := opts.Logger
 	if l == nil {

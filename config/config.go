@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -25,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -689,7 +689,7 @@ func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }
@@ -711,7 +711,7 @@ func (hp *HostPort) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }

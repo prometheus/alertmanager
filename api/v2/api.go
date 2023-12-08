@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -635,7 +636,7 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 	sid := params.SilenceID.String()
 	if err := api.silences.Expire(sid); err != nil {
 		level.Error(logger).Log("msg", "Failed to expire silence", "err", err)
-		if err == silence.ErrNotFound {
+		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewDeleteSilenceNotFound()
 		}
 		return silence_ops.NewDeleteSilenceInternalServerError().WithPayload(err.Error())
@@ -669,7 +670,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	sid, err := api.silences.Set(sil)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to create silence", "err", err)
-		if err == silence.ErrNotFound {
+		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
 		}
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(err.Error())

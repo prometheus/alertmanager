@@ -17,6 +17,7 @@ package silence
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -33,7 +34,6 @@ import (
 	"github.com/go-kit/log/level"
 	uuid "github.com/gofrs/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
@@ -79,7 +79,7 @@ func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
 		case pb.Matcher_NOT_REGEXP:
 			mt = labels.MatchNotRegexp
 		default:
-			return nil, errors.Errorf("unknown matcher type %q", m.Type)
+			return nil, fmt.Errorf("unknown matcher type %q", m.Type)
 		}
 		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
 		if err != nil {
@@ -489,7 +489,7 @@ func validateClassicMatcher(m *pb.Matcher) error {
 		}
 	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
 		if _, err := regexp.Compile(m.Pattern); err != nil {
-			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
+			return fmt.Errorf("invalid regular expression %q: %w", m.Pattern, err)
 		}
 	default:
 		return fmt.Errorf("unknown matcher type %q", m.Type)
@@ -512,7 +512,7 @@ func validateUTF8Matcher(m *pb.Matcher) error {
 			return fmt.Errorf("invalid regular expression %q", m.Pattern)
 		}
 		if _, err := regexp.Compile(m.Pattern); err != nil {
-			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
+			return fmt.Errorf("invalid regular expression %q: %w", m.Pattern, err)
 		}
 	default:
 		return fmt.Errorf("unknown matcher type %q", m.Type)
@@ -548,7 +548,7 @@ func validateSilence(s *pb.Silence, ff featurecontrol.Flagger) error {
 
 	for i, m := range s.Matchers {
 		if err := validateFunc(m); err != nil {
-			return fmt.Errorf("invalid label matcher %d: %s", i, err)
+			return fmt.Errorf("invalid label matcher %d: %w", i, err)
 		}
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
 	}
@@ -589,7 +589,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 
 	if !skipValidate {
 		if err := validateSilence(sil, s.ff); err != nil {
-			return errors.Wrap(err, "silence invalid")
+			return fmt.Errorf("silence invalid: %w", err)
 		}
 	}
 
@@ -629,14 +629,14 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
 			if err := s.expire(prev.Id); err != nil {
-				return "", errors.Wrap(err, "expire previous silence")
+				return "", fmt.Errorf("expire previous silence: %w", err)
 			}
 		}
 	}
 	// If we got here it's either a new silence or a replacing one.
 	uid, err := uuid.NewV4()
 	if err != nil {
-		return "", errors.Wrap(err, "generate uuid")
+		return "", fmt.Errorf("generate uuid: %w", err)
 	}
 	sil.Id = uid.String()
 
@@ -994,7 +994,7 @@ func decodeState(r io.Reader) (state, error) {
 			st[s.Silence.Id] = &s
 			continue
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		return nil, err

@@ -274,14 +274,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("failed to start alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to start alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %v", am.clusterAddr, err.Error())
+			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %w", am.clusterAddr, err)
 		}
 	}
 
@@ -343,7 +343,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("unable to get a successful response from the Alertmanager: %v", lastErr)
+	return fmt.Errorf("unable to get a successful response from the Alertmanager: %w", lastErr)
 }
 
 // WaitForCluster waits for the Alertmanager instance to join a cluster with the
