@@ -790,6 +790,11 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-ctx.Done():
 			if iErr == nil {
 				iErr = ctx.Err()
+				if errors.Is(iErr, context.Canceled) {
+					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+				} else if errors.Is(iErr, context.DeadlineExceeded) {
+					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+				}
 			}
 
 			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
@@ -808,14 +813,15 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				if !retry {
 					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}
-				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
-					// Log the error if the context isn't done and the error isn't the same as before.
-					level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
+				if ctx.Err() == nil {
+					if iErr == nil || err.Error() != iErr.Error() {
+						// Log the error if the context isn't done and the error isn't the same as before.
+						level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
+					}
+					// Save this error to be able to return the last seen error by an
+					// integration upon context timeout.
+					iErr = err
 				}
-
-				// Save this error to be able to return the last seen error by an
-				// integration upon context timeout.
-				iErr = err
 			} else {
 				lvl := level.Info(l)
 				if i <= 1 {
@@ -828,6 +834,11 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-ctx.Done():
 			if iErr == nil {
 				iErr = ctx.Err()
+				if errors.Is(iErr, context.Canceled) {
+					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+				} else if errors.Is(iErr, context.DeadlineExceeded) {
+					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+				}
 			}
 
 			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
