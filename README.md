@@ -104,43 +104,43 @@ route:
   routes:
   # This routes performs a regular expression match on alert labels to
   # catch alerts that are related to a list of services.
-  - match_re:
-      service: ^(foo1|foo2|baz)$
+  - matchers:
+    - service=~"^(foo1|foo2|baz)$"
     receiver: team-X-mails
 
     # The service has a sub-route for critical alerts, any alerts
     # that do not match, i.e. severity != critical, fall-back to the
     # parent node and are sent to 'team-X-mails'
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-X-pager
 
-  - match:
-      service: files
+  - matchers:
+    - service="files"
     receiver: team-Y-mails
 
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
   # no team to handle it, it defaults to the DB team.
-  - match:
-      service: database
+  - matchers:
+    - service="database"
 
     receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
 
     routes:
-    - match:
-        owner: team-X
+    - matchers:
+      - owner="team-X"
       receiver: team-X-pager
 
-    - match:
-        owner: team-Y
+    - matchers:
+      - owner="team-Y"
       receiver: team-Y-pager
 
 
