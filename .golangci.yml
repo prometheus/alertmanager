@@ -13,8 +13,9 @@ linters:
     - errorlint
     - gofumpt
     - goimports
-    - revive
     - misspell
+    - revive
+    - testifylint
 
 issues:
   max-issues-per-linter: 0
@@ -74,3 +75,18 @@ linters-settings:
       - name: unexported-return
       - name: indent-error-flow
       - name: errorf
+  testifylint:
+    disable:
+      - float-compare
+      - go-require
+    enable:
+      - bool-compare
+      - compares
+      - empty
+      - error-is-as
+      - error-nil
+      - expected-actual
+      - len
+      - require-error
+      - suite-dont-use-pkg
+      - suite-extra-assert-call

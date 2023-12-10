@@ -109,5 +109,5 @@ func TestGC(t *testing.T) {
 			t.Errorf("alert %v should have been gc'd", alert)
 		}
 	}
-	require.Equal(t, len(resolved), n)
+	require.Len(t, resolved, n)
 }

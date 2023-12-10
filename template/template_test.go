@@ -394,7 +394,7 @@ func TestTemplateExpansion(t *testing.T) {
 			}
 			got, err := f(tc.in, tc.data)
 			if tc.fail {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
@@ -458,7 +458,7 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 			}
 			got, err := f(tc.in, tc.data)
 			if tc.fail {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)

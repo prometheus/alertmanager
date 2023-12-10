@@ -174,7 +174,7 @@ receivers:
 	for _, al := range resp.Payload {
 		require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
 		require.Equal(t, fp.String(), *al.Fingerprint)
-		require.Equal(t, 1, len(al.Status.SilencedBy))
+		require.Len(t, al.Status.SilencedBy, 1)
 		require.Equal(t, silenceID, al.Status.SilencedBy[0])
 	}
 
@@ -189,12 +189,12 @@ receivers:
 	resp, err = am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
 	for _, al := range resp.Payload {
-		require.Equal(t, 1, len(al.Status.SilencedBy))
+		require.Len(t, al.Status.SilencedBy, 1)
 		require.Equal(t, silenceID, al.Status.SilencedBy[0])
 		if fp.String() == *al.Fingerprint {
 			require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
 			require.Equal(t, fp.String(), *al.Fingerprint)
-			require.Equal(t, 1, len(al.Status.InhibitedBy))
+			require.Len(t, al.Status.InhibitedBy, 1)
 			require.Equal(t, inhibitingFP.String(), al.Status.InhibitedBy[0])
 		}
 	}
@@ -208,7 +208,7 @@ receivers:
 	// Silence has been deleted, inhibiting alert should be active.
 	// Original alert should still be inhibited.
 	for _, al := range resp.Payload {
-		require.Equal(t, 0, len(al.Status.SilencedBy))
+		require.Empty(t, al.Status.SilencedBy)
 		if inhibitingFP.String() == *al.Fingerprint {
 			require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 		} else {
@@ -277,7 +277,7 @@ receivers:
 	filter := []string{"alertname=test1", "severity=warning"}
 	resp, err := am.Client().Alert.GetAlerts(alert.NewGetAlertsParams().WithFilter(filter))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Payload))
+	require.Len(t, resp.Payload, 1)
 	for _, al := range resp.Payload {
 		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}

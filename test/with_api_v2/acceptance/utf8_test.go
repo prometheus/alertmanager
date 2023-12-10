@@ -150,7 +150,7 @@ receivers:
 	alertParams.Alerts = models.PostableAlerts{pa}
 
 	_, err := am.Client().Alert.PostAlerts(alertParams)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "invalid label set"))
 }
 
@@ -266,7 +266,7 @@ receivers:
 	silenceParams.Silence = &ps
 
 	_, err := am.Client().Silence.PostSilences(silenceParams)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "silence invalid: invalid label matcher"))
 }
 

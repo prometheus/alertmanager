@@ -89,15 +89,15 @@ func TestWebhookTruncateAlerts(t *testing.T) {
 
 	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
 	require.Len(t, truncatedAlerts, 10)
-	require.EqualValues(t, numTruncated, 0)
+	require.EqualValues(t, 0, numTruncated)
 
 	truncatedAlerts, numTruncated = truncateAlerts(4, alerts)
 	require.Len(t, truncatedAlerts, 4)
-	require.EqualValues(t, numTruncated, 6)
+	require.EqualValues(t, 6, numTruncated)
 
 	truncatedAlerts, numTruncated = truncateAlerts(100, alerts)
 	require.Len(t, truncatedAlerts, 10)
-	require.EqualValues(t, numTruncated, 0)
+	require.EqualValues(t, 0, numTruncated)
 }
 
 func TestWebhookRedactedURL(t *testing.T) {

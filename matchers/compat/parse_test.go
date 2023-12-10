@@ -53,7 +53,7 @@ func TestFallbackMatcherParser(t *testing.T) {
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matcher)
 			}
 		})
@@ -99,7 +99,7 @@ func TestFallbackMatchersParser(t *testing.T) {
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matchers)
 			}
 		})

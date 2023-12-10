@@ -28,7 +28,7 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	require.True(t, isTruncated)
 	require.NoError(t, err)
 	require.NotEqual(t, sBuff, truncatedMessage)
-	require.Equal(t, len(truncatedMessage), 256*1024)
+	require.Len(t, truncatedMessage, 256*1024)
 
 	sBuff = make([]byte, 100)
 	for i := range sBuff {
