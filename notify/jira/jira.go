@@ -291,9 +291,7 @@ func (n *Notifier) doAPIRequest(tmplTextFunc templateFunc, method, path string, 
 		body = &buf
 	}
 
-	url := n.conf.APIURL.Copy()
-	url.Path += path
-
+	url := n.conf.APIURL.JoinPath(path)
 	req, err := http.NewRequest(method, url.String(), body)
 	if err != nil {
 		return nil, false, err
