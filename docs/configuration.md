@@ -764,9 +764,6 @@ The default `jira.default.description` template only works with V2.
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The incoming webhook URL.
-[ webhook_url: <secret> ]
-
 # The Atlassian Side to send Jira API requests to. API path must be included.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
