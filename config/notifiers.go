@@ -847,7 +847,7 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.Project == "" {
-		return fmt.Errorf("missing project on jira_config")
+		return fmt.Errorf("missing project in jira_config")
 	}
 	if c.IssueType == "" {
 		return fmt.Errorf("missing issue_type on jira_config")
