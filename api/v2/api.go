@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -44,6 +45,8 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -70,6 +73,7 @@ type API struct {
 
 	logger log.Logger
 	m      *metrics.Alerts
+	ff     featurecontrol.Flagger
 
 	Handler http.Handler
 }
@@ -88,8 +92,12 @@ func NewAPI(
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l log.Logger,
+	ff featurecontrol.Flagger,
 	r prometheus.Registerer,
 ) (*API, error) {
+	if ff == nil {
+		ff = featurecontrol.NoopFlags{}
+	}
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: sf,
@@ -97,7 +105,8 @@ func NewAPI(
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
-		m:              metrics.NewAlerts("v2", r),
+		m:              metrics.NewAlerts(r),
+		ff:             ff,
 		uptime:         time.Now(),
 	}
 
@@ -347,7 +356,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	for _, a := range alerts {
 		removeEmptyLabels(a.Labels)
 
-		if err := a.Validate(); err != nil {
+		if err := a.Validate(api.ff); err != nil {
 			validationErrs.Add(err)
 			api.m.Invalid().Inc()
 			continue
@@ -505,17 +514,10 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	matchers := []*labels.Matcher{}
-	if params.Filter != nil {
-		for _, matcherString := range params.Filter {
-			matcher, err := labels.ParseMatcher(matcherString)
-			if err != nil {
-				level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
-				return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
-			}
-
-			matchers = append(matchers, matcher)
-		}
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
 	psils, _, err := api.silences.Query()
@@ -634,7 +636,7 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 	sid := params.SilenceID.String()
 	if err := api.silences.Expire(sid); err != nil {
 		level.Error(logger).Log("msg", "Failed to expire silence", "err", err)
-		if err == silence.ErrNotFound {
+		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewDeleteSilenceNotFound()
 		}
 		return silence_ops.NewDeleteSilenceInternalServerError().WithPayload(err.Error())
@@ -668,7 +670,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	sid, err := api.silences.Set(sil)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to create silence", "err", err)
-		if err == silence.ErrNotFound {
+		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
 		}
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(err.Error())
@@ -682,7 +684,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := labels.ParseMatcher(matcherString)
+		matcher, err := compat.Matcher(matcherString)
 		if err != nil {
 			return nil, err
 		}

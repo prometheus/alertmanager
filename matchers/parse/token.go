@@ -14,8 +14,10 @@
 package parse
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
+	"unicode/utf8"
 )
 
 type tokenKind int
@@ -82,7 +84,14 @@ func (t token) isOneOf(kinds ...tokenKind) bool {
 // unquote the value in token. If unquoted returns it unmodified.
 func (t token) unquote() (string, error) {
 	if t.kind == tokenQuoted {
-		return strconv.Unquote(t.value)
+		unquoted, err := strconv.Unquote(t.value)
+		if err != nil {
+			return "", err
+		}
+		if !utf8.ValidString(unquoted) {
+			return "", errors.New("quoted string contains invalid UTF-8 code points")
+		}
+		return unquoted, nil
 	}
 	return t.value, nil
 }

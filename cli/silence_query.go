@@ -154,7 +154,7 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 			return errors.New("unknown output formatter")
 		}
 		if err := formatter.FormatSilences(displaySilences); err != nil {
-			return fmt.Errorf("error formatting silences: %v", err)
+			return fmt.Errorf("error formatting silences: %w", err)
 		}
 	}
 	return nil

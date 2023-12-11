@@ -15,6 +15,7 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -24,7 +25,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
@@ -687,7 +687,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	ctx = WithResolvedAlerts(ctx, resolved)
 
 	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
-	if err != nil && err != nflog.ErrNotFound {
+	if err != nil && !errors.Is(err, nflog.ErrNotFound) {
 		return ctx, nil, err
 	}
 
@@ -697,7 +697,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	case 1:
 		entry = entries[0]
 	default:
-		return ctx, nil, errors.Errorf("unexpected entry result size %d", len(entries))
+		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
@@ -737,7 +737,8 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 	failureReason := DefaultReason.String()
 	if err != nil {
-		if e, ok := errors.Cause(err).(*ErrorWithReason); ok {
+		var e *ErrorWithReason
+		if errors.As(err, &e) {
 			failureReason = e.Reason.String()
 		}
 		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason)...).Inc()
@@ -791,9 +792,17 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-ctx.Done():
 			if iErr == nil {
 				iErr = ctx.Err()
+				if errors.Is(iErr, context.Canceled) {
+					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+				} else if errors.Is(iErr, context.DeadlineExceeded) {
+					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+				}
 			}
 
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			if iErr != nil {
+				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+			}
+			return ctx, nil, nil
 		default:
 		}
 
@@ -807,16 +816,17 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
 				if !retry {
-					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
+					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
-				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
-					// Log the error if the context isn't done and the error isn't the same as before.
-					level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
+				if ctx.Err() == nil {
+					if iErr == nil || err.Error() != iErr.Error() {
+						// Log the error if the context isn't done and the error isn't the same as before.
+						level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
+					}
+					// Save this error to be able to return the last seen error by an
+					// integration upon context timeout.
+					iErr = err
 				}
-
-				// Save this error to be able to return the last seen error by an
-				// integration upon context timeout.
-				iErr = err
 			} else {
 				lvl := level.Info(l)
 				if i <= 1 {
@@ -829,9 +839,16 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-ctx.Done():
 			if iErr == nil {
 				iErr = ctx.Err()
+				if errors.Is(iErr, context.Canceled) {
+					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+				} else if errors.Is(iErr, context.DeadlineExceeded) {
+					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+				}
 			}
-
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			if iErr != nil {
+				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+			}
+			return ctx, nil, nil
 		}
 	}
 }

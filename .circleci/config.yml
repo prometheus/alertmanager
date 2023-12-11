@@ -2,7 +2,7 @@
 version: 2.1
 orbs:
   prometheus: prometheus/prometheus@0.17.1
-  go: circleci/go@1.7.3
+  go: circleci/go@1.9.0
 jobs:
   test_frontend:
     # We need to use a machine executor because the front-end validation runs
@@ -18,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.20"
+          version: "1.21.3"
       - run:
           name: Remove generated code
           command: make clean
@@ -47,7 +47,7 @@ jobs:
   test:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.20-base
+      - image: quay.io/prometheus/golang-builder:1.21-base
       # maildev containers are for running the email tests against a "real" SMTP server.
       # See notify/email_test.go for details.
       - image: maildev/maildev:1.1.0
@@ -104,7 +104,7 @@ jobs:
   mixin:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.20-base
+      - image: quay.io/prometheus/golang-builder:1.21-base
     steps:
       - checkout
       # pin the mixtool version until https://github.com/monitoring-mixins/mixtool/issues/135 is merged.

@@ -23,40 +23,40 @@ import (
 )
 
 const (
-	fcReceiverNameInMetrics  = "receiver-name-in-metrics"
-	fcClassicMatchersParsing = "classic-matchers-parsing"
-	fcUTF8MatchersParsing    = "utf8-matchers-parsing"
+	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
+	FeatureClassicMode           = "classic-mode"
+	FeatureUTF8StrictMode        = "utf8-strict-mode"
 )
 
 var AllowedFlags = []string{
-	fcReceiverNameInMetrics,
-	fcClassicMatchersParsing,
-	fcUTF8MatchersParsing,
+	FeatureReceiverNameInMetrics,
+	FeatureClassicMode,
+	FeatureUTF8StrictMode,
 }
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
-	ClassicMatchersParsing() bool
-	UTF8MatchersParsing() bool
+	ClassicMode() bool
+	UTF8StrictMode() bool
 }
 
 type Flags struct {
 	logger                       log.Logger
 	enableReceiverNamesInMetrics bool
-	classicMatchersParsing       bool
-	utf8MatchersParsing          bool
+	classicMode                  bool
+	utf8StrictMode               bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
 	return f.enableReceiverNamesInMetrics
 }
 
-func (f *Flags) ClassicMatchersParsing() bool {
-	return f.classicMatchersParsing
+func (f *Flags) ClassicMode() bool {
+	return f.classicMode
 }
 
-func (f *Flags) UTF8MatchersParsing() bool {
-	return f.utf8MatchersParsing
+func (f *Flags) UTF8StrictMode() bool {
+	return f.utf8StrictMode
 }
 
 type flagOption func(flags *Flags)
@@ -67,15 +67,15 @@ func enableReceiverNameInMetrics() flagOption {
 	}
 }
 
-func enableClassicMatchersParsing() flagOption {
+func enableClassicMode() flagOption {
 	return func(configs *Flags) {
-		configs.classicMatchersParsing = true
+		configs.classicMode = true
 	}
 }
 
-func enableUTF8MatchersParsing() flagOption {
+func enableUTF8StrictMode() flagOption {
 	return func(configs *Flags) {
-		configs.utf8MatchersParsing = true
+		configs.utf8StrictMode = true
 	}
 }
 
@@ -89,15 +89,15 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 
 	for _, feature := range strings.Split(features, ",") {
 		switch feature {
-		case fcReceiverNameInMetrics:
+		case FeatureReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			level.Warn(logger).Log("msg", "Experimental receiver name in metrics enabled")
-		case fcClassicMatchersParsing:
-			opts = append(opts, enableClassicMatchersParsing())
-			level.Warn(logger).Log("msg", "Classic matchers parsing enabled")
-		case fcUTF8MatchersParsing:
-			opts = append(opts, enableUTF8MatchersParsing())
-			level.Warn(logger).Log("msg", "UTF-8 matchers parsing enabled")
+		case FeatureClassicMode:
+			opts = append(opts, enableClassicMode())
+			level.Warn(logger).Log("msg", "Classic mode enabled")
+		case FeatureUTF8StrictMode:
+			opts = append(opts, enableUTF8StrictMode())
+			level.Warn(logger).Log("msg", "UTF-8 mode enabled")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -107,8 +107,8 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		opt(fc)
 	}
 
-	if fc.classicMatchersParsing && fc.utf8MatchersParsing {
-		return nil, errors.New("Both classic and UTF-8 matchers parsing is enabled, please choose one or remove the flag for both")
+	if fc.classicMode && fc.utf8StrictMode {
+		return nil, errors.New("cannot have both classic and UTF-8 modes enabled")
 	}
 
 	return fc, nil
@@ -118,6 +118,6 @@ type NoopFlags struct{}
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 
-func (n NoopFlags) ClassicMatchersParsing() bool { return false }
+func (n NoopFlags) ClassicMode() bool { return false }
 
-func (n NoopFlags) UTF8MatchersParsing() bool { return false }
+func (n NoopFlags) UTF8StrictMode() bool { return false }

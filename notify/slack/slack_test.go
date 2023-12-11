@@ -226,8 +226,8 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			if tt.noError {
 				require.NoError(t, err)
 			} else {
-				reasonError, ok := err.(*notify.ErrorWithReason)
-				require.True(t, ok)
+				var reasonError *notify.ErrorWithReason
+				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
 				require.Contains(t, err.Error(), tt.expectedErr)
 				require.Contains(t, err.Error(), "channelname")

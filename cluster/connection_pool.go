@@ -15,12 +15,12 @@ package cluster
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/pkg/errors"
 )
 
 const capacity = 1024
@@ -38,7 +38,7 @@ func newConnectionPool(tlsClientCfg *tls.Config) (*connectionPool, error) {
 		},
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new LRU")
+		return nil, fmt.Errorf("failed to create new LRU: %w", err)
 	}
 	return &connectionPool{
 		cache:     cache,

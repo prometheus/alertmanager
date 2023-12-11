@@ -182,6 +182,30 @@ line`,
 			value: `tab	stop`,
 			want:  `foo="tab	stop"`,
 		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `🙂`,
+			want:  `foo="🙂"`,
+		},
+		{
+			name:  `foo!`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `"foo!"!="bar"`,
+		},
+		{
+			name:  `foo🙂`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `foo🙂="bar"`,
+		},
+		{
+			name:  `foo bar`,
+			op:    MatchEqual,
+			value: `baz`,
+			want:  `"foo bar"="baz"`,
+		},
 	}
 
 	for _, test := range tests {

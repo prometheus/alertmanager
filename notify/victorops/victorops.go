@@ -24,7 +24,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -83,14 +82,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, fileErr := os.ReadFile(n.conf.APIKeyFile)
 		if fileErr != nil {
-			return false, errors.Wrap(fileErr, "failed to read API key from file")
+			return false, fmt.Errorf("failed to read API key from file: %w", fileErr)
 		}
 		apiKey = strings.TrimSpace(string(content))
 	}
 
 	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
-		return false, fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %w", err)
 	}
 
 	buf, err := n.createVictorOpsPayload(ctx, as...)
@@ -155,14 +154,14 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("templating error: %s", err)
+		return nil, fmt.Errorf("templating error: %w", err)
 	}
 
 	// Add custom fields to the payload.
 	for k, v := range n.conf.CustomFields {
 		msg[k] = tmpl(v)
 		if err != nil {
-			return nil, fmt.Errorf("templating error: %s", err)
+			return nil, fmt.Errorf("templating error: %w", err)
 		}
 	}
 
