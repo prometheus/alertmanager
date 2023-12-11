@@ -552,9 +552,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				jira.APIURL = c.Global.JiraAPIURL
 			}
-			if !strings.HasSuffix(jira.APIURL.Path, "/") {
-				jira.APIURL.Path += "/"
-			}
 			if jira.APIUsername == "" {
 				if c.Global.JiraAPIUsername == "" {
 					return fmt.Errorf("no global Jira Cloud username set")
