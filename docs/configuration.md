@@ -84,6 +84,7 @@ global:
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
 
+  # Default settings for the JIRA integration. 
   [ jira_api_url: <string> ]
   [ jira_api_username: <string> ]
   [ jira_api_token: <secret> ]
