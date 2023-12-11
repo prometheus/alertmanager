@@ -46,7 +46,6 @@ type Notifier struct {
 	retrier *notify.Retrier
 }
 
-// New returns a new Webhook.
 func New(c *config.JiraConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "jira", httpOpts...)
 	if err != nil {
