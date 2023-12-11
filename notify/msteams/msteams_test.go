@@ -16,7 +16,6 @@ package msteams
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -187,7 +186,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				var reasonError *notify.ErrorWithReason
-				require.True(t, errors.As(err, &reasonError))
+				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
 			}
 		})

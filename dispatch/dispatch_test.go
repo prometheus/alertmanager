@@ -398,7 +398,7 @@ route:
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
 		time.Sleep(200 * time.Millisecond)
 	}
-	require.Equal(t, 7, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), 7)
 
 	alertGroups, receivers := dispatcher.Groups(
 		func(*Route) bool {
@@ -541,7 +541,7 @@ route:
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
 		time.Sleep(200 * time.Millisecond)
 	}
-	require.Equal(t, 7, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), 7)
 
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
@@ -681,7 +681,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	}
 
 	// We expect all alerts to be notified immediately, since they all belong to different groups.
-	require.Equal(t, numAlerts, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), numAlerts)
 }
 
 type limits struct {

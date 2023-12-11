@@ -285,7 +285,7 @@ func TestSilencesSetSilence(t *testing.T) {
 		_, err := pbutil.ReadDelimited(r, &e)
 		require.NoError(t, err)
 
-		require.Equal(t, want["some_id"], &e)
+		require.Equal(t, &e, want["some_id"])
 		close(done)
 	}
 
@@ -322,7 +322,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id1, err := s.Set(sil1)
 	require.NoError(t, err)
-	require.NotEqual(t, id1, "")
+	require.NotEqual(t, "", id1)
 
 	want := state{
 		id1: &pb.MeshSilence{
@@ -348,7 +348,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
-	require.NotEqual(t, id2, "")
+	require.NotEqual(t, "", id2)
 
 	want = state{
 		id1: want[id1],
@@ -942,7 +942,7 @@ func TestSilenceExpire(t *testing.T) {
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)
-	require.Equal(t, silenceState, types.SilenceStateExpired)
+	require.Equal(t, types.SilenceStateExpired, silenceState)
 
 	sil, err = s.QueryOne(QIDs("active"))
 	require.NoError(t, err)
@@ -1628,7 +1628,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 		QMatches(lset),
 	)
 	require.NoError(b, err)
-	require.Equal(b, numSilences/10, len(sils))
+	require.Len(b, sils, numSilences/10)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1637,7 +1637,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 			QMatches(lset),
 		)
 		require.NoError(b, err)
-		require.Equal(b, numSilences/10, len(sils))
+		require.Len(b, sils, numSilences/10)
 	}
 }
 

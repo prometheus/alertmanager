@@ -57,7 +57,7 @@ func TestLogGC(t *testing.T) {
 	expected := state{
 		"a2": newEntry(now.Add(time.Second)),
 	}
-	require.Equal(t, l.st, expected, "unexpected state after garbage collection")
+	require.Equal(t, expected, l.st, "unexpected state after garbage collection")
 }
 
 func TestLogSnapshot(t *testing.T) {
