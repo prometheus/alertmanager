@@ -839,7 +839,7 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.APIToken == "" && c.APITokenFile == "" {
-		return fmt.Errorf("missing api_token or api_token_file on jira_config")
+		return fmt.Errorf("missing api_token or api_token_file in jira_config")
 	}
 
 	if c.APIToken != "" && len(c.APITokenFile) > 0 {
