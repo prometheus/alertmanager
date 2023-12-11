@@ -753,7 +753,7 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 ### `<jira_config>`
 
-JIRA notification are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
+JIRA notifications are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
 or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
 
 Both APIs have the same feature set. The difference is that V2 uses [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
