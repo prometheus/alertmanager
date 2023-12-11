@@ -84,7 +84,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	// Parse labels to LabelSet.
 	ls := make(models.LabelSet, len(c.labels))
 	for _, l := range c.labels {
-		matcher, err := compat.Matcher(l)
+		matcher, err := compat.Matcher(l, "cli")
 		if err != nil {
 			kingpin.Fatalf("Failed to parse labels: %v\n", err)
 		}

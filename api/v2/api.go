@@ -684,7 +684,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := compat.Matcher(matcherString)
+		matcher, err := compat.Matcher(matcherString, "api")
 		if err != nil {
 			return nil, err
 		}

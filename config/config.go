@@ -1006,7 +1006,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := compat.Matchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}
@@ -1032,7 +1032,7 @@ func (m *Matchers) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := compat.Matchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}
