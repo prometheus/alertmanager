@@ -355,6 +355,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
 
+	if c.Global.JiraAPIToken != "" && len(c.Global.JiraAPITokenFile) > 0 {
+		return fmt.Errorf("at most one of jira_api_token & jira_api_token_file must be configured")
+	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
