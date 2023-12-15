@@ -46,6 +46,7 @@ receivers:
   telegram_configs:
   - chat_id: 1234
     bot_token: secret
+    message_thread_id: 1357
 `
 	var c config.Config
 	err := yaml.Unmarshal([]byte(in), &c)
@@ -57,6 +58,7 @@ receivers:
 	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
 	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
 	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
+	require.Equal(t, int64(1357), c.Receivers[0].TelegramConfigs[0].MessageThreadID)
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
 }
 
