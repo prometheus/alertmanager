@@ -566,6 +566,7 @@ type OpsGenieConfig struct {
 	Note         string                    `yaml:"note,omitempty" json:"note,omitempty"`
 	Priority     string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 	UpdateAlerts bool                      `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
+	AliasPrefix  string                    `yaml:"alias_prefix,omitempty" json:"alias_prefix,omitempty"`
 }
 
 const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
