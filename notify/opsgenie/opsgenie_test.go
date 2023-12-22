@@ -327,3 +327,115 @@ func readBody(t *testing.T, r *http.Request) string {
 	require.NoError(t, err)
 	return string(body)
 }
+
+func TestOpsGenieWithAlias(t *testing.T) {
+	u, err := url.Parse("https://opsgenie/api")
+	if err != nil {
+		t.Fatalf("failed to parse URL: %v", err)
+	}
+	logger := log.NewNopLogger()
+	tmpl := test.CreateTmpl(t)
+
+	for _, tc := range []struct {
+		title string
+		cfg   *config.OpsGenieConfig
+
+		expectedEmptyAlertBody string
+		expectedBody           string
+	}{
+		{
+			title: "config with custom alias",
+			cfg: &config.OpsGenieConfig{
+				NotifierConfig: config.NotifierConfig{
+					VSendResolved: true,
+				},
+				Alias:       `{{ printf "%s-%s" .CommonLabels.alertname .CommonLabels.Severity }}`,
+				Message:     `{{ .CommonLabels.Message }}`,
+				Description: `{{ .CommonLabels.Description }}`,
+				Source:      `{{ .CommonLabels.Source }}`,
+				Details: map[string]string{
+					"Description": `adjusted {{ .CommonLabels.Description }}`,
+				},
+				Responders: []config.OpsGenieConfigResponder{
+					{
+						Name: `{{ .CommonLabels.ResponderName3 }}`,
+						Type: `{{ .CommonLabels.ResponderType3 }}`,
+					},
+				},
+				Tags:       `{{ .CommonLabels.Tags }}`,
+				Note:       `{{ .CommonLabels.Note }}`,
+				Priority:   `{{ .CommonLabels.Priority }}`,
+				APIKey:     `{{ .ExternalURL }}`,
+				APIURL:     &config.URL{URL: u},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			},
+			expectedEmptyAlertBody: `{"alias":"bfa656e3992e259484955581e6aa9c88e3ff32006fd1080fb8a0dbfc8f425735","message":"","details":{"Description":"adjusted "},"source":""}
+`,
+			expectedBody: `{"alias":"bfa656e3992e259484955581e6aa9c88e3ff32006fd1080fb8a0dbfc8f425735","message":"message","description":"description","details":{"Actions":"doThis,doThat","Cluster":"mycluster","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Severity":"critical","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"TeamB","type":"team"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
+`,
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			notifier, err := New(tc.cfg, tmpl, logger)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
+
+			// Empty alert.
+			alert1 := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			req, retry, err := notifier.createRequests(ctx, alert1)
+			require.NoError(t, err)
+			require.Len(t, req, 1)
+			require.True(t, retry)
+			require.Equal(t, expectedURL, req[0].URL)
+			require.Equal(t, "GenieKey http://am", req[0].Header.Get("Authorization"))
+			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req[0]))
+
+			// Fully defined alert.
+			alert2 := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"Message":        "message",
+						"Description":    "description",
+						"Source":         "http://prometheus",
+						"ResponderName1": "TeamA",
+						"ResponderType1": "team",
+						"ResponderName2": "EscalationA",
+						"ResponderType2": "escalation",
+						"ResponderName3": "TeamA,TeamB",
+						"ResponderType3": "teams",
+						"Tags":           "tag1,tag2",
+						"Note":           "this is a note",
+						"Priority":       "P1",
+						"Entity":         "test-domain",
+						"Actions":        "doThis,doThat",
+						"Severity":       "critical",
+						"Cluster":        "mycluster",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			req, retry, err = notifier.createRequests(ctx, alert2)
+			require.NoError(t, err)
+			require.True(t, retry)
+			require.Len(t, req, 1)
+			require.Equal(t, tc.expectedBody, readBody(t, req[0]))
+
+			// Broken API Key Template.
+			tc.cfg.APIKey = "{{ kaput "
+			_, _, err = notifier.createRequests(ctx, alert2)
+			require.Error(t, err)
+			require.Equal(t, "templating error: template: :1: function \"kaput\" not defined", err.Error())
+		})
+	}
+}
