@@ -129,10 +129,19 @@ func safeSplit(s, sep string) []string {
 
 // Create requests for a list of alerts.
 func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*http.Request, bool, error) {
-	key, err := notify.ExtractGroupKey(ctx)
-	if err != nil {
-		return nil, false, err
+	var key notify.Key
+	var err error
+	// Use custom alias if provided, otherwise use group key.
+	// Custom alias will help to deduplicate opsgenie alerts in cases you are not using global integration and have multiple receivers or teams
+	if n.conf.Alias != "" {
+		key = notify.Key(n.conf.Alias)
+	} else {
+		key, err = notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return nil, false, err
+		}
 	}
+
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
 	level.Debug(n.logger).Log("alert", key)
