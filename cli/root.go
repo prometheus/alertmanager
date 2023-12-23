@@ -26,6 +26,7 @@ import (
 	"github.com/go-kit/log/level"
 	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"github.com/kirsle/configdir"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
@@ -46,7 +47,12 @@ var (
 	versionCheck    bool
 	featureFlags    string
 
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+        var configFiles []string
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		configFiles = append(configFiles, filepath.Join(homeDir, ".config", "amtool" "config.yml")
+	}
+	configFiles = append("/etc/amtool/config.yml")
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
