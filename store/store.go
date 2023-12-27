@@ -110,7 +110,10 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
 
-	delete(a.c, fp)
+	if alert, ok := a.c[fp]; ok {
+		delete(a.c, fp)
+		a.cb([]*types.Alert{alert})
+	}
 	return nil
 }
 
