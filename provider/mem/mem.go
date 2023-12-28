@@ -34,10 +34,11 @@ const alertChannelLength = 200
 type Alerts struct {
 	cancel context.CancelFunc
 
+	mtx sync.Mutex
+
 	alerts *store.Alerts
 	marker types.AlertMarker
 
-	mtx       sync.Mutex
 	listeners map[int]listeningAlerts
 	next      int
 
@@ -100,35 +101,58 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
 		logger:    log.With(l, "component", "provider"),
 		callback:  alertCallback,
 	}
-	a.alerts.SetGCCallback(func(alerts []types.Alert) {
-		for _, alert := range alerts {
-			// As we don't persist alerts, we no longer consider them after
-			// they are resolved. Alerts waiting for resolved notifications are
-			// held in memory in aggregation groups redundantly.
-			m.Delete(alert.Fingerprint())
-			a.callback.PostDelete(&alert)
-		}
-
-		a.mtx.Lock()
-		for i, l := range a.listeners {
-			select {
-			case <-l.done:
-				delete(a.listeners, i)
-				close(l.alerts)
-			default:
-				// listener is not closed yet, hence proceed.
-			}
-		}
-		a.mtx.Unlock()
-	})
 
 	if r != nil {
 		a.registerMetrics(r)
 	}
 
-	go a.alerts.Run(ctx, intervalGC)
+	go a.gcLoop(ctx, intervalGC)
 
 	return a, nil
+}
+
+func (a *Alerts) gcLoop(ctx context.Context, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.gc()
+		}
+	}
+}
+
+func (a *Alerts) gc() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	for _, alert := range a.alerts.List() {
+		if alert.Resolved() {
+			fp := alert.Fingerprint()
+			if err := a.alerts.Delete(fp); err != nil {
+				level.Error(a.logger).Log("msg", "error on delete alert", "err", err)
+				continue
+			}
+
+			// As we don't persist alerts, we no longer consider them after
+			// they are resolved. Alerts waiting for resolved notifications are
+			// held in memory in aggregation groups redundantly.
+			a.marker.Delete(fp)
+			a.callback.PostDelete(alert)
+		}
+	}
+
+	for i, l := range a.listeners {
+		select {
+		case <-l.done:
+			delete(a.listeners, i)
+			close(l.alerts)
+		default:
+			// listener is not closed yet, hence proceed.
+		}
+	}
 }
 
 // Close the alert provider.
@@ -177,8 +201,11 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 
 	go func() {
 		defer close(ch)
+		a.mtx.Lock()
+		alerts := a.alerts.List()
+		a.mtx.Unlock()
 
-		for _, a := range a.alerts.List() {
+		for _, a := range alerts {
 			select {
 			case ch <- a:
 			case <-done:
@@ -192,6 +219,8 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 
 // Get returns the alert for a given fingerprint.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	return a.alerts.Get(fp)
 }
 
@@ -200,6 +229,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
+		a.mtx.Lock()
 		existing := false
 
 		// Check that there's an alert existing within the store before
@@ -215,18 +245,19 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		}
 
 		if err := a.callback.PreStore(alert, existing); err != nil {
+			a.mtx.Unlock()
 			level.Error(a.logger).Log("msg", "pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
+			a.mtx.Unlock()
 			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
 
 		a.callback.PostStore(alert, existing)
 
-		a.mtx.Lock()
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
@@ -241,6 +272,9 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 // count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
 func (a *Alerts) count(state types.AlertState) int {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
 	var count int
 	for _, alert := range a.alerts.List() {
 		if alert.Resolved() {

@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -560,4 +561,63 @@ func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 
 func (l *limitCountCallback) PostDelete(_ *types.Alert) {
 	l.alerts.Dec()
+}
+
+func TestAlertsConcurrently(t *testing.T) {
+	callback := &limitCountCallback{limit: 100}
+	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, callback, log.NewNopLogger(), nil)
+	require.NoError(t, err)
+
+	stopc := make(chan struct{})
+	failc := make(chan struct{})
+	go func() {
+		time.Sleep(2 * time.Second)
+		close(stopc)
+	}()
+	expire := 10 * time.Millisecond
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			j := 0
+			for {
+				select {
+				case <-failc:
+					return
+				case <-stopc:
+					return
+				default:
+				}
+				now := time.Now()
+				err := a.Put(&types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"bar": model.LabelValue(strconv.Itoa(j))},
+						StartsAt: now,
+						EndsAt:   now.Add(expire),
+					},
+					UpdatedAt: now,
+				})
+				if err != nil && !errors.Is(err, errTooManyAlerts) {
+					close(failc)
+					return
+				}
+				j++
+			}
+		}()
+	}
+	wg.Wait()
+	select {
+	case <-failc:
+		t.Fatalf("unexpected error happened")
+	default:
+	}
+
+	time.Sleep(expire)
+	require.Eventually(t, func() bool {
+		// When the alert will eventually expire and is considered resolved - it won't count.
+		return a.count(types.AlertStateActive) == 0
+	}, 2*expire, expire)
+	require.Equal(t, int32(0), callback.alerts.Load())
 }
