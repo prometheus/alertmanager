@@ -132,7 +132,8 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	var key notify.Key
 	var err error
 	// Use custom alias if provided, otherwise use group key.
-	// Custom alias will help to deduplicate opsgenie alerts in cases you are not using global integration and have multiple receivers or teams
+	// Custom alias will be used by Opsgenie to deduplicate alerts in situations you are not using global integration and you have to deliver the same alert
+	// to multiple teams and each team has its own integration.
 	if n.conf.Alias != "" {
 		key = notify.Key(n.conf.Alias)
 	} else {
