@@ -31,38 +31,47 @@ func TestFallbackMatcherParser(t *testing.T) {
 		input             string
 		expected          *labels.Matcher
 		err               string
-		total             int
-		disagreeTotal     int
-		incompatibleTotal int
-		invalidTotal      int
+		total             float64
+		disagreeTotal     float64
+		incompatibleTotal float64
+		invalidTotal      float64
 	}{{
-		name:     "is accepted in both",
+		name:     "input is accepted",
 		input:    "foo=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 		total:    1,
 	}, {
-		name:     "is accepted in new parser but not old",
+		name:         "input is accepted in neither",
+		input:        "foo!bar",
+		err:          "bad matcher format: foo!bar",
+		total:        1,
+		invalidTotal: 1,
+	}, {
+		name:     "input is accepted in matchers/parse but not pkg/labels",
 		input:    "foo🙂=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
 		total:    1,
 	}, {
-		name:              "is accepted in old parser but not new",
+		name:              "input is accepted in pkg/labels but not matchers/parse",
 		input:             "foo=!bar\\n",
 		expected:          mustNewMatcher(t, labels.MatchEqual, "foo", "!bar\n"),
 		total:             1,
 		incompatibleTotal: 1,
 	}, {
-		name:         "is accepted in neither",
-		input:        "foo!bar",
-		err:          "bad matcher format: foo!bar",
-		total:        1,
-		invalidTotal: 1,
+		// This input causes disagreement because \xf0\x9f\x99\x82 is the byte sequence for 🙂,
+		// which is not understood by pkg/labels but is understood by matchers/parse. In such cases,
+		// the fallback parser returns the result from pkg/labels.
+		name:          "input causes disagreement",
+		input:         "foo=\"\\xf0\\x9f\\x99\\x82\"",
+		expected:      mustNewMatcher(t, labels.MatchEqual, "foo", "\\xf0\\x9f\\x99\\x82"),
+		total:         1,
+		disagreeTotal: 1,
 	}}
 
 	for _, test := range tests {
-		m := NewMetrics(prometheus.NewRegistry())
-		f := FallbackMatcherParser(log.NewNopLogger(), m)
 		t.Run(test.name, func(t *testing.T) {
+			m := NewMetrics(prometheus.NewRegistry())
+			f := FallbackMatcherParser(log.NewNopLogger(), m)
 			matcher, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -70,10 +79,10 @@ func TestFallbackMatcherParser(t *testing.T) {
 				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matcher)
 			}
-			require.Equal(t, test.total, testutil.CollectAndCount(m.Total))
-			require.Equal(t, test.disagreeTotal, testutil.CollectAndCount(m.DisagreeTotal))
-			require.Equal(t, test.incompatibleTotal, testutil.CollectAndCount(m.IncompatibleTotal))
-			require.Equal(t, test.invalidTotal, testutil.CollectAndCount(m.InvalidTotal))
+			requireMetric(t, test.total, m.Total)
+			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
+			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
+			requireMetric(t, test.invalidTotal, m.InvalidTotal)
 		})
 	}
 }
@@ -84,12 +93,12 @@ func TestFallbackMatchersParser(t *testing.T) {
 		input             string
 		expected          labels.Matchers
 		err               string
-		total             int
-		disagreeTotal     int
-		incompatibleTotal int
-		invalidTotal      int
+		total             float64
+		disagreeTotal     float64
+		incompatibleTotal float64
+		invalidTotal      float64
 	}{{
-		name:  "is accepted in both",
+		name:  "input is accepted",
 		input: "{foo=bar,bar=baz}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
@@ -97,7 +106,13 @@ func TestFallbackMatchersParser(t *testing.T) {
 		},
 		total: 1,
 	}, {
-		name:  "is accepted in new parser but not old",
+		name:         "input is accepted in neither",
+		input:        "{foo!bar}",
+		err:          "bad matcher format: foo!bar",
+		total:        1,
+		invalidTotal: 1,
+	}, {
+		name:  "input is accepted in matchers/parse but not pkg/labels",
 		input: "{foo🙂=bar,bar=baz🙂}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
@@ -105,7 +120,7 @@ func TestFallbackMatchersParser(t *testing.T) {
 		},
 		total: 1,
 	}, {
-		name:  "is accepted in old parser but not new",
+		name:  "is accepted in pkg/labels but not matchers/parse",
 		input: "{foo=!bar,bar=$baz\\n}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "!bar"),
@@ -114,17 +129,22 @@ func TestFallbackMatchersParser(t *testing.T) {
 		total:             1,
 		incompatibleTotal: 1,
 	}, {
-		name:         "is accepted in neither",
-		input:        "{foo!bar}",
-		err:          "bad matcher format: foo!bar",
-		total:        1,
-		invalidTotal: 1,
+		// This input causes disagreement because \xf0\x9f\x99\x82 is the byte sequence for 🙂,
+		// which is not understood by pkg/labels but is understood by matchers/parse. In such cases,
+		// the fallback parser returns the result from pkg/labels.
+		name:  "input causes disagreement",
+		input: "{foo=\"\\xf0\\x9f\\x99\\x82\"}",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "\\xf0\\x9f\\x99\\x82"),
+		},
+		total:         1,
+		disagreeTotal: 1,
 	}}
 
 	for _, test := range tests {
-		m := NewMetrics(prometheus.NewRegistry())
-		f := FallbackMatchersParser(log.NewNopLogger(), m)
 		t.Run(test.name, func(t *testing.T) {
+			m := NewMetrics(prometheus.NewRegistry())
+			f := FallbackMatchersParser(log.NewNopLogger(), m)
 			matchers, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -132,10 +152,10 @@ func TestFallbackMatchersParser(t *testing.T) {
 				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matchers)
 			}
-			require.Equal(t, test.total, testutil.CollectAndCount(m.Total))
-			require.Equal(t, test.disagreeTotal, testutil.CollectAndCount(m.DisagreeTotal))
-			require.Equal(t, test.incompatibleTotal, testutil.CollectAndCount(m.IncompatibleTotal))
-			require.Equal(t, test.invalidTotal, testutil.CollectAndCount(m.InvalidTotal))
+			requireMetric(t, test.total, m.Total)
+			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
+			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
+			requireMetric(t, test.invalidTotal, m.InvalidTotal)
 		})
 	}
 }
@@ -205,5 +225,14 @@ func TestIsValidUTF8LabelName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, fn(test.input))
 		})
+	}
+}
+
+func requireMetric(t *testing.T, expected float64, m *prometheus.GaugeVec) {
+	if expected == 0 {
+		require.Equal(t, 0, testutil.CollectAndCount(m))
+	} else {
+		require.Equal(t, 1, testutil.CollectAndCount(m))
+		require.Equal(t, expected, testutil.ToFloat64(m))
 	}
 }
