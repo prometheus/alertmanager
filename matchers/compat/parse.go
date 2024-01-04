@@ -39,6 +39,7 @@ func IsValidLabelName(name model.LabelName) bool {
 }
 
 type ParseMatcher func(s string) (*labels.Matcher, error)
+
 type ParseMatchers func(s string) (labels.Matchers, error)
 
 // Matcher parses the matcher in the input string. It returns an error
