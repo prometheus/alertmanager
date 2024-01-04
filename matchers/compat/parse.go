@@ -178,6 +178,7 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
 			m.DisagreeTotal.With(lbs).Inc()
 			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input)
+			return cMatcher, nil
 		}
 		return nMatcher, nil
 	}
@@ -227,6 +228,7 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
 			m.DisagreeTotal.With(lbs).Inc()
 			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input)
+			return cMatchers, nil
 		}
 		return nMatchers, nil
 	}
