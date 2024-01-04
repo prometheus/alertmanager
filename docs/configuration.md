@@ -432,13 +432,13 @@ By default, Alertmanager runs with support for both UTF-8 and classic matchers. 
 If you need to disable the new parser you can do so with the following feature flag:
 
 ```
-./alertmanager --config.file=config.yml --enable-feature="classic-matchers-parsing"
+./alertmanager --config.file=config.yml --enable-feature="classic-mode"
 ```
 
 Likewise, if you would like to disable the classic parser and use just the UTF-8 parser then you can do so too:
 
 ```
-./alertmanager --config.file=config.yml --enable-feature="utf8-matchers-parsing"
+./alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
 ```
 
 ### `<matcher>`
