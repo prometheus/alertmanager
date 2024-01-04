@@ -18,21 +18,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	RegisteredMetrics = NewMetrics(prometheus.DefaultRegisterer)
-)
-
 const (
 	OriginAPI    = "api"
 	OriginConfig = "config"
 )
 
-var (
-	DefaultOrigins = []string{
-		OriginAPI,
-		OriginConfig,
-	}
-)
+var DefaultOrigins = []string{
+	OriginAPI,
+	OriginConfig,
+}
+
+var RegisteredMetrics = NewMetrics(prometheus.DefaultRegisterer)
 
 type Metrics struct {
 	Total             *prometheus.GaugeVec
