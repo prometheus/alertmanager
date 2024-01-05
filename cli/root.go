@@ -61,7 +61,7 @@ func initMatchersCompat(_ *kingpin.ParseContext) error {
 	if err != nil {
 		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
 	}
-	compat.InitFromFlags(logger, featureConfig)
+	compat.InitFromFlags(logger, compat.RegisteredMetrics, featureConfig)
 	return nil
 }
 
