@@ -84,7 +84,7 @@ func ClassicMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
 		return labels.ParseMatcher(input)
 	}
 }
@@ -100,7 +100,7 @@ func ClassicMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
 		return labels.ParseMatchers(input)
 	}
 }
@@ -116,7 +116,7 @@ func UTF8MatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input, "origin", origin)
 		if strings.HasPrefix(input, "{") || strings.HasSuffix(input, "}") {
 			return nil, fmt.Errorf("unexpected open or close brace: %s", input)
 		}
@@ -136,7 +136,7 @@ func UTF8MatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input, "origin", origin)
 		return parse.Matchers(input)
 	}
 }
@@ -153,7 +153,7 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input, "origin", origin)
 		if strings.HasPrefix(input, "{") || strings.HasSuffix(input, "}") {
 			return nil, fmt.Errorf("unexpected open or close brace: %s", input)
 		}
@@ -170,14 +170,14 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 			// parser. This means the input is not forwards compatible.
 			m.IncompatibleTotal.With(lbs).Inc()
 			suggestion := cMatcher.String()
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", err, "suggestion", suggestion)
 			return cMatcher, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement.
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
 			m.DisagreeTotal.With(lbs).Inc()
-			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input)
+			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatcher, nil
 		}
 		return nMatcher, nil
@@ -196,7 +196,7 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 				m.InvalidTotal.With(lbs).Inc()
 			}
 		}()
-		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input)
+		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input, "origin", origin)
 		// Parse the input in both parsers to look for disagreement and incompatible
 		// inputs.
 		nMatchers, nErr := parse.Matchers(input)
@@ -219,7 +219,7 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 			suggestion := sb.String()
 			// The input is valid in the pkg/labels parser, but not the
 			// new matchers/parse parser.
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", err, "suggestion", suggestion)
 			return cMatchers, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
@@ -227,7 +227,7 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 		// as cMatchers is a []*labels.Matcher not labels.Matchers.
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
 			m.DisagreeTotal.With(lbs).Inc()
-			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input)
+			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatchers, nil
 		}
 		return nMatchers, nil
