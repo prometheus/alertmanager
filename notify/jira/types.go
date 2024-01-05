@@ -58,12 +58,11 @@ type issueStatus struct {
 }
 
 type issueSearch struct {
-	Expand       []string `json:"expand"`
-	Fields       []string `json:"fields"`
-	FieldsByKeys bool     `json:"fieldsByKeys"`
-	Jql          string   `json:"jql"`
-	MaxResults   int      `json:"maxResults"`
-	StartAt      int      `json:"startAt"`
+	Expand     []string `json:"expand"`
+	Fields     []string `json:"fields"`
+	Jql        string   `json:"jql"`
+	MaxResults int      `json:"maxResults"`
+	StartAt    int      `json:"startAt"`
 }
 
 type issueSearchResult struct {
