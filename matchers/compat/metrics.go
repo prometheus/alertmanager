@@ -40,19 +40,19 @@ type Metrics struct {
 func NewMetrics(r prometheus.Registerer) *Metrics {
 	m := &Metrics{
 		Total: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_parse_total",
+			Name: "alertmanager_matchers_parsed",
 			Help: "Total number of matcher inputs parsed, including invalid inputs.",
 		}, []string{"origin"}),
 		DisagreeTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_disagree_total",
+			Name: "alertmanager_matchers_disagree",
 			Help: "Total number of matcher inputs which produce different parsings (disagreement).",
 		}, []string{"origin"}),
 		IncompatibleTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_incompatible_total",
+			Name: "alertmanager_matchers_incompatible",
 			Help: "Total number of matcher inputs that are incompatible with the UTF-8 parser.",
 		}, []string{"origin"}),
 		InvalidTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_invalid_total",
+			Name: "alertmanager_matchers_invalid",
 			Help: "Total number of matcher inputs that could not be parsed.",
 		}, []string{"origin"}),
 	}
