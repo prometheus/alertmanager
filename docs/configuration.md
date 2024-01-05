@@ -771,7 +771,7 @@ The default `jira.default.description` template only works with V2.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
 [ api_username: <string> | default = global.jira_api_username ]
-[ api_token: <string> | default = global.jira_api_token ]
+[ api_token: <secret> | default = global.jira_api_token ]
 [ api_token_file: <string> | default = global.jira_api_token_file ]
 
 # The project key where issues are created.
