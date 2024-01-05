@@ -40,7 +40,7 @@ type Metrics struct {
 func NewMetrics(r prometheus.Registerer) *Metrics {
 	m := &Metrics{
 		Total: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_parsed",
+			Name: "alertmanager_matchers_parse",
 			Help: "Total number of matcher inputs parsed, including invalid inputs.",
 		}, []string{"origin"}),
 		DisagreeTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
