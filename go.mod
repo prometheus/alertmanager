@@ -95,4 +95,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/armon/go-metrics => github.com/hashicorp/go-metrics v0.4.1 // Removes go mod tidy warnings due to github.com/hashicorp/memberlist not having recent updates after this rename
+replace github.com/armon/go-metrics => github.com/hashicorp/go-metrics v0.4.1 // Removes go mod tidy warnings due to github.com/hashicorp/memberlist not having recent updates post this rename
