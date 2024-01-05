@@ -767,6 +767,11 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 # The host to send OpsGenie API requests to.
 [ api_url: <string> | default = global.opsgenie_api_url ]
 
+# Alias used by Opsgenie to deduplicate alerts. Limit 512 characters.
+# Custom alias is particularly usefull in situations you have multiple teams to receive the same alert and
+# each one has its own integration instead of global integration.
+[ alias: <string> | default = route.group_by ]
+
 # Alert text limited to 130 characters.
 [ message: <tmpl_string> | default = '{{ template "opsgenie.default.message" . }}' ]
 
