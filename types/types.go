@@ -18,12 +18,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -305,24 +304,9 @@ type Alert struct {
 	Timeout   bool
 }
 
-// validateLs validates the label set against either the classic rules
-// or the UTF-8 rules depending on the feature flag.
-func validateLs(ls model.LabelSet, ff featurecontrol.Flagger) error {
-	if ff.ClassicMode() {
-		return validateClassicLs(ls)
-	}
-	return validateUTF8Ls(ls)
-}
-
-// validateClassicLs validates the label set against the classic rules.
-func validateClassicLs(ls model.LabelSet) error {
-	return ls.Validate()
-}
-
-// validateUTF8Ls validates the label set against the UTF-8 rules.
-func validateUTF8Ls(ls model.LabelSet) error {
+func validateLs(ls model.LabelSet) error {
 	for ln, lv := range ls {
-		if len(ln) == 0 || !utf8.ValidString(string(ln)) {
+		if !compat.IsValidLabelName(ln) {
 			return fmt.Errorf("invalid name %q", ln)
 		}
 		if !lv.IsValid() {
@@ -334,7 +318,7 @@ func validateUTF8Ls(ls model.LabelSet) error {
 
 // Validate overrides the same method in model.Alert to allow UTF-8 labels.
 // This can be removed once prometheus/common has support for UTF-8.
-func (a *Alert) Validate(ff featurecontrol.Flagger) error {
+func (a *Alert) Validate() error {
 	if a.StartsAt.IsZero() {
 		return fmt.Errorf("start time missing")
 	}
@@ -344,10 +328,10 @@ func (a *Alert) Validate(ff featurecontrol.Flagger) error {
 	if len(a.Labels) == 0 {
 		return fmt.Errorf("at least one label pair required")
 	}
-	if err := validateLs(a.Labels, ff); err != nil {
+	if err := validateLs(a.Labels); err != nil {
 		return fmt.Errorf("invalid label set: %w", err)
 	}
-	if err := validateLs(a.Annotations, ff); err != nil {
+	if err := validateLs(a.Annotations); err != nil {
 		return fmt.Errorf("invalid annotations: %w", err)
 	}
 	return nil

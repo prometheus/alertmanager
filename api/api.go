@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/types"
@@ -68,9 +67,6 @@ type Options struct {
 	Concurrency int
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger log.Logger
-	// FeatureFlags contains the set of feature flags. If nil, NoopFlags are used,
-	// and all controlled features are disabled.
-	FeatureFlags featurecontrol.Flagger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
 	Registry prometheus.Registerer
@@ -121,7 +117,6 @@ func New(opts Options) (*API, error) {
 		opts.Silences,
 		opts.Peer,
 		log.With(l, "version", "v2"),
-		opts.FeatureFlags,
 		opts.Registry,
 	)
 	if err != nil {
