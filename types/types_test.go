@@ -20,9 +20,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
 func TestMemMarker_Count(t *testing.T) {
@@ -334,9 +338,19 @@ func TestValidateUTF8Ls(t *testing.T) {
 		err: "invalid name \"\\xff\"",
 	}}
 
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateUTF8Ls(test.ls)
+			err := validateLs(test.ls)
 			if err != nil && err.Error() != test.err {
 				t.Errorf("unexpected err for %s: %s", test.ls, err)
 			} else if err == nil && test.err != "" {
