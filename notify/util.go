@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -75,6 +76,10 @@ func request(ctx context.Context, client *http.Client, method, url, bodyType str
 	if bodyType != "" {
 		req.Header.Set("Content-Type", bodyType)
 	}
+
+	// Inject trancing transport
+	client.Transport = tracing.Transport(client.Transport)
+
 	return client.Do(req.WithContext(ctx))
 }
 

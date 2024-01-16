@@ -27,6 +27,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
@@ -39,6 +44,8 @@ const (
 	DispatcherStateWaitingToStart
 	DispatcherStateRunning
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/dispatch")
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
 type DispatcherMetrics struct {
@@ -79,12 +86,13 @@ func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *D
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route   *Route
-	alerts  provider.Alerts
-	stage   notify.Stage
-	marker  types.GroupMarker
-	metrics *DispatcherMetrics
-	limits  Limits
+	route      *Route
+	alerts     provider.Alerts
+	stage      notify.Stage
+	marker     types.GroupMarker
+	metrics    *DispatcherMetrics
+	limits     Limits
+	propagator propagation.TextMapPropagator
 
 	timeout func(time.Duration) time.Duration
 
@@ -138,6 +146,7 @@ func NewDispatcher(
 		logger:              logger.With("component", "dispatcher"),
 		metrics:             metrics,
 		limits:              limits,
+		propagator:          otel.GetTextMapPropagator(),
 		state:               DispatcherStateUnknown,
 	}
 	disp.loadingFinished.Add(1)
@@ -161,7 +170,7 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 
 	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
 	for _, alert := range initalAlerts {
-		d.ingestAlert(alert)
+		d.routeAlert(d.ctx, alert)
 	}
 	d.loadingFinished.Done()
 
@@ -186,15 +195,18 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				return
 			}
 
-			d.logger.Debug("Received alert", "alert", alert)
-
 			// Log errors but keep trying.
 			if err := it.Err(); err != nil {
 				d.logger.Error("Error on alert update", "err", err)
 				continue
 			}
 
-			d.ingestAlert(alert)
+			ctx := d.ctx
+			if alert.Header != nil {
+				ctx = d.propagator.Extract(ctx, propagation.MapCarrier(alert.Header))
+			}
+
+			d.routeAlert(ctx, alert.Data)
 
 		case <-d.startTimer.C:
 			if d.state == DispatcherStateWaitingToStart {
@@ -216,6 +228,30 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	}
 }
 
+func (d *Dispatcher) routeAlert(ctx context.Context, alert *types.Alert) {
+	d.logger.Debug("Received alert", "alert", alert)
+
+	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert",
+		trace.WithAttributes(
+			attribute.String("alerting.alert.name", alert.Name()),
+			attribute.String("alerting.alert.fingerprint", alert.Fingerprint().String()),
+		),
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
+	now := time.Now()
+	for _, r := range d.route.Match(alert.Labels) {
+		span.AddEvent("dispatching alert to route",
+			trace.WithAttributes(
+				attribute.String("alerting.route.receiver.name", r.RouteOpts.Receiver),
+			),
+		)
+		d.groupAlert(ctx, alert, r)
+	}
+	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+}
+
 func (d *Dispatcher) doMaintenance() {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -230,14 +266,6 @@ func (d *Dispatcher) doMaintenance() {
 			}
 		}
 	}
-}
-
-func (d *Dispatcher) ingestAlert(alert *types.Alert) {
-	now := time.Now()
-	for _, r := range d.route.Match(alert.Labels) {
-		d.processAlert(alert, r)
-	}
-	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 }
 
 func (d *Dispatcher) WaitForLoading() {
@@ -379,12 +407,22 @@ func (d *Dispatcher) Stop() {
 
 // notifyFunc is a function that performs notification for the alert
 // with the given fingerprint. It aborts on context cancelation.
-// Returns false iff notifying failed.
+// Returns false if notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
-// processAlert determines in which aggregation group the alert falls
+// groupAlert determines in which aggregation group the alert falls
 // and inserts it.
-func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *Route) {
+	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert",
+		trace.WithAttributes(
+			attribute.String("alerting.alert.name", alert.Name()),
+			attribute.String("alerting.alert.fingerprint", alert.Fingerprint().String()),
+			attribute.String("alerting.route.receiver.name", route.RouteOpts.Receiver),
+		),
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	now := time.Now()
 	groupLabels := getGroupLabels(alert, route)
 
@@ -401,14 +439,23 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 
 	ag, ok := routeGroups[fp]
 	if ok {
-		ag.insert(alert)
+		ag.insert(ctx, alert)
 		return
 	}
 
 	// If the group does not exist, create it. But check the limit first.
 	if limit := d.limits.MaxNumberOfAggregationGroups(); limit > 0 && d.aggrGroupsNum >= limit {
 		d.metrics.aggrGroupLimitReached.Inc()
-		d.logger.Error("Too many aggregation groups, cannot create new group for alert", "groups", d.aggrGroupsNum, "limit", limit, "alert", alert.Name())
+		err := errors.New("too many aggregation groups, cannot create new group for alert")
+		message := "Failed to create aggregation group"
+		d.logger.Error(message, "err", err.Error(), "groups", d.aggrGroupsNum, "limit", limit, "alert", alert.Name())
+		span.SetStatus(codes.Error, message)
+		span.RecordError(err,
+			trace.WithAttributes(
+				attribute.Int("alerting.aggregation_group.count", d.aggrGroupsNum),
+				attribute.Int("alerting.aggregation_group.limit", limit),
+			),
+		)
 		return
 	}
 
@@ -416,26 +463,35 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	routeGroups[fp] = ag
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
+	span.AddEvent("new AggregationGroup created",
+		trace.WithAttributes(
+			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+			attribute.Int("alerting.aggregation_group.count", d.aggrGroupsNum),
+		),
+	)
 
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
-	ag.insert(alert)
+	ag.insert(ctx, alert)
 
 	if alert.StartsAt.Add(ag.opts.GroupWait).Before(now) {
-		ag.logger.Debug(
-			"Alert is old enough for immediate flush, resetting timer to zero",
-			"alert", alert.Name(),
-			"fingerprint", alert.Fingerprint(),
-			"startsAt", alert.StartsAt,
+		message := "Alert is old enough for immediate flush, resetting timer to zero"
+		ag.logger.Debug(message, "alert", alert.Name(), "fingerprint", alert.Fingerprint(), "startsAt", alert.StartsAt)
+		span.AddEvent(message,
+			trace.WithAttributes(
+				attribute.String("alerting.alert.StartsAt", alert.StartsAt.Format(time.RFC3339)),
+			),
 		)
 		ag.resetTimer(0)
 	}
 	// Check dispatcher and alert state to determine if we should run the AG now.
 	switch d.state {
 	case DispatcherStateWaitingToStart:
+		span.AddEvent("Not starting Aggregation Group, dispatcher is not running")
 		d.logger.Debug("Dispatcher still waiting to start")
 	case DispatcherStateRunning:
+		span.AddEvent("Starting Aggregation Group")
 		d.runAG(ag)
 	default:
 		d.logger.Warn("unknown state detected", "state", "unknown")
@@ -570,7 +626,20 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.resetTimer(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*types.Alert) bool {
-				return nf(ctx, alerts...)
+				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
+					trace.WithAttributes(
+						attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+						attribute.Int("alerting.alerts.count", len(alerts)),
+					),
+					trace.WithSpanKind(trace.SpanKindInternal),
+				)
+				defer span.End()
+
+				success := nf(ctx, alerts...)
+				if !success {
+					span.SetStatus(codes.Error, "notification failed")
+				}
+				return success
 			})
 
 			cancel()
@@ -594,9 +663,21 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 }
 
 // insert inserts the alert into the aggregation group.
-func (ag *aggrGroup) insert(alert *types.Alert) {
+func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) {
+	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
+		trace.WithAttributes(
+			attribute.String("alerting.alert.name", alert.Name()),
+			attribute.String("alerting.alert.fingerprint", alert.Fingerprint().String()),
+			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+		),
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
 	if err := ag.alerts.Set(alert); err != nil {
-		ag.logger.Error("error on set alert", "err", err)
+		message := "error on set alert"
+		span.SetStatus(codes.Error, message)
+		span.RecordError(err)
+		ag.logger.Error(message, "err", err)
 	}
 }
 

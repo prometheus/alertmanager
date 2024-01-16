@@ -59,6 +59,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
@@ -404,13 +405,14 @@ func run() int {
 		return d + waitFunc()
 	}
 
+	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
+
 	var (
 		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	inhibitMetrics := inhibit.NewInhibitorMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
@@ -465,7 +467,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger, inhibitMetrics)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
@@ -491,9 +493,9 @@ func run() int {
 		configuredIntegrations.Set(float64(integrationsNum))
 		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
-		api.Update(conf, func(labels model.LabelSet) {
-			inhibitor.Mutes(labels)
-			silencer.Mutes(labels)
+		api.Update(conf, func(ctx context.Context, labels model.LabelSet) {
+			inhibitor.Mutes(ctx, labels)
+			silencer.Mutes(ctx, labels)
 		})
 
 		newDisp := dispatch.NewDispatcher(
@@ -546,6 +548,13 @@ func run() int {
 		newDisp.WaitForLoading()
 		disp = newDisp
 
+		err = tracingManager.ApplyConfig(conf)
+		if err != nil {
+			return fmt.Errorf("failed to apply tracing config: %w", err)
+		}
+
+		go tracingManager.Run()
+
 		return nil
 	})
 
@@ -574,7 +583,10 @@ func run() int {
 
 	mux := api.Register(router, *routePrefix)
 
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{
+		// instrument all handlers with tracing
+		Handler: tracing.Middleware(mux),
+	}
 	srvc := make(chan struct{})
 
 	go func() {
@@ -605,6 +617,11 @@ func run() int {
 			errc <- configCoordinator.Reload()
 		case <-term:
 			logger.Info("Received SIGTERM, exiting gracefully...")
+
+			// shut down the tracing manager to flush any remaining spans.
+			// this blocks for up to 5s
+			tracingManager.Stop()
+
 			return 0
 		case <-srvc:
 			return 1
