@@ -144,7 +144,8 @@ func TestAggrGroup(t *testing.T) {
 	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
-	ag.insert(a1)
+	ctx := context.Background()
+	ag.insert(ctx, a1)
 
 	select {
 	case <-time.After(2 * opts.GroupWait):
@@ -167,7 +168,7 @@ func TestAggrGroup(t *testing.T) {
 
 	for range 3 {
 		// New alert should come in after group interval.
-		ag.insert(a3)
+		ag.insert(ctx, a3)
 
 		select {
 		case <-time.After(2 * opts.GroupInterval):
@@ -196,8 +197,8 @@ func TestAggrGroup(t *testing.T) {
 	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
-	ag.insert(a1)
-	ag.insert(a2)
+	ag.insert(ctx, a1)
+	ag.insert(ctx, a2)
 
 	batch := <-alertsCh
 	exp := removeEndsAt(types.AlertSlice{a1, a2})
@@ -209,7 +210,7 @@ func TestAggrGroup(t *testing.T) {
 
 	for range 3 {
 		// New alert should come in after group interval.
-		ag.insert(a3)
+		ag.insert(ctx, a3)
 
 		select {
 		case <-time.After(2 * opts.GroupInterval):
@@ -234,7 +235,7 @@ func TestAggrGroup(t *testing.T) {
 	// Resolve an alert, and it should be removed after the next batch was sent.
 	a1r := *a1
 	a1r.EndsAt = time.Now()
-	ag.insert(&a1r)
+	ag.insert(ctx, &a1r)
 	exp = append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
 
 	select {
@@ -260,7 +261,7 @@ func TestAggrGroup(t *testing.T) {
 	resolved := types.AlertSlice{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
-		ag.insert(a)
+		ag.insert(ctx, a)
 	}
 
 	select {
@@ -412,7 +413,7 @@ route:
 		// Matches the second and third sub-route.
 		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
 	}
-	alerts.Put(inputAlerts...)
+	alerts.Put(context.Background(), inputAlerts...)
 
 	// Let alerts get processed.
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
@@ -565,7 +566,7 @@ route:
 		// Matches the second and third sub-route.
 		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
 	}
-	err = alerts.Put(inputAlerts...)
+	err = alerts.Put(context.Background(), inputAlerts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +586,7 @@ route:
 	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Try to store new alert. This time, we will hit limit for number of groups.
-	err = alerts.Put(newAlert(model.LabelSet{"env": "prod", "alertname": "NewAlert", "cluster": "new-cluster", "service": "db"}))
+	err = alerts.Put(context.Background(), newAlert(model.LabelSet{"env": "prod", "alertname": "NewAlert", "cluster": "new-cluster", "service": "db"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,7 +703,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	// Push all alerts.
 	for i := range numAlerts {
 		alert := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
-		require.NoError(t, alerts.Put(alert))
+		require.NoError(t, alerts.Put(context.Background(), alert))
 	}
 
 	// Wait until the alerts have been notified or the waiting timeout expires.
@@ -818,8 +819,8 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		}
 
 		// Insert alerts into the aggregation group
-		ag.insert(activeAlert)
-		ag.insert(resolvedAlert)
+		ag.insert(ctx, activeAlert)
+		ag.insert(ctx, resolvedAlert)
 
 		// Set markers for both alerts
 		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), 0, nil, nil)
@@ -876,7 +877,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		}
 
 		// Insert alert into the aggregation group
-		ag.insert(resolvedAlert)
+		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
 		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
@@ -930,7 +931,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		}
 
 		// Insert alert into the aggregation group
-		ag.insert(resolvedAlert)
+		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
 		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
@@ -1024,7 +1025,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	}
 
 	// Send alert1
-	require.NoError(t, alerts.Put(alert1))
+	require.NoError(t, alerts.Put(context.Background(), alert1))
 
 	var recordedAlerts []*types.Alert
 	// Expect a recorded alert after startTime + GroupWait which is in future
@@ -1036,7 +1037,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	require.Equal(t, alert1.Fingerprint(), recordedAlerts[0].Fingerprint(), "expected alert1 to be dispatched after GroupWait")
 
 	// Send alert2
-	require.NoError(t, alerts.Put(alert2))
+	require.NoError(t, alerts.Put(context.Background(), alert2))
 
 	// Expect a recorded alert after GroupInterval
 	require.Eventually(t, func() bool {

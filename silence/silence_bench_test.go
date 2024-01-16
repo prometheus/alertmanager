@@ -14,6 +14,7 @@
 package silence
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -108,14 +109,14 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 				EndsAt:   now.Add(time.Minute),
 			}
 		}
-		require.NoError(b, silences.Set(s))
+		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(silences, m, promslog.NewNopLogger())
 
 	for b.Loop() {
-		s.Mutes(model.LabelSet{"foo": "bar"})
+		s.Mutes(context.Background(), model.LabelSet{"foo": "bar"})
 	}
 	b.StopTimer()
 
@@ -183,7 +184,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 						EndsAt:   now.Add(time.Hour),
 					}
 				}
-				require.NoError(b, silences.Set(s))
+				require.NoError(b, silences.Set(b.Context(), s))
 			}
 
 			marker := types.NewMarker(prometheus.NewRegistry())
@@ -192,7 +193,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 			// Warm up: Establish marker state (markerVersion = current version)
 			// This simulates a system that has been running for a while
 			lset := model.LabelSet{"service": "test", "instance": "instance1"}
-			silencer.Mutes(lset)
+			silencer.Mutes(context.Background(), lset)
 
 			// Benchmark: Measure Mutes() performance with incremental additions
 			// Every other iteration adds 1 new silence, all iterations call Mutes()
@@ -238,12 +239,12 @@ func BenchmarkMutesIncremental(b *testing.B) {
 							EndsAt:   now.Add(time.Hour),
 						}
 					}
-					require.NoError(b, silences.Set(s))
+					require.NoError(b, silences.Set(b.Context(), s))
 				}
 
 				b.StartTimer()
 				// Now query - should use incremental path or cached paths
-				silencer.Mutes(lset)
+				silencer.Mutes(context.Background(), lset)
 				iteration++
 			}
 		})
@@ -295,11 +296,12 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 			EndsAt:    now.Add(time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
 		}
-		require.NoError(b, s.Set(sil))
+		require.NoError(b, s.Set(b.Context(), sil))
 	}
 
 	// Run things once to populate the matcherCache.
 	sils, _, err := s.Query(
+		b.Context(),
 		QState(types.SilenceStateActive),
 		QMatches(lset),
 	)
@@ -308,6 +310,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 
 	for b.Loop() {
 		sils, _, err := s.Query(
+			b.Context(),
 			QState(types.SilenceStateActive),
 			QMatches(lset),
 		)
@@ -360,11 +363,12 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 			EndsAt:    now.Add(time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
 		}
-		require.NoError(b, s.Set(sil))
+		require.NoError(b, s.Set(b.Context(), sil))
 	}
 
 	// Verify initial query works
 	sils, _, err := s.Query(
+		b.Context(),
 		QState(types.SilenceStateActive),
 		QMatches(lset),
 	)
@@ -377,6 +381,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			sils, _, err := s.Query(
+				b.Context(),
 				QState(types.SilenceStateActive),
 				QMatches(lset),
 			)
@@ -439,7 +444,7 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 			EndsAt:    now.Add(time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
 		}
-		require.NoError(b, s.Set(sil))
+		require.NoError(b, s.Set(b.Context(), sil))
 	}
 
 	var addCounter int
@@ -474,12 +479,13 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 					EndsAt:    now.Add(time.Hour),
 					UpdatedAt: now.Add(-time.Hour),
 				}
-				if err := s.Set(sil); err != nil {
+				if err := s.Set(b.Context(), sil); err != nil {
 					b.Error(err)
 				}
 			} else {
 				// Query silences (the common operation)
 				_, _, err := s.Query(
+					b.Context(),
 					QState(types.SilenceStateActive),
 					QMatches(lset),
 				)
@@ -524,7 +530,7 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 			StartsAt: now,
 			EndsAt:   now.Add(time.Minute),
 		}
-		require.NoError(b, silences.Set(s))
+		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
@@ -535,7 +541,7 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 	// Run Mutes in parallel
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			silencer.Mutes(model.LabelSet{"foo": "bar"})
+			silencer.Mutes(b.Context(), model.LabelSet{"foo": "bar"})
 		}
 	})
 }

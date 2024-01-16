@@ -126,7 +126,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			StartsAt: clock.Now(),
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
-		require.NoError(t, s.Set(sil1))
+		require.NoError(t, s.Set(t.Context(), sil1))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
@@ -153,7 +153,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			StartsAt: clock.Now(),
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
-		require.NoError(t, s.Set(sil1))
+		require.NoError(t, s.Set(t.Context(), sil1))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mi, 1)
 		// must clone sil1 before replacing it.
@@ -163,7 +163,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			Name:    "bar",
 			Pattern: "baz",
 		}}
-		require.NoError(t, s.Set(sil2))
+		require.NoError(t, s.Set(t.Context(), sil2))
 		require.Len(t, s.st, 2)
 		require.Len(t, s.mi, 2)
 		// Move time forward and both silence and cache entry should be garbage
@@ -198,11 +198,11 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 1)
 		// must clone sil1 before updating it.
 		sil2 := cloneSilence(sil1)
-		require.NoError(t, s.Set(sil2))
+		require.NoError(t, s.Set(t.Context(), sil2))
 		// The memory leak occurred because updating a silence would add a new
 		// entry in the matcher cache even though no new silence was created.
 		// This check asserts that this no longer happens.
-		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		s.Query(t.Context(), QMatches(model.LabelSet{"foo": "bar"}))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
@@ -351,7 +351,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			StartsAt: now,
 			EndsAt:   now.Add(time.Minute),
 		}
-		require.NoError(t, s.Set(validSil))
+		require.NoError(t, s.Set(t.Context(), validSil))
 		validID := validSil.Id
 
 		// Manually add an erroneous silence with zero expiration
@@ -614,7 +614,7 @@ func TestSilenceSet(t *testing.T) {
 		EndsAt:   start1.Add(5 * time.Minute),
 	}
 	versionBeforeOp := s.Version()
-	require.NoError(t, s.Set(sil1))
+	require.NoError(t, s.Set(t.Context(), sil1))
 	require.NotEmpty(t, sil1.Id)
 	require.NotEqual(t, versionBeforeOp, s.Version())
 
@@ -641,7 +641,7 @@ func TestSilenceSet(t *testing.T) {
 		EndsAt:   start2.Add(1 * time.Minute),
 	}
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil2))
+	require.NoError(t, s.Set(t.Context(), sil2))
 	require.NotEmpty(t, sil2.Id)
 	require.NotEqual(t, versionBeforeOp, s.Version())
 
@@ -664,7 +664,7 @@ func TestSilenceSet(t *testing.T) {
 	// keep the same ID.
 	sil3 := cloneSilence(sil2)
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil3))
+	require.NoError(t, s.Set(t.Context(), sil3))
 	require.Equal(t, sil2.Id, sil3.Id)
 	require.Equal(t, versionBeforeOp, s.Version())
 
@@ -673,7 +673,7 @@ func TestSilenceSet(t *testing.T) {
 	sil4 := cloneSilence(sil3)
 	sil4.Comment = "c"
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil4))
+	require.NoError(t, s.Set(t.Context(), sil4))
 	require.Equal(t, sil3.Id, sil4.Id)
 	require.Equal(t, versionBeforeOp, s.Version())
 
@@ -684,7 +684,7 @@ func TestSilenceSet(t *testing.T) {
 	sil5 := cloneSilence(sil4)
 	sil5.EndsAt = start5.Add(100 * time.Minute)
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil5))
+	require.NoError(t, s.Set(t.Context(), sil5))
 	require.Equal(t, sil4.Id, sil5.Id)
 	want = state{
 		sil1.Id: want[sil1.Id],
@@ -714,7 +714,7 @@ func TestSilenceSet(t *testing.T) {
 	sil6 := cloneSilence(sil5)
 	sil6.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil6))
+	require.NoError(t, s.Set(t.Context(), sil6))
 	require.NotEqual(t, sil5.Id, sil6.Id)
 	want = state{
 		sil1.Id: want[sil1.Id],
@@ -753,7 +753,7 @@ func TestSilenceSet(t *testing.T) {
 	sil7.StartsAt = start1
 	sil7.EndsAt = start1.Add(5 * time.Minute)
 	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(sil7))
+	require.NoError(t, s.Set(t.Context(), sil7))
 	require.NotEqual(t, sil2.Id, sil7.Id)
 	want = state{
 		sil1.Id: want[sil1.Id],
@@ -780,11 +780,11 @@ func TestSilenceSet(t *testing.T) {
 	sil8 := cloneSilence(sil7)
 	sil8.EndsAt = time.Time{}
 	versionBeforeOp = s.Version()
-	require.EqualError(t, s.Set(sil8), "invalid silence: invalid zero end timestamp")
+	require.EqualError(t, s.Set(t.Context(), sil8), "invalid silence: invalid zero end timestamp")
 
 	// sil7 should not be expired because the update failed.
 	clock.Advance(time.Millisecond)
-	sil7, err = s.QueryOne(QIDs(sil7.Id))
+	sil7, err = s.QueryOne(t.Context(), QIDs(sil7.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil7, s.nowUTC()))
 	require.Equal(t, versionBeforeOp, s.Version())
@@ -806,7 +806,7 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
-	require.NoError(t, s.Set(sil1))
+	require.NoError(t, s.Set(t.Context(), sil1))
 
 	// Insert sil2 should fail because maximum number of silences has been
 	// exceeded.
@@ -815,17 +815,17 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
-	require.EqualError(t, s.Set(sil2), "exceeded maximum number of silences: 1 (limit: 1)")
+	require.EqualError(t, s.Set(t.Context(), sil2), "exceeded maximum number of silences: 1 (limit: 1)")
 
 	// Expire sil1 and run the GC. This should allow sil2 to be inserted.
-	require.NoError(t, s.Expire(sil1.Id))
+	require.NoError(t, s.Expire(t.Context(), sil1.Id))
 	n, err := s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-	require.NoError(t, s.Set(sil2))
+	require.NoError(t, s.Set(t.Context(), sil2))
 
 	// Expire sil2 and run the GC.
-	require.NoError(t, s.Expire(sil2.Id))
+	require.NoError(t, s.Expire(t.Context(), sil2.Id))
 	n, err = s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
@@ -847,7 +847,7 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt:  time.Now(),
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
-	require.EqualError(t, s.Set(sil3), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil3).Size()))
+	require.EqualError(t, s.Set(t.Context(), sil3), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil3).Size()))
 
 	// Should be able to insert sil4.
 	sil4 := &pb.Silence{
@@ -855,19 +855,19 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
-	require.NoError(t, s.Set(sil4))
+	require.NoError(t, s.Set(t.Context(), sil4))
 
 	// Should be able to update sil4 without modifications. It is expected to
 	// keep the same ID.
 	sil5 := cloneSilence(sil4)
-	require.NoError(t, s.Set(sil5))
+	require.NoError(t, s.Set(t.Context(), sil5))
 	require.Equal(t, sil4.Id, sil5.Id)
 
 	// Should be able to update the comment. It is also expected to keep the
 	// same ID.
 	sil6 := cloneSilence(sil5)
 	sil6.Comment = "m"
-	require.NoError(t, s.Set(sil6))
+	require.NoError(t, s.Set(t.Context(), sil6))
 	require.Equal(t, sil5.Id, sil6.Id)
 
 	// Should not be able to update the start and end time as this requires
@@ -875,12 +875,12 @@ func TestSilenceLimits(t *testing.T) {
 	// exceed the maximum number of silences, which counts both active and
 	// expired silences.
 	sil7 := cloneSilence(sil6)
-	sil7.StartsAt = time.Now().Add(5 * time.Minute)
+	sil7.StartsAt = time.Now().Add(1 * time.Minute)
 	sil7.EndsAt = time.Now().Add(10 * time.Minute)
-	require.EqualError(t, s.Set(sil7), "exceeded maximum number of silences: 1 (limit: 1)")
+	require.EqualError(t, s.Set(t.Context(), sil7), "exceeded maximum number of silences: 1 (limit: 1)")
 
 	// sil6 should not be expired because the update failed.
-	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
 
@@ -889,10 +889,10 @@ func TestSilenceLimits(t *testing.T) {
 	s.limits.MaxSilences = func() int { return 2 }
 	sil8 := cloneSilence(sil6)
 	sil8.Comment = strings.Repeat("m", 2<<11)
-	require.EqualError(t, s.Set(sil8), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil8).Size()))
+	require.EqualError(t, s.Set(t.Context(), sil8), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil8).Size()))
 
 	// sil6 should not be expired because the update failed.
-	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
 
@@ -904,10 +904,10 @@ func TestSilenceLimits(t *testing.T) {
 	// should still be active.
 	sil9 := cloneSilence(sil8)
 	sil9.Matchers = []*pb.Matcher{{Name: "n", Pattern: "o"}}
-	require.EqualError(t, s.Set(sil9), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil9).Size()))
+	require.EqualError(t, s.Set(t.Context(), sil9), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil9).Size()))
 
 	// sil6 should not be expired because the update failed.
-	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
 }
@@ -926,7 +926,7 @@ func TestSilenceNoLimits(t *testing.T) {
 		EndsAt:   time.Now().Add(5 * time.Minute),
 		Comment:  strings.Repeat("c", 2<<9),
 	}
-	require.NoError(t, s.Set(sil))
+	require.NoError(t, s.Set(t.Context(), sil))
 	require.NotEmpty(t, sil.Id)
 }
 
@@ -949,7 +949,7 @@ func TestSetActiveSilence(t *testing.T) {
 		StartsAt: startsAt,
 		EndsAt:   endsAt,
 	}
-	require.NoError(t, s.Set(sil1))
+	require.NoError(t, s.Set(t.Context(), sil1))
 
 	// Update silence with 2 extra nanoseconds so the "seconds" part should not change
 
@@ -963,7 +963,7 @@ func TestSetActiveSilence(t *testing.T) {
 
 	clock.Advance(time.Minute)
 	now = s.nowUTC()
-	require.NoError(t, s.Set(sil2))
+	require.NoError(t, s.Set(t.Context(), sil2))
 	require.Equal(t, sil1.Id, sil2.Id)
 
 	want := state{
@@ -1005,7 +1005,7 @@ func TestSilencesSetFail(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		checkErr(t, c.err, s.Set(c.s))
+		checkErr(t, c.err, s.Set(t.Context(), c.s))
 	}
 }
 
@@ -1215,7 +1215,7 @@ func TestQSince(t *testing.T) {
 			silences.st = st
 			silences.vi = c.index
 
-			res, _, err := silences.Query(QSince(c.since))
+			res, _, err := silences.Query(t.Context(), QSince(c.since))
 			require.NoError(t, err)
 			resultIds := []string{}
 			for _, sil := range res {
@@ -1327,28 +1327,28 @@ func TestQIDs(t *testing.T) {
 	}
 
 	// Test QIDs with empty arguments returns an error
-	_, _, err = s.Query(QIDs())
+	_, _, err = s.Query(t.Context(), QIDs())
 	require.Error(t, err, "expected error when QIDs is called with no arguments")
 	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
 
 	// Test QIDs with empty arguments returns an error via QueryOne
-	_, err = s.QueryOne(QIDs())
+	_, err = s.QueryOne(t.Context(), QIDs())
 	require.Error(t, err, "expected error when QIDs is called with no arguments")
 	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
 
 	// Test QIDs with single ID works
-	res, _, err := s.Query(QIDs("1"))
+	res, _, err := s.Query(t.Context(), QIDs("1"))
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	require.Equal(t, "1", res[0].Id)
 
 	// Test QIDs with multiple IDs works
-	res, _, err = s.Query(QIDs("1", "2"))
+	res, _, err = s.Query(t.Context(), QIDs("1", "2"))
 	require.NoError(t, err)
 	require.Len(t, res, 2)
 
 	// Test QueryOne with single ID works
-	sil, err := s.QueryOne(QIDs("1"))
+	sil, err := s.QueryOne(t.Context(), QIDs("1"))
 	require.NoError(t, err)
 	require.Equal(t, "1", sil.Id)
 }
@@ -1523,20 +1523,20 @@ func TestSilenceExpire(t *testing.T) {
 		silenceVersion{id: "active"},
 		silenceVersion{id: "expired"},
 	}
-	count, err := s.CountState(types.SilenceStatePending)
+	count, err := s.CountState(t.Context(), types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	require.NoError(t, s.Expire("pending"))
-	require.NoError(t, s.Expire("active"))
+	require.NoError(t, s.Expire(t.Context(), "pending"))
+	require.NoError(t, s.Expire(t.Context(), "active"))
 
-	require.NoError(t, s.Expire("expired"))
+	require.NoError(t, s.Expire(t.Context(), "expired"))
 
-	sil, err := s.QueryOne(QIDs("pending"))
+	sil, err := s.QueryOne(t.Context(), QIDs("pending"))
 	require.NoError(t, err)
 	require.Equal(t, &pb.Silence{
 		Id:        "pending",
@@ -1549,11 +1549,11 @@ func TestSilenceExpire(t *testing.T) {
 	// Let time pass...
 	clock.Advance(time.Second)
 
-	count, err = s.CountState(types.SilenceStatePending)
+	count, err = s.CountState(t.Context(), types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
 
@@ -1562,7 +1562,7 @@ func TestSilenceExpire(t *testing.T) {
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)
 	require.Equal(t, types.SilenceStateExpired, silenceState)
 
-	sil, err = s.QueryOne(QIDs("active"))
+	sil, err = s.QueryOne(t.Context(), QIDs("active"))
 	require.NoError(t, err)
 	require.Equal(t, &pb.Silence{
 		Id:        "active",
@@ -1572,7 +1572,7 @@ func TestSilenceExpire(t *testing.T) {
 		UpdatedAt: now,
 	}, sil)
 
-	sil, err = s.QueryOne(QIDs("expired"))
+	sil, err = s.QueryOne(t.Context(), QIDs("expired"))
 	require.NoError(t, err)
 	require.Equal(t, &pb.Silence{
 		Id:        "expired",
@@ -1625,15 +1625,15 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 		silenceVersion{id: "expired"},
 	}
 
-	count, err := s.CountState(types.SilenceStatePending)
+	count, err := s.CountState(t.Context(), types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), types.SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
@@ -1642,9 +1642,9 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	// one tick for updates to take effect.
 	clock.Advance(1 * time.Millisecond)
 
-	require.NoError(t, s.Expire("pending"))
-	require.NoError(t, s.Expire("active"))
-	require.NoError(t, s.Expire("expired"))
+	require.NoError(t, s.Expire(t.Context(), "pending"))
+	require.NoError(t, s.Expire(t.Context(), "active"))
+	require.NoError(t, s.Expire(t.Context(), "expired"))
 
 	// Advance time again. Despite what the function name says, s.Expire() does
 	// not expire a silence. It sets the silence to EndAt the current time. This
@@ -1652,15 +1652,15 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	clock.Advance(1 * time.Millisecond)
 
 	// Verify all silences have expired.
-	count, err = s.CountState(types.SilenceStatePending)
+	count, err = s.CountState(t.Context(), types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), types.SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
 }
@@ -1689,19 +1689,19 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	s.vi = versionIndex{silenceVersion{id: "active"}}
 
 	// The silence should be active.
-	count, err := s.CountState(types.SilenceStateActive)
+	count, err := s.CountState(t.Context(), types.SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
 	clock.Advance(time.Millisecond)
-	require.NoError(t, s.Expire("active"))
+	require.NoError(t, s.Expire(t.Context(), "active"))
 	clock.Advance(time.Millisecond)
 
 	// The silence should be expired.
-	count, err = s.CountState(types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), types.SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
-	count, err = s.CountState(types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
@@ -1717,35 +1717,35 @@ func TestSilencer(t *testing.T) {
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(ss, m, promslog.NewNopLogger())
 
-	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
+	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
 	sil1 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(5 * time.Minute),
 	}
-	require.NoError(t, ss.Set(sil1))
+	require.NoError(t, ss.Set(t.Context(), sil1))
 
-	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
+	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
 
 	sil2 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(5 * time.Minute),
 	}
-	require.NoError(t, ss.Set(sil2))
+	require.NoError(t, ss.Set(t.Context(), sil2))
 	require.NotEmpty(t, sil2.Id)
 
-	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
+	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
 
 	// One hour passes, silence expires.
 	clock.Advance(time.Hour)
 	now = ss.nowUTC()
 
-	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
+	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
 
 	// Update silence to start in the future.
-	err = ss.Set(&pb.Silence{
+	err = ss.Set(t.Context(), &pb.Silence{
 		Id:       sil2.Id,
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
 		StartsAt: now.Add(time.Hour),
@@ -1753,16 +1753,16 @@ func TestSilencer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
+	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
 
 	// Two hours pass, silence becomes active.
 	clock.Advance(2 * time.Hour)
 	now = ss.nowUTC()
 
 	// Exposes issue #2426.
-	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
+	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
 
-	err = ss.Set(&pb.Silence{
+	err = ss.Set(t.Context(), &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
 		StartsAt: now.Add(time.Hour),
 		EndsAt:   now.Add(3 * time.Hour),
@@ -1770,13 +1770,13 @@ func TestSilencer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Note that issue #2426 doesn't apply anymore because we added a new silence.
-	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
+	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
 
 	// Two hours pass, first silence expires, overlapping second silence becomes active.
 	clock.Advance(2 * time.Hour)
 
 	// Another variant of issue #2426 (overlapping silences).
-	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
+	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
 func TestValidateClassicMatcher(t *testing.T) {
