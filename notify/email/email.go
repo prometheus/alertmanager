@@ -24,6 +24,7 @@ import (
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
+	"net/http"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
@@ -34,12 +35,19 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify/email")
 
 // Email implements a Notifier for email notifications.
 type Email struct {
@@ -123,11 +131,21 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (ok bool, err error) {
+	ctx, span := tracer.Start(ctx, "email.Email.Notify", trace.WithAttributes(
+		attribute.Int("alerts", len(as)),
+	))
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}()
+	defer span.End()
+
 	var (
 		c       *smtp.Client
 		conn    net.Conn
-		err     error
 		success = false
 	)
 	if n.conf.Smarthost.Port == "465" {
@@ -245,6 +263,20 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	defer message.Close()
 
 	buffer := &bytes.Buffer{}
+
+	// inject tracing headers
+	if span.IsRecording() {
+		// this is SMTP, not HTTP, but we'll use the HTTP Header carrier as a
+		// shim - both mail headers and HTTP headers follow the same MIME
+		// semantics, so this is fine.
+		hdr := http.Header{}
+		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(hdr))
+
+		for k := range hdr {
+			fmt.Fprintf(buffer, "%s: %s\r\n", k, hdr.Get(k))
+		}
+	}
+
 	for header, t := range n.conf.Headers {
 		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {

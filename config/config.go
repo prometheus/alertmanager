@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/common/config"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -307,6 +308,8 @@ type Config struct {
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
+
+	TracingConfig TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -1052,4 +1055,112 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 		result[i] = matcher.String()
 	}
 	return json.Marshal(result)
+}
+
+// TODO: probably move these into prometheus/common since they're copied from
+// prometheus/prometheus?
+
+type TracingClientType string
+
+const (
+	TracingClientHTTP TracingClientType = "http"
+	TracingClientGRPC TracingClientType = "grpc"
+
+	GzipCompression = "gzip"
+)
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (t *TracingClientType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*t = TracingClientType("")
+	type plain TracingClientType
+	if err := unmarshal((*plain)(t)); err != nil {
+		return err
+	}
+
+	if *t != TracingClientHTTP && *t != TracingClientGRPC {
+		return fmt.Errorf("expected tracing client type to be to be %s or %s, but got %s",
+			TracingClientHTTP, TracingClientGRPC, *t,
+		)
+	}
+
+	return nil
+}
+
+// TracingConfig configures the tracing options.
+type TracingConfig struct {
+	ClientType       TracingClientType `yaml:"client_type,omitempty"`
+	Endpoint         string            `yaml:"endpoint,omitempty"`
+	SamplingFraction float64           `yaml:"sampling_fraction,omitempty"`
+	Insecure         bool              `yaml:"insecure,omitempty"`
+	TLSConfig        config.TLSConfig  `yaml:"tls_config,omitempty"`
+	Headers          map[string]string `yaml:"headers,omitempty"`
+	Compression      string            `yaml:"compression,omitempty"`
+	Timeout          model.Duration    `yaml:"timeout,omitempty"`
+}
+
+// SetDirectory joins any relative file paths with dir.
+func (t *TracingConfig) SetDirectory(dir string) {
+	t.TLSConfig.SetDirectory(dir)
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (t *TracingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*t = TracingConfig{
+		ClientType: TracingClientGRPC,
+	}
+	type plain TracingConfig
+	if err := unmarshal((*plain)(t)); err != nil {
+		return err
+	}
+
+	if err := validateHeadersForTracing(t.Headers); err != nil {
+		return err
+	}
+
+	if t.Endpoint == "" {
+		return errors.New("tracing endpoint must be set")
+	}
+
+	if t.Compression != "" && t.Compression != GzipCompression {
+		return fmt.Errorf("invalid compression type %s provided, valid options: %s",
+			t.Compression, GzipCompression)
+	}
+
+	return nil
+}
+
+var reservedHeaders = map[string]struct{}{
+	// NOTE: authorization is checked specially,
+	// see RemoteWriteConfig.UnmarshalYAML.
+	// "authorization":                  {},
+	"host":                              {},
+	"content-encoding":                  {},
+	"content-length":                    {},
+	"content-type":                      {},
+	"user-agent":                        {},
+	"connection":                        {},
+	"keep-alive":                        {},
+	"proxy-authenticate":                {},
+	"proxy-authorization":               {},
+	"www-authenticate":                  {},
+	"accept-encoding":                   {},
+	"x-prometheus-remote-write-version": {},
+	"x-prometheus-remote-read-version":  {},
+
+	// Added by SigV4.
+	"x-amz-date":           {},
+	"x-amz-security-token": {},
+	"x-amz-content-sha256": {},
+}
+
+func validateHeadersForTracing(headers map[string]string) error {
+	for header := range headers {
+		if strings.ToLower(header) == "authorization" {
+			return errors.New("custom authorization header configuration is not yet supported")
+		}
+		if _, ok := reservedHeaders[strings.ToLower(header)]; ok {
+			return fmt.Errorf("%s is a reserved header. It must not be changed", header)
+		}
+	}
+	return nil
 }

@@ -56,6 +56,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 	reactapp "github.com/prometheus/alertmanager/ui/react-app"
@@ -353,6 +354,8 @@ func run() int {
 		return d + waitFunc()
 	}
 
+	tracingManager := tracing.NewManager(log.With(logger, "component", "tracing"))
+
 	var (
 		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
@@ -474,6 +477,13 @@ func run() int {
 		go disp.Run()
 		go inhibitor.Run()
 
+		err = tracingManager.ApplyConfig(conf)
+		if err != nil {
+			return fmt.Errorf("failed to apply tracing config: %w", err)
+		}
+
+		go tracingManager.Run()
+
 		return nil
 	})
 
@@ -503,7 +513,10 @@ func run() int {
 
 	mux := api.Register(router, *routePrefix)
 
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{
+		// instrument all handlers with tracing
+		Handler: tracing.Middleware(mux),
+	}
 	srvc := make(chan struct{})
 
 	go func() {
