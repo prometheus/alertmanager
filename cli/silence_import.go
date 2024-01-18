@@ -16,12 +16,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
-	"github.com/pkg/errors"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -62,7 +62,8 @@ func addSilenceWorker(ctx context.Context, sclient silence.ClientService, silenc
 		sid := s.ID
 		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)
 		postOk, err := sclient.PostSilences(params)
-		if _, ok := err.(*silence.PostSilencesNotFound); ok {
+		var e *silence.PostSilencesNotFound
+		if errors.As(err, &e) {
 			// silence doesn't exists yet, retry to create as a new one
 			params.Silence.ID = ""
 			postOk, err = sclient.PostSilences(params)
@@ -92,7 +93,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 	// read open square bracket
 	_, err = dec.Token()
 	if err != nil {
-		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
+		return fmt.Errorf("couldn't unmarshal input data, is it JSON?: %w", err)
 	}
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
@@ -121,7 +122,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		var s models.PostableSilence
 		err := dec.Decode(&s)
 		if err != nil {
-			return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
+			return fmt.Errorf("couldn't unmarshal input data, is it JSON?: %w", err)
 		}
 
 		if c.force {

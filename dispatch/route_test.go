@@ -378,9 +378,9 @@ routes:
 	parent := tree.Routes[0]
 	child1 := parent.Routes[0]
 	child2 := parent.Routes[1]
-	require.Equal(t, parent.RouteOpts.GroupByAll, true)
-	require.Equal(t, child1.RouteOpts.GroupByAll, true)
-	require.Equal(t, child2.RouteOpts.GroupByAll, false)
+	require.True(t, parent.RouteOpts.GroupByAll)
+	require.True(t, child1.RouteOpts.GroupByAll)
+	require.False(t, child2.RouteOpts.GroupByAll)
 }
 
 func TestRouteMatchers(t *testing.T) {

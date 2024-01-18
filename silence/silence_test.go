@@ -32,6 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -284,7 +286,7 @@ func TestSilencesSetSilence(t *testing.T) {
 		_, err := pbutil.ReadDelimited(r, &e)
 		require.NoError(t, err)
 
-		require.Equal(t, want["some_id"], &e)
+		require.Equal(t, &e, want["some_id"])
 		close(done)
 	}
 
@@ -292,7 +294,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		require.NoError(t, s.setSilence(sil, nowpb))
+		require.NoError(t, s.setSilence(sil, nowpb, false))
 	}()
 
 	// Ensure broadcast was called.
@@ -321,7 +323,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id1, err := s.Set(sil1)
 	require.NoError(t, err)
-	require.NotEqual(t, id1, "")
+	require.NotEqual(t, "", id1)
 
 	want := state{
 		id1: &pb.MeshSilence{
@@ -347,7 +349,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
-	require.NotEqual(t, id2, "")
+	require.NotEqual(t, "", id2)
 
 	want = state{
 		id1: want[id1],
@@ -941,7 +943,7 @@ func TestSilenceExpire(t *testing.T) {
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)
-	require.Equal(t, silenceState, types.SilenceStateExpired)
+	require.Equal(t, types.SilenceStateExpired, silenceState)
 
 	sil, err = s.QueryOne(QIDs("active"))
 	require.NoError(t, err)
@@ -1041,6 +1043,46 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.Equal(t, 3, count)
 }
 
+// This test checks that invalid silences can be expired.
+func TestSilenceExpireInvalid(t *testing.T) {
+	s, err := New(Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	clock := clock.NewMock()
+	s.clock = clock
+	now := s.nowUTC()
+
+	// In this test the matcher has an invalid type.
+	silence := pb.Silence{
+		Id:        "active",
+		Matchers:  []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+		StartsAt:  now.Add(-time.Minute),
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now.Add(-time.Hour),
+	}
+	// Assert that this silence is invalid.
+	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
+
+	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+
+	// The silence should be active.
+	count, err := s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	clock.Add(time.Millisecond)
+	require.NoError(t, s.Expire("active"))
+	clock.Add(time.Millisecond)
+
+	// The silence should be expired.
+	count, err = s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
 func TestSilencer(t *testing.T) {
 	ss, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
@@ -1114,7 +1156,7 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
-func TestValidateMatcher(t *testing.T) {
+func TestValidateClassicMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher
 		err string
@@ -1156,6 +1198,13 @@ func TestValidateMatcher(t *testing.T) {
 			err: "invalid label name",
 		}, {
 			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label name",
+		}, {
+			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
@@ -1178,6 +1227,13 @@ func TestValidateMatcher(t *testing.T) {
 		}, {
 			m: &pb.Matcher{
 				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
 				Pattern: "b",
 				Type:    333,
 			},
@@ -1186,7 +1242,107 @@ func TestValidateMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checkErr(t, c.err, ValidateMatcher(c.m))
+		checkErr(t, c.err, validateMatcher(c.m))
+	}
+}
+
+func TestValidateUTF8Matcher(t *testing.T) {
+	cases := []struct {
+		m   *pb.Matcher
+		err string
+	}{
+		{
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "00",
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "((",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "))",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xff",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label value",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    333,
+			},
+			err: "unknown matcher type",
+		},
+	}
+
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
+	for _, c := range cases {
+		checkErr(t, c.err, validateMatcher(c.m))
 	}
 }
 
@@ -1479,7 +1635,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 		QMatches(lset),
 	)
 	require.NoError(b, err)
-	require.Equal(b, numSilences/10, len(sils))
+	require.Len(b, sils, numSilences/10)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1488,7 +1644,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 			QMatches(lset),
 		)
 		require.NoError(b, err)
-		require.Equal(b, numSilences/10, len(sils))
+		require.Len(b, sils, numSilences/10)
 	}
 }
 

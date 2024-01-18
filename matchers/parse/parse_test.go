@@ -108,6 +108,14 @@ func TestMatchers(t *testing.T) {
 		input:    "{\"foo\"=\"🙂\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
 	}, {
+		name:     "equals unicode emoji as bytes in quotes",
+		input:    "{\"foo\"=\"\\xf0\\x9f\\x99\\x82\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
+	}, {
+		name:     "equals unicode emoji as code points in quotes",
+		input:    "{\"foo\"=\"\\U0001f642\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
+	}, {
 		name:     "equals unicode sentence in quotes",
 		input:    "{\"foo\"=\"🙂bar\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂bar")},
@@ -195,6 +203,14 @@ func TestMatchers(t *testing.T) {
 		name:  "invalid escape sequence",
 		input: "{foo=\"bar\\w\"}",
 		error: "5:12: \"bar\\w\": invalid input",
+	}, {
+		name:  "no unquoted escape sequences",
+		input: "{foo=bar\\n}",
+		error: "8:9: \\: invalid input: expected a comma or close brace",
+	}, {
+		name:  "invalid unicode",
+		input: "{\"foo\"=\"\\xf0\\x9f\"}",
+		error: "7:17: \"\\xf0\\x9f\": invalid input",
 	}}
 
 	for _, test := range tests {
@@ -203,7 +219,7 @@ func TestMatchers(t *testing.T) {
 			if test.error != "" {
 				require.EqualError(t, err, test.error)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matchers)
 			}
 		})
@@ -239,6 +255,14 @@ func TestMatcher(t *testing.T) {
 	}, {
 		name:     "equals unicode emoji",
 		input:    "{foo=🙂}",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
+	}, {
+		name:     "equals unicode emoji as bytes in quotes",
+		input:    "{\"foo\"=\"\\xf0\\x9f\\x99\\x82\"}",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
+	}, {
+		name:     "equals unicode emoji as code points in quotes",
+		input:    "{\"foo\"=\"\\U0001f642\"}",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
 	}, {
 		name:     "equals unicode sentence",
@@ -327,6 +351,10 @@ func TestMatcher(t *testing.T) {
 		name:  "two or more returns error",
 		input: "foo=bar,bar=baz",
 		error: "expected 1 matcher, found 2",
+	}, {
+		name:  "invalid unicode",
+		input: "foo=\"\\xf0\\x9f\"",
+		error: "4:14: \"\\xf0\\x9f\": invalid input",
 	}}
 
 	for _, test := range tests {
@@ -335,7 +363,7 @@ func TestMatcher(t *testing.T) {
 			if test.error != "" {
 				require.EqualError(t, err, test.error)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matcher)
 			}
 		})

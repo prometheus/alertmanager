@@ -151,6 +151,8 @@ If an alert does not match any children of a node (no matching child nodes, or
 none exist), the alert is handled based on the configuration parameters of the
 current node.
 
+See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
+
 ```yaml
 [ receiver: <string> ]
 # The labels by which incoming alerts are grouped together. For example,
@@ -363,6 +365,8 @@ environment variable.
 Inhibition allows muting a set of alerts based on the presence of another set of
 alerts. This allows establishing dependencies between systems or services such that
 only the most relevant of a set of interconnected alerts are sent out during an outage.
+
+See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#inhibition) for more information on inhibition.
 
 ### `<inhibit_rule>`
 
@@ -735,6 +739,9 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
+
+# Message summary template.
+[ summary: <tmpl_string> | default = '{{ template "msteams.default.summary" . }}' ]
 
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]

@@ -25,7 +25,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -37,8 +36,9 @@ import (
 
 // API represents all APIs of Alertmanager.
 type API struct {
-	v1                       *apiv1.API
-	v2                       *apiv2.API
+	v2                *apiv2.API
+	deprecationRouter *V1DeprecationRouter
+
 	requestsInFlight         prometheus.Gauge
 	concurrencyLimitExceeded prometheus.Counter
 	timeout                  time.Duration
@@ -96,7 +96,7 @@ func (o Options) validate() error {
 // call is also needed to get the APIs into an operational state.
 func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
-		return nil, fmt.Errorf("invalid API options: %s", err)
+		return nil, fmt.Errorf("invalid API options: %w", err)
 	}
 	l := opts.Logger
 	if l == nil {
@@ -109,15 +109,6 @@ func New(opts Options) (*API, error) {
 			concurrency = 8
 		}
 	}
-
-	v1 := apiv1.New(
-		opts.Alerts,
-		opts.Silences,
-		opts.StatusFunc,
-		opts.Peer,
-		log.With(l, "version", "v1"),
-		opts.Registry,
-	)
 
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
@@ -154,7 +145,7 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		v1:                       v1,
+		deprecationRouter:        NewV1DeprecationRouter(log.With(l, "version", "v1")),
 		v2:                       v2,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -163,8 +154,7 @@ func New(opts Options) (*API, error) {
 	}, nil
 }
 
-// Register all APIs. It registers APIv1 with the provided router directly. As
-// APIv2 works on the http.Handler level, this method also creates a new
+// Register API. As APIv2 works on the http.Handler level, this method also creates a new
 // http.ServeMux and then uses it to register both the provided router (to
 // handle "/") and APIv2 (to handle "<routePrefix>/api/v2"). The method returns
 // the newly created http.ServeMux. If a timeout has been set on construction of
@@ -172,7 +162,8 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
-	api.v1.Register(r.WithPrefix("/api/v1"))
+	// TODO(gotjosh) API V1 was removed as of version 0.28, when we reach 1.0.0 we should removed these deprecation warnings.
+	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()
 	mux.Handle("/", api.limitHandler(r))
@@ -196,7 +187,6 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
 func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
-	api.v1.Update(cfg)
 	api.v2.Update(cfg, setAlertStatus)
 }
 

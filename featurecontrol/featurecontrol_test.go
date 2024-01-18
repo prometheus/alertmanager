@@ -30,7 +30,7 @@ func TestFlags(t *testing.T) {
 	}{
 		{
 			name:         "with only valid feature flags",
-			featureFlags: fcReceiverNameInMetrics,
+			featureFlags: FeatureReceiverNameInMetrics,
 		},
 		{
 			name:         "with only invalid feature flags",
@@ -39,7 +39,7 @@ func TestFlags(t *testing.T) {
 		},
 		{
 			name:         "with both, valid and invalid feature flags",
-			featureFlags: strings.Join([]string{fcReceiverNameInMetrics, "somethingbad"}, ","),
+			featureFlags: strings.Join([]string{FeatureReceiverNameInMetrics, "somethingbad"}, ","),
 			err:          errors.New("Unknown option 'somethingbad' for --enable-feature"),
 		},
 	}

@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -51,9 +52,10 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
+	FeatureFlags []string
+	RoutePrefix  string
+	Tolerance    time.Duration
+	baseTime     time.Time
 }
 
 func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
@@ -272,14 +274,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("failed to start alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to start alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %v", am.clusterAddr, err.Error())
+			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %w", am.clusterAddr, err)
 		}
 	}
 
@@ -301,6 +303,9 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
+	}
+	if len(am.opts.FeatureFlags) > 0 {
+		args = append(args, "--enable-feature", strings.Join(am.opts.FeatureFlags, ","))
 	}
 	if am.opts.RoutePrefix != "" {
 		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
@@ -338,7 +343,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("unable to get a successful response from the Alertmanager: %v", lastErr)
+	return fmt.Errorf("unable to get a successful response from the Alertmanager: %w", lastErr)
 }
 
 // WaitForCluster waits for the Alertmanager instance to join a cluster with the

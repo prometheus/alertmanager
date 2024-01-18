@@ -146,6 +146,7 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
+{{ define "msteams.default.summary" }}{{ template "__subject" . }}{{ end }}
 {{ define "msteams.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "msteams.default.text" }}
 {{ if gt (len .Alerts.Firing) 0 }}

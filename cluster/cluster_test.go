@@ -69,10 +69,10 @@ func testJoinLeave(t *testing.T) {
 		cancel()
 		require.Equal(t, context.Canceled, p.WaitReady(ctx))
 	}
-	require.Equal(t, p.Status(), "settling")
+	require.Equal(t, "settling", p.Status())
 	go p.Settle(context.Background(), 0*time.Second)
 	require.NoError(t, p.WaitReady(context.Background()))
-	require.Equal(t, p.Status(), "ready")
+	require.Equal(t, "ready", p.Status())
 
 	// Create the peer who joins the first.
 	p2, err := Create(
@@ -104,7 +104,7 @@ func testJoinLeave(t *testing.T) {
 	require.Equal(t, 2, p.ClusterSize())
 	p2.Leave(0 * time.Second)
 	require.Equal(t, 1, p.ClusterSize())
-	require.Equal(t, 1, len(p.failedPeers))
+	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
@@ -167,12 +167,12 @@ func testReconnect(t *testing.T) {
 	p.peerLeave(p2.Self())
 
 	require.Equal(t, 1, p.ClusterSize())
-	require.Equal(t, 1, len(p.failedPeers))
+	require.Len(t, p.failedPeers, 1)
 
 	p.reconnect()
 
 	require.Equal(t, 2, p.ClusterSize())
-	require.Equal(t, 0, len(p.failedPeers))
+	require.Empty(t, p.failedPeers)
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
 
@@ -222,7 +222,7 @@ func testRemoveFailedPeers(t *testing.T) {
 	p.failedPeers = []peer{p1, p2, p3}
 
 	p.removeFailedPeers(30 * time.Minute)
-	require.Equal(t, 1, len(p.failedPeers))
+	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p1, p.failedPeers[0])
 }
 
@@ -258,7 +258,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 
 	// We shouldn't have added "our" bind addr and the FQDN address to the
 	// failed peers list.
-	require.Equal(t, len(peerAddrs)-2, len(p.failedPeers))
+	require.Len(t, p.failedPeers, len(peerAddrs)-2)
 	for _, addr := range peerAddrs {
 		if addr == myAddr || addr == "foo.example.com:5000" {
 			continue
@@ -270,7 +270,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 		require.Equal(t, addr, pr.Address())
 		expectedLen := len(p.failedPeers) - 1
 		p.peerJoin(pr.Node)
-		require.Equal(t, expectedLen, len(p.failedPeers))
+		require.Len(t, p.failedPeers, expectedLen)
 	}
 }
 
@@ -302,10 +302,10 @@ func testTLSConnection(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.False(t, p1.Ready())
-	require.Equal(t, p1.Status(), "settling")
+	require.Equal(t, "settling", p1.Status())
 	go p1.Settle(context.Background(), 0*time.Second)
 	p1.WaitReady(context.Background())
-	require.Equal(t, p1.Status(), "ready")
+	require.Equal(t, "ready", p1.Status())
 
 	// Create the peer who joins the first.
 	tlsTransportConfig2, err := GetTLSTransportConfig("./testdata/tls_config_node2.yml")
@@ -334,11 +334,11 @@ func testTLSConnection(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
-
+	p2.WaitReady(context.Background())
 	require.Equal(t, 2, p1.ClusterSize())
 	p2.Leave(0 * time.Second)
 	require.Equal(t, 1, p1.ClusterSize())
-	require.Equal(t, 1, len(p1.failedPeers))
+	require.Len(t, p1.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
 }

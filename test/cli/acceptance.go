@@ -294,14 +294,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("starting alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("waiting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("waiting alertmanager cluster: %w", err)
 		}
 	}
 
@@ -342,7 +342,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	am.cmd = cmd
 
 	if err := am.cmd.Start(); err != nil {
-		return fmt.Errorf("starting alertmanager failed: %s", err)
+		return fmt.Errorf("starting alertmanager failed: %w", err)
 	}
 
 	go func() {
@@ -364,7 +364,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		_, err = io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager failed: %s", err)
+			return fmt.Errorf("starting alertmanager failed: %w", err)
 		}
 		return nil
 	}

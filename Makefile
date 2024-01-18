@@ -37,7 +37,7 @@ build-react-app:
 	cd ui/react-app && npm install && npm run build
 
 .PHONY: assets-compress
-assets-compress:
+assets-compress: build-react-app
 	@echo '>> compressing assets'
 	scripts/compress_assets.sh
 

@@ -407,7 +407,7 @@ func TestRetryStageWithError(t *testing.T) {
 
 	// Notify with a recoverable error should retry and succeed.
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -417,7 +417,7 @@ func TestRetryStageWithError(t *testing.T) {
 	fail = true
 	retry = false
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.NotNil(t, resctx)
 }
 
@@ -464,9 +464,42 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 
 		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.reasonlabel))))
 
-		require.NotNil(t, err)
+		require.Error(t, err)
 		require.NotNil(t, resctx)
 	}
+}
+
+func TestRetryStageWithContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			cancel()
+			return true, errors.New("request failed: context canceled")
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	// Notify with a non-recoverable error.
+	resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	counter := r.metrics.numTotalFailedNotifications
+
+	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
+
+	require.Error(t, err)
+	require.NotNil(t, resctx)
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
@@ -503,7 +536,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{alerts[1]}, sent)
 	require.NotNil(t, resctx)
@@ -514,7 +547,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{}, sent)
 	require.NotNil(t, resctx)
@@ -548,7 +581,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -559,7 +592,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -605,7 +638,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 
@@ -621,7 +654,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 }

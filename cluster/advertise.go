@@ -14,10 +14,11 @@
 package cluster
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/hashicorp/go-sockaddr"
-	"github.com/pkg/errors"
 )
 
 type getIPFunc func() (string, error)
@@ -38,7 +39,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string, allowInsecureAdve
 	if advertiseAddr != "" {
 		ip := net.ParseIP(advertiseAddr)
 		if ip == nil {
-			return nil, errors.Errorf("failed to parse advertise addr '%s'", advertiseAddr)
+			return nil, fmt.Errorf("failed to parse advertise addr '%s'", advertiseAddr)
 		}
 		if ip4 := ip.To4(); ip4 != nil {
 			ip = ip4
@@ -52,7 +53,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string, allowInsecureAdve
 
 	ip := net.ParseIP(bindAddr)
 	if ip == nil {
-		return nil, errors.Errorf("failed to parse bind addr '%s'", bindAddr)
+		return nil, fmt.Errorf("failed to parse bind addr '%s'", bindAddr)
 	}
 	return ip, nil
 }
@@ -64,7 +65,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string, allowInsecureAdve
 func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
 	addr, err := getPrivateAddress()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get private IP")
+		return nil, fmt.Errorf("failed to get private IP: %w", err)
 	}
 	if addr == "" && !allowInsecureAdvertise {
 		return nil, errors.New("no private IP found, explicit advertise addr not provided")
@@ -73,7 +74,7 @@ func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
 	if addr == "" {
 		addr, err = getPublicAddress()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get public IP")
+			return nil, fmt.Errorf("failed to get public IP: %w", err)
 		}
 		if addr == "" {
 			return nil, errors.New("no private/public IP found, explicit advertise addr not provided")
@@ -82,7 +83,7 @@ func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
 
 	ip := net.ParseIP(addr)
 	if ip == nil {
-		return nil, errors.Errorf("failed to parse discovered IP '%s'", addr)
+		return nil, fmt.Errorf("failed to parse discovered IP '%s'", addr)
 	}
 	return ip, nil
 }
