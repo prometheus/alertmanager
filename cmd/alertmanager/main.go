@@ -320,16 +320,15 @@ func run() int {
 	}
 
 	api, err := api.New(api.Options{
-		Alerts:       alerts,
-		Silences:     silences,
-		StatusFunc:   marker.Status,
-		Peer:         clusterPeer,
-		Timeout:      *httpTimeout,
-		Concurrency:  *getConcurrency,
-		Logger:       log.With(logger, "component", "api"),
-		FeatureFlags: ff,
-		Registry:     prometheus.DefaultRegisterer,
-		GroupFunc:    groupFn,
+		Alerts:      alerts,
+		Silences:    silences,
+		StatusFunc:  marker.Status,
+		Peer:        clusterPeer,
+		Timeout:     *httpTimeout,
+		Concurrency: *getConcurrency,
+		Logger:      log.With(logger, "component", "api"),
+		Registry:    prometheus.DefaultRegisterer,
+		GroupFunc:   groupFn,
 	})
 	if err != nil {
 		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %w", err))

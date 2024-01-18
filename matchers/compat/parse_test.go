@@ -172,19 +172,23 @@ func TestIsValidClassicLabelName(t *testing.T) {
 		input    model.LabelName
 		expected bool
 	}{{
-		name:     "is accepted",
+		name:     "foo is accepted",
 		input:    "foo",
 		expected: true,
 	}, {
-		name:     "is also accepted",
+		name:     "starts with underscore and ends with number is accepted",
 		input:    "_foo1",
 		expected: true,
 	}, {
-		name:     "is not accepted",
+		name:     "empty is not accepted",
+		input:    "",
+		expected: false,
+	}, {
+		name:     "starts with number is not accepted",
 		input:    "0foo",
 		expected: false,
 	}, {
-		name:     "is also not accepted",
+		name:     "contains emoji is not accepted",
 		input:    "foo🙂",
 		expected: false,
 	}}
@@ -203,21 +207,25 @@ func TestIsValidUTF8LabelName(t *testing.T) {
 		input    model.LabelName
 		expected bool
 	}{{
-		name:     "is accepted",
+		name:     "foo is accepted",
 		input:    "foo",
 		expected: true,
 	}, {
-		name:     "is also accepted",
+		name:     "starts with underscore and ends with number is accepted",
 		input:    "_foo1",
 		expected: true,
 	}, {
-		name:     "is accepted in UTF-8",
+		name:     "starts with number is accepted",
 		input:    "0foo",
 		expected: true,
 	}, {
-		name:     "is also accepted with UTF-8",
+		name:     "contains emoji is accepted",
 		input:    "foo🙂",
 		expected: true,
+	}, {
+		name:     "empty is not accepted",
+		input:    "",
+		expected: false,
 	}}
 
 	for _, test := range tests {

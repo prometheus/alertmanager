@@ -33,6 +33,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -1060,7 +1061,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 		UpdatedAt: now.Add(-time.Hour),
 	}
 	// Assert that this silence is invalid.
-	require.EqualError(t, validateSilence(&silence, featurecontrol.NoopFlags{}), "invalid label matcher 0: unknown matcher type \"-1\"")
+	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
 
 	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
 
@@ -1241,7 +1242,7 @@ func TestValidateClassicMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checkErr(t, c.err, validateClassicMatcher(c.m))
+		checkErr(t, c.err, validateMatcher(c.m))
 	}
 }
 
@@ -1330,8 +1331,18 @@ func TestValidateUTF8Matcher(t *testing.T) {
 		},
 	}
 
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+
 	for _, c := range cases {
-		checkErr(t, c.err, validateUTF8Matcher(c.m))
+		checkErr(t, c.err, validateMatcher(c.m))
 	}
 }
 
@@ -1455,11 +1466,7 @@ func TestValidateSilence(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
-		if err != nil {
-			t.Fatal("unexpected err", err)
-		}
-		checkErr(t, c.err, validateSilence(c.s, ff))
+		checkErr(t, c.err, validateSilence(c.s))
 	}
 }
 

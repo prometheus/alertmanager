@@ -244,6 +244,9 @@ func isValidClassicLabelName(_ log.Logger) func(model.LabelName) bool {
 // isValidUTF8LabelName returns true if the string is a valid UTF-8 label name.
 func isValidUTF8LabelName(_ log.Logger) func(model.LabelName) bool {
 	return func(name model.LabelName) bool {
+		if len(name) == 0 {
+			return false
+		}
 		return utf8.ValidString(string(name))
 	}
 }
