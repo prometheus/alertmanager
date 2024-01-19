@@ -251,7 +251,6 @@ func run() int {
 		Retention:    *retention,
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
-		FeatureFlags: ff,
 	}
 
 	silences, err := silence.New(silenceOpts)
