@@ -48,6 +48,7 @@ var (
 		},
 		Title:   `{{ template "discord.default.title" . }}`,
 		Message: `{{ template "discord.default.message" . }}`,
+		Color:   `{{ template "discord.default.color" . }}`,
 	}
 
 	// DefaultEmailConfig defines default values for Email configurations.
@@ -221,6 +222,7 @@ type DiscordConfig struct {
 
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
 	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

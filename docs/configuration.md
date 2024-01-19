@@ -678,6 +678,9 @@ webhook_url: <secret>
 # Message body template.
 [ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
 
+# Color of message frame.
+[ color: <tmpl_string> | default = '{{ template "discord.default.color" . }}' ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
