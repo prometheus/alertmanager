@@ -37,7 +37,6 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -317,9 +316,8 @@ type Options struct {
 	Retention time.Duration
 
 	// A logger used by background processing.
-	Logger       log.Logger
-	Metrics      prometheus.Registerer
-	FeatureFlags featurecontrol.Flagger
+	Logger  log.Logger
+	Metrics prometheus.Registerer
 }
 
 func (o *Options) validate() error {
