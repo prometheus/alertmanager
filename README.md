@@ -339,6 +339,10 @@ Example of usage:
 ```
 # View routing tree of remote Alertmanager
 $ amtool config routes --alertmanager.url=http://localhost:9090
+# View routing tree of remote Alertmanager using environment variable
+# AMTOOL_ALERTMANAGER_URL=http://localhost:9090  amtool config routes
+# export AMTOOL_ALERTMANAGER_URL=http://localhost:9090
+# amtool config routes
 
 # Test if alert matches expected receiver
 $ amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X
