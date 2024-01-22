@@ -368,7 +368,7 @@ func (n *Email) getPassword() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("could not read %s: %w", n.conf.AuthPasswordFile, err)
 		}
-		return string(content), nil
+		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
 }
