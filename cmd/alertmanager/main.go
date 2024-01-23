@@ -96,6 +96,11 @@ var (
 			Help: "Number of configured integrations.",
 		},
 	)
+	configuredInhibitRules = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_inhibit_rules",
+			Help: "Number of configured inhibit rules.",
+		})
 	promlogConfig = promlog.Config{}
 )
 
@@ -105,6 +110,7 @@ func init() {
 	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
+	prometheus.MustRegister(configuredInhibitRules)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -435,6 +441,7 @@ func run() int {
 
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
+		configuredInhibitRules.Set(float64(len(conf.InhibitRules)))
 
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
