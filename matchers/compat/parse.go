@@ -170,7 +170,7 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 			// parser. This means the input is not forwards compatible.
 			m.IncompatibleTotal.With(lbs).Inc()
 			suggestion := cMatcher.String()
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatcher, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
@@ -219,7 +219,7 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 			suggestion := sb.String()
 			// The input is valid in the pkg/labels parser, but not the
 			// new matchers/parse parser.
-			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", err, "suggestion", suggestion)
+			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatchers, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
