@@ -31,28 +31,28 @@ var DefaultOrigins = []string{
 var RegisteredMetrics = NewMetrics(prometheus.DefaultRegisterer)
 
 type Metrics struct {
-	Total             *prometheus.GaugeVec
-	DisagreeTotal     *prometheus.GaugeVec
-	IncompatibleTotal *prometheus.GaugeVec
-	InvalidTotal      *prometheus.GaugeVec
+	Total             *prometheus.CounterVec
+	DisagreeTotal     *prometheus.CounterVec
+	IncompatibleTotal *prometheus.CounterVec
+	InvalidTotal      *prometheus.CounterVec
 }
 
 func NewMetrics(r prometheus.Registerer) *Metrics {
 	m := &Metrics{
-		Total: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_parse",
+		Total: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_matchers_parse_total",
 			Help: "Total number of matcher inputs parsed, including invalid inputs.",
 		}, []string{"origin"}),
-		DisagreeTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_disagree",
+		DisagreeTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_matchers_disagree_total",
 			Help: "Total number of matcher inputs which produce different parsings (disagreement).",
 		}, []string{"origin"}),
-		IncompatibleTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_incompatible",
+		IncompatibleTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_matchers_incompatible_total",
 			Help: "Total number of matcher inputs that are incompatible with the UTF-8 parser.",
 		}, []string{"origin"}),
-		InvalidTotal: promauto.With(r).NewGaugeVec(prometheus.GaugeOpts{
-			Name: "alertmanager_matchers_invalid",
+		InvalidTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_matchers_invalid_total",
 			Help: "Total number of matcher inputs that could not be parsed.",
 		}, []string{"origin"}),
 	}
