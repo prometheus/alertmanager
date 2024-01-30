@@ -128,20 +128,13 @@ func (a *Alerts) gc() {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
-	for _, alert := range a.alerts.List() {
-		if alert.Resolved() {
-			fp := alert.Fingerprint()
-			if err := a.alerts.Delete(fp); err != nil {
-				level.Error(a.logger).Log("msg", "error on delete alert", "err", err)
-				continue
-			}
-
-			// As we don't persist alerts, we no longer consider them after
-			// they are resolved. Alerts waiting for resolved notifications are
-			// held in memory in aggregation groups redundantly.
-			a.marker.Delete(fp)
-			a.callback.PostDelete(alert)
-		}
+	deleted := a.alerts.GC()
+	for _, alert := range deleted {
+		// As we don't persist alerts, we no longer consider them after
+		// they are resolved. Alerts waiting for resolved notifications are
+		// held in memory in aggregation groups redundantly.
+		a.marker.Delete(alert.Fingerprint())
+		a.callback.PostDelete(alert)
 	}
 
 	for i, l := range a.listeners {
