@@ -10,7 +10,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/go-kit/log v0.2.1
-	github.com/go-openapi/analysis v0.22.0
+	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/errors v0.21.0
 	github.com/go-openapi/loads v0.21.5
 	github.com/go-openapi/runtime v0.27.1
