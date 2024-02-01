@@ -21,7 +21,7 @@
     "use-query-params": "^2.1.1"
   },
   "devDependencies": {
-    "@types/react": "^18.0.0",
+    "@types/react": "^18.2.51",
     "@types/react-dom": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@typescript-eslint/parser": "^5.30.7",
