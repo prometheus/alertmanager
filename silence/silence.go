@@ -27,7 +27,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
@@ -38,7 +37,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -193,7 +192,6 @@ type Silences struct {
 
 	logger    log.Logger
 	metrics   *metrics
-	ff        featurecontrol.Flagger
 	retention time.Duration
 
 	mtx       sync.RWMutex
@@ -318,9 +316,8 @@ type Options struct {
 	Retention time.Duration
 
 	// A logger used by background processing.
-	Logger       log.Logger
-	Metrics      prometheus.Registerer
-	FeatureFlags featurecontrol.Flagger
+	Logger  log.Logger
+	Metrics prometheus.Registerer
 }
 
 func (o *Options) validate() error {
@@ -340,7 +337,6 @@ func New(o Options) (*Silences, error) {
 		clock:     clock.New(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
-		ff:        featurecontrol.NoopFlags{},
 		retention: o.Retention,
 		broadcast: func([]byte) {},
 		st:        state{},
@@ -349,10 +345,6 @@ func New(o Options) (*Silences, error) {
 
 	if o.Logger != nil {
 		s.logger = o.Logger
-	}
-
-	if o.FeatureFlags != nil {
-		s.ff = o.FeatureFlags
 	}
 
 	if o.SnapshotFile != "" {
@@ -477,9 +469,8 @@ func (s *Silences) GC() (int, error) {
 	return n, nil
 }
 
-// validateClassicMatcher validates the matcher against the classic rules.
-func validateClassicMatcher(m *pb.Matcher) error {
-	if !model.LabelName(m.Name).IsValid() {
+func validateMatcher(m *pb.Matcher) error {
+	if !compat.IsValidLabelName(model.LabelName(m.Name)) {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
 	switch m.Type {
@@ -488,29 +479,6 @@ func validateClassicMatcher(m *pb.Matcher) error {
 			return fmt.Errorf("invalid label value %q", m.Pattern)
 		}
 	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
-		if _, err := regexp.Compile(m.Pattern); err != nil {
-			return fmt.Errorf("invalid regular expression %q: %w", m.Pattern, err)
-		}
-	default:
-		return fmt.Errorf("unknown matcher type %q", m.Type)
-	}
-	return nil
-}
-
-// validateUTF8Matcher validates the matcher against the UTF-8 rules.
-func validateUTF8Matcher(m *pb.Matcher) error {
-	if !utf8.ValidString(m.Name) {
-		return fmt.Errorf("invalid label name %q", m.Name)
-	}
-	switch m.Type {
-	case pb.Matcher_EQUAL, pb.Matcher_NOT_EQUAL:
-		if !utf8.ValidString(m.Pattern) {
-			return fmt.Errorf("invalid label value %q", m.Pattern)
-		}
-	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
-		if !utf8.ValidString(m.Pattern) {
-			return fmt.Errorf("invalid regular expression %q", m.Pattern)
-		}
 		if _, err := regexp.Compile(m.Pattern); err != nil {
 			return fmt.Errorf("invalid regular expression %q: %w", m.Pattern, err)
 		}
@@ -532,7 +500,7 @@ func matchesEmpty(m *pb.Matcher) bool {
 	}
 }
 
-func validateSilence(s *pb.Silence, ff featurecontrol.Flagger) error {
+func validateSilence(s *pb.Silence) error {
 	if s.Id == "" {
 		return errors.New("ID missing")
 	}
@@ -541,13 +509,8 @@ func validateSilence(s *pb.Silence, ff featurecontrol.Flagger) error {
 	}
 	allMatchEmpty := true
 
-	validateFunc := validateUTF8Matcher
-	if ff.ClassicMode() {
-		validateFunc = validateClassicMatcher
-	}
-
 	for i, m := range s.Matchers {
-		if err := validateFunc(m); err != nil {
+		if err := validateMatcher(m); err != nil {
 			return fmt.Errorf("invalid label matcher %d: %w", i, err)
 		}
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
@@ -588,7 +551,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 	sil.UpdatedAt = now
 
 	if !skipValidate {
-		if err := validateSilence(sil, s.ff); err != nil {
+		if err := validateSilence(sil); err != nil {
 			return fmt.Errorf("silence invalid: %w", err)
 		}
 	}

@@ -96,6 +96,11 @@ var (
 			Help: "Number of configured integrations.",
 		},
 	)
+	configuredInhibitionRules = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_inhibition_rules",
+			Help: "Number of configured inhibition rules.",
+		})
 	promlogConfig = promlog.Config{}
 )
 
@@ -105,6 +110,7 @@ func init() {
 	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
+	prometheus.MustRegister(configuredInhibitionRules)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -180,7 +186,7 @@ func run() int {
 		level.Error(logger).Log("msg", "error parsing the feature flag list", "err", err)
 		return 1
 	}
-	compat.InitFromFlags(logger, ff)
+	compat.InitFromFlags(logger, compat.RegisteredMetrics, ff)
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
@@ -251,7 +257,6 @@ func run() int {
 		Retention:    *retention,
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
-		FeatureFlags: ff,
 	}
 
 	silences, err := silence.New(silenceOpts)
@@ -320,16 +325,15 @@ func run() int {
 	}
 
 	api, err := api.New(api.Options{
-		Alerts:       alerts,
-		Silences:     silences,
-		StatusFunc:   marker.Status,
-		Peer:         clusterPeer,
-		Timeout:      *httpTimeout,
-		Concurrency:  *getConcurrency,
-		Logger:       log.With(logger, "component", "api"),
-		FeatureFlags: ff,
-		Registry:     prometheus.DefaultRegisterer,
-		GroupFunc:    groupFn,
+		Alerts:      alerts,
+		Silences:    silences,
+		StatusFunc:  marker.Status,
+		Peer:        clusterPeer,
+		Timeout:     *httpTimeout,
+		Concurrency: *getConcurrency,
+		Logger:      log.With(logger, "component", "api"),
+		Registry:    prometheus.DefaultRegisterer,
+		GroupFunc:   groupFn,
 	})
 	if err != nil {
 		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %w", err))
@@ -437,6 +441,7 @@ func run() int {
 
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
+		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)

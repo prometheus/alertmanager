@@ -81,7 +81,7 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 		// the user wants alertname=<arg> and prepend `alertname=` to
 		// the front.
 		m := a.matcherGroups[0]
-		_, err := compat.Matcher(m)
+		_, err := compat.Matcher(m, "cli")
 		if err != nil {
 			a.matcherGroups[0] = fmt.Sprintf("alertname=%s", strconv.Quote(m))
 		}

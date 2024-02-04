@@ -45,7 +45,6 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -73,7 +72,6 @@ type API struct {
 
 	logger log.Logger
 	m      *metrics.Alerts
-	ff     featurecontrol.Flagger
 
 	Handler http.Handler
 }
@@ -92,12 +90,8 @@ func NewAPI(
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l log.Logger,
-	ff featurecontrol.Flagger,
 	r prometheus.Registerer,
 ) (*API, error) {
-	if ff == nil {
-		ff = featurecontrol.NoopFlags{}
-	}
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: sf,
@@ -106,7 +100,6 @@ func NewAPI(
 		silences:       silences,
 		logger:         l,
 		m:              metrics.NewAlerts(r),
-		ff:             ff,
 		uptime:         time.Now(),
 	}
 
@@ -356,7 +349,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	for _, a := range alerts {
 		removeEmptyLabels(a.Labels)
 
-		if err := a.Validate(api.ff); err != nil {
+		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
 			api.m.Invalid().Inc()
 			continue
@@ -684,7 +677,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := compat.Matcher(matcherString)
+		matcher, err := compat.Matcher(matcherString, "api")
 		if err != nil {
 			return nil, err
 		}
