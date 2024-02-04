@@ -20,6 +20,7 @@ package cluster
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -29,7 +30,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	common "github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
@@ -83,12 +83,12 @@ func NewTLSTransport(
 
 	tlsServerCfg, err := web.ConfigToTLSConfig(cfg.TLSServerConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid TLS server config")
+		return nil, fmt.Errorf("invalid TLS server config: %w", err)
 	}
 
 	tlsClientCfg, err := common.NewTLSConfig(cfg.TLSClientConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid TLS client config")
+		return nil, fmt.Errorf("invalid TLS client config: %w", err)
 	}
 
 	ip := net.ParseIP(bindAddr)
@@ -99,12 +99,12 @@ func NewTLSTransport(
 	addr := &net.TCPAddr{IP: ip, Port: bindPort}
 	listener, err := tls.Listen(network, addr.String(), tlsServerCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to start TLS listener on %q port %d", bindAddr, bindPort))
+		return nil, fmt.Errorf("failed to start TLS listener on %q port %d: %w", bindAddr, bindPort, err)
 	}
 
 	connPool, err := newConnectionPool(tlsClientCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize tls transport connection pool")
+		return nil, fmt.Errorf("failed to initialize tls transport connection pool: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -155,7 +155,7 @@ func (t *TLSTransport) FinalAdvertiseAddr(ip string, port int) (net.IP, int, err
 			var err error
 			ip, err = sockaddr.GetPrivateIP()
 			if err != nil {
-				return nil, 0, fmt.Errorf("failed to get interface addresses: %v", err)
+				return nil, 0, fmt.Errorf("failed to get interface addresses: %w", err)
 			}
 			if ip == "" {
 				return nil, 0, fmt.Errorf("no private IP address found, and explicit IP not provided")
@@ -203,13 +203,13 @@ func (t *TLSTransport) WriteTo(b []byte, addr string) (time.Time, error) {
 	conn, err := t.connPool.borrowConnection(addr, DefaultTCPTimeout)
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
-		return time.Now(), errors.Wrap(err, "failed to dial")
+		return time.Now(), fmt.Errorf("failed to dial: %w", err)
 	}
 	fromAddr := t.listener.Addr().String()
 	err = conn.writePacket(fromAddr, b)
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
-		return time.Now(), errors.Wrap(err, "failed to write packet")
+		return time.Now(), fmt.Errorf("failed to write packet: %w", err)
 	}
 	t.packetsSent.Add(float64(len(b)))
 	return time.Now(), nil
@@ -221,13 +221,13 @@ func (t *TLSTransport) DialTimeout(addr string, timeout time.Duration) (net.Conn
 	conn, err := dialTLSConn(addr, timeout, t.tlsClientCfg)
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
-		return nil, errors.Wrap(err, "failed to dial")
+		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 	err = conn.writeStream()
 	netConn := conn.getRawConn()
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
-		return netConn, errors.Wrap(err, "failed to create stream connection")
+		return netConn, fmt.Errorf("failed to create stream connection: %w", err)
 	}
 	t.streamsSent.Inc()
 	return netConn, nil

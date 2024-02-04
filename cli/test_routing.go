@@ -24,6 +24,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const routingTestHelp = `Test alert routing
@@ -80,9 +82,16 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
 	// Parse labels to LabelSet.
-	ls, err := parseLabels(c.labels)
-	if err != nil {
-		kingpin.Fatalf("Failed to parse labels: %v\n", err)
+	ls := make(models.LabelSet, len(c.labels))
+	for _, l := range c.labels {
+		matcher, err := compat.Matcher(l, "cli")
+		if err != nil {
+			kingpin.Fatalf("Failed to parse labels: %v\n", err)
+		}
+		if matcher.Type != labels.MatchEqual {
+			kingpin.Fatalf("%s\n", "Labels must be specified as key=value pairs")
+		}
+		ls[matcher.Name] = matcher.Value
 	}
 
 	if c.debugTree {

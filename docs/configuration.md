@@ -151,6 +151,8 @@ If an alert does not match any children of a node (no matching child nodes, or
 none exist), the alert is handled based on the configuration parameters of the
 current node.
 
+See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
+
 ```yaml
 [ receiver: <string> ]
 # The labels by which incoming alerts are grouped together. For example,
@@ -200,7 +202,7 @@ matchers:
 # Note that this parameter is implicitly bound by Alertmanager's
 # `--data.retention` configuration flag. Notifications will be resent after either
 # repeat_interval or the data retention period have passed, whichever
-# occurs first. `repeat_interval` should not be less than `group_interval`.
+# occurs first. `repeat_interval` should be a multiple of `group_interval`.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
@@ -363,6 +365,8 @@ environment variable.
 Inhibition allows muting a set of alerts based on the presence of another set of
 alerts. This allows establishing dependencies between systems or services such that
 only the most relevant of a set of interconnected alerts are sent out during an outage.
+
+See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#inhibition) for more information on inhibition.
 
 ### `<inhibit_rule>`
 
@@ -566,7 +570,7 @@ oauth2:
 # that should be excluded from proxying. IP and domain names can
 # contain port numbers.
 [ no_proxy: <string> ]
-# Use proxy URL indicated by environment variables (HTTP_PROXY, https_proxy, HTTPs_PROXY, https_proxy, and no_proxy)
+# Use proxy URL indicated by environment variables (HTTP_PROXY, http_proxy, HTTPS_PROXY, https_proxy, NO_PROXY, and no_proxy)
 [ proxy_from_environment: <boolean> | default: false ]
 # Specifies headers to send to proxies during CONNECT requests.
 [ proxy_connect_header:
@@ -734,10 +738,13 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 [ webhook_url: <secret> ]
 
 # Message title template.
-[ title: <tmpl_string> | default = '{{ template "teams.default.title" . }}' ]
+[ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
+
+# Message summary template.
+[ summary: <tmpl_string> | default = '{{ template "msteams.default.summary" . }}' ]
 
 # Message body template.
-[ text: <tmpl_string> | default = '{{ template "teams.default.text" . }}' ]
+[ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
@@ -947,6 +954,9 @@ token_file: <filepath>
 # How long your notification will continue to be retried for, unless the user
 # acknowledges the notification.
 [ expire: <duration> | default = 1h ]
+
+# Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
+[ ttl: <duration> ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]

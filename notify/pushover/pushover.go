@@ -147,6 +147,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
 	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
+
+	newttl := int64(time.Duration(n.conf.TTL).Seconds())
+	if newttl > 0 {
+		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
+	}
+
 	if err != nil {
 		return false, err
 	}

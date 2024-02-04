@@ -299,6 +299,30 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{foo=bar\}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\\}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\"")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `job=`,
 			want: func() []*Matcher {
 				m, _ := NewMatcher(MatchEqual, "job", "")
