@@ -423,22 +423,57 @@ source_matchers:
 
 Label matchers match alerts to routes, silences, and inhibition rules.
 
-**Important**: Prometheus is adding support for UTF-8 in the metric name and labels. Alertmanager versions <version> and newer have a new parser for label matchers that has backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, and has provided a number of tools to help you prepare for the transition.
+**Important**: Prometheus is adding support for UTF-8 in the metric name and labels. Alertmanager versions <version> and newer have a new parser for label matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic parsers, and has provided a number of tools to help you prepare for the transition.
 
-By default, Alertmanager runs with support for both UTF-8 and classic matchers. As operators, you should not experience any difference in how your routes, silences or inhibition rules work. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will use the classic parser and log a warning. This warning also includes a suggestion on how to make the matcher compliant with the UTF-8 parser. For example:
+### Modes
 
-> Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure the regular expression or value is double-quoted. If you are still seeing this message please open an issue." input="foo=!bar" err="4:5: !: expected one of '=~': expected label value" suggestion="foo=\"!bar\""
+#### Default behavior
 
-If you need to disable the new parser you can do so with the following feature flag:
+By default, Alertmanager runs in a special mode called fallback mode where configurations are first parsed with the UTF-8 parser, and if incompatible, fallback to the classic parser. As operators, you should not experience any difference in how your routes, silences or inhibition rules work.
+
+If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will use the classic parser and log a warning. This warning also includes a suggestion on how to make the matcher compliant with the UTF-8 parser. For example:
+
+> Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure the regular expression or value is double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+
+In rare cases, a configuration can cause disagreement between the UTF-8 and classic parser. This happens when a matcher is valid in both parsers, but due to added support for UTF-8, results in different parsings depending on which parser is used. An example of this would be a matcher such as `baz="\xf0\x9f\x99\x82"`. This causes disagreement because `\xf0\x9f\x99\x82` is the byte sequence for the 🙂 emoji which is interpreted as a 🙂 emoji in the UTF-8 parser but as a literal `\xf0\x9f\x99\x82` in the classic parser.
+
+If your Alertmanager configuration has disagreement, Alertmanager will use the classic parser and log a warning. For example:
 
 ```
-./alertmanager --config.file=config.yml --enable-feature="classic-mode"
+Matchers input has disagreement input="baz=\"\\xf0\\x9f\\x99\\x82\""
 ```
 
-Likewise, if you would like to disable the classic parser and use just the UTF-8 parser then you can do so too:
+#### Alternate modes
+
+Alertmanger also supports two additional modes. These are called classic mode and UTF-8 strict mode. In classic mode, Alertmanager disables the UTF-8 parser and uses the classic parser. Classic mode is equivalent to Alertmanager versions 0.26.0 and older. You can enable this mode with the following feature flag:
 
 ```
-./alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
+alertmanager --config.file=config.yml --enable-feature="classic-mode"
+```
+
+In UTF-8 strict mode, Alertmanager disables the classic parser and uses the UTF-8 parser:
+
+```
+alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
+```
+
+UTF-8 strict mode will be the default mode at the end of the transition period.
+
+### Verification
+
+You can use amtool to check if a configuration is incompatible or has disagreement:
+
+```
+amtool check-config config.yml
+Checking 'config.yml'level=warn msg="2: Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" err="end of input: expected label value" suggestion="foo=\"\""
+level=warn msg="Matchers input has disagreement" input="baz=\"\\xf0\\x9f\\x99\\x82\"\n"
+  SUCCESS
+Found:
+ - global config
+ - route
+ - 2 inhibit rules
+ - 2 receivers
+ - 0 templates
 ```
 
 ### `<matcher>`
