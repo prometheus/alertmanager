@@ -486,9 +486,9 @@ A UTF-8 matcher consists of three tokens:
 - One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
-Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, curly braces, exclamation marks, equals, tilda, commas, backslashes, double quotes, single quotes and backticks. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Ancient Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
-Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"` and `"baz qux\"` are valid double-quoted strings.
+Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"` are valid double-quoted strings.
 
 #### Classic matchers
 
