@@ -78,10 +78,12 @@ func InitFromFlags(l log.Logger, m *Metrics, f featurecontrol.Flagger) {
 func ClassicMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 	return func(input, origin string) (matcher *labels.Matcher, err error) {
 		defer func() {
-			lbs := prometheus.Labels{"origin": origin}
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				lbs := prometheus.Labels{"origin": origin}
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
@@ -94,10 +96,12 @@ func ClassicMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 func ClassicMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 	return func(input, origin string) (matchers labels.Matchers, err error) {
 		defer func() {
-			lbs := prometheus.Labels{"origin": origin}
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				lbs := prometheus.Labels{"origin": origin}
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
@@ -110,10 +114,12 @@ func ClassicMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 func UTF8MatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 	return func(input, origin string) (matcher *labels.Matcher, err error) {
 		defer func() {
-			lbs := prometheus.Labels{"origin": origin}
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				lbs := prometheus.Labels{"origin": origin}
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input, "origin", origin)
@@ -130,10 +136,12 @@ func UTF8MatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 func UTF8MatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 	return func(input, origin string) (matchers labels.Matchers, err error) {
 		defer func() {
-			lbs := prometheus.Labels{"origin": origin}
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				lbs := prometheus.Labels{"origin": origin}
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser", "input", input, "origin", origin)
@@ -148,9 +156,11 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 	return func(input, origin string) (matcher *labels.Matcher, err error) {
 		lbs := prometheus.Labels{"origin": origin}
 		defer func() {
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input, "origin", origin)
@@ -168,7 +178,9 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 			}
 			// The input is valid in the pkg/labels parser, but not the matchers/parse
 			// parser. This means the input is not forwards compatible.
-			m.IncompatibleTotal.With(lbs).Inc()
+			if m != nil {
+				m.IncompatibleTotal.With(lbs).Inc()
+			}
 			suggestion := cMatcher.String()
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatcher, nil
@@ -176,7 +188,9 @@ func FallbackMatcherParser(l log.Logger, m *Metrics) ParseMatcher {
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement.
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
-			m.DisagreeTotal.With(lbs).Inc()
+			if m != nil {
+				m.DisagreeTotal.With(lbs).Inc()
+			}
 			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatcher, nil
 		}
@@ -191,9 +205,11 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 	return func(input, origin string) (matchers labels.Matchers, err error) {
 		lbs := prometheus.Labels{"origin": origin}
 		defer func() {
-			m.Total.With(lbs).Inc()
-			if err != nil {
-				m.InvalidTotal.With(lbs).Inc()
+			if m != nil {
+				m.Total.With(lbs).Inc()
+				if err != nil {
+					m.InvalidTotal.With(lbs).Inc()
+				}
 			}
 		}()
 		level.Debug(l).Log("msg", "Parsing with UTF-8 matchers parser, with fallback to classic matchers parser", "input", input, "origin", origin)
@@ -208,7 +224,9 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 			}
 			// The input is valid in the pkg/labels parser, but not the matchers/parse
 			// parser. This means the input is not forwards compatible.
-			m.IncompatibleTotal.With(lbs).Inc()
+			if m != nil {
+				m.IncompatibleTotal.With(lbs).Inc()
+			}
 			var sb strings.Builder
 			for i, n := range cMatchers {
 				sb.WriteString(n.String())
@@ -226,7 +244,9 @@ func FallbackMatchersParser(l log.Logger, m *Metrics) ParseMatchers {
 		// then there is disagreement. We need to compare to labels.Matchers(cMatchers)
 		// as cMatchers is a []*labels.Matcher not labels.Matchers.
 		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
-			m.DisagreeTotal.With(lbs).Inc()
+			if m != nil {
+				m.DisagreeTotal.With(lbs).Inc()
+			}
 			level.Warn(l).Log("msg", "Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatchers, nil
 		}

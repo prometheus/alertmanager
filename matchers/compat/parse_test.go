@@ -25,6 +25,232 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
+func TestClassicMatcherParser(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expected     *labels.Matcher
+		err          string
+		total        float64
+		invalidTotal float64
+	}{{
+		name:     "input is accepted",
+		input:    "foo=bar",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+		total:    1,
+	}, {
+		name:         "input is invalid",
+		input:        "foo🙂=bar",
+		err:          "bad matcher format: foo🙂=bar",
+		total:        1,
+		invalidTotal: 1,
+	}}
+
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := ClassicMatcherParser(log.NewNopLogger(), m)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := ClassicMatcherParser(log.NewNopLogger(), nil)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+			})
+		}
+	})
+}
+
+func TestClassicMatchersParser(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expected     labels.Matchers
+		err          string
+		total        float64
+		invalidTotal float64
+	}{{
+		name:  "input is accepted",
+		input: "{foo=bar,bar=baz}",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchEqual, "bar", "baz"),
+		},
+		total: 1,
+	}, {
+		name:         "input is invalid",
+		input:        "{foo🙂=bar, bar=baz🙂}",
+		err:          "bad matcher format: foo🙂=bar",
+		total:        1,
+		invalidTotal: 1,
+	}}
+
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := ClassicMatchersParser(log.NewNopLogger(), m)
+				matchers, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matchers)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := ClassicMatchersParser(log.NewNopLogger(), nil)
+				matchers, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matchers)
+				}
+			})
+		}
+	})
+}
+
+func TestUTF8MatcherParser(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expected     *labels.Matcher
+		err          string
+		total        float64
+		invalidTotal float64
+	}{{
+		name:     "input is accepted",
+		input:    "foo🙂=bar",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
+		total:    1,
+	}, {
+		name:         "input is invalid",
+		input:        "foo=",
+		err:          "end of input: expected label value",
+		total:        1,
+		invalidTotal: 1,
+	}}
+
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := UTF8MatcherParser(log.NewNopLogger(), m)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := UTF8MatcherParser(log.NewNopLogger(), nil)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+			})
+		}
+	})
+}
+
+func TestUTF8MatchersParser(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expected     labels.Matchers
+		err          string
+		total        float64
+		invalidTotal float64
+	}{{
+		name:  "input is accepted",
+		input: "{foo🙂=bar,bar=baz🙂}",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
+			mustNewMatcher(t, labels.MatchEqual, "bar", "baz🙂"),
+		},
+		total: 1,
+	}, {
+		name:         "input is invalid",
+		input:        "{foo=,bar=baz}",
+		err:          "5:6: unexpected ,: expected label value",
+		total:        1,
+		invalidTotal: 1,
+	}}
+
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := UTF8MatchersParser(log.NewNopLogger(), m)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := UTF8MatchersParser(log.NewNopLogger(), nil)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+			})
+		}
+	})
+}
+
 func TestFallbackMatcherParser(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -68,23 +294,40 @@ func TestFallbackMatcherParser(t *testing.T) {
 		disagreeTotal: 1,
 	}}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			m := NewMetrics(prometheus.NewRegistry())
-			f := FallbackMatcherParser(log.NewNopLogger(), m)
-			matcher, err := f(test.input, "test")
-			if test.err != "" {
-				require.EqualError(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matcher)
-			}
-			requireMetric(t, test.total, m.Total)
-			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
-			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
-			requireMetric(t, test.invalidTotal, m.InvalidTotal)
-		})
-	}
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := FallbackMatcherParser(log.NewNopLogger(), m)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
+				requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := FallbackMatcherParser(log.NewNopLogger(), nil)
+				matcher, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matcher)
+				}
+			})
+		}
+	})
 }
 
 func TestFallbackMatchersParser(t *testing.T) {
@@ -141,23 +384,40 @@ func TestFallbackMatchersParser(t *testing.T) {
 		disagreeTotal: 1,
 	}}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			m := NewMetrics(prometheus.NewRegistry())
-			f := FallbackMatchersParser(log.NewNopLogger(), m)
-			matchers, err := f(test.input, "test")
-			if test.err != "" {
-				require.EqualError(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matchers)
-			}
-			requireMetric(t, test.total, m.Total)
-			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
-			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
-			requireMetric(t, test.invalidTotal, m.InvalidTotal)
-		})
-	}
+	t.Run("test with metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				m := NewMetrics(prometheus.NewRegistry())
+				f := FallbackMatchersParser(log.NewNopLogger(), m)
+				matchers, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matchers)
+				}
+				requireMetric(t, test.total, m.Total)
+				requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
+				requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
+				requireMetric(t, test.invalidTotal, m.InvalidTotal)
+			})
+		}
+	})
+
+	t.Run("test without metrics", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				f := FallbackMatchersParser(log.NewNopLogger(), nil)
+				matchers, err := f(test.input, "test")
+				if test.err != "" {
+					require.EqualError(t, err, test.err)
+				} else {
+					require.NoError(t, err)
+					require.EqualValues(t, test.expected, matchers)
+				}
+			})
+		}
+	})
 }
 
 func mustNewMatcher(t *testing.T, op labels.MatchType, name, value string) *labels.Matcher {
