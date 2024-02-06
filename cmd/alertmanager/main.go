@@ -547,6 +547,11 @@ func run() int {
 			errc <- configCoordinator.Reload()
 		case <-term:
 			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+
+			// shut down the tracing manager to flush any remaining spans.
+			// this blocks for up to 5s
+			tracingManager.Stop()
+
 			return 0
 		case <-srvc:
 			return 1
