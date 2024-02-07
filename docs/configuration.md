@@ -670,7 +670,9 @@ Discord notifications are sent via the [Discord webhook API](https://discord.com
 [ send_resolved: <boolean> | default = true ]
 
 # The Discord webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
 webhook_url: <secret>
+webhook_url_file: <filepath>
 
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "discord.default.title" . }}' ]
@@ -735,7 +737,9 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 [ send_resolved: <boolean> | default = true ]
 
 # The incoming webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
 [ webhook_url: <secret> ]
+[ webhook_url_file: <filepath> ]
 
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
