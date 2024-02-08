@@ -300,8 +300,9 @@ type Alert struct {
 	model.Alert
 
 	// The authoritative timestamp.
-	UpdatedAt time.Time
-	Timeout   bool
+	UpdatedAt    time.Time
+	Timeout      bool
+	FiredUnmuted bool
 }
 
 func validateLs(ls model.LabelSet) error {

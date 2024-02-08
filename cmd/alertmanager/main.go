@@ -437,6 +437,7 @@ func run() int {
 			intervener,
 			notificationLog,
 			pipelinePeer,
+			conf.Global.ResolveInhibited,
 		)
 
 		configuredReceivers.Set(float64(len(activeReceivers)))
