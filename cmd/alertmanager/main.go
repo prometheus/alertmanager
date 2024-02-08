@@ -186,7 +186,7 @@ func run() int {
 		level.Error(logger).Log("msg", "error parsing the feature flag list", "err", err)
 		return 1
 	}
-	compat.InitFromFlags(logger, compat.RegisteredMetrics, ff)
+	compat.InitFromFlags(logger, ff)
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
