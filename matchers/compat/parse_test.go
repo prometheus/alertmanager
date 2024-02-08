@@ -17,8 +17,6 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
@@ -27,51 +25,38 @@ import (
 
 func TestFallbackMatcherParser(t *testing.T) {
 	tests := []struct {
-		name              string
-		input             string
-		expected          *labels.Matcher
-		err               string
-		total             float64
-		disagreeTotal     float64
-		incompatibleTotal float64
-		invalidTotal      float64
+		name     string
+		input    string
+		expected *labels.Matcher
+		err      string
 	}{{
 		name:     "input is accepted",
 		input:    "foo=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
-		total:    1,
 	}, {
-		name:         "input is accepted in neither",
-		input:        "foo!bar",
-		err:          "bad matcher format: foo!bar",
-		total:        1,
-		invalidTotal: 1,
+		name:  "input is accepted in neither",
+		input: "foo!bar",
+		err:   "bad matcher format: foo!bar",
 	}, {
 		name:     "input is accepted in matchers/parse but not pkg/labels",
 		input:    "foo🙂=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
-		total:    1,
 	}, {
-		name:              "input is accepted in pkg/labels but not matchers/parse",
-		input:             "foo=!bar\\n",
-		expected:          mustNewMatcher(t, labels.MatchEqual, "foo", "!bar\n"),
-		total:             1,
-		incompatibleTotal: 1,
+		name:     "input is accepted in pkg/labels but not matchers/parse",
+		input:    "foo=!bar\\n",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "!bar\n"),
 	}, {
 		// This input causes disagreement because \xf0\x9f\x99\x82 is the byte sequence for 🙂,
 		// which is not understood by pkg/labels but is understood by matchers/parse. In such cases,
 		// the fallback parser returns the result from pkg/labels.
-		name:          "input causes disagreement",
-		input:         "foo=\"\\xf0\\x9f\\x99\\x82\"",
-		expected:      mustNewMatcher(t, labels.MatchEqual, "foo", "\\xf0\\x9f\\x99\\x82"),
-		total:         1,
-		disagreeTotal: 1,
+		name:     "input causes disagreement",
+		input:    "foo=\"\\xf0\\x9f\\x99\\x82\"",
+		expected: mustNewMatcher(t, labels.MatchEqual, "foo", "\\xf0\\x9f\\x99\\x82"),
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := NewMetrics(prometheus.NewRegistry())
-			f := FallbackMatcherParser(log.NewNopLogger(), m)
+			f := FallbackMatcherParser(log.NewNopLogger())
 			matcher, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -79,24 +64,16 @@ func TestFallbackMatcherParser(t *testing.T) {
 				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matcher)
 			}
-			requireMetric(t, test.total, m.Total)
-			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
-			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
-			requireMetric(t, test.invalidTotal, m.InvalidTotal)
 		})
 	}
 }
 
 func TestFallbackMatchersParser(t *testing.T) {
 	tests := []struct {
-		name              string
-		input             string
-		expected          labels.Matchers
-		err               string
-		total             float64
-		disagreeTotal     float64
-		incompatibleTotal float64
-		invalidTotal      float64
+		name     string
+		input    string
+		expected labels.Matchers
+		err      string
 	}{{
 		name:  "input is accepted",
 		input: "{foo=bar,bar=baz}",
@@ -104,13 +81,10 @@ func TestFallbackMatchersParser(t *testing.T) {
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchEqual, "bar", "baz"),
 		},
-		total: 1,
 	}, {
-		name:         "input is accepted in neither",
-		input:        "{foo!bar}",
-		err:          "bad matcher format: foo!bar",
-		total:        1,
-		invalidTotal: 1,
+		name:  "input is accepted in neither",
+		input: "{foo!bar}",
+		err:   "bad matcher format: foo!bar",
 	}, {
 		name:  "input is accepted in matchers/parse but not pkg/labels",
 		input: "{foo🙂=bar,bar=baz🙂}",
@@ -118,7 +92,6 @@ func TestFallbackMatchersParser(t *testing.T) {
 			mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
 			mustNewMatcher(t, labels.MatchEqual, "bar", "baz🙂"),
 		},
-		total: 1,
 	}, {
 		name:  "is accepted in pkg/labels but not matchers/parse",
 		input: "{foo=!bar,bar=$baz\\n}",
@@ -126,8 +99,6 @@ func TestFallbackMatchersParser(t *testing.T) {
 			mustNewMatcher(t, labels.MatchEqual, "foo", "!bar"),
 			mustNewMatcher(t, labels.MatchEqual, "bar", "$baz\n"),
 		},
-		total:             1,
-		incompatibleTotal: 1,
 	}, {
 		// This input causes disagreement because \xf0\x9f\x99\x82 is the byte sequence for 🙂,
 		// which is not understood by pkg/labels but is understood by matchers/parse. In such cases,
@@ -137,14 +108,11 @@ func TestFallbackMatchersParser(t *testing.T) {
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "\\xf0\\x9f\\x99\\x82"),
 		},
-		total:         1,
-		disagreeTotal: 1,
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := NewMetrics(prometheus.NewRegistry())
-			f := FallbackMatchersParser(log.NewNopLogger(), m)
+			f := FallbackMatchersParser(log.NewNopLogger())
 			matchers, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -152,10 +120,6 @@ func TestFallbackMatchersParser(t *testing.T) {
 				require.NoError(t, err)
 				require.EqualValues(t, test.expected, matchers)
 			}
-			requireMetric(t, test.total, m.Total)
-			requireMetric(t, test.disagreeTotal, m.DisagreeTotal)
-			requireMetric(t, test.incompatibleTotal, m.IncompatibleTotal)
-			requireMetric(t, test.invalidTotal, m.InvalidTotal)
 		})
 	}
 }
@@ -233,14 +197,5 @@ func TestIsValidUTF8LabelName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, fn(test.input))
 		})
-	}
-}
-
-func requireMetric(t *testing.T, expected float64, m *prometheus.CounterVec) {
-	if expected == 0 {
-		require.Equal(t, 0, testutil.CollectAndCount(m))
-	} else {
-		require.Equal(t, 1, testutil.CollectAndCount(m))
-		require.Equal(t, expected, testutil.ToFloat64(m))
 	}
 }
