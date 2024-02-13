@@ -385,6 +385,53 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: "[key2 key4]",
 		},
+		{
+			title: "Template using HumanizeDuration - seconds - float64",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []float64{0, 1, 60, 3600, 86400, 86400 + 3600, -(86400*2 + 3600*3 + 60*4 + 5), 899.99},
+			exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:1d 1h 0m 0s:-2d 3h 4m 5s:14m 59s:",
+		},
+		{
+			title: "Template using HumanizeDuration - seconds - string.",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []string{"0", "1", "60", "3600", "86400"},
+			exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:",
+		},
+		{
+			title: "Template using HumanizeDuration - subsecond and fractional seconds - float64.",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []float64{.1, .0001, .12345, 60.1, 60.5, 1.2345, 12.345},
+			exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+		},
+		{
+			title: "Template using HumanizeDuration - subsecond and fractional seconds - string.",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []string{".1", ".0001", ".12345", "60.1", "60.5", "1.2345", "12.345"},
+			exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+		},
+		{
+			title: "Template using HumanizeDuration - string with error.",
+			in:    `{{ humanizeDuration "one" }}`,
+			fail:  true,
+		},
+		{
+			title: "Template using HumanizeDuration - int.",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []int{0, -1, 1, 1234567},
+			exp:   "0s:-1s:1s:14d 6h 56m 7s:",
+		},
+		{
+			title: "Template using HumanizeDuration - uint.",
+			in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+			data:  []uint{0, 1, 1234567},
+			exp:   "0s:1s:14d 6h 56m 7s:",
+		},
+		{
+			title: "Template using since",
+			in:    "{{ . | since | humanizeDuration }}",
+			data:  time.Now().Add(-1 * time.Hour),
+			exp:   "1h 0m 0s",
+		},
 	} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
