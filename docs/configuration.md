@@ -423,51 +423,107 @@ source_matchers:
 
 Label matchers match alerts to routes, silences, and inhibition rules.
 
-**Important**: Prometheus is adding support for UTF-8 in the metric name and labels. Alertmanager versions <version> and newer have a new parser for label matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic parsers, and has provided a number of tools to help you prepare for the transition.
+**Important**: Prometheus is adding support for UTF-8 in labels and metrics. In order to also support UTF-8 in the Alertmanager, Alertmanager versions 0.27 and later have a new parser for matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, and has provided a number of tools to help you prepare for the transition.
 
-### Modes
+If this is a new Alertmanager installation, we recommend enabling UTF-8 strict mode before creating an Alertmanager configuration file. You can find instructions on how to enable UTF-8 strict mode [here](#utf-8-strict-mode).
 
-#### Default behavior
+If this is an existing Alertmanager installation, we recommend running the Alertmanager in the default mode called fallback mode before enabling UTF-8 strict mode. In this mode, Alertmanager will tell you if you need to make any changes to your configuration file before UTF-8 strict mode can be enabled. Alertmanager will make UTF-8 strict mode the default in the next two versions, so it's important to transition as soon as possible.
 
-By default, Alertmanager runs in a special mode called fallback mode where configurations are first parsed with the UTF-8 parser, and if incompatible, fallback to the classic parser. As operators, you should not experience any difference in how your routes, silences or inhibition rules work.
+Irrespective of whether an Alertmanager installation is a new or existing installation, you can also use `amtool` to validate that an Alertmanager configuration file is compatible with UTF-8 strict mode before enabling it in Alertmanager server. You do not need a running Alertmanager server to do this. You can find instructions on how to validate an Alertmanager configuration file using `amtool` [here](#verification).
 
-If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will use the classic parser and log a warning. This warning also includes a suggestion on how to make the matcher compliant with the UTF-8 parser. For example:
+### Alertmanager server operational modes
 
-> Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure the regular expression or value is double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+During the transition period, Alertmanager supports three modes of operation. These are known as fallback mode, UTF-8 strict mode and classic mode. Fallback mode is the default mode.
 
-In rare cases, a configuration can cause disagreement between the UTF-8 and classic parser. This happens when a matcher is valid in both parsers, but due to added support for UTF-8, results in different parsings depending on which parser is used. An example of this would be a matcher such as `baz="\xf0\x9f\x99\x82"`. This causes disagreement because `\xf0\x9f\x99\x82` is the byte sequence for the 🙂 emoji which is interpreted as a 🙂 emoji in the UTF-8 parser but as a literal `\xf0\x9f\x99\x82` in the classic parser.
+Operators of Alertmanager servers should transition to UTF-8 strict mode before the end of the transition period. Alertmanager will make UTF-8 strict mode the default in the next two versions, so it's important to transition as soon as possible.
 
-If your Alertmanager configuration has disagreement, Alertmanager will use the classic parser and log a warning. For example:
+#### Fallback mode
 
-```
-Matchers input has disagreement input="baz=\"\\xf0\\x9f\\x99\\x82\""
-```
+Alertmanager runs in a special mode called fallback mode as its default mode. As operators, you should not experience any difference in how your routes, silences or inhibition rules work.
 
-#### Alternate modes
+In fallback mode, configurations are first parsed as UTF-8 matchers, and if incompatible with the UTF-8 parser, are then parsed as classic matchers. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will parse them as classic matchers and log a warning. This warning also includes a suggestion on how to change the matchers from classic matchers to UTF-8 matchers. For example:
 
-Alertmanger also supports two additional modes. These are called classic mode and UTF-8 strict mode. In classic mode, Alertmanager disables the UTF-8 parser and uses the classic parser. Classic mode is equivalent to Alertmanager versions 0.26.0 and older. You can enable this mode with the following feature flag:
+> ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+
+Here the matcher `foo=` can be made into a valid UTF-8 matcher by double quoting the right hand side of the expression to give `foo=""`. These two matchers are equivalent, however with UTF-8 matchers the right hand side of the matcher is a required field.
+
+In rare cases, a configuration can cause disagreement between the UTF-8 and classic parser. This happens when a matcher is valid in both parsers, but due to added support for UTF-8, results in different parsings depending on which parser is used. If your Alertmanager configuration has disagreement, Alertmanager will use the classic parser and log a warning. For example:
+
+> ts=2024-02-11T10:00:00Z caller=parse.go:183 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
+
+Any occurrences of disagreement should be looked at on a case by case basis as depending on the nature of the disagreement, the configuration might not need updating before enabling UTF-8 strict mode. For example `\xf0\x9f\x99\x82` is the byte sequence for the 🙂 emoji. If the intention is to match a literal 🙂 emoji then no change is required. However, if the intention is to match the literal `\xf0\x9f\x99\x82` then the matcher should be changed to `qux="\\xf0\\x9f\\x99\\x82"`.
+
+#### UTF-8 strict mode
+
+In UTF-8 strict mode, Alertmanager disables support for classic matchers:
+
+> alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
+
+This mode should be enabled for new Alertmanager installations, and existing Alertmanager installations once all warnings of incompatible matchers have been resolved. Alertmanager will not start in UTF-8 strict mode until all the warnings of incompatible matchers have been resolved:
+
+> ts=2024-02-11T10:00:00Z caller=coordinator.go:118 level=error component=configuration msg="Loading configuration file failed" file=config.yml err="end of input: expected label value"
+
+UTF-8 strict mode will be the default mode of Alertmanager at the end of the transition period.
+
+#### Classic mode
+
+Classic mode is equivalent to Alertmanager versions 0.26.0 and older:
 
 ```
 alertmanager --config.file=config.yml --enable-feature="classic-mode"
 ```
 
-In UTF-8 strict mode, Alertmanager disables the classic parser and uses the UTF-8 parser:
-
-```
-alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
-```
-
-UTF-8 strict mode will be the default mode at the end of the transition period.
+You can use this mode if you suspect there is an issue with fallback mode or UTF-8 strict mode. In such cases, please open an issue on GitHub with as much information as possible.
 
 ### Verification
 
-You can use amtool to check if a configuration is incompatible or has disagreement:
+You can use `amtool` to validate that an Alertmanager configuration file is compatible with UTF-8 strict mode before enabling it in Alertmanager server. You do not need a running Alertmanager server to do this.
+
+Just like Alertmanager server, `amtool` will log a warning if the configuration is incompatible or contains disagreement: 
 
 ```
 amtool check-config config.yml
-Checking 'config.yml'level=warn msg="2: Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the old matchers parser as a fallback. To make this input compatible with the new parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" err="end of input: expected label value" suggestion="foo=\"\""
-level=warn msg="Matchers input has disagreement" input="baz=\"\\xf0\\x9f\\x99\\x82\"\n"
+Checking 'config.yml'
+level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
   SUCCESS
+Found:
+ - global config
+ - route
+ - 2 inhibit rules
+ - 2 receivers
+ - 0 templates
+```
+
+You will know if a configuration is compatible with UTF-8 strict mode when no warnings are logged in `amtool`: 
+
+```
+amtool check-config config.yml
+Checking 'config.yml'  SUCCESS
+Found:
+ - global config
+ - route
+ - 2 inhibit rules
+ - 2 receivers
+ - 0 templates
+```
+
+You can also use `amtool` in UTF-8 strict mode as an additional level of verification. You will know that a configuration is invalid because the command will fail:
+
+```
+amtool check-config config.yml --enable-feature="utf8-strict-mode"
+level=warn msg="UTF-8 mode enabled"
+Checking 'config.yml'  FAILED: end of input: expected label value
+
+amtool: error: failed to validate 1 file(s)
+```
+
+You will know that a configuration is valid because the command will succeed:
+
+```
+amtool check-config config.yml --enable-feature="utf8-strict-mode"
+level=warn msg="UTF-8 mode enabled"
+Checking 'config.yml'  SUCCESS
 Found:
  - global config
  - route
@@ -483,7 +539,7 @@ Found:
 A UTF-8 matcher consists of three tokens:
 
 - An unquoted literal or a double-quoted string for the label name.
-- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
+- One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
 Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
@@ -495,16 +551,16 @@ Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals
 A classic matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a classic matcher consists of three tokens:
 
 - A valid Prometheus label name.
-- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+- One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
 - A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
-#### Composition
+#### Composition of matchers
 
-You can compose matchers to create more complex expressions. When composed, all matchers must match for the entire expression to match. For example, an alert with the labels `alertname=Watchdog, severity=none` will not match the expression `{alertname="Watchdog", severity=~"warning|critical"}` as while the alertname is Watchdog the severity is neither warning nor critical. Remember that both alertname and severity have to match for the whole expression to match.
+You can compose matchers to create complex match expressions. When composed, all matchers must match for the entire expression to match. For example, the expression `{alertname="Watchdog", severity=~"warning|critical"}` will match an alert with labels `alertname=Watchdog, severity=critical` but not an alert with labels `alertname=Watchdog, severity=none` as while the alertname is Watchdog the severity is neither warning nor critical.
 
-You can compose matchers into expressions with a Yaml list:
+You can compose matchers into expressions with a YAML list:
 
 ```yaml
 matchers:
@@ -546,7 +602,7 @@ You cannot have duplicate open or close braces either:
 {{alertname="Watchdog", severity=~"warning|critical",}}
 ```
 
-Whitespace (spaces, tabs and newlines) is permitted outside double quotes:
+Whitespace (spaces, tabs and newlines) is permitted outside double quotes and has no effect on the matchers themselves. For example:
 
 ```
 {
@@ -555,11 +611,17 @@ Whitespace (spaces, tabs and newlines) is permitted outside double quotes:
 }
 ```
 
+is equivalent to:
+
+```
+{alertname="Watchdog",severity=~"warning|critical"}
+```
+
 #### More examples
 
 Here are some more examples:
 
-1. Two equals matchers composed as a Yaml list:
+1. Two equals matchers composed as a YAML list:
 
     ```yaml
     matchers:
@@ -567,7 +629,7 @@ Here are some more examples:
       - dings != bums
     ```
 
-2. Two matchers combined composed as a short-form Yaml list:
+2. Two matchers combined composed as a short-form YAML list:
 
     ```yaml
     matchers: [ foo = bar, dings != bums ]
@@ -585,7 +647,7 @@ Here are some more examples:
     matchers: [ '{foo="bar", dings!="bums"}' ]
     ```
 
-4. To avoid issues with escaping and quoting rules in Yaml, you can also use a YAML block:
+4. To avoid issues with escaping and quoting rules in YAML, you can also use a YAML block:
 
     ```yaml
     matchers:
