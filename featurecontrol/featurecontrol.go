@@ -97,7 +97,7 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 			level.Warn(logger).Log("msg", "Classic mode enabled")
 		case FeatureUTF8StrictMode:
 			opts = append(opts, enableUTF8StrictMode())
-			level.Warn(logger).Log("msg", "UTF-8 mode enabled")
+			level.Warn(logger).Log("msg", "UTF-8 strict mode enabled")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
