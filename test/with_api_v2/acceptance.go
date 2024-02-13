@@ -178,7 +178,7 @@ func (t *AcceptanceTest) Run() {
 		return
 	}
 
-	// Set the reference time right before started the test actions to avoid
+	// Set the reference time right before running the test actions to avoid
 	// test failures due to slow setup of the test environment.
 	t.opts.baseTime = time.Now()
 
@@ -250,9 +250,8 @@ type Alertmanager struct {
 	confFile    *os.File
 	dir         string
 
-	cmd     *exec.Cmd
-	started bool // true if cmd was started, otherwise false
-	errc    chan<- error
+	cmd  *exec.Cmd
+	errc chan<- error
 }
 
 // AlertmanagerCluster represents a group of Alertmanager instances
@@ -321,7 +320,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	if err := am.cmd.Start(); err != nil {
 		return err
 	}
-	am.started = true
+
 	go func() {
 		if err := am.cmd.Wait(); err != nil {
 			am.errc <- err
@@ -380,7 +379,7 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if am.started {
+	if am.cmd.Process != nil {
 		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
 			am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
 		}
@@ -399,7 +398,7 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if am.started {
+	if am.cmd.Process != nil {
 		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
 			am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
 		}
