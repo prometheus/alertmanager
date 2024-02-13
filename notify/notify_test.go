@@ -666,7 +666,8 @@ func TestMuteStage(t *testing.T) {
 		return ok
 	})
 
-	stage := NewMuteStage(muter)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewMuteStage(muter, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -705,6 +706,10 @@ func TestMuteStage(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressed)
+	}
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
@@ -720,9 +725,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	marker := types.NewMarker(prometheus.NewRegistry())
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
 	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
-	stage := NewMuteStage(silencer)
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	stage := NewMuteStage(silencer, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -765,6 +772,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressedRoundOne := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressedRoundOne {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundOne)
+	}
 
 	// Do it again to exercise the version tracking of silences.
 	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
@@ -779,6 +790,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	suppressedRoundTwo := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundOne) != suppressedRoundTwo {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundTwo)
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
@@ -797,6 +813,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
+	}
+	suppressedRoundThree := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundTwo) != suppressedRoundThree {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundThree)
 	}
 }
 
@@ -874,7 +894,8 @@ func TestTimeMuteStage(t *testing.T) {
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	intervener := timeinterval.NewIntervener(m)
-	stage := NewTimeMuteStage(intervener)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeMuteStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -908,6 +929,10 @@ func TestTimeMuteStage(t *testing.T) {
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
+	}
 }
 
 func TestTimeActiveStage(t *testing.T) {
@@ -930,6 +955,11 @@ func TestTimeActiveStage(t *testing.T) {
 		{
 			// Friday during business hours
 			fireTime:   "01 Jan 21 09:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			fireTime:   "02 Dec 20 16:59 +0000",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
@@ -959,7 +989,8 @@ func TestTimeActiveStage(t *testing.T) {
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	intervener := timeinterval.NewIntervener(m)
-	stage := NewTimeActiveStage(intervener)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeActiveStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -992,6 +1023,10 @@ func TestTimeActiveStage(t *testing.T) {
 	}
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
 	}
 }
 
