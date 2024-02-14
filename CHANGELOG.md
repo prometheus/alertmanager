@@ -1,8 +1,8 @@
 ## 0.27.0-rc.0 / 2024-02-14
 
 * [CHANGE] Discord Integration: Enforce max length in `message`. #3597
-* [CHANGE] API: Removal of all `api/v1/` endpoints. These endpoints now log and return a deprecation message and response with a status code of `410`. #2970
-* [FEATURE] UTF-8 Support: Introduction of support for any UTF-8 character as part of label names and matchers. Please read more below.
+* [CHANGE] API: Removal of all `api/v1/` endpoints. These endpoints now log and return a deprecation message and respond with a status code of `410`. #2970
+* [FEATURE] UTF-8 Support: Introduction of support for any UTF-8 character as part of label names and matchers. Please read more below. #3453, #3483, #3567, #3570
 * [FEATURE] Metrics: Introduced the experimental feature flag `--enable-feature=receiver-name-in-metrics` to include the receiver name in the following metrics: #3045
   * `alertmanager_notifications_total`
   * `alertmanager_notifications_failed_totall`
