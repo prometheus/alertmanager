@@ -21,13 +21,13 @@
 
 ### Removal of API v1
 
-The Alertmanager `v1` API Has been deprecated since January 2019 with the release of Alertmanager `v0.16.0`. With the release of version `0.27.0` it is now removed.
-A successful HTTP request to any of the `v1` endpoints will log and return a deprecation message while responding a status code of `410`.
+The Alertmanager `v1` API has been deprecated since January 2019 with the release of Alertmanager `v0.16.0`. With the release of version `0.27.0` it is now removed.
+A successful HTTP request to any of the `v1` endpoints will log and return a deprecation message while responding with a status code of `410`.
 Please ensure you switch to the `v2` equivalent endpoint in your integrations before upgrading.
 
 ### Alertmanager support for all UTF-8 characters in matchers and label names
 
-Starting with Alertmanager 0.27, we have a new parser for matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, so **it's entirely safe to upgrade without any additional configuration**. With that said, we recommend the following:
+Starting with Alertmanager `v0.27.0`, we have a new parser for matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, so **it's entirely safe to upgrade without any additional configuration**. With that said, we recommend the following:
 
 - If this is a new Alertmanager installation, we recommend enabling UTF-8 strict mode before creating an Alertmanager configuration file. You can enable strict mode with `alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"`.
 
