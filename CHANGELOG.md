@@ -1,3 +1,42 @@
+## 0.27.0-rc.0 / 2024-02-14
+
+* [CHANGE] Discord Integration: Enforce max length in `message`. #3597
+* [CHANGE] API: Removal of all `api/v1/` endpoints. These endpoints now log and return a deprecation message and response with a status code of `410`. #2970
+* [FEATURE] UTF-8 Support: Introduction of support for any UTF-8 character as part of label names and matchers. Please read more below.
+* [FEATURE] Metrics: Introduced the experimental feature flag `--enable-feature=receiver-name-in-metrics` to include the receiver name in the following metrics: #3045
+  * `alertmanager_notifications_total`
+  * `alertmanager_notifications_failed_totall`
+  * `alertmanager_notification_requests_total`
+  * `alertmanager_notification_requests_failed_total`
+  * `alertmanager_notification_latency_seconds`
+* [FEATURE] Metrics: Introduced a new gauge named `alertmanager_inhibition_rules` that counts the number of configured inhibition rules. #3681
+* [FEATURE] Metrics: Introduced a new counter named `alertmanager_alerts_supressed_total` that tracks muted alerts, it contains a `reason` label to indicate the source of the mute. #3565
+* [ENHANCEMENT] Discord Integration: Introduced support for `webhook_url_file`. #3555
+* [ENHANCEMENT] Microsoft Teams Integration: Introduced support for `webhook_url_file`. #3555
+* [ENHANCEMENT] Microsoft Teams Integration: Add support for `summary`. #3616
+* [ENHANCEMENT] Metrics: Notification metrics now support two new values for the label `reason`, `contextCanceled` and `contextDeadlineExceeded`. #3631
+* [ENHANCEMENT] Email Integration: Contents of `auth_password_file` are now trimmed of prefixed and suffixed whitespace. #3680
+* [BUGFIX] amtool: Fixes the error `scheme required for webhook url` when using amtool with `--alertmanager.url`. #3509
+* [BUGFIX] Mixin: Fix `AlertmanagerFailedToSendAlerts`, `AlertmanagerClusterFailedToSendAlerts`, and `AlertmanagerClusterFailedToSendAlerts` to make sure they ignore the `reason` label. #3599
+
+### Removal of API v1
+
+The Alertmanager `v1` API Has been deprecated since January 2019 with the release of Alertmanager `v0.16.0`. With the release of version `0.27.0` it is now removed.
+A successful HTTP request to any of the `v1` endpoints will log and return a deprecation message while responding a status code of `410`.
+Please ensure you switch to the `v2` equivalent endpoint in your integrations before upgrading.
+
+### Alertmanager support for all UTF-8 characters in matchers and label names
+
+Starting with Alertmanager 0.27, we have a new parser for matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, so **it's entirely safe to upgrade without any additional configuration**. With that said, we recommend the following:
+
+- If this is a new Alertmanager installation, we recommend enabling UTF-8 strict mode before creating an Alertmanager configuration file. You can enable strict mode with `alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"`.
+
+- If this is an existing Alertmanager installation, we recommend running the Alertmanager in the default mode called fallback mode before enabling UTF-8 strict mode. In this mode, Alertmanager will log a warning if you need to make any changes to your configuration file before UTF-8 strict mode can be enabled. **Alertmanager will make UTF-8 strict mode the default in the next two versions**, so it's important to transition as soon as possible.
+
+Irrespective of whether an Alertmanager installation is a new or existing installation, you can also use `amtool` to validate that an Alertmanager configuration file is compatible with UTF-8 strict mode before enabling it in Alertmanager server by running `amtool check-config config.yml` and inspecting the log messages.
+
+Should you encounter any problems, you can run the Alertmanager with just the classic parser enabled by running `alertmanager --config.file=config.yml --enable-feature="classic-mode"`. If so, please submit a bug report via GitHub issues.
+
 ## 0.26.0 / 2023-08-23
 
 * [SECURITY] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI. CVE-2023-40577
