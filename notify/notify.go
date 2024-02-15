@@ -288,7 +288,7 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 		numNotificationSuppressedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_suppressed_total",
-			Help:      "The total number of notifications suppressed for being outside of active time intervals or within muted time intervals.",
+			Help:      "The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.",
 		}, []string{"reason"}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
@@ -514,10 +514,10 @@ func (n *GossipSettleStage) Exec(ctx context.Context, _ log.Logger, alerts ...*t
 }
 
 const (
-	suppressedReasonSilence            = "silence"
-	suppressedReasonInhibition         = "inhibition"
-	suppressedReasonMuteTimeInterval   = "mute_time_interval"
-	suppressedReasonActiveTimeInterval = "active_time_interval"
+	SuppressedReasonSilence            = "silence"
+	SuppressedReasonInhibition         = "inhibition"
+	SuppressedReasonMuteTimeInterval   = "mute_time_interval"
+	SuppressedReasonActiveTimeInterval = "active_time_interval"
 )
 
 // MuteStage filters alerts through a Muter.
@@ -548,17 +548,17 @@ func (n *MuteStage) Exec(ctx context.Context, logger log.Logger, alerts ...*type
 		// TODO(fabxc): increment muted alerts counter if muted.
 	}
 	if len(muted) > 0 {
-		level.Debug(logger).Log("msg", "Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted))
 
 		var reason string
 		switch n.muter.(type) {
 		case *silence.Silencer:
-			reason = suppressedReasonSilence
+			reason = SuppressedReasonSilence
 		case *inhibit.Inhibitor:
-			reason = suppressedReasonInhibition
+			reason = SuppressedReasonInhibition
 		default:
 		}
 		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
+		level.Debug(logger).Log("msg", "Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
 	}
 
 	return ctx, filtered, nil
@@ -953,7 +953,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
-		tms.metrics.numNotificationSuppressedTotal.WithLabelValues(suppressedReasonMuteTimeInterval).Add(float64(len(alerts)))
+		tms.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonMuteTimeInterval).Add(float64(len(alerts)))
 		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time", "alerts", len(alerts))
 		return ctx, nil, nil
 	}
@@ -991,7 +991,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
 	if !muted {
-		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(suppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
+		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
 		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time", "alerts", len(alerts))
 		return ctx, nil, nil
 	}
