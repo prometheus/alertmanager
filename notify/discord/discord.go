@@ -17,7 +17,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -120,6 +123,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
+	var url string
+	if n.conf.WebhookURL != nil {
+		url = n.conf.WebhookURL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.WebhookURLFile)
+		if err != nil {
+			return false, fmt.Errorf("read webhook_url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(content))
+	}
+
 	w := webhook{
 		Embeds: []webhookEmbed{{
 			Title:       title,
@@ -133,7 +147,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

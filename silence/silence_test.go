@@ -1334,12 +1334,12 @@ func TestValidateUTF8Matcher(t *testing.T) {
 	// Change the mode to UTF-8 mode.
 	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
 	require.NoError(t, err)
-	compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+	compat.InitFromFlags(log.NewNopLogger(), ff)
 
 	// Restore the mode to classic at the end of the test.
 	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
 	require.NoError(t, err)
-	defer compat.InitFromFlags(log.NewNopLogger(), compat.RegisteredMetrics, ff)
+	defer compat.InitFromFlags(log.NewNopLogger(), ff)
 
 	for _, c := range cases {
 		checkErr(t, c.err, validateMatcher(c.m))
