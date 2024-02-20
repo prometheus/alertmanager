@@ -183,7 +183,7 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 		return nil, false, err
 	}
 
-	tmpl, err := template.FromGlobs()
+	tmpl, err := template.FromGlobs([]string{})
 	if err != nil {
 		return nil, false, err
 	}
