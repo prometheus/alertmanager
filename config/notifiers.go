@@ -172,6 +172,22 @@ var (
 		Summary: `{{ template "msteams.default.summary" . }}`,
 		Text:    `{{ template "msteams.default.text" . }}`,
 	}
+
+	DefaultTwilioConfig = TwilioConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Threshold:     100,
+		DefaultWeight: 100,
+	}
+
+	// DefaultSlackV2Config defines default values for Slack configurations.
+	DefaultSlackV2Config = SlackConfigV2{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Color: `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -820,6 +836,79 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
+	return nil
+}
+
+type SlackConfigV2 struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	Token          Secret         `yaml:"token,omitempty" json:"token,omitempty"`
+	GrafanaToken   Secret         `yaml:"grafana_token,omitempty" json:"grafana_token,omitempty"`
+	UserToken      Secret         `yaml:"user_token,omitempty" json:"user_token,omitempty"`
+	GrafanaUrl     string         `yaml:"grafana_url,omitempty" json:"grafana_url,omitempty"`
+	GrafanaTZ      string         `yaml:"grafana_tz,omitempty" json:"grafana_tz,omitempty"`
+	Channel        string         `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Color          string         `yaml:"color,omitempty" json:"color,omitempty"`
+	Debug          bool           `yaml:"debug" json:"debug"`
+	Mentions       []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+	MentionDelay   duration       `yaml:"mentionDelay" json:"mentionDelay"`
+}
+
+type SlackMention struct {
+	Type string `yaml:"type" json:"type"`
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
+}
+
+func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSlackV2Config
+	type plain SlackConfigV2
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	return nil
+}
+
+type TwilioConfig struct {
+	NotifierConfig   `yaml:",inline" json:",inline"`
+	HTTPConfig       *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	AccountID        string                      `yaml:"account_id" json:"account_id"`
+	Token            Secret                      `yaml:"token" json:"token"`
+	AlertManagerUrl  *URL                        `yaml:"alert_manager_url" json:"alert_manager_url"`
+	PlayFileUrl      *URL                        `yaml:"play_file_url" json:"play_file_url"`
+	Recipient        []string                    `yaml:"recipient" json:"recipient"`
+	NotificationType string                      `yaml:"notification_type" json:"notification_type"`
+	SenderName       string                      `yaml:"sender_name" json:"sender_name"`
+	Threshold        int                         `yaml:"threshold" json:"threshold"`
+	DefaultWeight    int                         `yaml:"default_weight" json:"default_weight"`
+	Text             string                      `yaml:"text" json:"text"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TwilioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTwilioConfig
+	type plain TwilioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.AccountID == "" {
+		return fmt.Errorf("account_id must be configured")
+	}
+	if c.Token == "" {
+		return fmt.Errorf("token must be configured")
+	}
+	switch strings.ToLower(c.NotificationType) {
+	case "sms", "":
+		c.NotificationType = "sms"
+	case "voice":
+		c.NotificationType = "voice"
+		if c.AlertManagerUrl == nil {
+			return fmt.Errorf("missing Alert manager URL in Twilio voice config")
+		}
+	default:
+		return fmt.Errorf("unknown notification type: %s", c.NotificationType)
 	}
 
 	return nil
