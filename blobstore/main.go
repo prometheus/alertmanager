@@ -21,7 +21,7 @@ func Init(dir string) error {
 	}
 	dir = path.Join(dir, "blobstore")
 	var err error
-	db, err = badger.Open(badger.DefaultOptions(dir))
+	db, err = badger.Open(badger.DefaultOptions(dir).WithLoggingLevel(badger.ERROR))
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func GetFileName(bucket, name string) (*File, error) {
 
 func GetFileKey(key string) (*File, error) {
 	checkDb()
-	var f *File
+	f := &File{}
 	fullKey := strings.Join([]string{keyPrefixFile, key}, "/")
 	err := db.View(func(txn *badger.Txn) error {
 		ent, err := txn.Get([]byte(fullKey))
