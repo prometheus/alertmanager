@@ -1,7 +1,8 @@
-package slackV2
+package slackv2
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	url2 "net/url"
 	"path"
@@ -14,25 +15,24 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/slack-go/slack"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/blobstore"
 	"github.com/prometheus/alertmanager/template"
 )
 
-func genGrafanaRenderUrl(grafanaUrl string, grafanaTZ string, org string, dash string, panel string) (string, error) {
-
+func (n *Notifier) getGrafanaImage(org string, dash string, panel string) ([]byte, error) {
 	const fromShift = -time.Hour
 	const toShift = -time.Second * 10
 	const imageWidth = "999"
 	const imageHeight = "333"
 	const urlPath = "/render/d-solo/"
 
-	if grafanaUrl == "" {
-		return "", fmt.Errorf("grafanaUrl is empty")
+	if n.conf.GrafanaUrl == "" {
+		return nil, fmt.Errorf("grafanaUrl is empty")
 	}
 
-	u, err := url2.Parse(grafanaUrl)
+	u, err := url2.Parse(n.conf.GrafanaUrl)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	u.Path = path.Join(u.Path, urlPath, dash)
@@ -43,96 +43,31 @@ func genGrafanaRenderUrl(grafanaUrl string, grafanaTZ string, org string, dash s
 	q.Set("panelId", panel)
 	q.Set("width", imageWidth)
 	q.Set("height", imageHeight)
-	q.Set("tz", grafanaTZ)
-	u.RawQuery = EncodeUrlArgs(q)
-	return u.String(), nil
-
-}
-
-func genGrafanaUrl(grafanaUrl string, org string, dash string, panel string) (string, error) {
-
-	if grafanaUrl == "" {
-		return "", fmt.Errorf("grafanaUrl is empty")
-	}
-
-	u, err := url2.Parse(grafanaUrl)
-	if err != nil {
-		return "", err
-	}
-
-	u.Path = path.Join(u.Path, "/d/"+dash)
-	q := u.Query()
-	q.Set("orgId", org)
-	if panel != "" {
-		q.Set("viewPanel", panel)
-	}
-	u.RawQuery = EncodeUrlArgs(q)
-	return u.String(), nil
-}
-
-func urlMerger(publicUrl string, privateUrl string) (string, error) {
-	u, err := url2.Parse(publicUrl)
-	if err != nil {
-		return "", err
-	}
-
-	trunc := []rune(u.Path)
-	key := string(trunc[len(trunc)-10:])
-
-	u, err = url2.Parse(privateUrl)
-	if err != nil {
-		return "", err
-	}
-	q := u.Query()
-	q.Set("pub_secret", key)
+	q.Set("tz", n.conf.GrafanaTZ)
 	u.RawQuery = EncodeUrlArgs(q)
 
-	return u.String(), nil
-}
-
-func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Secret) (string, error) {
-	const imageExtension = "jpg"
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+string(grafanaToken))
-
-	response, err := client.Do(req)
+	req.Header.Set("Authorization", "Bearer "+string(n.conf.GrafanaToken))
+	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer response.Body.Close()
+	defer resp.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("request status code %d != %d", response.StatusCode, http.StatusOK)
-	}
-
-	fileName := fmt.Sprintf("%s.%s", strings.Replace(uuid.NewV4().String(), "-", "", -1), imageExtension)
-	api := slack.New(string(token))
-	params := slack.FileUploadParameters{
-		Reader:   response.Body,
-		Filetype: "jpg",
-		Filename: fileName,
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request status code %d != %d", resp.StatusCode, http.StatusOK)
 	}
 
-	image, err := api.UploadFile(params)
+	image, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("upload error, image: %s, error: %w", image.Name, err)
+		return nil, err
 	}
 
-	sharedUrl, _, _, err := api.ShareFilePublicURL(image.ID)
-	if err != nil {
-		return "", fmt.Errorf("share error: %w", err)
-	}
-
-	imageUrl, err := urlMerger(sharedUrl.PermalinkPublic, sharedUrl.URLPrivate)
-	if err != nil {
-		return "", fmt.Errorf("url merge error: %w", err)
-	}
-
-	return imageUrl, nil
+	return image, nil
 
 }
 
@@ -268,9 +203,12 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	}
 
 	//GrafanaImage
-	if imageUrl, err := genGrafanaRenderUrl(n.conf.GrafanaUrl, n.conf.GrafanaTZ, orgId, dashboardUid, panelId); err == nil {
-		if slackImageUrl, err := getUploadedImageUrl(imageUrl, n.conf.UserToken, n.conf.GrafanaToken); err == nil {
-			blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: slackImageUrl, AltText: "inspiration"})
+	if image, err := n.getGrafanaImage(orgId, dashboardUid, panelId); err == nil {
+		key, err := blobstore.PutFileName("grafana", uuid.NewV4().String(), &blobstore.File{Data: image}, toPtr(time.Hour*24*365))
+		if err == nil {
+			u := *n.conf.AlertManagerUrl
+			u.Path = fmt.Sprintf("/blobstore/%s", key)
+			blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: u.String(), AltText: "inspiration"})
 		}
 	}
 

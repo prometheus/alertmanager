@@ -24,9 +24,11 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"github.com/twilio/twilio-go"
 	twapi "github.com/twilio/twilio-go/rest/api/v2010"
 
+	"github.com/prometheus/alertmanager/blobstore"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -131,12 +133,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 
-		id := Storage.Put(voiceData)
+		key, err := blobstore.PutFileName("twilio", uuid.NewV4().String(), &blobstore.File{Data: voiceData, ContentType: toPtr("text/xml")}, toPtr(time.Hour*24))
+		if err != nil {
+			return false, fmt.Errorf("failed to write voice data to blob storage, err: %w", err)
+		}
 		url := *n.conf.AlertManagerUrl
-		url.Path = "/callback/twilio"
-		args := url.Query()
-		args.Set("id", id)
-		url.RawQuery = args.Encode()
+		url.Path = fmt.Sprintf("/blobstore/%s", key)
 
 		for _, recepient := range n.conf.Recipient {
 			req := &twapi.CreateCallParams{From: &n.conf.SenderName, To: &recepient}

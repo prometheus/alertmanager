@@ -43,6 +43,7 @@ import (
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
 	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/blobstore"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/config/receiver"
@@ -52,7 +53,6 @@ import (
 	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/notify/twilio"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
@@ -194,6 +194,12 @@ func run() int {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
 		return 1
 	}
+
+	if err := blobstore.Init(*dataDir); err != nil {
+		level.Error(logger).Log("msg", "error init blobstorage", "err", err)
+		return 1
+	}
+	defer blobstore.Close()
 
 	tlsTransportConfig, err := cluster.GetTLSTransportConfig(*tlsConfigFile)
 	if err != nil {
@@ -507,19 +513,7 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 	reactapp.Register(router, logger)
-
-	router.Get("/callback/twilio", func(w http.ResponseWriter, req *http.Request) {
-		id := req.URL.Query().Get("id")
-		w.Header().Add("Content-Type", "text/xml")
-		if val := twilio.Storage.Get(id); val == nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		} else {
-			w.WriteHeader(http.StatusOK)
-			w.Write(val)
-			return
-		}
-	})
+	router.Get("/blobstore/*key", blobstore.GetHandler(logger))
 
 	mux := api.Register(router, *routePrefix)
 

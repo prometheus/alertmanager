@@ -1,10 +1,13 @@
-package slackV2
+package slackv2
 
 import (
-	"github.com/prometheus/alertmanager/template"
+	"fmt"
 	url2 "net/url"
+	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/prometheus/alertmanager/template"
 )
 
 const SummaryMessageDiffThreshold = 3
@@ -112,4 +115,35 @@ func EncodeUrlArgs(values url2.Values) string {
 	result := values.Encode()
 	result = strings.Replace(result, "+", "%20", -1)
 	return result
+}
+
+func toPtr[K any](val K) *K {
+	return &val
+}
+
+func toValue[K any](val *K) K {
+	if val == nil {
+		return *new(K)
+	}
+	return *val
+}
+
+func genGrafanaUrl(grafanaUrl string, org string, dash string, panel string) (string, error) {
+	if grafanaUrl == "" {
+		return "", fmt.Errorf("grafanaUrl is empty")
+	}
+
+	u, err := url2.Parse(grafanaUrl)
+	if err != nil {
+		return "", err
+	}
+
+	u.Path = path.Join(u.Path, "/d/"+dash)
+	q := u.Query()
+	q.Set("orgId", org)
+	if panel != "" {
+		q.Set("viewPanel", panel)
+	}
+	u.RawQuery = EncodeUrlArgs(q)
+	return u.String(), nil
 }

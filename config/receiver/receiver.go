@@ -27,7 +27,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
 	"github.com/prometheus/alertmanager/notify/slack"
-	"github.com/prometheus/alertmanager/notify/slackV2"
+	"github.com/prometheus/alertmanager/notify/slackv2"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/twilio"
@@ -95,7 +95,7 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.SlackConfigV2 {
-		add("slackV2", i, c, func(l log.Logger) (notify.Notifier, error) { return slackV2.New(c, tmpl, l) })
+		add("slackV2", i, c, func(l log.Logger) (notify.Notifier, error) { return slackv2.New(c, tmpl, l) })
 	}
 	for i, c := range nc.TwilioConfigs {
 		add("twilio", i, c, func(l log.Logger) (notify.Notifier, error) { return twilio.New(c, tmpl, l) })

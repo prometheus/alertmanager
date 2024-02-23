@@ -1,12 +1,14 @@
-package slackV2
+package slackv2
 
 import (
 	"fmt"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/common/model"
-	"github.com/slack-go/slack"
 	url2 "net/url"
 	"strings"
+
+	"github.com/prometheus/common/model"
+	"github.com/slack-go/slack"
+
+	"github.com/prometheus/alertmanager/template"
 )
 
 type Text struct {

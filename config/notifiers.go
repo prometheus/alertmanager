@@ -842,17 +842,18 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type SlackConfigV2 struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-	Token          Secret         `yaml:"token,omitempty" json:"token,omitempty"`
-	GrafanaToken   Secret         `yaml:"grafana_token,omitempty" json:"grafana_token,omitempty"`
-	UserToken      Secret         `yaml:"user_token,omitempty" json:"user_token,omitempty"`
-	GrafanaUrl     string         `yaml:"grafana_url,omitempty" json:"grafana_url,omitempty"`
-	GrafanaTZ      string         `yaml:"grafana_tz,omitempty" json:"grafana_tz,omitempty"`
-	Channel        string         `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Color          string         `yaml:"color,omitempty" json:"color,omitempty"`
-	Debug          bool           `yaml:"debug" json:"debug"`
-	Mentions       []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
-	MentionDelay   duration       `yaml:"mentionDelay" json:"mentionDelay"`
+	NotifierConfig  `yaml:",inline" json:",inline"`
+	Token           Secret         `yaml:"token,omitempty" json:"token,omitempty"`
+	GrafanaToken    Secret         `yaml:"grafana_token,omitempty" json:"grafana_token,omitempty"`
+	UserToken       Secret         `yaml:"user_token,omitempty" json:"user_token,omitempty"`
+	GrafanaUrl      string         `yaml:"grafana_url,omitempty" json:"grafana_url,omitempty"`
+	GrafanaTZ       string         `yaml:"grafana_tz,omitempty" json:"grafana_tz,omitempty"`
+	AlertManagerUrl *URL           `yaml:"alert_manager_url" json:"alert_manager_url"`
+	Channel         string         `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Color           string         `yaml:"color,omitempty" json:"color,omitempty"`
+	Debug           bool           `yaml:"debug" json:"debug"`
+	Mentions        []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+	MentionDelay    duration       `yaml:"mentionDelay" json:"mentionDelay"`
 }
 
 type SlackMention struct {
@@ -866,6 +867,10 @@ func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackConfigV2
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
+	}
+
+	if c.GrafanaUrl != "" && c.AlertManagerUrl == nil {
+		return fmt.Errorf("missing Alert manager URL in Slack V2 config")
 	}
 	return nil
 }
