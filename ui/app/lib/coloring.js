@@ -1,12 +1,12 @@
 const styles = {
     "env": {
-        "prod": {"background-color": '#608cff', "font-weight": "bold", "color": "#000000"},
-        "stage": {"background-color": '#b3b3b3', "font-weight": "bold", "color": "#000000"},
+        "prod": {"background-color": "#608cff", "color": "#000000"},
+        "stage": {"background-color": "#b3b3b3", "color": "#000000"},
     },
     "severity": {
-        "critical": {"background-color": "#ff5261", "font-weight": "bold", "color": "#000000"},
-        "warning": {"background-color": "#ffe16c", "font-weight": "bold", "color": "#000000"},
-        "info": {"background-color": "#bdff6c", "font-weight": "bold", "color": "#000000"},
+        "critical": {"background-color": "#ff5261", "color": "#000000"},
+        "warning": {"background-color": "#ffe16c", "color": "#000000"},
+        "info": {"background-color": "#bdff6c", "color": "#000000"},
     }
 }
 
