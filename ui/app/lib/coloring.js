@@ -13,11 +13,7 @@ const styles = {
 const wait = () => new Promise(resolve => setTimeout(resolve, 50));
 
 (async()=>{
-    let limit = 20;
-    let counter = 0;
-
     do {
-        counter++;
         const elems = Array.from(document.getElementsByClassName("mb-3"));
         const alertsEl = elems.filter((el) => el.childNodes[0].classList.contains("mb-1"));
 
@@ -57,9 +53,7 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 50));
             alert.el.getElementsByClassName("mb-1")[0].childNodes[1].data = "";
         });
 
-        if (alerts.length === 0) {
-            await wait();
-        }
-    } while (counter<limit);
+        await wait();
+    } while (true);
 })();
 
