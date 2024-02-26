@@ -1,12 +1,12 @@
 const styles = {
     "env": {
-        "prod": {"background-color": '#608cff', "font-weight": "bold", "color": "#000000 !important"},
-        "stage": {"background-color": '#b3b3b3', "font-weight": "bold", "color": "#000000 !important"},
+        "prod": {"background-color": '#608cff', "font-weight": "bold", "color": "#000000"},
+        "stage": {"background-color": '#b3b3b3', "font-weight": "bold", "color": "#000000"},
     },
     "severity": {
-        "critical": {"background-color": "#ff5261", "font-weight": "bold", "color": "#000000 !important"},
-        "warning": {"background-color": "#ffe16c", "font-weight": "bold", "color": "#000000 !important"},
-        "info": {"background-color": "#bdff6c", "font-weight": "bold", "color": "#000000 !important"},
+        "critical": {"background-color": "#ff5261", "font-weight": "bold", "color": "#000000"},
+        "warning": {"background-color": "#ffe16c", "font-weight": "bold", "color": "#000000"},
+        "info": {"background-color": "#bdff6c", "font-weight": "bold", "color": "#000000"},
     }
 }
 
@@ -47,7 +47,7 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 50));
                 if (styles.hasOwnProperty(tag.key)) {
                     if (styles[tag.key].hasOwnProperty(tag.value)) {
                         Object.entries(styles[tag.key][tag.value]).forEach(([k, v]) => {
-                            tag.el.style.setProperty(k, v)
+                            tag.el.style.setProperty(k, v, 'important')
                         });
                     }
                 }
