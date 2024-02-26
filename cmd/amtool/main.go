@@ -13,7 +13,10 @@
 
 package main
 
-import "github.com/prometheus/alertmanager/cli"
+import (
+	"github.com/prometheus/alertmanager/cli"
+	_ "go.uber.org/automaxprocs"
+)
 
 func main() {
 	cli.Execute()
