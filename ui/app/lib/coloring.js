@@ -1,4 +1,3 @@
-
 const styles = {
     "env": {
         "prod": {"background-color": '#608cff', "font-weight": "bold", "color": "#000000"},
@@ -11,49 +10,56 @@ const styles = {
     }
 }
 
-while (true) {
-    const elems = Array.from(document.getElementsByClassName("mb-3"));
-    const alertsEl = elems.filter((el) => el.childNodes[0].classList.contains("mb-1"));
+const wait = () => new Promise(resolve => setTimeout(resolve, 50));
 
-    let alerts = []
+(async()=>{
+    let limit = 20;
+    let counter = 0;
 
-    alertsEl.forEach((el) => {
-        let tags = []
-        let tagsKV = {}
-        Array.from(el.getElementsByClassName("btn-group")).forEach((e) => {
-            const key = e.childNodes[0].textContent.split("=")[0];
-            const value = e.childNodes[0].textContent.split("=")[1].replaceAll("\"", "")
-            let tag = {
-                el: e.childNodes[0],
-                key: key,
-                value: value,
-            }
-            tags.push(tag)
-            tagsKV[key] = value
-        });
-        alerts.push({el: el, tags: tags, tagsKV: tagsKV});
-    });
+    do {
+        counter++;
+        const elems = Array.from(document.getElementsByClassName("mb-3"));
+        const alertsEl = elems.filter((el) => el.childNodes[0].classList.contains("mb-1"));
 
-    alerts.forEach((alert) => {
-        alert.tags.forEach((tag) => {
-            if (styles.hasOwnProperty(tag.key)) {
-                if (styles[tag.key].hasOwnProperty(tag.value)) {
-                    Object.entries(styles[tag.key][tag.value]).forEach(([k, v]) => {
-                        tag.el.style.setProperty(k, v)
-                    });
+        let alerts = []
+
+        alertsEl.forEach((el) => {
+            let tags = []
+            let tagsKV = {}
+            Array.from(el.getElementsByClassName("btn-group")).forEach((e) => {
+                const key = e.childNodes[0].textContent.split("=")[0];
+                const value = e.childNodes[0].textContent.split("=")[1].replaceAll("\"", "")
+                let tag = {
+                    el: e.childNodes[0],
+                    key: key,
+                    value: value,
                 }
-            }
+                tags.push(tag)
+                tagsKV[key] = value
+            });
+            alerts.push({el: el, tags: tags, tagsKV: tagsKV});
         });
-    });
 
-    // Удаляем имя ресивера с кнопки
-    alerts.forEach((alert) => {
-        alert.el.getElementsByClassName("mb-1")[0].childNodes[1].data="";
-    });
+        alerts.forEach((alert) => {
+            alert.tags.forEach((tag) => {
+                if (styles.hasOwnProperty(tag.key)) {
+                    if (styles[tag.key].hasOwnProperty(tag.value)) {
+                        Object.entries(styles[tag.key][tag.value]).forEach(([k, v]) => {
+                            tag.el.style.setProperty(k, v)
+                        });
+                    }
+                }
+            });
+        });
 
-    if (alerts.length === 0) {
-        await new Promise(r => setTimeout(r, 200));
-        continue
-    }
-    break
-}
+        // Удаляем имя ресивера с кнопки
+        alerts.forEach((alert) => {
+            alert.el.getElementsByClassName("mb-1")[0].childNodes[1].data = "";
+        });
+
+        if (alerts.length === 0) {
+            await wait();
+        }
+    } while (counter<limit);
+})();
+
