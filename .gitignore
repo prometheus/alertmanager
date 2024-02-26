@@ -8,6 +8,7 @@
 /.tarballs
 /vendor
 /.idea
+/asset/assets_vfsdata.go
 
 !.golangci.yml
 !/cli/testdata/*.yml

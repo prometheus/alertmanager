@@ -9,16 +9,20 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 )
 
 const keyPrefixFile = "files"
 
 var db *badger.DB
+var logger log.Logger
 
-func Init(dir string) error {
+func Init(dir string, lg log.Logger) error {
 	if db != nil {
 		panic("blobstore already initialized")
 	}
+	logger = lg
 	dir = path.Join(dir, "blobstore")
 	var err error
 	db, err = badger.Open(badger.DefaultOptions(dir).WithLoggingLevel(badger.ERROR))
@@ -54,6 +58,7 @@ func PutFileName(bucket, name string, f *File, expired *time.Duration) (string, 
 func PutFileKey(key string, f *File, expired *time.Duration) (string, error) {
 	checkDb()
 	fullKey := strings.Join([]string{keyPrefixFile, key}, "/")
+	level.Info(logger).Log("msg", "put file to blobstore", "key", key)
 	data, err := json.Marshal(&f)
 	if err != nil {
 		return "", err

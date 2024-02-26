@@ -195,7 +195,7 @@ func run() int {
 		return 1
 	}
 
-	if err := blobstore.Init(*dataDir); err != nil {
+	if err := blobstore.Init(*dataDir, logger); err != nil {
 		level.Error(logger).Log("msg", "error init blobstorage", "err", err)
 		return 1
 	}
@@ -513,7 +513,7 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 	reactapp.Register(router, logger)
-	router.Get("/blobstore/*key", blobstore.GetHandler(logger))
+	router.Get("/blobstore/*key", blobstore.Handler)
 
 	mux := api.Register(router, *routePrefix)
 
