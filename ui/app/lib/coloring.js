@@ -51,7 +51,9 @@ while (true) {
         alert.el.getElementsByClassName("mb-1")[0].childNodes[1].data="";
     });
 
-    if (alerts.length > 0) {
-        break
+    if (alerts.length === 0) {
+        await new Promise(r => setTimeout(r, 200));
+        continue
     }
+    break
 }
