@@ -3,7 +3,7 @@ FROM nexus.adsrv.wtf/click/golang:1.21.1-202309200830 as build
 
 WORKDIR /app
 COPY --chown=10000:10000 ./ ./
-RUN make build
+RUN make assets build
 
 # Main image
 FROM quay.io/prometheus/busybox-linux-amd64:latest
