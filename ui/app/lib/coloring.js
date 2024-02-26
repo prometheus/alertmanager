@@ -13,13 +13,12 @@ const styles = {
 const wait = () => new Promise(resolve => setTimeout(resolve, 50));
 
 (async()=>{
-
-    // Устанавливаем кастомный урл для правильной группировки алертов
-    if (window.location.hash === "#/alerts") {
-        window.location.hash = '#/alerts?silenced=false&inhibited=false&active=true&group=alertname%2Cenv%2Cseverity&customGrouping=true'
-    }
-
     while (true) {
+        // Устанавливаем кастомный урл для правильной группировки алертов
+        if (window.location.hash === "#/alerts") {
+            window.location.hash = '#/alerts?silenced=false&inhibited=false&active=true&group=alertname%2Cenv%2Cseverity&customGrouping=true'
+        }
+
         const elems = Array.from(document.getElementsByClassName("mb-3"));
         const alertsEl = elems.filter((el) => el.childNodes[0].classList.contains("mb-1"));
 
@@ -60,6 +59,6 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 50));
         });
 
         await wait();
-    };
+    }
 })();
 
