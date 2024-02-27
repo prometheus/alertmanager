@@ -170,7 +170,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			// this block is wrapped in a function to make sure that the span
 			// is ended before the next alert is processed
 			func() {
-				traceCtx, span := tracer.Start(d.ctx, "dispatch.Dispatcher.dispatch",
+				traceCtx, span := tracer.Start(d.ctx, "dispatch.Dispatcher.handleAlert",
 					trace.WithAttributes(
 						attribute.String("alert.name", alert.Name()),
 						attribute.String("alert.fingerprint", alert.Fingerprint().String()),
