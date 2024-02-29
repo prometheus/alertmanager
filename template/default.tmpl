@@ -38,6 +38,7 @@ Source: {{ .GeneratorURL }}
 {{ define "pagerduty.default.client" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "pagerduty.default.clientURL" }}{{ template "__alertmanagerURL" . }}{{ end }}
 {{ define "pagerduty.default.instances" }}{{ template "__text_alert_list" . }}{{ end }}
+{{ define "pagerduty.default.severity" }}{{ if .CommonLabels.severity }}{{ .CommonLabels.severity | toLower }}{{ else }}{{ printf "error" }}{{ end }}{{ end }}
 
 
 {{ define "opsgenie.default.message" }}{{ template "__subject" . }}{{ end }}

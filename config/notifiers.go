@@ -79,6 +79,7 @@ var (
 		Description: `{{ template "pagerduty.default.description" .}}`,
 		Client:      `{{ template "pagerduty.default.client" . }}`,
 		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
+		Severity:    `{{ template "pagerduty.default.severity" . }}`,
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
