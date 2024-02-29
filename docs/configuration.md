@@ -443,13 +443,17 @@ Alertmanager runs in a special mode called fallback mode as its default mode. As
 
 In fallback mode, configurations are first parsed as UTF-8 matchers, and if incompatible with the UTF-8 parser, are then parsed as classic matchers. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will parse them as classic matchers and log a warning. This warning also includes a suggestion on how to change the matchers from classic matchers to UTF-8 matchers. For example:
 
-> ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+```
+ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+```
 
 Here the matcher `foo=` can be made into a valid UTF-8 matcher by double quoting the right hand side of the expression to give `foo=""`. These two matchers are equivalent, however with UTF-8 matchers the right hand side of the matcher is a required field.
 
 In rare cases, a configuration can cause disagreement between the UTF-8 and classic parser. This happens when a matcher is valid in both parsers, but due to added support for UTF-8, results in different parsings depending on which parser is used. If your Alertmanager configuration has disagreement, Alertmanager will use the classic parser and log a warning. For example:
 
-> ts=2024-02-11T10:00:00Z caller=parse.go:183 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
+```
+ts=2024-02-11T10:00:00Z caller=parse.go:183 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
+```
 
 Any occurrences of disagreement should be looked at on a case by case basis as depending on the nature of the disagreement, the configuration might not need updating before enabling UTF-8 strict mode. For example `\xf0\x9f\x99\x82` is the byte sequence for the 🙂 emoji. If the intention is to match a literal 🙂 emoji then no change is required. However, if the intention is to match the literal `\xf0\x9f\x99\x82` then the matcher should be changed to `qux="\\xf0\\x9f\\x99\\x82"`.
 
@@ -457,11 +461,15 @@ Any occurrences of disagreement should be looked at on a case by case basis as d
 
 In UTF-8 strict mode, Alertmanager disables support for classic matchers:
 
-> alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
+```
+alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
+```
 
 This mode should be enabled for new Alertmanager installations, and existing Alertmanager installations once all warnings of incompatible matchers have been resolved. Alertmanager will not start in UTF-8 strict mode until all the warnings of incompatible matchers have been resolved:
 
-> ts=2024-02-11T10:00:00Z caller=coordinator.go:118 level=error component=configuration msg="Loading configuration file failed" file=config.yml err="end of input: expected label value"
+```
+ts=2024-02-11T10:00:00Z caller=coordinator.go:118 level=error component=configuration msg="Loading configuration file failed" file=config.yml err="end of input: expected label value"
+```
 
 UTF-8 strict mode will be the default mode of Alertmanager at the end of the transition period.
 
