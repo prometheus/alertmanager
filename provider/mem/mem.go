@@ -151,7 +151,6 @@ func max(a, b int) int {
 func (a *Alerts) Subscribe() provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()

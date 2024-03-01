@@ -71,8 +71,6 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 
 func (a *Alerts) gc() {
 	a.Lock()
-	defer a.Unlock()
-
 	var resolved []*types.Alert
 	for fp, alert := range a.c {
 		if alert.Resolved() {
@@ -80,6 +78,7 @@ func (a *Alerts) gc() {
 			resolved = append(resolved, alert)
 		}
 	}
+	a.Unlock()
 	a.cb(resolved)
 }
 
