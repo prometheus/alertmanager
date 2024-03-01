@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.2.51",
-    "@types/react-dom": "^18.0.0",
+    "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@typescript-eslint/parser": "^5.30.7",
     "css-loader": "^6.7.1",
