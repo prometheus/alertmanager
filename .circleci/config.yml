@@ -18,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.21.3"
+          version: "1.21.8"
       - run:
           name: Remove generated code
           command: make clean
