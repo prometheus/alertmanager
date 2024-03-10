@@ -487,7 +487,7 @@ You can use this mode if you suspect there is an issue with fallback mode or UTF
 
 You can use `amtool` to validate that an Alertmanager configuration file is compatible with UTF-8 strict mode before enabling it in Alertmanager server. You do not need a running Alertmanager server to do this.
 
-Just like Alertmanager server, `amtool` will log a warning if the configuration is incompatible or contains disagreement: 
+Just like Alertmanager server, `amtool` will log a warning if the configuration is incompatible or contains disagreement:
 
 ```
 amtool check-config config.yml
@@ -503,7 +503,7 @@ Found:
  - 0 templates
 ```
 
-You will know if a configuration is compatible with UTF-8 strict mode when no warnings are logged in `amtool`: 
+You will know if a configuration is compatible with UTF-8 strict mode when no warnings are logged in `amtool`:
 
 ```
 amtool check-config config.yml
@@ -644,7 +644,7 @@ Here are some more examples:
     ```
 
    As shown below, in the short-form, it's better to use double quotes to avoid problems with special characters like commas:
-   
+
    ```yaml
    matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
    ```
@@ -867,6 +867,7 @@ webhook_url_file: <filepath>
 [ send_resolved: <boolean> | default = false ]
 
 # The email address to send notifications to.
+# Allows a comma separated list of rfc5322 compliant email addresses.
 to: <tmpl_string>
 
 # The sender's address.
@@ -1458,6 +1459,6 @@ room_id: <string>
 # Message template.
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
 
-# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
 ```
