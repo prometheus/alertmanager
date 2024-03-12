@@ -134,7 +134,7 @@ func (a *Alerts) gc() {
 		// they are resolved. Alerts waiting for resolved notifications are
 		// held in memory in aggregation groups redundantly.
 		a.marker.Delete(alert.Fingerprint())
-		a.callback.PostDelete(alert)
+		a.callback.PostDelete(&alert)
 	}
 
 	for i, l := range a.listeners {
