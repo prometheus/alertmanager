@@ -123,11 +123,14 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
-{{ define "discord.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "discord.default.title" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }}{{ end }}
 {{ define "discord.default.message" }}
 {{ .CommonAnnotations.summary }}
 {{ .CommonAnnotations.description }}
 {{ end }}
+{{ define "discord.default.title_url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "discord.default.bot_username" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "discord.default.bot_icon_url" }}https://avatars.githubusercontent.com/u/3380462{{ end }}
 
 {{ define "webex.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 }}

@@ -77,8 +77,11 @@ func TestDiscordTemplating(t *testing.T) {
 		{
 			title: "full-blown message",
 			cfg: &config.DiscordConfig{
-				Title:   `{{ template "discord.default.title" . }}`,
-				Message: `{{ template "discord.default.message" . }}`,
+				Title:       `{{ template "discord.default.title" . }}`,
+				Message:     `{{ template "discord.default.message" . }}`,
+				BotUsername: `{{ template "discord.default.bot_username" . }}`,
+				BotIconURL:  `{{ template "discord.default.bot_icon_url" . }}`,
+				TitleURL:    `{{ template "discord.default.title_url" . }}`,
 			},
 			retry: false,
 		},
