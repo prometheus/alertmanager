@@ -856,6 +856,15 @@ webhook_url_file: <filepath>
 # Message body template.
 [ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
 
+# Whether to skip adding alert labels as Discord message fields
+[ skip_fields: <boolean> | default = false ]
+
+# Name of the Bot shown in Discord
+[ bot_username: <string> | default = 'Alertmanager' ]
+
+# Bot Icon shown in Discord (profile picture)
+[ bot_icon_url: <string> | default = 'https://avatars.githubusercontent.com/u/3380462' ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```

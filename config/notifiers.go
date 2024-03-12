@@ -222,7 +222,7 @@ type DiscordConfig struct {
 
 	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
 	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
-	SkipFields  bool   `yaml:"populate_fields,omitempty" json:"populate_fields,omitempty"`
+	SkipFields  bool   `yaml:"skip_fields,omitempty" json:"skip_fields,omitempty"`
 	BotUsername string `yaml:"bot_username,omitempty" json:"bot_username,omitempty"`
 	BotIconURL  string `yaml:"bot_icon_url,omitempty" json:"bot_icon_url,omitempty"`
 }
