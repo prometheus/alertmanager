@@ -46,8 +46,11 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title:   `{{ template "discord.default.title" . }}`,
-		Message: `{{ template "discord.default.message" . }}`,
+		Title:       `{{ template "discord.default.title" . }}`,
+		Message:     `{{ template "discord.default.message" . }}`,
+		BotUsername: `{{ template "discord.default.bot_username" . }}`,
+		BotIconURL:  `{{ template "discord.default.bot_icon_url" . }}`,
+		TitleURL:    `{{ template "discord.default.title_url" . }}`,
 	}
 
 	// DefaultEmailConfig defines default values for Email configurations.
@@ -222,6 +225,7 @@ type DiscordConfig struct {
 
 	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
 	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	TitleURL    string `yaml:"title_url,omitempty" json:"title_url,omitempty"`
 	SkipFields  bool   `yaml:"skip_fields,omitempty" json:"skip_fields,omitempty"`
 	BotUsername string `yaml:"bot_username,omitempty" json:"bot_username,omitempty"`
 	BotIconURL  string `yaml:"bot_icon_url,omitempty" json:"bot_icon_url,omitempty"`
@@ -241,14 +245,6 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
-	}
-
-	if len(c.BotUsername) == 0 {
-		c.BotUsername = "Alertmanager"
-	}
-
-	if len(c.BotIconURL) == 0 {
-		c.BotIconURL = "https://avatars.githubusercontent.com/u/3380462"
 	}
 
 	return nil

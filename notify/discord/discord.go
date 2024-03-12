@@ -45,6 +45,8 @@ const (
 	maxFieldNameLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 1024 characters or runes
 	maxFieldValueLenRunes = 1024
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 256 characters or runes
+	maxEmbedAuthorNameLenRunes = 256
 )
 
 const (
@@ -90,6 +92,7 @@ type webhook struct {
 type webhookEmbed struct {
 	Title       string              `json:"title"`
 	Description string              `json:"description"`
+	URL         string              `json:"url"`
 	Color       int                 `json:"color"`
 	Fields      []webhookEmbedField `json:"fields"`
 	Footer      webhookEmbedFooter  `json:"footer"`
@@ -119,17 +122,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	alerts := types.Alerts(as...)
 
 	for _, alert := range alerts {
-		w := webhook{
-			Username:  n.conf.BotUsername,
-			AvatarURL: n.conf.BotIconURL,
-		}
-
 		data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl := notify.TmplText(n.tmpl, data, &err)
 		if err != nil {
 			return false, err
 		}
 
+		author, truncated := notify.TruncateInRunes(tmpl(n.conf.BotUsername), maxEmbedAuthorNameLenRunes)
+		if err != nil {
+			return false, err
+		}
+		if truncated {
+			level.Warn(n.logger).Log("msg", "Truncated author name", "key", key, "max_runes", maxEmbedAuthorNameLenRunes)
+		}
 		title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 		if err != nil {
 			return false, err
@@ -143,6 +148,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		if truncated {
 			level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
+		}
+
+		w := webhook{
+			Username:  author,
+			AvatarURL: tmpl(n.conf.BotIconURL),
 		}
 
 		var color int
@@ -201,9 +211,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Color:       color,
 			Fields:      fields,
 			Timestamp:   timestamp,
+			URL:         tmpl(n.conf.TitleURL),
 			Footer: webhookEmbedFooter{
 				Text:    alert.Fingerprint().String(),
-				IconURL: n.conf.BotIconURL,
+				IconURL: tmpl(n.conf.BotIconURL),
 			},
 		})
 
