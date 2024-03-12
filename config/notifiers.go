@@ -220,8 +220,11 @@ type DiscordConfig struct {
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	SkipFields  bool   `yaml:"populate_fields,omitempty" json:"populate_fields,omitempty"`
+	BotUsername string `yaml:"bot_username,omitempty" json:"bot_username,omitempty"`
+	BotIconURL  string `yaml:"bot_icon_url,omitempty" json:"bot_icon_url,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -238,6 +241,14 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
+	if len(c.BotUsername) == 0 {
+		c.BotUsername = "Alertmanager"
+	}
+
+	if len(c.BotIconURL) == 0 {
+		c.BotIconURL = "https://avatars.githubusercontent.com/u/3380462"
 	}
 
 	return nil

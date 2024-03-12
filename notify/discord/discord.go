@@ -39,8 +39,6 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
-	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 6000 characters or runes.
-	maxContentLenRunes = 6000 //TODO
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 25 fields per embed
 	maxFieldsPerEmbed = 25
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 256 characters or runes
@@ -120,12 +118,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	alerts := types.Alerts(as...)
 
-	w := webhook{
-		Username:  "Alertmanager",
-		AvatarURL: "https://avatars.githubusercontent.com/u/3380462",
-	}
-
 	for _, alert := range alerts {
+		w := webhook{
+			Username:  n.conf.BotUsername,
+			AvatarURL: n.conf.BotIconURL,
+		}
+
 		data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl := notify.TmplText(n.tmpl, data, &err)
 		if err != nil {
@@ -148,46 +146,53 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		var color int
+		var timestamp time.Time
 
 		switch alert.Status() {
 		case model.AlertFiring:
 			color = colorRed
+			timestamp = alert.StartsAt
 		case model.AlertResolved:
 			color = colorGreen
+			timestamp = alert.EndsAt
 		default:
 			color = colorGrey
+			timestamp = time.Now()
 		}
 
 		var fields []webhookEmbedField
 
-		labelCount := 0
-		for labelName, labelValue := range alert.Labels {
-			if labelCount >= maxFieldsPerEmbed {
-				break
-			}
+		if !n.conf.SkipFields {
+			labelCount := 0
+			for labelName, labelValue := range alert.Labels {
+				if labelCount >= maxFieldsPerEmbed {
+					level.Warn(n.logger).Log("msg", "Truncated Fields", "key", key, "max_entries", maxFieldsPerEmbed)
+					break
+				}
 
-			label, truncated := notify.TruncateInRunes(string(labelName), maxFieldNameLenRunes)
-			if err != nil {
-				return false, err
-			}
-			if truncated {
-				level.Warn(n.logger).Log("msg", "Truncated field name", "key", key, "max_runes", maxFieldNameLenRunes)
-			}
-			value, truncated := notify.TruncateInRunes(string(labelValue), maxFieldValueLenRunes)
-			if err != nil {
-				return false, err
-			}
-			if truncated {
-				level.Warn(n.logger).Log("msg", "Truncated field value", "key", key, "max_runes", maxFieldValueLenRunes)
-			}
+				label, truncated := notify.TruncateInRunes(string(labelName), maxFieldNameLenRunes)
+				if err != nil {
+					return false, err
+				}
+				if truncated {
+					level.Warn(n.logger).Log("msg", "Truncated field name", "key", key, "max_runes", maxFieldNameLenRunes)
+				}
+				value, truncated := notify.TruncateInRunes(string(labelValue), maxFieldValueLenRunes)
+				if err != nil {
+					return false, err
+				}
+				if truncated {
+					level.Warn(n.logger).Log("msg", "Truncated field value", "key", key, "max_runes", maxFieldValueLenRunes)
+				}
 
-			fields = append(fields, webhookEmbedField{
-				Name:   label,
-				Value:  value,
-				Inline: true,
-			})
+				fields = append(fields, webhookEmbedField{
+					Name:   label,
+					Value:  value,
+					Inline: true,
+				})
 
-			labelCount++
+				labelCount++
+			}
 		}
 
 		w.Embeds = append(w.Embeds, webhookEmbed{
@@ -195,38 +200,39 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Description: description,
 			Color:       color,
 			Fields:      fields,
-			Timestamp:   time.Now(),
+			Timestamp:   timestamp,
 			Footer: webhookEmbedFooter{
 				Text:    alert.Fingerprint().String(),
-				IconURL: "https://avatars.githubusercontent.com/u/3380462",
+				IconURL: n.conf.BotIconURL,
 			},
 		})
-	}
 
-	var url string
-	if n.conf.WebhookURL != nil {
-		url = n.conf.WebhookURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.WebhookURLFile)
-		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
+		var url string
+		if n.conf.WebhookURL != nil {
+			url = n.conf.WebhookURL.String()
+		} else {
+			content, err := os.ReadFile(n.conf.WebhookURLFile)
+			if err != nil {
+				return false, fmt.Errorf("read webhook_url_file: %w", err)
+			}
+			url = strings.TrimSpace(string(content))
 		}
-		url = strings.TrimSpace(string(content))
+
+		var payload bytes.Buffer
+		if err = json.NewEncoder(&payload).Encode(w); err != nil {
+			return false, err
+		}
+
+		resp, err := notify.PostJSON(ctx, n.client, url, &payload)
+		if err != nil {
+			return true, notify.RedactURL(err)
+		}
+
+		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+		if err != nil {
+			return shouldRetry, err
+		}
 	}
 
-	var payload bytes.Buffer
-	if err = json.NewEncoder(&payload).Encode(w); err != nil {
-		return false, err
-	}
-
-	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
-	if err != nil {
-		return true, notify.RedactURL(err)
-	}
-
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	if err != nil {
-		return shouldRetry, err
-	}
 	return false, nil
 }
