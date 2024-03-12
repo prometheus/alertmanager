@@ -1,4 +1,4 @@
-## 0.27.0-rc.0 / 2024-02-14
+## 0.27.0 / 2024-02-28
 
 * [CHANGE] Discord Integration: Enforce max length in `message`. #3597
 * [CHANGE] API: Removal of all `api/v1/` endpoints. These endpoints now log and return a deprecation message and respond with a status code of `410`. #2970

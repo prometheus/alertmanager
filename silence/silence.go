@@ -271,8 +271,12 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Help: "How many silence received queries did not succeed.",
 	})
 	m.queryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: "alertmanager_silences_query_duration_seconds",
-		Help: "Duration of silence query evaluation.",
+		Name:                            "alertmanager_silences_query_duration_seconds",
+		Help:                            "Duration of silence query evaluation.",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	m.propagatedMessagesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_gossip_messages_propagated_total",

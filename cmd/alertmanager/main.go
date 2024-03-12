@@ -64,9 +64,12 @@ import (
 var (
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "alertmanager_http_request_duration_seconds",
-			Help:    "Histogram of latencies for HTTP requests.",
-			Buckets: []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
+			Name:                            "alertmanager_http_request_duration_seconds",
+			Help:                            "Histogram of latencies for HTTP requests.",
+			Buckets:                         []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
 		[]string{"handler", "method"},
 	)

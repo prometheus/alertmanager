@@ -34,21 +34,21 @@ var ErrNotFound = errors.New("alert not found")
 type Alerts struct {
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
-	cb func([]*types.Alert)
+	cb func([]types.Alert)
 }
 
 // NewAlerts returns a new Alerts struct.
 func NewAlerts() *Alerts {
 	a := &Alerts{
 		c:  make(map[model.Fingerprint]*types.Alert),
-		cb: func(_ []*types.Alert) {},
+		cb: func(_ []types.Alert) {},
 	}
 
 	return a
 }
 
 // SetGCCallback sets a GC callback to be executed after each GC.
-func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
+func (a *Alerts) SetGCCallback(cb func([]types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -71,15 +71,24 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 
 func (a *Alerts) gc() {
 	a.Lock()
-	defer a.Unlock()
-
-	var resolved []*types.Alert
+	var resolved []types.Alert
 	for fp, alert := range a.c {
 		if alert.Resolved() {
 			delete(a.c, fp)
-			resolved = append(resolved, alert)
+			resolved = append(resolved, types.Alert{
+				Alert: model.Alert{
+					Labels:       alert.Labels.Clone(),
+					Annotations:  alert.Annotations.Clone(),
+					StartsAt:     alert.StartsAt,
+					EndsAt:       alert.EndsAt,
+					GeneratorURL: alert.GeneratorURL,
+				},
+				UpdatedAt: alert.UpdatedAt,
+				Timeout:   alert.Timeout,
+			})
 		}
 	}
+	a.Unlock()
 	a.cb(resolved)
 }
 

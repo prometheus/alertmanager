@@ -104,9 +104,12 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}, []string{"peer"},
 	)
 	nodePingDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "alertmanager_cluster_pings_seconds",
-		Help:    "Histogram of latencies for ping messages.",
-		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5},
+		Name:                            "alertmanager_cluster_pings_seconds",
+		Help:                            "Histogram of latencies for ping messages.",
+		Buckets:                         []float64{.005, .01, .025, .05, .1, .25, .5},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"peer"},
 	)
 
