@@ -614,6 +614,25 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	return sil.Id, s.setSilence(sil, now, false)
 }
 
+// Upsert allows creating silences with a predefined ID.
+func (s *Silences) Upsert(sil *pb.Silence) (string, error) {
+	id, err := s.Set(sil)
+	if !errors.Is(err, ErrNotFound) {
+		return id, err
+	}
+
+	// If the silence was not found, create it with the given ID.
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	now := s.nowUTC()
+	if sil.StartsAt.Before(now) {
+		sil.StartsAt = now
+	}
+
+	return sil.Id, s.setSilence(sil, now, false)
+}
+
 // canUpdate returns true if silence a can be updated to b without
 // affecting the historic view of silencing.
 func canUpdate(a, b *pb.Silence, now time.Time) bool {

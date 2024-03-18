@@ -458,6 +458,50 @@ func TestSilenceSet(t *testing.T) {
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 }
 
+func TestSilenceUpsert(t *testing.T) {
+	s, err := New(Options{
+		Retention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	clock := clock.NewMock()
+	s.clock = clock
+
+	// Insert silence with predefined id.
+	clock.Add(time.Minute)
+	start := s.nowUTC()
+
+	testID := "some_id"
+	sil := &pb.Silence{
+		Id:       testID,
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: start.Add(2 * time.Minute),
+		EndsAt:   start.Add(5 * time.Minute),
+	}
+	id, err := s.Upsert(sil)
+	require.NoError(t, err)
+	require.Equal(t, testID, id)
+
+	want := state{
+		id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        testID,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  start.Add(2 * time.Minute),
+				EndsAt:    start.Add(5 * time.Minute),
+				UpdatedAt: start,
+			},
+			ExpiresAt: start.Add(5*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
+
+	// Trying to insert an invalid silence should fail.
+	clock.Add(time.Minute)
+	_, err = s.Upsert(&pb.Silence{})
+	checkErr(t, "silence invalid", err)
+}
+
 func TestSetActiveSilence(t *testing.T) {
 	s, err := New(Options{
 		Retention: time.Hour,
