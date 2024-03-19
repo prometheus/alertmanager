@@ -1010,6 +1010,17 @@ func TestGroupByAll(t *testing.T) {
 	}
 }
 
+func TestWaitOnStartup(t *testing.T) {
+	c, err := LoadFile("testdata/conf.wait-on-startup.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.wait-on-startup.yml", err)
+	}
+
+	if !c.Route.WaitOnStartup {
+		t.Errorf("Invalid wait on startup param: expected to be true")
+	}
+}
+
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {

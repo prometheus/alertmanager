@@ -1,0 +1,8 @@
+route:
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  receiver: team-X
+  wait_on_startup: True
+receivers:
+  - name: 'team-X'
