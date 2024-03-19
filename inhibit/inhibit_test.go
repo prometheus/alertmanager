@@ -178,28 +178,33 @@ func TestInhibitRuleMatches(t *testing.T) {
 	ih.rules[1].scache.Set(sourceAlert2)
 
 	cases := []struct {
-		target   model.LabelSet
-		expected bool
+		target      model.LabelSet
+		expected    bool
+		expectedIDs []string
 	}{
 		{
 			// Matches target filter of rule1, inhibited.
-			target:   model.LabelSet{"t1": "1", "e": "1"},
-			expected: true,
+			target:      model.LabelSet{"t1": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
 			// Matches target filter of rule2, inhibited.
-			target:   model.LabelSet{"t2": "1", "e": "1"},
-			expected: true,
+			target:      model.LabelSet{"t2": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"4fa7d6347bb5cca0"},
 		},
 		{
 			// Matches target filter of rule1 (plus noise), inhibited.
-			target:   model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
-			expected: true,
+			target:      model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
 			// Matches target filter of rule1 plus rule2, inhibited.
-			target:   model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
-			expected: true,
+			target:      model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"b89fe3168d699211", "4fa7d6347bb5cca0"},
 		},
 		{
 			// Doesn't match target filter, not inhibited.
@@ -210,8 +215,9 @@ func TestInhibitRuleMatches(t *testing.T) {
 			// Matches both source and target filters of rule1,
 			// inhibited because sourceAlert1 matches only the
 			// source filter of rule1.
-			target:   model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
-			expected: true,
+			target:      model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
 			// Matches both source and target filters of rule2,
@@ -230,6 +236,18 @@ func TestInhibitRuleMatches(t *testing.T) {
 	for _, c := range cases {
 		if actual := ih.Mutes(c.target); actual != c.expected {
 			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
+		}
+		ids, ok := m.Inhibited(c.target.Fingerprint())
+		if ok != c.expected {
+			t.Errorf("Expected (Marker).Inhibited(%s) to return %t but got %t", c.target.Fingerprint(), c.expected, ok)
+		}
+		if len(ids) != len(c.expectedIDs) {
+			t.Errorf("Expected %d IDs marked but got %d", len(c.expectedIDs), len(ids))
+		}
+		for i := range ids {
+			if ids[i] != c.expectedIDs[i] {
+				t.Errorf("Expected ID %s at %d but got %s", c.expectedIDs[i], i, ids[i])
+			}
 		}
 	}
 }
