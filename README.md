@@ -1,4 +1,4 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
+# Alertmanager-Customize-telegram [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
@@ -154,8 +154,8 @@ inhibit_rules:
   target_matchers:
     - severity="warning"
   # Apply inhibition if the alertname is the same.
-  # CAUTION: 
-  #   If all label names listed in `equal` are missing 
+  # CAUTION:
+  #   If all label names listed in `equal` are missing
   #   from both the source and target alerts,
   #   the inhibition rule will apply!
   equal: ['alertname']
