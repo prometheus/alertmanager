@@ -34,16 +34,16 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 silence mutes alert", func(b *testing.B) {
 		benchmarkMutes(b, 1)
 	})
-	b.Run("10 silences mutes alert", func(b *testing.B) {
+	b.Run("10 silences mute alert", func(b *testing.B) {
 		benchmarkMutes(b, 10)
 	})
-	b.Run("100 silences mutes alert", func(b *testing.B) {
+	b.Run("100 silences mute alert", func(b *testing.B) {
 		benchmarkMutes(b, 100)
 	})
-	b.Run("1000 silences mutes alert", func(b *testing.B) {
+	b.Run("1000 silences mute alert", func(b *testing.B) {
 		benchmarkMutes(b, 1000)
 	})
-	b.Run("10000 silences mutes alert", func(b *testing.B) {
+	b.Run("10000 silences mute alert", func(b *testing.B) {
 		benchmarkMutes(b, 10000)
 	})
 }
