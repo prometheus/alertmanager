@@ -84,7 +84,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	// The alert should be marked as silenced for each silence.
 	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
 	require.True(b, silenced)
-	require.Len(b, pendingIDs, 0)
+	require.Empty(b, pendingIDs)
 	require.Len(b, activeIDs, n)
 }
 
