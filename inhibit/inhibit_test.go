@@ -132,7 +132,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			r.scache.Set(v)
 		}
 
-		if _, have := r.hasEqual(c.input, false); have != c.result {
+		if _, have := r.inhibits(c.input, false); have != c.result {
 			t.Errorf("Unexpected result %t, expected %t", have, c.result)
 		}
 	}
@@ -142,18 +142,23 @@ func TestInhibitRuleMatches(t *testing.T) {
 	t.Parallel()
 
 	rule1 := config.InhibitRule{
-		SourceMatch: map[string]string{"s1": "1"},
-		TargetMatch: map[string]string{"t1": "1"},
-		Equal:       model.LabelNames{"e"},
+		SourceMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "s1", "1")},
+		TargetMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "t1", "1")},
+		Equal:          model.LabelNames{"e"},
 	}
 	rule2 := config.InhibitRule{
-		SourceMatch: map[string]string{"s2": "1"},
-		TargetMatch: map[string]string{"t2": "1"},
-		Equal:       model.LabelNames{"e"},
+		SourceMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "s2", "1")},
+		TargetMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "t2", "1")},
+		Equal:          model.LabelNames{"e"},
+	}
+	rule3 := config.InhibitRule{
+		SourceMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "s3", "1")},
+		TargetMatchers: config.Matchers{labels.MustNewMatcher(labels.MatchEqual, "t3", "1")},
+		Equal:          model.LabelNames{"e"},
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2, rule3}, m, nopLogger)
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -163,10 +168,25 @@ func TestInhibitRuleMatches(t *testing.T) {
 			EndsAt:   now.Add(time.Hour),
 		},
 	}
-	// Active alert that matches the source filter _and_ the target filter of rule2.
+	// Active alert that matches both source and target filter of rule2.
 	sourceAlert2 := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	// Two active alerts that matches source filter of rule3.
+	sourceAlert3 := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s3": "1", "t3": "2", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	sourceAlert4 := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s3": "1", "t3": "3", "e": "1"},
 			StartsAt: now.Add(-time.Minute),
 			EndsAt:   now.Add(time.Hour),
 		},
@@ -176,79 +196,91 @@ func TestInhibitRuleMatches(t *testing.T) {
 	ih.rules[0].scache.Set(sourceAlert1)
 	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
+	ih.rules[2].scache = store.NewAlerts()
+	ih.rules[2].scache.Set(sourceAlert3)
+	ih.rules[2].scache.Set(sourceAlert4)
 
 	cases := []struct {
+		name        string
 		target      model.LabelSet
 		expected    bool
 		expectedIDs []string
 	}{
 		{
-			// Matches target filter of rule1, inhibited.
+			name:        "Matches target filter of rule1, inhibited",
 			target:      model.LabelSet{"t1": "1", "e": "1"},
 			expected:    true,
 			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
-			// Matches target filter of rule2, inhibited.
+			name:        "Matches target filter of rule2, inhibited",
 			target:      model.LabelSet{"t2": "1", "e": "1"},
 			expected:    true,
 			expectedIDs: []string{"4fa7d6347bb5cca0"},
 		},
 		{
-			// Matches target filter of rule1 (plus noise), inhibited.
-			target:      model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
+			name:        "Matches target filter of rule3, inhibited",
+			target:      model.LabelSet{"t3": "1", "e": "1"},
+			expected:    true,
+			expectedIDs: []string{"7e1c289a80d5b1ed", "7e1e289a80d634c4"},
+		},
+		{
+			name:        "Matches target filter of rule1 (plus noise), inhibited",
+			target:      model.LabelSet{"t1": "1", "t4": "1", "e": "1"},
 			expected:    true,
 			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
-			// Matches target filter of rule1 plus rule2, inhibited.
+			name:        "Matches target filter of rule1 plus rule2, inhibited",
 			target:      model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
 			expected:    true,
 			expectedIDs: []string{"b89fe3168d699211", "4fa7d6347bb5cca0"},
 		},
 		{
-			// Doesn't match target filter, not inhibited.
+			name:     "Doesn't match target filter, not inhibited",
 			target:   model.LabelSet{"t1": "0", "e": "1"},
 			expected: false,
 		},
 		{
-			// Matches both source and target filters of rule1,
-			// inhibited because sourceAlert1 matches only the
+			// Inhibited because sourceAlert1 matches only the
 			// source filter of rule1.
+			name:        "Matches both source and target filters of rule1",
 			target:      model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
 			expected:    true,
 			expectedIDs: []string{"b89fe3168d699211"},
 		},
 		{
-			// Matches both source and target filters of rule2,
-			// not inhibited because sourceAlert2 matches also both the
+			// Not inhibited because sourceAlert2 matches also both the
 			// source and target filter of rule2.
+			name:     "Matches both source and target filters of rule2",
 			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
 			expected: false,
 		},
 		{
-			// Matches target filter, equal label doesn't match, not inhibited
+			name:     "Matches target filter, equal label doesn't match, not inhibited",
 			target:   model.LabelSet{"t1": "1", "e": "0"},
 			expected: false,
 		},
 	}
 
 	for _, c := range cases {
-		if actual := ih.Mutes(c.target); actual != c.expected {
-			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
-		}
-		ids, ok := m.Inhibited(c.target.Fingerprint())
-		if ok != c.expected {
-			t.Errorf("Expected (Marker).Inhibited(%s) to return %t but got %t", c.target.Fingerprint(), c.expected, ok)
-		}
-		if len(ids) != len(c.expectedIDs) {
-			t.Errorf("Expected %d IDs marked but got %d", len(c.expectedIDs), len(ids))
-		}
-		for i := range ids {
-			if ids[i] != c.expectedIDs[i] {
-				t.Errorf("Expected ID %s at %d but got %s", c.expectedIDs[i], i, ids[i])
+		t.Run(c.name, func(t *testing.T) {
+			if actual := ih.Mutes(c.target); actual != c.expected {
+				t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 			}
-		}
+			ids, ok := m.Inhibited(c.target.Fingerprint())
+			if ok != c.expected {
+				t.Errorf("Expected (Marker).Inhibited(%s) to return %t but got %t", c.target.Fingerprint(), c.expected, ok)
+			}
+			if len(ids) != len(c.expectedIDs) {
+				t.Errorf("Expected %d IDs marked but got %d", len(c.expectedIDs), len(ids))
+			}
+			for i := range ids {
+				if ids[i] != c.expectedIDs[i] {
+					t.Errorf("Expected ID %s at %d but got %s", c.expectedIDs[i], i, ids[i])
+				}
+			}
+		})
 	}
 }
 
