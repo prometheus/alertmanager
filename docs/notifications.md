@@ -94,4 +94,5 @@ templating.
 | reReplaceAll | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
 | join | sep string, s []string | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
 | safeHtml | text string | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
+| safeUrl | text string | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
 | stringSlice | ...string | Returns the passed strings as a slice of strings. |
