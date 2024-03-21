@@ -80,6 +80,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	for i := 0; i < b.N; i++ {
 		s.Mutes(model.LabelSet{"foo": "bar"})
 	}
+	b.StopTimer()
 
 	// The alert should be marked as silenced for each silence.
 	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
