@@ -69,7 +69,7 @@ type benchmarkOptions struct {
 	// newRuleFunc creates the next inhibition rule in the benchmark.
 	// It is called n times.
 	newRuleFunc func(idx int) config.InhibitRule
-	// newAlertsFunc creates teh inhibiting alerts for each inhibition
+	// newAlertsFunc creates the inhibiting alerts for each inhibition
 	// rule in the benchmark. It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
