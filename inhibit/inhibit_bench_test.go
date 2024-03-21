@@ -16,13 +16,14 @@ package inhibit
 import (
 	"context"
 	"errors"
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
