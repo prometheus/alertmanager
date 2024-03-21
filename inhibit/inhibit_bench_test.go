@@ -197,6 +197,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 			b.Fatal(err)
 		}
 	}
+
 	ih := NewInhibitor(s, rules, m, log.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
