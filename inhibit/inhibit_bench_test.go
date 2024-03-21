@@ -81,9 +81,8 @@ type benchmarkOptions struct {
 }
 
 // defaultBenchmark returns the default benchmark. It supports a number of
-// variations of the default benchmark, including customization of the
-// number of inhibition rules, and the number of inhibiting alerts per
-// inhibition rule.
+// variations, including customization of the number of inhibition rules,
+// and the number of inhibiting alerts per inhibition rule.
 //
 // The source matchers are suffixed with the position of the inhibition rule
 // in the list. For example, src=1, src=2, etc. The target matchers are
