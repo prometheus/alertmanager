@@ -61,7 +61,7 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, defaultBenchmark(b, 1, 10000))
 	})
-	b.Run("100 inhibition rules, 1000 inhibiting alerts each", func(b *testing.B) {
+	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, defaultBenchmark(b, 100, 1000))
 	})
 }
