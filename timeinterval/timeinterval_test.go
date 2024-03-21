@@ -561,7 +561,7 @@ func TestYamlMarshal(t *testing.T) {
 }
 
 // Test JSON marshalling by marshalling a time interval
-// and then unmarshalling to ensure they're identical
+// and then unmarshalling to ensure they're identical.
 func TestJsonMarshal(t *testing.T) {
 	for _, tc := range yamlUnmarshalTestCases {
 		if tc.expectError {
@@ -624,7 +624,7 @@ months: ['february']
 	},
 }
 
-// Tests the entire flow from unmarshalling to containing a time
+// Tests the entire flow from unmarshalling to containing a time.
 func TestTimeIntervalComplete(t *testing.T) {
 	for _, tc := range completeTestCases {
 		var ti TimeInterval

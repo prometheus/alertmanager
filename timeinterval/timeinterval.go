@@ -383,7 +383,7 @@ func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 
 // MarshalText implements the econding.TextMarshaler interface for WeekdayRange.
 // It converts the range into a colon-separated string, or a single weekday if possible.
-// e.g. "monday:friday" or "saturday".
+// E.g. "monday:friday" or "saturday".
 func (r WeekdayRange) MarshalText() ([]byte, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
@@ -450,7 +450,7 @@ func (tz Location) MarshalJSON() (out []byte, err error) {
 
 // MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
 // It converts the struct into a colon-separated string, or a single element if
-// appropriate. e.g. "monday:friday" or "monday"
+// appropriate. E.g. "monday:friday" or "monday".
 func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	if ir.Begin == ir.End {
 		return []byte(strconv.Itoa(ir.Begin)), nil

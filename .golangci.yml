@@ -11,6 +11,7 @@ linters:
   enable:
     - depguard
     - errorlint
+    - godot
     - gofumpt
     - goimports
     - misspell
@@ -51,6 +52,13 @@ linters-settings:
       - (github.com/go-kit/log.Logger).Log
       # Never check for rollback errors as Rollback() is called when a previous error was detected.
       - (github.com/prometheus/prometheus/storage.Appender).Rollback
+  godot:
+    scope: toplevel
+    exclude:
+      - "^ ?This file is safe to edit"
+      - "^ ?scheme value"
+    period: true
+    capital: true
   goimports:
     local-prefixes: github.com/prometheus/alertmanager
   gofumpt:

@@ -21,7 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file
+// LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file.
 func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {

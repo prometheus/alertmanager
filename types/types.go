@@ -458,7 +458,7 @@ type Silence struct {
 }
 
 // Expired return if the silence is expired
-// meaning that both StartsAt and EndsAt are equal
+// meaning that both StartsAt and EndsAt are equal.
 func (s *Silence) Expired() bool {
 	return s.StartsAt.Equal(s.EndsAt)
 }

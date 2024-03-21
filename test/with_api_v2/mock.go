@@ -78,7 +78,7 @@ func (s *TestSilence) Match(v ...string) *TestSilence {
 	return s
 }
 
-// MatchRE adds a new regex matcher to the silence
+// MatchRE adds a new regex matcher to the silence.
 func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 	if len(v)%2 == 1 {
 		panic("bad key/values")

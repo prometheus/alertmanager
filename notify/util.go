@@ -34,7 +34,7 @@ import (
 // truncationMarker is the character used to represent a truncation.
 const truncationMarker = "…"
 
-// UserAgentHeader is the default User-Agent for notification requests
+// UserAgentHeader is the default User-Agent for notification requests.
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // RedactURL removes the URL part from an error of *url.Error type.
@@ -47,7 +47,7 @@ func RedactURL(err error) error {
 	return e
 }
 
-// Get sends a GET request to the given URL
+// Get sends a GET request to the given URL.
 func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	return request(ctx, client, http.MethodGet, url, "", nil)
 }

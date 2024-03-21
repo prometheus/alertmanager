@@ -347,7 +347,7 @@ func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", []byte{}, nil
 }
 
-// Used for AUTH LOGIN. (Maybe password should be encrypted)
+// Used for AUTH LOGIN. (Maybe password should be encrypted).
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
 		switch strings.ToLower(string(fromServer)) {
