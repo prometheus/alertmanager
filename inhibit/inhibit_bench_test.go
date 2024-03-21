@@ -35,112 +35,93 @@ import (
 // for different numbers of inhibition rules.
 func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 1))
+		benchmarkMutes(b, defaultBenchmark(b, 1, 1))
 	})
 	b.Run("10 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 10))
+		benchmarkMutes(b, defaultBenchmark(b, 10, 1))
 	})
 	b.Run("100 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 100))
+		benchmarkMutes(b, defaultBenchmark(b, 100, 1))
 	})
 	b.Run("1000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 1000))
+		benchmarkMutes(b, defaultBenchmark(b, 1000, 1))
 	})
 	b.Run("10000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 10000))
+		benchmarkMutes(b, defaultBenchmark(b, 10000, 1))
 	})
 	b.Run("1 inhibition rule, 10 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 10))
+		benchmarkMutes(b, defaultBenchmark(b, 1, 10))
 	})
 	b.Run("1 inhibition rule, 100 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 100))
+		benchmarkMutes(b, defaultBenchmark(b, 1, 100))
 	})
 	b.Run("1 inhibition rule, 1000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 1000))
+		benchmarkMutes(b, defaultBenchmark(b, 1, 1000))
 	})
 	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 10000))
+		benchmarkMutes(b, defaultBenchmark(b, 1, 10000))
+	})
+	b.Run("100 inhibition rules, 1000 inhibiting alerts each", func(b *testing.B) {
+		benchmarkMutes(b, defaultBenchmark(b, 100, 1000))
 	})
 }
 
+// benchmarkOptions allows the declaration of a wide range of benchmarks.
 type benchmarkOptions struct {
-	// n is the total number of inhibition rules to benchmark.
+	// n is the total number of inhibition rules.
 	n int
-	// newRuleFunc creates the next inhibition rule in the benchmark.
+	// newRuleFunc creates the next inhibition rule. It is called n times.
 	// It is called n times.
 	newRuleFunc func(idx int) config.InhibitRule
-	// newAlertsFunc creates the inhibiting alerts for each inhibition
-	// rule in the benchmark. It is called n times.
+	// newAlertsFunc creates the inhibiting alerts for each inhibition rule.
+	// It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
 	benchFunc func(mutesFunc func(model.LabelSet) bool) error
 }
 
-// benchmarkNumInhibitionRules creates N inhibition rules with different source
-// matchers, but the same target matchers. The source matchers are suffixed with
-// the position of the inhibition rule in the list. For example, foo=bar1, foo=bar2,
-// etc.
-func benchmarkNumInhibitionRules(b *testing.B, n int) benchmarkOptions {
+// defaultBenchmark returns the default benchmark. It supports a number of
+// variations of the default benchmark, including customization of the
+// number of inhibition rules, and the number of inhibiting alerts per
+// inhibition rule.
+//
+// The source matchers are suffixed with the position of the inhibition rule
+// in the list. For example, src=1, src=2, etc. The target matchers are
+// the same across all inhibition rules (dst=0).
+//
+// Each inhibition rule can have zero or more alerts that match the source
+// matchers, and is determined with numInhibitingAlerts.
+//
+// The default benchmark expects dst=0 to be muted and will fail if not.
+func defaultBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
 	return benchmarkOptions{
-		n: n,
+		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
 				SourceMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "foo", "bar"+strconv.Itoa(idx)),
+					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
 				},
 				TargetMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "bar", "baz"),
+					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
 				},
 			}
 		},
 		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
-			return []types.Alert{{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"foo": model.LabelValue("bar" + strconv.Itoa(idx)),
-					},
-				},
-			}}
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"bar": "baz"}); !ok {
-				return errors.New("expected bar=baz to be muted")
-			}
-			return nil
-		},
-	}
-}
-
-// benchmarkNumInhibitingAlerts creates 1 inhibition rule, but with N matching alerts.
-func benchmarkNumInhibitingAlerts(b *testing.B, n int) benchmarkOptions {
-	return benchmarkOptions{
-		n: 1,
-		newRuleFunc: func(_ int) config.InhibitRule {
-			return config.InhibitRule{
-				SourceMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "foo", "bar"),
-				},
-				TargetMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "bar", "baz"),
-				},
-			}
-		},
-		newAlertsFunc: func(_ int, _ config.InhibitRule) []types.Alert {
 			var alerts []types.Alert
-			for i := 0; i < n; i++ {
+			for i := 0; i < numInhibitingAlerts; i++ {
 				alerts = append(alerts, types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
-							"foo": "bar",
+							"src": model.LabelValue(strconv.Itoa(idx)),
 							"idx": model.LabelValue(strconv.Itoa(i)),
 						},
 					},
 				})
 			}
 			return alerts
-		},
-		benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"bar": "baz"}); !ok {
-				return errors.New("expected bar=baz to be muted")
+		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
 		},
