@@ -35,7 +35,19 @@ import (
 // for different numbers of inhibition rules.
 func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 1))
+		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 1))
+	})
+	b.Run("10 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
+		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 10))
+	})
+	b.Run("100 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
+		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 100))
+	})
+	b.Run("1000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
+		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 1000))
+	})
+	b.Run("10000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
+		benchmarkMutes(b, benchmarkNumInhibitionRules(b, 10000))
 	})
 	b.Run("1 inhibition rule, 10 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, benchmarkNumInhibitingAlerts(b, 10))
@@ -64,6 +76,41 @@ type benchmarkOptions struct {
 	benchFunc func(mutesFunc func(model.LabelSet) bool) error
 }
 
+// benchmarkNumInhibitionRules creates N inhibition rules with different source
+// matchers, but the same target matchers. The source matchers are suffixed with
+// the position of the inhibition rule in the list. For example, foo=bar1, foo=bar2,
+// etc.
+func benchmarkNumInhibitionRules(b *testing.B, n int) benchmarkOptions {
+	return benchmarkOptions{
+		n: n,
+		newRuleFunc: func(idx int) config.InhibitRule {
+			return config.InhibitRule{
+				SourceMatchers: config.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "foo", "bar"+strconv.Itoa(idx)),
+				},
+				TargetMatchers: config.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "bar", "baz"),
+				},
+			}
+		},
+		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
+			return []types.Alert{{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"foo": model.LabelValue("bar" + strconv.Itoa(idx)),
+					},
+				},
+			}}
+		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+			if ok := mutesFunc(model.LabelSet{"bar": "baz"}); !ok {
+				return errors.New("expected bar=baz to be muted")
+			}
+			return nil
+		},
+	}
+}
+
+// benchmarkNumInhibitingAlerts creates 1 inhibition rule, but with N matching alerts.
 func benchmarkNumInhibitingAlerts(b *testing.B, n int) benchmarkOptions {
 	return benchmarkOptions{
 		n: 1,
