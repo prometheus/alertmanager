@@ -100,13 +100,13 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, al
 		logger:    log.With(l, "component", "provider"),
 		callback:  alertCallback,
 	}
-	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
+	a.alerts.SetGCCallback(func(alerts []types.Alert) {
 		for _, alert := range alerts {
 			// As we don't persist alerts, we no longer consider them after
 			// they are resolved. Alerts waiting for resolved notifications are
 			// held in memory in aggregation groups redundantly.
 			m.Delete(alert.Fingerprint())
-			a.callback.PostDelete(alert)
+			a.callback.PostDelete(&alert)
 		}
 
 		a.mtx.Lock()
@@ -151,7 +151,6 @@ func max(a, b int) int {
 func (a *Alerts) Subscribe() provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()

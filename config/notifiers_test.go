@@ -15,6 +15,8 @@ package config
 
 import (
 	"errors"
+	"net/mail"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -57,6 +59,47 @@ headers:
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestEmailToAllowsMultipleAdresses(t *testing.T) {
+	in := `
+to: 'a@example.com, ,b@example.com,c@example.com'
+`
+	var cfg EmailConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []*mail.Address{
+		{Address: "a@example.com"},
+		{Address: "b@example.com"},
+		{Address: "c@example.com"},
+	}
+
+	res, err := mail.ParseAddressList(cfg.To)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(res, expected) {
+		t.Fatalf("expected %v, got %v", expected, res)
+	}
+}
+
+func TestEmailDisallowMalformed(t *testing.T) {
+	in := `
+to: 'a@'
+`
+	var cfg EmailConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = mail.ParseAddressList(cfg.To)
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", "mail: no angle-addr")
 	}
 }
 
