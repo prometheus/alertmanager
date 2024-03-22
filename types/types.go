@@ -36,12 +36,8 @@ const (
 	AlertStateSuppressed  AlertState = "suppressed"
 )
 
-// AlertStatus stores the state of an alert and, as applicable, the IDs of
-// silences silencing the alert and of other alerts inhibiting the alert. Note
-// that currently, SilencedBy is supposed to be the complete set of the relevant
-// silences while InhibitedBy may contain only a subset of the inhibiting alerts
-// – in practice exactly one ID. (This somewhat confusing semantics might change
-// in the future.)
+// AlertStatus contains the state of an alert, including IDs of all silences
+// and fingerprints of all alerts suppressing the alert.
 type AlertStatus struct {
 	State       AlertState `json:"state"`
 	SilencedBy  []string   `json:"silencedBy"`
@@ -63,13 +59,9 @@ type Marker interface {
 	// Otherwise, it sets the provided alert to AlertStateSuppressed.
 	SetActiveOrSilenced(alert model.Fingerprint, version int, activeSilenceIDs, pendingSilenceIDs []string)
 	// SetInhibited replaces the previous InhibitedBy by the provided IDs of
-	// alerts. In contrast to SetActiveOrSilenced, the set of provided IDs is not
-	// expected to represent the complete set of inhibiting alerts. (In
-	// practice, this method is only called with one or zero IDs. However,
-	// this expectation might change in the future. If no IDs are provided
-	// and InhibitedBy is already empty, it sets the provided alert to
-	// AlertStateActive. Otherwise, it sets the provided alert to
-	// AlertStateSuppressed.
+	// alerts. If no IDs are provided and InhibitedBy is already empty,
+	// it sets the provided alert to AlertStateActive. Otherwise, it sets the
+	// provided alert to AlertStateSuppressed.
 	SetInhibited(alert model.Fingerprint, alertIDs ...string)
 
 	// Count alerts of the given state(s). With no state provided, count all
