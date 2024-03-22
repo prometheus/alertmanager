@@ -680,12 +680,12 @@ type QueryParam func(*query) error
 
 type query struct {
 	ids     []string
-	filters []silenceFilter
+	filters []filterFunc
 }
 
-// silenceFilter is a function that returns true if a silence
-// should be dropped from a result set for a given time.
-type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
+// filterFunc is a function to filter silences in a result set. It should
+// return true if the silence is included, otherwise false.
+type filterFunc func(*pb.Silence, *Silences, time.Time) (bool, error)
 
 // QIDs configures a query to select the given silence IDs.
 func QIDs(ids ...string) QueryParam {
@@ -726,7 +726,6 @@ func QState(states ...types.SilenceState) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, _ *Silences, now time.Time) (bool, error) {
 			s := getState(sil, now)
-
 			for _, ps := range states {
 				if s == ps {
 					return true, nil
