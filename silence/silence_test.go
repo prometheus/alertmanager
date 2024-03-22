@@ -700,7 +700,7 @@ func TestSilencesQuery(t *testing.T) {
 		{
 			// Retrieve all and filter
 			q: &query{
-				filters: []silenceFilter{
+				filters: []filterFunc{
 					func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
@@ -715,7 +715,7 @@ func TestSilencesQuery(t *testing.T) {
 			// Retrieve by IDs and filter
 			q: &query{
 				ids: []string{"2", "5"},
-				filters: []silenceFilter{
+				filters: []filterFunc{
 					func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
