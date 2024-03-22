@@ -407,7 +407,7 @@ func TestEmailNotifyWithSTARTTLS(t *testing.T) {
 			Text:       "Text body",
 			RequireTLS: &trueVar,
 			// MailDev embeds a self-signed certificate which can't be retrieved.
-			TLSConfig: commoncfg.TLSConfig{InsecureSkipVerify: true},
+			TLSConfig: &commoncfg.TLSConfig{InsecureSkipVerify: true},
 		},
 		c.Server,
 	)
