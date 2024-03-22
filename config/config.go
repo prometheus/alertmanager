@@ -353,6 +353,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
 
+	if len(c.Global.SMTPAuthSecret) > 0 && len(c.Global.SMTPAuthSecretFile) > 0 {
+		return fmt.Errorf("at most one of smtp_auth_secret & smtp_auth_secret_file must be configured")
+	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -387,8 +391,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
 			}
-			if ec.AuthSecret == "" {
+			if ec.AuthSecret == "" && ec.AuthSecretFile == "" {
 				ec.AuthSecret = c.Global.SMTPAuthSecret
+				ec.AuthSecretFile = c.Global.SMTPAuthSecretFile
 			}
 			if ec.AuthIdentity == "" {
 				ec.AuthIdentity = c.Global.SMTPAuthIdentity
@@ -749,6 +754,7 @@ type GlobalConfig struct {
 	SMTPAuthPassword     Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile string     `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
 	SMTPAuthSecret       Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthSecretFile   string     `yaml:"smtp_auth_secret_file,omitempty" json:"smtp_auth_secret_file,omitempty"`
 	SMTPAuthIdentity     string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS       bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL          *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
