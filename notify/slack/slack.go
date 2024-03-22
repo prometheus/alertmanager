@@ -71,7 +71,8 @@ type request struct {
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	Attachments []attachment `json:"attachments,omitempty"`
+	Blocks      []SlackBlock `json:"blocks,omitempty"`
 }
 
 // attachment is used to display a richly-formatted message block.
@@ -91,29 +92,7 @@ type attachment struct {
 	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
-// Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	var err error
-	var (
-		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-		tmplText = notify.TmplText(n.tmpl, data, &err)
-	)
-	var markdownIn []string
-
-	if len(n.conf.MrkdwnIn) == 0 {
-		markdownIn = []string{"fallback", "pretext", "text"}
-	} else {
-		markdownIn = n.conf.MrkdwnIn
-	}
-
-	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
-	if truncated {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return false, err
-		}
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
-	}
+func (n *Notifier) buildAttachment(title string, tmplText func(string) string, markdownIn []string) (*attachment, error) {
 	att := &attachment{
 		Title:      title,
 		TitleLink:  tmplText(n.conf.TitleLink),
@@ -176,15 +155,146 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		att.Actions = actions
 	}
+	return att, nil
+}
+
+func (n *Notifier) buildBlocks(tmplText func(string) string) ([]SlackBlock, error) {
+	var blocks []SlackBlock
+	for _, c := range n.conf.Blocks {
+		var (
+			err error
+			b   SlackBlock
+		)
+		switch {
+		case c.Context != nil:
+			b.Context, err = n.buildContextBlock(c.Context, tmplText)
+		case c.Divider != nil:
+			b.Divider = &SlackBlockDivider{}
+		case c.Header != nil:
+			b.Header, err = n.buildHeaderBlock(c.Header, tmplText)
+		case c.Image != nil:
+			b.Image, err = n.buildImageBlock(c.Image, tmplText)
+		case c.Section != nil:
+			b.Section, err = n.buildSectionBlock(c.Section, tmplText)
+		}
+		if err != nil {
+			return blocks, err
+		}
+		blocks = append(blocks, b)
+	}
+	return blocks, nil
+}
+
+func (n *Notifier) buildContextBlock(c *config.SlackBlockContext, tmplText func(string) string) (*SlackBlockContext, error) {
+	b := SlackBlockContext{}
+	for _, el := range c.Elements {
+		var (
+			err   error
+			image *SlackBlockImage
+			text  *SlackBlockText
+		)
+		if el.Image != nil {
+			if image, err = n.buildImageBlock(el.Image, tmplText); err != nil {
+				return nil, err
+			}
+		} else {
+			text = &SlackBlockText{
+				Text:     tmplText(el.Text.Text),
+				Emoji:    el.Text.Emoji,
+				Markdown: el.Text.Markdown,
+			}
+		}
+		b.Elements = append(b.Elements, SlackBlockContextElement{
+			Image: image,
+			Text:  text,
+		})
+	}
+	return &b, nil
+}
+
+func (n *Notifier) buildHeaderBlock(c *config.SlackBlockHeader, tmplText func(string) string) (*SlackBlockHeader, error) {
+	return &SlackBlockHeader{
+		Text: &SlackBlockText{
+			Text:  tmplText(c.Text.Text),
+			Emoji: c.Text.Emoji,
+		},
+	}, nil
+}
+
+func (n *Notifier) buildImageBlock(c *config.SlackBlockImage, tmplText func(string) string) (*SlackBlockImage, error) {
+	return &SlackBlockImage{
+		ImageURL: c.ImageURL,
+		AltText:  tmplText(c.AltText),
+		Title:    tmplText(c.Title),
+	}, nil
+}
+
+func (n *Notifier) buildSectionBlock(c *config.SlackBlockSection, tmplText func(string) string) (*SlackBlockSection, error) {
+	b := SlackBlockSection{}
+	if c.Text != nil {
+		b.Text = &SlackBlockText{
+			Text:     tmplText(c.Text.Text),
+			Emoji:    c.Text.Emoji,
+			Markdown: c.Text.Markdown,
+		}
+	} else {
+		for _, s := range c.Fields {
+			b.Fields = append(b.Fields, &SlackBlockText{
+				Text:     tmplText(s.Text),
+				Emoji:    s.Emoji,
+				Markdown: s.Markdown,
+			})
+		}
+	}
+	return &b, nil
+}
+
+// Notify implements the Notifier interface.
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		tmplText = notify.TmplText(n.tmpl, data, &err)
+	)
+	var markdownIn []string
+
+	if len(n.conf.MrkdwnIn) == 0 {
+		markdownIn = []string{"fallback", "pretext", "text"}
+	} else {
+		markdownIn = n.conf.MrkdwnIn
+	}
+
+	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
+	if truncated {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return false, err
+		}
+		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+	}
 
 	req := &request{
-		Channel:     tmplText(n.conf.Channel),
-		Username:    tmplText(n.conf.Username),
-		IconEmoji:   tmplText(n.conf.IconEmoji),
-		IconURL:     tmplText(n.conf.IconURL),
-		LinkNames:   n.conf.LinkNames,
-		Attachments: []attachment{*att},
+		Channel:   tmplText(n.conf.Channel),
+		Username:  tmplText(n.conf.Username),
+		IconEmoji: tmplText(n.conf.IconEmoji),
+		IconURL:   tmplText(n.conf.IconURL),
+		LinkNames: n.conf.LinkNames,
 	}
+
+	if len(n.conf.Blocks) > 0 {
+		blocks, err := n.buildBlocks(tmplText)
+		if err != nil {
+			return false, fmt.Errorf("failed to build blocks: %w", err)
+		}
+		req.Blocks = blocks
+	} else {
+		att, err := n.buildAttachment(title, tmplText, markdownIn)
+		if err != nil {
+			return false, fmt.Errorf("failed to build attachment: %w", err)
+		}
+		req.Attachments = []attachment{*att}
+	}
+
 	if err != nil {
 		return false, err
 	}
