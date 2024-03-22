@@ -769,6 +769,7 @@ type TelegramConfig struct {
 	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+	MessageThreadID      int64  `yaml:"message_thread_id,omitempty" json:"message_thread_id,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
