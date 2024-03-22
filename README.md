@@ -1,7 +1,9 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
+# Alertmanager-Customize-telegram [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
+
+For purpose support some feature what currently not supported , i fork repo to internal add merge some feature like send alert to specific topic using MessageThreadID .
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct [receiver integrations](https://prometheus.io/docs/alerting/latest/configuration/#receiver) such as email, PagerDuty, OpsGenie, or many other [mechanisms](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) thanks to the webhook receiver. It also takes care of silencing and inhibition of alerts.
 
@@ -154,8 +156,8 @@ inhibit_rules:
   target_matchers:
     - severity="warning"
   # Apply inhibition if the alertname is the same.
-  # CAUTION: 
-  #   If all label names listed in `equal` are missing 
+  # CAUTION:
+  #   If all label names listed in `equal` are missing
   #   from both the source and target alerts,
   #   the inhibition rule will apply!
   equal: ['alertname']
