@@ -475,8 +475,12 @@ func (ag *aggrGroup) stop() {
 
 // insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
-	if err := ag.alerts.Set(alert); err != nil {
-		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
+	if err := ag.alerts.SetOrReplaceResolved(alert); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			level.Warn(ag.logger).Log("msg", "ignore resolved alert since there is no corresponding record in the store")
+		} else {
+			level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
+		}
 	}
 
 	// Immediately trigger a flush if the wait duration for this
@@ -517,17 +521,15 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	if notify(alertsSlice...) {
 		for _, a := range alertsSlice {
-			// Only delete if the fingerprint has not been inserted
+			// Only delete the resolved alert if the fingerprint has not been active
 			// again since we notified about it.
-			fp := a.Fingerprint()
-			got, err := ag.alerts.Get(fp)
-			if err != nil {
-				// This should never happen.
-				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
+			if !a.Resolved() {
 				continue
 			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
-				if err := ag.alerts.Delete(fp); err != nil {
+			if err := ag.alerts.DeleteIfResolved(a.Fingerprint()); err != nil {
+				if errors.Is(err, store.ErrNotResolved) {
+					level.Debug(ag.logger).Log("msg", "resolved alert has been active again", "alert", a.String())
+				} else {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}
 			}
