@@ -258,6 +258,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.JiraConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -351,6 +354,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(c.Global.SMTPAuthPassword) > 0 && len(c.Global.SMTPAuthPasswordFile) > 0 {
 		return fmt.Errorf("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
+	}
+
+	if c.Global.JiraAPIToken != "" && len(c.Global.JiraAPITokenFile) > 0 {
+		return fmt.Errorf("at most one of jira_api_token & jira_api_token_file must be configured")
 	}
 
 	names := map[string]struct{}{}
@@ -538,6 +545,30 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
 				return fmt.Errorf("no msteams webhook URL or URLFile provided")
+			}
+		}
+		for _, jira := range rcv.JiraConfigs {
+			if jira.HTTPConfig == nil {
+				jira.HTTPConfig = c.Global.HTTPConfig
+			}
+			if jira.APIURL == nil {
+				if c.Global.JiraAPIURL == nil {
+					return fmt.Errorf("no global Jira Cloud URL set")
+				}
+				jira.APIURL = c.Global.JiraAPIURL
+			}
+			if jira.APIUsername == "" {
+				if c.Global.JiraAPIUsername == "" {
+					return fmt.Errorf("no global Jira Cloud username set")
+				}
+				jira.APIUsername = c.Global.JiraAPIUsername
+			}
+			if jira.APIToken == "" && len(jira.APITokenFile) == 0 {
+				if c.Global.JiraAPIToken == "" && len(c.Global.JiraAPITokenFile) == 0 {
+					return fmt.Errorf("no global Jira Cloud API Token set either inline or in a file")
+				}
+				jira.APIToken = c.Global.JiraAPIToken
+				jira.APITokenFile = c.Global.JiraAPITokenFile
 			}
 		}
 
@@ -742,6 +773,10 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
+	JiraAPIURL           *URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
+	JiraAPIUsername      string     `yaml:"jira_api_username,omitempty" json:"jira_api_username,omitempty"`
+	JiraAPIToken         Secret     `yaml:"jira_api_token,omitempty" json:"jira_api_token,omitempty"`
+	JiraAPITokenFile     string     `yaml:"jira_api_token_file,omitempty" json:"jira_api_token_file,omitempty"`
 	SMTPFrom             string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello            string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost        HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
@@ -909,6 +944,7 @@ type Receiver struct {
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	JiraConfigs      []*JiraConfig      `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
