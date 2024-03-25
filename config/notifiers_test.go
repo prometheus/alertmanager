@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -1046,6 +1045,14 @@ bot_token_file: ''
 			in: `
 bot_token: xyz
 chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token, chat_id and message_thread_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+message_thread_id: 456
 `,
 		},
 		{

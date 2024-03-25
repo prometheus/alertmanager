@@ -1308,6 +1308,9 @@ attributes:
 # ID of the chat where to send the messages.
 [ chat_id: <int> ]
 
+# Optional ID of the message thread where to send the messages.
+[ message_thread_id: <int> ]
+
 # Message template.
 [ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
 
