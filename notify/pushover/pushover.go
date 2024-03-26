@@ -164,7 +164,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
 	level.Debug(n.logger).Log("msg", "Sending message", "incident", key)
-	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
+	resp, err := notify.PostText(ctx, n.client, u.String(), nil, nil)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

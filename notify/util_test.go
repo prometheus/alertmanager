@@ -16,14 +16,13 @@ package notify
 import (
 	"bytes"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"path"
 	"reflect"
 	"runtime"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestTruncate(t *testing.T) {
@@ -216,3 +215,64 @@ func TestRetrierCheck(t *testing.T) {
 		})
 	}
 }
+
+//func TestPostJSON(t *testing.T) {
+//	tests := []struct {
+//		name            string
+//		headers         http.Header
+//		expectedHeaders http.Header
+//		data            io.Reader
+//	}{{
+//		name:    "No headers",
+//		headers: nil,
+//		expectedHeaders: http.Header{
+//			"Accept-Encoding": []string{"gzip"},
+//			"Content-Length":  []string{"13"},
+//			"Content-Type":    []string{"application/json"},
+//			"User-Agent":      []string{"Alertmanager/"},
+//		},
+//		data: strings.NewReader("Hello, world!"),
+//	}, {
+//		name: "With headers",
+//		headers: http.Header{
+//			"X-Test-PostJSON": []string{"true"},
+//		},
+//		expectedHeaders: http.Header{
+//			"Accept-Encoding": []string{"gzip"},
+//			"Content-Length":  []string{"13"},
+//			"Content-Type":    []string{"application/json"},
+//			"User-Agent":      []string{"Alertmanager/"},
+//			"X-Test-PostJSON": []string{"true"},
+//		},
+//		data: strings.NewReader("Hello, world!"),
+//	}}
+//	for _, test := range tests {
+//		t.Run(test.name, func(t *testing.T) {
+//			var (
+//				receivedHeaders http.Header
+//				receivedData    []byte
+//			)
+//			// Start an HTTP test server to record the headers and data from the request.
+//			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//				receivedHeaders = r.Header
+//				receivedData, _ = io.ReadAll(r.Body)
+//			}))
+//			defer s.Close()
+//
+//			ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+//			defer cancelFunc()
+//
+//			resp, err := PostJSON(ctx, http.DefaultClient, s.URL, test.headers, test.data)
+//			require.NoError(t, err)
+//			require.NoError(t, resp.Body.Close())
+//			require.Equal(t, http.StatusOK, resp.StatusCode)
+//
+//			require.Equal(t, test.expectedHeaders, receivedHeaders)
+//
+//			b, err := io.ReadAll(test.data)
+//			require.NoError(t, err)
+//			require.Equal(t, b, receivedData)
+//		})
+//	}
+//
+//}

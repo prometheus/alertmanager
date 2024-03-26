@@ -48,33 +48,44 @@ func RedactURL(err error) error {
 }
 
 // Get sends a GET request to the given URL.
-func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
-	return request(ctx, client, http.MethodGet, url, "", nil)
+func Get(ctx context.Context, client *http.Client, url string, headers http.Header) (*http.Response, error) {
+	return request(ctx, client, http.MethodGet, url, headers, nil)
 }
 
 // PostJSON sends a POST request with JSON payload to the given URL.
-func PostJSON(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
-	return post(ctx, client, url, "application/json", body)
+func PostJSON(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error) {
+	if headers == nil {
+		headers = http.Header{}
+	}
+	headers.Set("Content-Type", "application/json")
+	return post(ctx, client, url, headers, body)
 }
 
 // PostText sends a POST request with text payload to the given URL.
-func PostText(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
-	return post(ctx, client, url, "text/plain", body)
+func PostText(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error) {
+	if headers == nil {
+		headers = http.Header{}
+	}
+	headers.Set("Content-Type", "text/plain")
+	return post(ctx, client, url, headers, body)
 }
 
-func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
-	return request(ctx, client, http.MethodPost, url, bodyType, body)
+func post(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPost, url, headers, body)
 }
 
-func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
+func request(ctx context.Context, client *http.Client, method, url string, headers http.Header, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", UserAgentHeader)
-	if bodyType != "" {
-		req.Header.Set("Content-Type", bodyType)
+	for k, vals := range headers {
+		for _, v := range vals {
+			// Use last write wins unless we have an explicit need for Add.
+			req.Header.Set(k, v)
+		}
 	}
+	req.Header.Set("User-Agent", UserAgentHeader)
 	return client.Do(req.WithContext(ctx))
 }
 

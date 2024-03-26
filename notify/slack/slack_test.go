@@ -203,7 +203,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error) {
 				resp := httptest.NewRecorder()
 				if strings.HasPrefix(tt.responseBody, "{") {
 					resp.Header().Add("Content-Type", "application/json; charset=utf-8")
