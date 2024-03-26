@@ -108,7 +108,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
-		resp, err := notify.Get(ctx, n.client, u.String())
+		resp, err := notify.Get(ctx, n.client, u.String(), nil)
 		if err != nil {
 			return true, notify.RedactURL(err)
 		}
@@ -161,7 +161,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	q.Set("access_token", n.accessToken)
 	postMessageURL.RawQuery = q.Encode()
 
-	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
+	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), nil, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), nil, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
