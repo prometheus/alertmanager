@@ -16,13 +16,14 @@ package notify
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"path"
 	"reflect"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTruncate(t *testing.T) {
