@@ -205,7 +205,7 @@ func (ms Matchers) String() string {
 	return buf.String()
 }
 
-// This is copied from matchers/parse/lexer.go. It will be removed when
+// This is copied from matcher/parse/lexer.go. It will be removed when
 // the transition window from classic matchers to UTF-8 matchers is complete,
 // as then we can use double quotes when printing the label name for all
 // matchers. Until then, the classic parser does not understand double quotes

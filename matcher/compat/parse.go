@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/parse"
+	"github.com/prometheus/alertmanager/matcher/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -90,7 +90,7 @@ func ClassicMatchersParser(l log.Logger) ParseMatchers {
 	}
 }
 
-// UTF8MatcherParser uses the new matchers/parse parser to parse the matcher
+// UTF8MatcherParser uses the new matcher/parse parser to parse the matcher
 // in the input string. If this fails it does not revert to the pkg/labels parser.
 func UTF8MatcherParser(l log.Logger) ParseMatcher {
 	return func(input, origin string) (matcher *labels.Matcher, err error) {
@@ -102,7 +102,7 @@ func UTF8MatcherParser(l log.Logger) ParseMatcher {
 	}
 }
 
-// UTF8MatchersParser uses the new matchers/parse parser to parse zero or more
+// UTF8MatchersParser uses the new matcher/parse parser to parse zero or more
 // matchers in the input string. If this fails it does not revert to the
 // pkg/labels parser.
 func UTF8MatchersParser(l log.Logger) ParseMatchers {
@@ -112,7 +112,7 @@ func UTF8MatchersParser(l log.Logger) ParseMatchers {
 	}
 }
 
-// FallbackMatcherParser uses the new matchers/parse parser to parse zero or more
+// FallbackMatcherParser uses the new matcher/parse parser to parse zero or more
 // matchers in the string. If this fails it reverts to the pkg/labels parser and
 // emits a warning log line.
 func FallbackMatcherParser(l log.Logger) ParseMatcher {
@@ -130,7 +130,7 @@ func FallbackMatcherParser(l log.Logger) ParseMatcher {
 			if cErr != nil {
 				return nil, cErr
 			}
-			// The input is valid in the pkg/labels parser, but not the matchers/parse
+			// The input is valid in the pkg/labels parser, but not the matcher/parse
 			// parser. This means the input is not forwards compatible.
 			suggestion := cMatcher.String()
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
@@ -146,7 +146,7 @@ func FallbackMatcherParser(l log.Logger) ParseMatcher {
 	}
 }
 
-// FallbackMatchersParser uses the new matchers/parse parser to parse the
+// FallbackMatchersParser uses the new matcher/parse parser to parse the
 // matcher in the input string. If this fails it falls back to the pkg/labels
 // parser and emits a warning log line.
 func FallbackMatchersParser(l log.Logger) ParseMatchers {
@@ -161,7 +161,7 @@ func FallbackMatchersParser(l log.Logger) ParseMatchers {
 			if cErr != nil {
 				return nil, cErr
 			}
-			// The input is valid in the pkg/labels parser, but not the matchers/parse
+			// The input is valid in the pkg/labels parser, but not the matcher/parse
 			// parser. This means the input is not forwards compatible.
 			var sb strings.Builder
 			for i, n := range cMatchers {
@@ -172,7 +172,7 @@ func FallbackMatchersParser(l log.Logger) ParseMatchers {
 			}
 			suggestion := sb.String()
 			// The input is valid in the pkg/labels parser, but not the
-			// new matchers/parse parser.
+			// new matcher/parse parser.
 			level.Warn(l).Log("msg", "Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatchers, nil
 		}
