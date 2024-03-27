@@ -37,7 +37,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"

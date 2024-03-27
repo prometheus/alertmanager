@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/parse"
+	"github.com/prometheus/alertmanager/matcher/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 

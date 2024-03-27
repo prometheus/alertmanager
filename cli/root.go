@@ -34,7 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
 var (
