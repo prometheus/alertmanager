@@ -21,9 +21,11 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -138,4 +140,63 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+func TestWebhookCalculateNumAlerts(t *testing.T) {
+	t.Run("OnlyFiringAlerts", func(t *testing.T) {
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		numFiring, numResolved := calculateNumAlerts(alerts)
+		require.EqualValues(t, numFiring, 2)
+		require.EqualValues(t, numResolved, 0)
+	})
+
+	t.Run("OnlyResolvedAlerts", func(t *testing.T) {
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(-time.Hour),
+				},
+			},
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(-time.Hour),
+				},
+			},
+		}
+
+		numFiring, numResolved := calculateNumAlerts(alerts)
+		require.EqualValues(t, numFiring, 0)
+		require.EqualValues(t, numResolved, 2)
+	})
+
+	t.Run("MixedAlerts", func(t *testing.T) {
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(-time.Hour),
+				},
+			},
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		numFiring, numResolved := calculateNumAlerts(alerts)
+		require.EqualValues(t, numFiring, 1)
+		require.EqualValues(t, numResolved, 1)
+	})
 }
