@@ -25,6 +25,7 @@ import (
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher"
+	"github.com/prometheus/alertmanager/matcher/oldparse"
 	"github.com/prometheus/alertmanager/matcher/parse"
 )
 
