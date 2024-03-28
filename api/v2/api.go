@@ -16,7 +16,6 @@ package v2
 import (
 	"errors"
 	"fmt"
-	"github.com/prometheus/alertmanager/matcher"
 	"net/http"
 	"regexp"
 	"sort"
@@ -46,6 +45,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"

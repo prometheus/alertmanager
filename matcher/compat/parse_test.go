@@ -14,12 +14,13 @@
 package compat
 
 import (
-	"github.com/prometheus/alertmanager/matcher"
 	"testing"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 func TestFallbackMatcherParser(t *testing.T) {

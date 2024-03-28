@@ -14,10 +14,11 @@
 package parse
 
 import (
-	"github.com/prometheus/alertmanager/matcher"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 func TestMatchers(t *testing.T) {
