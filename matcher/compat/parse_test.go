@@ -19,7 +19,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	
+
 	"github.com/prometheus/alertmanager/matcher"
 )
 

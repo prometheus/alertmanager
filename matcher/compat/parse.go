@@ -25,7 +25,6 @@ import (
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher"
-	"github.com/prometheus/alertmanager/matcher/old_parse"
 	"github.com/prometheus/alertmanager/matcher/parse"
 )
 
@@ -78,7 +77,7 @@ func InitFromFlags(l log.Logger, f featurecontrol.Flagger) {
 func ClassicMatcherParser(l log.Logger) ParseMatcher {
 	return func(input, origin string) (matcher *matcher.Matcher, err error) {
 		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
-		return old_parse.ParseMatcher(input)
+		return oldparse.ParseMatcher(input)
 	}
 }
 
@@ -87,7 +86,7 @@ func ClassicMatcherParser(l log.Logger) ParseMatcher {
 func ClassicMatchersParser(l log.Logger) ParseMatchers {
 	return func(input, origin string) (matchers matcher.Matchers, err error) {
 		level.Debug(l).Log("msg", "Parsing with classic matchers parser", "input", input, "origin", origin)
-		return old_parse.ParseMatchers(input)
+		return oldparse.ParseMatchers(input)
 	}
 }
 
@@ -125,7 +124,7 @@ func FallbackMatcherParser(l log.Logger) ParseMatcher {
 		// Parse the input in both parsers to look for disagreement and incompatible
 		// inputs.
 		nMatcher, nErr := parse.Matcher(input)
-		cMatcher, cErr := old_parse.ParseMatcher(input)
+		cMatcher, cErr := oldparse.ParseMatcher(input)
 		if nErr != nil {
 			// If the input is invalid in both parsers, return the error.
 			if cErr != nil {
@@ -156,7 +155,7 @@ func FallbackMatchersParser(l log.Logger) ParseMatchers {
 		// Parse the input in both parsers to look for disagreement and incompatible
 		// inputs.
 		nMatchers, nErr := parse.Matchers(input)
-		cMatchers, cErr := old_parse.ParseMatchers(input)
+		cMatchers, cErr := oldparse.ParseMatchers(input)
 		if nErr != nil {
 			// If the input is invalid in both parsers, return the error.
 			if cErr != nil {
