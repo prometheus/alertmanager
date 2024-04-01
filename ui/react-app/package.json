@@ -13,7 +13,7 @@
     "@emotion/react": "^11.9.3",
     "@emotion/styled": "^11.9.3",
     "@mui/material": "^5.10.14",
-    "@tanstack/react-query": "^4.7.1",
+    "@tanstack/react-query": "^5.28.9",
     "mdi-material-ui": "^7.8.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
