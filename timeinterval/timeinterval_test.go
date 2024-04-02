@@ -743,7 +743,7 @@ func TestIntervener_Mutes(t *testing.T) {
 
 			intervener := NewIntervener(m)
 
-			expected, err := intervener.Mutes([]string{intervalName}, now)
+			expected, timeIntervalNames, err := intervener.Mutes([]string{intervalName}, now)
 			if err != nil {
 				require.Error(t, tt.err)
 				require.False(t, tt.expected)
@@ -751,6 +751,12 @@ func TestIntervener_Mutes(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, expected, tt.expected)
+			if tt.expected {
+				require.Len(t, timeIntervalNames, 1)
+				require.Equal(t, timeIntervalNames[0], intervalName)
+			} else {
+				require.Len(t, timeIntervalNames, 0)
+			}
 		})
 	}
 }

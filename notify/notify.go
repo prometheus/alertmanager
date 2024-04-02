@@ -949,7 +949,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		return ctx, alerts, nil
 	}
 
-	muted, err := tms.muter.Mutes(muteTimeIntervalNames, now)
+	muted, _, err := tms.muter.Mutes(muteTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
@@ -987,7 +987,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	muted, err := tas.muter.Mutes(activeTimeIntervalNames, now)
+	muted, _, err := tas.muter.Mutes(activeTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
