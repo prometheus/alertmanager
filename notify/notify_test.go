@@ -890,7 +890,7 @@ func TestTimeMuteStage(t *testing.T) {
 			r := prometheus.NewRegistry()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			mute := NewTimeMuteStage(intervener, metrics)
+			st := NewTimeMuteStage(intervener, metrics)
 
 			// Get the names of all time intervals for the context.
 			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
@@ -903,7 +903,7 @@ func TestTimeMuteStage(t *testing.T) {
 			ctx = WithActiveTimeIntervals(ctx, nil)
 			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
 
-			_, active, err := mute.Exec(ctx, log.NewNopLogger(), test.alerts...)
+			_, active, err := st.Exec(ctx, log.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
 
 			if len(test.mutedBy) == 0 {
