@@ -113,8 +113,8 @@ type GroupMarker interface {
 }
 
 // NewMarker returns an instance of a AlertMarker implementation.
-func NewMarker(r prometheus.Registerer) *memMarker {
-	m := &memMarker{
+func NewMarker(r prometheus.Registerer) *MemMarker {
+	m := &MemMarker{
 		alerts: map[model.Fingerprint]*AlertStatus{},
 		groups: map[string]*GroupStatus{},
 	}
@@ -122,7 +122,7 @@ func NewMarker(r prometheus.Registerer) *memMarker {
 	return m
 }
 
-type memMarker struct {
+type MemMarker struct {
 	alerts map[model.Fingerprint]*AlertStatus
 	groups map[string]*GroupStatus
 
@@ -130,7 +130,7 @@ type memMarker struct {
 }
 
 // Muted implements GroupMarker.
-func (m *memMarker) Muted(groupKey string, fingerprint model.Fingerprint) ([]string, bool) {
+func (m *MemMarker) Muted(groupKey string, fingerprint model.Fingerprint) ([]string, bool) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	groupStatus, ok := m.groups[groupKey]
@@ -145,7 +145,7 @@ func (m *memMarker) Muted(groupKey string, fingerprint model.Fingerprint) ([]str
 }
 
 // SetMuted implements GroupMarker.
-func (m *memMarker) SetMuted(groupKey string, fingerprint model.Fingerprint, timeIntervalNames []string) {
+func (m *MemMarker) SetMuted(groupKey string, fingerprint model.Fingerprint, timeIntervalNames []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	groupStatus, ok := m.groups[groupKey]
@@ -160,7 +160,7 @@ func (m *memMarker) SetMuted(groupKey string, fingerprint model.Fingerprint, tim
 	groupStatus.MutedAlerts = muted
 }
 
-func (m *memMarker) registerMetrics(r prometheus.Registerer) {
+func (m *MemMarker) registerMetrics(r prometheus.Registerer) {
 	newMarkedAlertMetricByState := func(st AlertState) prometheus.GaugeFunc {
 		return prometheus.NewGaugeFunc(
 			prometheus.GaugeOpts{
@@ -184,7 +184,7 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 }
 
 // Count implements AlertMarker.
-func (m *memMarker) Count(states ...AlertState) int {
+func (m *MemMarker) Count(states ...AlertState) int {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -204,7 +204,7 @@ func (m *memMarker) Count(states ...AlertState) int {
 }
 
 // SetActiveOrSilenced implements AlertMarker.
-func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
+func (m *MemMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -229,7 +229,7 @@ func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, ac
 }
 
 // SetInhibited implements AlertMarker.
-func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
+func (m *MemMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -252,7 +252,7 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 }
 
 // Status implements AlertMarker.
-func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
+func (m *MemMarker) Status(alert model.Fingerprint) AlertStatus {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -267,7 +267,7 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 }
 
 // Delete implements AlertMarker.
-func (m *memMarker) Delete(alert model.Fingerprint) {
+func (m *MemMarker) Delete(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -275,17 +275,17 @@ func (m *memMarker) Delete(alert model.Fingerprint) {
 }
 
 // Unprocessed implements AlertMarker.
-func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
+func (m *MemMarker) Unprocessed(alert model.Fingerprint) bool {
 	return m.Status(alert).State == AlertStateUnprocessed
 }
 
 // Active implements AlertMarker.
-func (m *memMarker) Active(alert model.Fingerprint) bool {
+func (m *MemMarker) Active(alert model.Fingerprint) bool {
 	return m.Status(alert).State == AlertStateActive
 }
 
 // Inhibited implements AlertMarker.
-func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
+func (m *MemMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
 	return s.InhibitedBy,
 		s.State == AlertStateSuppressed && len(s.InhibitedBy) > 0
@@ -294,7 +294,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 // Silenced returns whether the alert for the given Fingerprint is in the
 // Silenced state, any associated silence IDs, and the silences state version
 // the result is based on.
-func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool) {
+func (m *MemMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool) {
 	s := m.Status(alert)
 	return s.SilencedBy, s.pendingSilences, s.silencesVersion,
 		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
