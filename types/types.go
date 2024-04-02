@@ -57,7 +57,7 @@ type AlertStatus struct {
 type groupStatus struct {
 	// mutedAlerts contains the fingerprints of all muted alerts, and for each
 	// muted alert the active or mute time intervals that muted it.
-	mutedAlerts map[model.Fingerprint][]string `json:"mutedAlerts"`
+	mutedAlerts map[model.Fingerprint][]string
 }
 
 // AlertMarker helps to mark alerts as silenced and/or inhibited.
