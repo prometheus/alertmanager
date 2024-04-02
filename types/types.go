@@ -52,12 +52,12 @@ type AlertStatus struct {
 	silencesVersion int
 }
 
-// GroupStatus stores the state of the group, and, as applicable, the fingerprints
+// groupStatus stores the state of the group, and, as applicable, the fingerprints
 // of all muted alerts.
-type GroupStatus struct {
-	// MutedAlerts contains the fingerprints of all muted alerts, and for each
+type groupStatus struct {
+	// mutedAlerts contains the fingerprints of all muted alerts, and for each
 	// muted alert the active or mute time intervals that muted it.
-	MutedAlerts map[model.Fingerprint][]string `json:"mutedAlerts"`
+	mutedAlerts map[model.Fingerprint][]string `json:"mutedAlerts"`
 }
 
 // AlertMarker helps to mark alerts as silenced and/or inhibited.
@@ -116,7 +116,7 @@ type GroupMarker interface {
 func NewMarker(r prometheus.Registerer) *MemMarker {
 	m := &MemMarker{
 		alerts: map[model.Fingerprint]*AlertStatus{},
-		groups: map[string]*GroupStatus{},
+		groups: map[string]*groupStatus{},
 	}
 	m.registerMetrics(r)
 	return m
@@ -124,7 +124,7 @@ func NewMarker(r prometheus.Registerer) *MemMarker {
 
 type MemMarker struct {
 	alerts map[model.Fingerprint]*AlertStatus
-	groups map[string]*GroupStatus
+	groups map[string]*groupStatus
 
 	mtx sync.RWMutex
 }
@@ -137,7 +137,7 @@ func (m *MemMarker) Muted(groupKey string, fingerprint model.Fingerprint) ([]str
 	if !ok {
 		return nil, false
 	}
-	timeIntervalsNames, ok := groupStatus.MutedAlerts[fingerprint]
+	timeIntervalsNames, ok := groupStatus.mutedAlerts[fingerprint]
 	if !ok {
 		return nil, false
 	}
@@ -148,16 +148,26 @@ func (m *MemMarker) Muted(groupKey string, fingerprint model.Fingerprint) ([]str
 func (m *MemMarker) SetMuted(groupKey string, fingerprint model.Fingerprint, timeIntervalNames []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	groupStatus, ok := m.groups[groupKey]
-	if !ok {
-		groupStatus = &GroupStatus{
-			MutedAlerts: make(map[model.Fingerprint][]string),
-		}
-		m.groups[groupKey] = groupStatus
+	if len(timeIntervalNames) > 0 {
+		m.setMuteMarker(groupKey, fingerprint, timeIntervalNames)
+	} else {
+		m.removeMuteMarker(groupKey, fingerprint)
 	}
-	muted := groupStatus.MutedAlerts
-	muted[fingerprint] = timeIntervalNames
-	groupStatus.MutedAlerts = muted
+}
+
+func (m *MemMarker) setMuteMarker(groupKey string, fingerprint model.Fingerprint, timeIntervalNames []string) {
+	status, ok := m.groups[groupKey]
+	if !ok {
+		status = &groupStatus{mutedAlerts: make(map[model.Fingerprint][]string)}
+		m.groups[groupKey] = status
+	}
+	status.mutedAlerts[fingerprint] = timeIntervalNames
+}
+
+func (m *MemMarker) removeMuteMarker(groupKey string, fingerprint model.Fingerprint) {
+	if status, ok := m.groups[groupKey]; ok {
+		delete(status.mutedAlerts, fingerprint)
+	}
 }
 
 func (m *MemMarker) registerMetrics(r prometheus.Registerer) {

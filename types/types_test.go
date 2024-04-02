@@ -59,6 +59,12 @@ func TestMemMarker_Muted(t *testing.T) {
 	timeIntervalNames, isMuted = marker.Muted("group2", muted.Fingerprint())
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
+
+	// The muted alert is no longer muted.
+	marker.SetMuted("group1", muted.Fingerprint(), nil)
+	timeIntervalNames, isMuted = marker.Muted("group1", muted.Fingerprint())
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
 }
 
 func TestMemMarker_Count(t *testing.T) {
