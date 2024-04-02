@@ -894,7 +894,7 @@ func TestTimeMuteStage(t *testing.T) {
 
 			// Get the names of all time intervals for the context.
 			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
-			for name, _ := range test.intervals {
+			for name := range test.intervals {
 				muteTimeIntervalNames = append(muteTimeIntervalNames, name)
 			}
 
