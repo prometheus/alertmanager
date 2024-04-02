@@ -107,7 +107,7 @@ func NewDispatcher(
 	ap provider.Alerts,
 	r *Route,
 	s notify.Stage,
-	mk types.Marker,
+	mk types.AlertMarker,
 	to func(time.Duration) time.Duration,
 	lim Limits,
 	l log.Logger,
@@ -182,6 +182,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				for _, ag := range groups {
 					if ag.empty() {
 						ag.stop()
+
 						delete(groups, ag.fingerprint())
 						d.aggrGroupsNum--
 						d.metrics.aggrGroups.Dec()

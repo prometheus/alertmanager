@@ -35,7 +35,7 @@ type Alerts struct {
 	cancel context.CancelFunc
 
 	alerts *store.Alerts
-	marker types.Marker
+	marker types.AlertMarker
 
 	mtx       sync.Mutex
 	listeners map[int]listeningAlerts
@@ -85,7 +85,7 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}

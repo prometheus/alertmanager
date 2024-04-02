@@ -92,16 +92,16 @@ func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
 	return ms, nil
 }
 
-// Silencer binds together a Marker and a Silences to implement the Muter
+// Silencer binds together a AlertMarker and a Silences to implement the Muter
 // interface.
 type Silencer struct {
 	silences *Silences
-	marker   types.Marker
+	marker   types.AlertMarker
 	logger   log.Logger
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
+func NewSilencer(s *Silences, m types.AlertMarker, l log.Logger) *Silencer {
 	return &Silencer{
 		silences: s,
 		marker:   m,

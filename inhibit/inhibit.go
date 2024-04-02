@@ -36,7 +36,7 @@ import (
 type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
-	marker types.Marker
+	marker types.AlertMarker
 	logger log.Logger
 
 	mtx    sync.RWMutex
@@ -44,7 +44,7 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger log.Logger) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
 		marker: mk,
