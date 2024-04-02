@@ -755,7 +755,7 @@ func TestIntervener_Mutes(t *testing.T) {
 				require.Len(t, timeIntervalNames, 1)
 				require.Equal(t, timeIntervalNames[0], intervalName)
 			} else {
-				require.Len(t, timeIntervalNames, 0)
+				require.Empty(t, timeIntervalNames)
 			}
 		})
 	}
