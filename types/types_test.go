@@ -29,6 +29,38 @@ import (
 	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
+func TestMemMarker_Muted(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	muted := model.Alert{Labels: model.LabelSet{"bar": "baz"}}
+	active := model.Alert{Labels: model.LabelSet{"foo": "bar"}}
+
+	// No alerts should be muted.
+	timeIntervalNames, isMuted := marker.Muted("group1", muted.Fingerprint())
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+	timeIntervalNames, isMuted = marker.Muted("group1", active.Fingerprint())
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Mark the muted alert as muted because it's the weekend.
+	marker.SetMuted("group1", muted.Fingerprint(), []string{"weekends"})
+
+	// The muted alert should be muted, but not the active alert.
+	timeIntervalNames, isMuted = marker.Muted("group1", muted.Fingerprint())
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+	timeIntervalNames, isMuted = marker.Muted("group1", active.Fingerprint())
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// The muted alert should not be muted in other groups.
+	timeIntervalNames, isMuted = marker.Muted("group2", muted.Fingerprint())
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
 func TestMemMarker_Count(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := NewMarker(r)

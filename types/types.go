@@ -113,7 +113,7 @@ type GroupMarker interface {
 }
 
 // NewMarker returns an instance of a AlertMarker implementation.
-func NewMarker(r prometheus.Registerer) AlertMarker {
+func NewMarker(r prometheus.Registerer) *memMarker {
 	m := &memMarker{
 		alerts: map[model.Fingerprint]*AlertStatus{},
 		groups: map[string]*GroupStatus{},
