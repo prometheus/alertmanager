@@ -182,7 +182,6 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				for _, ag := range groups {
 					if ag.empty() {
 						ag.stop()
-
 						delete(groups, ag.fingerprint())
 						d.aggrGroupsNum--
 						d.metrics.aggrGroups.Dec()
