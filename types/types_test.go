@@ -33,36 +33,25 @@ func TestMemMarker_Muted(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := NewMarker(r)
 
-	muted := model.Alert{Labels: model.LabelSet{"bar": "baz"}}
-	active := model.Alert{Labels: model.LabelSet{"foo": "bar"}}
-
 	// No alerts should be muted.
-	timeIntervalNames, isMuted := marker.Muted("group1", muted.Fingerprint())
-	require.False(t, isMuted)
-	require.Empty(t, timeIntervalNames)
-	timeIntervalNames, isMuted = marker.Muted("group1", active.Fingerprint())
+	timeIntervalNames, isMuted := marker.Muted("group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 
-	// Mark the muted alert as muted because it's the weekend.
-	marker.SetMuted("group1", muted.Fingerprint(), []string{"weekends"})
-
-	// The muted alert should be muted, but not the active alert.
-	timeIntervalNames, isMuted = marker.Muted("group1", muted.Fingerprint())
+	// Mark the group as muted because it's the weekend.
+	marker.SetMuted("group1", []string{"weekends"})
+	timeIntervalNames, isMuted = marker.Muted("group1")
 	require.True(t, isMuted)
 	require.Equal(t, []string{"weekends"}, timeIntervalNames)
-	timeIntervalNames, isMuted = marker.Muted("group1", active.Fingerprint())
+
+	// Other groups should not be marked as muted.
+	timeIntervalNames, isMuted = marker.Muted("group2")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 
-	// The muted alert should not be muted in other groups.
-	timeIntervalNames, isMuted = marker.Muted("group2", muted.Fingerprint())
-	require.False(t, isMuted)
-	require.Empty(t, timeIntervalNames)
-
-	// The muted alert is no longer muted.
-	marker.SetMuted("group1", muted.Fingerprint(), nil)
-	timeIntervalNames, isMuted = marker.Muted("group1", muted.Fingerprint())
+	// The group is no longer muted.
+	marker.SetMuted("group1", nil)
+	timeIntervalNames, isMuted = marker.Muted("group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 }
