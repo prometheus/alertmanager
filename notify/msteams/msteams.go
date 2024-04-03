@@ -102,7 +102,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 				ContentType: "application/vnd.microsoft.card.adaptive",
 				Content:     &textJson,
 			},
-			// Add more attachments as needed
 		},
 	}
 
