@@ -33,7 +33,7 @@ func TestMemMarker_Muted(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := NewMarker(r)
 
-	// No alerts should be muted.
+	// No groups should be muted.
 	timeIntervalNames, isMuted := marker.Muted("group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
