@@ -101,12 +101,12 @@ type AlertMarker interface {
 }
 
 type GroupMarker interface {
-	// Muted returns true if the alert is muted, otherwise false. If the alert
+	// Muted returns true if the group is muted, otherwise false. If the group
 	// is muted then it also returns the names of the time intervals that muted
 	// it.
 	Muted(groupKey string) ([]string, bool)
 
-	// SetMuted marks the alert as muted, and sets the names of the time
+	// SetMuted marks the group as muted, and sets the names of the time
 	// intervals that mute it. If the list of names is nil or the empty slice
 	// then the muted marker is removed.
 	SetMuted(groupKey string, timeIntervalNames []string)
