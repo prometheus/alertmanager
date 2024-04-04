@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -93,7 +92,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	textJson := json.RawMessage(text)
-	fmt.Println(string(textJson))
 
 	t := teamsMessage{
 		Type: "message",
