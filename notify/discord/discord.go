@@ -83,10 +83,9 @@ func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts .
 }
 
 type webhook struct {
-	Content   string         `json:"content"`
-	Embeds    []webhookEmbed `json:"embeds"`
 	Username  string         `json:"username"`
 	AvatarURL string         `json:"avatar_url"`
+	Embeds    []webhookEmbed `json:"embeds"`
 }
 
 type webhookEmbed struct {
@@ -150,11 +149,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 		}
 
-		w := webhook{
-			Username:  author,
-			AvatarURL: tmpl(n.conf.BotIconURL),
-		}
-
 		var color int
 		var timestamp time.Time
 
@@ -203,6 +197,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 				labelCount++
 			}
+		}
+
+		w := webhook{
+			Username:  author,
+			AvatarURL: tmpl(n.conf.BotIconURL),
 		}
 
 		w.Embeds = append(w.Embeds, webhookEmbed{
