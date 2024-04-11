@@ -34,6 +34,7 @@ type Intervener struct {
 }
 
 func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error) {
+	var in []string
 	for _, name := range names {
 		interval, ok := i.intervals[name]
 		if !ok {
@@ -42,12 +43,12 @@ func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error
 
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
-				return true, []string{name}, nil
+				in = append(in, name)
 			}
 		}
 	}
 
-	return false, nil, nil
+	return len(in) > 0, in, nil
 }
 
 func NewIntervener(ti map[string][]TimeInterval) *Intervener {
