@@ -259,6 +259,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
 				{
@@ -483,6 +484,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithNow(ctx, time.Now())
 
 	_, err = pagerDuty.Notify(ctx, []*types.Alert{
 		{

@@ -142,6 +142,7 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 	require.NotEmpty(t, secret)
 
 	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithNow(ctx, time.Now())
 	ok, err := n.Notify(ctx, []*types.Alert{
 		{
 			Alert: model.Alert{

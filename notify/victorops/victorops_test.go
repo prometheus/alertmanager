@@ -62,6 +62,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithNow(ctx, time.Now())
 
 	alert := &types.Alert{
 		Alert: model.Alert{
@@ -211,6 +212,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			require.NoError(t, err)
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			_, err = vo.Notify(ctx, []*types.Alert{
 				{

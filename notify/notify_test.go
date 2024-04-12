@@ -237,6 +237,10 @@ func TestDedupStage(t *testing.T) {
 	ctx = WithGroupKey(ctx, "1")
 
 	_, _, err = s.Exec(ctx, log.NewNopLogger())
+	require.EqualError(t, err, "now missing")
+	ctx = WithNow(ctx, time.Now())
+
+	_, _, err = s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "repeat interval missing")
 
 	ctx = WithRepeatInterval(ctx, time.Hour)
@@ -404,6 +408,7 @@ func TestRetryStageWithError(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = WithFiringAlerts(ctx, []uint64{0})
+	ctx = WithNow(ctx, time.Now())
 
 	// Notify with a recoverable error should retry and succeed.
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
@@ -457,6 +462,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 
 		ctx := context.Background()
 		ctx = WithFiringAlerts(ctx, []uint64{0})
+		ctx = WithNow(ctx, time.Now())
 
 		// Notify with a non-recoverable error.
 		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
@@ -491,6 +497,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 	}
 
 	ctx = WithFiringAlerts(ctx, []uint64{0})
+	ctx = WithNow(ctx, time.Now())
 
 	// Notify with a non-recoverable error.
 	resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
@@ -529,6 +536,13 @@ func TestRetryStageNoResolved(t *testing.T) {
 	ctx := context.Background()
 
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.EqualError(t, err, "now missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithNow(ctx, time.Now())
+
+	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "firing alerts missing")
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
@@ -579,6 +593,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = WithFiringAlerts(ctx, []uint64{0})
+	ctx = WithNow(ctx, time.Now())
 
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)

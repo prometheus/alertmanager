@@ -117,6 +117,7 @@ func TestMSTeamsTemplating(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
 				{
@@ -175,6 +176,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			}
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			alert1 := &types.Alert{
 				Alert: model.Alert{

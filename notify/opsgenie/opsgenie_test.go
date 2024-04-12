@@ -216,6 +216,7 @@ func TestOpsGenie(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
@@ -279,6 +280,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	tmpl := test.CreateTmpl(t)
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithNow(ctx, time.Now())
 	opsGenieConfigWithUpdate := config.OpsGenieConfig{
 		Message:      `{{ .CommonLabels.Message }}`,
 		Description:  `{{ .CommonLabels.Description }}`,

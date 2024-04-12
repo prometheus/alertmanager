@@ -106,6 +106,7 @@ func TestDiscordTemplating(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithNow(ctx, time.Now())
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
 				{
