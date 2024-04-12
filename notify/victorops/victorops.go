@@ -123,6 +123,11 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		return nil, err
 	}
 
+	now, err := notify.ExtractNow(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		alerts = types.Alerts(as...)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -132,11 +137,11 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
 
-	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
+	if alerts.StatusAt(now) == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
 		messageType = victorOpsEventTrigger
 	}
 
-	if alerts.Status() == model.AlertResolved {
+	if alerts.StatusAt(now) == model.AlertResolved {
 		messageType = victorOpsEventResolve
 	}
 

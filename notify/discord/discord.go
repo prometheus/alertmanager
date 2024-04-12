@@ -91,6 +91,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	now, err := notify.ExtractNow(ctx)
+	if err != nil {
+		return false, err
+	}
+
 	level.Debug(n.logger).Log("incident", key)
 
 	alerts := types.Alerts(as...)
@@ -116,10 +121,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	color := colorGrey
-	if alerts.Status() == model.AlertFiring {
+	if alerts.StatusAt(now) == model.AlertFiring {
 		color = colorRed
 	}
-	if alerts.Status() == model.AlertResolved {
+	if alerts.StatusAt(now) == model.AlertResolved {
 		color = colorGreen
 	}
 

@@ -369,10 +369,6 @@ func Alerts(alerts ...*Alert) model.Alerts {
 	res := make(model.Alerts, 0, len(alerts))
 	for _, a := range alerts {
 		v := a.Alert
-		// If the end timestamp is not reached yet, do not expose it.
-		if !a.Resolved() {
-			v.EndsAt = time.Time{}
-		}
 		res = append(res, &v)
 	}
 	return res

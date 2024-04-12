@@ -683,9 +683,14 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	gkey, ok := GroupKey(ctx)
-	if !ok {
-		return ctx, nil, errors.New("group key missing")
+	gkey, err := ExtractGroupKey(ctx)
+	if err != nil {
+		return ctx, nil, err
+	}
+
+	now, err := ExtractNow(ctx)
+	if err != nil {
+		return ctx, nil, err
 	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
@@ -701,7 +706,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	var hash uint64
 	for _, a := range alerts {
 		hash = n.hash(a)
-		if a.Resolved() {
+		if a.ResolvedAt(now) {
 			resolved = append(resolved, hash)
 			resolvedSet[hash] = struct{}{}
 		} else {
@@ -713,7 +718,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	ctx = WithFiringAlerts(ctx, firing)
 	ctx = WithResolvedAlerts(ctx, resolved)
 
-	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
+	entries, err := n.nflog.Query(nflog.QGroupKey(gkey.String()), nflog.QReceiver(n.recv))
 	if err != nil && !errors.Is(err, nflog.ErrNotFound) {
 		return ctx, nil, err
 	}
@@ -774,8 +779,12 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 }
 
 func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var sent []*types.Alert
+	now, err := ExtractNow(ctx)
+	if err != nil {
+		return ctx, nil, err
+	}
 
+	var sent []*types.Alert
 	// If we shouldn't send notifications for resolved alerts, but there are only
 	// resolved alerts, report them all as successfully notified (we still want the
 	// notification log to log them for the next run of DedupStage).
@@ -788,7 +797,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			return ctx, alerts, nil
 		}
 		for _, a := range alerts {
-			if a.Status() != model.AlertResolved {
+			if a.StatusAt(now) != model.AlertResolved {
 				sent = append(sent, a)
 			}
 		}

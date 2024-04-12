@@ -133,6 +133,12 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	if err != nil {
 		return nil, false, err
 	}
+
+	now, err := notify.ExtractNow(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
 	level.Debug(n.logger).Log("alert", key)
@@ -155,7 +161,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		alias  = key.Hash()
 		alerts = types.Alerts(as...)
 	)
-	switch alerts.Status() {
+	switch alerts.StatusAt(now) {
 	case model.AlertResolved:
 		resolvedEndpointURL := n.conf.APIURL.Copy()
 		resolvedEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/close", alias)

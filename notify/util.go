@@ -18,14 +18,14 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/prometheus/common/version"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/prometheus/common/version"
+	"time"
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -177,6 +177,15 @@ func (k Key) Hash() string {
 
 func (k Key) String() string {
 	return string(k)
+}
+
+// ExtractNow gets the time from the context.
+func ExtractNow(ctx context.Context) (time.Time, error) {
+	now, ok := Now(ctx)
+	if !ok {
+		return time.Time{}, errors.New("now missing")
+	}
+	return now, nil
 }
 
 // GetTemplateData creates the template data from the context and the alerts.

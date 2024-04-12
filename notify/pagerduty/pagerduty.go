@@ -310,12 +310,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	now, err := notify.ExtractNow(ctx)
+	if err != nil {
+		return false, err
+	}
+
 	var (
 		alerts    = types.Alerts(as...)
 		data      = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		eventType = pagerDutyEventTrigger
 	)
-	if alerts.Status() == model.AlertResolved {
+	if alerts.StatusAt(now) == model.AlertResolved {
 		eventType = pagerDutyEventResolve
 	}
 

@@ -454,9 +454,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
-			ag.flush(func(alerts ...*types.Alert) bool {
-				return nf(ctx, alerts...)
-			})
+			ag.flush(ctx, nf)
 
 			cancel()
 
@@ -493,29 +491,30 @@ func (ag *aggrGroup) empty() bool {
 }
 
 // flush sends notifications for all new alerts.
-func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
+func (ag *aggrGroup) flush(ctx context.Context, nf notifyFunc) {
 	if ag.empty() {
+		return
+	}
+
+	now, ok := notify.Now(ctx)
+	if !ok {
+		level.Error(ag.logger).Log("msg", "now missing")
 		return
 	}
 
 	var (
 		alerts      = ag.alerts.List()
 		alertsSlice = make(types.AlertSlice, 0, len(alerts))
-		now         = time.Now()
 	)
 	for _, alert := range alerts {
 		a := *alert
-		// Ensure that alerts don't resolve as time move forwards.
-		if !a.ResolvedAt(now) {
-			a.EndsAt = time.Time{}
-		}
 		alertsSlice = append(alertsSlice, &a)
 	}
 	sort.Stable(alertsSlice)
 
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
-	if notify(alertsSlice...) {
+	if nf(ctx, alertsSlice...) {
 		for _, a := range alertsSlice {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
@@ -526,7 +525,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
+			if a.ResolvedAt(now) && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}

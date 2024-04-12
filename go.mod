@@ -93,3 +93,5 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/prometheus/common => github.com/grobinson-grafana/prometheus-common v0.0.0-20240412114228-fb6970a7e4c9
