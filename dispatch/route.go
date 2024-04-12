@@ -197,6 +197,7 @@ func (r *Route) ID() string {
 			if r == r.parent.Routes[i] {
 				b.WriteRune('/')
 				b.WriteString(strconv.Itoa(i))
+				break
 			}
 		}
 	}
