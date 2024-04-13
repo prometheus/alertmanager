@@ -16,7 +16,7 @@ all: script.js test
 elm-env:
 	@(if [ "$(NO_DOCKER)" != "true" ] ; then \
 		echo ">> building elm-env docker image"; \
-		docker build -t $(DOCKER_IMG) ../. > /dev/null; \
+		docker build --platform=linux/amd64 -t $(DOCKER_IMG) ../. > /dev/null; \
 	fi; )
 
 format: elm-env $(ELM_FILES)
