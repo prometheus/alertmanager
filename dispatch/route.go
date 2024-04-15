@@ -169,24 +169,12 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
-// Key returns a key for the route. It does not uniquely identify the route in general.
+// Key returns a key for the route. It uniquely identifies the route.
 func (r *Route) Key() string {
 	b := strings.Builder{}
 
 	if r.parent != nil {
 		b.WriteString(r.parent.Key())
-		b.WriteRune('/')
-	}
-	b.WriteString(r.Matchers.String())
-	return b.String()
-}
-
-// ID returns a unique identifier for the route.
-func (r *Route) ID() string {
-	b := strings.Builder{}
-
-	if r.parent != nil {
-		b.WriteString(r.parent.ID())
 		b.WriteRune('/')
 	}
 

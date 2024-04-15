@@ -25,6 +25,73 @@ import (
 	"github.com/prometheus/alertmanager/config"
 )
 
+func TestRouteKey(t *testing.T) {
+	in := `
+receiver: default
+routes:
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test1
+  routes:
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test1
+  routes:
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test2
+  routes:
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - bar=baz
+  receiver: test3
+  routes:
+  - matchers:
+    - baz=qux
+  - matchers:
+    - qux=corge
+- continue: true
+  matchers:
+  - qux=~"[a-zA-Z0-9]+"
+- continue: true
+  matchers:
+  - corge!~"[0-9]+"
+`
+	cr := config.Route{}
+	require.NoError(t, yaml.Unmarshal([]byte(in), &cr))
+	r := NewRoute(&cr, nil)
+
+	expected := []string{
+		"{}",
+		"{}/{foo=\"bar\"}/0",
+		"{}/{foo=\"bar\"}/0/{bar=\"baz\"}/0",
+		"{}/{foo=\"bar\"}/1",
+		"{}/{foo=\"bar\"}/1/{bar=\"baz\"}/0",
+		"{}/{foo=\"bar\"}/2",
+		"{}/{foo=\"bar\"}/2/{bar=\"baz\"}/0",
+		"{}/{bar=\"baz\"}/3",
+		"{}/{bar=\"baz\"}/3/{baz=\"qux\"}/0",
+		"{}/{bar=\"baz\"}/3/{qux=\"corge\"}/1",
+		"{}/{qux=~\"[a-zA-Z0-9]+\"}/4",
+		"{}/{corge!~\"[0-9]+\"}/5",
+	}
+
+	var actual []string
+	r.Walk(func(r *Route) {
+		actual = append(actual, r.Key())
+	})
+	require.ElementsMatch(t, actual, expected)
+}
+
 func TestRouteMatch(t *testing.T) {
 	in := `
 receiver: 'notify-def'
@@ -116,7 +183,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"{}/{owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -133,7 +200,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"{}/{owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -149,7 +216,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
+			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}/1"},
 		},
 		{
 			input: model.LabelSet{
@@ -166,7 +233,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
+			keys: []string{"{}/{owner=\"team-A\"}/0/{env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -192,8 +259,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{owner=\"team-A\"}/{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"}",
+				"{}/{owner=\"team-A\"}/0/{env=\"production\"}/1",
+				"{}/{owner=\"team-A\"}/0/{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"}/2",
 			},
 		},
 		{
@@ -210,7 +277,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2"},
 		},
 		{
 			input: model.LabelSet{
@@ -227,7 +294,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -245,7 +312,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0/{wait=\"long\"}/0"},
 		},
 	}
 
@@ -466,7 +533,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -483,7 +550,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -499,7 +566,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"team-(B|C)\"}"},
+			keys: []string{"{}/{owner=~\"team-(B|C)\"}/1"},
 		},
 		{
 			input: model.LabelSet{
@@ -516,7 +583,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0/{baz!~\".*quux\",env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -542,8 +609,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/0/{env=\"production\"}/1",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/0/{env=~\"produ.*\",job=~\".*\"}/2",
 			},
 		},
 		{
@@ -560,7 +627,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2"},
 		},
 		{
 			input: model.LabelSet{
@@ -577,7 +644,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -595,7 +662,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0/{wait=\"long\"}/0"},
 		},
 	}
 
@@ -702,7 +769,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -719,7 +786,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -735,7 +802,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
+			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}/1"},
 		},
 		{
 			input: model.LabelSet{
@@ -752,7 +819,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/0/{baz!~\".*quux\",env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -778,8 +845,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/0/{env=\"production\"}/1",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/0/{env=~\"produ.*\",job=~\".*\"}/2",
 			},
 		},
 		{
@@ -796,7 +863,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2"},
 		},
 		{
 			input: model.LabelSet{
@@ -813,7 +880,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0"},
 		},
 		{
 			input: model.LabelSet{
@@ -831,7 +898,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"{}/{group_by=\"role\"}/2/{env=\"testing\"}/0/{wait=\"long\"}/0"},
 		},
 	}
 
@@ -852,71 +919,4 @@ routes:
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.keys, keys)
 		}
 	}
-}
-
-func TestRouteID(t *testing.T) {
-	in := `
-receiver: default
-routes:
-- continue: true
-  matchers:
-  - foo=bar
-  receiver: test1
-  routes:
-  - matchers:
-    - bar=baz
-- continue: true
-  matchers:
-  - foo=bar
-  receiver: test1
-  routes:
-  - matchers:
-    - bar=baz
-- continue: true
-  matchers:
-  - foo=bar
-  receiver: test2
-  routes:
-  - matchers:
-    - bar=baz
-- continue: true
-  matchers:
-  - bar=baz
-  receiver: test3
-  routes:
-  - matchers:
-    - baz=qux
-  - matchers:
-    - qux=corge
-- continue: true
-  matchers:
-  - qux=~"[a-zA-Z0-9]+"
-- continue: true
-  matchers:
-  - corge!~"[0-9]+"
-`
-	cr := config.Route{}
-	require.NoError(t, yaml.Unmarshal([]byte(in), &cr))
-	r := NewRoute(&cr, nil)
-
-	expected := []string{
-		"{}",
-		"{}/{foo=\"bar\"}/0",
-		"{}/{foo=\"bar\"}/0/{bar=\"baz\"}/0",
-		"{}/{foo=\"bar\"}/1",
-		"{}/{foo=\"bar\"}/1/{bar=\"baz\"}/0",
-		"{}/{foo=\"bar\"}/2",
-		"{}/{foo=\"bar\"}/2/{bar=\"baz\"}/0",
-		"{}/{bar=\"baz\"}/3",
-		"{}/{bar=\"baz\"}/3/{baz=\"qux\"}/0",
-		"{}/{bar=\"baz\"}/3/{qux=\"corge\"}/1",
-		"{}/{qux=~\"[a-zA-Z0-9]+\"}/4",
-		"{}/{corge!~\"[0-9]+\"}/5",
-	}
-
-	var actual []string
-	r.Walk(func(r *Route) {
-		actual = append(actual, r.ID())
-	})
-	require.ElementsMatch(t, actual, expected)
 }
