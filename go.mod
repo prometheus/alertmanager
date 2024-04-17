@@ -29,7 +29,7 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1
 	github.com/prometheus/client_golang v1.19.0
-	github.com/prometheus/common v0.52.3
+	github.com/prometheus/common v0.52.4-0.20240415124502-c1b9b7252566
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/common/sigv4 v0.1.0
 	github.com/prometheus/exporter-toolkit v0.11.0
@@ -93,5 +93,3 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/prometheus/common => github.com/grobinson-grafana/prometheus-common v0.0.0-20240412114228-fb6970a7e4c9
