@@ -64,7 +64,7 @@ func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOp
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.AlertSnapshot) (bool, error) {
 	var (
 		err  error
 		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)

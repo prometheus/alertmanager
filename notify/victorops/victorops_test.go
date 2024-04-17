@@ -63,7 +63,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alert := types.NewAlertSnapshot(&types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"Message": "message",
@@ -71,7 +71,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
 		},
-	}
+	}, time.Now())
 
 	msg, err := notifier.createVictorOpsPayload(ctx, alert)
 	require.NoError(t, err)
@@ -212,8 +212,8 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{
-				{
+			_, err = vo.Notify(ctx, []*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1": "val1",
@@ -221,7 +221,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, err)

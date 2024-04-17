@@ -303,7 +303,7 @@ func (d *Dispatcher) Stop() {
 // notifyFunc is a function that performs notification for the alert
 // with the given fingerprint. It aborts on context cancelation.
 // Returns false iff notifying failed.
-type notifyFunc func(context.Context, ...*types.Alert) bool
+type notifyFunc func(context.Context, ...*types.AlertSnapshot) bool
 
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
@@ -344,7 +344,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// alert is already there.
 	ag.insert(alert)
 
-	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+	go ag.run(func(ctx context.Context, alerts ...*types.AlertSnapshot) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
 			lvl := level.Error(d.logger)
@@ -461,7 +461,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
-			ag.flush(func(alerts ...*types.Alert) bool {
+			ag.flush(func(alerts ...*types.AlertSnapshot) bool {
 				return nf(ctx, alerts...)
 			})
 
@@ -500,28 +500,20 @@ func (ag *aggrGroup) empty() bool {
 }
 
 // flush sends notifications for all new alerts.
-func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
+func (ag *aggrGroup) flush(notify func(...*types.AlertSnapshot) bool) {
 	if ag.empty() {
 		return
 	}
 
-	var (
-		alerts        = ag.alerts.List()
-		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
-		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
-		now           = time.Now()
-	)
-	for _, alert := range alerts {
-		a := *alert
-		// Ensure that alerts don't resolve as time move forwards.
-		if a.ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &a)
-		} else {
-			a.EndsAt = time.Time{}
-		}
-		alertsSlice = append(alertsSlice, &a)
-	}
+	alertsSlice := types.SnapshotAlerts(ag.alerts.List(), time.Now())
 	sort.Stable(alertsSlice)
+
+	resolvedSlice := make(types.AlertSlice, 0, len(alertsSlice))
+	for _, alert := range alertsSlice {
+		if alert.Resolved() {
+			resolvedSlice = append(resolvedSlice, &alert.Alert)
+		}
+	}
 
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 

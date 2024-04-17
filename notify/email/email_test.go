@@ -171,13 +171,13 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 	if cfg.Headers == nil {
 		cfg.Headers = make(map[string]string)
 	}
-	firingAlert := &types.Alert{
+	firingAlert := types.NewAlertSnapshot(&types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{},
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
 		},
-	}
+	}, time.Now())
 	err := server.deleteAllEmails()
 	if err != nil {
 		return nil, false, err

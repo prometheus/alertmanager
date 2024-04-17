@@ -215,12 +215,12 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert1 := &types.Alert{
+			alert1 := types.NewAlertSnapshot(&types.Alert{
 				Alert: model.Alert{
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
-			}
+			}, time.Now())
 			retry, err := notifier.Notify(ctx, alert1)
 			require.Equal(t, tt.expectedRetry, retry)
 			if tt.noError {
