@@ -67,7 +67,7 @@ func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpt
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return false, fmt.Errorf("group key missing")

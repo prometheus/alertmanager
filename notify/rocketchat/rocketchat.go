@@ -137,7 +137,7 @@ func getToken(c *config.RocketchatConfig) (string, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	var err error
 
 	key, err := notify.ExtractGroupKey(ctx)

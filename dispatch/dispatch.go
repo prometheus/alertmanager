@@ -408,7 +408,7 @@ func (d *Dispatcher) Stop() {
 // notifyFunc is a function that performs notification for the alert
 // with the given fingerprint. It aborts on context cancelation.
 // Returns false if notifying failed.
-type notifyFunc func(context.Context, ...*types.Alert) bool
+type notifyFunc func(context.Context, ...*types.AlertSnapshot) bool
 
 // groupAlert determines in which aggregation group the alert falls
 // and inserts it.
@@ -502,7 +502,7 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 	if ag.running.Load() {
 		return
 	}
-	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+	go ag.run(func(ctx context.Context, alerts ...*types.AlertSnapshot) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
 			logger := d.logger.With("aggrGroup", ag.GroupKey(), "num_alerts", len(alerts), "err", err)
@@ -625,7 +625,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Wait the configured interval before calling flush again.
 			ag.resetTimer(ag.opts.GroupInterval)
 
-			ag.flush(func(alerts ...*types.Alert) bool {
+			ag.flush(func(alerts ...*types.AlertSnapshot) bool {
 				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
 					trace.WithAttributes(
 						attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
@@ -686,30 +686,22 @@ func (ag *aggrGroup) empty() bool {
 }
 
 // flush sends notifications for all new alerts.
-func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
+func (ag *aggrGroup) flush(notify func(...*types.AlertSnapshot) bool) {
 	if ag.empty() {
 		return
 	}
 
-	var (
-		alerts        = ag.alerts.List()
-		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
-		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
-		now           = time.Now()
-	)
-	for _, alert := range alerts {
-		a := *alert
-		// Ensure that alerts don't resolve as time move forwards.
-		if a.ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &a)
-		} else {
-			a.EndsAt = time.Time{}
-		}
-		alertsSlice = append(alertsSlice, &a)
-	}
+	alertsSlice := types.SnapshotAlerts(ag.alerts.List(), time.Now())
 	sort.Stable(alertsSlice)
 
 	ag.logger.Debug("flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
+
+	resolvedSlice := make(types.AlertSlice, 0, len(alertsSlice))
+	for _, alert := range alertsSlice {
+		if alert.Resolved() {
+			resolvedSlice = append(resolvedSlice, &alert.Alert)
+		}
+	}
 
 	if notify(alertsSlice...) {
 		// Delete all resolved alerts as we just sent a notification for them,

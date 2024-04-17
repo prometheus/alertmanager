@@ -97,7 +97,7 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 }
 
 func TestIncidentIOTruncateAlerts(t *testing.T) {
-	alerts := make([]*types.Alert, 10)
+	alerts := make([]*types.AlertSnapshot, 10)
 
 	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
 	require.Len(t, truncatedAlerts, 10)
@@ -149,7 +149,7 @@ func TestIncidentIONotify(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alert := types.NewAlertSnapshot(&types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"alertname": "TestAlert",
@@ -158,7 +158,7 @@ func TestIncidentIONotify(t *testing.T) {
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
 		},
-	}
+	}, time.Now())
 
 	retry, err := notifier.Notify(ctx, alert)
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert := &types.Alert{
+			alert := types.NewAlertSnapshot(&types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
 						"alertname": "TestAlert",
@@ -239,7 +239,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
-			}
+			}, time.Now())
 
 			retry, err := notifier.Notify(ctx, alert)
 			if tc.expectErrorMsgContains == "" {
@@ -324,9 +324,9 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	largeAnnotationStr := string(largeAnnotation)
 
 	// Create alerts with large annotations
-	var alerts []*types.Alert
+	var alerts []*types.AlertSnapshot
 	for i := range 10 { // 10 alerts * 100KB = 1MB total in annotations alone
-		alert := &types.Alert{
+		alert := types.NewAlertSnapshot(&types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
@@ -344,7 +344,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 				StartsAt: time.Now(),
 				EndsAt:   time.Now().Add(time.Hour),
 			},
-		}
+		}, time.Now())
 		alerts = append(alerts, alert)
 	}
 
@@ -393,7 +393,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create many alerts with many labels to push size over limit even without annotations
-	var alerts []*types.Alert
+	var alerts []*types.AlertSnapshot
 	for i := range 100 { // Many alerts
 		labels := model.LabelSet{
 			"alertname": model.LabelValue("TestAlert" + string(rune('0'+i%10))),
@@ -412,13 +412,13 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 			labels[labelName] = model.LabelValue(labelValue)
 		}
 
-		alert := &types.Alert{
+		alert := types.NewAlertSnapshot(&types.Alert{
 			Alert: model.Alert{
 				Labels:   labels,
 				StartsAt: time.Now(),
 				EndsAt:   time.Now().Add(time.Hour),
 			},
-		}
+		}, time.Now())
 		alerts = append(alerts, alert)
 	}
 

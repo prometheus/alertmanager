@@ -149,6 +149,7 @@ func (n *Notifier) notifyV1(
 	key notify.Key,
 	data *template.Data,
 	details map[string]any,
+	as ...*types.AlertSnapshot,
 ) (bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
@@ -209,6 +210,7 @@ func (n *Notifier) notifyV2(
 	key notify.Key,
 	data *template.Data,
 	details map[string]any,
+	as ...*types.AlertSnapshot,
 ) (bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
@@ -301,7 +303,7 @@ func (n *Notifier) notifyV2(
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return false, err
@@ -309,7 +311,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	logger := n.logger.With("group_key", key)
 
 	var (
-		alerts    = types.Alerts(as...)
+		alerts    = types.Snapshot(as...)
 		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)

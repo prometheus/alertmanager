@@ -139,11 +139,12 @@ func TestData(t *testing.T) {
 	tmpl := &Template{ExternalURL: u}
 	startTime := time.Time{}.Add(1 * time.Second)
 	endTime := time.Time{}.Add(2 * time.Second)
+	nowTime := endTime.Add(time.Second)
 
 	for _, tc := range []struct {
 		receiver    string
 		groupLabels model.LabelSet
-		alerts      []*types.Alert
+		alerts      []*types.AlertSnapshot
 
 		exp *Data
 	}{
@@ -164,8 +165,8 @@ func TestData(t *testing.T) {
 			groupLabels: model.LabelSet{
 				model.LabelName("job"): model.LabelValue("foo"),
 			},
-			alerts: []*types.Alert{
-				{
+			alerts: []*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						StartsAt: startTime,
 						Labels: model.LabelSet{
@@ -177,8 +178,8 @@ func TestData(t *testing.T) {
 							model.LabelName("runbook"):     model.LabelValue("foo"),
 						},
 					},
-				},
-				{
+				}, nowTime),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						StartsAt: startTime,
 						EndsAt:   endTime,
@@ -191,7 +192,7 @@ func TestData(t *testing.T) {
 							model.LabelName("runbook"):     model.LabelValue("foo"),
 						},
 					},
-				},
+				}, nowTime),
 			},
 			exp: &Data{
 				Receiver: "webhook",
@@ -222,7 +223,7 @@ func TestData(t *testing.T) {
 		{
 			receiver:    "webhook",
 			groupLabels: model.LabelSet{},
-			alerts: []*types.Alert{
+			alerts: types.SnapshotAlerts([]*types.Alert{
 				{
 					Alert: model.Alert{
 						StartsAt: startTime,
@@ -250,7 +251,7 @@ func TestData(t *testing.T) {
 						},
 					},
 				},
-			},
+			}, nowTime),
 			exp: &Data{
 				Receiver: "webhook",
 				Status:   "firing",

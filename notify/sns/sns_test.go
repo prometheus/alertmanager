@@ -130,7 +130,7 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 				logger,
 			)
 			require.NoError(t, err)
-			var alerts []*types.Alert
+			var alerts []*types.AlertSnapshot
 			_, err = notifier.Notify(context.Background(), alerts...)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")
