@@ -506,6 +506,16 @@ func TestTemplateFuncs(t *testing.T) {
 		title: "Template using reReplaceAll",
 		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
 		exp:   "ABc",
+	}, {
+		title: "Template using date",
+		in:    `{{ . | date "2006-01-02" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01",
+	}, {
+		title: "Template using tz",
+		in:    `{{ . | tz "Europe/Paris" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01 09:15:30 +0100 CET",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
