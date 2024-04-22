@@ -561,6 +561,14 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    "{{ . | since | humanizeDuration }}",
 		data:  time.Now().Add(-1 * time.Hour),
 		exp:   "1h 0m 0s",
+	}, {
+		title: "Template using duration",
+		in:    `{{ "60s" | parseDuration | printf "%d" }}`,
+		exp:   "60000000000",
+	}, {
+		title:  "Template using invalid duration",
+		in:     `{{ "60k" | parseDuration | printf "%d" }}`,
+		expErr: "template: :1:11: executing \"\" at <parseDuration>: error calling parseDuration: time: unknown unit \"k\" in duration \"60k\"",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {

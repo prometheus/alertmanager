@@ -99,3 +99,4 @@ templating.
 | tz | string, time.Time | Returns the time in the timezone. For example, Europe/Paris. |
 | since | time.Time | [time.Duration](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
 | humanizeDuration | number or string | Returns a human-readable string representing the duration, and the error if it happened. |
+| parseDuration | string | Returns the time.Duration representation of a passed string. |
