@@ -21,6 +21,7 @@ package models
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
@@ -33,6 +34,14 @@ import (
 // swagger:model receiver
 type Receiver struct {
 
+	// active
+	// Required: true
+	Active *bool `json:"active"`
+
+	// integrations
+	// Required: true
+	Integrations []*Integration `json:"integrations"`
+
 	// name
 	// Required: true
 	Name *string `json:"name"`
@@ -42,6 +51,14 @@ type Receiver struct {
 func (m *Receiver) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateActive(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateIntegrations(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateName(formats); err != nil {
 		res = append(res, err)
 	}
@@ -49,6 +66,42 @@ func (m *Receiver) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Receiver) validateActive(formats strfmt.Registry) error {
+
+	if err := validate.Required("active", "body", m.Active); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Receiver) validateIntegrations(formats strfmt.Registry) error {
+
+	if err := validate.Required("integrations", "body", m.Integrations); err != nil {
+		return err
+	}
+
+	for i := 0; i < len(m.Integrations); i++ {
+		if swag.IsZero(m.Integrations[i]) { // not required
+			continue
+		}
+
+		if m.Integrations[i] != nil {
+			if err := m.Integrations[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("integrations" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("integrations" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 
@@ -61,8 +114,42 @@ func (m *Receiver) validateName(formats strfmt.Registry) error {
 	return nil
 }
 
-// ContextValidate validates this receiver based on context it is used
+// ContextValidate validate this receiver based on the context it is used
 func (m *Receiver) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.contextValidateIntegrations(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *Receiver) contextValidateIntegrations(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.Integrations); i++ {
+
+		if m.Integrations[i] != nil {
+
+			if swag.IsZero(m.Integrations[i]) { // not required
+				return nil
+			}
+
+			if err := m.Integrations[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("integrations" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("integrations" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 

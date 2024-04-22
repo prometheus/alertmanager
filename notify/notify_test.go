@@ -381,7 +381,7 @@ func TestRoutingStage(t *testing.T) {
 func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			if fail {
 				fail = false
@@ -435,7 +435,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 	for _, testData := range testcases {
 		retry := false
 		testData := testData
-		i := Integration{
+		i := &Integration{
 			name: "test",
 			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 				if !testData.isNewErrorWithReason {
@@ -472,7 +472,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 func TestRetryStageWithContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	i := Integration{
+	i := &Integration{
 		name: "test",
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			cancel()
@@ -504,7 +504,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil
@@ -555,7 +555,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 
 func TestRetryStageSendResolved(t *testing.T) {
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil

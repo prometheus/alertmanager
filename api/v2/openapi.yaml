@@ -510,8 +510,36 @@ definitions:
     properties:
       name:
         type: string
+      active:
+        type: boolean
+      integrations:
+        type: array
+        items:
+          $ref: '#/definitions/integration'
     required:
       - name
+      - active
+      - integrations
+  integration:
+    type: object
+    properties:
+      name:
+        type: string
+      sendResolved:
+        type: boolean
+      lastNotifyAttempt:
+        description: A timestamp indicating the last attempt to deliver a notification regardless of the outcome.
+        type: string
+        format: date-time
+      lastNotifyAttemptDuration:
+        description: Duration of the last attempt to deliver a notification in humanized format (`1s` or `15ms`, etc).
+        type: string
+      lastNotifyAttemptError:
+        description: Error string for the last attempt to deliver a notification. Empty if the last attempt was successful.
+        type: string
+    required:
+      - name
+      - sendResolved
   labelSet:
     type: object
     additionalProperties:
