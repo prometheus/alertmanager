@@ -519,9 +519,9 @@ func TestTemplateFuncs(t *testing.T) {
 		exp:   "2024-01-01 09:15:30 +0100 CET",
 	}, {
 		title:  "Template using invalid tz",
-		in:     `{{ . | tz "Bad/Timezone" }}`,
+		in:     `{{ . | tz "Invalid/Timezone" }}`,
 		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
-		expErr: "template: :1:7: executing \"\" at <tz \"Bad/Timezone\">: error calling tz: unknown time zone Bad/Timezone",
+		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
