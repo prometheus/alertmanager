@@ -538,7 +538,6 @@ func TestTemplateFuncs(t *testing.T) {
 						require.EqualError(t, err, tc.expErr)
 						require.Empty(t, got)
 					}
-
 				}()
 			}
 			wg.Wait()
