@@ -42,6 +42,9 @@ var DefaultRouteOpts = RouteOpts{
 type Route struct {
 	parent *Route
 
+	// The name of the route.
+	Name string
+
 	// The configuration parameters for matches of this route.
 	RouteOpts RouteOpts
 
@@ -123,6 +126,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 
 	route := &Route{
 		parent:    parent,
+		Name:      cr.Name,
 		RouteOpts: opts,
 		Matchers:  matchers,
 		Continue:  cr.Continue,
@@ -172,12 +176,15 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 // Key returns a key for the route. It does not uniquely identify the route in general.
 func (r *Route) Key() string {
 	b := strings.Builder{}
-
 	if r.parent != nil {
 		b.WriteString(r.parent.Key())
 		b.WriteRune('/')
 	}
-	b.WriteString(r.Matchers.String())
+	if r.Name != "" {
+		b.WriteString(r.Name)
+	} else {
+		b.WriteString(r.Matchers.String())
+	}
 	return b.String()
 }
 
@@ -190,7 +197,11 @@ func (r *Route) ID() string {
 		b.WriteRune('/')
 	}
 
-	b.WriteString(r.Matchers.String())
+	if r.Name != "" {
+		b.WriteString(r.Name)
+	} else {
+		b.WriteString(r.Matchers.String())
+	}
 
 	if r.parent != nil {
 		for i := range r.parent.Routes {

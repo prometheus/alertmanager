@@ -147,6 +147,63 @@ receivers:
 	}
 }
 
+func TestRouteNameIsUnique(t *testing.T) {
+	testCases := []struct {
+		name        string
+		in          string
+		expectedErr string
+	}{{
+		name: "duplicate names are rejected",
+		in: `
+receivers:
+  - name: test
+route:
+  receiver: test
+  routes:
+    - name: foo
+    - name: foo
+`,
+		expectedErr: "route name \"foo\" is not unique",
+	}, {
+		name: "unique names are permitted",
+		in: `
+receivers:
+  - name: test
+route:
+  receiver: test
+  routes:
+    - name: foo
+    - name: bar
+`,
+	}, {
+		name: "duplicate names under separate parents are permitted",
+		in: `
+receivers:
+  - name: test
+route:
+  receiver: test
+  routes:
+    - name: foo
+      routes:
+        - name: baz
+    - name: bar
+      routes:
+        - name: baz
+`,
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
+			if tc.expectedErr == "" && err != nil {
+				t.Fatalf("err returned, expected nil:\n%q", err)
+			} else if tc.expectedErr != "" && tc.expectedErr != err.Error() {
+				t.Errorf("\nexpected:\n%q\ngot:\n%q", tc.expectedErr, err.Error())
+			}
+		})
+	}
+}
+
 func TestMuteTimeExists(t *testing.T) {
 	in := `
 route:
@@ -442,6 +499,21 @@ receivers:
 				t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 			}
 		})
+	}
+}
+
+func TestRootRouteHasNoName(t *testing.T) {
+	in := `
+route:
+  name: test
+`
+	_, err := Load(in)
+	expectedErr := "root route cannot have a name"
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expectedErr)
+	}
+	if err.Error() != expectedErr {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expectedErr, err.Error())
 	}
 }
 

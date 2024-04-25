@@ -854,7 +854,7 @@ routes:
 	}
 }
 
-func TestRouteID(t *testing.T) {
+func TestRouteKeyAndID(t *testing.T) {
 	in := `
 receiver: default
 routes:
@@ -894,12 +894,39 @@ routes:
 - continue: true
   matchers:
   - corge!~"[0-9]+"
+  name: corge
+  routes:
+  - matchers:
+    - corge=waldo
+    name: waldo
 `
 	cr := config.Route{}
 	require.NoError(t, yaml.Unmarshal([]byte(in), &cr))
 	r := NewRoute(&cr, nil)
 
-	expected := []string{
+	expectedKeys := []string{
+		"{}",
+		"{}/{foo=\"bar\"}",
+		"{}/{foo=\"bar\"}/{bar=\"baz\"}",
+		"{}/{foo=\"bar\"}",
+		"{}/{foo=\"bar\"}/{bar=\"baz\"}",
+		"{}/{foo=\"bar\"}",
+		"{}/{foo=\"bar\"}/{bar=\"baz\"}",
+		"{}/{bar=\"baz\"}",
+		"{}/{bar=\"baz\"}/{baz=\"qux\"}",
+		"{}/{bar=\"baz\"}/{qux=\"corge\"}",
+		"{}/{qux=~\"[a-zA-Z0-9]+\"}",
+		"{}/corge",
+		"{}/corge/waldo",
+	}
+
+	var actual []string
+	r.Walk(func(r *Route) {
+		actual = append(actual, r.Key())
+	})
+	require.ElementsMatch(t, actual, expectedKeys)
+
+	expectedIDs := []string{
 		"{}",
 		"{}/{foo=\"bar\"}/0",
 		"{}/{foo=\"bar\"}/0/{bar=\"baz\"}/0",
@@ -911,12 +938,13 @@ routes:
 		"{}/{bar=\"baz\"}/3/{baz=\"qux\"}/0",
 		"{}/{bar=\"baz\"}/3/{qux=\"corge\"}/1",
 		"{}/{qux=~\"[a-zA-Z0-9]+\"}/4",
-		"{}/{corge!~\"[0-9]+\"}/5",
+		"{}/corge/5",
+		"{}/corge/5/waldo/0",
 	}
 
-	var actual []string
+	actual = actual[:0]
 	r.Walk(func(r *Route) {
 		actual = append(actual, r.ID())
 	})
-	require.ElementsMatch(t, actual, expected)
+	require.ElementsMatch(t, actual, expectedIDs)
 }

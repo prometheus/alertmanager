@@ -549,6 +549,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Route == nil {
 		return fmt.Errorf("no routes provided")
 	}
+	if len(c.Route.Name) > 0 {
+		return errors.New("root route cannot have a name")
+	}
 	if len(c.Route.Receiver) == 0 {
 		return fmt.Errorf("root route must specify a default receiver")
 	}
@@ -558,9 +561,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.MuteTimeIntervals) > 0 {
 		return fmt.Errorf("root route must not have any mute time intervals")
 	}
-
 	if len(c.Route.ActiveTimeIntervals) > 0 {
 		return fmt.Errorf("root route must not have any active time intervals")
+	}
+
+	// Validate that the route name is unique at the same level.
+	if err := checkRouteNames(c.Route); err != nil {
+		return err
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
@@ -586,6 +593,31 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkTimeInterval(c.Route, tiNames)
+}
+
+// checkRouteNames checks that the names of the route are unique
+// at each level in the routing tree.
+func checkRouteNames(r *Route) error {
+	if len(r.Routes) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for _, cr := range r.Routes {
+		// Name is optional.
+		if cr.Name == "" {
+			continue
+		}
+		if _, ok := seen[cr.Name]; ok {
+			return fmt.Errorf("route name %q is not unique", cr.Name)
+		}
+		seen[cr.Name] = struct{}{}
+	}
+	for _, cr := range r.Routes {
+		if err := checkRouteNames(cr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -776,6 +808,7 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
+	Name     string `yaml:"name" json:"name"`
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 
 	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
