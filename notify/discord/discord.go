@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -38,6 +39,8 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
+
+	maxContentLenRunes = 2000
 )
 
 const (
@@ -74,8 +77,10 @@ func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts .
 }
 
 type webhook struct {
-	Content string         `json:"content"`
-	Embeds  []webhookEmbed `json:"embeds"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
+	Content   string         `json:"content"`
+	Embeds    []webhookEmbed `json:"embeds"`
 }
 
 type webhookEmbed struct {
@@ -115,6 +120,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
+	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxContentLenRunes)
+	}
+
 	color := colorGrey
 	if alerts.Status() == model.AlertFiring {
 		color = colorRed
@@ -123,15 +136,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
-	var url string
+	var whURL string
 	if n.conf.WebhookURL != nil {
-		url = n.conf.WebhookURL.String()
+		whURL = n.conf.WebhookURL.String()
 	} else {
 		content, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
 			return false, fmt.Errorf("read webhook_url_file: %w", err)
 		}
-		url = strings.TrimSpace(string(content))
+		whURL = strings.TrimSpace(string(content))
 	}
 
 	w := webhook{
@@ -142,12 +155,24 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}},
 	}
 
+	if len(content) != 0 {
+		w.Content = content
+	}
+
+	if len(n.conf.AvatarURL) != 0 {
+		if _, err := url.Parse(n.conf.AvatarURL); err == nil {
+			w.AvatarURL = n.conf.AvatarURL
+		} else {
+			level.Warn(n.logger).Log("msg", "Bad avatar url", "key", key)
+		}
+	}
+
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
+	resp, err := notify.PostJSON(ctx, n.client, whURL, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
