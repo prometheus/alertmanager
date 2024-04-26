@@ -224,6 +224,7 @@ type DiscordConfig struct {
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
 	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
 	AvatarURL string `yaml:"avatar_url,omitempty" json:"avatar_url,omitempty"`
+	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

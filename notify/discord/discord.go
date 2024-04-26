@@ -159,6 +159,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		w.Content = content
 	}
 
+	if len(n.conf.Username) != 0 {
+		w.Username = n.conf.Username
+	}
+
 	if len(n.conf.AvatarURL) != 0 {
 		if _, err := url.Parse(n.conf.AvatarURL); err == nil {
 			w.AvatarURL = n.conf.AvatarURL
