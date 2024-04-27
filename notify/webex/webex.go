@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	// nolint:godot
 	// maxMessageSize represents the maximum message length that Webex supports.
 	maxMessageSize = 7439
 )

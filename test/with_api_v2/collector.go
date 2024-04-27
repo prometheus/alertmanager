@@ -191,7 +191,7 @@ func alertsToString(as []*models.GettableAlert) (string, error) {
 	return string(b), nil
 }
 
-// CompareCollectors compares two collectors based on their collected alerts
+// CompareCollectors compares two collectors based on their collected alerts.
 func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
 	f := func(collected map[float64][]models.GettableAlerts) []*models.GettableAlert {
 		result := []*models.GettableAlert{}

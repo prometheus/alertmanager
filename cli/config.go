@@ -30,7 +30,7 @@ The amount of output is controlled by the output selection flag:
 	- Json: Print entire config object as json
 `
 
-// configCmd represents the config command
+// configureConfigCmd represents the config command.
 func configureConfigCmd(app *kingpin.Application) {
 	configCmd := app.Command("config", configHelp)
 	configCmd.Command("show", configHelp).Default().Action(execWithTimeout(queryConfig)).PreAction(requireAlertManagerURL)

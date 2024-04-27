@@ -192,6 +192,18 @@ var DefaultFuncs = FuncMap{
 	"stringSlice": func(s ...string) []string {
 		return s
 	},
+	// date returns the text representation of the time in the specified format.
+	"date": func(fmt string, t time.Time) string {
+		return t.Format(fmt)
+	},
+	// tz returns the time in the timezone.
+	"tz": func(name string, t time.Time) (time.Time, error) {
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return t.In(loc), nil
+	},
 }
 
 // Pair is a key/value string pair.

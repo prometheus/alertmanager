@@ -291,10 +291,13 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 			Help:      "The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.",
 		}, []string{"reason"}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: "alertmanager",
-			Name:      "notification_latency_seconds",
-			Help:      "The latency of notifications in seconds.",
-			Buckets:   []float64{1, 5, 10, 15, 20},
+			Namespace:                       "alertmanager",
+			Name:                            "notification_latency_seconds",
+			Help:                            "The latency of notifications in seconds.",
+			Buckets:                         []float64{1, 5, 10, 15, 20},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}, labels),
 		ff: ff,
 	}
@@ -467,7 +470,7 @@ func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	return ctx, alerts, nil
 }
 
-// FanoutStage executes its stages concurrently
+// FanoutStage executes its stages concurrently.
 type FanoutStage []Stage
 
 // Exec attempts to execute all stages concurrently and discards the results.
@@ -614,7 +617,7 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
-// Wrap a slice in a struct so we can store a pointer in sync.Pool
+// Wrap a slice in a struct so we can store a pointer in sync.Pool.
 type hashBuffer struct {
 	buf []byte
 }

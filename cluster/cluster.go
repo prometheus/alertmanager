@@ -42,7 +42,7 @@ type ClusterPeer interface {
 	Peers() []ClusterMember
 }
 
-// ClusterMember interface that represents node peers in a cluster
+// ClusterMember interface that represents node peers in a cluster.
 type ClusterMember interface {
 	// Name returns the name of the node
 	Name() string
@@ -639,10 +639,10 @@ type Member struct {
 	node *memberlist.Node
 }
 
-// Name implements cluster.ClusterMember
+// Name implements cluster.ClusterMember.
 func (m Member) Name() string { return m.node.Name }
 
-// Address implements cluster.ClusterMember
+// Address implements cluster.ClusterMember.
 func (m Member) Address() string { return m.node.Address() }
 
 // Peers returns the peers in the cluster.

@@ -135,6 +135,63 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 	}
 }
 
+func TestDeadLock(t *testing.T) {
+	t0 := time.Now()
+	t1 := t0.Add(5 * time.Second)
+
+	marker := types.NewMarker(prometheus.NewRegistry())
+	// Run gc every 5 milliseconds to increase the possibility of a deadlock with Subscribe()
+	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, log.NewNopLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alertsToInsert := []*types.Alert{}
+	for i := 0; i < 200+1; i++ {
+		alertsToInsert = append(alertsToInsert, &types.Alert{
+			Alert: model.Alert{
+				// Make sure the fingerprints differ
+				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		})
+	}
+
+	if err := alerts.Put(alertsToInsert...); err != nil {
+		t.Fatal("Unable to add alerts")
+	}
+	done := make(chan bool)
+
+	// call subscribe repeatedly in a goroutine to increase
+	// the possibility of a deadlock occurring
+	go func() {
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		stopAfter := time.After(1 * time.Second)
+		for {
+			select {
+			case <-tick.C:
+				alerts.Subscribe()
+			case <-stopAfter:
+				done <- true
+				break
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+		// no deadlock
+		alerts.Close()
+	case <-time.After(10 * time.Second):
+		t.Error("Deadlock detected")
+	}
+}
+
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)

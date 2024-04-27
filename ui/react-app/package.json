@@ -14,7 +14,7 @@
     "@emotion/styled": "^11.9.3",
     "@mui/material": "^5.10.14",
     "@tanstack/react-query": "^4.7.1",
-    "mdi-material-ui": "^7.4.0",
+    "mdi-material-ui": "^7.8.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.3.0",
@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.2.51",
-    "@types/react-dom": "^18.0.0",
+    "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@typescript-eslint/parser": "^5.30.7",
     "css-loader": "^6.7.1",
@@ -46,6 +46,6 @@
     "webpack-bundle-analyzer": "^4.7.0",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.11.1",
-    "webpack-merge": "^5.8.0"
+    "webpack-merge": "^5.10.0"
   }
 }

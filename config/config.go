@@ -523,8 +523,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if discord.HTTPConfig == nil {
 				discord.HTTPConfig = c.Global.HTTPConfig
 			}
-			if discord.WebhookURL == nil {
-				return fmt.Errorf("no discord webhook URL provided")
+			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
+				return fmt.Errorf("no discord webhook URL or URLFile provided")
 			}
 		}
 		for _, webex := range rcv.WebexConfigs {
@@ -543,8 +543,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if msteams.HTTPConfig == nil {
 				msteams.HTTPConfig = c.Global.HTTPConfig
 			}
-			if msteams.WebhookURL == nil {
-				return fmt.Errorf("no msteams webhook URL provided")
+			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
+				return fmt.Errorf("no msteams webhook URL or URLFile provided")
 			}
 		}
 		for _, jira := range rcv.JiraConfigs {
@@ -1008,7 +1008,7 @@ func (re Regexp) MarshalYAML() (interface{}, error) {
 	return nil, nil
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface for Regexp
+// UnmarshalJSON implements the json.Unmarshaler interface for Regexp.
 func (re *Regexp) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
