@@ -116,7 +116,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -133,7 +133,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -149,7 +149,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
+			keys: []string{"(notify-def,{})/(notify-BC,{owner=~\"^(?:team-(B|C))$\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -166,7 +166,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{owner=\"team-A\"})/(notify-testing,{env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -192,8 +192,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{owner=\"team-A\"}/{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"}",
+				"(notify-def,{})/(notify-A,{owner=\"team-A\"})/(notify-productionA,{env=\"production\"})",
+				"(notify-def,{})/(notify-A,{owner=\"team-A\"})/(notify-productionB,{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"})",
 			},
 		},
 		{
@@ -210,7 +210,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -227,7 +227,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -245,7 +245,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})/(notify-testing,{wait=\"long\"})"},
 		},
 	}
 
@@ -466,7 +466,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -483,7 +483,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -499,7 +499,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"team-(B|C)\"}"},
+			keys: []string{"(notify-def,{})/(notify-BC,{owner=~\"team-(B|C)\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -516,7 +516,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-testing,{baz!~\".*quux\",env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -542,8 +542,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
+				"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-productionA,{env=\"production\"})",
+				"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-productionB,{env=~\"produ.*\",job=~\".*\"})",
 			},
 		},
 		{
@@ -560,7 +560,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -577,7 +577,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -595,7 +595,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})/(notify-testing,{wait=\"long\"})"},
 		},
 	}
 
@@ -702,7 +702,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -719,7 +719,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -735,7 +735,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
+			keys: []string{"(notify-def,{})/(notify-BC,{owner=~\"^(?:team-(B|C))$\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -752,7 +752,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-testing,{baz!~\".*quux\",env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -778,8 +778,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
+				"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-productionA,{env=\"production\"})",
+				"(notify-def,{})/(notify-A,{level!=\"critical\",owner=\"team-A\"})/(notify-productionB,{env=~\"produ.*\",job=~\".*\"})",
 			},
 		},
 		{
@@ -796,7 +796,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -813,7 +813,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})"},
 		},
 		{
 			input: model.LabelSet{
@@ -831,7 +831,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
+			keys: []string{"(notify-def,{})/(notify-def,{group_by=\"role\"})/(notify-testing,{env=\"testing\"})/(notify-testing,{wait=\"long\"})"},
 		},
 	}
 

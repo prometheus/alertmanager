@@ -177,7 +177,11 @@ func (r *Route) Key() string {
 		b.WriteString(r.parent.Key())
 		b.WriteRune('/')
 	}
+	b.WriteRune('(')
+	b.WriteString(r.RouteOpts.Receiver)
+	b.WriteRune(',')
 	b.WriteString(r.Matchers.String())
+	b.WriteRune(')')
 	return b.String()
 }
 
