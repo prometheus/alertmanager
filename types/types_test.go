@@ -34,24 +34,29 @@ func TestMemMarker_Muted(t *testing.T) {
 	marker := NewMarker(r)
 
 	// No groups should be muted.
-	timeIntervalNames, isMuted := marker.Muted("group1")
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 
 	// Mark the group as muted because it's the weekend.
-	marker.SetMuted("group1", []string{"weekends"})
-	timeIntervalNames, isMuted = marker.Muted("group1")
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
 	require.True(t, isMuted)
 	require.Equal(t, []string{"weekends"}, timeIntervalNames)
 
 	// Other groups should not be marked as muted.
-	timeIntervalNames, isMuted = marker.Muted("group2")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group2")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Other routes should not be marked as muted either.
+	timeIntervalNames, isMuted = marker.Muted("route2", "group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 
 	// The group is no longer muted.
-	marker.SetMuted("group1", nil)
-	timeIntervalNames, isMuted = marker.Muted("group1")
+	marker.SetMuted("route1", "group1", nil)
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
 	require.False(t, isMuted)
 	require.Empty(t, timeIntervalNames)
 }

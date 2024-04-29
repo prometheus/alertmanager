@@ -100,16 +100,22 @@ type AlertMarker interface {
 	Inhibited(model.Fingerprint) ([]string, bool)
 }
 
+// GroupMarker helps to mark groups as active or muted.
+// All methods are goroutine-safe.
+//
+// TODO(grobinson): routeID is used in Muted and SetMuted because groupKey
+// is not unique (see #3817). Once groupKey uniqueness is fixed routeID can
+// be removed from the GroupMarker interface.
 type GroupMarker interface {
 	// Muted returns true if the group is muted, otherwise false. If the group
 	// is muted then it also returns the names of the time intervals that muted
 	// it.
-	Muted(groupKey string) ([]string, bool)
+	Muted(routeID, groupKey string) ([]string, bool)
 
 	// SetMuted marks the group as muted, and sets the names of the time
 	// intervals that mute it. If the list of names is nil or the empty slice
 	// then the muted marker is removed.
-	SetMuted(groupKey string, timeIntervalNames []string)
+	SetMuted(routeID, groupKey string, timeIntervalNames []string)
 }
 
 // NewMarker returns an instance of a AlertMarker implementation.
@@ -130,10 +136,10 @@ type MemMarker struct {
 }
 
 // Muted implements GroupMarker.
-func (m *MemMarker) Muted(groupKey string) ([]string, bool) {
+func (m *MemMarker) Muted(routeID, groupKey string) ([]string, bool) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	status, ok := m.groups[groupKey]
+	status, ok := m.groups[routeID+groupKey]
 	if !ok {
 		return nil, false
 	}
@@ -141,13 +147,13 @@ func (m *MemMarker) Muted(groupKey string) ([]string, bool) {
 }
 
 // SetMuted implements GroupMarker.
-func (m *MemMarker) SetMuted(groupKey string, timeIntervalNames []string) {
+func (m *MemMarker) SetMuted(routeID, groupKey string, timeIntervalNames []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	status, ok := m.groups[groupKey]
+	status, ok := m.groups[routeID+groupKey]
 	if !ok {
 		status = &groupStatus{}
-		m.groups[groupKey] = status
+		m.groups[routeID+groupKey] = status
 	}
 	status.mutedBy = timeIntervalNames
 }
