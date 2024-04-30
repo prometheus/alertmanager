@@ -107,7 +107,7 @@ func NewDispatcher(
 	ap provider.Alerts,
 	r *Route,
 	s notify.Stage,
-	mk types.Marker,
+	mk types.AlertMarker,
 	to func(time.Duration) time.Duration,
 	lim Limits,
 	l log.Logger,
