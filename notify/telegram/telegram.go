@@ -93,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
-		ThreadID:              int(n.conf.MessageThreadID),
+		ThreadID:              n.conf.MessageThreadID,
 	})
 	if err != nil {
 		return true, err
