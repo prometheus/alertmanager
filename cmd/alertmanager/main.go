@@ -438,6 +438,7 @@ func run() int {
 			inhibitor,
 			silencer,
 			intervener,
+			marker,
 			notificationLog,
 			pipelinePeer,
 		)

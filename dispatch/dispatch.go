@@ -78,6 +78,7 @@ type Dispatcher struct {
 	route   *Route
 	alerts  provider.Alerts
 	stage   notify.Stage
+	marker  types.GroupMarker
 	metrics *DispatcherMetrics
 	limits  Limits
 
@@ -107,7 +108,7 @@ func NewDispatcher(
 	ap provider.Alerts,
 	r *Route,
 	s notify.Stage,
-	mk types.AlertMarker,
+	mk types.GroupMarker,
 	to func(time.Duration) time.Duration,
 	lim Limits,
 	l log.Logger,
@@ -121,6 +122,7 @@ func NewDispatcher(
 		alerts:  ap,
 		stage:   s,
 		route:   r,
+		marker:  mk,
 		timeout: to,
 		logger:  log.With(l, "component", "dispatcher"),
 		metrics: m,
@@ -145,8 +147,8 @@ func (d *Dispatcher) Run() {
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
-	cleanup := time.NewTicker(30 * time.Second)
-	defer cleanup.Stop()
+	maintenance := time.NewTicker(30 * time.Second)
+	defer maintenance.Stop()
 
 	defer it.Close()
 
@@ -175,26 +177,28 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 
-		case <-cleanup.C:
-			d.mtx.Lock()
-
-			for _, groups := range d.aggrGroupsPerRoute {
-				for _, ag := range groups {
-					if ag.empty() {
-						ag.stop()
-						delete(groups, ag.fingerprint())
-						d.aggrGroupsNum--
-						d.metrics.aggrGroups.Dec()
-					}
-				}
-			}
-
-			d.mtx.Unlock()
-
+		case <-maintenance.C:
+			d.doMaintenance()
 		case <-d.ctx.Done():
 			return
 		}
 	}
+}
+
+func (d *Dispatcher) doMaintenance() {
+	d.mtx.Lock()
+	for _, groups := range d.aggrGroupsPerRoute {
+		for _, ag := range groups {
+			if ag.empty() {
+				ag.stop()
+				d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
+				delete(groups, ag.fingerprint())
+				d.aggrGroupsNum--
+				d.metrics.aggrGroups.Dec()
+			}
+		}
+	}
+	d.mtx.Unlock()
 }
 
 // AlertGroup represents how alerts exist within an aggrGroup.
@@ -374,6 +378,7 @@ type aggrGroup struct {
 	labels   model.LabelSet
 	opts     *RouteOpts
 	logger   log.Logger
+	routeID  string
 	routeKey string
 
 	alerts  *store.Alerts
@@ -394,6 +399,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 	}
 	ag := &aggrGroup{
 		labels:   labels,
+		routeID:  r.ID(),
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
@@ -447,6 +453,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
+			ctx = notify.WithRouteID(ctx, ag.routeID)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
