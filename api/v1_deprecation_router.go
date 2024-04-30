@@ -54,7 +54,7 @@ func (dr *V1DeprecationRouter) deprecationHandler(w http.ResponseWriter, req *ht
 		Error  string `json:"error"`
 	}{
 		"deprecated",
-		"The Alertmanager v1 API was deprecated in version 0.16.0 and is removed as of version 0.28.0 - please use the equivalent route in the v2 API",
+		"The Alertmanager v1 API was deprecated in version 0.16.0 and is removed as of version 0.27.0 - please use the equivalent route in the v2 API",
 	}
 
 	w.Header().Set("Content-Type", "application/json")

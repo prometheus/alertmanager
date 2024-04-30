@@ -162,7 +162,7 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
-	// TODO(gotjosh) API V1 was removed as of version 0.28, when we reach 1.0.0 we should removed these deprecation warnings.
+	// TODO(gotjosh) API V1 was removed as of version 0.27, when we reach 1.0.0 we should removed these deprecation warnings.
 	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()

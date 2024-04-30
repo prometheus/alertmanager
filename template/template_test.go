@@ -473,10 +473,11 @@ func TestTemplateFuncs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		title string
-		in    string
-		data  interface{}
-		exp   string
+		title  string
+		in     string
+		data   interface{}
+		exp    string
+		expErr string
 	}{{
 		title: "Template using toUpper",
 		in:    `{{ "abc" | toUpper }}`,
@@ -506,6 +507,21 @@ func TestTemplateFuncs(t *testing.T) {
 		title: "Template using reReplaceAll",
 		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
 		exp:   "ABc",
+	}, {
+		title: "Template using date",
+		in:    `{{ . | date "2006-01-02" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01",
+	}, {
+		title: "Template using tz",
+		in:    `{{ . | tz "Europe/Paris" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01 09:15:30 +0100 CET",
+	}, {
+		title:  "Template using invalid tz",
+		in:     `{{ . | tz "Invalid/Timezone" }}`,
+		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
@@ -515,8 +531,13 @@ func TestTemplateFuncs(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					got, err := tmpl.ExecuteTextString(tc.in, tc.data)
-					require.NoError(t, err)
-					require.Equal(t, tc.exp, got)
+					if tc.expErr == "" {
+						require.NoError(t, err)
+						require.Equal(t, tc.exp, got)
+					} else {
+						require.EqualError(t, err, tc.expErr)
+						require.Empty(t, got)
+					}
 				}()
 			}
 			wg.Wait()
