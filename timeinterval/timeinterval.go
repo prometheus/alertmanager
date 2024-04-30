@@ -33,21 +33,23 @@ type Intervener struct {
 	intervals map[string][]TimeInterval
 }
 
-func (i *Intervener) Mutes(names []string, now time.Time) (bool, error) {
+// Mutes implements the TimeMuter interface.
+func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error) {
+	var in []string
 	for _, name := range names {
 		interval, ok := i.intervals[name]
 		if !ok {
-			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+			return false, nil, fmt.Errorf("time interval %s doesn't exist in config", name)
 		}
 
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
-				return true, nil
+				in = append(in, name)
 			}
 		}
 	}
 
-	return false, nil
+	return len(in) > 0, in, nil
 }
 
 func NewIntervener(ti map[string][]TimeInterval) *Intervener {
