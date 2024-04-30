@@ -74,7 +74,7 @@ type issueTransitions struct {
 	Transitions []idNameValue `json:"transitions"`
 }
 
-// MarshalJSON merges the struct issueFields and issueFields.CustomField together
+// MarshalJSON merges the struct issueFields and issueFields.CustomField together.
 func (i issueFields) MarshalJSON() ([]byte, error) {
 	jsonFields := map[string]interface{}{
 		"description": i.Description,
@@ -120,7 +120,7 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonFields)
 }
 
-// customFields ensure that all nested properties has a string
+// customFields ensure that all nested properties has a string.
 func customFields(fields map[any]any) (map[string]any, error) {
 	var err error
 
