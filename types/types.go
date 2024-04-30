@@ -416,9 +416,11 @@ type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
-// TimeMuter determines if alerts should be muted based on the specified current time and active time interval on the route.
+// A TimeMuter determines if the time is muted by one or more active or mute
+// time intervals. If the time is muted, it returns true and the names of the
+// time intervals that muted it. Otherwise, it returns false and a nil slice.
 type TimeMuter interface {
-	Mutes(timeIntervalName []string, now time.Time) (bool, error)
+	Mutes(timeIntervalNames []string, now time.Time) (bool, []string, error)
 }
 
 // A MuteFunc is a function that implements the Muter interface.

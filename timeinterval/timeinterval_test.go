@@ -16,6 +16,7 @@ package timeinterval
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -662,95 +663,90 @@ func mustLoadLocation(name string) *time.Location {
 }
 
 func TestIntervener_Mutes(t *testing.T) {
-	// muteIn mutes alerts outside business hours in November, using the +1100 timezone.
-	muteIn := `
----
-- weekdays:
-    - monday:friday
-  location: Australia/Sydney
-  months:
-    - November
-  times:
-    - start_time: 00:00
-      end_time: 09:00
-    - start_time: 17:00
-      end_time: 24:00
-- weekdays:
-    - saturday
-    - sunday
-  months:
-    - November
-  location: 'Australia/Sydney'
-`
-	intervalName := "test"
-	var intervals []TimeInterval
-	err := yaml.Unmarshal([]byte(muteIn), &intervals)
-	require.NoError(t, err)
-	m := map[string][]TimeInterval{intervalName: intervals}
-
-	tc := []struct {
-		name     string
-		firedAt  string
-		expected bool
-		err      error
-	}{
-		{
-			name:     "Should not mute on Friday during business hours",
-			firedAt:  "19 Nov 21 13:00 +1100",
-			expected: false,
-		},
-		{
-			name:     "Should not mute on a Tuesday before 5pm",
-			firedAt:  "16 Nov 21 16:59 +1100",
-			expected: false,
-		},
-		{
-			name:     "Should mute on a Saturday",
-			firedAt:  "20 Nov 21 10:00 +1100",
-			expected: true,
-		},
-		{
-			name:     "Should mute before 9am on a Wednesday",
-			firedAt:  "17 Nov 21 05:00 +1100",
-			expected: true,
-		},
-		{
-			name:     "Should mute even if we are in a different timezone (KST)",
-			firedAt:  "14 Nov 21 20:00 +0900",
-			expected: true,
-		},
-		{
-			name:     "Should mute even if the timezone is UTC",
-			firedAt:  "14 Nov 21 21:30 +0000",
-			expected: true,
-		},
-		{
-			name:     "Should not mute different timezone (KST)",
-			firedAt:  "15 Nov 22 14:30 +0900",
-			expected: false,
-		},
-		{
-			name:     "Should mute in a different timezone (PET)",
-			firedAt:  "15 Nov 21 02:00 -0500",
-			expected: true,
-		},
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
+	}
+	eveningsAndWeekends := map[string][]TimeInterval{
+		"evenings": {{
+			Times: []TimeRange{{
+				StartMinute: 0,   // 00:00
+				EndMinute:   540, // 09:00
+			}, {
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []WeekdayRange{{
+				InclusiveRange: InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &Location{Location: sydney},
+		}},
 	}
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
-			now, err := time.Parse(time.RFC822Z, tt.firedAt)
-			require.NoError(t, err)
+	tests := []struct {
+		name      string
+		intervals map[string][]TimeInterval
+		now       time.Time
+		mutedBy   []string
+	}{{
+		name:      "Should be muted outside working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should not be muted during working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
+		mutedBy:   nil,
+	}, {
+		name:      "Should be muted during weekends",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
+		mutedBy:   []string{"weekends"},
+	}, {
+		name:      "Should be muted during weekend evenings",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 17, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings", "weekends"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekday",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekend",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings", "weekends"},
+	}}
 
-			intervener := NewIntervener(m)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intervener := NewIntervener(test.intervals)
 
-			expected, err := intervener.Mutes([]string{intervalName}, now)
-			if err != nil {
-				require.Error(t, tt.err)
-				require.False(t, tt.expected)
+			// Get the names of all time intervals for the context.
+			timeIntervalNames := make([]string, 0, len(test.intervals))
+			for name := range test.intervals {
+				timeIntervalNames = append(timeIntervalNames, name)
 			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(timeIntervalNames)
 
+			isMuted, mutedBy, err := intervener.Mutes(timeIntervalNames, test.now)
 			require.NoError(t, err)
-			require.Equal(t, expected, tt.expected)
+
+			if len(test.mutedBy) == 0 {
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
+			} else {
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
+			}
 		})
 	}
 }
