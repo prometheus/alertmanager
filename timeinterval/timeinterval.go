@@ -33,6 +33,7 @@ type Intervener struct {
 	intervals map[string][]TimeInterval
 }
 
+// Mutes implements the TimeMuter interface.
 func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error) {
 	var in []string
 	for _, name := range names {
