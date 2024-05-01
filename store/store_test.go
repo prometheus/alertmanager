@@ -68,7 +68,7 @@ func TestDeleteIf(t *testing.T) {
 		return false
 	}))
 	got, err := a.Get(fp)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alert, got)
 
 	// Should delete the alert because func returns true.
