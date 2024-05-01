@@ -74,7 +74,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool
 	logger.Debug("extracted group key")
 
 	var (
-		alerts = types.Snapshot(as...)
+		alerts = types.AlertsSnapshot(as)
 
 		tmplTextErr  error
 		data         = notify.GetTemplateData(ctx, n.tmpl, as, logger)

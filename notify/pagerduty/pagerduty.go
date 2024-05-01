@@ -311,7 +311,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool
 	logger := n.logger.With("group_key", key)
 
 	var (
-		alerts    = types.Snapshot(as...)
+		alerts    = types.AlertsSnapshot(as)
 		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)

@@ -29,6 +29,8 @@ func TestInhibiting(t *testing.T) {
 	// gets resolved.
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -58,7 +60,7 @@ inhibit_rules:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	amc.Push(At(1), Alert("alertname", "test1", "job", "testjob", "zone", "aa"))
 	amc.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
@@ -73,21 +75,21 @@ inhibit_rules:
 	amc.Push(At(3.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6))
 
 	co.Want(Between(2, 2.5),
-		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	co.Want(Between(3, 3.5),
-		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
-		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 2.2+resolveTimeout.Seconds()),
 	)
 
 	co.Want(Between(4, 4.5),
-		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1, 1+resolveTimeout.Seconds()),
 		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6),
 	)
 
@@ -104,6 +106,8 @@ func TestAlwaysInhibiting(t *testing.T) {
 	// alerts.
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -133,7 +137,7 @@ inhibit_rules:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	amc.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
 	amc.Push(At(1), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
@@ -142,7 +146,7 @@ inhibit_rules:
 	amc.Push(At(2.6), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
 
 	co.Want(Between(2, 2.5),
-		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	co.Want(Between(3, 3.5),

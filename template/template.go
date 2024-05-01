@@ -374,7 +374,7 @@ func (as Alerts) Resolved() []Alert {
 func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.AlertSnapshot) *Data {
 	data := &Data{
 		Receiver:          regexp.QuoteMeta(recv),
-		Status:            string(types.Snapshot(alerts...).Status()),
+		Status:            string(types.AlertsSnapshot(alerts).Status()),
 		Alerts:            make(Alerts, 0, len(alerts)),
 		GroupLabels:       KV{},
 		CommonLabels:      KV{},

@@ -84,6 +84,8 @@ func TestSilencing(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -97,6 +99,8 @@ receivers:
   - url: 'http://%s'
 `
 
+	const resolveTimeout = time.Duration(120 * time.Second)
+
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
 	})
@@ -104,7 +108,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
@@ -112,21 +116,21 @@ receivers:
 	amc.Push(At(1), Alert("alertname", "test2").Active(1))
 
 	co.Want(Between(2, 2.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(1),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	// Add a silence that affects the first alert.
 	amc.SetSilence(At(2.3), Silence(2.5, 4.5).Match("alertname", "test1"))
 
-	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
-	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
+	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1, 1+resolveTimeout.Seconds()))
+	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1, 1+resolveTimeout.Seconds()))
 
 	// Silence should be over now and we receive both alerts again.
 
 	co.Want(Between(5, 5.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(1),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	at.Run()
@@ -138,6 +142,8 @@ func TestSilenceDelete(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -158,7 +164,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
@@ -173,8 +179,8 @@ receivers:
 	amc.DelSilence(At(3.5), sil)
 
 	co.Want(Between(3.5, 4.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(1),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	at.Run()

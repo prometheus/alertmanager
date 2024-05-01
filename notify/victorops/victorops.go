@@ -123,7 +123,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	var (
-		alerts = types.Snapshot(as...)
+		alerts = types.AlertsSnapshot(as)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 

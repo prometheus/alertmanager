@@ -423,7 +423,7 @@ route:
 
 	require.Equal(t, AlertGroups{
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[0], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[0]}, now),
 			Labels: model.LabelSet{
 				"alertname": "OtherAlert",
 			},
@@ -432,7 +432,7 @@ route:
 			RouteID:  "{}",
 		},
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[1], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[1]}, now),
 			Labels: model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
@@ -442,7 +442,7 @@ route:
 			RouteID:  "{}/{env=\"testing\"}/0",
 		},
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[2], now), types.NewAlertSnapshot(inputAlerts[3], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[2], inputAlerts[3]}, now),
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -453,7 +453,7 @@ route:
 			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[4], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[4]}, now),
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -464,7 +464,7 @@ route:
 			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[5]}, now),
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -475,7 +475,7 @@ route:
 			RouteID:  "{}/{kafka=\"yes\"}/2",
 		},
 		&AlertGroup{
-			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
+			Alerts: types.SnapshotAlerts([]*types.Alert{inputAlerts[5]}, now),
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",

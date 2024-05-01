@@ -98,7 +98,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
 
-	alerts := types.Snapshot(as...)
+	alerts := types.AlertsSnapshot(as)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {

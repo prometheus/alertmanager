@@ -127,7 +127,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool
 		return false, err
 	}
 
-	alerts := types.Snapshot(as...)
+	alerts := types.AlertsSnapshot(as)
 	color := colorGrey
 	switch alerts.Status() {
 	case model.AlertFiring:
