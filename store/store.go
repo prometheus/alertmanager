@@ -123,7 +123,7 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	return nil
 }
 
-// DeleteIf removes the Alert with hte matching fingerprint from the store
+// DeleteIf removes the Alert with the matching fingerprint from the store
 // if fn returns true.
 func (a *Alerts) DeleteIf(fp model.Fingerprint, fn func(*types.Alert) bool) error {
 	a.Lock()
