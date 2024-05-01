@@ -517,19 +517,11 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	if notify(alertsSlice...) {
 		for _, a := range alertsSlice {
-			// Only delete if the fingerprint has not been inserted
-			// again since we notified about it.
-			fp := a.Fingerprint()
-			got, err := ag.alerts.Get(fp)
-			if err != nil {
-				// This should never happen.
-				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
-				continue
-			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
-				if err := ag.alerts.Delete(fp); err != nil {
-					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
-				}
+			// Only delete if the fingerprint has not been inserted again since we notified about it.
+			if err := ag.alerts.DeleteIf(a.Fingerprint(), func(b *types.Alert) bool {
+				return a.Resolved() && a.UpdatedAt == b.UpdatedAt
+			}); err != nil {
+				level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 			}
 		}
 	}

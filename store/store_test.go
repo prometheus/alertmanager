@@ -54,6 +54,32 @@ func TestDelete(t *testing.T) {
 	require.Equal(t, ErrNotFound, err)
 }
 
+func TestDeleteIf(t *testing.T) {
+	a := NewAlerts()
+	alert := &types.Alert{
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, a.Set(alert))
+
+	fp := alert.Fingerprint()
+
+	// Should not delete the alert because func returns false.
+	require.NoError(t, a.DeleteIf(fp, func(a *types.Alert) bool {
+		return false
+	}))
+	got, err := a.Get(fp)
+	require.Nil(t, err)
+	require.Equal(t, alert, got)
+
+	// Should delete the alert because func returns true.
+	require.NoError(t, a.DeleteIf(fp, func(a *types.Alert) bool {
+		return true
+	}))
+	got, err = a.Get(fp)
+	require.Nil(t, got)
+	require.Equal(t, ErrNotFound, err)
+}
+
 func TestGC(t *testing.T) {
 	now := time.Now()
 	newAlert := func(key string, start, end time.Duration) *types.Alert {
