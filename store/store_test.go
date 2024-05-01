@@ -56,28 +56,47 @@ func TestDelete(t *testing.T) {
 
 func TestDeleteIf(t *testing.T) {
 	a := NewAlerts()
-	alert := &types.Alert{
+	a1 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"foo": "bar",
+			},
+		},
 		UpdatedAt: time.Now(),
 	}
-	require.NoError(t, a.Set(alert))
+	require.NoError(t, a.Set(a1))
+	fp1 := a1.Fingerprint()
+	a2 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"bar": "baz",
+			},
+		},
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, a.Set(a2))
+	fp2 := a2.Fingerprint()
 
-	fp := alert.Fingerprint()
-
-	// Should not delete the alert because func returns false.
-	require.NoError(t, a.DeleteIf(fp, func(a *types.Alert) bool {
+	// Should not delete a1 because func returns false.
+	require.NoError(t, a.DeleteIf(fp1, func(a *types.Alert) bool {
 		return false
 	}))
-	got, err := a.Get(fp)
+	got, err := a.Get(fp1)
 	require.NoError(t, err)
-	require.Equal(t, alert, got)
+	require.Equal(t, a1, got)
 
-	// Should delete the alert because func returns true.
-	require.NoError(t, a.DeleteIf(fp, func(a *types.Alert) bool {
+	// Should delete a1 because func returns true.
+	require.NoError(t, a.DeleteIf(fp1, func(a *types.Alert) bool {
 		return true
 	}))
-	got, err = a.Get(fp)
+	got, err = a.Get(fp1)
 	require.Nil(t, got)
 	require.Equal(t, ErrNotFound, err)
+
+	// Should not have deleted a2.
+	got, err = a.Get(fp2)
+	require.NoError(t, err)
+	require.Equal(t, a2, got)
 }
 
 func TestGC(t *testing.T) {
