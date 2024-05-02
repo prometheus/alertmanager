@@ -37,66 +37,105 @@ func TestSetGet(t *testing.T) {
 	require.Equal(t, want, got.Fingerprint())
 }
 
-func TestDelete(t *testing.T) {
-	a := NewAlerts()
-	alert := &types.Alert{
-		UpdatedAt: time.Now(),
-	}
-	require.NoError(t, a.Set(alert))
-
-	fp := alert.Fingerprint()
-
-	err := a.Delete(fp)
-	require.NoError(t, err)
-
-	got, err := a.Get(fp)
-	require.Nil(t, got)
-	require.Equal(t, ErrNotFound, err)
-}
-
-func TestDeleteIf(t *testing.T) {
-	a := NewAlerts()
-	a1 := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"foo": "bar",
+func TestDeleteIfNotModified(t *testing.T) {
+	t.Run("unmodified alert should be deleted", func(t *testing.T) {
+		a := NewAlerts()
+		a1 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
 			},
-		},
-		UpdatedAt: time.Now(),
-	}
-	require.NoError(t, a.Set(a1))
-	fp1 := a1.Fingerprint()
-	a2 := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"bar": "baz",
+			UpdatedAt: time.Now().Add(-time.Second),
+		}
+		require.NoError(t, a.Set(a1))
+
+		// a1 should be deleted as it has not been modified.
+		a.DeleteIfNotModified(types.AlertSlice{a1})
+		got, err := a.Get(a1.Fingerprint())
+		require.Equal(t, ErrNotFound, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("modified alert should not be deleted", func(t *testing.T) {
+		a := NewAlerts()
+		a1 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
 			},
-		},
-		UpdatedAt: time.Now(),
-	}
-	require.NoError(t, a.Set(a2))
-	fp2 := a2.Fingerprint()
+			UpdatedAt: time.Now(),
+		}
+		require.NoError(t, a.Set(a1))
 
-	// Should not delete a1 because func returns false.
-	require.NoError(t, a.DeleteIf(fp1, func(a *types.Alert) bool {
-		return false
-	}))
-	got, err := a.Get(fp1)
-	require.NoError(t, err)
-	require.Equal(t, a1, got)
+		// Make a copy of a1 that is older, but do not put it.
+		// We want to make sure a1 is not deleted.
+		a2 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
+			},
+			UpdatedAt: time.Now().Add(-time.Second),
+		}
+		require.True(t, a2.UpdatedAt.Before(a1.UpdatedAt))
+		a.DeleteIfNotModified(types.AlertSlice{a2})
+		// a1 should not be deleted.
+		got, err := a.Get(a1.Fingerprint())
+		require.NoError(t, err)
+		require.Equal(t, a1, got)
 
-	// Should delete a1 because func returns true.
-	require.NoError(t, a.DeleteIf(fp1, func(a *types.Alert) bool {
-		return true
-	}))
-	got, err = a.Get(fp1)
-	require.Nil(t, got)
-	require.Equal(t, ErrNotFound, err)
+		// Make another copy of a1 that is older, but do not put it.
+		// We want to make sure a2 is not deleted here either.
+		a3 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
+			},
+			UpdatedAt: time.Now().Add(time.Second),
+		}
+		require.True(t, a3.UpdatedAt.After(a1.UpdatedAt))
+		a.DeleteIfNotModified(types.AlertSlice{a3})
+		// a1 should not be deleted.
+		got, err = a.Get(a1.Fingerprint())
+		require.NoError(t, err)
+		require.Equal(t, a1, got)
+	})
 
-	// Should not have deleted a2.
-	got, err = a.Get(fp2)
-	require.NoError(t, err)
-	require.Equal(t, a2, got)
+	t.Run("should not delete other alerts", func(t *testing.T) {
+		a := NewAlerts()
+		a1 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
+			},
+			UpdatedAt: time.Now(),
+		}
+		a2 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"bar": "baz",
+				},
+			},
+			UpdatedAt: time.Now(),
+		}
+		require.NoError(t, a.Set(a1))
+		require.NoError(t, a.Set(a2))
+
+		// Deleting a1 should not delete a2.
+		require.NoError(t, a.DeleteIfNotModified(types.AlertSlice{a1}))
+		// a1 should be deleted.
+		got, err := a.Get(a1.Fingerprint())
+		require.Equal(t, ErrNotFound, err)
+		require.Nil(t, got)
+		// a2 should not be deleted.
+		got, err = a.Get(a2.Fingerprint())
+		require.NoError(t, err)
+		require.Equal(t, a2, got)
+	})
 }
 
 func TestGC(t *testing.T) {
