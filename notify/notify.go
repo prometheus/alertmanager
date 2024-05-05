@@ -134,6 +134,7 @@ type notifyKey int
 const (
 	keyReceiverName notifyKey = iota
 	keyRepeatInterval
+	keyGroupInterval
 	keyGroupLabels
 	keyGroupKey
 	keyFiringAlerts
@@ -179,6 +180,11 @@ func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
 }
 
+// WithGroupInterval populates a context with a repeat interval.
+func WithGroupInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyGroupInterval, t)
+}
+
 // WithMuteTimeIntervals populates a context with a slice of mute time names.
 func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
@@ -196,6 +202,13 @@ func WithRouteID(ctx context.Context, routeID string) context.Context {
 // second argument is false.
 func RepeatInterval(ctx context.Context) (time.Duration, bool) {
 	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
+	return v, ok
+}
+
+// GroupInterval extracts a group interval from the context. Iff none exists, the
+// second argument is false.
+func GroupInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyGroupInterval).(time.Duration)
 	return v, ok
 }
 
@@ -276,7 +289,7 @@ func (f StageFunc) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Al
 }
 
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, dispatchTime time.Time) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
@@ -705,14 +718,16 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, dispatchTime time.Time, repeat, groupInterval time.Duration) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
 		return len(firing) > 0
 	}
 
-	if !entry.IsFiringSubset(firing) {
+	groupIntervalMuted := len(entry.FiringAlerts) > 0 && entry.DispatchTime.After(dispatchTime.Add(-groupInterval))
+
+	if !entry.IsFiringSubset(firing) && !groupIntervalMuted {
 		return true
 	}
 
@@ -727,7 +742,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
+	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) && !groupIntervalMuted {
 		return true
 	}
 
@@ -752,6 +767,14 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, errors.New("repeat interval missing")
+	}
+	groupInterval, ok := GroupInterval(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group interval missing")
+	}
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, nil, errors.New("dispatch time missing")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -788,7 +811,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, now, repeatInterval, groupInterval) {
 		span.AddEvent("notify.DedupStage.Exec nflog needs update")
 		return ctx, alerts, nil
 	}
@@ -1008,7 +1031,12 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*t
 		attribute.Int("alerting.alerts.resolved.count", len(resolved)),
 	)
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry)
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, nil, errors.New("now time missing")
+	}
+
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry, now)
 }
 
 type timeStage struct {
