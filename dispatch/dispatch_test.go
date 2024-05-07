@@ -236,9 +236,33 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	// Resolve all alerts, they should be removed after the next batch was sent.
-	a1r, a2r, a3r := *a1, *a2, *a3
-	resolved := types.AlertSlice{&a1r, &a2r, &a3r}
+	// Resolve an alert, and it should be removed after the next batch was sent.
+	a1r := *a1
+	a1r.EndsAt = time.Now()
+	ag.insert(&a1r)
+	exp := append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
+
+	select {
+	case <-time.After(2 * opts.GroupInterval):
+		t.Fatalf("expected new batch after group interval but received none")
+	case batch := <-alertsCh:
+		lastCurMtx.Lock()
+		s := time.Since(last)
+		lastCurMtx.Unlock()
+		if s < opts.GroupInterval {
+			t.Fatalf("received batch too early after %v", s)
+		}
+		sort.Sort(batch)
+
+		if !reflect.DeepEqual(batch, exp) {
+			t.Fatalf("expected alerts %v but got %v", exp, batch)
+		}
+	}
+
+	// Resolve all remaining alerts, they should be removed after the next batch was sent.
+	// Do not add a1r as it should have been deleted following the previous batch.
+	a2r, a3r := *a2, *a3
+	resolved := types.AlertSlice{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
 		ag.insert(a)

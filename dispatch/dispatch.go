@@ -499,14 +499,17 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	}
 
 	var (
-		alerts      = ag.alerts.List()
-		alertsSlice = make(types.AlertSlice, 0, len(alerts))
-		now         = time.Now()
+		alerts        = ag.alerts.List()
+		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
+		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
+		now           = time.Now()
 	)
 	for _, alert := range alerts {
 		a := *alert
 		// Ensure that alerts don't resolve as time move forwards.
-		if !a.ResolvedAt(now) {
+		if a.ResolvedAt(now) {
+			resolvedSlice = append(resolvedSlice, &a)
+		} else {
 			a.EndsAt = time.Time{}
 		}
 		alertsSlice = append(alertsSlice, &a)
@@ -516,21 +519,12 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
 	if notify(alertsSlice...) {
-		for _, a := range alertsSlice {
-			// Only delete if the fingerprint has not been inserted
-			// again since we notified about it.
-			fp := a.Fingerprint()
-			got, err := ag.alerts.Get(fp)
-			if err != nil {
-				// This should never happen.
-				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
-				continue
-			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
-				if err := ag.alerts.Delete(fp); err != nil {
-					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
-				}
-			}
+		// Delete all resolved alerts as we just sent a notification for them,
+		// and we don't want to send another one. However, we need to make sure
+		// that each resolved alert has not fired again during the flush as then
+		// we would delete an active alert thinking it was resolved.
+		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
+			level.Error(ag.logger).Log("msg", "error on delete alerts", "err", err)
 		}
 	}
 }
