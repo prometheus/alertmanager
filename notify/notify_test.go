@@ -209,7 +209,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, 2*time.Hour, now)
 		require.Equal(t, c.res, res)
 	}
 }
@@ -237,9 +237,20 @@ func TestDedupStage(t *testing.T) {
 	ctx = WithGroupKey(ctx, "1")
 
 	_, _, err = s.Exec(ctx, log.NewNopLogger())
+	require.EqualError(t, err, "group interval missing")
+
+	ctx = WithGroupKey(ctx, "1")
+	ctx = WithGroupInterval(ctx, time.Hour)
+
+	_, _, err = s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "repeat interval missing")
 
 	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	_, _, err = s.Exec(ctx, log.NewNopLogger())
+	require.EqualError(t, err, "now timestamp missing")
+
+	ctx = WithNow(ctx, now)
 
 	alerts := []*types.Alert{{}, {}, {}}
 
@@ -290,7 +301,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{1, 2, 3, 4},
-				Timestamp:    now,
+				Timestamp:    now.Add(-time.Hour),
 			},
 		},
 	}
