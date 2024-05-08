@@ -1,0 +1,30 @@
+# Copyright Contributors to the Open Cluster Management project
+# Licensed under the Apache License 2.0
+
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.20 AS builder
+
+WORKDIR /workspace
+COPY . .
+
+RUN go mod vendor && PATH=$PATH:/go/bin make build
+
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+
+COPY --from=builder /workspace/amtool /bin/amtool
+COPY --from=builder /workspace/alertmanager /bin/alertmanager
+COPY --from=builder /workspace/examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
+
+RUN microdnf update -y && microdnf clean all
+
+RUN mkdir -p /alertmanager && \
+    chown -R nobody:nobody etc/alertmanager /alertmanager
+
+COPY template /alertmanager/template/
+
+USER       nobody
+EXPOSE     9093
+VOLUME     [ "/alertmanager" ]
+WORKDIR    /alertmanager
+ENTRYPOINT [ "/bin/alertmanager" ]
+CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
+             "--storage.path=/alertmanager" ]
