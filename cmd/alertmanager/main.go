@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
+	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
@@ -181,6 +182,10 @@ func run() int {
 	kingpin.Parse()
 
 	logger := promlog.New(&promlogConfig)
+
+	if _, err := maxprocs.Set(); err != nil {
+		level.Warn(logger).Log("msg", "Failed to set GOMAXPROCS automatically", "err", err)
+	}
 
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
