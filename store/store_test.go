@@ -14,7 +14,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -138,60 +137,42 @@ func TestDeleteIfNotModified(t *testing.T) {
 	})
 }
 
-func TestGC(t *testing.T) {
-	now := time.Now()
-	newAlert := func(key string, start, end time.Duration) *types.Alert {
-		return &types.Alert{
+func TestDeleteResolved(t *testing.T) {
+	t.Run("active alert should not be deleted", func(t *testing.T) {
+		a := NewAlerts()
+		a1 := &types.Alert{
 			Alert: model.Alert{
-				Labels:   model.LabelSet{model.LabelName(key): "b"},
-				StartsAt: now.Add(start * time.Minute),
-				EndsAt:   now.Add(end * time.Minute),
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(5 * time.Minute),
 			},
 		}
-	}
-	active := []*types.Alert{
-		newAlert("b", 10, 20),
-		newAlert("c", -10, 10),
-	}
-	resolved := []*types.Alert{
-		newAlert("a", -10, -5),
-		newAlert("d", -10, -1),
-	}
-	s := NewAlerts()
-	var (
-		n           int
-		done        = make(chan struct{})
-		ctx, cancel = context.WithCancel(context.Background())
-	)
-	s.SetGCCallback(func(a []types.Alert) {
-		n += len(a)
-		if n >= len(resolved) {
-			cancel()
-		}
+		require.NoError(t, a.Set(a1))
+		a.DeleteResolved()
+		// a1 should not have been deleted.
+		got, err := a.Get(a1.Fingerprint())
+		require.NoError(t, err)
+		require.Equal(t, a1, got)
 	})
-	for _, alert := range append(active, resolved...) {
-		require.NoError(t, s.Set(alert))
-	}
-	go func() {
-		s.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
-	select {
-	case <-done:
-		break
-	case <-time.After(1 * time.Second):
-		t.Fatal("garbage collection didn't complete in time")
-	}
 
-	for _, alert := range active {
-		if _, err := s.Get(alert.Fingerprint()); err != nil {
-			t.Errorf("alert %v should not have been gc'd", alert)
+	t.Run("resolved alert should not be deleted", func(t *testing.T) {
+		a := NewAlerts()
+		a1 := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"foo": "bar",
+				},
+				StartsAt: time.Now().Add(-5 * time.Minute),
+				EndsAt:   time.Now().Add(-time.Second),
+			},
 		}
-	}
-	for _, alert := range resolved {
-		if _, err := s.Get(alert.Fingerprint()); err == nil {
-			t.Errorf("alert %v should have been gc'd", alert)
-		}
-	}
-	require.Len(t, resolved, n)
+		require.NoError(t, a.Set(a1))
+		a.DeleteResolved()
+		// a1 should have been deleted.
+		got, err := a.Get(a1.Fingerprint())
+		require.Equal(t, ErrNotFound, err)
+		require.Nil(t, got)
+	})
 }
