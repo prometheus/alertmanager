@@ -116,6 +116,9 @@ type GroupMarker interface {
 	// intervals that mute it. If the list of names is nil or the empty slice
 	// then the muted marker is removed.
 	SetMuted(routeID, groupKey string, timeIntervalNames []string)
+
+	// DeleteByGroupKey removes all markers for the GroupKey.
+	DeleteByGroupKey(routeID, groupKey string)
 }
 
 // NewMarker returns an instance of a AlertMarker implementation.
@@ -156,6 +159,12 @@ func (m *MemMarker) SetMuted(routeID, groupKey string, timeIntervalNames []strin
 		m.groups[routeID+groupKey] = status
 	}
 	status.mutedBy = timeIntervalNames
+}
+
+func (m *MemMarker) DeleteByGroupKey(routeID, groupKey string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	delete(m.groups, routeID+groupKey)
 }
 
 func (m *MemMarker) registerMetrics(r prometheus.Registerer) {

@@ -61,6 +61,31 @@ func TestMemMarker_Muted(t *testing.T) {
 	require.Empty(t, timeIntervalNames)
 }
 
+func TestMemMarker_DeleteByGroupKey(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// Mark the group and check that it is muted.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for a different group key. The group should
+	// still be muted.
+	marker.DeleteByGroupKey("route1", "group2")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for the correct group key. The group should
+	// no longer be muted.
+	marker.DeleteByGroupKey("route1", "group1")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
 func TestMemMarker_Count(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := NewMarker(r)
