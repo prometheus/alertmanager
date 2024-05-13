@@ -187,6 +187,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 func (d *Dispatcher) doMaintenance() {
 	d.mtx.Lock()
+	defer d.mtx.Unlock()
 	for _, groups := range d.aggrGroupsPerRoute {
 		for _, ag := range groups {
 			if ag.empty() {
@@ -198,7 +199,6 @@ func (d *Dispatcher) doMaintenance() {
 			}
 		}
 	}
-	d.mtx.Unlock()
 }
 
 // AlertGroup represents how alerts exist within an aggrGroup.
