@@ -19,8 +19,8 @@ API v1 was deprecated in Alertmanager version 0.16.0 and removed in Alertmanager
 version 0.27.0.
 
 Clients are expected to continuously re-send alerts as long as they are still
-active (usually on the order of 30 seconds to 3 minutes). Clients can push a list
-of alerts to Alertmanager via a POST request.
+active (usually on the order of 30 seconds to 3 minutes). Clients can push a
+list of alerts to Alertmanager via a POST request.
 
 The labels of each alert are used to identify identical instances of an alert
 and to perform deduplication. The annotations are always set to those received
