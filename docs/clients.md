@@ -16,9 +16,11 @@ You send alerts to Alertmanager via API v2. The scheme for v2 is specified as
 an OpenAPI specification that can be found [here
 ](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml).
 API v1 was deprecated in Alertmanager version 0.16.0 and removed in Alertmanager
-version 0.27.0. Clients are expected to continuously re-send alerts as long as
-they are still active (usually on the order of 30 seconds to 3 minutes).
-Clients can push a list of alerts to Alertmanager via a POST request.
+version 0.27.0.
+
+Clients are expected to continuously re-send alerts as long as they are still
+active (usually on the order of 30 seconds to 3 minutes). Clients can push a list
+of alerts to Alertmanager via a POST request.
 
 The labels of each alert are used to identify identical instances of an alert
 and to perform deduplication. The annotations are always set to those received
