@@ -12,10 +12,9 @@ rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules
 recommended to configure alerting rules in Prometheus based on time series data
 rather than implementing a direct client.__
 
-The Alertmanager has two APIs, v1 and v2, both listening for alerts. The scheme
-for v1 is described in the code snipped below. The scheme for v2 is specified as
-an OpenAPI specification that can be found in the [Alertmanager
-repository](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml).
+You send alerts to Alertmanager via API v2. The scheme for v2 is specified as
+an OpenAPI specification that can be found [here](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml). API v1 was deprecated
+in Alertmanager version 0.16.0 and removed in Alertmanager version 0.27.0.
 Clients are expected to continuously re-send alerts as long as they are still
 active (usually on the order of 30 seconds to 3 minutes). Clients can push a
 list of alerts to Alertmanager via a POST request.
