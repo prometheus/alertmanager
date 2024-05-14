@@ -191,13 +191,12 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
+	a.mtx.RLock()
+	defer a.mtx.RUnlock()
+	alerts := a.alerts.List()
 
 	go func() {
 		defer close(ch)
-		a.mtx.RLock()
-		alerts := a.alerts.List()
-		a.mtx.RUnlock()
-
 		for _, a := range alerts {
 			select {
 			case ch <- a:
@@ -219,10 +218,12 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
-		a.mtx.Lock()
 		existing := false
 
 		// Check that there's an alert existing within the store before
@@ -238,13 +239,11 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		}
 
 		if err := a.callback.PreStore(alert, existing); err != nil {
-			a.mtx.Unlock()
 			level.Error(a.logger).Log("msg", "pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
-			a.mtx.Unlock()
 			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
@@ -257,7 +256,6 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			case <-l.done:
 			}
 		}
-		a.mtx.Unlock()
 	}
 
 	return nil
