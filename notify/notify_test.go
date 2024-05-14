@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -827,12 +828,6 @@ func TestTimeMuteStage(t *testing.T) {
 	}
 	eveningsAndWeekends := map[string][]timeinterval.TimeInterval{
 		"evenings": {{
-			Weekdays: []timeinterval.WeekdayRange{{
-				InclusiveRange: timeinterval.InclusiveRange{
-					Begin: 1, // Monday
-					End:   5, // Friday
-				},
-			}},
 			Times: []timeinterval.TimeRange{{
 				StartMinute: 0,   // 00:00
 				EndMinute:   540, // 09:00
@@ -877,30 +872,41 @@ func TestTimeMuteStage(t *testing.T) {
 		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"weekends"},
 	}, {
-		name:      "Should be muted at 12pm UTC",
+		name:      "Should be muted at 12pm UTC on a weekday",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekend",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
 		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"evenings"},
+		mutedBy:   []string{"evenings", "weekends"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
+			marker := types.NewMarker(r)
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeMuteStage(intervener, metrics)
+			st := NewTimeMuteStage(intervener, marker, metrics)
 
 			// Get the names of all time intervals for the context.
 			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
 			for name := range test.intervals {
 				muteTimeIntervalNames = append(muteTimeIntervalNames, name)
 			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(muteTimeIntervalNames)
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, test.now)
+			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, nil)
 			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
+			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, log.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
@@ -908,14 +914,33 @@ func TestTimeMuteStage(t *testing.T) {
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Equal(t, len(test.alerts), len(active))
+				// The group should not be marked.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader("")))
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+`)))
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
+				// The group should be marked as muted.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
 # HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
 # TYPE alertmanager_notifications_suppressed_total counter
 alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
@@ -981,20 +1006,25 @@ func TestTimeActiveStage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
+			marker := types.NewMarker(r)
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeActiveStage(intervener, metrics)
+			st := NewTimeActiveStage(intervener, marker, metrics)
 
 			// Get the names of all time intervals for the context.
 			activeTimeIntervalNames := make([]string, 0, len(test.intervals))
 			for name := range test.intervals {
 				activeTimeIntervalNames = append(activeTimeIntervalNames, name)
 			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(activeTimeIntervalNames)
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, test.now)
+			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
 			ctx = WithMuteTimeIntervals(ctx, nil)
+			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, log.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
@@ -1002,14 +1032,33 @@ func TestTimeActiveStage(t *testing.T) {
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Equal(t, len(test.alerts), len(active))
+				// The group should not be marked.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader("")))
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+`)))
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
+				// The group should be marked as muted.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
 # HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
 # TYPE alertmanager_notifications_suppressed_total counter
 alertmanager_notifications_suppressed_total{reason="active_time_interval"} %d
