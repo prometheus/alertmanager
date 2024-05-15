@@ -34,7 +34,7 @@ const alertChannelLength = 200
 type Alerts struct {
 	cancel context.CancelFunc
 
-	mtx sync.RWMutex
+	mtx sync.Mutex
 
 	alerts *store.Alerts
 	marker types.AlertMarker
@@ -191,8 +191,8 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	alerts := a.alerts.List()
 
 	go func() {
@@ -211,8 +211,8 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 
 // Get returns the alert for a given fingerprint.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	return a.alerts.Get(fp)
 }
 
@@ -263,8 +263,8 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 // count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
 func (a *Alerts) count(state types.AlertState) int {
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 
 	var count int
 	for _, alert := range a.alerts.List() {
