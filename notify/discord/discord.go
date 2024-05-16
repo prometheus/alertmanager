@@ -17,7 +17,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -28,6 +31,13 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+)
+
+const (
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 256 characters or runes.
+	maxTitleLenRunes = 256
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
+	maxDescriptionLenRunes = 4096
 )
 
 const (
@@ -90,13 +100,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	title := tmpl(n.conf.Title)
+	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if err != nil {
 		return false, err
 	}
-	description := tmpl(n.conf.Message)
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+	}
+	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
 		return false, err
+	}
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
 	color := colorGrey
@@ -105,6 +121,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	if alerts.Status() == model.AlertResolved {
 		color = colorGreen
+	}
+
+	var url string
+	if n.conf.WebhookURL != nil {
+		url = n.conf.WebhookURL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.WebhookURLFile)
+		if err != nil {
+			return false, fmt.Errorf("read webhook_url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(content))
 	}
 
 	w := webhook{
@@ -120,7 +147,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

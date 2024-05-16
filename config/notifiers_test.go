@@ -228,7 +228,25 @@ func TestWebhookURLIsPresent(t *testing.T) {
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing URL in webhook config"
+	expected := "one of url or url_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestWebhookURLOrURLFile(t *testing.T) {
+	in := `
+url: 'http://example.com'
+url_file: 'http://example.com'
+`
+	var cfg WebhookConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of url & url_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -391,7 +409,25 @@ user_key: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing user key in Pushover config"
+	expected := "one of user_key or user_key_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverUserKeyOrUserKeyFile(t *testing.T) {
+	in := `
+user_key: 'user key'
+user_key_file: /pushover/user_key
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of user_key & user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -409,7 +445,26 @@ token: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing token in Pushover config"
+	expected := "one of token or token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverTokenOrTokenFile(t *testing.T) {
+	in := `
+token: 'pushover token'
+token_file: /pushover/token
+user_key: 'user key'
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of token & token_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -914,6 +969,70 @@ http_config:
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg WebexConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
+	}
+}
+
+func TestTelegramConfiguration(t *testing.T) {
+	tc := []struct {
+		name     string
+		in       string
+		expected error
+	}{
+		{
+			name: "with both bot_token & bot_token_file - it fails",
+			in: `
+bot_token: xyz
+bot_token_file: /file
+`,
+			expected: errors.New("at most one of bot_token & bot_token_file must be configured"),
+		},
+		{
+			name: "with no bot_token & bot_token_file - it fails",
+			in: `
+bot_token: ''
+bot_token_file: ''
+`,
+			expected: errors.New("missing bot_token or bot_token_file on telegram_config"),
+		},
+		{
+			name: "with bot_token and chat_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token_file and chat_id set - it succeeds",
+			in: `
+bot_token_file: /file
+chat_id: 123
+`,
+		},
+		{
+			name: "with no chat_id set - it fails",
+			in: `
+bot_token: xyz
+`,
+			expected: errors.New("missing chat_id on telegram_config"),
+		},
+		{
+			name: "with unknown parse_mode - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+parse_mode: invalid
+`,
+			expected: errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string"),
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg TelegramConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
 			require.Equal(t, tt.expected, err)

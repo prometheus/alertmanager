@@ -895,7 +895,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				},
 			},
 		},
-		Receivers: []*Receiver{
+		Receivers: []Receiver{
 			{
 				Name: "team-X-mails",
 				EmailConfigs: []*EmailConfig{

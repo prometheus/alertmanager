@@ -33,7 +33,7 @@ func TestWriteStream(t *testing.T) {
 		w.Close()
 	}()
 	packet, err := rcvTLSConn(r).read()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, packet)
 }
 
@@ -55,7 +55,7 @@ func TestWritePacket(t *testing.T) {
 			w.Close()
 		}()
 		packet, err := rcvTLSConn(r).read()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, tc.msg, string(packet.Buf))
 		require.Equal(t, tc.fromAddr, packet.From.String())
 
@@ -65,7 +65,7 @@ func TestWritePacket(t *testing.T) {
 func TestRead_Nil(t *testing.T) {
 	packet, err := (&tlsConn{}).read()
 	require.Nil(t, packet)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestTLSConn_Close(t *testing.T) {

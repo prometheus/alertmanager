@@ -24,12 +24,16 @@ import (
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 
+	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestLogGC(t *testing.T) {
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
@@ -43,7 +47,7 @@ func TestLogGC(t *testing.T) {
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
 		},
-		now:     func() time.Time { return now },
+		clock:   mockClock,
 		metrics: newMetrics(nil),
 	}
 	n, err := l.GC()
@@ -53,12 +57,13 @@ func TestLogGC(t *testing.T) {
 	expected := state{
 		"a2": newEntry(now.Add(time.Second)),
 	}
-	require.Equal(t, l.st, expected, "unexpected state after garbage collection")
+	require.Equal(t, expected, l.st, "unexpected state after garbage collection")
 }
 
 func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -129,28 +134,53 @@ func TestLogSnapshot(t *testing.T) {
 func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-
 	stopc := make(chan struct{})
-	var mtx sync.Mutex
-	var mc int
-	l, err := New(WithMetrics(prometheus.NewPedanticRegistry()), WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
-		mtx.Lock()
-		mc++
-		mtx.Unlock()
+	reg := prometheus.NewPedanticRegistry()
+	opts := Options{
+		Metrics:      reg,
+		SnapshotFile: f.Name(),
+	}
 
-		return 0, nil
-	}))
+	l, err := New(opts)
+	clock := clock.NewMock()
+	l.clock = clock
 	require.NoError(t, err)
 
-	go l.run()
-	time.Sleep(200 * time.Millisecond)
-	close(stopc)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
 
-	require.Eventually(t, func() bool {
-		mtx.Lock()
-		defer mtx.Unlock()
-		return mc >= 2
-	}, 500*time.Millisecond, 100*time.Millisecond)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
+			return 0, nil
+		})
+	}()
+	gosched()
+
+	// Before the first tick, no maintenance executed.
+	clock.Add(99 * time.Millisecond)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Add(1 * time.Millisecond)
+	require.EqualValues(t, 1, calls.Load())
+
+	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
+	close(stopc)
+	wg.Wait()
+
+	require.EqualValues(t, 2, calls.Load())
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_nflog_maintenance_errors_total How many maintenances were executed for the notification log that failed.
+# TYPE alertmanager_nflog_maintenance_errors_total counter
+alertmanager_nflog_maintenance_errors_total 0
+# HELP alertmanager_nflog_maintenance_total How many maintenances were executed for the notification log.
+# TYPE alertmanager_nflog_maintenance_total counter
+alertmanager_nflog_maintenance_total 2
+`), "alertmanager_nflog_maintenance_total", "alertmanager_nflog_maintenance_errors_total"))
 }
 
 func TestReplaceFile(t *testing.T) {
@@ -182,7 +212,8 @@ func TestReplaceFile(t *testing.T) {
 }
 
 func TestStateMerge(t *testing.T) {
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
@@ -243,7 +274,8 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -299,7 +331,8 @@ func TestStateDataCoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	nl, err := New(WithRetention(time.Second))
+	opts := Options{Retention: time.Second}
+	nl, err := New(opts)
 	if err != nil {
 		require.NoError(t, err, "constructing nflog failed")
 	}
@@ -341,4 +374,10 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }

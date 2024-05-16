@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -51,9 +52,10 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
+	FeatureFlags []string
+	RoutePrefix  string
+	Tolerance    time.Duration
+	baseTime     time.Time
 }
 
 func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
@@ -83,11 +85,6 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 		opts:    opts,
 		actions: map[float64][]func(){},
 	}
-	// TODO: Should this really be set during creation time? Why not do this
-	// during Run() time, maybe there is something else long happening between
-	// creation and running.
-	opts.baseTime = time.Now()
-
 	return test
 }
 
@@ -172,18 +169,20 @@ func (t *AcceptanceTest) Run() {
 
 	for _, am := range t.amc.ams {
 		am.errc = errc
-		defer func(am *Alertmanager) {
-			am.Terminate()
-			am.cleanup()
-			t.Logf("stdout:\n%v", am.cmd.Stdout)
-			t.Logf("stderr:\n%v", am.cmd.Stderr)
-		}(am)
+		t.T.Cleanup(am.Terminate)
+		t.T.Cleanup(am.cleanup)
 	}
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Fatal(err)
+		t.T.Log(err)
+		t.T.Fail()
+		return
 	}
+
+	// Set the reference time right before running the test actions to avoid
+	// test failures due to slow setup of the test environment.
+	t.opts.baseTime = time.Now()
 
 	go t.runActions()
 
@@ -250,10 +249,10 @@ type Alertmanager struct {
 	apiAddr     string
 	clusterAddr string
 	clientV2    *apiclient.AlertmanagerAPI
-	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
 
+	cmd  *exec.Cmd
 	errc chan<- error
 }
 
@@ -273,14 +272,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("failed to start alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to start alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %v", am.clusterAddr, err.Error())
+			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %w", am.clusterAddr, err)
 		}
 	}
 
@@ -302,6 +301,9 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
+	}
+	if len(am.opts.FeatureFlags) > 0 {
+		args = append(args, "--enable-feature", strings.Join(am.opts.FeatureFlags, ","))
 	}
 	if am.opts.RoutePrefix != "" {
 		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
@@ -339,7 +341,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("unable to get a successful response from the Alertmanager: %v", lastErr)
+	return fmt.Errorf("unable to get a successful response from the Alertmanager: %w", lastErr)
 }
 
 // WaitForCluster waits for the Alertmanager instance to join a cluster with the
@@ -382,8 +384,12 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if am.cmd.Process != nil {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
+			am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+		}
+		am.t.Logf("stdout:\n%v", am.cmd.Stdout)
+		am.t.Logf("stderr:\n%v", am.cmd.Stderr)
 	}
 }
 
@@ -397,8 +403,10 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if am.cmd.Process != nil {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
+			am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+		}
 	}
 }
 
@@ -420,26 +428,26 @@ func (amc *AlertmanagerCluster) Push(at float64, alerts ...*TestAlert) {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas models.PostableAlerts
-	for i := range alerts {
-		a := alerts[i].nativeAlert(am.opts)
-		alert := &models.PostableAlert{
-			Alert: models.Alert{
-				Labels:       a.Labels,
-				GeneratorURL: a.GeneratorURL,
-			},
-			Annotations: a.Annotations,
-		}
-		if a.StartsAt != nil {
-			alert.StartsAt = *a.StartsAt
-		}
-		if a.EndsAt != nil {
-			alert.EndsAt = *a.EndsAt
-		}
-		cas = append(cas, alert)
-	}
-
 	am.t.Do(at, func() {
+		var cas models.PostableAlerts
+		for i := range alerts {
+			a := alerts[i].nativeAlert(am.opts)
+			alert := &models.PostableAlert{
+				Alert: models.Alert{
+					Labels:       a.Labels,
+					GeneratorURL: a.GeneratorURL,
+				},
+				Annotations: a.Annotations,
+			}
+			if a.StartsAt != nil {
+				alert.StartsAt = *a.StartsAt
+			}
+			if a.EndsAt != nil {
+				alert.EndsAt = *a.EndsAt
+			}
+			cas = append(cas, alert)
+		}
+
 		params := alert.PostAlertsParams{}
 		params.WithContext(context.Background()).WithAlerts(cas)
 

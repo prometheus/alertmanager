@@ -272,6 +272,9 @@ func init() {
           "200": {
             "description": "Delete silence response"
           },
+          "404": {
+            "description": "A silence with the specified ID was not found"
+          },
           "500": {
             "$ref": "#/responses/InternalServerError"
           }
@@ -313,6 +316,9 @@ func init() {
             "schema": {
               "$ref": "#/definitions/gettableSilences"
             }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
           },
           "500": {
             "$ref": "#/responses/InternalServerError"
@@ -1077,6 +1083,9 @@ func init() {
           "200": {
             "description": "Delete silence response"
           },
+          "404": {
+            "description": "A silence with the specified ID was not found"
+          },
           "500": {
             "description": "Internal server error",
             "schema": {
@@ -1120,6 +1129,12 @@ func init() {
             "description": "Get silences response",
             "schema": {
               "$ref": "#/definitions/gettableSilences"
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
             }
           },
           "500": {

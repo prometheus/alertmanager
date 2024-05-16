@@ -24,10 +24,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
@@ -390,10 +392,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -408,7 +407,7 @@ func TestRetryStageWithError(t *testing.T) {
 
 	// Notify with a recoverable error should retry and succeed.
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -418,7 +417,88 @@ func TestRetryStageWithError(t *testing.T) {
 	fail = true
 	retry = false
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.NotNil(t, err)
+	require.Error(t, err)
+	require.NotNil(t, resctx)
+}
+
+func TestRetryStageWithErrorCode(t *testing.T) {
+	testcases := map[string]struct {
+		isNewErrorWithReason bool
+		reason               Reason
+		reasonlabel          string
+		expectedCount        int
+	}{
+		"for clientError":     {isNewErrorWithReason: true, reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
+		"for serverError":     {isNewErrorWithReason: true, reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
+		"for unexpected code": {isNewErrorWithReason: false, reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
+	}
+	for _, testData := range testcases {
+		retry := false
+		testData := testData
+		i := Integration{
+			name: "test",
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+				if !testData.isNewErrorWithReason {
+					return retry, errors.New("fail to deliver notification")
+				}
+				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+			}),
+			rs: sendResolved(false),
+		}
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithFiringAlerts(ctx, []uint64{0})
+
+		// Notify with a non-recoverable error.
+		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+		counter := r.metrics.numTotalFailedNotifications
+
+		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.reasonlabel))))
+
+		require.Error(t, err)
+		require.NotNil(t, resctx)
+	}
+}
+
+func TestRetryStageWithContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			cancel()
+			return true, errors.New("request failed: context canceled")
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	// Notify with a non-recoverable error.
+	resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	counter := r.metrics.numTotalFailedNotifications
+
+	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
+
+	require.Error(t, err)
 	require.NotNil(t, resctx)
 }
 
@@ -431,10 +511,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -459,7 +536,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{alerts[1]}, sent)
 	require.NotNil(t, resctx)
@@ -470,7 +547,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{}, sent)
 	require.NotNil(t, resctx)
@@ -485,10 +562,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -507,7 +581,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -518,7 +592,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -564,7 +638,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 
@@ -580,7 +654,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 }
@@ -592,7 +666,8 @@ func TestMuteStage(t *testing.T) {
 		return ok
 	})
 
-	stage := NewMuteStage(muter)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewMuteStage(muter, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -631,6 +706,10 @@ func TestMuteStage(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressed)
+	}
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
@@ -646,9 +725,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	marker := types.NewMarker(prometheus.NewRegistry())
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
 	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
-	stage := NewMuteStage(silencer)
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	stage := NewMuteStage(silencer, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -691,6 +772,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressedRoundOne := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressedRoundOne {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundOne)
+	}
 
 	// Do it again to exercise the version tracking of silences.
 	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
@@ -705,6 +790,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	suppressedRoundTwo := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundOne) != suppressedRoundTwo {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundTwo)
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
@@ -723,6 +813,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
+	}
+	suppressedRoundThree := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundTwo) != suppressedRoundThree {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundThree)
 	}
 }
 
@@ -799,7 +893,9 @@ func TestTimeMuteStage(t *testing.T) {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeMuteStage(m)
+	intervener := timeinterval.NewIntervener(m)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeMuteStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -833,6 +929,10 @@ func TestTimeMuteStage(t *testing.T) {
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
+	}
 }
 
 func TestTimeActiveStage(t *testing.T) {
@@ -855,6 +955,11 @@ func TestTimeActiveStage(t *testing.T) {
 		{
 			// Friday during business hours
 			fireTime:   "01 Jan 21 09:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			fireTime:   "02 Dec 20 16:59 +0000",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
@@ -883,7 +988,9 @@ func TestTimeActiveStage(t *testing.T) {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
 	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeActiveStage(m)
+	intervener := timeinterval.NewIntervener(m)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewTimeActiveStage(intervener, metrics)
 
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
@@ -916,6 +1023,10 @@ func TestTimeActiveStage(t *testing.T) {
 	}
 	if len(outAlerts) != nonMuteCount {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(cases) - nonMuteCount) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(cases) - nonMuteCount), suppressed)
 	}
 }
 

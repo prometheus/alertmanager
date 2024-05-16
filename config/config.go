@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -25,11 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
@@ -254,6 +255,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.WebexConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.MSTeamsConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -295,11 +299,11 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route        `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string      `yaml:"templates" json:"templates"`
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
@@ -528,6 +532,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				webex.APIURL = c.Global.WebexAPIURL
 			}
 		}
+		for _, msteams := range rcv.MSTeamsConfigs {
+			if msteams.HTTPConfig == nil {
+				msteams.HTTPConfig = c.Global.HTTPConfig
+			}
+			if msteams.WebhookURL == nil {
+				return fmt.Errorf("no msteams webhook URL provided")
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -677,7 +689,7 @@ func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }
@@ -699,7 +711,7 @@ func (hp *HostPort) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }
@@ -802,7 +814,7 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			r.GroupByAll = true
 		} else {
 			labelName := model.LabelName(l)
-			if !labelName.IsValid() {
+			if !compat.IsValidLabelName(labelName) {
 				return fmt.Errorf("invalid label name %q in group_by list", l)
 			}
 			r.GroupBy = append(r.GroupBy, labelName)
@@ -896,6 +908,7 @@ type Receiver struct {
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -993,7 +1006,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}
@@ -1019,7 +1032,7 @@ func (m *Matchers) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}

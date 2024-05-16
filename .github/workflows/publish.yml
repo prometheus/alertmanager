@@ -1,0 +1,38 @@
+---
+name: Publish
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+jobs:
+  ci:
+    name: Run ci
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build Alertmanager for all architectures
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        thread: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ]
+    needs: ci
+    steps:
+      - uses: actions/checkout@v3
+      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
+      - uses: ./.github/promci/actions/build
+        with:
+          parallelism: 12
+          thread: ${{ matrix.thread }}
+  publish_main:
+    name: Publish main branch artefacts
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
+      - uses: ./.github/promci/actions/publish_main
+        with:
+          docker_hub_login: ${{ secrets.docker_hub_login }}
+          docker_hub_password: ${{ secrets.docker_hub_password }}
+          quay_io_login: ${{ secrets.quay_io_login }}
+          quay_io_password: ${{ secrets.quay_io_password }}

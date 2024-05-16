@@ -56,7 +56,7 @@ func (o *GetSilenceReader) ReadResponse(response runtime.ClientResponse, consume
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /silence/{silenceID}] getSilence", response, response.Code())
 	}
 }
 
@@ -97,6 +97,11 @@ func (o *GetSilenceOK) IsServerError() bool {
 // IsCode returns true when this get silence o k response a status code equal to that given
 func (o *GetSilenceOK) IsCode(code int) bool {
 	return code == 200
+}
+
+// Code gets the status code for the get silence o k response
+func (o *GetSilenceOK) Code() int {
+	return 200
 }
 
 func (o *GetSilenceOK) Error() string {
@@ -161,6 +166,11 @@ func (o *GetSilenceNotFound) IsCode(code int) bool {
 	return code == 404
 }
 
+// Code gets the status code for the get silence not found response
+func (o *GetSilenceNotFound) Code() int {
+	return 404
+}
+
 func (o *GetSilenceNotFound) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound ", 404)
 }
@@ -211,6 +221,11 @@ func (o *GetSilenceInternalServerError) IsServerError() bool {
 // IsCode returns true when this get silence internal server error response a status code equal to that given
 func (o *GetSilenceInternalServerError) IsCode(code int) bool {
 	return code == 500
+}
+
+// Code gets the status code for the get silence internal server error response
+func (o *GetSilenceInternalServerError) Code() int {
+	return 500
 }
 
 func (o *GetSilenceInternalServerError) Error() string {

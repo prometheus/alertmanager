@@ -19,39 +19,15 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
-
-// GetAlertmanagerURL appends the given path to the alertmanager base URL
-func GetAlertmanagerURL(p string) url.URL {
-	amURL := *alertmanagerURL
-	amURL.Path = path.Join(alertmanagerURL.Path, p)
-	return amURL
-}
-
-// parseMatchers parses a list of matchers (cli arguments).
-func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
-	matchers := make([]labels.Matcher, 0, len(inputMatchers))
-
-	for _, v := range inputMatchers {
-		matcher, err := labels.ParseMatcher(v)
-		if err != nil {
-			return []labels.Matcher{}, err
-		}
-
-		matchers = append(matchers, *matcher)
-	}
-
-	return matchers, nil
-}
 
 // getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
 func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*models.AlertmanagerStatus, error) {
@@ -100,25 +76,6 @@ func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 		mls[model.LabelName(ln)] = model.LabelValue(lv)
 	}
 	return mls
-}
-
-// parseLabels parses a list of labels (cli arguments).
-func parseLabels(inputLabels []string) (models.LabelSet, error) {
-	labelSet := make(models.LabelSet, len(inputLabels))
-
-	for _, l := range inputLabels {
-		matcher, err := labels.ParseMatcher(l)
-		if err != nil {
-			return models.LabelSet{}, err
-		}
-		if matcher.Type != labels.MatchEqual {
-			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
-		}
-
-		labelSet[matcher.Name] = matcher.Value
-	}
-
-	return labelSet, nil
 }
 
 // TypeMatchers only valid for when you are going to add a silence

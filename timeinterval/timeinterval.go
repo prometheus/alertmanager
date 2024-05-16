@@ -27,6 +27,35 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Intervener determines whether a given time and active route time interval should mute outgoing notifications.
+// It implements the TimeMuter interface.
+type Intervener struct {
+	intervals map[string][]TimeInterval
+}
+
+func (i *Intervener) Mutes(names []string, now time.Time) (bool, error) {
+	for _, name := range names {
+		interval, ok := i.intervals[name]
+		if !ok {
+			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+		}
+
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func NewIntervener(ti map[string][]TimeInterval) *Intervener {
+	return &Intervener{
+		intervals: ti,
+	}
+}
+
 // TimeInterval describes intervals of time. ContainsTime will tell you if a golang time is contained
 // within the interval.
 type TimeInterval struct {
@@ -435,9 +464,6 @@ func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	bytes, err := ir.MarshalText()
 	return string(bytes), err
 }
-
-// TimeLayout specifies the layout to be used in time.Parse() calls for time intervals.
-const TimeLayout = "15:04"
 
 var (
 	validTime   = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
