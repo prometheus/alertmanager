@@ -145,7 +145,7 @@ func TestAggrGroup(t *testing.T) {
 		if s < opts.GroupWait {
 			t.Fatalf("received batch too early after %v", s)
 		}
-		exp := types.SnapshotAlerts(types.AlertSlice{a1}, batch[0].SnapshotAt)
+		exp := types.SnapshotAlerts([]*types.Alert{a1}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
 		require.Equal(t, exp, batch)
@@ -167,7 +167,7 @@ func TestAggrGroup(t *testing.T) {
 			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := types.SnapshotAlerts(types.AlertSlice{a1, a3}, batch[0].SnapshotAt)
+			exp := types.SnapshotAlerts([]*types.Alert{a1, a3}, batch[0].SnapshotAt)
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -194,7 +194,7 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected immediate alert but received none")
 
 	case batch := <-alertsCh:
-		exp := types.SnapshotAlerts(types.AlertSlice{a1, a2}, batch[0].SnapshotAt)
+		exp := types.SnapshotAlerts([]*types.Alert{a1, a2}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -217,7 +217,7 @@ func TestAggrGroup(t *testing.T) {
 			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := types.SnapshotAlerts(types.AlertSlice{a1, a2, a3}, batch[0].SnapshotAt)
+			exp := types.SnapshotAlerts([]*types.Alert{a1, a2, a3}, batch[0].SnapshotAt)
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -241,7 +241,7 @@ func TestAggrGroup(t *testing.T) {
 		if s < opts.GroupInterval {
 			t.Fatalf("received batch too early after %v", s)
 		}
-		exp := types.SnapshotAlerts(types.AlertSlice{&a1r, a2, a3}, batch[0].SnapshotAt)
+		exp := types.SnapshotAlerts([]*types.Alert{&a1r, a2, a3}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -252,7 +252,7 @@ func TestAggrGroup(t *testing.T) {
 	// Resolve all remaining alerts, they should be removed after the next batch was sent.
 	// Do not add a1r as it should have been deleted following the previous batch.
 	a2r, a3r := *a2, *a3
-	resolved := types.AlertSlice{&a2r, &a3r}
+	resolved := []*types.Alert{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
 		ag.insert(a)
@@ -413,7 +413,9 @@ route:
 	}
 	require.Len(t, recorder.Alerts(), 7)
 
+	now := time.Now()
 	alertGroups, receivers := dispatcher.Groups(
+		now,
 		func(*Route) bool {
 			return true
 		}, func(*types.Alert, time.Time) bool {
@@ -423,14 +425,14 @@ route:
 
 	require.Equal(t, AlertGroups{
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[0]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[0], now)},
 			Labels: model.LabelSet{
 				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[1]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[1], now)},
 			Labels: model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
@@ -438,7 +440,7 @@ route:
 			Receiver: "testing",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[2], now), types.NewAlertSnapshot(inputAlerts[3], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -447,7 +449,7 @@ route:
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[4]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[4], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -456,7 +458,7 @@ route:
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -465,7 +467,7 @@ route:
 			Receiver: "kafka",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -559,7 +561,7 @@ route:
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
 
-	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ := dispatcher.Groups(time.Now(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 
 	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
@@ -577,7 +579,7 @@ route:
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
-	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ = dispatcher.Groups(time.Now(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 }
 

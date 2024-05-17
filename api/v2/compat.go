@@ -117,7 +117,7 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
+func AlertToOpenAPIAlert(alert *types.AlertSnapshot, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
