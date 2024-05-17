@@ -284,7 +284,7 @@ func (d *Dispatcher) LoadingDone() <-chan struct{} {
 
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
-	Alerts   types.AlertSlice
+	Alerts   types.AlertsSnapshot
 	Labels   model.LabelSet
 	Receiver string
 	GroupKey string
@@ -303,7 +303,7 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+func (d *Dispatcher) Groups(ctx context.Context, now time.Time, routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
@@ -334,7 +334,6 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 	// route on ingestion.
 	receivers := map[model.Fingerprint][]string{}
 
-	now := time.Now()
 	for route, ags := range aggrGroupsPerRoute {
 		if !routeFilter(route) {
 			continue
@@ -350,7 +349,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			}
 
 			alerts := ag.alerts.List()
-			filteredAlerts := make([]*types.Alert, 0, len(alerts))
+			filteredAlerts := make([]*types.AlertSnapshot, 0, len(alerts))
 			for _, a := range alerts {
 				if !alertFilter(a, now) {
 					continue
@@ -367,7 +366,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 					receivers[fp] = []string{receiver}
 				}
 
-				filteredAlerts = append(filteredAlerts, a)
+				filteredAlerts = append(filteredAlerts, types.NewAlertSnapshot(a, now))
 			}
 			if len(filteredAlerts) == 0 {
 				continue
@@ -696,10 +695,10 @@ func (ag *aggrGroup) flush(notify func(...*types.AlertSnapshot) bool) {
 
 	ag.logger.Debug("flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
-	resolvedSlice := make(types.AlertSlice, 0, len(alertsSlice))
+	resolvedSlice := make(types.AlertsSnapshot, 0, len(alertsSlice))
 	for _, alert := range alertsSlice {
 		if alert.Resolved() {
-			resolvedSlice = append(resolvedSlice, &alert.Alert)
+			resolvedSlice = append(resolvedSlice, alert)
 		}
 	}
 

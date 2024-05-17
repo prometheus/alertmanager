@@ -452,70 +452,80 @@ func TestSilenceExpired(t *testing.T) {
 	require.False(t, silence.Expired())
 }
 
-func TestAlertSliceSort(t *testing.T) {
+func TestAlertsSnapshotSort(t *testing.T) {
 	var (
-		a1 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j1",
-					"instance":  "i1",
-					"alertname": "an1",
+		a1 = &AlertSnapshot{
+			Alert: Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"job":       "j1",
+						"instance":  "i1",
+						"alertname": "an1",
+					},
 				},
 			},
 		}
-		a2 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j1",
-					"instance":  "i1",
-					"alertname": "an2",
+		a2 = &AlertSnapshot{
+			Alert: Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"job":       "j1",
+						"instance":  "i1",
+						"alertname": "an2",
+					},
 				},
 			},
 		}
-		a3 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j2",
-					"instance":  "i1",
-					"alertname": "an1",
+		a3 = &AlertSnapshot{
+			Alert: Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"job":       "j2",
+						"instance":  "i1",
+						"alertname": "an1",
+					},
 				},
 			},
 		}
-		a4 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "an1",
+		a4 = &AlertSnapshot{
+			Alert: Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "an1",
+					},
 				},
 			},
 		}
-		a5 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "an2",
+		a5 = &AlertSnapshot{
+			Alert: Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "an2",
+					},
 				},
 			},
 		}
 	)
 
 	cases := []struct {
-		alerts AlertSlice
-		exp    AlertSlice
+		alerts AlertsSnapshot
+		exp    AlertsSnapshot
 	}{
 		{
-			alerts: AlertSlice{a2, a1},
-			exp:    AlertSlice{a1, a2},
+			alerts: AlertsSnapshot{a2, a1},
+			exp:    AlertsSnapshot{a1, a2},
 		},
 		{
-			alerts: AlertSlice{a3, a2, a1},
-			exp:    AlertSlice{a1, a2, a3},
+			alerts: AlertsSnapshot{a3, a2, a1},
+			exp:    AlertsSnapshot{a1, a2, a3},
 		},
 		{
-			alerts: AlertSlice{a4, a2, a4},
-			exp:    AlertSlice{a2, a4, a4},
+			alerts: AlertsSnapshot{a4, a2, a4},
+			exp:    AlertsSnapshot{a2, a4, a4},
 		},
 		{
-			alerts: AlertSlice{a5, a4},
-			exp:    AlertSlice{a4, a5},
+			alerts: AlertsSnapshot{a5, a4},
+			exp:    AlertsSnapshot{a4, a5},
 		},
 	}
 

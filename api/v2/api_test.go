@@ -491,7 +491,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
+	openAPIAlert := AlertToOpenAPIAlert(types.NewAlertSnapshot(alert, time.Now()), types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
