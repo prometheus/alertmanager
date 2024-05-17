@@ -619,6 +619,10 @@ func (r *recordStage) Alerts() []*types.Alert {
 	return alerts
 }
 
+func (r *recordStage) LastExecTime(ctx context.Context, _ *slog.Logger) (time.Time, error) {
+	return time.Time{}, nil
+}
+
 func (r *recordStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -1058,4 +1062,48 @@ func TestDispatchOnStartup(t *testing.T) {
 	}
 	require.True(t, fingerprints[alert1.Fingerprint()], "expected alert1 to be present")
 	require.True(t, fingerprints[alert2.Fingerprint()], "expected alert2 to be present")
+}
+
+func TestCalcDuration(t *testing.T) {
+	baseTime := time.Date(2024, 5, 26, 14, 33, 12, 100, time.UTC)
+
+	tests := map[string]struct {
+		lastTime      time.Time
+		now           time.Time
+		groupInterval time.Duration
+
+		expected time.Duration
+	}{
+		"next_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 10),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 17,
+		},
+		"exact_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 0,
+		},
+		"missed_one_exact_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27 * 2),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 0,
+		},
+		"missed_few_ticks": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27 * 3).Add(time.Second * 10),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 17,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := calcDuration(tc.now, tc.lastTime, tc.groupInterval)
+			require.Equal(t, tc.expected, d)
+		})
+	}
 }

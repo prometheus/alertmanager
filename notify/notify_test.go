@@ -52,7 +52,9 @@ func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool,
 	return f(ctx, alerts...)
 }
 
-type failStage struct{}
+type failStage struct {
+	noopExecTime
+}
 
 func (s failStage) Exec(ctx context.Context, l *slog.Logger, as ...*types.Alert) (context.Context, []*types.Alert, error) {
 	return ctx, nil, fmt.Errorf("some error")
@@ -89,6 +91,46 @@ func alertHashSet(hashes ...uint64) map[uint64]struct{} {
 	}
 
 	return res
+}
+
+func TestDedupLastExecTime(t *testing.T) {
+	now := time.Now().UTC()
+
+	cases := map[string]struct {
+		entry   *nflogpb.Entry
+		expTime time.Time
+	}{
+		"all_resolved": {
+			entry: &nflogpb.Entry{
+				FiringAlerts: []uint64{},
+				DispatchTime: now,
+			},
+			expTime: time.Time{},
+		},
+		"next_group": {
+			entry: &nflogpb.Entry{
+				FiringAlerts: []uint64{10},
+				DispatchTime: now,
+			},
+			expTime: now,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := DedupStage{
+				nflog: &testNflog{
+					qres: []*nflogpb.Entry{tc.entry},
+				},
+			}
+			ctx := context.Background()
+			ctx = WithGroupKey(ctx, "1")
+			ctx = WithNow(ctx, now)
+			time, err := s.LastExecTime(ctx, promslog.NewNopLogger())
+			require.NoError(t, err)
+			require.Equal(t, tc.expTime, time)
+		})
+	}
 }
 
 func TestDedupStageNeedsUpdate(t *testing.T) {
