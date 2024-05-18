@@ -134,7 +134,7 @@ func TestDedupLastExecTime(t *testing.T) {
 }
 
 func TestDedupStageNeedsUpdate(t *testing.T) {
-	now := utcNow()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		entry          *nflogpb.Entry
@@ -164,7 +164,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    time.Time{},
+				DispatchTime: time.Time{},
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
@@ -172,7 +172,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-9 * time.Minute),
+				DispatchTime: now.Add(-9 * time.Minute),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -181,7 +181,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-11 * time.Minute),
+				DispatchTime: now.Add(-11 * time.Minute),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -190,7 +190,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
 				ResolvedAlerts: []uint64{1, 2, 3},
-				Timestamp:      now.Add(-11 * time.Minute),
+				DispatchTime:   now.Add(-11 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			resolvedAlerts: alertHashSet(3, 4, 5),
@@ -201,7 +201,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				DispatchTime:   now.Add(-9 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -213,7 +213,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				DispatchTime:   now.Add(-9 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -225,7 +225,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				DispatchTime:   now.Add(-9 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -237,7 +237,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				DispatchTime:   now.Add(-9 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -250,8 +250,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		t.Log("case", i)
 
 		s := &DedupStage{
-			now: func() time.Time { return now },
-			rs:  sendResolved(c.resolve),
+			rs: sendResolved(c.resolve),
 		}
 		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, now, c.repeat, time.Second*0)
 		require.Equal(t, c.res, res)
@@ -260,15 +259,13 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 
 func TestDedupStage(t *testing.T) {
 	i := 0
-	now := utcNow()
+	now := time.Now().UTC()
+
 	s := &DedupStage{
 		hash: func(a *types.Alert) uint64 {
 			res := uint64(i)
 			i++
 			return res
-		},
-		now: func() time.Time {
-			return now
 		},
 		rs: sendResolved(false),
 	}
@@ -329,7 +326,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{0, 1, 2},
-				Timestamp:    now,
+				DispatchTime: now,
 			},
 		},
 	}
@@ -344,7 +341,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{1, 2, 3, 4},
-				Timestamp:    now,
+				DispatchTime: now,
 			},
 		},
 	}
@@ -774,7 +771,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 	sil := &silencepb.Silence{
-		EndsAt:   utcNow().Add(time.Hour),
+		EndsAt:   time.Now().UTC().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}
 	if err = silences.Set(t.Context(), sil); err != nil {
