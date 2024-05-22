@@ -356,10 +356,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
 
-	if c.Global.JiraAPIToken != "" && len(c.Global.JiraAPITokenFile) > 0 {
-		return fmt.Errorf("at most one of jira_api_token & jira_api_token_file must be configured")
-	}
-
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -556,19 +552,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 					return fmt.Errorf("no global Jira Cloud URL set")
 				}
 				jira.APIURL = c.Global.JiraAPIURL
-			}
-			if jira.APIUsername == "" {
-				if c.Global.JiraAPIUsername == "" {
-					return fmt.Errorf("no global Jira API username set")
-				}
-				jira.APIUsername = c.Global.JiraAPIUsername
-			}
-			if jira.APIToken == "" && len(jira.APITokenFile) == 0 {
-				if c.Global.JiraAPIToken == "" && len(c.Global.JiraAPITokenFile) == 0 {
-					return fmt.Errorf("no global Jira API Token set either inline or in a file")
-				}
-				jira.APIToken = c.Global.JiraAPIToken
-				jira.APITokenFile = c.Global.JiraAPITokenFile
 			}
 		}
 
@@ -774,9 +757,6 @@ type GlobalConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	JiraAPIURL           *URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
-	JiraAPIUsername      string     `yaml:"jira_api_username,omitempty" json:"jira_api_username,omitempty"`
-	JiraAPIToken         Secret     `yaml:"jira_api_token,omitempty" json:"jira_api_token,omitempty"`
-	JiraAPITokenFile     string     `yaml:"jira_api_token_file,omitempty" json:"jira_api_token_file,omitempty"`
 	SMTPFrom             string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello            string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost        HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`

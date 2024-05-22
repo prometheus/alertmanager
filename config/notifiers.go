@@ -838,10 +838,7 @@ type JiraConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL       *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIUsername  string `yaml:"api_username,omitempty" json:"api_username,omitempty"`
-	APIToken     Secret `yaml:"api_token,omitempty" json:"api_token,omitempty"`
-	APITokenFile string `yaml:"api_token_file,omitempty" json:"api_token_file,omitempty"`
+	APIURL *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
 	Project      string   `yaml:"project,omitempty" json:"project,omitempty"`
 	Summary      string   `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -865,13 +862,6 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain JiraConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-	if c.APIToken == "" && c.APITokenFile == "" {
-		return fmt.Errorf("missing api_token or api_token_file in jira_config")
-	}
-
-	if c.APIToken != "" && len(c.APITokenFile) > 0 {
-		return fmt.Errorf("at most one of api_token & api_token_file must be configured")
 	}
 
 	if c.Project == "" {

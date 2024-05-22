@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -80,7 +79,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	)
 
-	existingIssue, shouldRetry, err := n.searchExistingIssue(tmplTextFunc, key, alerts.Status())
+	existingIssue, shouldRetry, err := n.searchExistingIssue(key, alerts.Status())
 	if err != nil {
 		return shouldRetry, err
 	}
@@ -115,16 +114,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 
-	_, shouldRetry, err = n.doAPIRequest(tmplTextFunc, method, path, requestBody)
+	_, shouldRetry, err = n.doAPIRequest(method, path, requestBody)
 	if err != nil {
 		return shouldRetry, err
 	}
 
 	if existingIssue != nil {
 		if n.conf.ResolveTransition != "" && alerts.Status() == model.AlertResolved && existingIssue.Fields.Status.StatusCategory.Key != "done" {
-			return n.TransitionIssue(tmplTextFunc, key, existingIssue.Key, n.conf.ResolveTransition)
+			return n.TransitionIssue(key, existingIssue.Key, n.conf.ResolveTransition)
 		} else if n.conf.ReopenTransition != "" && alerts.Status() == model.AlertFiring && existingIssue.Fields.Status.StatusCategory.Key == "done" {
-			return n.TransitionIssue(tmplTextFunc, key, existingIssue.Key, n.conf.ReopenTransition)
+			return n.TransitionIssue(key, existingIssue.Key, n.conf.ReopenTransition)
 		}
 	}
 
@@ -186,7 +185,7 @@ func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, er
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key, status model.AlertStatus) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -215,7 +214,7 @@ func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key
 
 	level.Debug(n.logger).Log("msg", "search for recent issues", "alert", key.String(), "jql", jql.String())
 
-	responseBody, shouldRetry, err := n.doAPIRequest(tmplTextFunc, http.MethodPost, "search", requestBody)
+	responseBody, shouldRetry, err := n.doAPIRequest(http.MethodPost, "search", requestBody)
 	if err != nil {
 		return nil, shouldRetry, err
 	}
@@ -230,18 +229,18 @@ func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key
 		level.Debug(n.logger).Log("msg", "found no existing issue", "alert", key.String())
 		return nil, false, nil
 	}
-	
+
 	if issueSearchResult.Total > 1 {
 		level.Warn(n.logger).Log("msg", "more than one issue matched, selecting the most recently resolved", "alert", key.String(), "selected", issueSearchResult.Issues[0].Key)
 	}
-	
+
 	return &issueSearchResult.Issues[0], false, nil
 }
 
-func (n *Notifier) getIssueTransitionByName(tmplTextFunc templateFunc, issueKey, transitionName string) (string, bool, error) {
+func (n *Notifier) getIssueTransitionByName(issueKey, transitionName string) (string, bool, error) {
 	path := fmt.Sprintf("issue/%s/transitions", issueKey)
 
-	responseBody, shouldRetry, err := n.doAPIRequest(tmplTextFunc, http.MethodGet, path, nil)
+	responseBody, shouldRetry, err := n.doAPIRequest(http.MethodGet, path, nil)
 	if err != nil {
 		return "", shouldRetry, err
 	}
@@ -261,8 +260,8 @@ func (n *Notifier) getIssueTransitionByName(tmplTextFunc templateFunc, issueKey,
 	return "", false, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
 }
 
-func (n *Notifier) TransitionIssue(tmplText templateFunc, key notify.Key, issueKey, transitionName string) (bool, error) {
-	transitionID, shouldRetry, err := n.getIssueTransitionByName(tmplText, issueKey, transitionName)
+func (n *Notifier) TransitionIssue(key notify.Key, issueKey, transitionName string) (bool, error) {
+	transitionID, shouldRetry, err := n.getIssueTransitionByName(issueKey, transitionName)
 	if err != nil {
 		return shouldRetry, err
 	}
@@ -273,12 +272,12 @@ func (n *Notifier) TransitionIssue(tmplText templateFunc, key notify.Key, issueK
 	path := fmt.Sprintf("issue/%s/transitions", issueKey)
 
 	level.Debug(n.logger).Log("msg", "transitions jira issue", "alert", key.String(), "key", issueKey, "transition", transitionName)
-	_, shouldRetry, err = n.doAPIRequest(tmplText, http.MethodPost, path, requestBody)
+	_, shouldRetry, err = n.doAPIRequest(http.MethodPost, path, requestBody)
 
 	return shouldRetry, err
 }
 
-func (n *Notifier) doAPIRequest(tmplTextFunc templateFunc, method, path string, requestBody any) ([]byte, bool, error) {
+func (n *Notifier) doAPIRequest(method, path string, requestBody any) ([]byte, bool, error) {
 	var body io.Reader
 	if requestBody != nil {
 		var buf bytes.Buffer
@@ -295,27 +294,9 @@ func (n *Notifier) doAPIRequest(tmplTextFunc templateFunc, method, path string, 
 		return nil, false, err
 	}
 
-	var token string
-	if n.conf.APIToken != "" {
-		token, err = tmplTextFunc(string(n.conf.APIToken))
-		if err != nil {
-			return nil, false, fmt.Errorf("template error: %w", err)
-		}
-	} else {
-		content, err := os.ReadFile(n.conf.APITokenFile)
-		if err != nil {
-			return nil, false, fmt.Errorf("read key_file error: %w", err)
-		}
-		token, err = tmplTextFunc(string(content))
-		if err != nil {
-			return nil, false, fmt.Errorf("template error: %w", err)
-		}
-	}
-
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Language", "en")
 	req.Header.Set("X-Force-Accept-Language", "true")
-	req.SetBasicAuth(n.conf.APIUsername, strings.TrimSpace(token))
 
 	resp, err := n.client.Do(req)
 	defer notify.Drain(resp)

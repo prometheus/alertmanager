@@ -86,9 +86,6 @@ global:
 
   # Default settings for the JIRA integration. 
   [ jira_api_url: <string> ]
-  [ jira_api_username: <string> ]
-  [ jira_api_token: <secret> ]
-  [ jira_api_token_file: <filepath> ]
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
@@ -957,9 +954,6 @@ The default `jira.default.description` template only works with V2.
 # The URL to send API requests to. The full API path must be included.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
-[ api_username: <string> | default = global.jira_api_username ]
-[ api_token: <secret> | default = global.jira_api_token ]
-[ api_token_file: <string> | default = global.jira_api_token_file ]
 
 # The project key where issues are created.
 project: <string>
@@ -997,7 +991,7 @@ components:
 # If reopen_transition is defined, ignore issues with that resolution
 [ wont_fix_resolution: <string> ]
 
-# If reopen_transition is defined, reopen issue not older than ...
+# If reopen_transition is defined, reopen issue not older than ... Note: The resolutiondate field is used to determine the age of the issue.
 [ reopen_duration: <duration> ]
 
 # Custom fields
@@ -1005,7 +999,9 @@ custom_fields:
   [ <string>: <custom_fields> ... ]
 
 
-# The HTTP client's configuration.
+# The HTTP client's configuration. You must use this configuration to supply the PAT token as part of the HTTP `Authorization` header.
+# For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
+# For Jira Data Center, use authorization.credentials with the PAT as value.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
