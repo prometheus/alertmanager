@@ -559,13 +559,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if jira.APIUsername == "" {
 				if c.Global.JiraAPIUsername == "" {
-					return fmt.Errorf("no global Jira Cloud username set")
+					return fmt.Errorf("no global Jira API username set")
 				}
 				jira.APIUsername = c.Global.JiraAPIUsername
 			}
 			if jira.APIToken == "" && len(jira.APITokenFile) == 0 {
 				if c.Global.JiraAPIToken == "" && len(c.Global.JiraAPITokenFile) == 0 {
-					return fmt.Errorf("no global Jira Cloud API Token set either inline or in a file")
+					return fmt.Errorf("no global Jira API Token set either inline or in a file")
 				}
 				jira.APIToken = c.Global.JiraAPIToken
 				jira.APITokenFile = c.Global.JiraAPITokenFile

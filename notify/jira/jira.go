@@ -190,7 +190,7 @@ func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		jql.WriteString(fmt.Sprintf(`resolution != "%s" and `, n.conf.WontFixResolution))
+		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
 	}
 
 	// if alert is firing, do not search for closed issues unless reopen transition is defined.
@@ -205,7 +205,7 @@ func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key
 		}
 	}
 
-	jql.WriteString(fmt.Sprintf(`project = "%s" and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, key.Hash()))
+	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, key.Hash()))
 
 	requestBody := issueSearch{}
 	requestBody.Jql = jql.String()
@@ -226,17 +226,16 @@ func (n *Notifier) searchExistingIssue(tmplTextFunc templateFunc, key notify.Key
 		return nil, false, err
 	}
 
-	switch issueSearchResult.Total {
-	case 0:
+	if issueSearchResult.Total == 0 {
 		level.Debug(n.logger).Log("msg", "found no existing issue", "alert", key.String())
 		return nil, false, nil
-	default:
-		level.Warn(n.logger).Log("msg", "more than one issue matched, picking most recently resolved", "alert", key.String(), "picked", issueSearchResult.Issues[0].Key)
-
-		fallthrough
-	case 1:
-		return &issueSearchResult.Issues[0], false, nil
 	}
+	
+	if issueSearchResult.Total > 1 {
+		level.Warn(n.logger).Log("msg", "more than one issue matched, selecting the most recently resolved", "alert", key.String(), "selected", issueSearchResult.Issues[0].Key)
+	}
+	
+	return &issueSearchResult.Issues[0], false, nil
 }
 
 func (n *Notifier) getIssueTransitionByName(tmplTextFunc templateFunc, issueKey, transitionName string) (string, bool, error) {

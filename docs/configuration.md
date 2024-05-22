@@ -944,17 +944,17 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 JIRA notifications are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
 or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
 
-Note: This integration is only tested against an Jira Cloud instance. Jira Data Center (on premise instance) can work, but it's not garantueed.
+Note: This integration is only tested against an Jira Cloud instance. Jira Data Center (on premise instance) can work, but it's not guaranteed.
 
-Both APIs have the same feature set. The difference is that V2 uses [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
-for format the issue description and V3 uses [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
+Both APIs have the same feature set. The difference is that V2 supports [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
+for the issue description and V3 supports [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
 The default `jira.default.description` template only works with V2.
 
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The Atlassian Side to send Jira API requests to. API path must be included.
+# The URL to send API requests to. The full API path must be included.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
 [ api_username: <string> | default = global.jira_api_username ]
