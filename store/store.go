@@ -64,12 +64,13 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			a.gc()
+			a.GC()
 		}
 	}
 }
 
-func (a *Alerts) gc() {
+// GC deletes resolved alerts and returns them.
+func (a *Alerts) GC() []types.Alert {
 	a.Lock()
 	var resolved []types.Alert
 	for fp, alert := range a.c {
@@ -90,6 +91,7 @@ func (a *Alerts) gc() {
 	}
 	a.Unlock()
 	a.cb(resolved)
+	return resolved
 }
 
 // Get returns the Alert with the matching fingerprint, or an error if it is
@@ -114,12 +116,17 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	return nil
 }
 
-// Delete removes the Alert with the matching fingerprint from the store.
-func (a *Alerts) Delete(fp model.Fingerprint) error {
+// DeleteIfNotModified deletes the slice of Alerts from the store if not
+// modified.
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 	a.Lock()
 	defer a.Unlock()
-
-	delete(a.c, fp)
+	for _, alert := range alerts {
+		fp := alert.Fingerprint()
+		if other, ok := a.c[fp]; ok && alert.UpdatedAt == other.UpdatedAt {
+			delete(a.c, fp)
+		}
+	}
 	return nil
 }
 
