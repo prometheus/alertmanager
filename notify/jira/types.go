@@ -15,8 +15,6 @@ package jira
 
 import (
 	"encoding/json"
-	"errors"
-	"reflect"
 )
 
 type templateFunc func(string) (string, error)
@@ -111,7 +109,7 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 
 	var err error
 	for key, customField := range i.CustomFields {
-		jsonFields[key], err = customFields(customField.(map[any]any))
+		jsonFields[key], err = customFields(customField)
 		if err != nil {
 			return nil, err
 		}
@@ -120,29 +118,33 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonFields)
 }
 
-// customFields ensure that all nested properties has a string.
-func customFields(fields map[any]any) (map[string]any, error) {
-	var err error
+// customFields ensure that all nested properties have a string.
+func customFields(field any) (any, error) {
+	if field == nil {
+		return nil, nil
+	}
 
-	customFieldMap := map[string]any{}
+	if val, ok := field.(string); ok {
+		return val, nil
+	}
 
-	for key, field := range fields {
-		key, ok := key.(string)
-		if !ok {
-			return nil, errors.New("Detect non string key in custom_fields")
-		}
+	if val, ok := field.([]any); ok {
+		return val, nil
+	}
 
-		v := reflect.ValueOf(field)
-		switch v.Kind() {
-		case reflect.Map:
-			customFieldMap[key], err = customFields(field.(map[any]any))
+	if val, ok := field.(map[string]any); ok {
+		var err error
+		subField := map[string]any{}
+
+		for key, subVal := range val {
+			subField[key], err = customFields(subVal)
 			if err != nil {
 				return nil, err
 			}
-		default:
-			customFieldMap[key] = field
 		}
+
+		return subField, nil
 	}
 
-	return customFieldMap, nil
+	return field, nil
 }

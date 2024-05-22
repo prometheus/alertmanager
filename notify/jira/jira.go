@@ -119,7 +119,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return shouldRetry, err
 	}
 
-	if existingIssue != nil {
+	if existingIssue != nil && existingIssue.Key != "" && existingIssue.Fields != nil && existingIssue.Fields.Status != nil {
 		if n.conf.ResolveTransition != "" && alerts.Status() == model.AlertResolved && existingIssue.Fields.Status.StatusCategory.Key != "done" {
 			return n.TransitionIssue(key, existingIssue.Key, n.conf.ResolveTransition)
 		} else if n.conf.ReopenTransition != "" && alerts.Status() == model.AlertFiring && existingIssue.Fields.Status.StatusCategory.Key == "done" {
@@ -140,11 +140,11 @@ func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, er
 		Project:      &issueProject{Key: n.conf.Project},
 		Issuetype:    &idNameValue{Name: n.conf.IssueType},
 		Summary:      summary,
-		Labels:       make([]string, 1+len(n.conf.StaticLabels)),
+		Labels:       make([]string, 0),
 		CustomFields: n.conf.CustomFields,
 	}}
 
-	issueDescriptionString, err := tmplTextFunc(n.conf.Summary)
+	issueDescriptionString, err := tmplTextFunc(n.conf.Description)
 	if err != nil {
 		return issue{}, fmt.Errorf("template error: %w", err)
 	}
