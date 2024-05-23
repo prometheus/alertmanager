@@ -49,13 +49,13 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherCache map[*pb.Silence]labels.Matchers
+type matcherCache map[string]labels.Matchers
 
 // Get retrieves the matchers for a given silence. If it is a missed cache
 // access, it compiles and adds the matchers of the requested silence to the
 // cache.
 func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
-	if m, ok := c[s]; ok {
+	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
 	return c.add(s)
@@ -88,7 +88,7 @@ func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
 		ms[i] = matcher
 	}
 
-	c[s] = ms
+	c[s.Id] = ms
 	return ms, nil
 }
 
@@ -478,7 +478,7 @@ func (s *Silences) GC() (int, error) {
 		}
 		if !sil.ExpiresAt.After(now) {
 			delete(s.st, id)
-			delete(s.mc, sil.Silence)
+			delete(s.mc, sil.Silence.Id)
 			n++
 		}
 	}
