@@ -128,9 +128,10 @@ Alerts Resolved:
 {{ .CommonAnnotations.summary }}
 {{ .CommonAnnotations.description }}
 {{ end }}
-{{ define "discord.default.title_url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "discord.default.title_url" }}{{ end }}
 {{ define "discord.default.bot_username" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "discord.default.bot_icon_url" }}https://avatars.githubusercontent.com/u/3380462{{ end }}
+{{ define "discord.default.alerts_omitted_message" }}Some alerts were omitted because they were too long to be sent in one message{{ end }}
 
 {{ define "webex.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 }}
