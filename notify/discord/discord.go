@@ -240,12 +240,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 		}
 
-		titleUrl := tmpl(n.conf.TitleURL)
+		titleURL := tmpl(n.conf.TitleURL)
 		if err != nil {
 			return false, err
 		}
 
-		iconUrl := tmpl(n.conf.BotIconURL)
+		iconURL := tmpl(n.conf.BotIconURL)
 		if err != nil {
 			return false, err
 		}
@@ -256,10 +256,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Color:       color,
 			Fields:      fields,
 			Timestamp:   timestamp,
-			URL:         titleUrl,
+			URL:         titleURL,
 			Footer: webhookEmbedFooter{
 				Text:    alert.Fingerprint().String(),
-				IconURL: iconUrl,
+				IconURL: iconURL,
 			},
 		}
 
