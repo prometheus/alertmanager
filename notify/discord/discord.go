@@ -135,17 +135,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	author, truncated := notify.TruncateInRunes(tmpl(n.conf.BotUsername), maxEmbedAuthorNameLenRunes)
-	if err != nil {
-		return false, err
-	}
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated author name", "key", key, "max_runes", maxEmbedAuthorNameLenRunes)
 	}
 
 	alertsOmittedMessage, truncated := notify.TruncateInRunes(tmpl(n.conf.AlertsOmittedMessage), maxMessageContentLength)
-	if err != nil {
-		return false, err
-	}
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated alerts omitted message", "key", key, "max_message_length", maxMessageContentLength)
 	}
@@ -164,16 +158,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
-		if err != nil {
-			return false, err
-		}
 		if truncated {
 			level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 		}
+
 		description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
-		if err != nil {
-			return false, err
-		}
 		if truncated {
 			level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 		}
@@ -213,16 +202,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 				labelValue := string(alert.Labels[model.LabelName(labelName)])
 
 				label, truncated := notify.TruncateInRunes(labelName, maxFieldNameLenRunes)
-				if err != nil {
-					return false, err
-				}
 				if truncated {
 					level.Warn(n.logger).Log("msg", "Truncated field name", "key", key, "max_runes", maxFieldNameLenRunes)
 				}
+
 				value, truncated := notify.TruncateInRunes(labelValue, maxFieldValueLenRunes)
-				if err != nil {
-					return false, err
-				}
 				if truncated {
 					level.Warn(n.logger).Log("msg", "Truncated field value", "key", key, "max_runes", maxFieldValueLenRunes)
 				}
