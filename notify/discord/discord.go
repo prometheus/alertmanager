@@ -37,7 +37,10 @@ import (
 
 const (
 	// https://discord.com/developers/docs/resources/channel#create-message
+	// 2000 characters per message is the limit (not counting embeds)
 	maxMessageContentLength = 2000
+	// 10 embeds per Message is the maximum
+	maxEmbedsPerMessage = 10
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
 	// 256 characters or runes for an embed title
 	maxTitleLenRunes = 256
@@ -138,6 +141,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated author name", "key", key, "max_runes", maxEmbedAuthorNameLenRunes)
 	}
+
+	alertsOmittedMessage, truncated := notify.TruncateInRunes(tmpl(n.conf.AlertsOmittedMessage), maxMessageContentLength)
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated alerts omitted message", "key", key, "max_message_length", maxMessageContentLength)
+	}
+
 	w := webhook{
 		Username:  author,
 		AvatarURL: tmpl(n.conf.BotIconURL),
@@ -145,7 +157,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var alerts = types.Alerts(as...)
 
-	for _, alert := range alerts {
+	for alertIndex, alert := range alerts {
+		if alertIndex > maxEmbedsPerMessage {
+			w.Content = alertsOmittedMessage
+			break
+		}
+
 		title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 		if err != nil {
 			return false, err
@@ -232,14 +249,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		if sumEmbedsTextLength(w.Embeds)+calculateEmbedTextLength(embed) > maxTotalEmbedSize {
-			alertsOmittedMessage, truncated := notify.TruncateInRunes(tmpl(n.conf.AlertsOmittedMessage), maxMessageContentLength)
-			if err != nil {
-				return false, err
-			}
-			if truncated {
-				level.Warn(n.logger).Log("msg", "Truncated alerts omitted message", "key", key, "max_message_length", maxMessageContentLength)
-			}
-
 			w.Content = alertsOmittedMessage
 			break
 		}
