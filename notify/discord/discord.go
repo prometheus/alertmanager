@@ -152,7 +152,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var alerts = types.Alerts(as...)
 
 	for alertIndex, alert := range alerts {
-		if alertIndex > maxEmbedsPerMessage {
+		if alertIndex == maxEmbedsPerMessage {
 			w.Content = alertsOmittedMessage
 			break
 		}
