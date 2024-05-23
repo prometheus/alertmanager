@@ -47,7 +47,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/matchers/compat"
-	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -75,8 +74,7 @@ type API struct {
 	logger log.Logger
 	m      *metrics.Alerts
 
-	Handler   http.Handler
-	receivers []*notify.Receiver
+	Handler http.Handler
 }
 
 type (
@@ -158,14 +156,13 @@ func (api *API) requestLogger(req *http.Request) log.Logger {
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn, receivers []*notify.Receiver) {
+func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
-	api.receivers = receivers
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -226,40 +223,11 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 
 func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) middleware.Responder {
 	api.mtx.RLock()
-	configReceivers := api.receivers
-	api.mtx.RUnlock()
+	defer api.mtx.RUnlock()
 
-	receivers := make([]*open_api_models.Receiver, 0, len(configReceivers))
-	for _, r := range configReceivers {
-		integrations := make([]*open_api_models.Integration, 0, len(r.Integrations()))
-
-		for _, integration := range r.Integrations() {
-			notify, duration, err := integration.GetReport()
-			iname := integration.String()
-			sendResolved := integration.SendResolved()
-			integrations = append(integrations, &open_api_models.Integration{
-				Name:                      &iname,
-				SendResolved:              &sendResolved,
-				LastNotifyAttempt:         strfmt.DateTime(notify.UTC()),
-				LastNotifyAttemptDuration: duration.String(),
-				LastNotifyAttemptError: func() string {
-					if err != nil {
-						return err.Error()
-					}
-					return ""
-				}(),
-			})
-		}
-
-		rName := r.Name()
-		active := r.Active()
-		model := &open_api_models.Receiver{
-			Name:         &rName,
-			Active:       &active,
-			Integrations: integrations,
-		}
-
-		receivers = append(receivers, model)
+	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
+	for _, r := range api.alertmanagerConfig.Receivers {
+		receivers = append(receivers, &open_api_models.Receiver{Name: &r.Name})
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)

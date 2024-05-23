@@ -33,7 +33,6 @@ import (
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -485,10 +484,6 @@ receivers:
 		uptime:             time.Now(),
 		logger:             log.NewNopLogger(),
 		alertmanagerConfig: cfg,
-		receivers: []*notify.Receiver{
-			notify.NewReceiver("team-X", true, nil),
-			notify.NewReceiver("team-Y", true, nil),
-		},
 	}
 
 	for _, tc := range []struct {
