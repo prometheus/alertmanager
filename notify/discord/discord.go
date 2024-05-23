@@ -37,24 +37,24 @@ import (
 
 const (
 	// https://discord.com/developers/docs/resources/channel#create-message
-	// 2000 characters per message is the limit (not counting embeds)
+	// 2000 characters per message is the limit (not counting embeds).
 	maxMessageContentLength = 2000
-	// 10 embeds per Message is the maximum
+	// 10 embeds per Message is the maximum.
 	maxEmbedsPerMessage = 10
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
-	// 256 characters or runes for an embed title
+	// 256 characters or runes for an embed title.
 	maxTitleLenRunes = 256
-	// 4096 characters or runes for an embed description
+	// 4096 characters or runes for an embed description.
 	maxDescriptionLenRunes = 4096
-	// 25 fields per embed
+	// 25 fields per embed.
 	maxFieldsPerEmbed = 25
-	// 256 characters or runes for an embed field-name
+	// 256 characters or runes for an embed field-name.
 	maxFieldNameLenRunes = 256
-	// 1024 characters or runes for an embed field-value
+	// 1024 characters or runes for an embed field-value.
 	maxFieldValueLenRunes = 1024
-	// 256 characters or runes for an embed author name
+	// 256 characters or runes for an embed author name.
 	maxEmbedAuthorNameLenRunes = 256
-	// 6000 characters or runes for the combined sum of characters in all title, description, field.name, field.value, footer.text, and author.name of all embeds
+	// 6000 characters or runes for the combined sum of characters in all title, description, field.name, field.value, footer.text, and author.name of all embeds.
 	maxTotalEmbedSize = 6000
 )
 
@@ -149,7 +149,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		AvatarURL: tmpl(n.conf.BotIconURL),
 	}
 
-	var alerts = types.Alerts(as...)
+	alerts := types.Alerts(as...)
 
 	for alertIndex, alert := range alerts {
 		if alertIndex == maxEmbedsPerMessage {
@@ -187,7 +187,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if !n.conf.SkipFields {
 			sortedLabelNames := make([]string, 0, len(alert.Labels))
 
-			for labelName, _ := range alert.Labels {
+			for labelName := range alert.Labels {
 				sortedLabelNames = append(sortedLabelNames, string(labelName))
 			}
 
