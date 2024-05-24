@@ -491,7 +491,7 @@ receivers:
 		expectedCode int
 	}{
 		{
-			`[{"active":true,"integrations":[],"name":"team-X"},{"active":true,"integrations":[],"name":"team-Y"}]`,
+			`[{"name":"team-X"},{"name":"team-Y"}]`,
 			200,
 		},
 	} {

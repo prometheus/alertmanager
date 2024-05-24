@@ -227,7 +227,8 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 
 	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
 	for _, r := range api.alertmanagerConfig.Receivers {
-		receivers = append(receivers, &open_api_models.Receiver{Name: &r.Name})
+		name := r.Name
+		receivers = append(receivers, &open_api_models.Receiver{Name: &name})
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
