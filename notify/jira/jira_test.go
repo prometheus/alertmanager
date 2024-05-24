@@ -26,7 +26,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/go-kit/log"
@@ -120,6 +119,8 @@ func TestJiraTemplating(t *testing.T) {
 			errMsg: "template: :1: unclosed action",
 		},
 	} {
+		tc := tc
+
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
@@ -421,6 +422,8 @@ func TestJiraNotify(t *testing.T) {
 			errMsg: "can't find transition REOPEN for issue OPS-3",
 		},
 	} {
+		tc := tc
+
 		t.Run(tc.title, func(t *testing.T) {
 			t.Parallel()
 
@@ -456,7 +459,7 @@ func TestJiraNotify(t *testing.T) {
 							panic(err)
 						}
 
-						assert.Equal(t, issue{Transition: &idNameValue{ID: "12345"}}, out)
+						require.Equal(t, issue{Transition: &idNameValue{ID: "12345"}}, out)
 						w.WriteHeader(http.StatusNoContent)
 					default:
 						t.Fatalf("unexpected method %s", r.Method)
@@ -486,7 +489,7 @@ func TestJiraNotify(t *testing.T) {
 							panic(err)
 						}
 
-						assert.Equal(t, issue{Transition: &idNameValue{ID: "54321"}}, out)
+						require.Equal(t, issue{Transition: &idNameValue{ID: "54321"}}, out)
 						w.WriteHeader(http.StatusNoContent)
 					default:
 						t.Fatalf("unexpected method %s", r.Method)
@@ -533,18 +536,18 @@ func TestJiraNotify(t *testing.T) {
 					// We don't care about the key, so copy it over.
 					issue.Fields.CustomFields = tc.issue.Fields.CustomFields
 
-					assert.Equal(t, tc.issue.Key, issue.Key)
-					assert.Equal(t, tc.issue.Fields, issue.Fields)
+					require.Equal(t, tc.issue.Key, issue.Key)
+					require.Equal(t, tc.issue.Fields, issue.Fields)
 
 					if err := json.Unmarshal(body, &raw); err != nil {
 						panic(err)
 					}
 
-					assert.Equal(t, tc.issue.Fields.CustomFields["customfield_10001"], raw["fields"].(map[string]any)["customfield_10001"])
-					assert.Equal(t, tc.issue.Fields.CustomFields["customfield_10002"], raw["fields"].(map[string]any)["customfield_10002"])
-					assert.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[0], raw["fields"].(map[string]any)["customfield_10003"].([]any)[0])
-					assert.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[1], raw["fields"].(map[string]any)["customfield_10003"].([]any)[1])
-					assert.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[2], raw["fields"].(map[string]any)["customfield_10003"].([]any)[2])
+					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10001"], raw["fields"].(map[string]any)["customfield_10001"])
+					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10002"], raw["fields"].(map[string]any)["customfield_10002"])
+					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[0], raw["fields"].(map[string]any)["customfield_10003"].([]any)[0])
+					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[1], raw["fields"].(map[string]any)["customfield_10003"].([]any)[1])
+					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[2], raw["fields"].(map[string]any)["customfield_10003"].([]any)[2])
 
 					w.WriteHeader(http.StatusCreated)
 
@@ -570,7 +573,7 @@ func TestJiraNotify(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				assert.EqualError(t, err, tc.errMsg)
+				require.EqualError(t, err, tc.errMsg)
 			}
 		})
 	}
