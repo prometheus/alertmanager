@@ -845,7 +845,6 @@ type JiraConfig struct {
 	Description  string   `yaml:"description,omitempty" json:"description,omitempty"`
 	StaticLabels []string `yaml:"static_labels,omitempty" json:"static_labels,omitempty"`
 	GroupLabels  []string `yaml:"group_labels,omitempty" json:"group_labels,omitempty"`
-	Components   []string `yaml:"components,omitempty" json:"components,omitempty"`
 	Priority     string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	IssueType    string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
@@ -854,7 +853,7 @@ type JiraConfig struct {
 	WontFixResolution string   `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
 	ReopenDuration    Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
 
-	CustomFields map[string]any `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
+	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
 }
 
 func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {

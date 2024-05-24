@@ -159,12 +159,56 @@ func TestJiraNotify(t *testing.T) {
 
 		alert *types.Alert
 
-		searchResponse issueSearchResult
-		issue          issue
-		errMsg         string
+		customFieldAssetFn func(t *testing.T, issue map[string]any)
+		searchResponse     issueSearchResult
+		issue              issue
+		errMsg             string
 	}{
 		{
 			title: "create new issue",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "Incident",
+				Project:           "OPS",
+				Priority:          "High",
+				StaticLabels:      []string{"alertmanager"},
+				GroupLabels:       []string{"alertname"},
+				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Total:  0,
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "[FIRING:1] test (vm1)",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
+					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "",
+		},
+		{
+			title: "create new issue with custom field",
 			cfg: &config.JiraConfig{
 				Summary:      `{{ template "jira.default.summary" . }}`,
 				Description:  `{{ template "jira.default.description" . }}`,
@@ -173,11 +217,16 @@ func TestJiraNotify(t *testing.T) {
 				Priority:     "High",
 				StaticLabels: []string{"alertmanager"},
 				GroupLabels:  []string{"alertname"},
-				Components:   []string{"Monitoring"},
-				CustomFields: map[string]any{
+				Fields: map[string]any{
+					"components":        map[any]any{"name": "Monitoring"},
 					"customfield_10001": "value",
-					"customfield_10002": map[string]any{"value": "red"},
-					"customfield_10003": []map[string]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
+					"customfield_10002": 0,
+					"customfield_10003": []any{0},
+					"customfield_10004": map[any]any{"value": "red"},
+					"customfield_10005": map[any]any{"value": 0},
+					"customfield_10006": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
+					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
+					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
 				},
 				ReopenDuration:    config.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
@@ -204,35 +253,33 @@ func TestJiraNotify(t *testing.T) {
 					Summary:     "[FIRING:1] test (vm1)",
 					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
-					Labels:      []string{"alertmanager", "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "test"},
+					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
 					Priority:    &idNameValue{Name: "High"},
-					Components:  []idNameValue{{Name: "Monitoring"}},
-					CustomFields: map[string]any{
-						"customfield_10001": "value",
-						"customfield_10002": map[string]any{"value": "red"},
-						"customfield_10003": []map[string]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-					},
 				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				require.Equal(t, "value", issue["customfield_10001"])
+				require.Equal(t, float64(0), issue["customfield_10002"])
+				require.Equal(t, []any{float64(0)}, issue["customfield_10003"])
+				require.Equal(t, map[string]any{"value": "red"}, issue["customfield_10004"])
+				require.Equal(t, map[string]any{"value": float64(0)}, issue["customfield_10005"])
+				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": "green"}}, issue["customfield_10006"])
+				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": float64(0)}}, issue["customfield_10007"])
+				require.Equal(t, []any{map[string]any{"value": float64(0)}, map[string]any{"value": float64(1)}, map[string]any{"value": float64(2)}}, issue["customfield_10008"])
 			},
 			errMsg: "",
 		},
 		{
 			title: "reopen issue",
 			cfg: &config.JiraConfig{
-				Summary:      `{{ template "jira.default.summary" . }}`,
-				Description:  `{{ template "jira.default.description" . }}`,
-				IssueType:    "Incident",
-				Project:      "OPS",
-				Priority:     "High",
-				StaticLabels: []string{"alertmanager"},
-				GroupLabels:  []string{"alertname"},
-				Components:   []string{"Monitoring"},
-				CustomFields: map[string]any{
-					"customfield_10001": "value",
-					"customfield_10002": map[string]string{"value": "red"},
-					"customfield_10003": []map[string]string{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-				},
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "Incident",
+				Project:           "OPS",
+				Priority:          "High",
+				StaticLabels:      []string{"alertmanager"},
+				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -272,35 +319,24 @@ func TestJiraNotify(t *testing.T) {
 					Summary:     "[FIRING:1] test (vm1)",
 					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
-					Labels:      []string{"alertmanager", "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "test"},
+					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
 					Priority:    &idNameValue{Name: "High"},
-					Components:  []idNameValue{{Name: "Monitoring"}},
-					CustomFields: map[string]any{
-						"customfield_10001": "value",
-						"customfield_10002": map[string]any{"value": "red"},
-						"customfield_10003": []map[string]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-					},
 				},
 			},
-			errMsg: "",
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "",
 		},
 		{
 			title: "error resolve transition not found",
 			cfg: &config.JiraConfig{
-				Summary:      `{{ template "jira.default.summary" . }}`,
-				Description:  `{{ template "jira.default.description" . }}`,
-				IssueType:    "Incident",
-				Project:      "OPS",
-				Priority:     "High",
-				StaticLabels: []string{"alertmanager"},
-				GroupLabels:  []string{"alertname"},
-				Components:   []string{"Monitoring"},
-				CustomFields: map[string]any{
-					"customfield_10001": "value",
-					"customfield_10002": map[string]string{"value": "red"},
-					"customfield_10003": []map[string]string{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-				},
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "Incident",
+				Project:           "OPS",
+				Priority:          "High",
+				StaticLabels:      []string{"alertmanager"},
+				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -340,35 +376,24 @@ func TestJiraNotify(t *testing.T) {
 					Summary:     "[RESOLVED] test (vm1)",
 					Description: "\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
-					Labels:      []string{"alertmanager", "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "test"},
+					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
 					Priority:    &idNameValue{Name: "High"},
-					Components:  []idNameValue{{Name: "Monitoring"}},
-					CustomFields: map[string]any{
-						"customfield_10001": "value",
-						"customfield_10002": map[string]any{"value": "red"},
-						"customfield_10003": []map[string]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-					},
 				},
 			},
-			errMsg: "can't find transition CLOSE for issue OPS-3",
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "can't find transition CLOSE for issue OPS-3",
 		},
 		{
 			title: "error reopen transition not found",
 			cfg: &config.JiraConfig{
-				Summary:      `{{ template "jira.default.summary" . }}`,
-				Description:  `{{ template "jira.default.description" . }}`,
-				IssueType:    "Incident",
-				Project:      "OPS",
-				Priority:     "High",
-				StaticLabels: []string{"alertmanager"},
-				GroupLabels:  []string{"alertname"},
-				Components:   []string{"Monitoring"},
-				CustomFields: map[string]any{
-					"customfield_10001": "value",
-					"customfield_10002": map[string]string{"value": "red"},
-					"customfield_10003": []map[string]string{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-				},
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "Incident",
+				Project:           "OPS",
+				Priority:          "High",
+				StaticLabels:      []string{"alertmanager"},
+				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -408,25 +433,18 @@ func TestJiraNotify(t *testing.T) {
 					Summary:     "[FIRING:1] test (vm1)",
 					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
-					Labels:      []string{"alertmanager", "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "test"},
+					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
 					Priority:    &idNameValue{Name: "High"},
-					Components:  []idNameValue{{Name: "Monitoring"}},
-					CustomFields: map[string]any{
-						"customfield_10001": "value",
-						"customfield_10002": map[string]any{"value": "red"},
-						"customfield_10003": []map[string]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-					},
 				},
 			},
-			errMsg: "can't find transition REOPEN for issue OPS-3",
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
 	} {
 		tc := tc
 
 		t.Run(tc.title, func(t *testing.T) {
-			t.Parallel()
-
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/search":
@@ -534,7 +552,7 @@ func TestJiraNotify(t *testing.T) {
 					}
 
 					// We don't care about the key, so copy it over.
-					issue.Fields.CustomFields = tc.issue.Fields.CustomFields
+					issue.Fields.Fields = tc.issue.Fields.Fields
 
 					require.Equal(t, tc.issue.Key, issue.Key)
 					require.Equal(t, tc.issue.Fields, issue.Fields)
@@ -543,11 +561,13 @@ func TestJiraNotify(t *testing.T) {
 						panic(err)
 					}
 
-					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10001"], raw["fields"].(map[string]any)["customfield_10001"])
-					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10002"], raw["fields"].(map[string]any)["customfield_10002"])
-					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[0], raw["fields"].(map[string]any)["customfield_10003"].([]any)[0])
-					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[1], raw["fields"].(map[string]any)["customfield_10003"].([]any)[1])
-					require.Equal(t, tc.issue.Fields.CustomFields["customfield_10003"].([]map[string]any)[2], raw["fields"].(map[string]any)["customfield_10003"].([]any)[2])
+					if fields, ok := raw["fields"].(map[string]any); ok {
+						tc.customFieldAssetFn(t, fields)
+					} else {
+						t.Errorf("fields should a map of string")
+					}
+
+					w.WriteHeader(http.StatusCreated)
 
 					w.WriteHeader(http.StatusCreated)
 

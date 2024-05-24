@@ -28,6 +28,7 @@ import (
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/trivago/tgo/tcontainer"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -81,7 +82,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	existingIssue, shouldRetry, err := n.searchExistingIssue(key, alerts.Status())
 	if err != nil {
-		return shouldRetry, err
+		return shouldRetry, fmt.Errorf("error searching existing issues: %w", err)
 	}
 
 	// Do not create new issues for resolved alerts
@@ -106,7 +107,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	requestBody.Fields.Labels = append(requestBody.Fields.Labels, key.Hash())
+	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", key.Hash()))
 
 	for _, labelKey := range n.conf.GroupLabels {
 		if val, ok := data.GroupLabels[labelKey]; ok {
@@ -116,7 +117,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	_, shouldRetry, err = n.doAPIRequest(method, path, requestBody)
 	if err != nil {
-		return shouldRetry, err
+		return shouldRetry, fmt.Errorf("error create/update existing issues: %w", err)
 	}
 
 	if existingIssue != nil && existingIssue.Key != "" && existingIssue.Fields != nil && existingIssue.Fields.Status != nil {
@@ -136,12 +137,19 @@ func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, er
 		return issue{}, fmt.Errorf("template error: %w", err)
 	}
 
+	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
+	// doesn't blow up when marshaling JIRA requests.
+	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
+	if err != nil {
+		return issue{}, fmt.Errorf("convertToMarshalMap error: %w", err)
+	}
+
 	requestBody := issue{Fields: &issueFields{
-		Project:      &issueProject{Key: n.conf.Project},
-		Issuetype:    &idNameValue{Name: n.conf.IssueType},
-		Summary:      summary,
-		Labels:       make([]string, 0),
-		CustomFields: n.conf.CustomFields,
+		Project:   &issueProject{Key: n.conf.Project},
+		Issuetype: &idNameValue{Name: n.conf.IssueType},
+		Summary:   summary,
+		Labels:    make([]string, 0),
+		Fields:    fieldsWithStringKeys,
 	}}
 
 	issueDescriptionString, err := tmplTextFunc(n.conf.Description)
@@ -161,14 +169,6 @@ func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, er
 
 	if n.conf.StaticLabels != nil {
 		requestBody.Fields.Labels = n.conf.StaticLabels
-	}
-
-	if n.conf.Components != nil {
-		requestBody.Fields.Components = make([]idNameValue, len(n.conf.Components))
-
-		for i, components := range n.conf.Components {
-			requestBody.Fields.Components[i] = idNameValue{Name: components}
-		}
 	}
 
 	priority, err := tmplTextFunc(n.conf.Priority)
@@ -204,7 +204,8 @@ func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus)
 		}
 	}
 
-	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, key.Hash()))
+	alertLabel := fmt.Sprintf("ALERT{%s}", key.Hash())
+	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, alertLabel))
 
 	requestBody := issueSearch{}
 	requestBody.Jql = jql.String()
@@ -299,11 +300,11 @@ func (n *Notifier) doAPIRequest(method, path string, requestBody any) ([]byte, b
 	req.Header.Set("X-Force-Accept-Language", "true")
 
 	resp, err := n.client.Do(req)
-	defer notify.Drain(resp)
-
 	if err != nil {
 		return nil, false, err
 	}
+
+	defer notify.Drain(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {

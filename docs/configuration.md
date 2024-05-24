@@ -971,10 +971,6 @@ static_labels:
 # Add specific group labels to issue
 group_labels: 
   [ - <string> ... ]
-  
-# JIRA components
-components: 
-  [ - <string> ... ]
 
 # Priority of issue
 [ priority: <tmpl_string> ]
@@ -994,9 +990,9 @@ components:
 # If reopen_transition is defined, reopen issue not older than ... Note: The resolutiondate field is used to determine the age of the issue.
 [ reopen_duration: <duration> ]
 
-# Custom fields
-custom_fields:
-  [ <string>: <custom_fields> ... ]
+# Other issue and custom fields
+fields:
+  [ <string>: <jira_field> ... ]
 
 
 # The HTTP client's configuration. You must use this configuration to supply the PAT token as part of the HTTP `Authorization` header.
@@ -1005,19 +1001,22 @@ custom_fields:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-#### `<custom_fields>`
+#### `<jira_field>`
 
-Jira custom field can have multiple types. Depends on the filed type, the values must be provided differently.
+Jira issue field can have multiple types.
+Depends on the field type, the values must be provided differently.
 See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types for further examples.
 
 ```yaml
 fields:
-   # TextField
-   customfield_10001: "Random text"
-   # SelectList
-   customfield_10002: {"value": "red"}
-   # MultiSelect
-   customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
+    # Components
+    components: { name: "Monitoring" }
+    # Custom Field TextField
+    customfield_10001: "Random text"
+    # Custom Field SelectList
+    customfield_10002: {"value": "red"}
+    # Custom Field MultiSelect
+    customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
 ```
 
 ### `<opsgenie_config>`

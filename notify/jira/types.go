@@ -31,12 +31,11 @@ type issueFields struct {
 	Labels      []string      `json:"labels,omitempty"`
 	Priority    *idNameValue  `json:"priority,omitempty"`
 	Project     *issueProject `json:"project,omitempty"`
-	Components  []idNameValue `json:"components,omitempty"`
 	Resolution  *idNameValue  `json:"resolution,omitempty"`
 	Summary     string        `json:"summary"`
 	Status      *issueStatus  `json:"status,omitempty"`
 
-	CustomFields map[string]any `json:"-"`
+	Fields map[string]any `json:"-"`
 }
 
 type idNameValue struct {
@@ -103,48 +102,9 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 		jsonFields["status"] = i.Status
 	}
 
-	if i.Components != nil {
-		jsonFields["components"] = i.Components
-	}
-
-	var err error
-	for key, customField := range i.CustomFields {
-		jsonFields[key], err = customFields(customField)
-		if err != nil {
-			return nil, err
-		}
+	for key, field := range i.Fields {
+		jsonFields[key] = field
 	}
 
 	return json.Marshal(jsonFields)
-}
-
-// customFields ensure that all nested properties have a string.
-func customFields(field any) (any, error) {
-	if field == nil {
-		return nil, nil
-	}
-
-	if val, ok := field.(string); ok {
-		return val, nil
-	}
-
-	if val, ok := field.([]any); ok {
-		return val, nil
-	}
-
-	if val, ok := field.(map[string]any); ok {
-		var err error
-		subField := map[string]any{}
-
-		for key, subVal := range val {
-			subField[key], err = customFields(subVal)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		return subField, nil
-	}
-
-	return field, nil
 }
