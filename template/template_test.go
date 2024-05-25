@@ -157,6 +157,7 @@ func TestData(t *testing.T) {
 				CommonLabels:      KV{},
 				CommonAnnotations: KV{},
 				ExternalURL:       u.String(),
+				Severities:        []string{},
 			},
 		},
 		{
@@ -217,6 +218,7 @@ func TestData(t *testing.T) {
 				CommonLabels:      KV{"job": "foo"},
 				CommonAnnotations: KV{"runbook": "foo"},
 				ExternalURL:       u.String(),
+				Severities:        []string{"critical", "warning"},
 			},
 		},
 		{
@@ -275,6 +277,7 @@ func TestData(t *testing.T) {
 				CommonLabels:      KV{},
 				CommonAnnotations: KV{},
 				ExternalURL:       u.String(),
+				Severities:        []string{"critical", "warning"},
 			},
 		},
 	} {
@@ -522,6 +525,16 @@ func TestTemplateFuncs(t *testing.T) {
 		in:     `{{ . | tz "Invalid/Timezone" }}`,
 		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
 		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
+	}, {
+		title: "Template using hasString",
+		in:    `{{ . | hasString "a" }}`,
+		data:  []string{"a", "b", "c"},
+		exp:   "true",
+	}, {
+		title:  "Template using invalid hasString",
+		in:     `{{ . | hasString "a" }}`,
+		data:   []KV{{"a": "b"}, {"b": "c"}},
+		expErr: "template: :1:17: executing \"\" at <\"a\">: wrong type for value; expected []string; got []template.KV",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {

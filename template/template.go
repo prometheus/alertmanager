@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	tmpltext "text/template"
@@ -192,6 +193,9 @@ var DefaultFuncs = FuncMap{
 	"stringSlice": func(s ...string) []string {
 		return s
 	},
+	"hasString": func(search string, s []string) bool {
+		return slices.Contains(s, search)
+	},
 	// date returns the text representation of the time in the specified format.
 	"date": func(fmt string, t time.Time) string {
 		return t.Format(fmt)
@@ -314,7 +318,8 @@ type Data struct {
 	CommonLabels      KV `json:"commonLabels"`
 	CommonAnnotations KV `json:"commonAnnotations"`
 
-	ExternalURL string `json:"externalURL"`
+	ExternalURL string   `json:"externalURL"`
+	Severities  []string `json:"severities"`
 }
 
 // Alert holds one alert for notification templates.
@@ -363,6 +368,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		CommonLabels:      KV{},
 		CommonAnnotations: KV{},
 		ExternalURL:       t.ExternalURL.String(),
+		Severities:        make([]string, 0, len(alerts)),
 	}
 
 	// The call to types.Alert is necessary to correctly resolve the internal
@@ -384,7 +390,14 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			alert.Annotations[string(k)] = string(v)
 		}
 		data.Alerts = append(data.Alerts, alert)
+
+		if severity, ok := a.Labels["severity"]; ok {
+			data.Severities = append(data.Severities, string(severity))
+		}
 	}
+
+	slices.Sort(data.Severities)
+	data.Severities = slices.Compact(data.Severities)
 
 	for k, v := range groupLabels {
 		data.GroupLabels[string(k)] = string(v)

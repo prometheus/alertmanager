@@ -73,6 +73,16 @@ Receiver
     text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
 ```
 
+## Checking for specific severity levels
+
+
+```
+- name: 'default-receiver'
+  slack_configs:
+  - channel: '#alerts'
+    icon_emoji: ":{{ if hasString "critical" .Severities }}fire{{ else if hasString "warning" .Severities }}ghost{{ else }}ship{{ end }}:"
+```
+
 ## Defining reusable templates
 
 Going back to our first example, we can also provide a file containing named templates which are then loaded by Alertmanager in order to avoid complex templates that span many lines.

@@ -29,6 +29,7 @@ Note that some fields are evaluated as text, and others as HTML which will affec
 | CommonLabels | [KV](#kv) | The labels common to all of the alerts. |
 | CommonAnnotations | [KV](#kv) | Set of common annotations to all of the alerts. Used for longer additional strings of information about the alert. |
 | ExternalURL | string | Backlink to the Alertmanager that sent the notification. |
+| Severities | []string | A list of string contains all severity label values. |
 
 The `Alerts` type exposes functions for filtering alerts:
 
@@ -93,6 +94,7 @@ templating.
 | match | pattern, string | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
 | reReplaceAll | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
 | join | sep string, s []string | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
+| hasString | search string, s []string | [slices.Contains](http://golang.org/pkg/slices/#Contains), return true, if list contains search string |
 | safeHtml | text string | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | stringSlice | ...string | Returns the passed strings as a slice of strings. |
 | date | string, time.Time | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
