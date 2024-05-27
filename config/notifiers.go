@@ -179,6 +179,7 @@ var (
 		},
 		Summary:     `{{ template "jira.default.summary" . }}`,
 		Description: `{{ template "jira.default.description" . }}`,
+		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
 )
 

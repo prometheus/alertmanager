@@ -973,7 +973,7 @@ group_labels:
   [ - <string> ... ]
 
 # Priority of issue
-[ priority: <tmpl_string> ]
+[ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
 
 # Type of issue, e.g. Bug
 [ issue_type: <string> ]

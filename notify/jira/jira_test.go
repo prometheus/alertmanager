@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/alertmanager/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -171,7 +172,7 @@ func TestJiraNotify(t *testing.T) {
 				Description:       `{{ template "jira.default.description" . }}`,
 				IssueType:         "Incident",
 				Project:           "OPS",
-				Priority:          "High",
+				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
@@ -184,6 +185,7 @@ func TestJiraNotify(t *testing.T) {
 					Labels: model.LabelSet{
 						"alertname": "test",
 						"instance":  "vm1",
+						"severity":  "critical",
 					},
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
@@ -196,8 +198,8 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1)",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Summary:     "[FIRING:1] test (vm1 critical)",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -214,7 +216,7 @@ func TestJiraNotify(t *testing.T) {
 				Description:  `{{ template "jira.default.description" . }}`,
 				IssueType:    "Incident",
 				Project:      "OPS",
-				Priority:     "High",
+				Priority:     `{{ template "jira.default.priority" . }}`,
 				StaticLabels: []string{"alertmanager"},
 				GroupLabels:  []string{"alertname"},
 				Fields: map[string]any{
@@ -255,7 +257,6 @@ func TestJiraNotify(t *testing.T) {
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
-					Priority:    &idNameValue{Name: "High"},
 				},
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
@@ -277,7 +278,7 @@ func TestJiraNotify(t *testing.T) {
 				Description:       `{{ template "jira.default.description" . }}`,
 				IssueType:         "Incident",
 				Project:           "OPS",
-				Priority:          "High",
+				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
@@ -334,7 +335,7 @@ func TestJiraNotify(t *testing.T) {
 				Description:       `{{ template "jira.default.description" . }}`,
 				IssueType:         "Incident",
 				Project:           "OPS",
-				Priority:          "High",
+				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
@@ -378,7 +379,6 @@ func TestJiraNotify(t *testing.T) {
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
-					Priority:    &idNameValue{Name: "High"},
 				},
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
@@ -391,7 +391,7 @@ func TestJiraNotify(t *testing.T) {
 				Description:       `{{ template "jira.default.description" . }}`,
 				IssueType:         "Incident",
 				Project:           "OPS",
-				Priority:          "High",
+				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
 				ReopenDuration:    config.Duration(1 * time.Hour),
@@ -435,7 +435,6 @@ func TestJiraNotify(t *testing.T) {
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
 					Project:     &issueProject{Key: "OPS"},
-					Priority:    &idNameValue{Name: "High"},
 				},
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
@@ -595,6 +594,219 @@ func TestJiraNotify(t *testing.T) {
 				require.Error(t, err)
 				require.EqualError(t, err, tc.errMsg)
 			}
+		})
+	}
+}
+
+func TestJiraPriority(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		title string
+
+		alerts []*types.Alert
+
+		expectedPriority string
+	}{
+		{
+			"empty",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"",
+		},
+		{
+			"critical",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "critical",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"High",
+		},
+		{
+			"warning",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "warning",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"Medium",
+		},
+		{
+			"info",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "info",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"Low",
+		},
+		{
+			"critical+warning+info",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "critical",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "warning",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "info",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"High",
+		},
+		{
+			"warning+info",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "warning",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "info",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"Medium",
+		},
+		{
+			"critical(resolved)+warning+info",
+			[]*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "critical",
+						},
+						StartsAt: time.Now().Add(-time.Hour),
+						EndsAt:   time.Now().Add(-time.Hour),
+					},
+				},
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "warning",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"instance":  "vm1",
+							"severity":  "info",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			},
+			"Medium",
+		},
+	} {
+		tc := tc
+
+		t.Run(tc.title, func(t *testing.T) {
+			t.Parallel()
+			u, err := url.Parse("http://example.com/")
+			require.NoError(t, err)
+
+			tmpl, err := template.FromGlobs([]string{})
+			require.NoError(t, err)
+
+			tmpl.ExternalURL = u
+
+			var (
+				data = tmpl.Data("jira", model.LabelSet{}, tc.alerts...)
+
+				tmplTextErr  error
+				tmplText     = notify.TmplText(tmpl, data, &tmplTextErr)
+				tmplTextFunc = func(tmpl string) (string, error) {
+					result := tmplText(tmpl)
+					return result, tmplTextErr
+				}
+			)
+
+			priority, err := tmplTextFunc(`{{ template "jira.default.priority" . }}`)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedPriority, priority)
 		})
 	}
 }
