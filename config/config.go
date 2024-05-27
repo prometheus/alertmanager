@@ -258,6 +258,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.GooglePubsubConfigs {
+			cfg.Authorization.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -540,6 +543,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				return fmt.Errorf("no msteams webhook URL or URLFile provided")
 			}
 		}
+		for _, wh := range rcv.GooglePubsubConfigs {
+			// If the authorization is not set, use the global one.
+			if wh.Authorization == nil {
+				wh.Authorization = &GooglePubsubAuthorization{
+					ServiceAccountFile: c.Global.GoogleServiceAccount,
+				}
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -765,6 +776,7 @@ type GlobalConfig struct {
 	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	GoogleServiceAccount string     `yaml:"google_service_account_file,omitempty" json:"google_service_account_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -896,19 +908,20 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs   []*DiscordConfig   `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	DiscordConfigs      []*DiscordConfig      `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs        []*EmailConfig        `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs    []*PagerdutyConfig    `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs        []*SlackConfig        `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs      []*WebhookConfig      `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs     []*OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs       []*WechatConfig       `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs     []*PushoverConfig     `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs    []*VictorOpsConfig    `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs          []*SNSConfig          `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs     []*TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs        []*WebexConfig        `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs      []*MSTeamsConfig      `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	GooglePubsubConfigs []*GooglePubsubConfig `yaml:"google_pubsub_configs,omitempty" json:"google_pubsub_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

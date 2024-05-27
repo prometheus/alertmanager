@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
+	"github.com/prometheus/alertmanager/notify/pubsub"
 	"github.com/prometheus/alertmanager/notify/pushover"
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
@@ -91,6 +92,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.MSTeamsConfigs {
 		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.GooglePubsubConfigs {
+		add("pubsub", i, c, func(l log.Logger) (notify.Notifier, error) { return pubsub.New(c, tmpl, l) })
 	}
 
 	if errs.Len() > 0 {

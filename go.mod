@@ -41,6 +41,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/mod v0.17.0
 	golang.org/x/net v0.24.0
+	golang.org/x/oauth2 v0.18.0
 	golang.org/x/text v0.14.0
 	golang.org/x/tools v0.20.0
 	gopkg.in/telebot.v3 v3.2.1
@@ -48,6 +49,8 @@ require (
 )
 
 require (
+	cloud.google.com/go/compute v1.20.1 // indirect
+	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -86,7 +89,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
-	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

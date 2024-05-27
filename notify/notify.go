@@ -365,6 +365,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"discord",
 		"webex",
 		"msteams",
+		"google_pubsub",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)

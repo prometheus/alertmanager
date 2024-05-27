@@ -16,6 +16,7 @@ package config
 import (
 	"fmt"
 	"net/textproto"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -171,6 +172,13 @@ var (
 		Title:   `{{ template "msteams.default.title" . }}`,
 		Summary: `{{ template "msteams.default.summary" . }}`,
 		Text:    `{{ template "msteams.default.text" . }}`,
+	}
+
+	// DefaultGooglePubsubConfig defines default values for Google Pubsub webhook configurations.
+	DefaultGooglePubsubConfig = GooglePubsubConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
 	}
 )
 
@@ -806,6 +814,64 @@ type MSTeamsConfig struct {
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
 	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
 	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+// GooglePubsubConfig configures notifications via a Google Pubsub.
+type GooglePubsubConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Project       string                     `yaml:"project" json:"project"`
+	Topic         string                     `yaml:"topic" json:"topic"`
+	Authorization *GooglePubsubAuthorization `yaml:"authorization,omitempty" json:"authorization,omitempty"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+	// TemplateURL is the template URL for the Google Pubsub endpoint. optional.
+	// by default, it is "https://pubsub.googleapis.com/v1/projects/{project}/topics/{topic}:publish"
+	TemplateURL *URL `yaml:"TemplateURL,omitempty" json:"TemplateURL,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *GooglePubsubConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGooglePubsubConfig
+	type plain GooglePubsubConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Project == "" {
+		return fmt.Errorf("project must be configured for google pubsub receiver")
+	}
+	if c.Topic == "" {
+		return fmt.Errorf("topic must be configured for google pubsub receiver")
+	}
+	if c.Authorization != nil && c.Authorization.ServiceAccountFile == "" {
+		return fmt.Errorf("authorization.service_account_file must be configured for google pubsub receiver")
+	}
+	return nil
+}
+
+// Authorization contains GCP authorization credentials.
+type GooglePubsubAuthorization struct {
+	ServiceAccountFile string `yaml:"service_account_file,omitempty" json:"service_account_file,omitempty"`
+}
+
+// SetDirectory joins any relative file paths with dir.
+func (a *GooglePubsubAuthorization) SetDirectory(dir string) {
+	if a == nil {
+		return
+	}
+	a.ServiceAccountFile = JoinDir(dir, a.ServiceAccountFile)
+}
+
+// JoinDir joins dir and path if path is relative.
+// If path is empty or absolute, it is returned unchanged.
+func JoinDir(dir, path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(dir, path)
 }
 
 func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {

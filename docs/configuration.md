@@ -704,6 +704,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+google_pubsub_configs:
+  [ - <google_pubsub_configs>, ... ]
 ```
 
 ### `<http_config>`
