@@ -70,8 +70,8 @@ type Integration struct {
 }
 
 // NewIntegration returns a new integration.
-func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, receiverName string) Integration {
-	return Integration{
+func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, receiverName string) *Integration {
+	return &Integration{
 		notifier:     notifier,
 		rs:           rs,
 		name:         name,
@@ -311,7 +311,7 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 	return m
 }
 
-func (m *Metrics) InitializeFor(receivers map[string][]Integration) {
+func (m *Metrics) InitializeFor(receivers map[string][]*Integration) {
 	if m.ff.EnableReceiverNamesInMetrics() {
 
 		// Reset the vectors to take into account receiver names changing after hot reloads.
@@ -378,7 +378,7 @@ func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger) *Pip
 
 // New returns a map of receivers to Stages.
 func (pb *PipelineBuilder) New(
-	receivers map[string][]Integration,
+	receivers map[string][]*Integration,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
@@ -407,7 +407,7 @@ func (pb *PipelineBuilder) New(
 // createReceiverStage creates a pipeline of stages for a receiver.
 func createReceiverStage(
 	name string,
-	integrations []Integration,
+	integrations []*Integration,
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
@@ -421,7 +421,7 @@ func createReceiverStage(
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
+		s = append(s, NewDedupStage(integrations[i], notificationLog, recv))
 		s = append(s, NewRetryStage(integrations[i], name, metrics))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
@@ -735,14 +735,14 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
+	integration *Integration
 	groupName   string
 	metrics     *Metrics
 	labelValues []string
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i *Integration, groupName string, metrics *Metrics) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {

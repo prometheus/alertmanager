@@ -389,7 +389,7 @@ func run() int {
 		})
 
 		// Build the map of receiver to integrations.
-		receivers := make(map[string][]notify.Integration, len(activeReceiversMap))
+		receivers := make(map[string][]*notify.Integration, len(activeReceiversMap))
 		var integrationsNum int
 		for _, rcv := range conf.Receivers {
 			if _, found := activeReceiversMap[rcv.Name]; !found {

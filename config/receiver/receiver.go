@@ -39,10 +39,10 @@ import (
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
+func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger, httpOpts ...commoncfg.HTTPClientOption) ([]*notify.Integration, error) {
 	var (
 		errs         types.MultiError
-		integrations []notify.Integration
+		integrations []*notify.Integration
 		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
 			n, err := f(log.With(logger, "integration", name))
 			if err != nil {
