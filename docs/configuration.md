@@ -995,9 +995,9 @@ fields:
   [ <string>: <jira_field> ... ]
 
 
-# The HTTP client's configuration. You must use this configuration to supply the PAT token as part of the HTTP `Authorization` header.
+# The HTTP client's configuration. You must use this configuration to supply the personal access token (PAT) as part of the HTTP `Authorization` header.
 # For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
-# For Jira Data Center, use authorization.credentials with the PAT as value.
+# For Jira Data Center, use the 'authorization' field with 'credentials: <PAT value>'.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
