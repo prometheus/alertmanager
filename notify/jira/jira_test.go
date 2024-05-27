@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/prometheus/alertmanager/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +33,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -175,7 +175,7 @@ func TestJiraNotify(t *testing.T) {
 				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
-				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
@@ -230,7 +230,7 @@ func TestJiraNotify(t *testing.T) {
 					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
 					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
 				},
-				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
@@ -281,7 +281,7 @@ func TestJiraNotify(t *testing.T) {
 				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
-				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
@@ -338,7 +338,7 @@ func TestJiraNotify(t *testing.T) {
 				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
-				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
@@ -394,7 +394,7 @@ func TestJiraNotify(t *testing.T) {
 				Priority:          `{{ template "jira.default.priority" . }}`,
 				StaticLabels:      []string{"alertmanager"},
 				GroupLabels:       []string{"alertname"},
-				ReopenDuration:    config.Duration(1 * time.Hour),
+				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",

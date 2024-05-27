@@ -192,7 +192,7 @@ func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus)
 		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
 	}
 
-	// if alert is firing, do not search for closed issues unless reopen transition is defined.
+	// if the alert is firing, do not search for closed issues unless reopen transition is defined.
 	if n.conf.ReopenTransition == "" {
 		if status != model.AlertResolved {
 			jql.WriteString(`statusCategory != Done and `)

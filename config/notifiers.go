@@ -15,6 +15,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/prometheus/common/model"
 	"net/textproto"
 	"regexp"
 	"strings"
@@ -141,8 +142,8 @@ var (
 		Message:  `{{ template "pushover.default.message" . }}`,
 		URL:      `{{ template "pushover.default.url" . }}`,
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
-		Retry:    Duration(1 * time.Minute),
-		Expire:   Duration(1 * time.Hour),
+		Retry:    duration(1 * time.Minute),
+		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
 
@@ -679,17 +680,17 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return nil
 }
 
-type Duration time.Duration
+type duration time.Duration
 
-func (d *Duration) UnmarshalText(text []byte) error {
+func (d *duration) UnmarshalText(text []byte) error {
 	parsed, err := time.ParseDuration(string(text))
 	if err == nil {
-		*d = Duration(parsed)
+		*d = duration(parsed)
 	}
 	return err
 }
 
-func (d Duration) MarshalText() ([]byte, error) {
+func (d duration) MarshalText() ([]byte, error) {
 	return []byte(time.Duration(d).String()), nil
 }
 
@@ -709,9 +710,9 @@ type PushoverConfig struct {
 	Device      string   `yaml:"device,omitempty" json:"device,omitempty"`
 	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry       Duration `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire      Duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	TTL         Duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
+	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
 	HTML        bool     `yaml:"html" json:"html,omitempty"`
 }
 
@@ -849,10 +850,10 @@ type JiraConfig struct {
 	Priority     string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	IssueType    string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
-	ReopenTransition  string   `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
-	ResolveTransition string   `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
-	WontFixResolution string   `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
-	ReopenDuration    Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
+	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
+	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
+	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
+	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
 
 	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
 }
