@@ -15,7 +15,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/prometheus/common/model"
 	"net/textproto"
 	"regexp"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/sigv4"
 )
 
