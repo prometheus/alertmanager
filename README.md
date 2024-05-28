@@ -423,4 +423,3 @@ Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blo
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
 [quay]: https://quay.io/repository/prometheus/alertmanager
 
-Rebuild Image: Tue Aug 16 14:18:41 EDT 2022

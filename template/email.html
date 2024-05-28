@@ -340,6 +340,11 @@ SOFTWARE.
           <tr>
             <td class="content-wrap">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="content-block">
+                    <a href='{{ template "__alertmanagerURL" . }}' class="btn-primary">View in {{ template "__alertmanager" . }}</a>
+                  </td>
+                </tr>
                 {{ if gt (len .Alerts.Firing) 0 }}
                 <tr>
                   <td class="content-block">
@@ -390,7 +395,14 @@ SOFTWARE.
             </td>
           </tr>
         </table>
-      </div>
+
+        <div class="footer">
+          <table width="100%">
+            <tr>
+              <td class="aligncenter content-block"><a href='{{ .ExternalURL }}'>Sent by {{ template "__alertmanager" . }}</a></td>
+            </tr>
+          </table>
+        </div></div>
     </td>
     <td></td>
   </tr>

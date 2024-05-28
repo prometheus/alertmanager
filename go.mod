@@ -72,7 +72,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/miekg/dns v1.1.54 // indirect
+	github.com/miekg/dns v1.1.41 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -93,5 +93,3 @@ require (
 	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace golang.org/x/net => golang.org/x/net v0.17.0

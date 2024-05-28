@@ -32,7 +32,7 @@ for pkg in ${INSTALL_PKGS}; do
     go install "$pkg"
 done
 
-GOGOPROTO_ROOT="$(go list -mod=mod -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
+GOGOPROTO_ROOT="$(go list -mod=readonly -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
 GOGOPROTO_PATH="${GOGOPROTO_ROOT}:${GOGOPROTO_ROOT}/protobuf"
 
 DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"

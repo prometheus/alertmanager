@@ -5,7 +5,8 @@ FROM registry.ci.openshift.org/stolostron/builder:go1.21-linux AS builder
 WORKDIR /workspace
 COPY . .
 
-RUN go mod vendor && make build
+RUN go mod vendor
+RUN go install github.com/prometheus/promu@v0.17.0 && make common-build
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
