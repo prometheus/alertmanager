@@ -119,6 +119,7 @@ const (
 	keyNow
 	keyMuteTimeIntervals
 	keyActiveTimeIntervals
+	keyRouteID
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -163,6 +164,10 @@ func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 
 func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 	return context.WithValue(ctx, keyActiveTimeIntervals, at)
+}
+
+func WithRouteID(ctx context.Context, routeID string) context.Context {
+	return context.WithValue(ctx, keyRouteID, routeID)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -225,6 +230,13 @@ func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
 // second argument is false.
 func ActiveTimeIntervalNames(ctx context.Context) ([]string, bool) {
 	v, ok := ctx.Value(keyActiveTimeIntervals).([]string)
+	return v, ok
+}
+
+// RouteID extracts a RouteID from the context. Iff none exists, the
+// // second argument is false.
+func RouteID(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyRouteID).(string)
 	return v, ok
 }
 
@@ -384,6 +396,7 @@ func (pb *PipelineBuilder) New(
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
 	intervener *timeinterval.Intervener,
+	marker types.GroupMarker,
 	notificationLog NotificationLog,
 	peer Peer,
 ) RoutingStage {
@@ -391,8 +404,8 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
-	tas := NewTimeActiveStage(intervener, pb.metrics)
-	tms := NewTimeMuteStage(intervener, pb.metrics)
+	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
+	tms := NewTimeMuteStage(intervener, marker, pb.metrics)
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
@@ -923,18 +936,29 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 
 type timeStage struct {
 	muter   types.TimeMuter
+	marker  types.GroupMarker
 	metrics *Metrics
 }
 
 type TimeMuteStage timeStage
 
-func NewTimeMuteStage(m types.TimeMuter, metrics *Metrics) *TimeMuteStage {
-	return &TimeMuteStage{m, metrics}
+func NewTimeMuteStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeMuteStage {
+	return &TimeMuteStage{muter, marker, metrics}
 }
 
 // Exec implements the stage interface for TimeMuteStage.
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	routeID, ok := RouteID(ctx)
+	if !ok {
+		return ctx, nil, errors.New("route ID missing")
+	}
+
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group key missing")
+	}
+
 	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
 	if !ok {
 		return ctx, alerts, nil
@@ -949,10 +973,12 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		return ctx, alerts, nil
 	}
 
-	muted, err := tms.muter.Mutes(muteTimeIntervalNames, now)
+	muted, mutedBy, err := tms.muter.Mutes(muteTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
+	// If muted is false then mutedBy is nil and the muted marker is removed.
+	tms.marker.SetMuted(routeID, gkey, mutedBy)
 
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
@@ -960,18 +986,29 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time", "alerts", len(alerts))
 		return ctx, nil, nil
 	}
+
 	return ctx, alerts, nil
 }
 
 type TimeActiveStage timeStage
 
-func NewTimeActiveStage(m types.TimeMuter, metrics *Metrics) *TimeActiveStage {
-	return &TimeActiveStage{m, metrics}
+func NewTimeActiveStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeActiveStage {
+	return &TimeActiveStage{muter, marker, metrics}
 }
 
 // Exec implements the stage interface for TimeActiveStage.
 // TimeActiveStage is responsible for muting alerts whose route is not in an active time.
 func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	routeID, ok := RouteID(ctx)
+	if !ok {
+		return ctx, nil, errors.New("route ID missing")
+	}
+
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group key missing")
+	}
+
 	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
 	if !ok {
 		return ctx, alerts, nil
@@ -987,13 +1024,22 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	muted, err := tas.muter.Mutes(activeTimeIntervalNames, now)
+	active, _, err := tas.muter.Mutes(activeTimeIntervalNames, now)
 	if err != nil {
 		return ctx, alerts, err
 	}
 
+	var mutedBy []string
+	if !active {
+		// If the group is muted, then it must be muted by all active time intervals.
+		// Otherwise, the group must be in at least one active time interval for it
+		// to be active.
+		mutedBy = activeTimeIntervalNames
+	}
+	tas.marker.SetMuted(routeID, gkey, mutedBy)
+
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
-	if !muted {
+	if !active {
 		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
 		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time", "alerts", len(alerts))
 		return ctx, nil, nil
