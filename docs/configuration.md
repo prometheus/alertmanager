@@ -1457,7 +1457,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ api_url: <string> | default = global.webex_api_url ]
 
 # ID of the Webex Teams room where to send the messages.
-room_id: <string>
+room_id: <tmpl_string>
 
 # Message template.
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
