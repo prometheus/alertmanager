@@ -462,8 +462,8 @@ func TestSilenceSet(t *testing.T) {
 func TestSilenceLimits(t *testing.T) {
 	s, err := New(Options{
 		Limits: Limits{
-			MaxSilences:       1,
-			MaxPerSilenceSize: 2 << 11, // 4KB
+			MaxSilences:        1,
+			MaxPerSilenceBytes: 2 << 11, // 4KB
 		},
 	})
 	require.NoError(t, err)
