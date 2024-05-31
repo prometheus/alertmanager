@@ -619,6 +619,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		}
 	}
 
+	// If we got here it's either a new silence or a replacing one.
 	if s.limits.MaxSilences > 0 {
 		// Get the number of active and pending silences to enforce limits.
 		q := &query{}
@@ -635,7 +636,6 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		}
 	}
 
-	// If we got here it's either a new silence or a replacing one.
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return "", fmt.Errorf("generate uuid: %w", err)
