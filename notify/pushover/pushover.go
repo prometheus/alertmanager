@@ -15,6 +15,7 @@ package pushover
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
