@@ -583,7 +583,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 		return err
 	}
 
-	if n := msil.Size(); s.limits.MaxPerSilenceSize > 0 && n > s.limits.MaxPerSilenceSize {
+	if n := msil.Size(); s.limits.MaxPerSilenceSize > 0 && n > s.limits.MaxPerSilenceSize && sil.EndsAt.After(now) {
 		return fmt.Errorf("silence exceeded maximum size: %d", s.limits.MaxPerSilenceSize)
 	}
 
