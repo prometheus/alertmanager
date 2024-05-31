@@ -520,7 +520,7 @@ func TestSilenceLimits(t *testing.T) {
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
 	id3, err := s.Set(sil3)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	// Do not check the exact size as it can change between consecutive runs
 	// due to padding.
 	require.Contains(t, err.Error(), "silence exceeded maximum size")
