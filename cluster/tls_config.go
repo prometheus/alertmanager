@@ -14,7 +14,7 @@
 package cluster
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -46,7 +46,7 @@ func GetTLSTransportConfig(configPath string) (*TLSTransportConfig, error) {
 	}
 
 	if cfg.TLSServerConfig == nil {
-		return nil, fmt.Errorf("missing 'tls_server_config' entry in the TLS configuration")
+		return nil, errors.New("missing 'tls_server_config' entry in the TLS configuration")
 	}
 
 	cfg.TLSServerConfig.SetDirectory(filepath.Dir(configPath))

@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -77,7 +78,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return false, errors.New("group key missing")
 	}
 
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)

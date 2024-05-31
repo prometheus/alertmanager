@@ -30,6 +30,7 @@ package email
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -199,7 +200,7 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 	if err != nil {
 		return nil, retry, err
 	} else if e == nil {
-		return nil, retry, fmt.Errorf("email not found")
+		return nil, retry, errors.New("email not found")
 	}
 	return e, retry, nil
 }

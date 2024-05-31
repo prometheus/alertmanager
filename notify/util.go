@@ -160,7 +160,7 @@ type Key string
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return "", fmt.Errorf("group key missing")
+		return "", errors.New("group key missing")
 	}
 	return Key(key), nil
 }

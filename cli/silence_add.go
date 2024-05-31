@@ -110,7 +110,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		matchers = append(matchers, *m)
 	}
 	if len(matchers) < 1 {
-		return fmt.Errorf("no matchers specified")
+		return errors.New("no matchers specified")
 	}
 
 	var startsAt time.Time
@@ -136,7 +136,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 			return err
 		}
 		if d == 0 {
-			return fmt.Errorf("silence duration must be greater than 0")
+			return errors.New("silence duration must be greater than 0")
 		}
 		endsAt = startsAt.UTC().Add(time.Duration(d))
 	}

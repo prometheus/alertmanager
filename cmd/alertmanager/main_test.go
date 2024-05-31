@@ -14,6 +14,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -67,7 +68,7 @@ func TestExternalURL(t *testing.T) {
 			err: true,
 		},
 		{
-			hostnameResolver: func() (string, error) { return "", fmt.Errorf("some error") },
+			hostnameResolver: func() (string, error) { return "", errors.New("some error") },
 			err:              true,
 		},
 		{

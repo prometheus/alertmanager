@@ -54,7 +54,7 @@ func configureSilenceUpdateCmd(cc *kingpin.CmdClause) {
 
 func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) error {
 	if len(c.ids) < 1 {
-		return fmt.Errorf("no silence IDs specified")
+		return errors.New("no silence IDs specified")
 	}
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
@@ -90,7 +90,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 				return err
 			}
 			if d == 0 {
-				return fmt.Errorf("silence duration must be greater than 0")
+				return errors.New("silence duration must be greater than 0")
 			}
 			endsAt := strfmt.DateTime(time.Time(*sil.StartsAt).UTC().Add(time.Duration(d)))
 			sil.EndsAt = &endsAt
@@ -128,7 +128,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 	} else {
 		formatter, found := format.Formatters[output]
 		if !found {
-			return fmt.Errorf("unknown output formatter")
+			return errors.New("unknown output formatter")
 		}
 		if err := formatter.FormatSilences(updatedSilences); err != nil {
 			return fmt.Errorf("error formatting silences: %w", err)

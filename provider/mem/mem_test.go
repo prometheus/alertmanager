@@ -539,7 +539,7 @@ type limitCountCallback struct {
 	limit  int
 }
 
-var errTooManyAlerts = fmt.Errorf("too many alerts")
+var errTooManyAlerts = errors.New("too many alerts")
 
 func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
 	if existing {

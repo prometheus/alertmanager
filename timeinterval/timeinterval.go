@@ -279,7 +279,7 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 	// Restricting here prevents errors where begin > end in longer months but not shorter months.
 	if r.Begin < 0 && r.End > 0 {
-		return fmt.Errorf("end day must be negative if start day is negative")
+		return errors.New("end day must be negative if start day is negative")
 	}
 	// Check begin <= end. We can't know this for sure when using negative indices
 	// but we can prevent cases where its always invalid (using 28 day minimum length).
@@ -434,7 +434,7 @@ func (tr TimeRange) MarshalJSON() (out []byte, err error) {
 // It marshals a Location back into a string that represents a time.Location.
 func (tz Location) MarshalText() ([]byte, error) {
 	if tz.Location == nil {
-		return nil, fmt.Errorf("unable to convert nil location into string")
+		return nil, errors.New("unable to convert nil location into string")
 	}
 	return []byte(tz.Location.String()), nil
 }

@@ -274,7 +274,7 @@ func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) err
 		return err
 	}
 	if mt.Name == "" {
-		return fmt.Errorf("missing name in mute time interval")
+		return errors.New("missing name in mute time interval")
 	}
 	return nil
 }
@@ -292,7 +292,7 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if ti.Name == "" {
-		return fmt.Errorf("missing name in time interval")
+		return errors.New("missing name in time interval")
 	}
 	return nil
 }
@@ -367,13 +367,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
-					return fmt.Errorf("no global SMTP smarthost set")
+					return errors.New("no global SMTP smarthost set")
 				}
 				ec.Smarthost = c.Global.SMTPSmarthost
 			}
 			if ec.From == "" {
 				if c.Global.SMTPFrom == "" {
-					return fmt.Errorf("no global SMTP from set")
+					return errors.New("no global SMTP from set")
 				}
 				ec.From = c.Global.SMTPFrom
 			}
@@ -404,7 +404,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if sc.APIURL == nil && len(sc.APIURLFile) == 0 {
 				if c.Global.SlackAPIURL == nil && len(c.Global.SlackAPIURLFile) == 0 {
-					return fmt.Errorf("no global Slack API URL set either inline or in a file")
+					return errors.New("no global Slack API URL set either inline or in a file")
 				}
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
@@ -421,7 +421,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if pdc.URL == nil {
 				if c.Global.PagerdutyURL == nil {
-					return fmt.Errorf("no global PagerDuty URL set")
+					return errors.New("no global PagerDuty URL set")
 				}
 				pdc.URL = c.Global.PagerdutyURL
 			}
@@ -432,7 +432,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if ogc.APIURL == nil {
 				if c.Global.OpsGenieAPIURL == nil {
-					return fmt.Errorf("no global OpsGenie URL set")
+					return errors.New("no global OpsGenie URL set")
 				}
 				ogc.APIURL = c.Global.OpsGenieAPIURL
 			}
@@ -441,7 +441,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if ogc.APIKey == "" && len(ogc.APIKeyFile) == 0 {
 				if c.Global.OpsGenieAPIKey == "" && len(c.Global.OpsGenieAPIKeyFile) == 0 {
-					return fmt.Errorf("no global OpsGenie API Key set either inline or in a file")
+					return errors.New("no global OpsGenie API Key set either inline or in a file")
 				}
 				ogc.APIKey = c.Global.OpsGenieAPIKey
 				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
@@ -454,21 +454,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 			if wcc.APIURL == nil {
 				if c.Global.WeChatAPIURL == nil {
-					return fmt.Errorf("no global Wechat URL set")
+					return errors.New("no global Wechat URL set")
 				}
 				wcc.APIURL = c.Global.WeChatAPIURL
 			}
 
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
-					return fmt.Errorf("no global Wechat ApiSecret set")
+					return errors.New("no global Wechat ApiSecret set")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
 			}
 
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
-					return fmt.Errorf("no global Wechat CorpID set")
+					return errors.New("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
@@ -483,7 +483,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if voc.APIURL == nil {
 				if c.Global.VictorOpsAPIURL == nil {
-					return fmt.Errorf("no global VictorOps URL set")
+					return errors.New("no global VictorOps URL set")
 				}
 				voc.APIURL = c.Global.VictorOpsAPIURL
 			}
@@ -492,7 +492,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
 				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0 {
-					return fmt.Errorf("no global VictorOps API Key set")
+					return errors.New("no global VictorOps API Key set")
 				}
 				voc.APIKey = c.Global.VictorOpsAPIKey
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
@@ -517,7 +517,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				discord.HTTPConfig = c.Global.HTTPConfig
 			}
 			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
-				return fmt.Errorf("no discord webhook URL or URLFile provided")
+				return errors.New("no discord webhook URL or URLFile provided")
 			}
 		}
 		for _, webex := range rcv.WebexConfigs {
@@ -526,7 +526,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if webex.APIURL == nil {
 				if c.Global.WebexAPIURL == nil {
-					return fmt.Errorf("no global Webex URL set")
+					return errors.New("no global Webex URL set")
 				}
 
 				webex.APIURL = c.Global.WebexAPIURL
@@ -537,7 +537,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				msteams.HTTPConfig = c.Global.HTTPConfig
 			}
 			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
-				return fmt.Errorf("no msteams webhook URL or URLFile provided")
+				return errors.New("no msteams webhook URL or URLFile provided")
 			}
 		}
 
@@ -547,20 +547,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// The root route must not have any matchers as it is the fallback node
 	// for all alerts.
 	if c.Route == nil {
-		return fmt.Errorf("no routes provided")
+		return errors.New("no routes provided")
 	}
 	if len(c.Route.Receiver) == 0 {
-		return fmt.Errorf("root route must specify a default receiver")
+		return errors.New("root route must specify a default receiver")
 	}
 	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 || len(c.Route.Matchers) > 0 {
-		return fmt.Errorf("root route must not have any matchers")
+		return errors.New("root route must not have any matchers")
 	}
 	if len(c.Route.MuteTimeIntervals) > 0 {
-		return fmt.Errorf("root route must not have any mute time intervals")
+		return errors.New("root route must not have any mute time intervals")
 	}
 
 	if len(c.Route.ActiveTimeIntervals) > 0 {
-		return fmt.Errorf("root route must not have any active time intervals")
+		return errors.New("root route must not have any active time intervals")
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
@@ -661,7 +661,7 @@ func parseURL(s string) (*URL, error) {
 		return nil, fmt.Errorf("unsupported scheme %q for URL", u.Scheme)
 	}
 	if u.Host == "" {
-		return nil, fmt.Errorf("missing host for URL")
+		return nil, errors.New("missing host for URL")
 	}
 	return &URL{u}, nil
 }
@@ -918,7 +918,7 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.Name == "" {
-		return fmt.Errorf("missing name in receiver")
+		return errors.New("missing name in receiver")
 	}
 	return nil
 }

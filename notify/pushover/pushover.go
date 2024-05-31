@@ -71,7 +71,7 @@ func New(c *config.PushoverConfig, t *template.Template, l log.Logger, httpOpts 
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return false, errors.New("group key missing")
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 

@@ -14,6 +14,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/textproto"
 	"regexp"
@@ -272,7 +273,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.To == "" {
-		return fmt.Errorf("missing to address in email config")
+		return errors.New("missing to address in email config")
 	}
 	// Header names are case-insensitive, check for collisions.
 	normalizedHeaders := map[string]string{}
@@ -333,13 +334,13 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 	if c.RoutingKey == "" && c.ServiceKey == "" && c.RoutingKeyFile == "" && c.ServiceKeyFile == "" {
-		return fmt.Errorf("missing service or routing key in PagerDuty config")
+		return errors.New("missing service or routing key in PagerDuty config")
 	}
 	if len(c.RoutingKey) > 0 && len(c.RoutingKeyFile) > 0 {
-		return fmt.Errorf("at most one of routing_key & routing_key_file must be configured")
+		return errors.New("at most one of routing_key & routing_key_file must be configured")
 	}
 	if len(c.ServiceKey) > 0 && len(c.ServiceKeyFile) > 0 {
-		return fmt.Errorf("at most one of service_key & service_key_file must be configured")
+		return errors.New("at most one of service_key & service_key_file must be configured")
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]string)
@@ -375,10 +376,10 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.Type == "" {
-		return fmt.Errorf("missing type in Slack action configuration")
+		return errors.New("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text in Slack action configuration")
+		return errors.New("missing text in Slack action configuration")
 	}
 	if c.URL != "" {
 		// Clear all message action fields.
@@ -388,7 +389,7 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	} else if c.Name != "" {
 		c.URL = ""
 	} else {
-		return fmt.Errorf("missing name or url in Slack action configuration")
+		return errors.New("missing name or url in Slack action configuration")
 	}
 	return nil
 }
@@ -410,7 +411,7 @@ func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error
 		return err
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text in Slack confirmation configuration")
+		return errors.New("missing text in Slack confirmation configuration")
 	}
 	return nil
 }
@@ -432,10 +433,10 @@ func (c *SlackField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.Title == "" {
-		return fmt.Errorf("missing title in Slack field configuration")
+		return errors.New("missing title in Slack field configuration")
 	}
 	if c.Value == "" {
-		return fmt.Errorf("missing value in Slack field configuration")
+		return errors.New("missing value in Slack field configuration")
 	}
 	return nil
 }
@@ -653,10 +654,10 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 	if c.RoutingKey == "" {
-		return fmt.Errorf("missing Routing key in VictorOps config")
+		return errors.New("missing Routing key in VictorOps config")
 	}
 	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
-		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
+		return errors.New("at most one of api_key & api_key_file must be configured")
 	}
 
 	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}

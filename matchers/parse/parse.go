@@ -59,7 +59,7 @@ func Matcher(input string) (*labels.Matcher, error) {
 	case 1:
 		return m[0], nil
 	case 0:
-		return nil, fmt.Errorf("no matchers")
+		return nil, errors.New("no matchers")
 	default:
 		return nil, fmt.Errorf("expected 1 matcher, found %d", len(m))
 	}

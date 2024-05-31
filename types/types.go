@@ -14,6 +14,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -378,13 +379,13 @@ func validateLs(ls model.LabelSet) error {
 // This can be removed once prometheus/common has support for UTF-8.
 func (a *Alert) Validate() error {
 	if a.StartsAt.IsZero() {
-		return fmt.Errorf("start time missing")
+		return errors.New("start time missing")
 	}
 	if !a.EndsAt.IsZero() && a.EndsAt.Before(a.StartsAt) {
-		return fmt.Errorf("start time must be before end time")
+		return errors.New("start time must be before end time")
 	}
 	if len(a.Labels) == 0 {
-		return fmt.Errorf("at least one label pair required")
+		return errors.New("at least one label pair required")
 	}
 	if err := validateLs(a.Labels); err != nil {
 		return fmt.Errorf("invalid label set: %w", err)

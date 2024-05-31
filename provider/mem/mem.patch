@@ -1,0 +1,53 @@
+diff --git a/provider/mem/mem.go b/provider/mem/mem.go
+index cfc3bfc3..0dbdbd50 100644
+--- a/provider/mem/mem.go
++++ b/provider/mem/mem.go
+@@ -101,6 +101,8 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
+ 		callback:  alertCallback,
+ 	}
+ 	a.alerts.SetGCCallback(func(alerts []types.Alert) {
++		a.mtx.Lock()
++		defer a.mtx.Unlock()
+ 		for _, alert := range alerts {
+ 			// As we don't persist alerts, we no longer consider them after
+ 			// they are resolved. Alerts waiting for resolved notifications are
+@@ -109,7 +111,6 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
+ 			a.callback.PostDelete(&alert)
+ 		}
+ 
+-		a.mtx.Lock()
+ 		for i, l := range a.listeners {
+ 			select {
+ 			case <-l.done:
+@@ -119,7 +120,6 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
+ 				// listener is not closed yet, hence proceed.
+ 			}
+ 		}
+-		a.mtx.Unlock()
+ 	})
+ 
+ 	if r != nil {
+@@ -197,6 +197,8 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+ 
+ // Put adds the given alert to the set.
+ func (a *Alerts) Put(alerts ...*types.Alert) error {
++	a.mtx.Lock()
++	defer a.mtx.Unlock()
+ 	for _, alert := range alerts {
+ 		fp := alert.Fingerprint()
+ 
+@@ -226,14 +228,12 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
+ 
+ 		a.callback.PostStore(alert, existing)
+ 
+-		a.mtx.Lock()
+ 		for _, l := range a.listeners {
+ 			select {
+ 			case l.alerts <- alert:
+ 			case <-l.done:
+ 			}
+ 		}
+-		a.mtx.Unlock()
+ 	}
+ 
+ 	return nil

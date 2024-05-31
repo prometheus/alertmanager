@@ -15,6 +15,7 @@ package notify
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -127,7 +128,7 @@ func TestTruncate(t *testing.T) {
 type brokenReader struct{}
 
 func (b brokenReader) Read([]byte) (int, error) {
-	return 0, fmt.Errorf("some error")
+	return 0, errors.New("some error")
 }
 
 func TestRetrierCheck(t *testing.T) {

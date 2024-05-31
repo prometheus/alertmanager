@@ -44,10 +44,10 @@ import (
 )
 
 // ErrNotFound is returned if a silence was not found.
-var ErrNotFound = fmt.Errorf("silence not found")
+var ErrNotFound = errors.New("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
-var ErrInvalidState = fmt.Errorf("invalid state")
+var ErrInvalidState = errors.New("invalid state")
 
 type matcherCache map[*pb.Silence]labels.Matchers
 
@@ -326,7 +326,7 @@ type Options struct {
 
 func (o *Options) validate() error {
 	if o.SnapshotFile != "" && o.SnapshotReader != nil {
-		return fmt.Errorf("only one of SnapshotFile and SnapshotReader must be set")
+		return errors.New("only one of SnapshotFile and SnapshotReader must be set")
 	}
 	return nil
 }

@@ -54,7 +54,7 @@ func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool,
 type failStage struct{}
 
 func (s failStage) Exec(ctx context.Context, l log.Logger, as ...*types.Alert) (context.Context, []*types.Alert, error) {
-	return ctx, nil, fmt.Errorf("some error")
+	return ctx, nil, errors.New("some error")
 }
 
 type testNflog struct {
