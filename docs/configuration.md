@@ -22,6 +22,14 @@ is not well-formed, the changes will not be applied and an error is logged.
 A configuration reload is triggered by sending a `SIGHUP` to the process or
 sending an HTTP POST request to the `/-/reload` endpoint.
 
+## Limits
+
+Alertmanager supports a number of configurable limits via command-line flags.
+
+To limit the maximum number of active and pending silences, use the `--silences.max-silences` flag.
+You can limit the maximum size of individual silences with `--silences.max-per-silence-size`,
+where the unit is in bytes.
+
 ## Configuration file introduction
 
 To specify which configuration file to load, use the `--config.file` flag.
