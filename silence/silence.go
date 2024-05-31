@@ -580,6 +580,9 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 		return err
 	}
 
+	// Check the limit unless the silence has been expired. This is to avoid
+	// situations where silences cannot be expired after the limit has been
+	// reduced.
 	if n := msil.Size(); s.limits.MaxPerSilenceSize > 0 && n > s.limits.MaxPerSilenceSize && sil.EndsAt.After(now) {
 		return fmt.Errorf("silence exceeded maximum size: %d", s.limits.MaxPerSilenceSize)
 	}
