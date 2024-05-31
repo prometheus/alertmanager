@@ -146,8 +146,8 @@ func run() int {
 		dataDir             = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention           = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
-		maxSilences         = kingpin.Flag("silences.max-silences", "Maximum number of active and pending silences. If negative or zero, no limit is set.").Default("0").Int()
-		maxPerSilenceBytes  = kingpin.Flag("silences.max-per-silence-bytes", "Maximum per silence size. If negative or zero, no limit is set.").Default("0").Int()
+		maxSilences         = kingpin.Flag("silences.max-silences", "Maximum number of active and pending silences, excluding expired silences. If negative or zero, no limit is set.").Default("0").Int()
+		maxPerSilenceBytes  = kingpin.Flag("silences.max-per-silence-bytes", "Maximum per silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval     = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
