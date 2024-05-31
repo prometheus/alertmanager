@@ -495,6 +495,10 @@ func TestSilenceLimits(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, "", id2)
 
+	// Should be able to update sil2 without hitting the limit.
+	_, err = s.Set(sil2)
+	require.NoError(t, err)
+
 	// Expire sil2.
 	require.NoError(t, s.Expire(id2))
 

@@ -601,6 +601,24 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	now := s.nowUTC()
+	prev, ok := s.getSilence(sil.Id)
+	if sil.Id != "" && !ok {
+		return "", ErrNotFound
+	}
+
+	if ok {
+		if canUpdate(prev, sil, now) {
+			return sil.Id, s.setSilence(sil, now, false)
+		}
+		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
+			// We cannot update the silence, expire the old one.
+			if err := s.expire(prev.Id); err != nil {
+				return "", fmt.Errorf("expire previous silence: %w", err)
+			}
+		}
+	}
+
 	if s.limits.MaxSilences > 0 {
 		// Get the number of active and pending silences to enforce limits.
 		q := &query{}
@@ -617,23 +635,6 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		}
 	}
 
-	now := s.nowUTC()
-	prev, ok := s.getSilence(sil.Id)
-
-	if sil.Id != "" && !ok {
-		return "", ErrNotFound
-	}
-	if ok {
-		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil, now, false)
-		}
-		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
-			// We cannot update the silence, expire the old one.
-			if err := s.expire(prev.Id); err != nil {
-				return "", fmt.Errorf("expire previous silence: %w", err)
-			}
-		}
-	}
 	// If we got here it's either a new silence or a replacing one.
 	uid, err := uuid.NewV4()
 	if err != nil {
