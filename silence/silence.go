@@ -210,11 +210,6 @@ type Limits struct {
 	MaxPerSilenceSize int
 }
 
-var defaultLimits = Limits{
-	MaxSilences:       1000,    // 4MB
-	MaxPerSilenceSize: 2 << 11, // 4KB
-}
-
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
 // It returns the size of the snapshot taken or an error if it failed.
 type MaintenanceFunc func() (int64, error)
@@ -356,7 +351,6 @@ func New(o Options) (*Silences, error) {
 		clock:     clock.New(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
-		limits:    defaultLimits,
 		retention: o.Retention,
 		broadcast: func([]byte) {},
 		st:        state{},
@@ -589,7 +583,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 		return err
 	}
 
-	if n := msil.Size(); n > s.limits.MaxPerSilenceSize {
+	if n := msil.Size(); s.limits.MaxPerSilenceSize > 0 && n > s.limits.MaxPerSilenceSize {
 		return fmt.Errorf("silence exceeded maximum size: %d", s.limits.MaxPerSilenceSize)
 	}
 
@@ -607,19 +601,20 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	// Get the number of active and pending silences to enforce limits.
-	q := &query{}
-	err := QState(types.SilenceStateActive, types.SilenceStatePending)(q)
-	if err != nil {
-		return "", err
-	}
-	sils, _, err := s.query(q, s.nowUTC())
-	if err != nil {
-		return "", err
-	}
-
-	if len(sils)+1 > s.limits.MaxSilences {
-		return "", fmt.Errorf("exceeded maximum number of silences: %d", s.limits.MaxSilences)
+	if s.limits.MaxSilences > 0 {
+		// Get the number of active and pending silences to enforce limits.
+		q := &query{}
+		err := QState(types.SilenceStateActive, types.SilenceStatePending)(q)
+		if err != nil {
+			return "", err
+		}
+		sils, _, err := s.query(q, s.nowUTC())
+		if err != nil {
+			return "", err
+		}
+		if len(sils)+1 > s.limits.MaxSilences {
+			return "", fmt.Errorf("exceeded maximum number of silences: %d", s.limits.MaxSilences)
+		}
 	}
 
 	now := s.nowUTC()
