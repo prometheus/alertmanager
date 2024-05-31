@@ -352,14 +352,11 @@ func New(o Options) (*Silences, error) {
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
 		retention: o.Retention,
+		limits:    o.Limits,
 		broadcast: func([]byte) {},
 		st:        state{},
 	}
 	s.metrics = newMetrics(o.Metrics, s)
-
-	if o.Limits != (Limits{}) {
-		s.limits = o.Limits
-	}
 
 	if o.Logger != nil {
 		s.logger = o.Logger
