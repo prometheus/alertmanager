@@ -486,7 +486,7 @@ func TestSilenceLimits(t *testing.T) {
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
 	id2, err := s.Set(sil2)
-	require.EqualError(t, err, "exceeded maximum number of silences: 1")
+	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
 	require.Equal(t, "", id2)
 
 	// Expire sil1. This should allow sil2 to be inserted.
@@ -520,7 +520,10 @@ func TestSilenceLimits(t *testing.T) {
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
 	id3, err := s.Set(sil3)
-	require.EqualError(t, err, "silence exceeded maximum size: 4096")
+	require.NotNil(t, err)
+	// Do not check the exact size as it can change between consecutive runs
+	// due to padding.
+	require.Contains(t, err.Error(), "silence exceeded maximum size")
 	require.Equal(t, "", id3)
 }
 

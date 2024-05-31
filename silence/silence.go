@@ -206,7 +206,9 @@ type Silences struct {
 type Limits struct {
 	// MaxSilences limits the maximum number active and pending silences.
 	// It does not include expired silences.
-	MaxSilences       int
+	MaxSilences int
+	// MaxPerSilenceSize is the maximum size of an individual silence as
+	// stored on disk.
 	MaxPerSilenceSize int
 }
 
@@ -584,7 +586,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 	// situations where silences cannot be expired after the limit has been
 	// reduced.
 	if n := msil.Size(); s.limits.MaxPerSilenceSize > 0 && n > s.limits.MaxPerSilenceSize && sil.EndsAt.After(now) {
-		return fmt.Errorf("silence exceeded maximum size: %d", s.limits.MaxPerSilenceSize)
+		return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, s.limits.MaxPerSilenceSize)
 	}
 
 	if s.st.merge(msil, now) {
@@ -625,14 +627,14 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		q := &query{}
 		err := QState(types.SilenceStateActive, types.SilenceStatePending)(q)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("unable to query silences while checking limits: %w", err)
 		}
 		sils, _, err := s.query(q, s.nowUTC())
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("unable to query silences while checking limits: %w", err)
 		}
 		if len(sils)+1 > s.limits.MaxSilences {
-			return "", fmt.Errorf("exceeded maximum number of silences: %d", s.limits.MaxSilences)
+			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(sils), s.limits.MaxSilences)
 		}
 	}
 

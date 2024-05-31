@@ -26,9 +26,12 @@ sending an HTTP POST request to the `/-/reload` endpoint.
 
 Alertmanager supports a number of configurable limits via command-line flags.
 
-To limit the maximum number of active and pending silences, use the `--silences.max-silences` flag.
+To limit the maximum number of active and pending silences, excluding expired ones,
+use the `--silences.max-silences` flag.
 You can limit the maximum size of individual silences with `--silences.max-per-silence-size`,
 where the unit is in bytes.
+
+Both limits are disabled by default.
 
 ## Configuration file introduction
 
