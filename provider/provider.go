@@ -15,6 +15,7 @@ package provider
 
 import (
 	"errors"
+
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/types"
