@@ -193,12 +193,26 @@ type Silences struct {
 	logger    log.Logger
 	metrics   *metrics
 	retention time.Duration
+	limits    Limits
 
 	mtx       sync.RWMutex
 	st        state
 	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
 	mc        matcherCache
+}
+
+// Limits contains the limits for silences.
+type Limits struct {
+	// MaxSilences limits the maximum number active and pending silences.
+	// It does not include expired silences.
+	MaxSilences       int
+	MaxPerSilenceSize int
+}
+
+var defaultLimits = Limits{
+	MaxSilences:       1000,    // 4MB
+	MaxPerSilenceSize: 2 << 11, // 4KB
 }
 
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
@@ -318,6 +332,7 @@ type Options struct {
 	// Retention time for newly created Silences. Silences may be
 	// garbage collected after the given duration after they ended.
 	Retention time.Duration
+	Limits    Limits
 
 	// A logger used by background processing.
 	Logger  log.Logger
@@ -341,11 +356,16 @@ func New(o Options) (*Silences, error) {
 		clock:     clock.New(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
+		limits:    defaultLimits,
 		retention: o.Retention,
 		broadcast: func([]byte) {},
 		st:        state{},
 	}
 	s.metrics = newMetrics(o.Metrics, s)
+
+	if o.Limits != (Limits{}) {
+		s.limits = o.Limits
+	}
 
 	if o.Logger != nil {
 		s.logger = o.Logger
@@ -569,6 +589,10 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 		return err
 	}
 
+	if n := msil.Size(); n > s.limits.MaxPerSilenceSize {
+		return fmt.Errorf("silence exceeded maximum size: %d", s.limits.MaxPerSilenceSize)
+	}
+
 	if s.st.merge(msil, now) {
 		s.version++
 	}
@@ -582,6 +606,21 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	// Get the number of active and pending silences to enforce limits.
+	q := &query{}
+	err := QState(types.SilenceStateActive, types.SilenceStatePending)(q)
+	if err != nil {
+		return "", err
+	}
+	sils, _, err := s.query(q, s.nowUTC())
+	if err != nil {
+		return "", err
+	}
+
+	if len(sils)+1 > s.limits.MaxSilences {
+		return "", fmt.Errorf("exceeded maximum number of silences: %d", s.limits.MaxSilences)
+	}
 
 	now := s.nowUTC()
 	prev, ok := s.getSilence(sil.Id)
@@ -611,7 +650,11 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	return sil.Id, s.setSilence(sil, now, false)
+	if err = s.setSilence(sil, now, false); err != nil {
+		return "", err
+	}
+
+	return sil.Id, nil
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -755,6 +798,9 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
@@ -793,9 +839,6 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	// If we have no ID constraint, all silences are our base set.  This and
 	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
 
 	if q.ids != nil {
 		for _, id := range q.ids {
