@@ -465,8 +465,12 @@ func TestSilenceLimits(t *testing.T) {
 			MaxSilences:        1,
 			MaxPerSilenceBytes: 2 << 11, // 4KB
 		},
+		Retention: 100 * time.Millisecond,
 	})
 	require.NoError(t, err)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go s.Maintenance(100*time.Millisecond, "", stopCh, nil)
 
 	// Insert sil1 should succeed without error.
 	sil1 := &pb.Silence{
@@ -489,8 +493,10 @@ func TestSilenceLimits(t *testing.T) {
 	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
 	require.Equal(t, "", id2)
 
-	// Expire sil1. This should allow sil2 to be inserted.
+	// Expire sil1 and wait for the maintenance to finish.
+	// This should allow sil2 to be inserted.
 	require.NoError(t, s.Expire(id1))
+	time.Sleep(150 * time.Millisecond)
 	id2, err = s.Set(sil2)
 	require.NoError(t, err)
 	require.NotEqual(t, "", id2)
@@ -501,6 +507,7 @@ func TestSilenceLimits(t *testing.T) {
 
 	// Expire sil2.
 	require.NoError(t, s.Expire(id2))
+	time.Sleep(150 * time.Millisecond)
 
 	// Insert sil3 should fail because it exceeds maximum size.
 	sil3 := &pb.Silence{
