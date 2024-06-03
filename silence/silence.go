@@ -204,8 +204,8 @@ type Silences struct {
 
 // Limits contains the limits for silences.
 type Limits struct {
-	// MaxSilences limits the maximum number active and pending silences.
-	// It does not include expired silences.
+	// MaxSilences limits the maximum number of silences, including expired
+	// silences.
 	MaxSilences int
 	// MaxPerSilenceBytes is the maximum size of an individual silence as
 	// stored on disk.
@@ -646,18 +646,8 @@ func (s *Silences) set(sil *pb.Silence) (string, error) {
 
 	// If we got here it's either a new silence or a replacing one.
 	if s.limits.MaxSilences > 0 {
-		// Get the number of active and pending silences to enforce limits.
-		q := &query{}
-		err := QState(types.SilenceStateActive, types.SilenceStatePending)(q)
-		if err != nil {
-			return "", fmt.Errorf("unable to query silences while checking limits: %w", err)
-		}
-		sils, _, err := s.query(q, s.nowUTC())
-		if err != nil {
-			return "", fmt.Errorf("unable to query silences while checking limits: %w", err)
-		}
-		if len(sils)+1 > s.limits.MaxSilences {
-			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(sils), s.limits.MaxSilences)
+		if len(s.st)+1 > s.limits.MaxSilences {
+			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), s.limits.MaxSilences)
 		}
 	}
 
