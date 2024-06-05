@@ -16,6 +16,7 @@ package notify
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
@@ -34,20 +34,20 @@ import (
 // truncationMarker is the character used to represent a truncation.
 const truncationMarker = "…"
 
-// UserAgentHeader is the default User-Agent for notification requests
+// UserAgentHeader is the default User-Agent for notification requests.
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
-	e, ok := err.(*url.Error)
-	if !ok {
+	var e *url.Error
+	if !errors.As(err, &e) {
 		return err
 	}
 	e.URL = "<redacted>"
 	return e
 }
 
-// Get sends a GET request to the given URL
+// Get sends a GET request to the given URL.
 func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	return request(ctx, client, http.MethodGet, url, "", nil)
 }
@@ -160,7 +160,7 @@ type Key string
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return "", errors.Errorf("group key missing")
+		return "", fmt.Errorf("group key missing")
 	}
 	return Key(key), nil
 }
@@ -244,4 +244,64 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		s = fmt.Sprintf("%s: %s", s, details)
 	}
 	return retry, errors.New(s)
+}
+
+type ErrorWithReason struct {
+	Err error
+
+	Reason Reason
+}
+
+func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
+	return &ErrorWithReason{
+		Err:    err,
+		Reason: reason,
+	}
+}
+
+func (e *ErrorWithReason) Error() string {
+	return e.Err.Error()
+}
+
+// Reason is the failure reason.
+type Reason int
+
+const (
+	DefaultReason Reason = iota
+	ClientErrorReason
+	ServerErrorReason
+	ContextCanceledReason
+	ContextDeadlineExceededReason
+)
+
+func (s Reason) String() string {
+	switch s {
+	case DefaultReason:
+		return "other"
+	case ClientErrorReason:
+		return "clientError"
+	case ServerErrorReason:
+		return "serverError"
+	case ContextCanceledReason:
+		return "contextCanceled"
+	case ContextDeadlineExceededReason:
+		return "contextDeadlineExceeded"
+	default:
+		panic(fmt.Sprintf("unknown Reason: %d", s))
+	}
+}
+
+// possibleFailureReasonCategory is a list of possible failure reason.
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String()}
+
+// GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
+func GetFailureReasonFromStatusCode(statusCode int) Reason {
+	if statusCode/100 == 4 {
+		return ClientErrorReason
+	}
+	if statusCode/100 == 5 {
+		return ServerErrorReason
+	}
+
+	return DefaultReason
 }

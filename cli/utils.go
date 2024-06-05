@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -30,30 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
-// GetAlertmanagerURL appends the given path to the alertmanager base URL
-func GetAlertmanagerURL(p string) url.URL {
-	amURL := *alertmanagerURL
-	amURL.Path = path.Join(alertmanagerURL.Path, p)
-	return amURL
-}
-
-// parseMatchers parses a list of matchers (cli arguments).
-func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
-	matchers := make([]labels.Matcher, 0, len(inputMatchers))
-
-	for _, v := range inputMatchers {
-		matcher, err := labels.ParseMatcher(v)
-		if err != nil {
-			return []labels.Matcher{}, err
-		}
-
-		matchers = append(matchers, *matcher)
-	}
-
-	return matchers, nil
-}
-
-// getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
+// getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager.
 func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*models.AlertmanagerStatus, error) {
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 	params := general.NewGetStatusParams().WithContext(ctx)
@@ -93,7 +69,7 @@ func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, confi
 	return config.Load(*configStatus.Config.Original)
 }
 
-// convertClientToCommonLabelSet converts client.LabelSet to model.Labelset
+// convertClientToCommonLabelSet converts client.LabelSet to model.Labelset.
 func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 	mls := make(model.LabelSet, len(cls))
 	for ln, lv := range cls {
@@ -102,26 +78,7 @@ func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 	return mls
 }
 
-// parseLabels parses a list of labels (cli arguments).
-func parseLabels(inputLabels []string) (models.LabelSet, error) {
-	labelSet := make(models.LabelSet, len(inputLabels))
-
-	for _, l := range inputLabels {
-		matcher, err := labels.ParseMatcher(l)
-		if err != nil {
-			return models.LabelSet{}, err
-		}
-		if matcher.Type != labels.MatchEqual {
-			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
-		}
-
-		labelSet[matcher.Name] = matcher.Value
-	}
-
-	return labelSet, nil
-}
-
-// TypeMatchers only valid for when you are going to add a silence
+// TypeMatchers only valid for when you are going to add a silence.
 func TypeMatchers(matchers []labels.Matcher) models.Matchers {
 	typeMatchers := make(models.Matchers, len(matchers))
 	for i, matcher := range matchers {
@@ -130,7 +87,7 @@ func TypeMatchers(matchers []labels.Matcher) models.Matchers {
 	return typeMatchers
 }
 
-// TypeMatcher only valid for when you are going to add a silence
+// TypeMatcher only valid for when you are going to add a silence.
 func TypeMatcher(matcher labels.Matcher) *models.Matcher {
 	name := matcher.Name
 	value := matcher.Value

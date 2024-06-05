@@ -20,10 +20,71 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 )
+
+func TestMemMarker_Muted(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// No groups should be muted.
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Mark the group as muted because it's the weekend.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Other groups should not be marked as muted.
+	timeIntervalNames, isMuted = marker.Muted("route1", "group2")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Other routes should not be marked as muted either.
+	timeIntervalNames, isMuted = marker.Muted("route2", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// The group is no longer muted.
+	marker.SetMuted("route1", "group1", nil)
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
+func TestMemMarker_DeleteByGroupKey(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// Mark the group and check that it is muted.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for a different group key. The group should
+	// still be muted.
+	marker.DeleteByGroupKey("route1", "group2")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for the correct group key. The group should
+	// no longer be muted.
+	marker.DeleteByGroupKey("route1", "group1")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
 
 func TestMemMarker_Count(t *testing.T) {
 	r := prometheus.NewRegistry()
@@ -308,6 +369,49 @@ func TestAlertMerge(t *testing.T) {
 			}
 			if res := p.B.Merge(p.A); !reflect.DeepEqual(p.Res, res) {
 				t.Errorf("unexpected merged alert %#v", res)
+			}
+		})
+	}
+}
+
+func TestValidateUTF8Ls(t *testing.T) {
+	tests := []struct {
+		name string
+		ls   model.LabelSet
+		err  string
+	}{{
+		name: "valid UTF-8 label set",
+		ls: model.LabelSet{
+			"a":                "a",
+			"00":               "b",
+			"Σ":                "c",
+			"\xf0\x9f\x99\x82": "dΘ",
+		},
+	}, {
+		name: "invalid UTF-8 label set",
+		ls: model.LabelSet{
+			"\xff": "a",
+		},
+		err: "invalid name \"\\xff\"",
+	}}
+
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(log.NewNopLogger(), ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(log.NewNopLogger(), ff)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateLs(test.ls)
+			if err != nil && err.Error() != test.err {
+				t.Errorf("unexpected err for %s: %s", test.ls, err)
+			} else if err == nil && test.err != "" {
+				t.Error("expected error, got nil")
 			}
 		})
 	}

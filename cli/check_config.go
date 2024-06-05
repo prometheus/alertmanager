@@ -17,13 +17,13 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 )
 
-// TODO: This can just be a type that is []string, doesn't have to be a struct
+// TODO: This can just be a type that is []string, doesn't have to be a struct.
 type checkConfigCmd struct {
 	files []string
 }

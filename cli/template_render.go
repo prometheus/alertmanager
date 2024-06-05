@@ -21,7 +21,8 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/template"
 )
@@ -31,7 +32,7 @@ var defaultData = template.Data{
 	Status:   "alertstatus",
 	Alerts: template.Alerts{
 		template.Alert{
-			Status: "alertstatus",
+			Status: string(model.AlertFiring),
 			Labels: template.KV{
 				"label1":          "value1",
 				"label2":          "value2",
@@ -51,7 +52,7 @@ var defaultData = template.Data{
 			Fingerprint:  "fingerprint1",
 		},
 		template.Alert{
-			Status: "alertstatus",
+			Status: string(model.AlertResolved),
 			Labels: template.KV{
 				"foo":             "bar",
 				"baz":             "qux",

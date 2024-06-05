@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -132,6 +133,63 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 		// continue
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("expected `alerts.Put` and `iterator.Close` not to starve each other")
+	}
+}
+
+func TestDeadLock(t *testing.T) {
+	t0 := time.Now()
+	t1 := t0.Add(5 * time.Second)
+
+	marker := types.NewMarker(prometheus.NewRegistry())
+	// Run gc every 5 milliseconds to increase the possibility of a deadlock with Subscribe()
+	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, log.NewNopLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alertsToInsert := []*types.Alert{}
+	for i := 0; i < 200+1; i++ {
+		alertsToInsert = append(alertsToInsert, &types.Alert{
+			Alert: model.Alert{
+				// Make sure the fingerprints differ
+				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		})
+	}
+
+	if err := alerts.Put(alertsToInsert...); err != nil {
+		t.Fatal("Unable to add alerts")
+	}
+	done := make(chan bool)
+
+	// call subscribe repeatedly in a goroutine to increase
+	// the possibility of a deadlock occurring
+	go func() {
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		stopAfter := time.After(1 * time.Second)
+		for {
+			select {
+			case <-tick.C:
+				alerts.Subscribe()
+			case <-stopAfter:
+				done <- true
+				break
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+		// no deadlock
+		alerts.Close()
+	case <-time.After(10 * time.Second):
+		t.Error("Deadlock detected")
 	}
 }
 
@@ -503,4 +561,63 @@ func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 
 func (l *limitCountCallback) PostDelete(_ *types.Alert) {
 	l.alerts.Dec()
+}
+
+func TestAlertsConcurrently(t *testing.T) {
+	callback := &limitCountCallback{limit: 100}
+	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, callback, log.NewNopLogger(), nil)
+	require.NoError(t, err)
+
+	stopc := make(chan struct{})
+	failc := make(chan struct{})
+	go func() {
+		time.Sleep(2 * time.Second)
+		close(stopc)
+	}()
+	expire := 10 * time.Millisecond
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			j := 0
+			for {
+				select {
+				case <-failc:
+					return
+				case <-stopc:
+					return
+				default:
+				}
+				now := time.Now()
+				err := a.Put(&types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"bar": model.LabelValue(strconv.Itoa(j))},
+						StartsAt: now,
+						EndsAt:   now.Add(expire),
+					},
+					UpdatedAt: now,
+				})
+				if err != nil && !errors.Is(err, errTooManyAlerts) {
+					close(failc)
+					return
+				}
+				j++
+			}
+		}()
+	}
+	wg.Wait()
+	select {
+	case <-failc:
+		t.Fatalf("unexpected error happened")
+	default:
+	}
+
+	time.Sleep(expire)
+	require.Eventually(t, func() bool {
+		// When the alert will eventually expire and is considered resolved - it won't count.
+		return a.count(types.AlertStateActive) == 0
+	}, 2*expire, expire)
+	require.Equal(t, int32(0), callback.alerts.Load())
 }

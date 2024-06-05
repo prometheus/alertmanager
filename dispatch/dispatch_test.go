@@ -236,9 +236,33 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	// Resolve all alerts, they should be removed after the next batch was sent.
-	a1r, a2r, a3r := *a1, *a2, *a3
-	resolved := types.AlertSlice{&a1r, &a2r, &a3r}
+	// Resolve an alert, and it should be removed after the next batch was sent.
+	a1r := *a1
+	a1r.EndsAt = time.Now()
+	ag.insert(&a1r)
+	exp := append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
+
+	select {
+	case <-time.After(2 * opts.GroupInterval):
+		t.Fatalf("expected new batch after group interval but received none")
+	case batch := <-alertsCh:
+		lastCurMtx.Lock()
+		s := time.Since(last)
+		lastCurMtx.Unlock()
+		if s < opts.GroupInterval {
+			t.Fatalf("received batch too early after %v", s)
+		}
+		sort.Sort(batch)
+
+		if !reflect.DeepEqual(batch, exp) {
+			t.Fatalf("expected alerts %v but got %v", exp, batch)
+		}
+	}
+
+	// Resolve all remaining alerts, they should be removed after the next batch was sent.
+	// Do not add a1r as it should have been deleted following the previous batch.
+	a2r, a3r := *a2, *a3
+	resolved := types.AlertSlice{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
 		ag.insert(a)
@@ -398,7 +422,7 @@ route:
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
 		time.Sleep(200 * time.Millisecond)
 	}
-	require.Equal(t, 7, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), 7)
 
 	alertGroups, receivers := dispatcher.Groups(
 		func(*Route) bool {
@@ -541,7 +565,7 @@ route:
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
 		time.Sleep(200 * time.Millisecond)
 	}
-	require.Equal(t, 7, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), 7)
 
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
@@ -681,7 +705,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	}
 
 	// We expect all alerts to be notified immediately, since they all belong to different groups.
-	require.Equal(t, numAlerts, len(recorder.Alerts()))
+	require.Len(t, recorder.Alerts(), numAlerts)
 }
 
 type limits struct {
@@ -690,4 +714,49 @@ type limits struct {
 
 func (l limits) MaxNumberOfAggregationGroups() int {
 	return l.groups
+}
+
+func TestDispatcher_DoMaintenance(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := types.NewMarker(r)
+
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, log.NewNopLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy:       map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:     0,
+			GroupInterval: 5 * time.Minute, // Should never hit in this test.
+		},
+	}
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+
+	ctx := context.Background()
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, log.NewNopLogger(), NewDispatcherMetrics(false, r))
+	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
+	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+
+	// Insert an aggregation group with no alerts.
+	labels := model.LabelSet{"alertname": "1"}
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, log.NewNopLogger())
+	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
+	dispatcher.aggrGroupsPerRoute = aggrGroups
+	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
+	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
+
+	// Insert a marker for the aggregation group's group key.
+	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
+	mutedBy, isMuted := marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, mutedBy)
+
+	// Run the maintenance and the marker should be removed.
+	dispatcher.doMaintenance()
+	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	require.False(t, isMuted)
+	require.Empty(t, mutedBy)
 }

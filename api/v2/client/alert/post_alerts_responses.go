@@ -54,7 +54,7 @@ func (o *PostAlertsReader) ReadResponse(response runtime.ClientResponse, consume
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[POST /alerts] postAlerts", response, response.Code())
 	}
 }
 
@@ -94,6 +94,11 @@ func (o *PostAlertsOK) IsServerError() bool {
 // IsCode returns true when this post alerts o k response a status code equal to that given
 func (o *PostAlertsOK) IsCode(code int) bool {
 	return code == 200
+}
+
+// Code gets the status code for the post alerts o k response
+func (o *PostAlertsOK) Code() int {
+	return 200
 }
 
 func (o *PostAlertsOK) Error() string {
@@ -146,6 +151,11 @@ func (o *PostAlertsBadRequest) IsServerError() bool {
 // IsCode returns true when this post alerts bad request response a status code equal to that given
 func (o *PostAlertsBadRequest) IsCode(code int) bool {
 	return code == 400
+}
+
+// Code gets the status code for the post alerts bad request response
+func (o *PostAlertsBadRequest) Code() int {
+	return 400
 }
 
 func (o *PostAlertsBadRequest) Error() string {
@@ -207,6 +217,11 @@ func (o *PostAlertsInternalServerError) IsServerError() bool {
 // IsCode returns true when this post alerts internal server error response a status code equal to that given
 func (o *PostAlertsInternalServerError) IsCode(code int) bool {
 	return code == 500
+}
+
+// Code gets the status code for the post alerts internal server error response
+func (o *PostAlertsInternalServerError) Code() int {
+	return 500
 }
 
 func (o *PostAlertsInternalServerError) Error() string {

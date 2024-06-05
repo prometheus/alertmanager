@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -44,6 +45,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -51,7 +53,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// API represents an Alertmanager API v2
+// API represents an Alertmanager API v2.
 type API struct {
 	peer           cluster.ClusterPeer
 	silences       *silence.Silences
@@ -80,7 +82,7 @@ type (
 	setAlertStatusFn func(prometheus_model.LabelSet)
 )
 
-// NewAPI returns a new Alertmanager API v2
+// NewAPI returns a new Alertmanager API v2.
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
@@ -97,7 +99,7 @@ func NewAPI(
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
-		m:              metrics.NewAlerts("v2", r),
+		m:              metrics.NewAlerts(r),
 		uptime:         time.Now(),
 	}
 
@@ -130,9 +132,22 @@ func NewAPI(
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
 	handleCORS := cors.Default().Handler
-	api.Handler = handleCORS(openAPI.Serve(nil))
+	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
 
 	return &api, nil
+}
+
+var responseHeaders = map[string]string{
+	"Cache-Control": "no-store",
+}
+
+func setResponseHeaders(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for h, v := range responseHeaders {
+			w.Header().Set(h, v)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (api *API) requestLogger(req *http.Request) log.Logger {
@@ -210,8 +225,8 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 	defer api.mtx.RUnlock()
 
 	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
-	for _, r := range api.alertmanagerConfig.Receivers {
-		receivers = append(receivers, &open_api_models.Receiver{Name: &r.Name})
+	for i := range api.alertmanagerConfig.Receivers {
+		receivers = append(receivers, &open_api_models.Receiver{Name: &api.alertmanagerConfig.Receivers[i].Name})
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
@@ -492,17 +507,10 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	matchers := []*labels.Matcher{}
-	if params.Filter != nil {
-		for _, matcherString := range params.Filter {
-			matcher, err := labels.ParseMatcher(matcherString)
-			if err != nil {
-				level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
-				return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
-			}
-
-			matchers = append(matchers, matcher)
-		}
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Debug(logger).Log("msg", "Failed to parse matchers", "err", err)
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
 	psils, _, err := api.silences.Query()
@@ -537,9 +545,9 @@ var silenceStateOrder = map[types.SilenceState]int{
 
 // SortSilences sorts first according to the state "active, pending, expired"
 // then by end time or start time depending on the state.
-// active silences should show the next to expire first
+// Active silences should show the next to expire first
 // pending silences are ordered based on which one starts next
-// expired are ordered based on which one expired most recently
+// expired are ordered based on which one expired most recently.
 func SortSilences(sils open_api_models.GettableSilences) {
 	sort.Slice(sils, func(i, j int) bool {
 		state1 := types.SilenceState(*sils[i].Status.State)
@@ -621,6 +629,9 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 	sid := params.SilenceID.String()
 	if err := api.silences.Expire(sid); err != nil {
 		level.Error(logger).Log("msg", "Failed to expire silence", "err", err)
+		if errors.Is(err, silence.ErrNotFound) {
+			return silence_ops.NewDeleteSilenceNotFound()
+		}
 		return silence_ops.NewDeleteSilenceInternalServerError().WithPayload(err.Error())
 	}
 	return silence_ops.NewDeleteSilenceOK()
@@ -652,7 +663,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	sid, err := api.silences.Set(sil)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to create silence", "err", err)
-		if err == silence.ErrNotFound {
+		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
 		}
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(err.Error())
@@ -666,7 +677,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
-		matcher, err := labels.ParseMatcher(matcherString)
+		matcher, err := compat.Matcher(matcherString, "api")
 		if err != nil {
 			return nil, err
 		}

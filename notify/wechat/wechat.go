@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -66,8 +66,8 @@ type weChatMessageContent struct {
 }
 
 type weChatResponse struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Code  int    `json:"errcode"`
+	Error string `json:"errmsg"`
 }
 
 // New returns a new Wechat notifier.
@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
-			return false, fmt.Errorf("templating error: %s", err)
+			return false, fmt.Errorf("templating error: %w", err)
 		}
 
 		u := n.conf.APIURL.Copy()
@@ -147,7 +147,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 	if err != nil {
-		return false, fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %w", err)
 	}
 
 	var buf bytes.Buffer
@@ -168,7 +168,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer notify.Drain(resp)
 
 	if resp.StatusCode != 200 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+		return true, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), fmt.Errorf("unexpected status code %v", resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)

@@ -15,6 +15,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -28,7 +29,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/hashicorp/memberlist"
 	"github.com/oklog/ulid"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -42,7 +42,7 @@ type ClusterPeer interface {
 	Peers() []ClusterMember
 }
 
-// ClusterMember interface that represents node peers in a cluster
+// ClusterMember interface that represents node peers in a cluster.
 type ClusterMember interface {
 	// Name returns the name of the node
 	Name() string
@@ -142,14 +142,15 @@ func Create(
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
+	label string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid listen address")
+		return nil, fmt.Errorf("invalid listen address: %w", err)
 	}
 	bindPort, err := strconv.Atoi(bindPortStr)
 	if err != nil {
-		return nil, errors.Wrapf(err, "address %s: invalid port", bindAddr)
+		return nil, fmt.Errorf("address %s: invalid port: %w", bindAddr, err)
 	}
 
 	var advertiseHost string
@@ -158,17 +159,17 @@ func Create(
 		var advertisePortStr string
 		advertiseHost, advertisePortStr, err = net.SplitHostPort(advertiseAddr)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid advertise address")
+			return nil, fmt.Errorf("invalid advertise address: %w", err)
 		}
 		advertisePort, err = strconv.Atoi(advertisePortStr)
 		if err != nil {
-			return nil, errors.Wrapf(err, "address %s: invalid port", advertiseAddr)
+			return nil, fmt.Errorf("address %s: invalid port: %w", advertiseAddr, err)
 		}
 	}
 
 	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
-		return nil, errors.Wrap(err, "resolve peers")
+		return nil, fmt.Errorf("resolve peers: %w", err)
 	}
 	level.Debug(l).Log("msg", "resolved peers to following addresses", "peers", strings.Join(resolvedPeers, ","))
 
@@ -227,6 +228,7 @@ func Create(
 	cfg.LogOutput = &logWriter{l: l}
 	cfg.GossipNodes = retransmit
 	cfg.UDPBufferSize = MaxGossipPacketSize
+	cfg.Label = label
 
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
@@ -240,13 +242,13 @@ func Create(
 		level.Info(l).Log("msg", "using TLS for gossip")
 		cfg.Transport, err = NewTLSTransport(context.Background(), l, reg, cfg.BindAddr, cfg.BindPort, tlsTransportConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "tls transport")
+			return nil, fmt.Errorf("tls transport: %w", err)
 		}
 	}
 
 	ml, err := memberlist.Create(cfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "create memberlist")
+		return nil, fmt.Errorf("create memberlist: %w", err)
 	}
 	p.mlist = ml
 	return p, nil
@@ -637,10 +639,10 @@ type Member struct {
 	node *memberlist.Node
 }
 
-// Name implements cluster.ClusterMember
+// Name implements cluster.ClusterMember.
 func (m Member) Name() string { return m.node.Name }
 
-// Address implements cluster.ClusterMember
+// Address implements cluster.ClusterMember.
 func (m Member) Address() string { return m.node.Address() }
 
 // Peers returns the peers in the cluster.
@@ -734,7 +736,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res *ne
 	for _, peer := range peers {
 		host, port, err := net.SplitHostPort(peer)
 		if err != nil {
-			return nil, errors.Wrapf(err, "split host/port for peer %s", peer)
+			return nil, fmt.Errorf("split host/port for peer %s: %w", peer, err)
 		}
 
 		retryCtx, cancel := context.WithCancel(ctx)
@@ -759,7 +761,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res *ne
 				ips, err = res.LookupIPAddr(retryCtx, host)
 				if err != nil {
 					lookupErrSpotted = true
-					return errors.Wrapf(err, "IP Addr lookup for peer %s", peer)
+					return fmt.Errorf("IP Addr lookup for peer %s: %w", peer, err)
 				}
 
 				ips = removeMyAddr(ips, port, myAddress)

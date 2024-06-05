@@ -19,15 +19,18 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
@@ -390,10 +393,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -408,7 +408,7 @@ func TestRetryStageWithError(t *testing.T) {
 
 	// Notify with a recoverable error should retry and succeed.
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -418,7 +418,88 @@ func TestRetryStageWithError(t *testing.T) {
 	fail = true
 	retry = false
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.NotNil(t, err)
+	require.Error(t, err)
+	require.NotNil(t, resctx)
+}
+
+func TestRetryStageWithErrorCode(t *testing.T) {
+	testcases := map[string]struct {
+		isNewErrorWithReason bool
+		reason               Reason
+		reasonlabel          string
+		expectedCount        int
+	}{
+		"for clientError":     {isNewErrorWithReason: true, reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
+		"for serverError":     {isNewErrorWithReason: true, reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
+		"for unexpected code": {isNewErrorWithReason: false, reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
+	}
+	for _, testData := range testcases {
+		retry := false
+		testData := testData
+		i := Integration{
+			name: "test",
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+				if !testData.isNewErrorWithReason {
+					return retry, errors.New("fail to deliver notification")
+				}
+				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+			}),
+			rs: sendResolved(false),
+		}
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithFiringAlerts(ctx, []uint64{0})
+
+		// Notify with a non-recoverable error.
+		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+		counter := r.metrics.numTotalFailedNotifications
+
+		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.reasonlabel))))
+
+		require.Error(t, err)
+		require.NotNil(t, resctx)
+	}
+}
+
+func TestRetryStageWithContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			cancel()
+			return true, errors.New("request failed: context canceled")
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	// Notify with a non-recoverable error.
+	resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	counter := r.metrics.numTotalFailedNotifications
+
+	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
+
+	require.Error(t, err)
 	require.NotNil(t, resctx)
 }
 
@@ -431,10 +512,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -459,7 +537,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{alerts[1]}, sent)
 	require.NotNil(t, resctx)
@@ -470,7 +548,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, []*types.Alert{}, sent)
 	require.NotNil(t, resctx)
@@ -485,10 +563,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := RetryStage{
-		integration: i,
-		metrics:     NewMetrics(prometheus.NewRegistry()),
-	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
 	alerts := []*types.Alert{
 		{
@@ -507,7 +582,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{0})
 
 	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -518,7 +593,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
@@ -564,7 +639,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 
@@ -580,7 +655,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		return nil
 	}
 	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
 }
@@ -592,7 +667,8 @@ func TestMuteStage(t *testing.T) {
 		return ok
 	})
 
-	stage := NewMuteStage(muter)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	stage := NewMuteStage(muter, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -631,6 +707,10 @@ func TestMuteStage(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressed {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressed)
+	}
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
@@ -646,9 +726,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	marker := types.NewMarker(prometheus.NewRegistry())
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
 	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
-	stage := NewMuteStage(silencer)
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	stage := NewMuteStage(silencer, metrics)
 
 	in := []model.LabelSet{
 		{},
@@ -691,6 +773,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+	suppressedRoundOne := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got)) != suppressedRoundOne {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundOne)
+	}
 
 	// Do it again to exercise the version tracking of silences.
 	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
@@ -705,6 +791,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	suppressedRoundTwo := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundOne) != suppressedRoundTwo {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundTwo)
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
@@ -724,198 +815,256 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
 	}
+	suppressedRoundThree := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
+	if (len(in) - len(got) + suppressedRoundTwo) != suppressedRoundThree {
+		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundThree)
+	}
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	// Route mutes alerts outside business hours in November, using the +1100 timezone.
-	muteIn := `
----
-- weekdays: ['monday:friday']
-  location: 'Australia/Sydney'
-  months: ['November']
-  times:
-   - start_time: '00:00'
-     end_time: '09:00'
-   - start_time: '17:00'
-     end_time: '24:00'
-- weekdays: ['saturday', 'sunday']
-  months: ['November']
-  location: 'Australia/Sydney'`
-
-	cases := []struct {
-		fireTime   string
-		labels     model.LabelSet
-		shouldMute bool
-	}{
-		{
-			// Friday during business hours
-			fireTime:   "19 Nov 21 13:00 +1100",
-			labels:     model.LabelSet{"foo": "bar"},
-			shouldMute: false,
-		},
-		{
-			// Tuesday before 5pm
-			fireTime:   "16 Nov 21 16:59 +1100",
-			labels:     model.LabelSet{"dont": "mute"},
-			shouldMute: false,
-		},
-		{
-			// Saturday
-			fireTime:   "20 Nov 21 10:00 +1100",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-		{
-			// Wednesday before 9am
-			fireTime:   "17 Nov 21 05:00 +1100",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-		{
-			// Ensure comparisons with other time zones work as expected.
-			fireTime:   "14 Nov 21 20:00 +0900",
-			labels:     model.LabelSet{"mute": "kst"},
-			shouldMute: true,
-		},
-		{
-			fireTime:   "14 Nov 21 21:30 +0000",
-			labels:     model.LabelSet{"mute": "utc"},
-			shouldMute: true,
-		},
-		{
-			fireTime:   "15 Nov 22 14:30 +0900",
-			labels:     model.LabelSet{"kst": "dont_mute"},
-			shouldMute: false,
-		},
-		{
-			fireTime:   "15 Nov 21 02:00 -0500",
-			labels:     model.LabelSet{"mute": "0500"},
-			shouldMute: true,
-		},
-	}
-	var intervals []timeinterval.TimeInterval
-	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	sydney, err := time.LoadLocation("Australia/Sydney")
 	if err != nil {
-		t.Fatalf("Couldn't unmarshal time interval %s", err)
+		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
 	}
-	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeMuteStage(m)
+	eveningsAndWeekends := map[string][]timeinterval.TimeInterval{
+		"evenings": {{
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 0,   // 00:00
+				EndMinute:   540, // 09:00
+			}, {
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+	}
 
-	outAlerts := []*types.Alert{}
-	nonMuteCount := 0
-	for _, tc := range cases {
-		now, err := time.Parse(time.RFC822Z, tc.fireTime)
-		if err != nil {
-			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
-		}
-		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
-		if !tc.shouldMute {
-			nonMuteCount++
-		}
-		a := model.Alert{Labels: tc.labels}
-		alerts := []*types.Alert{{Alert: a}}
-		ctx := context.Background()
-		ctx = WithNow(ctx, now)
-		ctx = WithActiveTimeIntervals(ctx, []string{})
-		ctx = WithMuteTimeIntervals(ctx, []string{"test"})
+	tests := []struct {
+		name      string
+		intervals map[string][]timeinterval.TimeInterval
+		now       time.Time
+		alerts    []*types.Alert
+		mutedBy   []string
+	}{{
+		name:      "Should be muted outside working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should not be muted during workings hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   nil,
+	}, {
+		name:      "Should be muted during weekends",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"weekends"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekday",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekend",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"evenings", "weekends"},
+	}}
 
-		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
-		if err != nil {
-			t.Fatalf("Unexpected error in time mute stage %s", err)
-		}
-		outAlerts = append(outAlerts, out...)
-	}
-	for _, alert := range outAlerts {
-		if _, ok := alert.Alert.Labels["mute"]; ok {
-			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
-		}
-	}
-	if len(outAlerts) != nonMuteCount {
-		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := prometheus.NewRegistry()
+			marker := types.NewMarker(r)
+			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
+			intervener := timeinterval.NewIntervener(test.intervals)
+			st := NewTimeMuteStage(intervener, marker, metrics)
+
+			// Get the names of all time intervals for the context.
+			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
+			for name := range test.intervals {
+				muteTimeIntervalNames = append(muteTimeIntervalNames, name)
+			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(muteTimeIntervalNames)
+
+			ctx := context.Background()
+			ctx = WithNow(ctx, test.now)
+			ctx = WithGroupKey(ctx, "group1")
+			ctx = WithActiveTimeIntervals(ctx, nil)
+			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
+			ctx = WithRouteID(ctx, "route1")
+
+			_, active, err := st.Exec(ctx, log.NewNopLogger(), test.alerts...)
+			require.NoError(t, err)
+
+			if len(test.mutedBy) == 0 {
+				// All alerts should be active.
+				require.Equal(t, len(test.alerts), len(active))
+				// The group should not be marked.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
+				// The metric for total suppressed notifications should not
+				// have been incremented, which means it will not be collected.
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+`)))
+			} else {
+				// All alerts should be muted.
+				require.Empty(t, active)
+				// The group should be marked as muted.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
+				// Gets the metric for total suppressed notifications.
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+# HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
+# TYPE alertmanager_notifications_suppressed_total counter
+alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
+`, len(test.alerts)))))
+			}
+		})
 	}
 }
 
 func TestTimeActiveStage(t *testing.T) {
-	// Route mutes alerts inside business hours if it is an active time interval
-	muteIn := `
----
-- weekdays: ['monday:friday']
-  times:
-   - start_time: '00:00'
-     end_time: '09:00'
-   - start_time: '17:00'
-     end_time: '24:00'
-- weekdays: ['saturday', 'sunday']`
-
-	cases := []struct {
-		fireTime   string
-		labels     model.LabelSet
-		shouldMute bool
-	}{
-		{
-			// Friday during business hours
-			fireTime:   "01 Jan 21 09:00 +0000",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-		{
-			// Tuesday before 5pm
-			fireTime:   "01 Dec 20 16:59 +0000",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-		{
-			// Saturday
-			fireTime:   "17 Oct 20 10:00 +0000",
-			labels:     model.LabelSet{"foo": "bar"},
-			shouldMute: false,
-		},
-		{
-			// Wednesday before 9am
-			fireTime:   "14 Oct 20 05:00 +0000",
-			labels:     model.LabelSet{"dont": "mute"},
-			shouldMute: false,
-		},
-	}
-	var intervals []timeinterval.TimeInterval
-	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	sydney, err := time.LoadLocation("Australia/Sydney")
 	if err != nil {
-		t.Fatalf("Couldn't unmarshal time interval %s", err)
+		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
 	}
-	m := map[string][]timeinterval.TimeInterval{"test": intervals}
-	stage := NewTimeActiveStage(m)
+	weekdays := map[string][]timeinterval.TimeInterval{
+		"weekdays": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{
+					Begin: 1, // Monday
+					End:   5, // Friday
+				},
+			}},
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 540,  // 09:00
+				EndMinute:   1020, // 17:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+	}
 
-	outAlerts := []*types.Alert{}
-	nonMuteCount := 0
-	for _, tc := range cases {
-		now, err := time.Parse(time.RFC822Z, tc.fireTime)
-		if err != nil {
-			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
-		}
-		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
-		if !tc.shouldMute {
-			nonMuteCount++
-		}
-		a := model.Alert{Labels: tc.labels}
-		alerts := []*types.Alert{{Alert: a}}
-		ctx := context.Background()
-		ctx = WithNow(ctx, now)
-		ctx = WithActiveTimeIntervals(ctx, []string{"test"})
-		ctx = WithMuteTimeIntervals(ctx, []string{})
+	tests := []struct {
+		name      string
+		intervals map[string][]timeinterval.TimeInterval
+		now       time.Time
+		alerts    []*types.Alert
+		mutedBy   []string
+	}{{
+		name:      "Should be muted outside working hours",
+		intervals: weekdays,
+		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"weekdays"},
+	}, {
+		name:      "Should not be muted during workings hours",
+		intervals: weekdays,
+		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   nil,
+	}, {
+		name:      "Should be muted during weekends",
+		intervals: weekdays,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"weekdays"},
+	}, {
+		name:      "Should be muted at 12pm UTC",
+		intervals: weekdays,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
+		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		mutedBy:   []string{"weekdays"},
+	}}
 
-		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
-		if err != nil {
-			t.Fatalf("Unexpected error in time mute stage %s", err)
-		}
-		outAlerts = append(outAlerts, out...)
-	}
-	for _, alert := range outAlerts {
-		if _, ok := alert.Alert.Labels["mute"]; ok {
-			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
-		}
-	}
-	if len(outAlerts) != nonMuteCount {
-		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := prometheus.NewRegistry()
+			marker := types.NewMarker(r)
+			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
+			intervener := timeinterval.NewIntervener(test.intervals)
+			st := NewTimeActiveStage(intervener, marker, metrics)
+
+			// Get the names of all time intervals for the context.
+			activeTimeIntervalNames := make([]string, 0, len(test.intervals))
+			for name := range test.intervals {
+				activeTimeIntervalNames = append(activeTimeIntervalNames, name)
+			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(activeTimeIntervalNames)
+
+			ctx := context.Background()
+			ctx = WithNow(ctx, test.now)
+			ctx = WithGroupKey(ctx, "group1")
+			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
+			ctx = WithMuteTimeIntervals(ctx, nil)
+			ctx = WithRouteID(ctx, "route1")
+
+			_, active, err := st.Exec(ctx, log.NewNopLogger(), test.alerts...)
+			require.NoError(t, err)
+
+			if len(test.mutedBy) == 0 {
+				// All alerts should be active.
+				require.Equal(t, len(test.alerts), len(active))
+				// The group should not be marked.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
+				// The metric for total suppressed notifications should not
+				// have been incremented, which means it will not be collected.
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+`)))
+			} else {
+				// All alerts should be muted.
+				require.Empty(t, active)
+				// The group should be marked as muted.
+				mutedBy, isMuted := marker.Muted("route1", "group1")
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
+				// Gets the metric for total suppressed notifications.
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
+# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
+# TYPE alertmanager_marked_alerts gauge
+alertmanager_marked_alerts{state="active"} 0
+alertmanager_marked_alerts{state="suppressed"} 0
+alertmanager_marked_alerts{state="unprocessed"} 0
+# HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
+# TYPE alertmanager_notifications_suppressed_total counter
+alertmanager_notifications_suppressed_total{reason="active_time_interval"} %d
+`, len(test.alerts)))))
+			}
+		})
 	}
 }
 

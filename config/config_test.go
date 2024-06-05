@@ -200,7 +200,7 @@ receivers:
 func TestTimeIntervalHasName(t *testing.T) {
 	in := `
 time_intervals:
-- name: 
+- name:
   time_intervals:
   - times:
      - start_time: '09:00'
@@ -895,7 +895,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				},
 			},
 		},
-		Receivers: []*Receiver{
+		Receivers: []Receiver{
 			{
 				Name: "team-X-mails",
 				EmailConfigs: []*EmailConfig{

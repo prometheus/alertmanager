@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -177,6 +178,30 @@ func (r *Route) Key() string {
 		b.WriteRune('/')
 	}
 	b.WriteString(r.Matchers.String())
+	return b.String()
+}
+
+// ID returns a unique identifier for the route.
+func (r *Route) ID() string {
+	b := strings.Builder{}
+
+	if r.parent != nil {
+		b.WriteString(r.parent.ID())
+		b.WriteRune('/')
+	}
+
+	b.WriteString(r.Matchers.String())
+
+	if r.parent != nil {
+		for i := range r.parent.Routes {
+			if r == r.parent.Routes[i] {
+				b.WriteRune('/')
+				b.WriteString(strconv.Itoa(i))
+				break
+			}
+		}
+	}
+
 	return b.String()
 }
 

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"math/rand"
 	"mime"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -133,7 +133,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.Smarthost.Port == "465" {
 		tlsConfig, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
 		if err != nil {
-			return false, errors.Wrap(err, "parse TLS configuration")
+			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
 		if tlsConfig.ServerName == "" {
 			tlsConfig.ServerName = n.conf.Smarthost.Host
@@ -141,7 +141,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		conn, err = tls.Dial("tcp", n.conf.Smarthost.String(), tlsConfig)
 		if err != nil {
-			return true, errors.Wrap(err, "establish TLS connection to server")
+			return true, fmt.Errorf("establish TLS connection to server: %w", err)
 		}
 	} else {
 		var (
@@ -150,13 +150,13 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		)
 		conn, err = d.DialContext(ctx, "tcp", n.conf.Smarthost.String())
 		if err != nil {
-			return true, errors.Wrap(err, "establish connection to server")
+			return true, fmt.Errorf("establish connection to server: %w", err)
 		}
 	}
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
-		return true, errors.Wrap(err, "create SMTP client")
+		return true, fmt.Errorf("create SMTP client: %w", err)
 	}
 	defer func() {
 		// Try to clean up after ourselves but don't log anything if something has failed.
@@ -168,37 +168,37 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.Hello != "" {
 		err = c.Hello(n.conf.Hello)
 		if err != nil {
-			return true, errors.Wrap(err, "send EHLO command")
+			return true, fmt.Errorf("send EHLO command: %w", err)
 		}
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
 	if *n.conf.RequireTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return true, errors.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
+			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
 
 		tlsConf, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
 		if err != nil {
-			return false, errors.Wrap(err, "parse TLS configuration")
+			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
 		if tlsConf.ServerName == "" {
 			tlsConf.ServerName = n.conf.Smarthost.Host
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {
-			return true, errors.Wrap(err, "send STARTTLS command")
+			return true, fmt.Errorf("send STARTTLS command: %w", err)
 		}
 	}
 
 	if ok, mech := c.Extension("AUTH"); ok {
 		auth, err := n.auth(mech)
 		if err != nil {
-			return true, errors.Wrap(err, "find auth mechanism")
+			return true, fmt.Errorf("find auth mechanism: %w", err)
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				return true, errors.Wrapf(err, "%T auth", auth)
+				return true, fmt.Errorf("%T auth: %w", auth, err)
 			}
 		}
 	}
@@ -210,37 +210,37 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	)
 	from := tmpl(n.conf.From)
 	if tmplErr != nil {
-		return false, errors.Wrap(tmplErr, "execute 'from' template")
+		return false, fmt.Errorf("execute 'from' template: %w", tmplErr)
 	}
 	to := tmpl(n.conf.To)
 	if tmplErr != nil {
-		return false, errors.Wrap(tmplErr, "execute 'to' template")
+		return false, fmt.Errorf("execute 'to' template: %w", tmplErr)
 	}
 
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
-		return false, errors.Wrap(err, "parse 'from' addresses")
+		return false, fmt.Errorf("parse 'from' addresses: %w", err)
 	}
 	if len(addrs) != 1 {
-		return false, errors.Errorf("must be exactly one 'from' address (got: %d)", len(addrs))
+		return false, fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs))
 	}
 	if err = c.Mail(addrs[0].Address); err != nil {
-		return true, errors.Wrap(err, "send MAIL command")
+		return true, fmt.Errorf("send MAIL command: %w", err)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
-		return false, errors.Wrapf(err, "parse 'to' addresses")
+		return false, fmt.Errorf("parse 'to' addresses: %w", err)
 	}
 	for _, addr := range addrs {
 		if err = c.Rcpt(addr.Address); err != nil {
-			return true, errors.Wrapf(err, "send RCPT command")
+			return true, fmt.Errorf("send RCPT command: %w", err)
 		}
 	}
 
 	// Send the email headers and body.
 	message, err := c.Data()
 	if err != nil {
-		return true, errors.Wrapf(err, "send DATA command")
+		return true, fmt.Errorf("send DATA command: %w", err)
 	}
 	defer message.Close()
 
@@ -248,7 +248,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	for header, t := range n.conf.Headers {
 		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {
-			return false, errors.Wrapf(err, "execute %q header template", header)
+			return false, fmt.Errorf("execute %q header template: %w", header, err)
 		}
 		fmt.Fprintf(buffer, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
@@ -268,7 +268,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	// and active/resolved.
 	_, err = message.Write(buffer.Bytes())
 	if err != nil {
-		return false, errors.Wrap(err, "write headers")
+		return false, fmt.Errorf("write headers: %w", err)
 	}
 
 	if len(n.conf.Text) > 0 {
@@ -278,20 +278,20 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			"Content-Type":              {"text/plain; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, errors.Wrap(err, "create part for text template")
+			return false, fmt.Errorf("create part for text template: %w", err)
 		}
 		body, err := n.tmpl.ExecuteTextString(n.conf.Text, data)
 		if err != nil {
-			return false, errors.Wrap(err, "execute text template")
+			return false, fmt.Errorf("execute text template: %w", err)
 		}
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(body))
 		if err != nil {
-			return true, errors.Wrap(err, "write text part")
+			return true, fmt.Errorf("write text part: %w", err)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, errors.Wrap(err, "close text part")
+			return true, fmt.Errorf("close text part: %w", err)
 		}
 	}
 
@@ -304,31 +304,31 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			"Content-Type":              {"text/html; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, errors.Wrap(err, "create part for html template")
+			return false, fmt.Errorf("create part for html template: %w", err)
 		}
 		body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
 		if err != nil {
-			return false, errors.Wrap(err, "execute html template")
+			return false, fmt.Errorf("execute html template: %w", err)
 		}
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(body))
 		if err != nil {
-			return true, errors.Wrap(err, "write HTML part")
+			return true, fmt.Errorf("write HTML part: %w", err)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, errors.Wrap(err, "close HTML part")
+			return true, fmt.Errorf("close HTML part: %w", err)
 		}
 	}
 
 	err = multipartWriter.Close()
 	if err != nil {
-		return false, errors.Wrap(err, "close multipartWriter")
+		return false, fmt.Errorf("close multipartWriter: %w", err)
 	}
 
 	_, err = message.Write(multipartBuffer.Bytes())
 	if err != nil {
-		return false, errors.Wrap(err, "write body buffer")
+		return false, fmt.Errorf("write body buffer: %w", err)
 	}
 
 	success = true
@@ -347,7 +347,7 @@ func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", []byte{}, nil
 }
 
-// Used for AUTH LOGIN. (Maybe password should be encrypted)
+// Used for AUTH LOGIN. (Maybe password should be encrypted).
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
 		switch strings.ToLower(string(fromServer)) {
@@ -368,7 +368,7 @@ func (n *Email) getPassword() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("could not read %s: %w", n.conf.AuthPasswordFile, err)
 		}
-		return string(content), nil
+		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
 }

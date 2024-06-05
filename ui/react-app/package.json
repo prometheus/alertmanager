@@ -1,0 +1,51 @@
+{
+  "name": "@prometheus-io/alertmanager",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "clean": "rimraf dist/",
+    "start": "webpack serve --config webpack.dev.ts",
+    "build": "webpack --config webpack.prod.ts",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint --fix src --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.9.3",
+    "@emotion/styled": "^11.9.3",
+    "@mui/material": "^5.10.14",
+    "@tanstack/react-query": "^4.7.1",
+    "mdi-material-ui": "^7.8.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.3.0",
+    "use-query-params": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.51",
+    "@types/react-dom": "^18.2.19",
+    "@typescript-eslint/eslint-plugin": "^5.30.7",
+    "@typescript-eslint/parser": "^5.30.7",
+    "css-loader": "^6.7.1",
+    "dotenv-defaults": "^5.0.2",
+    "esbuild-loader": "^2.20.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-jsx-a11y": "^6.6.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-react": "^7.30.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-webpack-plugin": "^4.0.1",
+    "fork-ts-checker-webpack-plugin": "^7.3.0",
+    "html-webpack-plugin": "^5.5.0",
+    "style-loader": "^3.3.4",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.7.4",
+    "webpack": "^5.75.0",
+    "webpack-bundle-analyzer": "^4.7.0",
+    "webpack-cli": "^4.10.0",
+    "webpack-dev-server": "^4.11.1",
+    "webpack-merge": "^5.10.0"
+  }
+}

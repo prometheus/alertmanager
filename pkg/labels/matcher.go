@@ -18,7 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/prometheus/common/model"
 )
@@ -74,6 +76,9 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 }
 
 func (m *Matcher) String() string {
+	if strings.ContainsFunc(m.Name, isReserved) {
+		return fmt.Sprintf(`%s%s%s`, strconv.Quote(m.Name), m.Type, strconv.Quote(m.Value))
+	}
 	return fmt.Sprintf(`%s%s"%s"`, m.Name, m.Type, openMetricsEscape(m.Value))
 }
 
@@ -198,4 +203,14 @@ func (ms Matchers) String() string {
 	buf.WriteByte('}')
 
 	return buf.String()
+}
+
+// This is copied from matchers/parse/lexer.go. It will be removed when
+// the transition window from classic matchers to UTF-8 matchers is complete,
+// as then we can use double quotes when printing the label name for all
+// matchers. Until then, the classic parser does not understand double quotes
+// around the label name, so we use this function as a heuristic to tell if
+// the matcher was parsed with the UTF-8 parser or the classic parser.
+func isReserved(r rune) bool {
+	return unicode.IsSpace(r) || strings.ContainsRune("{}!=~,\\\"'`", r)
 }

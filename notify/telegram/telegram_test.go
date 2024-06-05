@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -45,6 +46,7 @@ receivers:
   telegram_configs:
   - chat_id: 1234
     bot_token: secret
+    message_thread_id: 1357
 `
 	var c config.Config
 	err := yaml.Unmarshal([]byte(in), &c)
@@ -56,6 +58,7 @@ receivers:
 	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
 	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
 	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
+	require.Equal(t, 1357, c.Receivers[0].TelegramConfigs[0].MessageThreadID)
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
 }
 
@@ -84,6 +87,13 @@ func TestTelegramRetry(t *testing.T) {
 }
 
 func TestTelegramNotify(t *testing.T) {
+	token := "secret"
+
+	fileWithToken, err := os.CreateTemp("", "telegram-bot-token")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithToken.WriteString(token)
+	require.NoError(t, err, "writing to temp file failed")
+
 	for _, tc := range []struct {
 		name    string
 		cfg     config.TelegramConfig
@@ -94,6 +104,7 @@ func TestTelegramNotify(t *testing.T) {
 			cfg: config.TelegramConfig{
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   config.Secret(token),
 			},
 			expText: "<code>x < y</code>",
 		},
@@ -103,13 +114,24 @@ func TestTelegramNotify(t *testing.T) {
 				ParseMode:  "HTML",
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   config.Secret(token),
 			},
 			expText: "<code>x &lt; y</code>",
+		},
+		{
+			name: "Bot token from file",
+			cfg: config.TelegramConfig{
+				Message:      "test",
+				HTTPConfig:   &commoncfg.HTTPClientConfig{},
+				BotTokenFile: fileWithToken.Name(),
+			},
+			expText: "test",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var out []byte
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/bot"+token+"/sendMessage", r.URL.Path)
 				var err error
 				out, err = io.ReadAll(r.Body)
 				require.NoError(t, err)

@@ -27,6 +27,37 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Intervener determines whether a given time and active route time interval should mute outgoing notifications.
+// It implements the TimeMuter interface.
+type Intervener struct {
+	intervals map[string][]TimeInterval
+}
+
+// Mutes implements the TimeMuter interface.
+func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error) {
+	var in []string
+	for _, name := range names {
+		interval, ok := i.intervals[name]
+		if !ok {
+			return false, nil, fmt.Errorf("time interval %s doesn't exist in config", name)
+		}
+
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				in = append(in, name)
+			}
+		}
+	}
+
+	return len(in) > 0, in, nil
+}
+
+func NewIntervener(ti map[string][]TimeInterval) *Intervener {
+	return &Intervener{
+		intervals: ti,
+	}
+}
+
 // TimeInterval describes intervals of time. ContainsTime will tell you if a golang time is contained
 // within the interval.
 type TimeInterval struct {
@@ -354,7 +385,7 @@ func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 
 // MarshalText implements the econding.TextMarshaler interface for WeekdayRange.
 // It converts the range into a colon-separated string, or a single weekday if possible.
-// e.g. "monday:friday" or "saturday".
+// E.g. "monday:friday" or "saturday".
 func (r WeekdayRange) MarshalText() ([]byte, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
@@ -421,7 +452,7 @@ func (tz Location) MarshalJSON() (out []byte, err error) {
 
 // MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
 // It converts the struct into a colon-separated string, or a single element if
-// appropriate. e.g. "monday:friday" or "monday"
+// appropriate. E.g. "monday:friday" or "monday".
 func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	if ir.Begin == ir.End {
 		return []byte(strconv.Itoa(ir.Begin)), nil
@@ -435,9 +466,6 @@ func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	bytes, err := ir.MarshalText()
 	return string(bytes), err
 }
-
-// TimeLayout specifies the layout to be used in time.Parse() calls for time intervals.
-const TimeLayout = "15:04"
 
 var (
 	validTime   = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"

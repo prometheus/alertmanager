@@ -1,0 +1,46 @@
+---
+name: CI
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+  workflow_call:
+jobs:
+  test_frontend:
+    name: Test alertmanager frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: make clean
+      - run: make all
+        working-directory: ./ui/app
+      - run: make assets
+      - run: make apiv2
+      - run: git diff --exit-code
+
+  build:
+    name: Build Alertmanager for common architectures
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        thread: [ 0, 1, 2 ]
+    steps:
+      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
+      - uses: ./.github/promci/actions/build
+        with:
+          promu_opts: "-p linux/amd64 -p windows/amd64 -p linux/arm64 -p darwin/amd64 -p darwin/arm64 -p linux/386"
+          parallelism: 3
+          thread: ${{ matrix.thread }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    # Whenever the Go version is updated here, .promu.yml
+    # should also be updated.
+    container:
+      image: quay.io/prometheus/golang-builder:1.21-base
+    steps:
+      - uses: actions/checkout@v3
+      - uses: prometheus/promci@v0.0.2
+      - uses: ./.github/promci/actions/setup_environment
+      - run: make
+      - run: git diff --exit-code

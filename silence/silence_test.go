@@ -15,10 +15,11 @@ package silence
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"runtime"
 	"sort"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,9 +27,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -206,29 +211,47 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := clock.NewMock()
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
+	reg := prometheus.NewRegistry()
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock}
+	s.metrics = newMetrics(reg, s)
 	stopc := make(chan struct{})
 
-	called := make(chan struct{}, 5)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-			called <- struct{}{}
+		defer wg.Done()
+		s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
 			return 0, nil
 		})
-		close(called)
 	}()
-	runtime.Gosched()
+	gosched()
 
-	clock.Add(100 * time.Millisecond)
+	// Before the first tick, no maintenance executed.
+	clock.Add(9 * time.Second)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Add(1 * time.Second)
+	require.EqualValues(t, 1, calls.Load())
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
-	calls := 0
-	for range called {
-		calls++
-	}
+	wg.Wait()
 
-	require.EqualValues(t, 2, calls)
+	require.EqualValues(t, 2, calls.Load())
+
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_silences_maintenance_errors_total How many maintenances were executed for silences that failed.
+# TYPE alertmanager_silences_maintenance_errors_total counter
+alertmanager_silences_maintenance_errors_total 0
+# HELP alertmanager_silences_maintenance_total How many maintenances were executed for silences.
+# TYPE alertmanager_silences_maintenance_total counter
+alertmanager_silences_maintenance_total 2
+`), "alertmanager_silences_maintenance_total", "alertmanager_silences_maintenance_errors_total"))
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -263,7 +286,7 @@ func TestSilencesSetSilence(t *testing.T) {
 		_, err := pbutil.ReadDelimited(r, &e)
 		require.NoError(t, err)
 
-		require.Equal(t, want["some_id"], &e)
+		require.Equal(t, &e, want["some_id"])
 		close(done)
 	}
 
@@ -271,7 +294,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		require.NoError(t, s.setSilence(sil, nowpb))
+		require.NoError(t, s.setSilence(sil, nowpb, false))
 	}()
 
 	// Ensure broadcast was called.
@@ -300,7 +323,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id1, err := s.Set(sil1)
 	require.NoError(t, err)
-	require.NotEqual(t, id1, "")
+	require.NotEqual(t, "", id1)
 
 	want := state{
 		id1: &pb.MeshSilence{
@@ -326,7 +349,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
-	require.NotEqual(t, id2, "")
+	require.NotEqual(t, "", id2)
 
 	want = state{
 		id1: want[id1],
@@ -434,6 +457,81 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
+}
+
+func TestSilenceLimits(t *testing.T) {
+	s, err := New(Options{
+		Limits: Limits{
+			MaxSilences:        1,
+			MaxPerSilenceBytes: 2 << 11, // 4KB
+		},
+		Retention: 100 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go s.Maintenance(100*time.Millisecond, "", stopCh, nil)
+
+	// Insert sil1 should succeed without error.
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+	}
+	id1, err := s.Set(sil1)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id1)
+
+	// Insert sil2 should fail because maximum number of silences
+	// has been exceeded.
+	sil2 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+	}
+	id2, err := s.Set(sil2)
+	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
+	require.Equal(t, "", id2)
+
+	// Expire sil1 and wait for the maintenance to finish.
+	// This should allow sil2 to be inserted.
+	require.NoError(t, s.Expire(id1))
+	time.Sleep(150 * time.Millisecond)
+	id2, err = s.Set(sil2)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id2)
+
+	// Should be able to update sil2 without hitting the limit.
+	_, err = s.Set(sil2)
+	require.NoError(t, err)
+
+	// Expire sil2.
+	require.NoError(t, s.Expire(id2))
+	time.Sleep(150 * time.Millisecond)
+
+	// Insert sil3 should fail because it exceeds maximum size.
+	sil3 := &pb.Silence{
+		Matchers: []*pb.Matcher{
+			{
+				Name:    strings.Repeat("a", 2<<9),
+				Pattern: strings.Repeat("b", 2<<9),
+			},
+			{
+				Name:    strings.Repeat("c", 2<<9),
+				Pattern: strings.Repeat("d", 2<<9),
+			},
+		},
+		CreatedBy: strings.Repeat("e", 2<<9),
+		Comment:   strings.Repeat("f", 2<<9),
+		StartsAt:  time.Now(),
+		EndsAt:    time.Now().Add(5 * time.Minute),
+	}
+	id3, err := s.Set(sil3)
+	require.Error(t, err)
+	// Do not check the exact size as it can change between consecutive runs
+	// due to padding.
+	require.Contains(t, err.Error(), "silence exceeded maximum size")
+	require.Equal(t, "", id3)
 }
 
 func TestSetActiveSilence(t *testing.T) {
@@ -920,7 +1018,7 @@ func TestSilenceExpire(t *testing.T) {
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)
-	require.Equal(t, silenceState, types.SilenceStateExpired)
+	require.Equal(t, types.SilenceStateExpired, silenceState)
 
 	sil, err = s.QueryOne(QIDs("active"))
 	require.NoError(t, err)
@@ -1020,6 +1118,46 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.Equal(t, 3, count)
 }
 
+// This test checks that invalid silences can be expired.
+func TestSilenceExpireInvalid(t *testing.T) {
+	s, err := New(Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	clock := clock.NewMock()
+	s.clock = clock
+	now := s.nowUTC()
+
+	// In this test the matcher has an invalid type.
+	silence := pb.Silence{
+		Id:        "active",
+		Matchers:  []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+		StartsAt:  now.Add(-time.Minute),
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now.Add(-time.Hour),
+	}
+	// Assert that this silence is invalid.
+	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
+
+	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+
+	// The silence should be active.
+	count, err := s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	clock.Add(time.Millisecond)
+	require.NoError(t, s.Expire("active"))
+	clock.Add(time.Millisecond)
+
+	// The silence should be expired.
+	count, err = s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
 func TestSilencer(t *testing.T) {
 	ss, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
@@ -1093,7 +1231,7 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
-func TestValidateMatcher(t *testing.T) {
+func TestValidateClassicMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher
 		err string
@@ -1135,6 +1273,13 @@ func TestValidateMatcher(t *testing.T) {
 			err: "invalid label name",
 		}, {
 			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label name",
+		}, {
+			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
@@ -1157,6 +1302,13 @@ func TestValidateMatcher(t *testing.T) {
 		}, {
 			m: &pb.Matcher{
 				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
 				Pattern: "b",
 				Type:    333,
 			},
@@ -1165,7 +1317,107 @@ func TestValidateMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checkErr(t, c.err, ValidateMatcher(c.m))
+		checkErr(t, c.err, validateMatcher(c.m))
+	}
+}
+
+func TestValidateUTF8Matcher(t *testing.T) {
+	cases := []struct {
+		m   *pb.Matcher
+		err string
+	}{
+		{
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "00",
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "\xf0\x9f\x99\x82", // U+1F642
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "((",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "))",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xff",
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "invalid label value",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "\xf0\x9f\x99\x82", // U+1F642
+				Type:    pb.Matcher_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    333,
+			},
+			err: "unknown matcher type",
+		},
+	}
+
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(log.NewNopLogger(), ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(log.NewNopLogger(), ff)
+
+	for _, c := range cases {
+		checkErr(t, c.err, validateMatcher(c.m))
 	}
 }
 
@@ -1419,66 +1671,8 @@ func TestStateDecodingError(t *testing.T) {
 	require.Equal(t, ErrInvalidState, err)
 }
 
-func benchmarkSilencesQuery(b *testing.B, numSilences int) {
-	s, err := New(Options{})
-	require.NoError(b, err)
-
-	clock := clock.NewMock()
-	s.clock = clock
-	now := clock.Now()
-
-	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
-
-	s.st = state{}
-	for i := 0; i < numSilences; i++ {
-		id := fmt.Sprint("ID", i)
-		// Patterns also contain the ID to bust any caches that might be used under the hood.
-		patA := "A{4}|" + id
-		patB := id // Does not match.
-		if i%10 == 0 {
-			// Every 10th time, have an actually matching pattern.
-			patB = "B(B|C)B.|" + id
-		}
-
-		s.st[id] = &pb.MeshSilence{Silence: &pb.Silence{
-			Id: id,
-			Matchers: []*pb.Matcher{
-				{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
-				{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
-			},
-			StartsAt:  now.Add(-time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
-		}}
-	}
-
-	// Run things once to populate the matcherCache.
-	sils, _, err := s.Query(
-		QState(types.SilenceStateActive),
-		QMatches(lset),
-	)
-	require.NoError(b, err)
-	require.Equal(b, numSilences/10, len(sils))
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sils, _, err := s.Query(
-			QState(types.SilenceStateActive),
-			QMatches(lset),
-		)
-		require.NoError(b, err)
-		require.Equal(b, numSilences/10, len(sils))
-	}
-}
-
-func Benchmark100SilencesQuery(b *testing.B) {
-	benchmarkSilencesQuery(b, 100)
-}
-
-func Benchmark1000SilencesQuery(b *testing.B) {
-	benchmarkSilencesQuery(b, 1000)
-}
-
-func Benchmark10000SilencesQuery(b *testing.B) {
-	benchmarkSilencesQuery(b, 10000)
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }

@@ -16,6 +16,7 @@ package template
 import (
 	tmplhtml "html/template"
 	"net/url"
+	"sync"
 	"testing"
 	tmpltext "text/template"
 	"time"
@@ -46,6 +47,13 @@ func TestPairValues(t *testing.T) {
 
 	expected := []string{"value1", "value2", "value3"}
 	require.EqualValues(t, expected, pairs.Values())
+}
+
+func TestPairsString(t *testing.T) {
+	pairs := Pairs{{"name1", "value1"}}
+	require.Equal(t, "name1=value1", pairs.String())
+	pairs = append(pairs, Pair{"name2", "value2"})
+	require.Equal(t, "name1=value1, name2=value2", pairs.String())
 }
 
 func TestKVSortedPairs(t *testing.T) {
@@ -322,6 +330,11 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "Abc",
 		},
 		{
+			title: "Template using TrimSpace",
+			in:    `{{ " a b c " | trimSpace }}`,
+			exp:   "a b c",
+		},
+		{
 			title: "Template using positive match",
 			in:    `{{ if match "^a" "abc"}}abc{{ end }}`,
 			exp:   "abc",
@@ -381,7 +394,7 @@ func TestTemplateExpansion(t *testing.T) {
 			}
 			got, err := f(tc.in, tc.data)
 			if tc.fail {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
@@ -445,11 +458,89 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 			}
 			got, err := f(tc.in, tc.data)
 			if tc.fail {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+// This test asserts that template functions are thread-safe.
+func TestTemplateFuncs(t *testing.T) {
+	tmpl, err := FromGlobs([]string{})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title  string
+		in     string
+		data   interface{}
+		exp    string
+		expErr string
+	}{{
+		title: "Template using toUpper",
+		in:    `{{ "abc" | toUpper }}`,
+		exp:   "ABC",
+	}, {
+		title: "Template using toLower",
+		in:    `{{ "ABC" | toLower }}`,
+		exp:   "abc",
+	}, {
+		title: "Template using title",
+		in:    `{{ "abc" | title }}`,
+		exp:   "Abc",
+	}, {
+		title: "Template using trimSpace",
+		in:    `{{ " abc " | trimSpace }}`,
+		exp:   "abc",
+	}, {
+		title: "Template using join",
+		in:    `{{ . | join "," }}`,
+		data:  []string{"abc", "def"},
+		exp:   "abc,def",
+	}, {
+		title: "Template using match",
+		in:    `{{ match "[a-z]+" "abc" }}`,
+		exp:   "true",
+	}, {
+		title: "Template using reReplaceAll",
+		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
+		exp:   "ABc",
+	}, {
+		title: "Template using date",
+		in:    `{{ . | date "2006-01-02" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01",
+	}, {
+		title: "Template using tz",
+		in:    `{{ . | tz "Europe/Paris" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01 09:15:30 +0100 CET",
+	}, {
+		title:  "Template using invalid tz",
+		in:     `{{ . | tz "Invalid/Timezone" }}`,
+		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
+	}} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			wg := sync.WaitGroup{}
+			for i := 0; i < 10; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					got, err := tmpl.ExecuteTextString(tc.in, tc.data)
+					if tc.expErr == "" {
+						require.NoError(t, err)
+						require.Equal(t, tc.exp, got)
+					} else {
+						require.EqualError(t, err, tc.expErr)
+						require.Empty(t, got)
+					}
+				}()
+			}
+			wg.Wait()
 		})
 	}
 }

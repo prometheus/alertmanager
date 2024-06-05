@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	// nolint:godot
 	// maxMessageSize represents the maximum message length that Webex supports.
 	maxMessageSize = 7439
 )
@@ -92,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	w := webhook{
 		Markdown: message,
-		RoomID:   n.conf.RoomID,
+		RoomID:   tmpl(n.conf.RoomID),
 	}
 
 	var payload bytes.Buffer
