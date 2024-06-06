@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go v1.53.14
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.23.0
 	github.com/go-openapi/errors v0.22.0
