@@ -388,6 +388,14 @@ func (s *Silences) nowUTC() time.Time {
 	return s.clock.Now().UTC()
 }
 
+// SetLimits sets the limits for silences. It does not enforce the new limits
+// for existing silences.
+func (s *Silences) SetLimits(l Limits) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.limits = l
+}
+
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.

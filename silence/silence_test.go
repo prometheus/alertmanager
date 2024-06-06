@@ -500,7 +500,7 @@ func TestSilenceLimits(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, "", id2)
 
-	// Should be able to update sil2 without hitting the limit.
+	// Should be able to update sil2 without hitting the limits.
 	_, err = s.Set(sil2)
 	require.NoError(t, err)
 
@@ -533,6 +533,72 @@ func TestSilenceLimits(t *testing.T) {
 	// due to padding.
 	require.Contains(t, err.Error(), "silence exceeded maximum size")
 	require.Equal(t, "", id3)
+}
+
+func TestSilence_SetLimits(t *testing.T) {
+	// Start with no limits.
+	s, err := New(Options{})
+	require.NoError(t, err)
+
+	// Insert sil1 should succeed without error.
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+		Comment:  strings.Repeat("a", 2<<12), // 8KB
+	}
+	id1, err := s.Set(sil1)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id1)
+	// There should be one active silence.
+	n, err := s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	// Set some limits. This should not affect existing silences.
+	s.SetLimits(Limits{
+		MaxSilences:        1,
+		MaxPerSilenceBytes: 1 << 11, // 4KB,
+	})
+	n, err = s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	// Insert sil2 should fail because the maximum number of silences
+	// has been exceeded.
+	sil2 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "c", Pattern: "d"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+		Comment:  strings.Repeat("c", 2<<11), // 4KB
+	}
+	id2, err := s.Set(sil2)
+	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
+	require.Equal(t, "", id2)
+
+	// Expire sil1 and run the GC.
+	require.NoError(t, s.Expire(id1))
+	n, err = s.GC()
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	// Insert sil2 should fail again because the maximum size has been
+	// exceeded.
+	sil2.Id = ""
+	id2, err = s.Set(sil2)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "silence exceeded maximum size")
+	require.Equal(t, "", id2)
+
+	// Should be able to insert sil3 without hitting the limits.
+	sil3 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "e", Pattern: "f"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+	}
+	id3, err := s.Set(sil3)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id3)
 }
 
 func TestSetActiveSilence(t *testing.T) {
