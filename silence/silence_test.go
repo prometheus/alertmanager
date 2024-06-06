@@ -487,7 +487,7 @@ func TestSilenceLimits(t *testing.T) {
 	}
 	id2, err := s.Set(sil2)
 	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
-	require.Equal(t, "", id2)
+	require.NotEqual(t, "", id2)
 
 	// Expire sil1 and run the GC. This should allow sil2 to be
 	// inserted.
@@ -496,6 +496,8 @@ func TestSilenceLimits(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
+	// Need to erase the previous Id as the insert failed.
+	sil2.Id = ""
 	id2, err = s.Set(sil2)
 	require.NoError(t, err)
 	require.NotEqual(t, "", id2)
@@ -532,7 +534,7 @@ func TestSilenceLimits(t *testing.T) {
 	// Do not check the exact size as it can change between consecutive runs
 	// due to padding.
 	require.Contains(t, err.Error(), "silence exceeded maximum size")
-	require.Equal(t, "", id3)
+	require.NotEqual(t, "", id3)
 }
 
 func TestSetActiveSilence(t *testing.T) {

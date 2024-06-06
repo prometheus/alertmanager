@@ -621,13 +621,6 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		}
 	}
 
-	// If we got here it's either a new silence or a replacing one.
-	if s.limits.MaxSilences > 0 {
-		if len(s.st)+1 > s.limits.MaxSilences {
-			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), s.limits.MaxSilences)
-		}
-	}
-
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return "", fmt.Errorf("generate uuid: %w", err)
@@ -638,11 +631,14 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	if err = s.setSilence(sil, now, false); err != nil {
-		return "", err
+	// If we got here it's either a new silence or a replacing one.
+	if s.limits.MaxSilences > 0 {
+		if len(s.st)+1 > s.limits.MaxSilences {
+			return sil.Id, fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), s.limits.MaxSilences)
+		}
 	}
 
-	return sil.Id, nil
+	return sil.Id, s.setSilence(sil, now, false)
 }
 
 // canUpdate returns true if silence a can be updated to b without
