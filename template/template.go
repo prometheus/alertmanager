@@ -207,6 +207,9 @@ var DefaultFuncs = FuncMap{
 	},
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
+
+	"grafanaExploreURL":     grafanaExploreURL,
+	"queryFromGeneratorURL": queryFromGeneratorURL,
 }
 
 // Pair is a key/value string pair.
