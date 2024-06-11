@@ -30,6 +30,7 @@ import (
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
+	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -177,7 +178,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 	}{
 		{
 			"unknownSid",
-			500,
+			404,
 		},
 		{
 			unexpiredSid,
@@ -466,5 +467,46 @@ func TestMatchFilterLabels(t *testing.T) {
 
 		ms := []*labels.Matcher{m}
 		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
+	}
+}
+
+func TestGetReceiversHandler(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+- name: 'team-Y'
+`
+	cfg, _ := config.Load(in)
+	api := API{
+		uptime:             time.Now(),
+		logger:             log.NewNopLogger(),
+		alertmanagerConfig: cfg,
+	}
+
+	for _, tc := range []struct {
+		body         string
+		expectedCode int
+	}{
+		{
+			`[{"name":"team-X"},{"name":"team-Y"}]`,
+			200,
+		},
+	} {
+		r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+			HTTPRequest: r,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		require.Equal(t, tc.body, string(body))
 	}
 }

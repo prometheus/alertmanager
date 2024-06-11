@@ -76,13 +76,23 @@ func (s *TestSilence) Match(v ...string) *TestSilence {
 	return s
 }
 
-// MatchRE adds a new regex matcher to the silence
+// GetMatches returns the plain matchers for the silence.
+func (s TestSilence) GetMatches() []string {
+	return s.match
+}
+
+// MatchRE adds a new regex matcher to the silence.
 func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 	if len(v)%2 == 1 {
 		panic("bad key/values")
 	}
 	s.matchRE = append(s.matchRE, v...)
 	return s
+}
+
+// GetMatchREs returns the regex matchers for the silence.
+func (s *TestSilence) GetMatchREs() []string {
+	return s.matchRE
 }
 
 // Comment sets the comment to the silence.
@@ -183,6 +193,11 @@ func (a *TestAlert) Active(tss ...float64) *TestAlert {
 	a.startsAt = tss[0]
 
 	return a
+}
+
+// HasLabels returns true if the two label sets are equivalent, otherwise false.
+func (a *TestAlert) HasLabels(labels models.LabelSet) bool {
+	return reflect.DeepEqual(a.labels, labels)
 }
 
 func equalAlerts(a, b *models.GettableAlert, opts *AcceptanceOpts) bool {

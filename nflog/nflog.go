@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
@@ -73,23 +74,19 @@ func QGroupKey(gk string) QueryParam {
 	}
 }
 
+// Log holds the notification log state for alerts that have been notified.
 type Log struct {
+	clock clock.Clock
+
 	logger    log.Logger
 	metrics   *metrics
-	now       func() time.Time
 	retention time.Duration
-
-	runInterval time.Duration
-	snapf       string
-	stopc       chan struct{}
-	done        func()
 
 	// For now we only store the most recently added log entry.
 	// The key is a serialized concatenation of group key and receiver.
-	mtx                 sync.RWMutex
-	st                  state
-	broadcast           func([]byte)
-	maintenanceOverride MaintenanceFunc
+	mtx       sync.RWMutex
+	st        state
+	broadcast func([]byte)
 }
 
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for the nflog.
@@ -104,6 +101,8 @@ type metrics struct {
 	queryErrorsTotal        prometheus.Counter
 	queryDuration           prometheus.Histogram
 	propagatedMessagesTotal prometheus.Counter
+	maintenanceTotal        prometheus.Counter
+	maintenanceErrorsTotal  prometheus.Counter
 }
 
 func newMetrics(r prometheus.Registerer) *metrics {
@@ -122,6 +121,14 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_nflog_snapshot_size_bytes",
 		Help: "Size of the last notification log snapshot in bytes.",
+	})
+	m.maintenanceTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_nflog_maintenance_total",
+		Help: "How many maintenances were executed for the notification log.",
+	})
+	m.maintenanceErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_nflog_maintenance_errors_total",
+		Help: "How many maintenances were executed for the notification log that failed.",
 	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_queries_total",
@@ -149,79 +156,11 @@ func newMetrics(r prometheus.Registerer) *metrics {
 			m.queryErrorsTotal,
 			m.queryDuration,
 			m.propagatedMessagesTotal,
+			m.maintenanceTotal,
+			m.maintenanceErrorsTotal,
 		)
 	}
 	return m
-}
-
-// Option configures a new Log implementation.
-type Option func(*Log) error
-
-// WithRetention sets the retention time for log st.
-func WithRetention(d time.Duration) Option {
-	return func(l *Log) error {
-		l.retention = d
-		return nil
-	}
-}
-
-// WithNow overwrites the function used to retrieve a timestamp
-// for the current point in time.
-// This is generally useful for injection during tests.
-func WithNow(f func() time.Time) Option {
-	return func(l *Log) error {
-		l.now = f
-		return nil
-	}
-}
-
-// WithLogger configures a logger for the notification log.
-func WithLogger(logger log.Logger) Option {
-	return func(l *Log) error {
-		l.logger = logger
-		return nil
-	}
-}
-
-// WithMetrics registers metrics for the notification log.
-func WithMetrics(r prometheus.Registerer) Option {
-	return func(l *Log) error {
-		l.metrics = newMetrics(r)
-		return nil
-	}
-}
-
-// WithMaintenance configures the Log to run garbage collection
-// and snapshotting, if configured, at the given interval.
-//
-// The maintenance terminates on receiving from the provided channel.
-// The done function is called after the final snapshot was completed.
-// If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
-func WithMaintenance(d time.Duration, stopc chan struct{}, done func(), maintenanceOverride MaintenanceFunc) Option {
-	return func(l *Log) error {
-		if d == 0 {
-			return errors.New("maintenance interval must not be 0")
-		}
-		l.runInterval = d
-		l.stopc = stopc
-		l.done = done
-		l.maintenanceOverride = maintenanceOverride
-		return nil
-	}
-}
-
-// WithSnapshot configures the log to be initialized from a given snapshot file.
-// If maintenance is configured, a snapshot will be saved periodically and on
-// shutdown as well.
-func WithSnapshot(sf string) Option {
-	return func(l *Log) error {
-		l.snapf = sf
-		return nil
-	}
-}
-
-func utcNow() time.Time {
-	return time.Now().UTC()
 }
 
 type state map[string]*pb.MeshEntry
@@ -273,7 +212,7 @@ func decodeState(r io.Reader) (state, error) {
 			st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
 			continue
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		return nil, err
@@ -289,48 +228,80 @@ func marshalMeshEntry(e *pb.MeshEntry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Options configures a new Log implementation.
+type Options struct {
+	SnapshotReader io.Reader
+	SnapshotFile   string
+
+	Retention time.Duration
+
+	Logger  log.Logger
+	Metrics prometheus.Registerer
+}
+
+func (o *Options) validate() error {
+	if o.SnapshotFile != "" && o.SnapshotReader != nil {
+		return errors.New("only one of SnapshotFile and SnapshotReader must be set")
+	}
+
+	return nil
+}
+
 // New creates a new notification log based on the provided options.
 // The snapshot is loaded into the Log if it is set.
-func New(opts ...Option) (*Log, error) {
+func New(o Options) (*Log, error) {
+	if err := o.validate(); err != nil {
+		return nil, err
+	}
+
 	l := &Log{
+		clock:     clock.New(),
+		retention: o.Retention,
 		logger:    log.NewNopLogger(),
-		now:       utcNow,
 		st:        state{},
 		broadcast: func([]byte) {},
-	}
-	for _, o := range opts {
-		if err := o(l); err != nil {
-			return nil, err
-		}
-	}
-	if l.metrics == nil {
-		l.metrics = newMetrics(nil)
+		metrics:   newMetrics(o.Metrics),
 	}
 
-	if l.snapf != "" {
-		if f, err := os.Open(l.snapf); !os.IsNotExist(err) {
-			if err != nil {
-				return l, err
-			}
-			defer f.Close()
+	if o.Logger != nil {
+		l.logger = o.Logger
+	}
 
-			if err := l.loadSnapshot(f); err != nil {
-				return l, err
+	if o.SnapshotFile != "" {
+		if r, err := os.Open(o.SnapshotFile); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
 			}
+			level.Debug(l.logger).Log("msg", "notification log snapshot file doesn't exist", "err", err)
+		} else {
+			o.SnapshotReader = r
+			defer r.Close()
 		}
 	}
 
-	go l.run()
+	if o.SnapshotReader != nil {
+		if err := l.loadSnapshot(o.SnapshotReader); err != nil {
+			return l, err
+		}
+	}
 
 	return l, nil
 }
 
-// run periodic background maintenance.
-func (l *Log) run() {
-	if l.runInterval == 0 || l.stopc == nil {
+func (l *Log) now() time.Time {
+	return l.clock.Now()
+}
+
+// Maintenance garbage collects the notification log state at the given interval. If the snapshot
+// file is set, a snapshot is written to it afterwards.
+// Terminates on receiving from stopc.
+// If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
+func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
+	if interval == 0 || stopc == nil {
+		level.Error(l.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := time.NewTicker(l.runInterval)
+	t := l.clock.Ticker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
@@ -339,40 +310,42 @@ func (l *Log) run() {
 		if _, err := l.GC(); err != nil {
 			return size, err
 		}
-		if l.snapf == "" {
+		if snapf == "" {
 			return size, nil
 		}
-		f, err := openReplace(l.snapf)
+		f, err := openReplace(snapf)
 		if err != nil {
 			return size, err
 		}
 		if size, err = l.Snapshot(f); err != nil {
+			f.Close()
 			return size, err
 		}
 		return size, f.Close()
 	}
 
-	if l.maintenanceOverride != nil {
-		doMaintenance = l.maintenanceOverride
-	}
-
-	if l.done != nil {
-		defer l.done()
+	if override != nil {
+		doMaintenance = override
 	}
 
 	runMaintenance := func(do func() (int64, error)) error {
-		start := l.now()
+		l.metrics.maintenanceTotal.Inc()
+		start := l.now().UTC()
 		level.Debug(l.logger).Log("msg", "Running maintenance")
 		size, err := do()
-		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
 		l.metrics.snapshotSize.Set(float64(size))
-		return err
+		if err != nil {
+			l.metrics.maintenanceErrorsTotal.Inc()
+			return err
+		}
+		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+		return nil
 	}
 
 Loop:
 	for {
 		select {
-		case <-l.stopc:
+		case <-stopc:
 			break Loop
 		case <-t.C:
 			if err := runMaintenance(doMaintenance); err != nil {
@@ -380,8 +353,9 @@ Loop:
 			}
 		}
 	}
+
 	// No need to run final maintenance if we don't want to snapshot.
-	if l.snapf == "" {
+	if snapf == "" {
 		return
 	}
 	if err := runMaintenance(doMaintenance); err != nil {

@@ -1,0 +1,22 @@
+name: mixin
+on:
+  pull_request:
+    paths:
+      - "doc/alertmanager-mixin/**"
+
+jobs:
+  mixin:
+    name: mixin-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.21.x
+      # pin the mixtool version until https://github.com/monitoring-mixins/mixtool/issues/135 is merged.
+      - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@2282201396b69055bb0f92f187049027a16d2130
+      - run: go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
+      - run: go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+      - run: make -C doc/alertmanager-mixin lint

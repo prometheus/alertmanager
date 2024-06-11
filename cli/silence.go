@@ -14,7 +14,7 @@
 package cli
 
 import (
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 // silenceCmd represents the silence command

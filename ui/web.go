@@ -62,7 +62,7 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		fs.ServeHTTP(w, req)
 	})
 
-	r.Post("/-/reload", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		errc := make(chan error)
 		defer close(errc)
 
@@ -70,22 +70,22 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		if err := <-errc; err != nil {
 			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 		}
-	}))
+	})
 
-	r.Get("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	}))
-	r.Head("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Head("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
-	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Get("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	}))
-	r.Head("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.Head("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)

@@ -92,10 +92,6 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 		opts:    opts,
 		actions: map[float64][]func(){},
 	}
-	// TODO: Should this really be set during creation time? Why not do this
-	// during Run() time, maybe there is something else long happening between
-	// creation and running.
-	opts.baseTime = time.Now()
 
 	return test
 }
@@ -206,6 +202,10 @@ func (t *AcceptanceTest) Run() {
 		t.T.Fatal(err)
 	}
 
+	// Set the reference time right before running the test actions to avoid
+	// test failures due to slow setup of the test environment.
+	t.opts.baseTime = time.Now()
+
 	go t.runActions()
 
 	var latest float64
@@ -294,14 +294,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("starting alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("waiting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("waiting alertmanager cluster: %w", err)
 		}
 	}
 
@@ -342,7 +342,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	am.cmd = cmd
 
 	if err := am.cmd.Start(); err != nil {
-		return fmt.Errorf("starting alertmanager failed: %s", err)
+		return fmt.Errorf("starting alertmanager failed: %w", err)
 	}
 
 	go func() {
@@ -364,7 +364,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		_, err = io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager failed: %s", err)
+			return fmt.Errorf("starting alertmanager failed: %w", err)
 		}
 		return nil
 	}
@@ -457,27 +457,46 @@ func Version() (string, error) {
 
 // AddAlertsAt declares alerts that are to be added to the Alertmanager
 // server at a relative point in time.
-func (am *Alertmanager) AddAlertsAt(at float64, alerts ...*TestAlert) {
+func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*TestAlert) {
 	am.t.Do(at, func() {
-		am.AddAlerts(alerts...)
+		am.AddAlerts(omitEquals, alerts...)
 	})
 }
 
 // AddAlerts declares alerts that are to be added to the Alertmanager server.
-func (am *Alertmanager) AddAlerts(alerts ...*TestAlert) {
+// The omitEquals option omits alertname= from the command line args passed to
+// amtool and instead uses the alertname value as the first argument to the command.
+// For example `amtool alert add foo` instead of `amtool alert add alertname=foo`.
+// This has been added to allow certain tests to test adding alerts both with and
+// without alertname=. All other tests that use AddAlerts as a fixture can set this
+// to false.
+func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
-		out, err := am.addAlertCommand(alert)
+		out, err := am.addAlertCommand(omitEquals, alert)
 		if err != nil {
 			am.t.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
 
-func (am *Alertmanager) addAlertCommand(alert *TestAlert) ([]byte, error) {
+func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
-	for key, val := range alert.labels {
-		args = append(args, key+"="+val)
+	// Make a copy of the labels
+	labels := make(models.LabelSet, len(alert.labels))
+	for k, v := range alert.labels {
+		labels[k] = v
+	}
+	if omitEquals {
+		// If alertname is present and omitEquals is true then the command should
+		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
+		if alertname, ok := labels["alertname"]; ok {
+			args = append(args, alertname)
+			delete(labels, "alertname")
+		}
+	}
+	for k, v := range labels {
+		args = append(args, k+"="+v)
 	}
 	startsAt := strfmt.DateTime(am.opts.expandTime(alert.startsAt))
 	args = append(args, "--start="+startsAt.String())
@@ -490,9 +509,10 @@ func (am *Alertmanager) addAlertCommand(alert *TestAlert) ([]byte, error) {
 }
 
 // QueryAlerts uses the amtool cli to query alerts.
-func (am *Alertmanager) QueryAlerts() ([]TestAlert, error) {
+func (am *Alertmanager) QueryAlerts(match ...string) ([]TestAlert, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
-	cmd := exec.Command(amtool, amURLFlag, "alert", "query")
+	args := append([]string{amURLFlag, "alert", "query"}, match...)
+	cmd := exec.Command(amtool, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
@@ -521,7 +541,7 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 		}
 		summary := strings.TrimSpace(line[summPos:])
 		alert := TestAlert{
-			labels:   models.LabelSet{"name": alertName},
+			labels:   models.LabelSet{"alertname": alertName},
 			startsAt: float64(startsAt.Unix()),
 			summary:  summary,
 		}
@@ -558,9 +578,9 @@ func (am *Alertmanager) addSilenceCommand(sil *TestSilence) ([]byte, error) {
 }
 
 // QuerySilence queries the current silences using the 'amtool silence query' command.
-func (am *Alertmanager) QuerySilence() ([]TestSilence, error) {
+func (am *Alertmanager) QuerySilence(match ...string) ([]TestSilence, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
-	args := []string{amURLFlag, "silence", "query"}
+	args := append([]string{amURLFlag, "silence", "query"}, match...)
 	cmd := exec.Command(amtool, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -656,6 +676,28 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 		am.t.Fatal(err)
 		return
 	}
+}
+
+func (am *Alertmanager) ShowRoute() ([]byte, error) {
+	return am.showRouteCommand()
+}
+
+func (am *Alertmanager) showRouteCommand() ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "config", "routes", "show"}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
+}
+
+func (am *Alertmanager) TestRoute(labels ...string) ([]byte, error) {
+	return am.testRouteCommand(labels...)
+}
+
+func (am *Alertmanager) testRouteCommand(labels ...string) ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := append([]string{amURLFlag, "config", "routes", "test"}, labels...)
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
 }
 
 func (am *Alertmanager) getURL(path string) string {

@@ -14,6 +14,7 @@
 package types
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -302,6 +304,39 @@ type Alert struct {
 	Timeout   bool
 }
 
+func validateLs(ls model.LabelSet) error {
+	for ln, lv := range ls {
+		if !compat.IsValidLabelName(ln) {
+			return fmt.Errorf("invalid name %q", ln)
+		}
+		if !lv.IsValid() {
+			return fmt.Errorf("invalid value %q", lv)
+		}
+	}
+	return nil
+}
+
+// Validate overrides the same method in model.Alert to allow UTF-8 labels.
+// This can be removed once prometheus/common has support for UTF-8.
+func (a *Alert) Validate() error {
+	if a.StartsAt.IsZero() {
+		return fmt.Errorf("start time missing")
+	}
+	if !a.EndsAt.IsZero() && a.EndsAt.Before(a.StartsAt) {
+		return fmt.Errorf("start time must be before end time")
+	}
+	if len(a.Labels) == 0 {
+		return fmt.Errorf("at least one label pair required")
+	}
+	if err := validateLs(a.Labels); err != nil {
+		return fmt.Errorf("invalid label set: %w", err)
+	}
+	if err := validateLs(a.Annotations); err != nil {
+		return fmt.Errorf("invalid annotations: %w", err)
+	}
+	return nil
+}
+
 // AlertSlice is a sortable slice of Alerts.
 type AlertSlice []*Alert
 
@@ -379,6 +414,11 @@ func (a *Alert) Merge(o *Alert) *Alert {
 // Mutes.
 type Muter interface {
 	Mutes(model.LabelSet) bool
+}
+
+// TimeMuter determines if alerts should be muted based on the specified current time and active time interval on the route.
+type TimeMuter interface {
+	Mutes(timeIntervalName []string, now time.Time) (bool, error)
 }
 
 // A MuteFunc is a function that implements the Muter interface.

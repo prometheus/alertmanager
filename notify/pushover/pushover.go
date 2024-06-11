@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -83,9 +84,32 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 
+	var (
+		token   string
+		userKey string
+	)
+	if n.conf.Token != "" {
+		token = string(n.conf.Token)
+	} else {
+		content, err := os.ReadFile(n.conf.TokenFile)
+		if err != nil {
+			return false, fmt.Errorf("read token_file: %w", err)
+		}
+		token = string(content)
+	}
+	if n.conf.UserKey != "" {
+		userKey = string(n.conf.UserKey)
+	} else {
+		content, err := os.ReadFile(n.conf.UserKeyFile)
+		if err != nil {
+			return false, fmt.Errorf("read user_key_file: %w", err)
+		}
+		userKey = string(content)
+	}
+
 	parameters := url.Values{}
-	parameters.Add("token", tmpl(string(n.conf.Token)))
-	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	parameters.Add("token", tmpl(token))
+	parameters.Add("user", tmpl(userKey))
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
@@ -121,7 +145,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
+
+	newttl := int64(time.Duration(n.conf.TTL).Seconds())
+	if newttl > 0 {
+		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -139,5 +170,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, resp.Body)
+	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+	return shouldRetry, err
 }

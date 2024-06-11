@@ -102,45 +102,45 @@ route:
 
   # The child route trees.
   routes:
-  # This routes performs a regular expression match on alert labels to
+  # This route performs a regular expression match on alert labels to
   # catch alerts that are related to a list of services.
-  - match_re:
-      service: ^(foo1|foo2|baz)$
+  - matchers:
+    - service=~"^(foo1|foo2|baz)$"
     receiver: team-X-mails
 
     # The service has a sub-route for critical alerts, any alerts
     # that do not match, i.e. severity != critical, fall-back to the
     # parent node and are sent to 'team-X-mails'
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-X-pager
 
-  - match:
-      service: files
+  - matchers:
+    - service="files"
     receiver: team-Y-mails
 
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
   # no team to handle it, it defaults to the DB team.
-  - match:
-      service: database
+  - matchers:
+    - service="database"
 
     receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
 
     routes:
-    - match:
-        owner: team-X
+    - matchers:
+      - owner="team-X"
       receiver: team-X-pager
 
-    - match:
-        owner: team-Y
+    - matchers:
+      - owner="team-Y"
       receiver: team-Y-pager
 
 
@@ -372,6 +372,7 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.probe-interval` value: interval between random node probes (default "1s")
 - `--cluster.reconnect-interval` value: interval between attempting to reconnect to lost peers (default "10s")
 - `--cluster.reconnect-timeout` value: length of time to attempt to reconnect to a lost peer (default: "6h0m0s")
+- `--cluster.label` value: the label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages (default:"")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
@@ -422,4 +423,3 @@ Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blo
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
 [quay]: https://quay.io/repository/prometheus/alertmanager
 
-Rebuild Image: Tue Aug 16 14:18:41 EDT 2022
