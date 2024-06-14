@@ -564,6 +564,13 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
+func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
+	return &pb.MeshSilence{
+		Silence:   sil,
+		ExpiresAt: sil.EndsAt.Add(s.retention),
+	}
+}
+
 func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool) error {
 	sil.UpdatedAt = now
 
@@ -573,10 +580,7 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 		}
 	}
 
-	msil := &pb.MeshSilence{
-		Silence:   sil,
-		ExpiresAt: sil.EndsAt.Add(s.retention),
-	}
+	msil := s.toMeshSilence(sil)
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
 		return err
@@ -612,22 +616,21 @@ func (s *Silences) Set(sil *pb.Silence) error {
 		return ErrNotFound
 	}
 
-	if ok {
-		if canUpdate(prev, sil, now) {
-			return s.setSilence(sil, now, false)
-		}
-		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
-			// We cannot update the silence, expire the old one.
-			if err := s.expire(prev.Id); err != nil {
-				return fmt.Errorf("expire previous silence: %w", err)
-			}
-		}
+	if ok && canUpdate(prev, sil, now) {
+		return s.setSilence(sil, now, false)
 	}
 
 	// If we got here it's either a new silence or a replacing one.
 	if s.limits.MaxSilences != nil {
 		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
 			return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
+		}
+	}
+
+	if ok && getState(prev, s.nowUTC()) != types.SilenceStateExpired {
+		// We cannot update the silence, expire the old one.
+		if err := s.expire(prev.Id); err != nil {
+			return fmt.Errorf("expire previous silence: %w", err)
 		}
 	}
 

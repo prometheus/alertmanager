@@ -15,6 +15,7 @@ package silence
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"runtime"
 	"sort"
@@ -470,32 +471,24 @@ func TestSilenceLimits(t *testing.T) {
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
 	require.NoError(t, s.Set(sil1))
-	require.NotEqual(t, "", sil1.Id)
 
-	// Insert sil2 should fail because maximum number of silences
-	// has been exceeded.
+	// Insert sil2 should fail because maximum number of silences has been
+	// exceeded.
 	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		Matchers: []*pb.Matcher{{Name: "c", Pattern: "d"}},
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
 	require.EqualError(t, s.Set(sil2), "exceeded maximum number of silences: 1 (limit: 1)")
-	require.Equal(t, "", sil2.Id)
 
-	// Expire sil1 and run the GC. This should allow sil2 to be
-	// inserted.
+	// Expire sil1 and run the GC. This should allow sil2 to be inserted.
 	require.NoError(t, s.Expire(sil1.Id))
 	n, err := s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-
-	require.NoError(t, s.Set(sil2))
-	require.NotEqual(t, "", sil2.Id)
-
-	// Should be able to update sil2 without hitting the limit.
 	require.NoError(t, s.Set(sil2))
 
-	// Expire sil2.
+	// Expire sil2 and run the GC.
 	require.NoError(t, s.Expire(sil2.Id))
 	n, err = s.GC()
 	require.NoError(t, err)
@@ -505,26 +498,55 @@ func TestSilenceLimits(t *testing.T) {
 	sil3 := &pb.Silence{
 		Matchers: []*pb.Matcher{
 			{
-				Name:    strings.Repeat("a", 2<<9),
-				Pattern: strings.Repeat("b", 2<<9),
+				Name:    strings.Repeat("e", 2<<9),
+				Pattern: strings.Repeat("f", 2<<9),
 			},
 			{
-				Name:    strings.Repeat("c", 2<<9),
-				Pattern: strings.Repeat("d", 2<<9),
+				Name:    strings.Repeat("g", 2<<9),
+				Pattern: strings.Repeat("h", 2<<9),
 			},
 		},
-		CreatedBy: strings.Repeat("e", 2<<9),
-		Comment:   strings.Repeat("f", 2<<9),
+		CreatedBy: strings.Repeat("i", 2<<9),
+		Comment:   strings.Repeat("j", 2<<9),
 		StartsAt:  time.Now(),
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
-	err = s.Set(sil3)
-	require.Error(t, err)
-	// Do not check the exact size as it can change between consecutive runs
-	// due to padding.
-	require.Contains(t, err.Error(), "silence exceeded maximum size")
-	// TODO: Once we fix https://github.com/prometheus/alertmanager/issues/3878 this should be require.Equal.
-	require.NotEqual(t, "", sil3.Id)
+	require.EqualError(t, s.Set(sil3), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil3).Size()))
+
+	// Should be able to insert sil4.
+	sil4 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "k", Pattern: "l"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+	}
+	require.NoError(t, s.Set(sil4))
+
+	// Should be able to update sil4 without modifications. It is expected to
+	// keep the same ID.
+	sil5 := cloneSilence(sil4)
+	require.NoError(t, s.Set(sil5))
+	require.Equal(t, sil4.Id, sil5.Id)
+
+	// Should be able to update the comment. It is also expected to keep the
+	// same ID.
+	sil6 := cloneSilence(sil5)
+	sil6.Comment = "m"
+	require.NoError(t, s.Set(sil6))
+	require.Equal(t, sil5.Id, sil6.Id)
+
+	// Should not be able to update the start and end time as this requires
+	// sil5 to be expired and a new silence to be created. However, this would
+	// exceed the maximum number of silences, which counts both active and
+	// expired silences.
+	sil7 := cloneSilence(sil6)
+	sil7.StartsAt = time.Now().Add(5 * time.Minute)
+	sil7.EndsAt = time.Now().Add(10 * time.Minute)
+	require.EqualError(t, s.Set(sil7), "exceeded maximum number of silences: 1 (limit: 1)")
+
+	// sil6 should not be expired because the update failed.
+	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	require.NoError(t, err)
+	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
 }
 
 func TestSilenceNoLimits(t *testing.T) {
