@@ -29,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -117,7 +116,7 @@ func (n *Notifier) createSNSClient(tmpl func(string) string, tmplErr *error) (*s
 		return nil, err
 	}
 	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'api_url' template"))
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'api_url' template: %w", *tmplErr))
 	}
 
 	if n.conf.Sigv4.RoleARN != "" {
@@ -152,14 +151,14 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	publishInput := &sns.PublishInput{}
 	messageAttributes := n.createMessageAttributes(tmpl)
 	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'attributes' template"))
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'attributes' template: %w", *tmplErr))
 	}
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
 	messageSizeLimit := 256 * 1024
 	if n.conf.TopicARN != "" {
 		topicARN := tmpl(n.conf.TopicARN)
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'topic_arn' template"))
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'topic_arn' template: %w", *tmplErr))
 		}
 		publishInput.SetTopicArn(topicARN)
 		// If we are using a topic ARN, it could be a FIFO topic specified by the topic's suffix ".fifo".
@@ -176,7 +175,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(tmpl(n.conf.PhoneNumber))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'phone_number' template"))
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'phone_number' template: %w", *tmplErr))
 		}
 		// If we have an SMS message, we need to truncate to 1600 characters/runes.
 		messageSizeLimit = 1600
@@ -184,13 +183,13 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.TargetARN != "" {
 		publishInput.SetTargetArn(tmpl(n.conf.TargetARN))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'target_arn' template"))
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'target_arn' template: %w", *tmplErr))
 		}
 	}
 
 	tmplMessage := tmpl(n.conf.Message)
 	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'message' template"))
+		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'message' template: %w", *tmplErr))
 	}
 	messageToSend, isTrunc, err := validateAndTruncateMessage(tmplMessage, messageSizeLimit)
 	if err != nil {
@@ -207,7 +206,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.Subject != "" {
 		publishInput.SetSubject(tmpl(n.conf.Subject))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, errors.Wrap(*tmplErr, "execute 'subject' template"))
+			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'subject' template: %w", *tmplErr))
 		}
 	}
 
