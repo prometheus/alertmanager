@@ -602,24 +602,24 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 
 // Set the specified silence. If a silence with the ID already exists and the modification
 // modifies history, the old silence gets expired and a new one is created.
-func (s *Silences) Set(sil *pb.Silence) (string, error) {
+func (s *Silences) Set(sil *pb.Silence) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	now := s.nowUTC()
 	prev, ok := s.getSilence(sil.Id)
 	if sil.Id != "" && !ok {
-		return "", ErrNotFound
+		return ErrNotFound
 	}
 
 	if ok {
 		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil, now, false)
+			return s.setSilence(sil, now, false)
 		}
 		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
 			if err := s.expire(prev.Id); err != nil {
-				return "", fmt.Errorf("expire previous silence: %w", err)
+				return fmt.Errorf("expire previous silence: %w", err)
 			}
 		}
 	}
@@ -627,13 +627,13 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	// If we got here it's either a new silence or a replacing one.
 	if s.limits.MaxSilences != nil {
 		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
-			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
+			return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
 		}
 	}
 
 	uid, err := uuid.NewV4()
 	if err != nil {
-		return "", fmt.Errorf("generate uuid: %w", err)
+		return fmt.Errorf("generate uuid: %w", err)
 	}
 	sil.Id = uid.String()
 
@@ -641,11 +641,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	if err = s.setSilence(sil, now, false); err != nil {
-		return "", err
-	}
-
-	return sil.Id, nil
+	return s.setSilence(sil, now, false)
 }
 
 // canUpdate returns true if silence a can be updated to b without
