@@ -321,14 +321,13 @@ func TestSilenceSet(t *testing.T) {
 		StartsAt: start1.Add(2 * time.Minute),
 		EndsAt:   start1.Add(5 * time.Minute),
 	}
-	id1, err := s.Set(sil1)
-	require.NoError(t, err)
-	require.NotEqual(t, "", id1)
+	require.NoError(t, s.Set(sil1))
+	require.NotEqual(t, "", sil1.Id)
 
 	want := state{
-		id1: &pb.MeshSilence{
+		sil1.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id1,
+				Id:        sil1.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  start1.Add(2 * time.Minute),
 				EndsAt:    start1.Add(5 * time.Minute),
@@ -347,15 +346,14 @@ func TestSilenceSet(t *testing.T) {
 		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
 		EndsAt:   start2.Add(1 * time.Minute),
 	}
-	id2, err := s.Set(sil2)
-	require.NoError(t, err)
-	require.NotEqual(t, "", id2)
+	require.NoError(t, s.Set(sil2))
+	require.NotEqual(t, "", sil2.Id)
 
 	want = state{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id2,
+				Id:        sil2.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  start2,
 				EndsAt:    start2.Add(1 * time.Minute),
@@ -373,15 +371,14 @@ func TestSilenceSet(t *testing.T) {
 	sil3 := cloneSilence(sil2)
 	sil3.EndsAt = start3.Add(100 * time.Minute)
 
-	id3, err := s.Set(sil3)
-	require.NoError(t, err)
-	require.Equal(t, id2, id3)
+	require.NoError(t, s.Set(sil3))
+	require.Equal(t, sil2.Id, sil3.Id)
 
 	want = state{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id2,
+				Id:        sil2.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  start2,
 				EndsAt:    start3.Add(100 * time.Minute),
@@ -399,16 +396,15 @@ func TestSilenceSet(t *testing.T) {
 	sil4 := cloneSilence(sil3)
 	sil4.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
 
-	id4, err := s.Set(sil4)
-	require.NoError(t, err)
+	require.NoError(t, s.Set(sil4))
 	// This new silence gets a new id.
-	require.NotEqual(t, id2, id4)
+	require.NotEqual(t, sil2.Id, sil4.Id)
 
 	want = state{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id2,
+				Id:        sil2.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  start2,
 				EndsAt:    start4, // Expired
@@ -416,9 +412,9 @@ func TestSilenceSet(t *testing.T) {
 			},
 			ExpiresAt: start4.Add(s.retention),
 		},
-		id4: &pb.MeshSilence{
+		sil4.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id4,
+				Id:        sil4.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
 				StartsAt:  start4,
 				EndsAt:    start3.Add(100 * time.Minute),
@@ -437,17 +433,16 @@ func TestSilenceSet(t *testing.T) {
 	sil5.StartsAt = start1
 	sil5.EndsAt = start1.Add(5 * time.Minute)
 
-	id5, err := s.Set(sil5)
-	require.NoError(t, err)
-	require.NotEqual(t, id2, id4)
+	require.NoError(t, s.Set(sil5))
+	require.NotEqual(t, sil2.Id, sil5.Id)
 
 	want = state{
-		id1: want[id1],
-		id2: want[id2],
-		id4: want[id4],
-		id5: &pb.MeshSilence{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: want[sil2.Id],
+		sil4.Id: want[sil4.Id],
+		sil5.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id5,
+				Id:        sil5.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  start5, // New silences have their start time set to "now" when created.
 				EndsAt:    start1.Add(5 * time.Minute),
@@ -474,9 +469,8 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
-	id1, err := s.Set(sil1)
-	require.NoError(t, err)
-	require.NotEqual(t, "", id1)
+	require.NoError(t, s.Set(sil1))
+	require.NotEqual(t, "", sil1.Id)
 
 	// Insert sil2 should fail because maximum number of silences
 	// has been exceeded.
@@ -485,27 +479,24 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
-	id2, err := s.Set(sil2)
-	require.EqualError(t, err, "exceeded maximum number of silences: 1 (limit: 1)")
-	require.Equal(t, "", id2)
+	require.EqualError(t, s.Set(sil2), "exceeded maximum number of silences: 1 (limit: 1)")
+	require.Equal(t, "", sil2.Id)
 
 	// Expire sil1 and run the GC. This should allow sil2 to be
 	// inserted.
-	require.NoError(t, s.Expire(id1))
+	require.NoError(t, s.Expire(sil1.Id))
 	n, err := s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
-	id2, err = s.Set(sil2)
-	require.NoError(t, err)
-	require.NotEqual(t, "", id2)
+	require.NoError(t, s.Set(sil2))
+	require.NotEqual(t, "", sil2.Id)
 
 	// Should be able to update sil2 without hitting the limit.
-	_, err = s.Set(sil2)
-	require.NoError(t, err)
+	require.NoError(t, s.Set(sil2))
 
 	// Expire sil2.
-	require.NoError(t, s.Expire(id2))
+	require.NoError(t, s.Expire(sil2.Id))
 	n, err = s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
@@ -527,12 +518,13 @@ func TestSilenceLimits(t *testing.T) {
 		StartsAt:  time.Now(),
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
-	id3, err := s.Set(sil3)
+	err = s.Set(sil3)
 	require.Error(t, err)
 	// Do not check the exact size as it can change between consecutive runs
 	// due to padding.
 	require.Contains(t, err.Error(), "silence exceeded maximum size")
-	require.Equal(t, "", id3)
+	// TODO: Once we fix https://github.com/prometheus/alertmanager/issues/3878 this should be require.Equal.
+	require.NotEqual(t, "", sil3.Id)
 }
 
 func TestSilenceNoLimits(t *testing.T) {
@@ -548,9 +540,8 @@ func TestSilenceNoLimits(t *testing.T) {
 		EndsAt:   time.Now().Add(5 * time.Minute),
 		Comment:  strings.Repeat("c", 2<<9),
 	}
-	id, err := s.Set(sil)
-	require.NoError(t, err)
-	require.NotEqual(t, "", id)
+	require.NoError(t, s.Set(sil))
+	require.NotEqual(t, "", sil.Id)
 }
 
 func TestSilenceUpsert(t *testing.T) {
@@ -615,7 +606,7 @@ func TestSetActiveSilence(t *testing.T) {
 		StartsAt: startsAt,
 		EndsAt:   endsAt,
 	}
-	id1, _ := s.Set(sil1)
+	require.NoError(t, s.Set(sil1))
 
 	// Update silence with 2 extra nanoseconds so the "seconds" part should not change
 
@@ -623,20 +614,19 @@ func TestSetActiveSilence(t *testing.T) {
 	newEndsAt := endsAt.Add(2 * time.Minute)
 
 	sil2 := cloneSilence(sil1)
-	sil2.Id = id1
+	sil2.Id = sil1.Id
 	sil2.StartsAt = newStartsAt
 	sil2.EndsAt = newEndsAt
 
 	clock.Add(time.Minute)
 	now = s.nowUTC()
-	id2, err := s.Set(sil2)
-	require.NoError(t, err)
-	require.Equal(t, id1, id2)
+	require.NoError(t, s.Set(sil2))
+	require.Equal(t, sil1.Id, sil2.Id)
 
 	want := state{
-		id2: &pb.MeshSilence{
+		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        id1,
+				Id:        sil1.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				StartsAt:  newStartsAt,
 				EndsAt:    newEndsAt,
@@ -668,8 +658,7 @@ func TestSilencesSetFail(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		_, err := s.Set(c.s)
-		checkErr(t, c.err, err)
+		checkErr(t, c.err, s.Set(c.s))
 	}
 }
 
@@ -1234,22 +1223,22 @@ func TestSilencer(t *testing.T) {
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
-	_, err = ss.Set(&pb.Silence{
+	sil1 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(5 * time.Minute),
-	})
-	require.NoError(t, err)
+	}
+	require.NoError(t, ss.Set(sil1))
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
 
-	id, err := ss.Set(&pb.Silence{
+	sil2 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(5 * time.Minute),
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, id)
+	}
+	require.NoError(t, ss.Set(sil2))
+	require.NotEmpty(t, sil2.Id)
 
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
 
@@ -1260,8 +1249,8 @@ func TestSilencer(t *testing.T) {
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
 
 	// Update silence to start in the future.
-	_, err = ss.Set(&pb.Silence{
-		Id:       id,
+	err = ss.Set(&pb.Silence{
+		Id:       sil2.Id,
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
 		StartsAt: now.Add(time.Hour),
 		EndsAt:   now.Add(3 * time.Hour),
@@ -1277,7 +1266,7 @@ func TestSilencer(t *testing.T) {
 	// Exposes issue #2426.
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
 
-	_, err = ss.Set(&pb.Silence{
+	err = ss.Set(&pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
 		StartsAt: now.Add(time.Hour),
 		EndsAt:   now.Add(3 * time.Hour),
