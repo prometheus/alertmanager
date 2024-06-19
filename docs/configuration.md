@@ -989,10 +989,12 @@ group_labels:
 # Type of issue, e.g. Bug
 [ issue_type: <string> ]
 
-# Name of the workflow transition to resolve an issue. The target status must have the category "done"
+# Name of the workflow transition to resolve an issue. The target status must have the category "done".
+# NOTE: The name of the transition can be localized and depends on the language setting of the service account.
 [ resolve_transition: <string> ]
 
-# Name of the workflow transition to reopen an issue. The target status should not have the category "done"
+# Name of the workflow transition to reopen an issue. The target status should not have the category "done".
+# NOTE: The name of the transition can be localized and depends on the language setting of the service account.
 [ reopen_transition: <string> ]
 
 # If reopen_transition is defined, ignore issues with that resolution

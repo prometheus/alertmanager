@@ -297,7 +297,6 @@ func (n *Notifier) doAPIRequest(method, path string, requestBody any) ([]byte, b
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Language", "en")
-	req.Header.Set("X-Force-Accept-Language", "true")
 
 	resp, err := n.client.Do(req)
 	if err != nil {
