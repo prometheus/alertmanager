@@ -1,14 +1,14 @@
 # Copyright Contributors to the Open Cluster Management project
 # Licensed under the Apache License 2.0
 
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.21 AS builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.21 AS builder
 
 WORKDIR /workspace
 COPY . .
 
 RUN go mod vendor && PATH=$PATH:/go/bin make build
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 COPY --from=builder /workspace/amtool /bin/amtool
 COPY --from=builder /workspace/alertmanager /bin/alertmanager
