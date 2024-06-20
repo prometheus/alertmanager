@@ -97,7 +97,7 @@ h4 {
             {{ else }}
             <td class="alert alert-good" style="margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; vertical-align: top; font-size: 16px; color: #fff; font-weight: 500; padding: 20px; text-align: center; border-radius: 3px 3px 0 0; background-color: #68B90F;" valign="top" align="center" bgcolor="#68B90F">
               {{ .Alerts | len }} alert{{ if gt (len .Alerts) 1 }}s{{ end }} for {{ range .GroupLabels.SortedPairs }}
-                {{ .Name }}={{ .Value }}
+                {{ .Name }}={{ .Value }} 
               {{ end }}
             </td>
             {{ end }}
