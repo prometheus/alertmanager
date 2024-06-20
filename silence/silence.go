@@ -207,9 +207,9 @@ type Limits struct {
 	// MaxSilences limits the maximum number of silences, including expired
 	// silences.
 	MaxSilences func() int
-	// MaxPerSilenceBytes is the maximum size of an individual silence as
+	// MaxSilenceSizeBytes is the maximum size of an individual silence as
 	// stored on disk.
-	MaxPerSilenceBytes func() int
+	MaxSilenceSizeBytes func() int
 }
 
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
@@ -585,9 +585,9 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 	// Check the limit unless the silence has been expired. This is to avoid
 	// situations where silences cannot be expired after the limit has been
 	// reduced.
-	if s.limits.MaxPerSilenceBytes != nil {
+	if s.limits.MaxSilenceSizeBytes != nil {
 		n := msil.Size()
-		if m := s.limits.MaxPerSilenceBytes(); m > 0 && n > m && sil.EndsAt.After(now) {
+		if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m && sil.EndsAt.After(now) {
 			return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
 		}
 	}
