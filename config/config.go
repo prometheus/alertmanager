@@ -165,7 +165,12 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 		s.URL = &url.URL{}
 		return nil
 	}
-	return json.Unmarshal(data, (*URL)(s))
+	// Redact the secret URL in case of errors
+	if err := json.Unmarshal(data, (*URL)(s)); err != nil {
+		return errors.New(strings.ReplaceAll(err.Error(), string(data), "[REDACTED]"))
+	}
+
+	return nil
 }
 
 // Load parses the YAML input s into a Config.

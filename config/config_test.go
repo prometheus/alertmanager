@@ -602,6 +602,19 @@ func TestUnmarshalSecretURL(t *testing.T) {
 	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
 }
 
+func TestHideSecretURL(t *testing.T) {
+	b := []byte(`"://wrongurl/"`)
+	var u SecretURL
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "://wrongurl/") {
+			t.Fatal("config's String method reveals authentication credentials.")
+		}
+	}
+}
+
 func TestMarshalURL(t *testing.T) {
 	for name, tc := range map[string]struct {
 		input        *URL
