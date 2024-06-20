@@ -262,8 +262,8 @@ func run() int {
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Limits: silence.Limits{
-			MaxSilences:        *maxSilences,
-			MaxPerSilenceBytes: *maxPerSilenceBytes,
+			MaxSilences:        func() int { return *maxSilences },
+			MaxPerSilenceBytes: func() int { return *maxPerSilenceBytes },
 		},
 		Logger:  log.With(logger, "component", "silences"),
 		Metrics: prometheus.DefaultRegisterer,
