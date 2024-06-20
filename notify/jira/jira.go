@@ -78,6 +78,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			result := tmplText(tmpl)
 			return result, tmplTextErr
 		}
+
+		path   string
+		method string
 	)
 
 	existingIssue, shouldRetry, err := n.searchExistingIssue(key, alerts.Status())
@@ -85,20 +88,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return shouldRetry, fmt.Errorf("error searching existing issues: %w", err)
 	}
 
-	// Do not create new issues for resolved alerts
-	if existingIssue == nil && alerts.Status() == model.AlertResolved {
-		return false, nil
-	}
-
-	path := "issue"
-	method := http.MethodPost
-
 	if existingIssue == nil {
+		// Do not create new issues for resolved alerts
+		if alerts.Status() == model.AlertResolved {
+			return false, nil
+		}
+
 		level.Debug(n.logger).Log("msg", "create new issue", "alert", key.String())
+
+		path = "issue"
+		method = http.MethodPost
 	} else {
 		level.Debug(n.logger).Log("msg", "updating existing issue", "key", existingIssue.Key, "alert", key.String())
 
-		path += "/" + existingIssue.Key
+		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
 	}
 
@@ -122,9 +125,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	if existingIssue != nil && existingIssue.Key != "" && existingIssue.Fields != nil && existingIssue.Fields.Status != nil {
 		if n.conf.ResolveTransition != "" && alerts.Status() == model.AlertResolved && existingIssue.Fields.Status.StatusCategory.Key != "done" {
-			return n.TransitionIssue(key, existingIssue.Key, n.conf.ResolveTransition)
+			return n.transitionIssue(key, existingIssue.Key, n.conf.ResolveTransition)
 		} else if n.conf.ReopenTransition != "" && alerts.Status() == model.AlertFiring && existingIssue.Fields.Status.StatusCategory.Key == "done" {
-			return n.TransitionIssue(key, existingIssue.Key, n.conf.ReopenTransition)
+			return n.transitionIssue(key, existingIssue.Key, n.conf.ReopenTransition)
 		}
 	}
 
@@ -261,7 +264,7 @@ func (n *Notifier) getIssueTransitionByName(issueKey, transitionName string) (st
 	return "", false, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
 }
 
-func (n *Notifier) TransitionIssue(key notify.Key, issueKey, transitionName string) (bool, error) {
+func (n *Notifier) transitionIssue(key notify.Key, issueKey, transitionName string) (bool, error) {
 	transitionID, shouldRetry, err := n.getIssueTransitionByName(issueKey, transitionName)
 	if err != nil {
 		return shouldRetry, err
