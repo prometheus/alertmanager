@@ -535,6 +535,24 @@ func TestSilenceLimits(t *testing.T) {
 	require.Equal(t, "", id3)
 }
 
+func TestSilenceNoLimits(t *testing.T) {
+	s, err := New(Options{
+		Limits: Limits{},
+	})
+	require.NoError(t, err)
+
+	// Insert sil should succeed without error.
+	sil := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+		Comment:  strings.Repeat("c", 2<<9),
+	}
+	id, err := s.Set(sil)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id)
+}
+
 func TestSetActiveSilence(t *testing.T) {
 	s, err := New(Options{
 		Retention: time.Hour,
