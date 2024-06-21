@@ -607,12 +607,8 @@ func TestHideSecretURL(t *testing.T) {
 	var u SecretURL
 
 	err := json.Unmarshal(b, &u)
-	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "://wrongurl/") {
-			t.Fatal("config's String method reveals authentication credentials.")
-		}
-	}
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "wrongurl")
 }
 
 func TestMarshalURL(t *testing.T) {
