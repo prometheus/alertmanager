@@ -1,4 +1,4 @@
-// Copyright 2017 The Prometheus Authors
+// Copyright 2024 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package labels
+package matcher
 
 import (
 	"bytes"
@@ -205,7 +205,7 @@ func (ms Matchers) String() string {
 	return buf.String()
 }
 
-// This is copied from matchers/parse/lexer.go. It will be removed when
+// This is copied from matcher/parse/lexer.go. It will be removed when
 // the transition window from classic matchers to UTF-8 matchers is complete,
 // as then we can use double quotes when printing the label name for all
 // matchers. Until then, the classic parser does not understand double quotes

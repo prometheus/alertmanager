@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 // DefaultRouteOpts are the defaulting routing options which apply
@@ -47,7 +47,7 @@ type Route struct {
 
 	// Matchers an alert has to fulfill to match
 	// this route.
-	Matchers labels.Matchers
+	Matchers matcher.Matchers
 
 	// If true, an alert matches further routes on the same level.
 	Continue bool
@@ -91,26 +91,26 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	}
 
 	// Build matchers.
-	var matchers labels.Matchers
+	var matchers matcher.Matchers
 
 	// cr.Match will be deprecated. This for loop appends matchers.
 	for ln, lv := range cr.Match {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		m, err := matcher.NewMatcher(matcher.MatchEqual, ln, lv)
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		matchers = append(matchers, matcher)
+		matchers = append(matchers, m)
 	}
 
 	// cr.MatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.MatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		m, err := matcher.NewMatcher(matcher.MatchRegexp, ln, lv.String())
 		if err != nil {
 			// This error must not happen because the config already validates the yaml.
 			panic(err)
 		}
-		matchers = append(matchers, matcher)
+		matchers = append(matchers, m)
 	}
 
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.

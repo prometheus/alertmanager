@@ -30,8 +30,8 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
-	"github.com/prometheus/alertmanager/matchers/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
 
@@ -997,7 +997,7 @@ func (re Regexp) MarshalJSON() ([]byte, error) {
 
 // Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface
 // and MarshalYAML to implement the yaml.Marshaler interface.
-type Matchers labels.Matchers
+type Matchers matcher.Matchers
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
 func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -1012,7 +1012,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		*m = append(*m, pm...)
 	}
-	sort.Sort(labels.Matchers(*m))
+	sort.Sort(matcher.Matchers(*m))
 	return nil
 }
 
@@ -1038,7 +1038,7 @@ func (m *Matchers) UnmarshalJSON(data []byte) error {
 		}
 		*m = append(*m, pm...)
 	}
-	sort.Sort(labels.Matchers(*m))
+	sort.Sort(matcher.Matchers(*m))
 	return nil
 }
 
