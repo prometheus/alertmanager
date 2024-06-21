@@ -33,7 +33,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )

@@ -50,7 +50,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
