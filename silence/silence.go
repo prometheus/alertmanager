@@ -44,10 +44,10 @@ import (
 )
 
 // ErrNotFound is returned if a silence was not found.
-var ErrNotFound = fmt.Errorf("silence not found")
+var ErrNotFound = errors.New("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
-var ErrInvalidState = fmt.Errorf("invalid state")
+var ErrInvalidState = errors.New("invalid state")
 
 type matcherCache map[*pb.Silence]labels.Matchers
 
@@ -206,10 +206,10 @@ type Silences struct {
 type Limits struct {
 	// MaxSilences limits the maximum number of silences, including expired
 	// silences.
-	MaxSilences int
-	// MaxPerSilenceBytes is the maximum size of an individual silence as
+	MaxSilences func() int
+	// MaxSilenceSizeBytes is the maximum size of an individual silence as
 	// stored on disk.
-	MaxPerSilenceBytes int
+	MaxSilenceSizeBytes func() int
 }
 
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
@@ -338,7 +338,7 @@ type Options struct {
 
 func (o *Options) validate() error {
 	if o.SnapshotFile != "" && o.SnapshotReader != nil {
-		return fmt.Errorf("only one of SnapshotFile and SnapshotReader must be set")
+		return errors.New("only one of SnapshotFile and SnapshotReader must be set")
 	}
 	return nil
 }
@@ -585,8 +585,11 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool)
 	// Check the limit unless the silence has been expired. This is to avoid
 	// situations where silences cannot be expired after the limit has been
 	// reduced.
-	if n := msil.Size(); s.limits.MaxPerSilenceBytes > 0 && n > s.limits.MaxPerSilenceBytes && sil.EndsAt.After(now) {
-		return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, s.limits.MaxPerSilenceBytes)
+	if s.limits.MaxSilenceSizeBytes != nil {
+		n := msil.Size()
+		if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m && sil.EndsAt.After(now) {
+			return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
+		}
 	}
 
 	if s.st.merge(msil, now) {
@@ -645,9 +648,9 @@ func (s *Silences) set(sil *pb.Silence) (string, error) {
 	}
 
 	// If we got here it's either a new silence or a replacing one.
-	if s.limits.MaxSilences > 0 {
-		if len(s.st)+1 > s.limits.MaxSilences {
-			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), s.limits.MaxSilences)
+	if s.limits.MaxSilences != nil {
+		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
+			return "", fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
 		}
 	}
 

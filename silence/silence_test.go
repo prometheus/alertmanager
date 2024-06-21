@@ -462,8 +462,8 @@ func TestSilenceSet(t *testing.T) {
 func TestSilenceLimits(t *testing.T) {
 	s, err := New(Options{
 		Limits: Limits{
-			MaxSilences:        1,
-			MaxPerSilenceBytes: 2 << 11, // 4KB
+			MaxSilences:         func() int { return 1 },
+			MaxSilenceSizeBytes: func() int { return 2 << 11 }, // 4KB
 		},
 	})
 	require.NoError(t, err)
@@ -533,6 +533,24 @@ func TestSilenceLimits(t *testing.T) {
 	// due to padding.
 	require.Contains(t, err.Error(), "silence exceeded maximum size")
 	require.Equal(t, "", id3)
+}
+
+func TestSilenceNoLimits(t *testing.T) {
+	s, err := New(Options{
+		Limits: Limits{},
+	})
+	require.NoError(t, err)
+
+	// Insert sil should succeed without error.
+	sil := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+		Comment:  strings.Repeat("c", 2<<9),
+	}
+	id, err := s.Set(sil)
+	require.NoError(t, err)
+	require.NotEqual(t, "", id)
 }
 
 func TestSilenceUpsert(t *testing.T) {

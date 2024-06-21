@@ -146,7 +146,7 @@ func run() int {
 		retention           = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
 		maxSilences         = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
-		maxPerSilenceBytes  = kingpin.Flag("silences.max-per-silence-bytes", "Maximum per silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
+		maxSilenceSizeBytes = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval     = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
@@ -261,8 +261,8 @@ func run() int {
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Limits: silence.Limits{
-			MaxSilences:        *maxSilences,
-			MaxPerSilenceBytes: *maxPerSilenceBytes,
+			MaxSilences:         func() int { return *maxSilences },
+			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
 		},
 		Logger:  log.With(logger, "component", "silences"),
 		Metrics: prometheus.DefaultRegisterer,
