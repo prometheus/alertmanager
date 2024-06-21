@@ -217,7 +217,7 @@ func TestDialTimeout(t *testing.T) {
 	sent := []byte(("test stream"))
 	m, err := from.Write(sent)
 	require.NoError(t, err)
-	require.Greater(t, m, 0)
+	require.Positive(t, m)
 
 	wg.Wait()
 
