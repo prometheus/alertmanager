@@ -159,8 +159,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	unexpiredSid, err := silences.Set(unexpiredSil)
-	require.NoError(t, err)
+	require.NoError(t, silences.Set(unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -168,9 +167,8 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	expiredSid, err := silences.Set(expiredSil)
-	require.NoError(t, err)
-	require.NoError(t, silences.Expire(expiredSid))
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
 
 	for i, tc := range []struct {
 		sid          string
@@ -181,11 +179,11 @@ func TestDeleteSilenceHandler(t *testing.T) {
 			404,
 		},
 		{
-			unexpiredSid,
+			unexpiredSil.Id,
 			200,
 		},
 		{
-			expiredSid,
+			expiredSil.Id,
 			200,
 		},
 	} {
@@ -223,8 +221,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	unexpiredSid, err := silences.Set(unexpiredSil)
-	require.NoError(t, err)
+	require.NoError(t, silences.Set(unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -232,9 +229,8 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	expiredSid, err := silences.Set(expiredSil)
-	require.NoError(t, err)
-	require.NoError(t, silences.Expire(expiredSid))
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
 
 	t.Run("Silences CRUD", func(t *testing.T) {
 		for i, tc := range []struct {
@@ -259,14 +255,14 @@ func TestPostSilencesHandler(t *testing.T) {
 			},
 			{
 				"with an active silence ID - it extends the silence",
-				unexpiredSid,
+				unexpiredSil.Id,
 				now.Add(time.Hour),
 				now.Add(time.Hour * 2),
 				200,
 			},
 			{
 				"with an expired silence ID - it re-creates the silence",
-				expiredSid,
+				expiredSil.Id,
 				now.Add(time.Hour),
 				now.Add(time.Hour * 2),
 				200,
