@@ -94,6 +94,8 @@ global:
   # The default SMTP TLS requirement.
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
+  # The default TLS configuration for SMTP receivers
+  [ smtp_tls_config: <tls_config> ]
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
@@ -904,7 +906,7 @@ to: <tmpl_string>
 
 # TLS configuration.
 tls_config:
-  [ <tls_config> ]
+  [ <tls_config> | default = global.smtp_tls_config ]
 
 # The HTML body of the email notification.
 [ html: <tmpl_string> | default = '{{ template "email.default.html" . }}' ]
