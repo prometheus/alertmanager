@@ -567,7 +567,7 @@ func (s *Silences) Expire(id string) error {
 // existing limits. When this happens, a silence might have an ID even though
 // the operation failed. It is safe to re-use the silence for subsequent calls
 // to Set where previous calls have failed.
-func (s *Silences) Set(sil *pb.Silence) (err error) {
+func (s *Silences) Set(sil *pb.Silence) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
