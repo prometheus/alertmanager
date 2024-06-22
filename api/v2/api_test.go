@@ -406,16 +406,11 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
 			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
-		},
-		Status: &open_api_models.AlertStatus{
-			State:       &active,
-			InhibitedBy: []string{},
-			SilencedBy:  []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),
@@ -424,6 +419,12 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		Receivers: []*open_api_models.Receiver{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 	}, openAPIAlert)
 }
