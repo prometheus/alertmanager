@@ -240,11 +240,13 @@ func TestPostSilencesHandler(t *testing.T) {
 			expectedCode int
 		}{
 			{
-				"with an non-existent silence ID - it returns 404",
+				// This can happen when updating an expired silence that has been GC'd.
+				// Instead of failing, we can instead create a new silence.
+				"with an non-existent silence ID - it creates a new silence",
 				"unknownSid",
 				now.Add(time.Hour),
 				now.Add(time.Hour * 2),
-				404,
+				200,
 			},
 			{
 				"with no silence ID - it creates the silence",
