@@ -620,7 +620,9 @@ func (s *Silences) Set(sil *pb.Silence) error {
 		return s.setSilence(sil, now, false)
 	}
 
-	// If we got here it's either a new silence or a replacing one.
+	// If we got here it's either a new silence or a replacing one (which would
+	// also create a new silence) so we need to make sure we have capacity for
+	// the new silence.
 	if s.limits.MaxSilences != nil {
 		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
 			return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
@@ -628,7 +630,8 @@ func (s *Silences) Set(sil *pb.Silence) error {
 	}
 
 	if ok && getState(prev, s.nowUTC()) != types.SilenceStateExpired {
-		// We cannot update the silence, expire the old one.
+		// We cannot update the silence, expire the old one to leave a history of
+		// the silence before modification.
 		if err := s.expire(prev.Id); err != nil {
 			return fmt.Errorf("expire previous silence: %w", err)
 		}
