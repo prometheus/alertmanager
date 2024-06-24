@@ -198,7 +198,7 @@ common-unused:
 common-build: promu
 
 	@echo ">> building binaries"
-	$(PROMU) build --prefix $(PREFIX) $(PROMU_BINARIES)
+	$(PROMU) build -v --cgo --prefix $(PREFIX) $(PROMU_BINARIES)
 
 .PHONY: common-tarball
 common-tarball: promu
