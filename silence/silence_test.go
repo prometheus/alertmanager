@@ -535,7 +535,7 @@ func TestSilenceLimits(t *testing.T) {
 	require.Equal(t, sil5.Id, sil6.Id)
 
 	// Should not be able to update the start and end time as this requires
-	// sil5 to be expired and a new silence to be created. However, this would
+	// sil6 to be expired and a new silence to be created. However, this would
 	// exceed the maximum number of silences, which counts both active and
 	// expired silences.
 	sil7 := cloneSilence(sil6)
