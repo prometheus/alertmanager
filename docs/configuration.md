@@ -22,6 +22,17 @@ is not well-formed, the changes will not be applied and an error is logged.
 A configuration reload is triggered by sending a `SIGHUP` to the process or
 sending an HTTP POST request to the `/-/reload` endpoint.
 
+## Limits
+
+Alertmanager supports a number of configurable limits via command-line flags.
+
+To limit the maximum number of silences, including expired ones,
+use the `--silences.max-silences` flag.
+You can limit the maximum size of individual silences with `--silences.max-per-silence-bytes`,
+where the unit is in bytes.
+
+Both limits are disabled by default.
+
 ## Configuration file introduction
 
 To specify which configuration file to load, use the `--config.file` flag.
@@ -83,6 +94,8 @@ global:
   # The default SMTP TLS requirement.
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
+  # The default TLS configuration for SMTP receivers
+  [ smtp_tls_config: <tls_config> ]
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
@@ -893,7 +906,7 @@ to: <tmpl_string>
 
 # TLS configuration.
 tls_config:
-  [ <tls_config> ]
+  [ <tls_config> | default = global.smtp_tls_config ]
 
 # The HTML body of the email notification.
 [ html: <tmpl_string> | default = '{{ template "email.default.html" . }}' ]
@@ -1457,7 +1470,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ api_url: <string> | default = global.webex_api_url ]
 
 # ID of the Webex Teams room where to send the messages.
-room_id: <string>
+room_id: <tmpl_string>
 
 # Message template.
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]

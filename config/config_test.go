@@ -602,6 +602,15 @@ func TestUnmarshalSecretURL(t *testing.T) {
 	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
 }
 
+func TestHideSecretURL(t *testing.T) {
+	b := []byte(`"://wrongurl/"`)
+	var u SecretURL
+
+	err := json.Unmarshal(b, &u)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "wrongurl")
+}
+
 func TestMarshalURL(t *testing.T) {
 	for name, tc := range map[string]struct {
 		input        *URL
@@ -857,9 +866,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				FollowRedirects: true,
 				EnableHTTP2:     true,
 			},
-			ResolveTimeout:  model.Duration(5 * time.Minute),
-			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
-			SMTPFrom:        "alertmanager@example.org",
+			ResolveTimeout: model.Duration(5 * time.Minute),
+			SMTPSmarthost:  HostPort{Host: "localhost", Port: "25"},
+			SMTPFrom:       "alertmanager@example.org",
+			SMTPTLSConfig: &commoncfg.TLSConfig{
+				InsecureSkipVerify: false,
+			},
 			SlackAPIURL:     (*SecretURL)(mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:  true,
 			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
@@ -905,6 +917,9 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 						Smarthost:  HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
+						TLSConfig: &commoncfg.TLSConfig{
+							InsecureSkipVerify: false,
+						},
 					},
 				},
 			},

@@ -51,7 +51,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -147,6 +147,8 @@ func run() int {
 		dataDir             = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention           = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
+		maxSilences         = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
+		maxSilenceSizeBytes = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval     = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
@@ -264,8 +266,12 @@ func run() int {
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
-		Logger:       log.With(logger, "component", "silences"),
-		Metrics:      prometheus.DefaultRegisterer,
+		Limits: silence.Limits{
+			MaxSilences:         func() int { return *maxSilences },
+			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
+		},
+		Logger:  log.With(logger, "component", "silences"),
+		Metrics: prometheus.DefaultRegisterer,
 	}
 
 	silences, err := silence.New(silenceOpts)

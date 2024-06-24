@@ -718,11 +718,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	silID, err := silences.Set(&silencepb.Silence{
+	sil := &silencepb.Silence{
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
-	})
-	if err != nil {
+	}
+	if err = silences.Set(sil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -799,7 +799,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
-	if err := silences.Expire(silID); err != nil {
+	if err := silences.Expire(sil.Id); err != nil {
 		t.Fatal(err)
 	}
 

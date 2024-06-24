@@ -97,3 +97,5 @@ templating.
 | stringSlice | ...string | Returns the passed strings as a slice of strings. |
 | date | string, time.Time | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
 | tz | string, time.Time | Returns the time in the timezone. For example, Europe/Paris. |
+| since | time.Time | [time.Duration](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
+| humanizeDuration | number or string | Returns a human-readable string representing the duration, and the error if it happened. |
