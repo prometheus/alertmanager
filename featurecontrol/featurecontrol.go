@@ -26,18 +26,21 @@ const (
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
+	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
 )
 
 var AllowedFlags = []string{
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
+	FeatureAutoGOMEMLIMIT,
 }
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
+	EnableAutoGOMEMLIMIT() bool
 }
 
 type Flags struct {
@@ -45,6 +48,7 @@ type Flags struct {
 	enableReceiverNamesInMetrics bool
 	classicMode                  bool
 	utf8StrictMode               bool
+	enableAutoGOMEMLIMIT         bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -57,6 +61,10 @@ func (f *Flags) ClassicMode() bool {
 
 func (f *Flags) UTF8StrictMode() bool {
 	return f.utf8StrictMode
+}
+
+func (f *Flags) EnableAutoGOMEMLIMIT() bool {
+	return f.enableAutoGOMEMLIMIT
 }
 
 type flagOption func(flags *Flags)
@@ -79,6 +87,12 @@ func enableUTF8StrictMode() flagOption {
 	}
 }
 
+func enableAutoGOMEMLIMIT() flagOption {
+	return func(configs *Flags) {
+		configs.enableAutoGOMEMLIMIT = true
+	}
+}
+
 func NewFlags(logger log.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -98,6 +112,9 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case FeatureUTF8StrictMode:
 			opts = append(opts, enableUTF8StrictMode())
 			level.Warn(logger).Log("msg", "UTF-8 strict mode enabled")
+		case FeatureAutoGOMEMLIMIT:
+			opts = append(opts, enableAutoGOMEMLIMIT())
+			level.Warn(logger).Log("msg", "Automatically set to match the Linux container memory limit. If there is no container limit, or the process is running outside of containers, the system memory total is used.")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -121,3 +138,5 @@ func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 func (n NoopFlags) ClassicMode() bool { return false }
 
 func (n NoopFlags) UTF8StrictMode() bool { return false }
+
+func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }

@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -156,6 +157,9 @@ func run() int {
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
+		memlimitRatio = kingpin.Flag("auto-gomemlimit.ratio", "The ratio of reserved GOMEMLIMIT memory to the detected maximum container or system memory. The value must be greater than 0 and less than or equal to 1.").
+				Default("0.9").Float64()
+
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
@@ -193,6 +197,25 @@ func run() int {
 		return 1
 	}
 	compat.InitFromFlags(logger, ff)
+
+	if ff.EnableAutoGOMEMLIMIT() {
+		if *memlimitRatio <= 0.0 || *memlimitRatio > 1.0 {
+			level.Error(logger).Log("msg", "--auto-gomemlimit.ratio must be greater than 0 and less than or equal to 1.")
+			return 1
+		}
+
+		if _, err := memlimit.SetGoMemLimitWithOpts(
+			memlimit.WithRatio(*memlimitRatio),
+			memlimit.WithProvider(
+				memlimit.ApplyFallback(
+					memlimit.FromCgroup,
+					memlimit.FromSystem,
+				),
+			),
+		); err != nil {
+			level.Warn(logger).Log("component", "automemlimit", "msg", "Failed to set GOMEMLIMIT automatically", "err", err)
+		}
+	}
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
