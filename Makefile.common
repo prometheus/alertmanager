@@ -196,6 +196,10 @@ common-unused:
 
 .PHONY: common-build
 common-build: promu
+ifneq ($(shell which promu), $(PROMU))
+	@echo "\nswitching promu path: $(PROMU) to use: $(shell which promu)\n"
+	$(eval PROMU = $(shell which promu))
+endif
 
 	@echo ">> building binaries"
 	$(PROMU) build -v --cgo --prefix $(PREFIX) $(PROMU_BINARIES)
