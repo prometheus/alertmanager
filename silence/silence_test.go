@@ -601,12 +601,11 @@ func TestSilenceUpsert(t *testing.T) {
 		StartsAt: start.Add(2 * time.Minute),
 		EndsAt:   start.Add(5 * time.Minute),
 	}
-	id, err := s.Upsert(sil)
-	require.NoError(t, err)
-	require.Equal(t, testID, id)
+	require.NoError(t, s.Upsert(sil))
+	require.Equal(t, testID, sil.Id)
 
 	want := state{
-		id: &pb.MeshSilence{
+		sil.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
 				Id:        testID,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
@@ -621,8 +620,7 @@ func TestSilenceUpsert(t *testing.T) {
 
 	// Trying to insert an invalid silence should fail.
 	clock.Add(time.Minute)
-	_, err = s.Upsert(&pb.Silence{})
-	checkErr(t, "silence invalid", err)
+	checkErr(t, "silence invalid", s.Upsert(&pb.Silence{}))
 }
 
 func TestSetActiveSilence(t *testing.T) {
