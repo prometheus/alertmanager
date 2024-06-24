@@ -365,89 +365,104 @@ func TestSilenceSet(t *testing.T) {
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
-	// Overwrite silence 2 with new end time.
-	clock.Add(time.Minute)
-	start3 := s.nowUTC()
-
+	// Should be able to update silence without modifications. It is expected to
+	// keep the same ID.
 	sil3 := cloneSilence(sil2)
-	sil3.EndsAt = start3.Add(100 * time.Minute)
-
 	require.NoError(t, s.Set(sil3))
 	require.Equal(t, sil2.Id, sil3.Id)
 
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start2,
-				EndsAt:    start3.Add(100 * time.Minute),
-				UpdatedAt: start3,
-			},
-			ExpiresAt: start3.Add(100*time.Minute + s.retention),
-		},
-	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
-	// Update this silence again with new matcher. This expires it and creates a new one.
-	clock.Add(time.Minute)
-	start4 := s.nowUTC()
-
+	// Should be able to update silence with comment. It is also expected to
+	// keep the same ID.
 	sil4 := cloneSilence(sil3)
-	sil4.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
-
+	sil4.Comment = "c"
 	require.NoError(t, s.Set(sil4))
-	// This new silence gets a new id.
-	require.NotEqual(t, sil2.Id, sil4.Id)
+	require.Equal(t, sil3.Id, sil4.Id)
 
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start2,
-				EndsAt:    start4, // Expired
-				UpdatedAt: start4,
-			},
-			ExpiresAt: start4.Add(s.retention),
-		},
-		sil4.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil4.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
-				StartsAt:  start4,
-				EndsAt:    start3.Add(100 * time.Minute),
-				UpdatedAt: start4,
-			},
-			ExpiresAt: start3.Add(100*time.Minute + s.retention),
-		},
-	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
-	// Re-create the silence that just expired.
+	// Extend sil4 to expire at a later time. This should not expire the
+	// existing silence, and so should also keep the same ID.
 	clock.Add(time.Minute)
 	start5 := s.nowUTC()
-
-	sil5 := cloneSilence(sil3)
-	sil5.StartsAt = start1
-	sil5.EndsAt = start1.Add(5 * time.Minute)
-
+	sil5 := cloneSilence(sil4)
+	sil5.EndsAt = start5.Add(100 * time.Minute)
 	require.NoError(t, s.Set(sil5))
-	require.NotEqual(t, sil2.Id, sil5.Id)
+	require.Equal(t, sil4.Id, sil5.Id)
+	want = state{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil2.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  start2,
+				EndsAt:    start5.Add(100 * time.Minute),
+				UpdatedAt: start5,
+				Comment:   "c",
+			},
+			ExpiresAt: start5.Add(100*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
+	// Replace the silence sil5 with another silence with different matchers.
+	// Unlike previous updates, changing the matchers for an existing silence
+	// will expire the existing silence and create a new silence. The new
+	// silence is expected to have a different ID to preserve the history of
+	// the previous silence.
+	clock.Add(time.Minute)
+	start6 := s.nowUTC()
+
+	sil6 := cloneSilence(sil5)
+	sil6.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
+	require.NoError(t, s.Set(sil6))
+	require.NotEqual(t, sil5.Id, sil6.Id)
+	want = state{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil2.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  start2,
+				EndsAt:    start6, // Expired
+				UpdatedAt: start6,
+				Comment:   "c",
+			},
+			ExpiresAt: start6.Add(s.retention),
+		},
+		sil6.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil6.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
+				StartsAt:  start6,
+				EndsAt:    start5.Add(100 * time.Minute),
+				UpdatedAt: start6,
+				Comment:   "c",
+			},
+			ExpiresAt: start5.Add(100*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
+
+	// Re-create the silence that we just replaced. Changing the start time,
+	// just like changing the matchers, creates a new silence with a different
+	// ID. This is again to preserve the history of the original silence.
+	clock.Add(time.Minute)
+	start7 := s.nowUTC()
+	sil7 := cloneSilence(sil5)
+	sil7.StartsAt = start1
+	sil7.EndsAt = start1.Add(5 * time.Minute)
+	require.NoError(t, s.Set(sil7))
+	require.NotEqual(t, sil2.Id, sil7.Id)
 	want = state{
 		sil1.Id: want[sil1.Id],
 		sil2.Id: want[sil2.Id],
-		sil4.Id: want[sil4.Id],
-		sil5.Id: &pb.MeshSilence{
+		sil6.Id: want[sil6.Id],
+		sil7.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil5.Id,
+				Id:        sil7.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start5, // New silences have their start time set to "now" when created.
+				StartsAt:  start7, // New silences have their start time set to "now" when created.
 				EndsAt:    start1.Add(5 * time.Minute),
-				UpdatedAt: start5,
+				UpdatedAt: start7,
+				Comment:   "c",
 			},
 			ExpiresAt: start1.Add(5*time.Minute + s.retention),
 		},
