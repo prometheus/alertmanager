@@ -295,7 +295,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		require.NoError(t, s.setSilence(sil, nowpb))
+		require.NoError(t, s.setSilence(s.toMeshSilence(sil), nowpb))
 	}()
 
 	// Ensure broadcast was called.
@@ -570,6 +570,33 @@ func TestSilenceLimits(t *testing.T) {
 	sil7.StartsAt = time.Now().Add(5 * time.Minute)
 	sil7.EndsAt = time.Now().Add(10 * time.Minute)
 	require.EqualError(t, s.Set(sil7), "exceeded maximum number of silences: 1 (limit: 1)")
+
+	// sil6 should not be expired because the update failed.
+	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	require.NoError(t, err)
+	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
+
+	// Should not be able to update with a comment that exceeds maximum size.
+	// Need to increase the maximum number of silences to test this.
+	s.limits.MaxSilences = func() int { return 2 }
+	sil8 := cloneSilence(sil6)
+	sil8.Comment = strings.Repeat("m", 2<<11)
+	require.EqualError(t, s.Set(sil8), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil8).Size()))
+
+	// sil6 should not be expired because the update failed.
+	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	require.NoError(t, err)
+	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
+
+	// Should not be able to replace with a silence that exceeds maximum size.
+	// This is different from the previous assertion as unlike when adding or
+	// updating a comment, changing the matchers for a silence should expire
+	// the existing silence, unless the silence that is replacing it exceeds
+	// limits, in which case the operation should fail and the existing silence
+	// should still be active.
+	sil9 := cloneSilence(sil8)
+	sil9.Matchers = []*pb.Matcher{{Name: "n", Pattern: "o"}}
+	require.EqualError(t, s.Set(sil9), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil9).Size()))
 
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(QIDs(sil6.Id))
