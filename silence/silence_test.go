@@ -295,7 +295,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	func() {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
-		require.NoError(t, s.setSilence(sil, nowpb, false))
+		require.NoError(t, s.setSilence(sil, nowpb))
 	}()
 
 	// Ensure broadcast was called.
@@ -468,6 +468,19 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
+
+	// Updating an existing silence with an invalid silence should not expire
+	// the original silence.
+	clock.Add(time.Millisecond)
+	sil8 := cloneSilence(sil7)
+	sil8.EndsAt = time.Time{}
+	require.EqualError(t, s.Set(sil8), "invalid silence: invalid zero end timestamp")
+
+	// sil7 should not be expired because the update failed.
+	clock.Add(time.Millisecond)
+	sil7, err = s.QueryOne(QIDs(sil7.Id))
+	require.NoError(t, err)
+	require.Equal(t, types.SilenceStateActive, getState(sil7, s.nowUTC()))
 }
 
 func TestSilenceLimits(t *testing.T) {
@@ -643,11 +656,15 @@ func TestSilencesSetFail(t *testing.T) {
 		err string
 	}{
 		{
-			s:   &pb.Silence{Id: "some_id"},
+			s: &pb.Silence{
+				Id:       "some_id",
+				Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				EndsAt:   clock.Now().Add(5 * time.Minute),
+			},
 			err: ErrNotFound.Error(),
 		}, {
 			s:   &pb.Silence{}, // Silence without matcher.
-			err: "silence invalid",
+			err: "invalid silence",
 		},
 	}
 	for _, c := range cases {
@@ -1490,18 +1507,6 @@ func TestValidateSilence(t *testing.T) {
 		},
 		{
 			s: &pb.Silence{
-				Id: "",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
-				StartsAt:  validTimestamp,
-				EndsAt:    validTimestamp,
-				UpdatedAt: validTimestamp,
-			},
-			err: "ID missing",
-		},
-		{
-			s: &pb.Silence{
 				Id:        "some_id",
 				Matchers:  []*pb.Matcher{},
 				StartsAt:  validTimestamp,
@@ -1571,18 +1576,6 @@ func TestValidateSilence(t *testing.T) {
 				UpdatedAt: validTimestamp,
 			},
 			err: "invalid zero end timestamp",
-		},
-		{
-			s: &pb.Silence{
-				Id: "some_id",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
-				StartsAt:  validTimestamp,
-				EndsAt:    validTimestamp,
-				UpdatedAt: zeroTimestamp,
-			},
-			err: "invalid zero update timestamp",
 		},
 	}
 	for _, c := range cases {
