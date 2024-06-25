@@ -193,13 +193,19 @@ type Silences struct {
 	logger    log.Logger
 	metrics   *metrics
 	retention time.Duration
-	limits    Limits
+	limits    *Limits
 
 	mtx       sync.RWMutex
 	st        state
 	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
 	mc        matcherCache
+}
+
+// NoopLimits are the default limits. All limits are disabled.
+var NoopLimits = &Limits{
+	MaxSilences:         func() int { return 0 },
+	MaxSilenceSizeBytes: func() int { return 0 },
 }
 
 // Limits contains the limits for silences.
@@ -329,7 +335,7 @@ type Options struct {
 	// Retention time for newly created Silences. Silences may be
 	// garbage collected after the given duration after they ended.
 	Retention time.Duration
-	Limits    Limits
+	Limits    *Limits
 
 	// A logger used by background processing.
 	Logger  log.Logger
@@ -354,7 +360,7 @@ func New(o Options) (*Silences, error) {
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
 		retention: o.Retention,
-		limits:    o.Limits,
+		limits:    NoopLimits,
 		broadcast: func([]byte) {},
 		st:        state{},
 	}
@@ -362,6 +368,10 @@ func New(o Options) (*Silences, error) {
 
 	if o.Logger != nil {
 		s.logger = o.Logger
+	}
+
+	if o.Limits != nil {
+		s.limits = o.Limits
 	}
 
 	if o.SnapshotFile != "" {
@@ -551,11 +561,9 @@ func cloneSilence(sil *pb.Silence) *pb.Silence {
 }
 
 func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
-	if s.limits.MaxSilenceSizeBytes != nil {
-		n := msil.Size()
-		if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m {
-			return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
-		}
+	n := msil.Size()
+	if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m {
+		return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
 	}
 	return nil
 }
@@ -619,10 +627,8 @@ func (s *Silences) Set(sil *pb.Silence) error {
 	// If we got here it's either a new silence or a replacing one (which would
 	// also create a new silence) so we need to make sure we have capacity for
 	// the new silence.
-	if s.limits.MaxSilences != nil {
-		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
-			return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
-		}
+	if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
+		return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
 	}
 
 	uid, err := uuid.NewV4()
