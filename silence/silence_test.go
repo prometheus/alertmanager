@@ -15,6 +15,7 @@ package silence
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"runtime"
 	"sort"
@@ -364,89 +365,104 @@ func TestSilenceSet(t *testing.T) {
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
-	// Overwrite silence 2 with new end time.
-	clock.Add(time.Minute)
-	start3 := s.nowUTC()
-
+	// Should be able to update silence without modifications. It is expected to
+	// keep the same ID.
 	sil3 := cloneSilence(sil2)
-	sil3.EndsAt = start3.Add(100 * time.Minute)
-
 	require.NoError(t, s.Set(sil3))
 	require.Equal(t, sil2.Id, sil3.Id)
 
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start2,
-				EndsAt:    start3.Add(100 * time.Minute),
-				UpdatedAt: start3,
-			},
-			ExpiresAt: start3.Add(100*time.Minute + s.retention),
-		},
-	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
-	// Update this silence again with new matcher. This expires it and creates a new one.
-	clock.Add(time.Minute)
-	start4 := s.nowUTC()
-
+	// Should be able to update silence with comment. It is also expected to
+	// keep the same ID.
 	sil4 := cloneSilence(sil3)
-	sil4.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
-
+	sil4.Comment = "c"
 	require.NoError(t, s.Set(sil4))
-	// This new silence gets a new id.
-	require.NotEqual(t, sil2.Id, sil4.Id)
+	require.Equal(t, sil3.Id, sil4.Id)
 
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start2,
-				EndsAt:    start4, // Expired
-				UpdatedAt: start4,
-			},
-			ExpiresAt: start4.Add(s.retention),
-		},
-		sil4.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        sil4.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
-				StartsAt:  start4,
-				EndsAt:    start3.Add(100 * time.Minute),
-				UpdatedAt: start4,
-			},
-			ExpiresAt: start3.Add(100*time.Minute + s.retention),
-		},
-	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
-	// Re-create the silence that just expired.
+	// Extend sil4 to expire at a later time. This should not expire the
+	// existing silence, and so should also keep the same ID.
 	clock.Add(time.Minute)
 	start5 := s.nowUTC()
-
-	sil5 := cloneSilence(sil3)
-	sil5.StartsAt = start1
-	sil5.EndsAt = start1.Add(5 * time.Minute)
-
+	sil5 := cloneSilence(sil4)
+	sil5.EndsAt = start5.Add(100 * time.Minute)
 	require.NoError(t, s.Set(sil5))
-	require.NotEqual(t, sil2.Id, sil5.Id)
+	require.Equal(t, sil4.Id, sil5.Id)
+	want = state{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil2.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  start2,
+				EndsAt:    start5.Add(100 * time.Minute),
+				UpdatedAt: start5,
+				Comment:   "c",
+			},
+			ExpiresAt: start5.Add(100*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
+	// Replace the silence sil5 with another silence with different matchers.
+	// Unlike previous updates, changing the matchers for an existing silence
+	// will expire the existing silence and create a new silence. The new
+	// silence is expected to have a different ID to preserve the history of
+	// the previous silence.
+	clock.Add(time.Minute)
+	start6 := s.nowUTC()
+
+	sil6 := cloneSilence(sil5)
+	sil6.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
+	require.NoError(t, s.Set(sil6))
+	require.NotEqual(t, sil5.Id, sil6.Id)
+	want = state{
+		sil1.Id: want[sil1.Id],
+		sil2.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil2.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  start2,
+				EndsAt:    start6, // Expired
+				UpdatedAt: start6,
+				Comment:   "c",
+			},
+			ExpiresAt: start6.Add(s.retention),
+		},
+		sil6.Id: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        sil6.Id,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
+				StartsAt:  start6,
+				EndsAt:    start5.Add(100 * time.Minute),
+				UpdatedAt: start6,
+				Comment:   "c",
+			},
+			ExpiresAt: start5.Add(100*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
+
+	// Re-create the silence that we just replaced. Changing the start time,
+	// just like changing the matchers, creates a new silence with a different
+	// ID. This is again to preserve the history of the original silence.
+	clock.Add(time.Minute)
+	start7 := s.nowUTC()
+	sil7 := cloneSilence(sil5)
+	sil7.StartsAt = start1
+	sil7.EndsAt = start1.Add(5 * time.Minute)
+	require.NoError(t, s.Set(sil7))
+	require.NotEqual(t, sil2.Id, sil7.Id)
 	want = state{
 		sil1.Id: want[sil1.Id],
 		sil2.Id: want[sil2.Id],
-		sil4.Id: want[sil4.Id],
-		sil5.Id: &pb.MeshSilence{
+		sil6.Id: want[sil6.Id],
+		sil7.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil5.Id,
+				Id:        sil7.Id,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  start5, // New silences have their start time set to "now" when created.
+				StartsAt:  start7, // New silences have their start time set to "now" when created.
 				EndsAt:    start1.Add(5 * time.Minute),
-				UpdatedAt: start5,
+				UpdatedAt: start7,
+				Comment:   "c",
 			},
 			ExpiresAt: start1.Add(5*time.Minute + s.retention),
 		},
@@ -470,32 +486,24 @@ func TestSilenceLimits(t *testing.T) {
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
 	require.NoError(t, s.Set(sil1))
-	require.NotEqual(t, "", sil1.Id)
 
-	// Insert sil2 should fail because maximum number of silences
-	// has been exceeded.
+	// Insert sil2 should fail because maximum number of silences has been
+	// exceeded.
 	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		Matchers: []*pb.Matcher{{Name: "c", Pattern: "d"}},
 		StartsAt: time.Now(),
 		EndsAt:   time.Now().Add(5 * time.Minute),
 	}
 	require.EqualError(t, s.Set(sil2), "exceeded maximum number of silences: 1 (limit: 1)")
-	require.Equal(t, "", sil2.Id)
 
-	// Expire sil1 and run the GC. This should allow sil2 to be
-	// inserted.
+	// Expire sil1 and run the GC. This should allow sil2 to be inserted.
 	require.NoError(t, s.Expire(sil1.Id))
 	n, err := s.GC()
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-
-	require.NoError(t, s.Set(sil2))
-	require.NotEqual(t, "", sil2.Id)
-
-	// Should be able to update sil2 without hitting the limit.
 	require.NoError(t, s.Set(sil2))
 
-	// Expire sil2.
+	// Expire sil2 and run the GC.
 	require.NoError(t, s.Expire(sil2.Id))
 	n, err = s.GC()
 	require.NoError(t, err)
@@ -505,26 +513,55 @@ func TestSilenceLimits(t *testing.T) {
 	sil3 := &pb.Silence{
 		Matchers: []*pb.Matcher{
 			{
-				Name:    strings.Repeat("a", 2<<9),
-				Pattern: strings.Repeat("b", 2<<9),
+				Name:    strings.Repeat("e", 2<<9),
+				Pattern: strings.Repeat("f", 2<<9),
 			},
 			{
-				Name:    strings.Repeat("c", 2<<9),
-				Pattern: strings.Repeat("d", 2<<9),
+				Name:    strings.Repeat("g", 2<<9),
+				Pattern: strings.Repeat("h", 2<<9),
 			},
 		},
-		CreatedBy: strings.Repeat("e", 2<<9),
-		Comment:   strings.Repeat("f", 2<<9),
+		CreatedBy: strings.Repeat("i", 2<<9),
+		Comment:   strings.Repeat("j", 2<<9),
 		StartsAt:  time.Now(),
 		EndsAt:    time.Now().Add(5 * time.Minute),
 	}
-	err = s.Set(sil3)
-	require.Error(t, err)
-	// Do not check the exact size as it can change between consecutive runs
-	// due to padding.
-	require.Contains(t, err.Error(), "silence exceeded maximum size")
-	// TODO: Once we fix https://github.com/prometheus/alertmanager/issues/3878 this should be require.Equal.
-	require.NotEqual(t, "", sil3.Id)
+	require.EqualError(t, s.Set(sil3), fmt.Sprintf("silence exceeded maximum size: %d bytes (limit: 4096 bytes)", s.toMeshSilence(sil3).Size()))
+
+	// Should be able to insert sil4.
+	sil4 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "k", Pattern: "l"}},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(5 * time.Minute),
+	}
+	require.NoError(t, s.Set(sil4))
+
+	// Should be able to update sil4 without modifications. It is expected to
+	// keep the same ID.
+	sil5 := cloneSilence(sil4)
+	require.NoError(t, s.Set(sil5))
+	require.Equal(t, sil4.Id, sil5.Id)
+
+	// Should be able to update the comment. It is also expected to keep the
+	// same ID.
+	sil6 := cloneSilence(sil5)
+	sil6.Comment = "m"
+	require.NoError(t, s.Set(sil6))
+	require.Equal(t, sil5.Id, sil6.Id)
+
+	// Should not be able to update the start and end time as this requires
+	// sil6 to be expired and a new silence to be created. However, this would
+	// exceed the maximum number of silences, which counts both active and
+	// expired silences.
+	sil7 := cloneSilence(sil6)
+	sil7.StartsAt = time.Now().Add(5 * time.Minute)
+	sil7.EndsAt = time.Now().Add(10 * time.Minute)
+	require.EqualError(t, s.Set(sil7), "exceeded maximum number of silences: 1 (limit: 1)")
+
+	// sil6 should not be expired because the update failed.
+	sil6, err = s.QueryOne(QIDs(sil6.Id))
+	require.NoError(t, err)
+	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
 }
 
 func TestSilenceNoLimits(t *testing.T) {
