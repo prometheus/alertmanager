@@ -45,7 +45,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -660,8 +660,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
 	}
 
-	sid, err := api.silences.Set(sil)
-	if err != nil {
+	if err = api.silences.Set(sil); err != nil {
 		level.Error(logger).Log("msg", "Failed to create silence", "err", err)
 		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
@@ -670,7 +669,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	}
 
 	return silence_ops.NewPostSilencesOK().WithPayload(&silence_ops.PostSilencesOKBody{
-		SilenceID: sid,
+		SilenceID: sil.Id,
 	})
 }
 

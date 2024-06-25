@@ -26,18 +26,21 @@ const (
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
+	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
 )
 
 var AllowedFlags = []string{
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
+	FeatureAutoGOMAXPROCS,
 }
 
 type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
+	EnableAutoGOMAXPROCS() bool
 }
 
 type Flags struct {
@@ -45,6 +48,7 @@ type Flags struct {
 	enableReceiverNamesInMetrics bool
 	classicMode                  bool
 	utf8StrictMode               bool
+	enableAutoGOMAXPROCS         bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -57,6 +61,10 @@ func (f *Flags) ClassicMode() bool {
 
 func (f *Flags) UTF8StrictMode() bool {
 	return f.utf8StrictMode
+}
+
+func (f *Flags) EnableAutoGOMAXPROCS() bool {
+	return f.enableAutoGOMAXPROCS
 }
 
 type flagOption func(flags *Flags)
@@ -79,6 +87,12 @@ func enableUTF8StrictMode() flagOption {
 	}
 }
 
+func enableAutoGOMAXPROCS() flagOption {
+	return func(configs *Flags) {
+		configs.enableAutoGOMAXPROCS = true
+	}
+}
+
 func NewFlags(logger log.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -98,6 +112,9 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case FeatureUTF8StrictMode:
 			opts = append(opts, enableUTF8StrictMode())
 			level.Warn(logger).Log("msg", "UTF-8 strict mode enabled")
+		case FeatureAutoGOMAXPROCS:
+			opts = append(opts, enableAutoGOMAXPROCS())
+			level.Warn(logger).Log("msg", "Automatically set GOMAXPROCS to match Linux container CPU quota")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -121,3 +138,5 @@ func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 func (n NoopFlags) ClassicMode() bool { return false }
 
 func (n NoopFlags) UTF8StrictMode() bool { return false }
+
+func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }

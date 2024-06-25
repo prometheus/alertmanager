@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
+	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
@@ -50,7 +51,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -147,7 +148,7 @@ func run() int {
 		retention           = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
 		maxSilences         = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
-		maxPerSilenceBytes  = kingpin.Flag("silences.max-per-silence-bytes", "Maximum per silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
+		maxSilenceSizeBytes = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval     = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
@@ -193,6 +194,15 @@ func run() int {
 		return 1
 	}
 	compat.InitFromFlags(logger, ff)
+
+	if ff.EnableAutoGOMAXPROCS() {
+		l := func(format string, a ...interface{}) {
+			level.Info(logger).Log("component", "automaxprocs", "msg", fmt.Sprintf(strings.TrimPrefix(format, "maxprocs: "), a...))
+		}
+		if _, err := maxprocs.Set(maxprocs.Logger(l)); err != nil {
+			level.Warn(logger).Log("msg", "Failed to set GOMAXPROCS automatically", "err", err)
+		}
+	}
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
@@ -262,8 +272,8 @@ func run() int {
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Limits: silence.Limits{
-			MaxSilences:        *maxSilences,
-			MaxPerSilenceBytes: *maxPerSilenceBytes,
+			MaxSilences:         func() int { return *maxSilences },
+			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
 		},
 		Logger:  log.With(logger, "component", "silences"),
 		Metrics: prometheus.DefaultRegisterer,

@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go v1.53.14
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.23.0
 	github.com/go-openapi/errors v0.22.0
@@ -40,6 +40,7 @@ require (
 	github.com/trivago/tgo v1.0.7
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/atomic v1.11.0
+	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/mod v0.18.0
 	golang.org/x/net v0.26.0
 	golang.org/x/text v0.16.0

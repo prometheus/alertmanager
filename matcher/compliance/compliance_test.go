@@ -17,7 +17,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/prometheus/alertmanager/matchers/parse"
+	"github.com/prometheus/alertmanager/matcher/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
