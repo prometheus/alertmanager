@@ -660,7 +660,7 @@ func TestSilenceUpsert(t *testing.T) {
 
 	// Trying to insert an invalid silence should fail.
 	clock.Add(time.Minute)
-	checkErr(t, "silence invalid", s.Upsert(&pb.Silence{}))
+	checkErr(t, "invalid silence", s.Upsert(&pb.Silence{}))
 }
 
 func TestSetActiveSilence(t *testing.T) {

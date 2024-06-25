@@ -601,8 +601,9 @@ func (s *Silences) Upsert(sil *pb.Silence) error {
 	if sil.StartsAt.Before(now) {
 		sil.StartsAt = now
 	}
+	sil.UpdatedAt = now
 
-	return s.setSilence(sil, now, false)
+	return s.setSilence(s.toMeshSilence(sil), now)
 }
 
 // Set the specified silence. If a silence with the ID already exists and the modification
