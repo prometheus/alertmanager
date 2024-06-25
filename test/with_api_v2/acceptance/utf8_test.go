@@ -267,7 +267,7 @@ receivers:
 
 	_, err := am.Client().Silence.PostSilences(silenceParams)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "silence invalid: invalid label matcher"))
+	require.True(t, strings.Contains(err.Error(), "invalid silence: invalid label matcher"))
 }
 
 func TestSendAlertsToUTF8Route(t *testing.T) {

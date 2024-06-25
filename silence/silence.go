@@ -518,9 +518,6 @@ func matchesEmpty(m *pb.Matcher) bool {
 }
 
 func validateSilence(s *pb.Silence) error {
-	if s.Id == "" {
-		return errors.New("ID missing")
-	}
 	if len(s.Matchers) == 0 {
 		return errors.New("at least one matcher required")
 	}
@@ -544,9 +541,6 @@ func validateSilence(s *pb.Silence) error {
 	if s.EndsAt.Before(s.StartsAt) {
 		return errors.New("end time must not be before start time")
 	}
-	if s.UpdatedAt.IsZero() {
-		return errors.New("invalid zero update timestamp")
-	}
 	return nil
 }
 
@@ -564,19 +558,17 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence, now time.Time, skipValidate bool) error {
-	sil.UpdatedAt = now
-
-	if !skipValidate {
-		if err := validateSilence(sil); err != nil {
-			return fmt.Errorf("silence invalid: %w", err)
-		}
-	}
-
-	msil := &pb.MeshSilence{
+func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
+	return &pb.MeshSilence{
 		Silence:   sil,
 		ExpiresAt: sil.EndsAt.Add(s.retention),
 	}
+}
+
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
+	sil.UpdatedAt = now
+
+	msil := s.toMeshSilence(sil)
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
 		return err
@@ -607,27 +599,37 @@ func (s *Silences) Set(sil *pb.Silence) error {
 	defer s.mtx.Unlock()
 
 	now := s.nowUTC()
+	if sil.StartsAt.IsZero() {
+		sil.StartsAt = now
+	}
+
+	if err := validateSilence(sil); err != nil {
+		return fmt.Errorf("invalid silence: %w", err)
+	}
+
 	prev, ok := s.getSilence(sil.Id)
 	if sil.Id != "" && !ok {
 		return ErrNotFound
 	}
 
-	if ok {
-		if canUpdate(prev, sil, now) {
-			return s.setSilence(sil, now, false)
-		}
-		if getState(prev, s.nowUTC()) != types.SilenceStateExpired {
-			// We cannot update the silence, expire the old one.
-			if err := s.expire(prev.Id); err != nil {
-				return fmt.Errorf("expire previous silence: %w", err)
-			}
-		}
+	if ok && canUpdate(prev, sil, now) {
+		return s.setSilence(sil, now)
 	}
 
-	// If we got here it's either a new silence or a replacing one.
+	// If we got here it's either a new silence or a replacing one (which would
+	// also create a new silence) so we need to make sure we have capacity for
+	// the new silence.
 	if s.limits.MaxSilences != nil {
 		if m := s.limits.MaxSilences(); m > 0 && len(s.st)+1 > m {
 			return fmt.Errorf("exceeded maximum number of silences: %d (limit: %d)", len(s.st), m)
+		}
+	}
+
+	if ok && getState(prev, s.nowUTC()) != types.SilenceStateExpired {
+		// We cannot update the silence, expire the old one to leave a history of
+		// the silence before modification.
+		if err := s.expire(prev.Id); err != nil {
+			return fmt.Errorf("expire previous silence: %w", err)
 		}
 	}
 
@@ -641,7 +643,7 @@ func (s *Silences) Set(sil *pb.Silence) error {
 		sil.StartsAt = now
 	}
 
-	return s.setSilence(sil, now, false)
+	return s.setSilence(sil, now)
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -699,10 +701,7 @@ func (s *Silences) expire(id string) error {
 		sil.StartsAt = now
 		sil.EndsAt = now
 	}
-
-	// Skip validation of the silence when expiring it. Without this, silences created
-	// with valid UTF-8 matchers cannot be expired when Alertmanager is run in classic mode.
-	return s.setSilence(sil, now, true)
+	return s.setSilence(sil, now)
 }
 
 // QueryParam expresses parameters along which silences are queried.
