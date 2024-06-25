@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
+	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
@@ -193,6 +194,15 @@ func run() int {
 		return 1
 	}
 	compat.InitFromFlags(logger, ff)
+
+	if ff.EnableAutoGOMAXPROCS() {
+		l := func(format string, a ...interface{}) {
+			level.Info(logger).Log("component", "automaxprocs", "msg", fmt.Sprintf(strings.TrimPrefix(format, "maxprocs: "), a...))
+		}
+		if _, err := maxprocs.Set(maxprocs.Logger(l)); err != nil {
+			level.Warn(logger).Log("msg", "Failed to set GOMAXPROCS automatically", "err", err)
+		}
+	}
 
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
