@@ -58,8 +58,7 @@ func benchmarkMutes(b *testing.B, n int) {
 
 	var silenceIDs []string
 	for i := 0; i < n; i++ {
-		var silenceID string
-		silenceID, err = silences.Set(&silencepb.Silence{
+		s := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{{
 				Type:    silencepb.Matcher_EQUAL,
 				Name:    "foo",
@@ -67,9 +66,10 @@ func benchmarkMutes(b *testing.B, n int) {
 			}},
 			StartsAt: now,
 			EndsAt:   now.Add(time.Minute),
-		})
+		}
+		require.NoError(b, silences.Set(s))
 		require.NoError(b, err)
-		silenceIDs = append(silenceIDs, silenceID)
+		silenceIDs = append(silenceIDs, s.Id)
 	}
 	require.Len(b, silenceIDs, n)
 
