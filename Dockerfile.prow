@@ -6,7 +6,8 @@ WORKDIR /workspace
 COPY . .
 
 RUN go mod vendor
-RUN go install github.com/prometheus/promu@v0.17.0 && make common-build
+# adding the cgo flag here to not break the architecture CI builds
+RUN go install github.com/prometheus/promu@v0.17.0 && promu build -v --cgo --prefix ./
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
