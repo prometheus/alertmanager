@@ -36,6 +36,10 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const (
+	maxSummaryLenRunes = 255
+)
+
 // Notifier implements a Notifier for JIRA notifications.
 type Notifier struct {
 	conf    *config.JiraConfig
@@ -105,7 +109,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		method = http.MethodPut
 	}
 
-	requestBody, err := n.prepareIssueRequestBody(tmplTextFunc)
+	requestBody, err := n.prepareIssueRequestBody(ctx, tmplTextFunc)
 	if err != nil {
 		return false, err
 	}
@@ -134,7 +138,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return false, nil
 }
 
-func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc templateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
 		return issue{}, fmt.Errorf("template error: %w", err)
@@ -145,6 +149,15 @@ func (n *Notifier) prepareIssueRequestBody(tmplTextFunc templateFunc) (issue, er
 	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
 	if err != nil {
 		return issue{}, fmt.Errorf("convertToMarshalMap error: %w", err)
+	}
+
+	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
+	if truncated {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return issue{}, err
+		}
+		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxSummaryLenRunes)
 	}
 
 	requestBody := issue{Fields: &issueFields{

@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,9 +211,9 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "",
 		},
 		{
-			title: "create new issue with custom field",
+			title: "create new issue with custom field and too long summary",
 			cfg: &config.JiraConfig{
-				Summary:      `{{ template "jira.default.summary" . }}`,
+				Summary:      strings.Repeat("A", maxSummaryLenRunes+10),
 				Description:  `{{ template "jira.default.description" . }}`,
 				IssueType:    "Incident",
 				Project:      "OPS",
@@ -252,7 +253,7 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "[FIRING:1] test (vm1)",
+					Summary:     strings.Repeat("A", maxSummaryLenRunes-1) + "…",
 					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"alertmanager", "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "test"},
