@@ -27,6 +27,7 @@ const (
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
+	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
 )
 
 var AllowedFlags = []string{
@@ -34,6 +35,7 @@ var AllowedFlags = []string{
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
+	FeatureAutoGOMAXPROCS,
 }
 
 type Flagger interface {
@@ -41,6 +43,7 @@ type Flagger interface {
 	ClassicMode() bool
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
+	EnableAutoGOMAXPROCS() bool
 }
 
 type Flags struct {
@@ -49,6 +52,7 @@ type Flags struct {
 	classicMode                  bool
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
+	enableAutoGOMAXPROCS         bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -65,6 +69,10 @@ func (f *Flags) UTF8StrictMode() bool {
 
 func (f *Flags) EnableAutoGOMEMLIMIT() bool {
 	return f.enableAutoGOMEMLIMIT
+}
+
+func (f *Flags) EnableAutoGOMAXPROCS() bool {
+	return f.enableAutoGOMAXPROCS
 }
 
 type flagOption func(flags *Flags)
@@ -93,6 +101,12 @@ func enableAutoGOMEMLIMIT() flagOption {
 	}
 }
 
+func enableAutoGOMAXPROCS() flagOption {
+	return func(configs *Flags) {
+		configs.enableAutoGOMAXPROCS = true
+	}
+}
+
 func NewFlags(logger log.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -115,6 +129,9 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMEMLIMIT:
 			opts = append(opts, enableAutoGOMEMLIMIT())
 			level.Warn(logger).Log("msg", "Automatically set to match the Linux container memory limit. If there is no container limit, or the process is running outside of containers, the system memory total is used.")
+		case FeatureAutoGOMAXPROCS:
+			opts = append(opts, enableAutoGOMAXPROCS())
+			level.Warn(logger).Log("msg", "Automatically set GOMAXPROCS to match Linux container CPU quota")
 		default:
 			return nil, fmt.Errorf("Unknown option '%s' for --enable-feature", feature)
 		}
@@ -140,3 +157,5 @@ func (n NoopFlags) ClassicMode() bool { return false }
 func (n NoopFlags) UTF8StrictMode() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
+
+func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
