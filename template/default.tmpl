@@ -150,11 +150,11 @@ Alerts Resolved:
 {{ define "msteams.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "msteams.default.text" }}
 {{ if gt (len .Alerts.Firing) 0 }}
-# Alerts Firing:
+**Alerts Firing**:
 {{ template "__text_alert_list_markdown" .Alerts.Firing }}
 {{ end }}
 {{ if gt (len .Alerts.Resolved) 0 }}
-# Alerts Resolved:
+**Alerts Resolved**:
 {{ template "__text_alert_list_markdown" .Alerts.Resolved }}
 {{ end }}
 {{ end }}
