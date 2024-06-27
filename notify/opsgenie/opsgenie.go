@@ -152,7 +152,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	requests := []*http.Request{}
 
 	var (
-		alias  = key.Hash()
+		alias  = fmt.Sprintf("%s%s", tmpl(n.conf.AliasPrefix), key.Hash())
 		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
