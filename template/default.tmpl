@@ -134,6 +134,15 @@ Alerts Resolved:
 {{ template "__text_alert_list" .Alerts.Resolved }}
 {{ end }}
 {{ end }}
+{{ define "discord.default.color" }}
+{{ if gt (len .Alerts.Firing) 0 }}
+10038562
+{{ else if gt (len .Alerts.Resolved) 0 }}
+3066993
+{{ else }}
+9807270
+{{ end }}
+{{ end }}
 
 {{ define "webex.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 }}
