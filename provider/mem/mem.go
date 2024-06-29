@@ -106,46 +106,20 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
 		a.registerMetrics(r)
 	}
 
-	go a.gcLoop(ctx, intervalGC)
+	go func() {
+		ticker := time.NewTicker(intervalGC)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				a.doMaintenance()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	return a, nil
-}
-
-func (a *Alerts) gcLoop(ctx context.Context, interval time.Duration) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			a.gc()
-		}
-	}
-}
-
-func (a *Alerts) gc() {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
-	deleted := a.alerts.GC()
-	for _, alert := range deleted {
-		// As we don't persist alerts, we no longer consider them after
-		// they are resolved. Alerts waiting for resolved notifications are
-		// held in memory in aggregation groups redundantly.
-		a.marker.Delete(alert.Fingerprint())
-		a.callback.PostDelete(&alert)
-	}
-
-	for i, l := range a.listeners {
-		select {
-		case <-l.done:
-			delete(a.listeners, i)
-			close(l.alerts)
-		default:
-			// listener is not closed yet, hence proceed.
-		}
-	}
 }
 
 // Close the alert provider.
@@ -281,6 +255,32 @@ func (a *Alerts) count(state types.AlertState) int {
 	}
 
 	return count
+}
+
+func (a *Alerts) doMaintenance() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	for _, alert := range a.alerts.List() {
+		if alert.Resolved() {
+			// TODO(grobinson-grafana): See if we can use a single method instead of calling List() and then Delete().
+			a.alerts.Delete(alert.Fingerprint())
+			// As we don't persist alerts, we no longer consider them after
+			// they are resolved. Alerts waiting for resolved notifications are
+			// held in memory in aggregation groups redundantly.
+			a.marker.Delete(alert.Fingerprint())
+			a.callback.PostDelete(alert)
+		}
+	}
+
+	for i, l := range a.listeners {
+		select {
+		case <-l.done:
+			delete(a.listeners, i)
+			close(l.alerts)
+		default:
+			// listener is not closed yet, hence proceed.
+		}
+	}
 }
 
 type noopCallback struct{}
