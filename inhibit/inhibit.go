@@ -126,8 +126,10 @@ func (ih *Inhibitor) Stop() {
 // Mutes returns true iff the given label set is muted. It implements the Muter
 // interface.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
-	fp := lset.Fingerprint()
-
+	var (
+		alert        = lset.Fingerprint()
+		fingerprints []string
+	)
 	for _, r := range ih.rules {
 		if !r.TargetMatchers.Matches(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.
@@ -135,14 +137,14 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		}
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			return true
+		if matches, eq := r.inhibits(lset, r.SourceMatchers.Matches(lset)); eq {
+			for _, m := range matches {
+				fingerprints = append(fingerprints, m.String())
+			}
 		}
 	}
-	ih.marker.SetInhibited(fp)
-
-	return false
+	ih.marker.SetInhibited(alert, fingerprints...)
+	return len(fingerprints) > 0
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
@@ -226,11 +228,12 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	}
 }
 
-// hasEqual checks whether the source cache contains alerts matching the equal
-// labels for the given label set. If so, the fingerprint of one of those alerts
-// is returned. If excludeTwoSidedMatch is true, alerts that match both the
-// source and the target side of the rule are disregarded.
-func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
+// inhibits returns the fingerprints of all alerts that inhibit the labels in lset.
+// It returns true if at least one inhibiting alert is present, otherwise false.
+// If excludeTwoSidedMatch is true, alerts that match both the source and target
+// side of the rule are disregarded.
+func (r *InhibitRule) inhibits(lset model.LabelSet, excludeTwoSidedMatch bool) ([]model.Fingerprint, bool) {
+	var fingerprints []model.Fingerprint
 Outer:
 	for _, a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
@@ -245,7 +248,7 @@ Outer:
 		if excludeTwoSidedMatch && r.TargetMatchers.Matches(a.Labels) {
 			continue Outer
 		}
-		return a.Fingerprint(), true
+		fingerprints = append(fingerprints, a.Fingerprint())
 	}
-	return model.Fingerprint(0), false
+	return fingerprints, len(fingerprints) > 0
 }
