@@ -756,8 +756,8 @@ func TestQMatches(t *testing.T) {
 	f := q.filters[0]
 
 	cases := []struct {
-		sil  *pb.Silence
-		drop bool
+		sil      *pb.Silence
+		expected bool
 	}{
 		{
 			sil: &pb.Silence{
@@ -765,7 +765,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
 				},
 			},
-			drop: true,
+			expected: true,
 		},
 		{
 			sil: &pb.Silence{
@@ -773,7 +773,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
 				},
 			},
-			drop: false,
+			expected: false,
 		},
 		{
 			sil: &pb.Silence{
@@ -782,7 +782,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "method", Pattern: "POST", Type: pb.Matcher_EQUAL},
 				},
 			},
-			drop: false,
+			expected: false,
 		},
 		{
 			sil: &pb.Silence{
@@ -791,7 +791,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "method", Pattern: "POST", Type: pb.Matcher_NOT_EQUAL},
 				},
 			},
-			drop: true,
+			expected: true,
 		},
 		{
 			sil: &pb.Silence{
@@ -799,7 +799,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
 				},
 			},
-			drop: true,
+			expected: true,
 		},
 		{
 			sil: &pb.Silence{
@@ -807,7 +807,7 @@ func TestQMatches(t *testing.T) {
 					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_NOT_REGEXP},
 				},
 			},
-			drop: false,
+			expected: false,
 		},
 		{
 			sil: &pb.Silence{
@@ -816,13 +816,13 @@ func TestQMatches(t *testing.T) {
 					{Name: "path", Pattern: "/nothing/.+", Type: pb.Matcher_REGEXP},
 				},
 			},
-			drop: false,
+			expected: false,
 		},
 	}
 	for _, c := range cases {
-		drop, err := f(c.sil, &Silences{mc: matcherCache{}, st: state{}}, time.Time{})
+		actual, err := f(c.sil, &Silences{mc: matcherCache{}, st: state{}}, time.Time{})
 		require.NoError(t, err)
-		require.Equal(t, c.drop, drop, "unexpected filter result")
+		require.Equal(t, c.expected, actual, "unexpected filter result")
 	}
 }
 
@@ -865,7 +865,7 @@ func TestSilencesQuery(t *testing.T) {
 		{
 			// Retrieve all and filter
 			q: &query{
-				filters: []silenceFilter{
+				filters: []filterFunc{
 					func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
@@ -880,7 +880,7 @@ func TestSilencesQuery(t *testing.T) {
 			// Retrieve by IDs and filter
 			q: &query{
 				ids: []string{"2", "5"},
-				filters: []silenceFilter{
+				filters: []filterFunc{
 					func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
