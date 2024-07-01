@@ -10,7 +10,7 @@
     "lint:fix": "eslint --fix src --ext .ts,.tsx"
   },
   "dependencies": {
-    "@emotion/react": "^11.9.3",
+    "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.9.3",
     "@mui/material": "^5.10.14",
     "@tanstack/react-query": "^4.7.1",
