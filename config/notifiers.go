@@ -470,6 +470,7 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Blocks      []*SlackBlock  `yaml:"blocks,omitempty" json:"blocks,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -485,6 +486,47 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+type SlackBlock struct {
+	Context *SlackBlockContext `yaml:"context,omitempty" json:"context,omitempty"`
+	Divider *SlackBlockDivider `yaml:"divider,omitempty" json:"divider,omitempty"`
+	Header  *SlackBlockHeader  `yaml:"header,omitempty" json:"header,omitempty"`
+	Image   *SlackBlockImage   `yaml:"image,omitempty" json:"image,omitempty"`
+	Section *SlackBlockSection `yaml:"section,omitempty" json:"section,omitempty"`
+}
+
+type SlackBlockContext struct {
+	Elements []SlackBlockContextElement `yaml:"elements,omitempty" json:"elements,omitempty"`
+}
+
+type SlackBlockContextElement struct {
+	Image *SlackBlockImage `yaml:"image,omitempty" json:"image,omitempty"`
+	Text  *SlackBlockText  `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+type SlackBlockDivider struct{}
+
+type SlackBlockHeader struct {
+	Text SlackBlockText `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+type SlackBlockImage struct {
+	ImageURL string `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	AltText  string `yaml:"alt_text,omitempty" json:"alt_text,omitempty"`
+	Title    string `yaml:"title,omitempty" json:"title,omitempty"`
+}
+
+type SlackBlockSection struct {
+	Type   string           `yaml:"type,omitempty" json:"type,omitempty"`
+	Text   *SlackBlockText  `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields []SlackBlockText `yaml:"fields,omitempty" json:"fields,omitempty"`
+}
+
+type SlackBlockText struct {
+	Text     string `yaml:"text,omitempty" json:"text,omitempty"`
+	Emoji    bool   `yaml:"emoji,omitempty" json:"emoji,omitempty"`
+	Markdown bool   `yaml:"markdown,omitempty" json:"markdown,omitempty"`
 }
 
 // WebhookConfig configures notifications via a generic webhook.
