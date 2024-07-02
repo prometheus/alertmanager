@@ -977,11 +977,11 @@ project: <string>
 # Issue description template.
 [ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
 
-# Add labels to issues
+# Add labels to issues.
 static_labels: 
   [ - <string> ... ]
   
-# Add specific group labels to issue
+# Add specific group labels to the issue.
 group_labels: 
   [ - <string> ... ]
 
@@ -1003,10 +1003,10 @@ group_labels:
 [ wont_fix_resolution: <string> ]
 
 # If reopen_transition is defined, reopen the issue when it is not older than this value (rounded down to the nearest minute).
-The resolutiondate field is used to determine the age of the issue.
+# The resolutiondate field is used to determine the age of the issue.
 [ reopen_duration: <duration> ]
 
-# Other issue and custom fields
+# Other issue and custom fields.
 fields:
   [ <string>: <jira_field> ... ]
 
