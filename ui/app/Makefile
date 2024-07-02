@@ -3,7 +3,7 @@
 ELM_FILES = $(shell find src -iname *.elm)
 DOCKER_IMG := elm-env
 DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
-DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app -e "ELM_HOME=/app/.elm" $(DOCKER_IMG)
+DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --platform linux/amd64 --rm -t -v $(PWD):/app -w /app -e "ELM_HOME=/app/.elm" $(DOCKER_IMG)
 # If JUNIT_DIR is set, the tests are executed with the JUnit reporter and the result is stored in the given directory.
 JUNIT_DIR ?=
 

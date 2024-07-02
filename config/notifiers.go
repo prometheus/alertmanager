@@ -46,8 +46,12 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title:   `{{ template "discord.default.title" . }}`,
-		Message: `{{ template "discord.default.message" . }}`,
+		Title:                `{{ template "discord.default.title" . }}`,
+		Message:              `{{ template "discord.default.message" . }}`,
+		BotUsername:          `{{ template "discord.default.bot_username" . }}`,
+		BotIconURL:           `{{ template "discord.default.bot_icon_url" . }}`,
+		TitleURL:             `{{ template "discord.default.title_url" . }}`,
+		AlertsOmittedMessage: `{{ template "discord.default.alerts_omitted_message" . }}`,
 	}
 
 	// DefaultEmailConfig defines default values for Email configurations.
@@ -220,8 +224,13 @@ type DiscordConfig struct {
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	Title                string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
+	TitleURL             string `yaml:"title_url,omitempty" json:"title_url,omitempty"`
+	SkipFields           bool   `yaml:"skip_fields,omitempty" json:"skip_fields,omitempty"`
+	BotUsername          string `yaml:"bot_username,omitempty" json:"bot_username,omitempty"`
+	BotIconURL           string `yaml:"bot_icon_url,omitempty" json:"bot_icon_url,omitempty"`
+	AlertsOmittedMessage string `yaml:"alerts_omitted_message,omitempty" json:"alerts_omitted_message,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

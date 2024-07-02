@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -34,10 +36,26 @@ import (
 )
 
 const (
-	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 256 characters or runes.
+	// https://discord.com/developers/docs/resources/channel#create-message
+	// 2000 characters per message is the limit (not counting embeds).
+	maxMessageContentLength = 2000
+	// 10 embeds per Message is the maximum.
+	maxEmbedsPerMessage = 10
+	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits
+	// 256 characters or runes for an embed title.
 	maxTitleLenRunes = 256
-	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
+	// 4096 characters or runes for an embed description.
 	maxDescriptionLenRunes = 4096
+	// 25 fields per embed.
+	maxFieldsPerEmbed = 25
+	// 256 characters or runes for an embed field-name.
+	maxFieldNameLenRunes = 256
+	// 1024 characters or runes for an embed field-value.
+	maxFieldValueLenRunes = 1024
+	// 256 characters or runes for an embed author name.
+	maxEmbedAuthorNameLenRunes = 256
+	// 6000 characters or runes for the combined sum of characters in all title, description, field.name, field.value, footer.text, and author.name of all embeds.
+	maxTotalEmbedSize = 6000
 )
 
 const (
@@ -74,14 +92,31 @@ func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts .
 }
 
 type webhook struct {
-	Content string         `json:"content"`
-	Embeds  []webhookEmbed `json:"embeds"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
+	Content   string         `json:"content,omitempty"`
+	Embeds    []webhookEmbed `json:"embeds"`
 }
 
 type webhookEmbed struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Color       int    `json:"color"`
+	Title       string              `json:"title,omitempty"`
+	Description string              `json:"description,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Color       int                 `json:"color"`
+	Fields      []webhookEmbedField `json:"fields,omitempty"`
+	Footer      webhookEmbedFooter  `json:"footer,omitempty"`
+	Timestamp   time.Time           `json:"timestamp"`
+}
+
+type webhookEmbedField struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline"`
+}
+
+type webhookEmbedFooter struct {
+	Text    string `json:"text,omitempty"`
+	IconURL string `json:"icon_url,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -93,34 +128,147 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	level.Debug(n.logger).Log("incident", key)
 
-	alerts := types.Alerts(as...)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
 		return false, err
 	}
 
-	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
+	author, truncated := notify.TruncateInRunes(tmpl(n.conf.BotUsername), maxEmbedAuthorNameLenRunes)
 	if err != nil {
 		return false, err
 	}
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
-	}
-	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
-	if err != nil {
-		return false, err
-	}
-	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated author name", "key", key, "max_runes", maxEmbedAuthorNameLenRunes)
 	}
 
-	color := colorGrey
-	if alerts.Status() == model.AlertFiring {
-		color = colorRed
+	alertsOmittedMessage, truncated := notify.TruncateInRunes(tmpl(n.conf.AlertsOmittedMessage), maxMessageContentLength)
+	if err != nil {
+		return false, err
 	}
-	if alerts.Status() == model.AlertResolved {
-		color = colorGreen
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated alerts omitted message", "key", key, "max_message_length", maxMessageContentLength)
+	}
+
+	w := webhook{
+		Username:  author,
+		AvatarURL: tmpl(n.conf.BotIconURL),
+	}
+	if err != nil {
+		return false, err
+	}
+
+	alerts := types.Alerts(as...)
+
+	for alertIndex, alert := range alerts {
+		if alertIndex == maxEmbedsPerMessage {
+			w.Content = alertsOmittedMessage
+			break
+		}
+
+		title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
+		if err != nil {
+			return false, err
+		}
+		if truncated {
+			level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+		}
+
+		description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
+		if err != nil {
+			return false, err
+		}
+		if truncated {
+			level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
+		}
+
+		var color int
+		var timestamp time.Time
+
+		switch alert.Status() {
+		case model.AlertFiring:
+			color = colorRed
+			timestamp = alert.StartsAt
+		case model.AlertResolved:
+			color = colorGreen
+			timestamp = alert.EndsAt
+		default:
+			color = colorGrey
+			timestamp = time.Now()
+		}
+
+		var fields []webhookEmbedField
+
+		if !n.conf.SkipFields {
+			sortedLabelNames := make([]string, 0, len(alert.Labels))
+
+			for labelName := range alert.Labels {
+				sortedLabelNames = append(sortedLabelNames, string(labelName))
+			}
+
+			sort.Strings(sortedLabelNames)
+
+			for i, labelName := range sortedLabelNames {
+				if i > maxFieldsPerEmbed {
+					level.Warn(n.logger).Log("msg", "Truncated Fields", "key", key, "max_entries", maxFieldsPerEmbed)
+					break
+				}
+
+				labelValue := string(alert.Labels[model.LabelName(labelName)])
+
+				label, truncated := notify.TruncateInRunes(labelName, maxFieldNameLenRunes)
+				if err != nil {
+					return false, err
+				}
+				if truncated {
+					level.Warn(n.logger).Log("msg", "Truncated field name", "key", key, "max_runes", maxFieldNameLenRunes)
+				}
+
+				value, truncated := notify.TruncateInRunes(labelValue, maxFieldValueLenRunes)
+				if err != nil {
+					return false, err
+				}
+				if truncated {
+					level.Warn(n.logger).Log("msg", "Truncated field value", "key", key, "max_runes", maxFieldValueLenRunes)
+				}
+
+				fields = append(fields, webhookEmbedField{
+					Name:   label,
+					Value:  value,
+					Inline: true,
+				})
+			}
+		}
+
+		titleURL := tmpl(n.conf.TitleURL)
+		if err != nil {
+			return false, err
+		}
+
+		iconURL := tmpl(n.conf.BotIconURL)
+		if err != nil {
+			return false, err
+		}
+
+		embed := webhookEmbed{
+			Title:       title,
+			Description: description,
+			Color:       color,
+			Fields:      fields,
+			Timestamp:   timestamp,
+			URL:         titleURL,
+			Footer: webhookEmbedFooter{
+				Text:    alert.Fingerprint().String(),
+				IconURL: iconURL,
+			},
+		}
+
+		if sumEmbedsTextLength(w.Embeds)+calculateEmbedTextLength(embed) > maxTotalEmbedSize {
+			w.Content = alertsOmittedMessage
+			break
+		}
+
+		w.Embeds = append(w.Embeds, embed)
 	}
 
 	var url string
@@ -132,14 +280,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, fmt.Errorf("read webhook_url_file: %w", err)
 		}
 		url = strings.TrimSpace(string(content))
-	}
-
-	w := webhook{
-		Embeds: []webhookEmbed{{
-			Title:       title,
-			Description: description,
-			Color:       color,
-		}},
 	}
 
 	var payload bytes.Buffer
@@ -156,5 +296,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return shouldRetry, err
 	}
+
 	return false, nil
+}
+
+func sumEmbedsTextLength(embeds []webhookEmbed) (sum int) {
+	for _, embed := range embeds {
+		sum += calculateEmbedTextLength(embed)
+	}
+	return
+}
+
+func calculateEmbedTextLength(embed webhookEmbed) int {
+	var fieldLen int
+	for _, field := range embed.Fields {
+		fieldLen += len(field.Name) + len(field.Value)
+	}
+	return len(embed.Title) + len(embed.Description) + len(embed.Footer.Text) + fieldLen
 }
