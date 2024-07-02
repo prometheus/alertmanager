@@ -985,10 +985,10 @@ static_labels:
 group_labels: 
   [ - <string> ... ]
 
-# Priority of issue
+# Priority of the issue.
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
 
-# Type of issue, e.g. Bug
+# Type of the issue (e.g. Bug).
 [ issue_type: <string> ]
 
 # Name of the workflow transition to resolve an issue. The target status must have the category "done".
@@ -999,10 +999,11 @@ group_labels:
 # NOTE: The name of the transition can be localized and depends on the language setting of the service account.
 [ reopen_transition: <string> ]
 
-# If reopen_transition is defined, ignore issues with that resolution
+# If reopen_transition is defined, ignore issues with that resolution.
 [ wont_fix_resolution: <string> ]
 
-# If reopen_transition is defined, reopen issue not older than ... Note: The resolutiondate field is used to determine the age of the issue.
+# If reopen_transition is defined, reopen the issue when it is not older than this value (rounded down to the nearest minute).
+The resolutiondate field is used to determine the age of the issue.
 [ reopen_duration: <duration> ]
 
 # Other issue and custom fields
