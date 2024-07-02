@@ -37,7 +37,8 @@ import (
 )
 
 const (
-	maxSummaryLenRunes = 255
+	maxSummaryLenRunes     = 255
+	maxDescriptionLenRunes = 32767
 )
 
 // Notifier implements a Notifier for JIRA notifications.
@@ -171,6 +172,15 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 	issueDescriptionString, err := tmplTextFunc(n.conf.Description)
 	if err != nil {
 		return issue{}, fmt.Errorf("template error: %w", err)
+	}
+
+	issueDescriptionString, truncated = notify.TruncateInRunes(issueDescriptionString, maxDescriptionLenRunes)
+	if truncated {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return issue{}, err
+		}
+		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
 	if strings.HasSuffix(n.conf.APIURL.Path, "/3") {
