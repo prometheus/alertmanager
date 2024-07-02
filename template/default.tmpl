@@ -146,15 +146,261 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
-{{ define "msteams.default.summary" }}{{ template "__subject" . }}{{ end }}
-{{ define "msteams.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "msteams.default.text" }}
-{{ if gt (len .Alerts.Firing) 0 }}
-# Alerts Firing:
-{{ template "__text_alert_list_markdown" .Alerts.Firing }}
-{{ end }}
-{{ if gt (len .Alerts.Resolved) 0 }}
-# Alerts Resolved:
-{{ template "__text_alert_list_markdown" .Alerts.Resolved }}
-{{ end }}
+{
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.2",
+    "padding": "None",
+    "msteams": {
+        "width": "Full"
+    },
+    
+    "body": [
+        {
+            "type": "Container",
+            "id": "alert-msg",
+            "padding": "Default",
+            "items": [
+                {
+                    "type": "TextBlock",
+                    "id": "alert-summary-title",
+                    "text": "[{{- if gt (len .Alerts.Firing) 0 }}FIRING: {{ .Alerts.Firing | len }}] 🔥 {{end}} {{- if gt (len .Alerts.Resolved) 0 }}RESOLVED: {{ .Alerts.Resolved | len }}] ✅ {{end}} {{ with index .Alerts 0 -}}{{ .Labels.alertname }}{{ end }}",
+                    "weight": "Bolder",
+                    "color": "{{- if gt (len .Alerts.Firing) 0 }}Attention{{end}}{{- if gt (len .Alerts.Resolved) 0 }}Good{{end}}",
+                    "size": "ExtraLarge",
+                    "horizontalAlignment": "Left"
+                },
+                {
+                    "type": "Container",
+                    "id": "alert-summary-container",
+                    "padding": "None",
+                    "items": [
+                        {
+                            "type": "TextBlock",
+                            "id": "alert-summary-description",
+                            "text": "{{ .Alerts.Firing | len }} alerts are firing",
+                            "wrap": true
+                        },
+                         {
+                            "type": "ActionSet",
+                            "id": "alert-silence-action",
+                            "actions": [
+                                {
+                                    "type": "Action.OpenUrl",
+                                    "id": "silence",
+                                    "title": "Silence",
+                                    "url": "{{ .ExternalURL }}/#/silences/new?filter=%7B
+                                    {{- range $key, $value := .CommonLabels }}
+                                    {{- if eq $key "alertname" }}{{ $key }}%3D%22{{ reReplaceAll "\\\\" "" $value }}%22{{ end }}
+                                    {{- end }}
+                                    {{- range $key, $value := .CommonLabels }}
+                                    {{- if ne $key "alertname" }}%2C{{ $key }}%3D%22{{ reReplaceAll "\\\\" "" $value }}%22{{ end }}
+                                    {{- end -}}%7D"
+                                },
+                                {{ with $alert := index .Alerts 0}}
+                                {
+                                    "type": "Action.OpenUrl",
+                                    "id": "prom",
+                                    "title": "View in Prometheus",
+                                    "url": "{{ .GeneratorURL }}"
+                                }
+                                
+                                {{ end }}      
+                            
+                            ]
+                        }
+
+                    ]
+                },
+                 {{ range $index, $alert := .Alerts.Firing }}
+                {
+                    "type": "Container",
+                    "id": "{{ $index }}-alerts-container",
+                    "isVisible": true,
+                    "padding": "None",
+                    "items": [
+
+                        {
+                            "type": "Container",
+                            "id": "alert-{{ $index }}-msg-container",
+                            "padding": "None",
+                            "separator": true,
+                            "items": [
+                                {
+                                    "type": "TextBlock",
+                                    "id": "alert-{{ $index }}-summary",
+                                    "text": "{{ $alert.Labels.alertname}}",
+                                    "wrap": true,
+                                    "size": "Medium",
+                                    "weight": "Bolder"
+                                },
+                                {
+                                    "type": "TextBlock",
+                                    "id": "alert-{{ $index }}-description",
+                                    "text": "{{ $alert.Annotations.description }}",
+                                    "wrap": true,
+                                    "weight": "Lighter",
+                                    "size": "Small"
+                                },
+                                {
+                                    "type": "ActionSet",
+                                    "id": "alert-{{ $index }}-actions",
+                                    "actions": [
+                                        {
+                                            "type": "Action.ShowCard",
+                                            "title": "View Labels",
+                                            "card": {
+                                                "type": "AdaptiveCard",
+                                                "body": [
+                                                    {
+                                                    "type": "TextBlock",
+                                                    "wrap": true,
+                                                    "text": "{{ $alert.Labels }}"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                          {
+                                            "type": "Action.ShowCard",
+                                            "title": "View Annotations",
+                                            "card": {
+                                                "type": "AdaptiveCard",
+                                                "body": [
+                                                    {
+                                                    "type": "TextBlock",
+                                                    "wrap": true,
+                                                    "text": "{{ $alert.Annotations }}"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                
+                                    ]
+                                },
+
+                                {
+                                    "type": "Container",
+                                    "id": "alert-{{ $index }}-backup-labels-container",
+                                    "padding": "None",
+                                    "isVisible": false,
+                                    "items": [
+                                        {
+                                            "type": "FactSet",
+                                            "id": "alert-{{ $index }}-backup-labels-factset",
+                                            "facts": []
+                                        }
+
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {{ end }}
+                {{ range $index, $alert := .Alerts.Resolved }}
+                {
+                    "type": "Container",
+                    "id": "{{ $index }}-alerts-container",
+                    "isVisible": true,
+                    "padding": "None",
+                    "items": [
+
+                        {
+                            "type": "Container",
+                            "id": "alert-{{ $index }}-msg-container",
+                            "padding": "None",
+                            "separator": true,
+                            "items": [
+                                {
+                                    "type": "TextBlock",
+                                    "id": "alert-{{ $index }}-summary",
+                                    "text": "{{ $alert.Labels.alertname}}",
+                                    "wrap": true,
+                                    "size": "Medium",
+                                    "weight": "Bolder"
+                                },
+                                {
+                                    "type": "TextBlock",
+                                    "id": "alert-{{ $index }}-description",
+                                    "text": "{{ $alert.Annotations.description }}",
+                                    "wrap": true,
+                                    "weight": "Lighter",
+                                    "size": "Small"
+                                },
+                                {
+                                    "type": "ActionSet",
+                                    "id": "alert-{{ $index }}-actions",
+                                    "actions": [
+                                        {
+                                            "type": "Action.ShowCard",
+                                            "title": "View Labels",
+                                            "card": {
+                                                "type": "AdaptiveCard",
+                                                "body": [
+                                                    {
+                                                    "type": "TextBlock",
+                                                    "wrap": true,
+                                                    "text": "{{ $alert.Labels }}"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                          {
+                                            "type": "Action.ShowCard",
+                                            "title": "View Annotations",
+                                            "card": {
+                                                "type": "AdaptiveCard",
+                                                "body": [
+                                                    {
+                                                    "type": "TextBlock",
+                                                    "wrap": true,
+                                                    "text": "{{ $alert.Annotations }}"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                
+                                    ]
+                                },
+
+                                {
+                                    "type": "Container",
+                                    "id": "alert-{{ $index }}-backup-labels-container",
+                                    "padding": "None",
+                                    "isVisible": false,
+                                    "items": [
+                                        {
+                                            "type": "FactSet",
+                                            "id": "alert-{{ $index }}-backup-labels-factset",
+                                            "facts": []
+                                        }
+
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {{ end }}
+                {
+                    "type": "Container",
+                    "id": "backup-alerts-container",
+                    "isVisible": false,
+                    "padding": "None",
+                    "items": [
+                        {
+                            "type": "Container",
+                            "id": "alert-catch-msg-container",
+                            "padding": "None",
+                            "separator": false,
+                            "items": []
+                        }
+                    ]
+                }
+            ]
+        }
+
+    ]
+}
 {{ end }}
