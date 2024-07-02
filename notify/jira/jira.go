@@ -117,11 +117,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", key.Hash()))
 
-	for _, labelKey := range n.conf.GroupLabels {
-		if val, ok := data.GroupLabels[labelKey]; ok {
-			requestBody.Fields.Labels = append(requestBody.Fields.Labels, val)
-		}
-	}
+	sort.Strings(requestBody.Fields.Labels)
 
 	_, shouldRetry, err = n.doAPIRequest(ctx, method, path, requestBody)
 	if err != nil {
@@ -165,7 +161,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 		Project:   &issueProject{Key: n.conf.Project},
 		Issuetype: &idNameValue{Name: n.conf.IssueType},
 		Summary:   summary,
-		Labels:    make([]string, 0),
+		Labels:    make([]string, 0, len(n.conf.Labels)+1),
 		Fields:    fieldsWithStringKeys,
 	}}
 
@@ -193,8 +189,14 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 		requestBody.Fields.Description = issueDescriptionString
 	}
 
-	if n.conf.StaticLabels != nil {
-		requestBody.Fields.Labels = n.conf.StaticLabels
+	if n.conf.Labels != nil {
+		for _, label := range n.conf.Labels {
+			label, err = tmplTextFunc(label)
+			if err != nil {
+				return issue{}, fmt.Errorf("template error: %w", err)
+			}
+			requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
+		}
 	}
 
 	priority, err := tmplTextFunc(n.conf.Priority)
@@ -205,8 +207,6 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 	if priority != "" {
 		requestBody.Fields.Priority = &idNameValue{Name: priority}
 	}
-
-	sort.Strings(requestBody.Fields.Labels)
 
 	return requestBody, nil
 }

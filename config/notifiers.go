@@ -842,13 +842,12 @@ type JiraConfig struct {
 
 	APIURL *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
-	Project      string   `yaml:"project,omitempty" json:"project,omitempty"`
-	Summary      string   `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Description  string   `yaml:"description,omitempty" json:"description,omitempty"`
-	StaticLabels []string `yaml:"static_labels,omitempty" json:"static_labels,omitempty"`
-	GroupLabels  []string `yaml:"group_labels,omitempty" json:"group_labels,omitempty"`
-	Priority     string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	IssueType    string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
+	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
+	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Labels      []string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	IssueType   string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
 	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
 	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`

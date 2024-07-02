@@ -954,7 +954,8 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 JIRA notifications are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
 or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
 
-Note: This integration is only tested against an Jira Cloud instance. Jira Data Center (on premise instance) can work, but it's not guaranteed.
+Note: This integration is only tested against a Jira Cloud instance. 
+Jira Data Center (on premise instance) can work, but it's not guaranteed.
 
 Both APIs have the same feature set. The difference is that V2 supports [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
 for the issue description and V3 supports [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
@@ -977,13 +978,9 @@ project: <string>
 # Issue description template.
 [ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
 
-# Add labels to issues.
-static_labels: 
-  [ - <string> ... ]
-  
-# Add specific group labels to the issue.
-group_labels: 
-  [ - <string> ... ]
+# Labels to be added to the issue.
+labels: 
+  [ - <tmpl_string> ... ]
 
 # Priority of the issue.
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
@@ -1015,6 +1012,14 @@ fields:
 # For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
 # For Jira Data Center, use the 'authorization' field with 'credentials: <PAT value>'.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+The `labels` field is a list of labels added to the issue. Template expressions are supported. For example:
+
+```yaml
+labels:
+  - 'alertmanager'
+  - '{{ .CommonLabels.severity }}'
 ```
 
 #### `<jira_field>`
