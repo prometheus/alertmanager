@@ -220,12 +220,12 @@ func TestOpsGenie(t *testing.T) {
 			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
 			// Empty alert.
-			alert1 := &types.Alert{
+			alert1 := types.NewAlertSnapshot(&types.Alert{
 				Alert: model.Alert{
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
-			}
+			}, time.Now())
 
 			req, retry, err := notifier.createRequests(ctx, alert1)
 			require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestOpsGenie(t *testing.T) {
 			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req[0]))
 
 			// Fully defined alert.
-			alert2 := &types.Alert{
+			alert2 := types.NewAlertSnapshot(&types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
 						"Message":        "message",
@@ -257,7 +257,7 @@ func TestOpsGenie(t *testing.T) {
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
-			}
+			}, time.Now())
 			req, retry, err = notifier.createRequests(ctx, alert2)
 			require.NoError(t, err)
 			require.True(t, retry)
@@ -288,7 +288,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 		HTTPConfig:   &commoncfg.HTTPClientConfig{},
 	}
 	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, log.NewNopLogger())
-	alert := &types.Alert{
+	alert := types.NewAlertSnapshot(&types.Alert{
 		Alert: model.Alert{
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
@@ -297,7 +297,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 				"Description": "new description",
 			},
 		},
-	}
+	}, time.Now())
 	require.NoError(t, err)
 	requests, retry, err := notifierWithUpdate.createRequests(ctx, alert)
 	require.NoError(t, err)
