@@ -87,7 +87,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		method string
 	)
 
-	existingIssue, shouldRetry, err := n.searchExistingIssue(key, alerts.Status())
+	existingIssue, shouldRetry, err := n.searchExistingIssue(ctx, key, alerts.Status())
 	if err != nil {
 		return shouldRetry, fmt.Errorf("error searching existing issues: %w", err)
 	}
@@ -122,16 +122,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 
-	_, shouldRetry, err = n.doAPIRequest(method, path, requestBody)
+	_, shouldRetry, err = n.doAPIRequest(ctx, method, path, requestBody)
 	if err != nil {
 		return shouldRetry, fmt.Errorf("error create/update existing issues: %w", err)
 	}
 
 	if existingIssue != nil && existingIssue.Key != "" && existingIssue.Fields != nil && existingIssue.Fields.Status != nil {
 		if n.conf.ResolveTransition != "" && alerts.Status() == model.AlertResolved && existingIssue.Fields.Status.StatusCategory.Key != "done" {
-			return n.transitionIssue(key, existingIssue.Key, n.conf.ResolveTransition)
+			return n.transitionIssue(ctx, key, existingIssue.Key, n.conf.ResolveTransition)
 		} else if n.conf.ReopenTransition != "" && alerts.Status() == model.AlertFiring && existingIssue.Fields.Status.StatusCategory.Key == "done" {
-			return n.transitionIssue(key, existingIssue.Key, n.conf.ReopenTransition)
+			return n.transitionIssue(ctx, key, existingIssue.Key, n.conf.ReopenTransition)
 		}
 	}
 
@@ -201,7 +201,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, key notify.Key, status model.AlertStatus) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -231,7 +231,7 @@ func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus)
 
 	level.Debug(n.logger).Log("msg", "search for recent issues", "alert", key.String(), "jql", jql.String())
 
-	responseBody, shouldRetry, err := n.doAPIRequest(http.MethodPost, "search", requestBody)
+	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search", requestBody)
 	if err != nil {
 		return nil, shouldRetry, err
 	}
@@ -254,10 +254,10 @@ func (n *Notifier) searchExistingIssue(key notify.Key, status model.AlertStatus)
 	return &issueSearchResult.Issues[0], false, nil
 }
 
-func (n *Notifier) getIssueTransitionByName(issueKey, transitionName string) (string, bool, error) {
+func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, transitionName string) (string, bool, error) {
 	path := fmt.Sprintf("issue/%s/transitions", issueKey)
 
-	responseBody, shouldRetry, err := n.doAPIRequest(http.MethodGet, path, nil)
+	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return "", shouldRetry, err
 	}
@@ -277,8 +277,8 @@ func (n *Notifier) getIssueTransitionByName(issueKey, transitionName string) (st
 	return "", false, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
 }
 
-func (n *Notifier) transitionIssue(key notify.Key, issueKey, transitionName string) (bool, error) {
-	transitionID, shouldRetry, err := n.getIssueTransitionByName(issueKey, transitionName)
+func (n *Notifier) transitionIssue(ctx context.Context, key notify.Key, issueKey, transitionName string) (bool, error) {
+	transitionID, shouldRetry, err := n.getIssueTransitionByName(ctx, issueKey, transitionName)
 	if err != nil {
 		return shouldRetry, err
 	}
@@ -289,12 +289,12 @@ func (n *Notifier) transitionIssue(key notify.Key, issueKey, transitionName stri
 	path := fmt.Sprintf("issue/%s/transitions", issueKey)
 
 	level.Debug(n.logger).Log("msg", "transitions jira issue", "alert", key.String(), "key", issueKey, "transition", transitionName)
-	_, shouldRetry, err = n.doAPIRequest(http.MethodPost, path, requestBody)
+	_, shouldRetry, err = n.doAPIRequest(ctx, http.MethodPost, path, requestBody)
 
 	return shouldRetry, err
 }
 
-func (n *Notifier) doAPIRequest(method, path string, requestBody any) ([]byte, bool, error) {
+func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, requestBody any) ([]byte, bool, error) {
 	var body io.Reader
 	if requestBody != nil {
 		var buf bytes.Buffer
@@ -306,7 +306,7 @@ func (n *Notifier) doAPIRequest(method, path string, requestBody any) ([]byte, b
 	}
 
 	url := n.conf.APIURL.JoinPath(path)
-	req, err := http.NewRequest(method, url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, method, url.String(), body)
 	if err != nil {
 		return nil, false, err
 	}
