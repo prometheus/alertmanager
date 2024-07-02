@@ -78,9 +78,8 @@ In addition to direct access of data (labels and annotations) stored as KV, ther
 
 # Functions
 
-Note the [default
-functions](http://golang.org/pkg/text/template/#hdr-Functions) also provided by Go
-templating.
+For templating the [default functions](http://golang.org/pkg/text/template/#hdr-Functions) are provided by Go
+templating and the following custom functions.
 
 ## Strings
 
@@ -99,3 +98,24 @@ templating.
 | tz | string, time.Time | Returns the time in the timezone. For example, Europe/Paris. |
 | since | time.Time | [time.Duration](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
 | humanizeDuration | number or string | Returns a human-readable string representing the duration, and the error if it happened. |
+
+Additionally a selection of functions provided by the [sprig library](https://masterminds.github.io/sprig/) is available.
+The selection list of theses functinons is the following:
+
+```text
+"ago", "date", "dateInZone", "dateModify", "duration", "durationRound", "htmlDate", "htmlDateInZone", "toDate",
+"unixEpoch", "abbrev", "abbrevboth", "trunc", "untitle", "substr", "repeat", "trimAll", "trimSuffix", "trimPrefix", "nospace",
+"initials", "randAlphaNum", "randAlpha", "randAscii", "randNumeric", "swapcase", "shuffle", "snakecase", "camelcase",
+"kebabcase", "wrap", "wrapWith", "contains", "hasPrefix", "hasSuffix", "quote", "squote", "cat", "indent", "nindent",
+"replace", "plural", "sha1sum", "sha256sum", "adler32sum", "toString", "atoi", "int64", "int", "float64", "seq", "toDecimal",
+"split", "splitList", "splitn", "toStrings", "until", "untilStep", "add1", "add", "sub", "div", "mod", "mul", "randInt",
+"add1f", "addf", "subf", "divf", "mulf", "biggest", "max", "min", "maxf", "minf", "ceil", "floor", "round", "sortAlpha",
+"default", "empty", "coalesce", "all", "any", "compact", "fromJson", "toJson", "toPrettyJson", "toRawJson", "ternary",
+"deepCopy", "typeOf", "typeIs", "typeIsLike", "kindOf", "kindIs", "deepEqual", "b64enc", "b64dec", "b32enc", "b32dec", "tuple",
+"list", "dict", "get", "set", "unset", "hasKey", "pluck", "keys", "pick", "omit", "merge", "mergeOverwrite", "values", "prepend",
+"first", "rest", "last", "initial", "reverse", "uniq", "without", "has", "concat", "dig", "chunk", "randBytes", "uuidv4",
+"semver", "semverCompare", "regexFindAll", "regexFind", "regexReplaceAll", "regexReplaceAllLiteral", "regexSplit",
+"regexQuoteMeta", "urlParse", "urlJoin",
+```
+
+When using sprig date functions it is advised to always use its timezone aware versions, like `dateInZone` or `htmlDateInZone`.

@@ -21,11 +21,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	tmpltext "text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
@@ -59,8 +61,8 @@ func New(options ...Option) (*Template, error) {
 		o(t.text, t.html)
 	}
 
-	t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
-	t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+	t.text.Funcs(tmpltext.FuncMap(DefaultFuncs)).Funcs(tmpltext.FuncMap(filteredSprigFuncMap()))
+	t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs)).Funcs(tmplhtml.FuncMap(filteredSprigFuncMap()))
 
 	return t, nil
 }
@@ -422,4 +424,29 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 	}
 
 	return data
+}
+
+func filteredSprigFuncMap() tmpltext.FuncMap {
+	allowlist := []string{
+		"ago", "date", "dateInZone", "dateModify", "duration", "durationRound", "htmlDate", "htmlDateInZone", "toDate",
+		"unixEpoch", "abbrev", "abbrevboth", "trunc", "untitle", "substr", "repeat", "trimAll", "trimSuffix", "trimPrefix", "nospace",
+		"initials", "randAlphaNum", "randAlpha", "randAscii", "randNumeric", "swapcase", "shuffle", "snakecase", "camelcase",
+		"kebabcase", "wrap", "wrapWith", "contains", "hasPrefix", "hasSuffix", "quote", "squote", "cat", "indent", "nindent",
+		"replace", "plural", "sha1sum", "sha256sum", "adler32sum", "toString", "atoi", "int64", "int", "float64", "seq", "toDecimal",
+		"split", "splitList", "splitn", "toStrings", "until", "untilStep", "add1", "add", "sub", "div", "mod", "mul", "randInt",
+		"add1f", "addf", "subf", "divf", "mulf", "biggest", "max", "min", "maxf", "minf", "ceil", "floor", "round", "sortAlpha",
+		"default", "empty", "coalesce", "all", "any", "compact", "fromJson", "toJson", "toPrettyJson", "toRawJson", "ternary",
+		"deepCopy", "typeOf", "typeIs", "typeIsLike", "kindOf", "kindIs", "deepEqual", "b64enc", "b64dec", "b32enc", "b32dec", "tuple",
+		"list", "dict", "get", "set", "unset", "hasKey", "pluck", "keys", "pick", "omit", "merge", "mergeOverwrite", "values", "prepend",
+		"first", "rest", "last", "initial", "reverse", "uniq", "without", "has", "concat", "dig", "chunk", "randBytes", "uuidv4",
+		"semver", "semverCompare", "regexFindAll", "regexFind", "regexReplaceAll", "regexReplaceAllLiteral", "regexSplit",
+		"regexQuoteMeta", "urlParse", "urlJoin",
+	}
+	sprigFuncMap := sprig.FuncMap()
+	for function := range sprigFuncMap {
+		if !slices.Contains(allowlist, function) {
+			delete(sprigFuncMap, function)
+		}
+	}
+	return sprigFuncMap
 }

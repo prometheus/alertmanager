@@ -561,6 +561,10 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    "{{ . | since | humanizeDuration }}",
 		data:  time.Now().Add(-1 * time.Hour),
 		exp:   "1h 0m 0s",
+	}, {
+		title: "Template using a sprig function",
+		in:    `{{ list 1 2 3 4 5 }}`,
+		exp:   "[1 2 3 4 5]",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
@@ -577,6 +581,40 @@ func TestTemplateFuncs(t *testing.T) {
 						require.EqualError(t, err, tc.expErr)
 						require.Empty(t, got)
 					}
+				}()
+			}
+			wg.Wait()
+		})
+	}
+}
+
+func TestDisallowedTemplateFuncs(t *testing.T) {
+	tmpl, err := FromGlobs([]string{})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+		exp   string
+	}{{
+		title: "Template using env",
+		in:    `{{ env "HOME" }}`,
+		exp:   "ABC",
+	}, {
+		title: "Template using expandenv",
+		in:    `{{ expandenv "Your path is set to $PATH"}}`,
+		exp:   "abc",
+	}} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			wg := sync.WaitGroup{}
+			for i := 0; i < 10; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					_, err := tmpl.ExecuteTextString(tc.in, tc.data)
+					require.ErrorContainsf(t, err, "not defined", "error message %s", "formatted")
 				}()
 			}
 			wg.Wait()
