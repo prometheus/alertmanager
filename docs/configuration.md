@@ -1010,7 +1010,11 @@ responders:
 [ name: <tmpl_string> ]
 [ username: <tmpl_string> ]
 
-# "team", "teams", "user", "escalation" or "schedule".
+# One of `team`, `teams`, `user`, `escalation` or `schedule`.
+#
+# The `teams` responder is configured using the `name` field above.
+# This field can contain a comma-separated list of team names.
+# If the list is empty, no responders are configured.
 type: <tmpl_string>
 ```
 
