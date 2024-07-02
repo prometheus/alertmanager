@@ -61,7 +61,7 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.AlertSnapshot) (bool, error) {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
