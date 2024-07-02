@@ -271,7 +271,7 @@ func run() int {
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
-		Limits: silence.Limits{
+		Limits: &silence.Limits{
 			MaxSilences:         func() int { return *maxSilences },
 			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
 		},
