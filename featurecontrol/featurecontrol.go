@@ -26,6 +26,7 @@ const (
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
+	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
 	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
 )
 
@@ -33,6 +34,7 @@ var AllowedFlags = []string{
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
+	FeatureAutoGOMEMLIMIT,
 	FeatureAutoGOMAXPROCS,
 }
 
@@ -40,6 +42,7 @@ type Flagger interface {
 	EnableReceiverNamesInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
+	EnableAutoGOMEMLIMIT() bool
 	EnableAutoGOMAXPROCS() bool
 }
 
@@ -48,6 +51,7 @@ type Flags struct {
 	enableReceiverNamesInMetrics bool
 	classicMode                  bool
 	utf8StrictMode               bool
+	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
 }
 
@@ -61,6 +65,10 @@ func (f *Flags) ClassicMode() bool {
 
 func (f *Flags) UTF8StrictMode() bool {
 	return f.utf8StrictMode
+}
+
+func (f *Flags) EnableAutoGOMEMLIMIT() bool {
+	return f.enableAutoGOMEMLIMIT
 }
 
 func (f *Flags) EnableAutoGOMAXPROCS() bool {
@@ -84,6 +92,12 @@ func enableClassicMode() flagOption {
 func enableUTF8StrictMode() flagOption {
 	return func(configs *Flags) {
 		configs.utf8StrictMode = true
+	}
+}
+
+func enableAutoGOMEMLIMIT() flagOption {
+	return func(configs *Flags) {
+		configs.enableAutoGOMEMLIMIT = true
 	}
 }
 
@@ -112,6 +126,9 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 		case FeatureUTF8StrictMode:
 			opts = append(opts, enableUTF8StrictMode())
 			level.Warn(logger).Log("msg", "UTF-8 strict mode enabled")
+		case FeatureAutoGOMEMLIMIT:
+			opts = append(opts, enableAutoGOMEMLIMIT())
+			level.Warn(logger).Log("msg", "Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			level.Warn(logger).Log("msg", "Automatically set GOMAXPROCS to match Linux container CPU quota")
@@ -138,5 +155,7 @@ func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 func (n NoopFlags) ClassicMode() bool { return false }
 
 func (n NoopFlags) UTF8StrictMode() bool { return false }
+
+func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
