@@ -128,7 +128,7 @@ func NewFlags(logger log.Logger, features string) (Flagger, error) {
 			level.Warn(logger).Log("msg", "UTF-8 strict mode enabled")
 		case FeatureAutoGOMEMLIMIT:
 			opts = append(opts, enableAutoGOMEMLIMIT())
-			level.Warn(logger).Log("msg", "Automatically set to match the Linux container memory limit. If there is no container limit, or the process is running outside of containers, the system memory total is used.")
+			level.Warn(logger).Log("msg", "Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			level.Warn(logger).Log("msg", "Automatically set GOMAXPROCS to match Linux container CPU quota")
