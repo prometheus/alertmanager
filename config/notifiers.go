@@ -568,6 +568,7 @@ type OpsGenieConfig struct {
 	APIKey       Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIKeyFile   string                    `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
 	APIURL       *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Alias        string                    `yaml:"alias,omitempty" json:"alias,omitempty"`
 	Message      string                    `yaml:"message,omitempty" json:"message,omitempty"`
 	Description  string                    `yaml:"description,omitempty" json:"description,omitempty"`
 	Source       string                    `yaml:"source,omitempty" json:"source,omitempty"`
