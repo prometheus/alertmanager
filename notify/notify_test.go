@@ -45,9 +45,9 @@ func (s sendResolved) SendResolved() bool {
 	return bool(s)
 }
 
-type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error)
 
-func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 	return f(ctx, alerts...)
 }
 
@@ -61,15 +61,15 @@ type testNflog struct {
 	qres []*nflogpb.Entry
 	qerr error
 
-	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, ts map[string]string) error
 }
 
 func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
 	return l.qres, l.qerr
 }
 
-func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
-	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, expiry)
+func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, ts map[string]string) error {
+	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, expiry, ts)
 }
 
 func (l *testNflog) GC() (int, error) {
@@ -383,13 +383,13 @@ func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 			if fail {
 				fail = false
-				return retry, errors.New("fail to deliver notification")
+				return ctx, retry, errors.New("fail to deliver notification")
 			}
 			sent = append(sent, alerts...)
-			return false, nil
+			return ctx, false, nil
 		}),
 		rs: sendResolved(false),
 	}
@@ -438,11 +438,11 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 		testData := testData
 		i := Integration{
 			name: "test",
-			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 				if !testData.isNewErrorWithReason {
-					return retry, errors.New("fail to deliver notification")
+					return ctx, retry, errors.New("fail to deliver notification")
 				}
-				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+				return ctx, retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
 			}),
 			rs: sendResolved(false),
 		}
@@ -475,9 +475,9 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 
 	i := Integration{
 		name: "test",
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 			cancel()
-			return true, errors.New("request failed: context canceled")
+			return ctx, true, errors.New("request failed: context canceled")
 		}),
 		rs: sendResolved(false),
 	}
@@ -506,9 +506,9 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 			sent = append(sent, alerts...)
-			return false, nil
+			return ctx, false, nil
 		}),
 		rs: sendResolved(false),
 	}
@@ -557,9 +557,9 @@ func TestRetryStageNoResolved(t *testing.T) {
 func TestRetryStageSendResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 			sent = append(sent, alerts...)
-			return false, nil
+			return ctx, false, nil
 		}),
 		rs: sendResolved(true),
 	}
@@ -630,7 +630,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithResolvedAlerts(ctx, []uint64{})
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, ts map[string]string) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{0, 1, 2}, firingAlerts)
@@ -646,7 +646,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{})
 	ctx = WithResolvedAlerts(ctx, []uint64{0, 1, 2})
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, ts map[string]string) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{}, firingAlerts)

@@ -64,7 +64,7 @@ func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOp
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (context.Context, bool, error) {
 	var (
 		err  error
 		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
@@ -77,7 +77,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return ctx, false, fmt.Errorf("group key missing")
 	}
 
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
@@ -87,7 +87,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	n.client.Token, err = n.getBotToken()
 	if err != nil {
-		return true, err
+		return ctx, true, err
 	}
 
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
@@ -96,11 +96,11 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ThreadID:              n.conf.MessageThreadID,
 	})
 	if err != nil {
-		return true, err
+		return ctx, true, err
 	}
 	level.Debug(n.logger).Log("msg", "Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
-	return false, nil
+	return ctx, false, nil
 }
 
 func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {

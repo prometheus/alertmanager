@@ -56,7 +56,7 @@ const MinTimeout = 10 * time.Second
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
 type Notifier interface {
-	Notify(context.Context, ...*types.Alert) (bool, error)
+	Notify(context.Context, ...*types.Alert) (context.Context, bool, error)
 }
 
 // Integration wraps a notifier and its configuration to be uniquely identified
@@ -81,7 +81,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 }
 
 // Notify implements the Notifier interface.
-func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 	return i.notifier.Notify(ctx, alerts...)
 }
 
@@ -120,6 +120,8 @@ const (
 	keyMuteTimeIntervals
 	keyActiveTimeIntervals
 	keyRouteID
+	keyThreaded
+	keyThreadedState
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -168,6 +170,24 @@ func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 
 func WithRouteID(ctx context.Context, routeID string) context.Context {
 	return context.WithValue(ctx, keyRouteID, routeID)
+}
+
+func WithThreaded(ctx context.Context, t bool) context.Context {
+	return context.WithValue(ctx, keyThreaded, t)
+}
+
+func WithThreadedState(ctx context.Context, ts map[string]string) context.Context {
+	return context.WithValue(ctx, keyThreadedState, ts)
+}
+
+func WithThreadedStateKV(ctx context.Context, key, val string) context.Context {
+	ts, ok := ThreadedState(ctx)
+	if ts != nil && ok {
+		ts[key] = val
+	} else {
+		ts = map[string]string{key: val}
+	}
+	return context.WithValue(ctx, keyThreadedState, ts)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -240,6 +260,30 @@ func RouteID(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
+func Threaded(ctx context.Context) (bool, bool) {
+	v, ok := ctx.Value(keyThreaded).(bool)
+	return v, ok
+}
+
+func ThreadedState(ctx context.Context) (map[string]string, bool) {
+	if t, ok := Threaded(ctx); !ok || !t {
+		return nil, false
+	}
+	v, ok := ctx.Value(keyThreadedState).(map[string]string)
+	return v, ok
+}
+
+func ThreadedStateKV(ctx context.Context, key string) (string, bool) {
+	if t, ok := Threaded(ctx); !ok || !t {
+		return "", false
+	}
+	ts, ok := ThreadedState(ctx)
+	if ts != nil && ok {
+		return ts[key], ok
+	}
+	return "", false
+}
+
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
 	Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
@@ -254,7 +298,7 @@ func (f StageFunc) Exec(ctx context.Context, l log.Logger, alerts ...*types.Aler
 }
 
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, ts map[string]string) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
@@ -734,8 +778,10 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	var entry *nflogpb.Entry
 	switch len(entries) {
 	case 0:
+		ctx = WithThreadedState(ctx, nil)
 	case 1:
 		entry = entries[0]
+		ctx = WithThreadedState(ctx, entry.ThreadedState)
 	default:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
@@ -849,7 +895,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		select {
 		case <-tick.C:
 			now := time.Now()
-			retry, err := r.integration.Notify(ctx, sent...)
+			ctx, retry, err := r.integration.Notify(ctx, sent...)
 			dur := time.Since(now)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
@@ -931,7 +977,12 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 	}
 	expiry := 2 * repeat
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry)
+	if len(firing) == 0 {
+		ctx = WithThreadedState(ctx, nil)
+	}
+	ts, _ := ThreadedState(ctx)
+
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry, ts)
 }
 
 type timeStage struct {

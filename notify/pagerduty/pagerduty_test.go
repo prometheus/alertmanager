@@ -260,7 +260,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
+			ctx, ok, err := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -484,7 +484,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	_, err = pagerDuty.Notify(ctx, []*types.Alert{
+	ctx, _, err = pagerDuty.Notify(ctx, []*types.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{

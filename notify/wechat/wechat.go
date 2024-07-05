@@ -81,10 +81,10 @@ func New(c *config.WechatConfig, t *template.Template, l log.Logger, httpOpts ..
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	level.Debug(n.logger).Log("incident", key)
@@ -92,7 +92,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	// Refresh AccessToken over 2 hours
@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
-			return false, fmt.Errorf("templating error: %w", err)
+			return ctx, false, fmt.Errorf("templating error: %w", err)
 		}
 
 		u := n.conf.APIURL.Copy()
@@ -110,17 +110,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		resp, err := notify.Get(ctx, n.client, u.String())
 		if err != nil {
-			return true, notify.RedactURL(err)
+			return ctx, true, notify.RedactURL(err)
 		}
 		defer notify.Drain(resp)
 
 		var wechatToken token
 		if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
-			return false, err
+			return ctx, false, err
 		}
 
 		if wechatToken.AccessToken == "" {
-			return false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
+			return ctx, false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
 		}
 
 		// Cache accessToken
@@ -147,12 +147,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 	if err != nil {
-		return false, fmt.Errorf("templating error: %w", err)
+		return ctx, false, fmt.Errorf("templating error: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	postMessageURL := n.conf.APIURL.Copy()
@@ -163,35 +163,35 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
 	if resp.StatusCode != 200 {
-		return true, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), fmt.Errorf("unexpected status code %v", resp.StatusCode))
+		return ctx, true, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), fmt.Errorf("unexpected status code %v", resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return true, err
+		return ctx, true, err
 	}
 	level.Debug(n.logger).Log("response", string(body), "incident", key)
 
 	var weResp weChatResponse
 	if err := json.Unmarshal(body, &weResp); err != nil {
-		return true, err
+		return ctx, true, err
 	}
 
 	// https://work.weixin.qq.com/api/doc#10649
 	if weResp.Code == 0 {
-		return false, nil
+		return ctx, false, nil
 	}
 
 	// AccessToken is expired
 	if weResp.Code == 42001 {
 		n.accessToken = ""
-		return true, errors.New(weResp.Error)
+		return ctx, true, errors.New(weResp.Error)
 	}
 
-	return false, errors.New(weResp.Error)
+	return ctx, false, errors.New(weResp.Error)
 }

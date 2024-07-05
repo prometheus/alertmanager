@@ -17,6 +17,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/prometheus/alertmanager/types"
+	"io"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -26,7 +28,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -64,13 +65,14 @@ func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...
 type webhook struct {
 	Markdown string `json:"markdown"`
 	RoomID   string `json:"roomId,omitempty"`
+	ParentId string `json:"parentId,omitempty"`
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	level.Debug(n.logger).Log("incident", key)
@@ -78,12 +80,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	message := tmpl(n.conf.Message)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	message, truncated := notify.TruncateInBytes(message, maxMessageSize)
@@ -96,20 +98,51 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		RoomID:   tmpl(n.conf.RoomID),
 	}
 
+	ctx = notify.WithThreaded(ctx, n.conf.Threaded)
+
+	handleResp := func(resp *http.Response) (context.Context, error) { return ctx, nil }
+
+	if n.conf.Threaded {
+		keyId := "id"
+		if id, ok := notify.ThreadedStateKV(ctx, keyId); ok {
+			w.ParentId = id
+		} else {
+			handleResp = func(resp *http.Response) (context.Context, error) {
+				jsonStr, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return ctx, err
+				}
+				var res struct {
+					Id string `json:"id"`
+				}
+				if err = json.Unmarshal(jsonStr, &res); err != nil {
+					return ctx, err
+				}
+				ctx = notify.WithThreadedStateKV(ctx, keyId, res.Id)
+				return ctx, nil
+			}
+		}
+	}
+
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
+	}
+
+	ctx, err = handleResp(resp)
+	if err != nil {
+		return ctx, false, err
 	}
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		return ctx, shouldRetry, err
 	}
 
-	return false, nil
+	return ctx, false, nil
 }

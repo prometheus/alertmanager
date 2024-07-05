@@ -92,7 +92,7 @@ type attachment struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	var err error
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -110,7 +110,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if truncated {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
-			return false, err
+			return ctx, false, err
 		}
 		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
@@ -186,12 +186,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Attachments: []attachment{*att},
 	}
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	var u string
@@ -200,14 +200,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.APIURLFile)
 		if err != nil {
-			return false, err
+			return ctx, false, err
 		}
 		u = strings.TrimSpace(string(content))
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
@@ -216,7 +216,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return ctx, retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
 	// Slack web API might return errors with a 200 response code.
@@ -224,10 +224,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err = checkResponseError(resp)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		return ctx, retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 	}
 
-	return retry, nil
+	return ctx, retry, nil
 }
 
 // checkResponseError parses out the error message from Slack API response.

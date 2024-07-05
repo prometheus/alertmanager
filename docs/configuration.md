@@ -1481,4 +1481,7 @@ room_id: <tmpl_string>
 
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
+
+# Whether to send threaded messages
+[ threaded: <boolean> | default = false ]
 ```
