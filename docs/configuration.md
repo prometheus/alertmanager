@@ -934,6 +934,10 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
 
+# DEPRECATED: Will be removed in future release.
+# Message summary template.
+[ summary: <tmpl_string> | default = '{{ template "msteams.default.summary" . }}' ]
+
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
 
