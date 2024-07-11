@@ -168,9 +168,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title:   `{{ template "msteams.default.title" . }}`,
-		Summary: `{{ template "msteams.default.summary" . }}`,
-		Text:    `{{ template "msteams.default.text" . }}`,
+		Title: `{{ template "msteams.default.title" . }}`,
+		Text:  `{{ template "msteams.default.text" . }}`,
 	}
 )
 
@@ -803,9 +802,8 @@ type MSTeamsConfig struct {
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
 func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
