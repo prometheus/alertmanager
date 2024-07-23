@@ -123,17 +123,15 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
-{{ define "discord.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "discord.default.title" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }}{{ end }}
 {{ define "discord.default.message" }}
-{{ if gt (len .Alerts.Firing) 0 }}
-Alerts Firing:
-{{ template "__text_alert_list" .Alerts.Firing }}
+{{ .CommonAnnotations.summary }}
+{{ .CommonAnnotations.description }}
 {{ end }}
-{{ if gt (len .Alerts.Resolved) 0 }}
-Alerts Resolved:
-{{ template "__text_alert_list" .Alerts.Resolved }}
-{{ end }}
-{{ end }}
+{{ define "discord.default.title_url" }}{{ end }}
+{{ define "discord.default.bot_username" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "discord.default.bot_icon_url" }}https://avatars.githubusercontent.com/u/3380462{{ end }}
+{{ define "discord.default.alerts_omitted_message" }}Some alerts were omitted because they were too long to be sent in one message{{ end }}
 
 {{ define "webex.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 }}
