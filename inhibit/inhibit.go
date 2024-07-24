@@ -147,25 +147,32 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 
 func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
 	mutes := make([]bool, len(lsets))
-OUTER:
-	for i, lset := range lsets {
-		fp := lset.Fingerprint()
-
-		for _, r := range ih.rules {
-			if !r.TargetMatchers.Matches(lset) {
+	for _, r := range ih.rules {
+		var alerts []*types.Alert
+		var scacheEval []bool
+		for i, lset := range lsets {
+			if mutes[i] || !r.TargetMatchers.Matches(lset) {
 				// If target side of rule doesn't match, we don't need to look any further.
 				continue
 			}
+			if alerts == nil {
+				alerts = r.scache.List()
+				scacheEval = r.evaluateScache(alerts)
+			}
+			fp := lset.Fingerprint()
 			// If we are here, the target side matches. If the source side matches, too, we
 			// need to exclude inhibiting alerts for which the same is true.
-			if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
+			if inhibitedByFP, eq := r.hasEqualCached(lset, r.SourceMatchers.Matches(lset), alerts, scacheEval); eq {
 				ih.marker.SetInhibited(fp, inhibitedByFP.String())
 				mutes[i] = true
-				continue OUTER
 			}
 		}
-		ih.marker.SetInhibited(fp)
-		mutes[i] = false
+	}
+	for i, lset := range lsets {
+		fp := lset.Fingerprint()
+		if !mutes[i] {
+			ih.marker.SetInhibited(fp)
+		}
 	}
 	return mutes
 }
@@ -273,4 +280,32 @@ Outer:
 		return a.Fingerprint(), true
 	}
 	return model.Fingerprint(0), false
+}
+
+func (r *InhibitRule) hasEqualCached(lset model.LabelSet, excludeTwoSidedMatch bool, alerts []*types.Alert, scacheEval []bool) (model.Fingerprint, bool) {
+Outer:
+	for i, a := range alerts {
+		// The cache might be stale and contain resolved alerts.
+		if a.Resolved() {
+			continue
+		}
+		for n := range r.Equal {
+			if a.Labels[n] != lset[n] {
+				continue Outer
+			}
+		}
+		if excludeTwoSidedMatch && scacheEval[i] {
+			continue Outer
+		}
+		return a.Fingerprint(), true
+	}
+	return model.Fingerprint(0), false
+}
+
+func (r *InhibitRule) evaluateScache(alerts []*types.Alert) []bool {
+	targetMatches := make([]bool, len(alerts))
+	for i, a := range alerts {
+		targetMatches[i] = r.TargetMatchers.Matches(a.Labels)
+	}
+	return targetMatches
 }
