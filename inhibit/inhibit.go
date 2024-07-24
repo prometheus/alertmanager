@@ -145,6 +145,31 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
+	mutes := make([]bool, len(lsets))
+OUTER:
+	for i, lset := range lsets {
+		fp := lset.Fingerprint()
+
+		for _, r := range ih.rules {
+			if !r.TargetMatchers.Matches(lset) {
+				// If target side of rule doesn't match, we don't need to look any further.
+				continue
+			}
+			// If we are here, the target side matches. If the source side matches, too, we
+			// need to exclude inhibiting alerts for which the same is true.
+			if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
+				ih.marker.SetInhibited(fp, inhibitedByFP.String())
+				mutes[i] = true
+				continue OUTER
+			}
+		}
+		ih.marker.SetInhibited(fp)
+		mutes[i] = false
+	}
+	return mutes
+}
+
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts

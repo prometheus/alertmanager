@@ -227,9 +227,15 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases {
-		if actual := ih.Mutes(c.target); actual != c.expected {
-			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
+	targets := make([]model.LabelSet, len(cases))
+	for i, c := range cases {
+		targets[i] = c.target
+	}
+	mutes := ih.MutesAll(targets...)
+	for i := range cases {
+		c := cases[i]
+		if mutes[i] != c.expected {
+			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, mutes[i])
 		}
 	}
 }
@@ -323,9 +329,15 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases {
-		if actual := ih.Mutes(c.target); actual != c.expected {
-			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
+	targets := make([]model.LabelSet, len(cases))
+	for i, c := range cases {
+		targets[i] = c.target
+	}
+	mutes := ih.MutesAll(targets...)
+	for i := range cases {
+		c := cases[i]
+		if mutes[i] != c.expected {
+			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, mutes[i])
 		}
 	}
 }
@@ -407,7 +419,7 @@ func TestInhibit(t *testing.T) {
 		lbls  model.LabelSet
 		muted bool
 	}
-	for i, tc := range []struct {
+	for _, tc := range []struct {
 		alerts   []*types.Alert
 		expected []exp
 	}{
@@ -466,8 +478,14 @@ func TestInhibit(t *testing.T) {
 		}()
 		inhibitor.Run()
 
-		for _, expected := range tc.expected {
-			if inhibitor.Mutes(expected.lbls) != expected.muted {
+		labelSet := make([]model.LabelSet, len(tc.expected))
+		for i, e := range tc.expected {
+			labelSet[i] = e.lbls
+		}
+		mutes := inhibitor.MutesAll(labelSet...)
+		for i := range tc.expected {
+			expected := tc.expected[i]
+			if mutes[i] != expected.muted {
 				mute := "unmuted"
 				if expected.muted {
 					mute = "muted"

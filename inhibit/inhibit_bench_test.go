@@ -106,7 +106,7 @@ type benchmarkOptions struct {
 	// It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
-	benchFunc func(mutesFunc func(model.LabelSet) bool) error
+	benchFunc func(mutesFunc func(...model.LabelSet) []bool) error
 }
 
 // allRulesMatchBenchmark returns a new benchmark where all inhibition rules
@@ -148,9 +148,14 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				})
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+		}, benchFunc: func(mutesFunc func(set ...model.LabelSet) []bool) error {
+			alerts := make([]model.LabelSet, 0, numTargetAlerts)
 			for i := 0; i < numTargetAlerts; i++ {
-				if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+				alerts = append(alerts, model.LabelSet{"dst": "0"})
+			}
+			mutes := mutesFunc(alerts...)
+			for _, m := range mutes {
+				if !m {
 					return errors.New("expected dst=0 to be muted")
 				}
 			}
@@ -192,9 +197,14 @@ func lastRuleMatchesBenchmark(b *testing.B, n, numTargetAlerts int) benchmarkOpt
 					},
 				},
 			}}
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+		}, benchFunc: func(mutesFunc func(set ...model.LabelSet) []bool) error {
+			alerts := make([]model.LabelSet, 0, numTargetAlerts)
 			for i := 0; i < numTargetAlerts; i++ {
-				if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+				alerts = append(alerts, model.LabelSet{"dst": "0"})
+			}
+			mutes := mutesFunc(alerts...)
+			for _, m := range mutes {
+				if !m {
 					return errors.New("expected dst=0 to be muted")
 				}
 			}
@@ -229,7 +239,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		require.NoError(b, opts.benchFunc(ih.Mutes))
+		require.NoError(b, opts.benchFunc(ih.MutesAll))
 	}
 }
 
