@@ -15,6 +15,7 @@ package template
 
 import (
 	tmplhtml "html/template"
+	"math"
 	"net/url"
 	"sync"
 	"testing"
@@ -556,6 +557,34 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
 		data:  []uint{0, 1, 1234567},
 		exp:   "0s:1s:14d 6h 56m 7s:",
+	}, {
+		title: "Template using HumanizeTimestamp - int.",
+		in:    "{{ range . }}{{ humanizeTimestamp . }}:{{ end }}",
+		data:  []int64{0, -1, 1, 1234567, 9223372036},
+		exp:   "1970-01-01 00:00:00 +0000 UTC:1969-12-31 23:59:59 +0000 UTC:1970-01-01 00:00:01 +0000 UTC:1970-01-15 06:56:07 +0000 UTC:2262-04-11 23:47:16 +0000 UTC:",
+	}, {
+		title: "Template using HumanizeTimestamp - uint.",
+		in:    "{{ range . }}{{ humanizeTimestamp . }}:{{ end }}",
+		data:  []uint64{0, 1, 1234567, 9223372036},
+		exp:   "1970-01-01 00:00:00 +0000 UTC:1970-01-01 00:00:01 +0000 UTC:1970-01-15 06:56:07 +0000 UTC:2262-04-11 23:47:16 +0000 UTC:",
+	}, {
+		title:  "Template using HumanizeTimestamp - int with error.",
+		in:     "{{ range . }}{{ humanizeTimestamp . }}:{{ end }}",
+		data:   []int64{math.MinInt64, math.MaxInt64},
+		expErr: `template: :1:16: executing "" at <humanizeTimestamp .>: error calling humanizeTimestamp: -9.223372036854776e+18 cannot be represented as a nanoseconds timestamp since it overflows int64`,
+	}, {
+		title:  "Template using HumanizeTimestamp - uint with error.",
+		in:     "{{ range . }}{{ humanizeTimestamp . }}:{{ end }}",
+		data:   []uint64{math.MaxUint64},
+		expErr: `template: :1:16: executing "" at <humanizeTimestamp .>: error calling humanizeTimestamp: 1.8446744073709552e+19 cannot be represented as a nanoseconds timestamp since it overflows int64`,
+	}, {
+		title: "Template using HumanizeTimestamp - model.SampleValue input - float64",
+		in:    "{{ 1435065584.128 | humanizeTimestamp }}",
+		exp:   "2015-06-23 13:19:44.128 +0000 UTC",
+	}, {
+		title: "Template using HumanizeTimestamp - model.SampleValue input - string.",
+		in:    `{{ "1435065584.128" | humanizeTimestamp }}`,
+		exp:   "2015-06-23 13:19:44.128 +0000 UTC",
 	}, {
 		title: "Template using since",
 		in:    "{{ . | since | humanizeDuration }}",

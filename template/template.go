@@ -205,8 +205,9 @@ var DefaultFuncs = FuncMap{
 		}
 		return t.In(loc), nil
 	},
-	"since":            time.Since,
-	"humanizeDuration": commonTemplates.HumanizeDuration,
+	"since":             time.Since,
+	"humanizeDuration":  commonTemplates.HumanizeDuration,
+	"humanizeTimestamp": commonTemplates.HumanizeTimestamp,
 }
 
 // Pair is a key/value string pair.
