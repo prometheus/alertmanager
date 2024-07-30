@@ -46,7 +46,13 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1000 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 1000, 1, 1))
 	})
+	b.Run("1000 inhibition rules, 100 inhibiting alert, 100 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1000, 100, 100))
+	})
 	b.Run("10000 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 10000, 1, 1))
+	})
+	b.Run("10000 inhibition rules, 1000 inhibiting alert, 1000 target alert", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 10000, 1, 1))
 	})
 	b.Run("1 inhibition rule, 10 inhibiting alerts, 1 target alert", func(b *testing.B) {
