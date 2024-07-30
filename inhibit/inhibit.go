@@ -147,31 +147,40 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 
 func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
 	mutes := make([]bool, len(lsets))
+	// Cache fingerprints, so we don't calculate them in the quadratic loop.
+	fingerprints := make([]model.Fingerprint, len(lsets))
+	for i, lset := range lsets {
+		fingerprints[i] = lset.Fingerprint()
+	}
 	for _, r := range ih.rules {
+		// The scache evaluation does not depend on the the lsets, cache it.
 		var alerts []*types.Alert
 		var scacheEval []bool
 		for i, lset := range lsets {
+			// If target side of rule doesn't match, we don't need to look any further.
+			// Also, if the alert is already muted, skip it.
 			if mutes[i] || !r.TargetMatchers.Matches(lset) {
-				// If target side of rule doesn't match, we don't need to look any further.
 				continue
 			}
+			// In case no alert matches the source matchers, we can skip the scache evaluation.
+			// Evaluate the scache lazily.
 			if alerts == nil {
 				alerts = r.scache.List()
 				scacheEval = r.evaluateScache(alerts)
 			}
-			fp := lset.Fingerprint()
 			// If we are here, the target side matches. If the source side matches, too, we
 			// need to exclude inhibiting alerts for which the same is true.
 			if inhibitedByFP, eq := r.hasEqualCached(lset, r.SourceMatchers.Matches(lset), alerts, scacheEval); eq {
-				ih.marker.SetInhibited(fp, inhibitedByFP.String())
+				ih.marker.SetInhibited(fingerprints[i], inhibitedByFP.String())
 				mutes[i] = true
 			}
 		}
 	}
-	for i, lset := range lsets {
-		fp := lset.Fingerprint()
+	// So far we have only set the inhibited state for the alerts that are muted.
+	// Set the uninhibited state for the alerts that are not muted.
+	for i := range lsets {
 		if !mutes[i] {
-			ih.marker.SetInhibited(fp)
+			ih.marker.SetInhibited(fingerprints[i])
 		}
 	}
 	return mutes
