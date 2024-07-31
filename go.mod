@@ -38,6 +38,7 @@ require (
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/stretchr/testify v1.9.0
+	github.com/trivago/tgo v1.0.7
 	github.com/xlab/treeprint v1.2.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
