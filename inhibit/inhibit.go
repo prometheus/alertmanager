@@ -146,12 +146,13 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 }
 
 func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
-	mutes := make([]bool, len(lsets))
 	// Cache fingerprints, so we don't calculate them in the quadratic loop.
 	fingerprints := make([]model.Fingerprint, len(lsets))
 	for i, lset := range lsets {
 		fingerprints[i] = lset.Fingerprint()
 	}
+	var muteCount int
+	mutes := make([]bool, len(lsets))
 	for _, r := range ih.rules {
 		// The scache evaluation does not depend on the the lsets, cache it.
 		var alerts []*types.Alert
@@ -173,7 +174,12 @@ func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
 			if inhibitedByFP, eq := r.hasEqualCached(lset, r.SourceMatchers.Matches(lset), alerts, scacheEval); eq {
 				ih.marker.SetInhibited(fingerprints[i], inhibitedByFP.String())
 				mutes[i] = true
+				muteCount++
 			}
+		}
+		// When all alerts are muted, there's no need to evaluate the rest of the rules.
+		if muteCount == len(lsets) {
+			return mutes
 		}
 	}
 	// So far we have only set the inhibited state for the alerts that are muted.
