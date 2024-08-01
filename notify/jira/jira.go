@@ -55,6 +55,7 @@ func New(c *config.JiraConfig, t *template.Template, l log.Logger, httpOpts ...c
 	if err != nil {
 		return nil, err
 	}
+
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -71,26 +72,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("alert", key)
+	logger := log.With(n.logger, "group_key", key.String())
 
 	var (
-		tmplTextErr error
+		alerts = types.Alerts(as...)
 
-		alerts       = types.Alerts(as...)
-		data         = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		tmplTextErr  error
+		data         = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		tmplText     = notify.TmplText(n.tmpl, data, &tmplTextErr)
 		tmplTextFunc = func(tmpl string) (string, error) {
-			result := tmplText(tmpl)
-			return result, tmplTextErr
+			return tmplText(tmpl), tmplTextErr
 		}
 
-		path   string
-		method string
+		path   = "issue"
+		method = http.MethodPost
 	)
 
-	existingIssue, shouldRetry, err := n.searchExistingIssue(ctx, key, alerts.Status())
+	existingIssue, shouldRetry, err := n.searchExistingIssue(ctx, logger, key.Hash(), alerts.HasFiring())
 	if err != nil {
-		return shouldRetry, fmt.Errorf("error searching existing issues: %w", err)
+		return shouldRetry, fmt.Errorf("failed to look up existing issues: %w", err)
 	}
 
 	if existingIssue == nil {
@@ -99,62 +99,43 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, nil
 		}
 
-		level.Debug(n.logger).Log("msg", "create new issue", "alert", key.String())
-
-		path = "issue"
-		method = http.MethodPost
+		level.Debug(logger).Log("msg", "create new issue")
 	} else {
-		level.Debug(n.logger).Log("msg", "updating existing issue", "key", existingIssue.Key, "alert", key.String())
-
 		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
+
+		level.Debug(logger).Log("msg", "updating existing issue", "issue_key", existingIssue.Key)
 	}
 
-	requestBody, err := n.prepareIssueRequestBody(ctx, tmplTextFunc)
+	requestBody, err := n.prepareIssueRequestBody(ctx, logger, key.Hash(), tmplTextFunc)
 	if err != nil {
 		return false, err
 	}
 
-	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", key.Hash()))
-
-	sort.Strings(requestBody.Fields.Labels)
-
 	_, shouldRetry, err = n.doAPIRequest(ctx, method, path, requestBody)
 	if err != nil {
-		return shouldRetry, fmt.Errorf("error create/update existing issues: %w", err)
+		return shouldRetry, fmt.Errorf("failed to %s request to %q: %w", method, path, err)
 	}
 
-	if existingIssue != nil && existingIssue.Key != "" && existingIssue.Fields != nil && existingIssue.Fields.Status != nil {
-		if n.conf.ResolveTransition != "" && alerts.Status() == model.AlertResolved && existingIssue.Fields.Status.StatusCategory.Key != "done" {
-			return n.transitionIssue(ctx, key, existingIssue.Key, n.conf.ResolveTransition)
-		} else if n.conf.ReopenTransition != "" && alerts.Status() == model.AlertFiring && existingIssue.Fields.Status.StatusCategory.Key == "done" {
-			return n.transitionIssue(ctx, key, existingIssue.Key, n.conf.ReopenTransition)
-		}
-	}
-
-	return false, nil
+	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
-func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
-		return issue{}, fmt.Errorf("template error: %w", err)
+		return issue{}, fmt.Errorf("summary template: %w", err)
 	}
 
 	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
 	// doesn't blow up when marshaling JIRA requests.
 	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
 	if err != nil {
-		return issue{}, fmt.Errorf("convertToMarshalMap error: %w", err)
+		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
 	}
 
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
 	if truncated {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return issue{}, err
-		}
-		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxSummaryLenRunes)
+		level.Warn(logger).Log("msg", "Truncated summary", "max_runes", maxSummaryLenRunes)
 	}
 
 	requestBody := issue{Fields: &issueFields{
@@ -167,41 +148,36 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 
 	issueDescriptionString, err := tmplTextFunc(n.conf.Description)
 	if err != nil {
-		return issue{}, fmt.Errorf("template error: %w", err)
+		return issue{}, fmt.Errorf("description template: %w", err)
 	}
 
 	issueDescriptionString, truncated = notify.TruncateInRunes(issueDescriptionString, maxDescriptionLenRunes)
 	if truncated {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return issue{}, err
-		}
-		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxDescriptionLenRunes)
+		level.Warn(logger).Log("msg", "Truncated description", "max_runes", maxDescriptionLenRunes)
 	}
 
+	requestBody.Fields.Description = issueDescriptionString
 	if strings.HasSuffix(n.conf.APIURL.Path, "/3") {
 		var issueDescription any
 		if err := json.Unmarshal([]byte(issueDescriptionString), &issueDescription); err != nil {
-			return issue{}, nil
+			return issue{}, fmt.Errorf("description unmarshaling: %w", err)
 		}
 		requestBody.Fields.Description = issueDescription
-	} else {
-		requestBody.Fields.Description = issueDescriptionString
 	}
 
-	if n.conf.Labels != nil {
-		for _, label := range n.conf.Labels {
-			label, err = tmplTextFunc(label)
-			if err != nil {
-				return issue{}, fmt.Errorf("template error: %w", err)
-			}
-			requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
+	for i, label := range n.conf.Labels {
+		label, err = tmplTextFunc(label)
+		if err != nil {
+			return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)
 		}
+		requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
 	}
+	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
+	sort.Strings(requestBody.Fields.Labels)
 
 	priority, err := tmplTextFunc(n.conf.Priority)
 	if err != nil {
-		return issue{}, fmt.Errorf("template error: %w", err)
+		return issue{}, fmt.Errorf("priority template: %w", err)
 	}
 
 	if priority != "" {
@@ -211,16 +187,16 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, tmplTextFunc tem
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(ctx context.Context, key notify.Key, status model.AlertStatus) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, logger log.Logger, groupID string, firing bool) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
 		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
 	}
 
-	// if the alert is firing, do not search for closed issues unless reopen transition is defined.
-	if n.conf.ReopenTransition == "" {
-		if status != model.AlertResolved {
+	// If the group is firing, do not search for closed issues unless a reopen transition is defined.
+	if firing {
+		if n.conf.ReopenTransition == "" {
 			jql.WriteString(`statusCategory != Done and `)
 		}
 	} else {
@@ -230,20 +206,21 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, key notify.Key, stat
 		}
 	}
 
-	alertLabel := fmt.Sprintf("ALERT{%s}", key.Hash())
+	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
 	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, alertLabel))
 
-	requestBody := issueSearch{}
-	requestBody.Jql = jql.String()
-	requestBody.MaxResults = 2
-	requestBody.Fields = []string{"status"}
-	requestBody.Expand = []string{}
+	requestBody := issueSearch{
+		JQL:        jql.String(),
+		MaxResults: 2,
+		Fields:     []string{"status"},
+		Expand:     []string{},
+	}
 
-	level.Debug(n.logger).Log("msg", "search for recent issues", "alert", key.String(), "jql", jql.String())
+	level.Debug(logger).Log("msg", "search for recent issues", "jql", requestBody.JQL)
 
 	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search", requestBody)
 	if err != nil {
-		return nil, shouldRetry, err
+		return nil, shouldRetry, fmt.Errorf("HTTP request to JIRA API: %w", err)
 	}
 
 	var issueSearchResult issueSearchResult
@@ -253,12 +230,12 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, key notify.Key, stat
 	}
 
 	if issueSearchResult.Total == 0 {
-		level.Debug(n.logger).Log("msg", "found no existing issue", "alert", key.String())
+		level.Debug(logger).Log("msg", "found no existing issue")
 		return nil, false, nil
 	}
 
 	if issueSearchResult.Total > 1 {
-		level.Warn(n.logger).Log("msg", "more than one issue matched, selecting the most recently resolved", "alert", key.String(), "selected", issueSearchResult.Issues[0].Key)
+		level.Warn(logger).Log("msg", "more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 
 	return &issueSearchResult.Issues[0], false, nil
@@ -287,18 +264,40 @@ func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, trans
 	return "", false, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
 }
 
-func (n *Notifier) transitionIssue(ctx context.Context, key notify.Key, issueKey, transitionName string) (bool, error) {
-	transitionID, shouldRetry, err := n.getIssueTransitionByName(ctx, issueKey, transitionName)
+func (n *Notifier) transitionIssue(ctx context.Context, logger log.Logger, i *issue, firing bool) (bool, error) {
+	if i == nil || i.Key == "" || i.Fields == nil || i.Fields.Status == nil {
+		return false, nil
+	}
+
+	var transition string
+	if firing {
+		if i.Fields.Status.StatusCategory.Key != "done" {
+			return false, nil
+		}
+
+		transition = n.conf.ReopenTransition
+	} else {
+		if i.Fields.Status.StatusCategory.Key == "done" {
+			return false, nil
+		}
+
+		transition = n.conf.ResolveTransition
+	}
+
+	transitionID, shouldRetry, err := n.getIssueTransitionByName(ctx, i.Key, transition)
 	if err != nil {
 		return shouldRetry, err
 	}
 
-	requestBody := issue{}
-	requestBody.Transition = &idNameValue{ID: transitionID}
+	requestBody := issue{
+		Transition: &idNameValue{
+			ID: transitionID,
+		},
+	}
 
-	path := fmt.Sprintf("issue/%s/transitions", issueKey)
+	path := fmt.Sprintf("issue/%s/transitions", i.Key)
 
-	level.Debug(n.logger).Log("msg", "transitions jira issue", "alert", key.String(), "key", issueKey, "transition", transitionName)
+	level.Debug(logger).Log("msg", "transitions jira issue", "issue_key", i.Key, "transition", transition)
 	_, shouldRetry, err = n.doAPIRequest(ctx, http.MethodPost, path, requestBody)
 
 	return shouldRetry, err
