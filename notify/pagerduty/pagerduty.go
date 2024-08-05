@@ -106,14 +106,14 @@ type pagerDutyImage struct {
 }
 
 type pagerDutyPayload struct {
-	Summary       string            `json:"summary"`
-	Source        string            `json:"source"`
-	Severity      string            `json:"severity"`
-	Timestamp     string            `json:"timestamp,omitempty"`
-	Class         string            `json:"class,omitempty"`
-	Component     string            `json:"component,omitempty"`
-	Group         string            `json:"group,omitempty"`
-	CustomDetails map[string]string `json:"custom_details,omitempty"`
+	Summary       string                 `json:"summary"`
+	Source        string                 `json:"source"`
+	Severity      string                 `json:"severity"`
+	Timestamp     string                 `json:"timestamp,omitempty"`
+	Class         string                 `json:"class,omitempty"`
+	Component     string                 `json:"component,omitempty"`
+	Group         string                 `json:"group,omitempty"`
+	CustomDetails map[string]interface{} `json:"custom_details,omitempty"`
 }
 
 func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
@@ -128,7 +128,7 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 		if n.apiV1 != "" {
 			msg.Details = map[string]string{"error": truncatedMsg}
 		} else {
-			msg.Payload.CustomDetails = map[string]string{"error": truncatedMsg}
+			msg.Payload.CustomDetails = map[string]interface{}{"error": truncatedMsg}
 		}
 
 		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
@@ -149,7 +149,6 @@ func (n *Notifier) notifyV1(
 	key notify.Key,
 	data *template.Data,
 	details map[string]string,
-	as ...*types.Alert,
 ) (bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
@@ -209,8 +208,7 @@ func (n *Notifier) notifyV2(
 	eventType string,
 	key notify.Key,
 	data *template.Data,
-	details map[string]string,
-	as ...*types.Alert,
+	details map[string]interface{},
 ) (bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
@@ -320,19 +318,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	n.logger.Debug("extracted group key", "key", key, "eventType", eventType)
 
-	details := make(map[string]string, len(n.conf.Details))
-	for k, v := range n.conf.Details {
-		detail, err := n.tmpl.ExecuteTextString(v, data)
-		if err != nil {
-			return false, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
+	if n.apiV1 != "" {
+		details := make(map[string]string, len(n.conf.Details))
+		for k, v := range n.conf.Details {
+			detail, err := n.tmpl.ExecuteTextString(v.(string), data)
+			if err != nil {
+				return false, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
+			}
+			details[k] = detail
 		}
-		details[k] = detail
+		return n.notifyV1(ctx, eventType, key, data, details)
 	}
 
-	if n.apiV1 != "" {
-		return n.notifyV1(ctx, eventType, key, data, details, as...)
+	details, err := renderDetails(n.conf.Details, data, n.tmpl.ExecuteTextString)
+	if err != nil {
+		return false, err
 	}
-	return n.notifyV2(ctx, eventType, key, data, details, as...)
+	return n.notifyV2(ctx, eventType, key, data, details)
 }
 
 func errDetails(status int, body io.Reader) string {
@@ -350,4 +352,31 @@ func errDetails(status int, body io.Reader) string {
 		return ""
 	}
 	return fmt.Sprintf("%s: %s", pgr.Message, strings.Join(pgr.Errors, ","))
+}
+
+func renderDetails(
+	details map[string]interface{},
+	data *template.Data,
+	exec func(text string, data interface{}) (string, error),
+) (map[string]interface{}, error) {
+	result := make(map[string]interface{}, len(details))
+	for k, v := range details {
+		switch t := v.(type) {
+		case string:
+			detail, err := exec(v.(string), data)
+			if err != nil {
+				return nil, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
+			}
+			result[k] = detail
+		case map[string]interface{}:
+			detail, err := renderDetails(v.(map[string]interface{}), data, exec)
+			if err != nil {
+				return nil, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
+			}
+			result[k] = detail
+		default:
+			return nil, fmt.Errorf("%q: unsupported detail field type %v: %v", k, t, v)
+		}
+	}
+	return result, nil
 }
