@@ -89,12 +89,6 @@ func TestSilenceGCOverTime(t *testing.T) {
 		s                    *pb.Silence
 		expectPresentAfterGc bool
 	}
-	type testCase struct {
-		initialState    []silenceEntry
-		updates         []silenceEntry
-		expectedGCCount int
-	}
-
 	c := clock.NewMock()
 	now := c.Now().UTC()
 
@@ -109,15 +103,22 @@ func TestSilenceGCOverTime(t *testing.T) {
 	}
 
 	// The GC will run with it's clock equal to 1 second after now
-	cases := map[string]testCase{
-		"gc does not clean active silences": {
+	cases := []struct {
+		name            string
+		initialState    []silenceEntry
+		updates         []silenceEntry
+		expectedGCCount int
+	}{
+		{
+			name: "gc does not clean active silences",
 			initialState: []silenceEntry{
 				{s: newSilence("1", now), expectPresentAfterGc: false},
 				{s: newSilence("2", now.Add(-time.Second)), expectPresentAfterGc: false},
 				{s: newSilence("3", now.Add(time.Second)), expectPresentAfterGc: true},
 			},
 		},
-		"silences added with Set are handled correctly": {
+		{
+			name: "silences added with Set are handled correctly",
 			initialState: []silenceEntry{
 				{s: newSilence("1", now), expectPresentAfterGc: false},
 			},
@@ -126,7 +127,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 				{s: newSilence("", now.Add(-time.Second)), expectPresentAfterGc: false},
 			},
 		},
-		"silence update does not leak state": {
+		{
+			name: "silence update does not leak state",
 			initialState: []silenceEntry{
 				{s: newSilence("1", now), expectPresentAfterGc: false},
 			},
@@ -136,8 +138,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 		},
 	}
 
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			silences, err := New(Options{})
 			require.NoError(t, err)
 
