@@ -133,6 +133,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			}}
 	}
 
+	// The GC will run with it's clock equal to 1 second after now
 	cases := map[string]testCase{
 		"gc does not clean active silences": {
 			initialState: []silenceEntry{
@@ -163,17 +164,24 @@ func TestSilenceGCOverTime(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			silences, err := New(Options{})
+			require.NoError(t, err)
+
 			silClock := clock.NewMock()
 			silences.clock = silClock
-			require.NoError(t, err)
+
+			// Set time into the past so that silences will be updated
+			// before they're endsAt
+			silClock.Add(-2 * time.Second)
 
 			expectedRemaining := []string{}
 			expectedGCCount := 0
 			for _, sil := range tc.initialState {
+				sil.s.UpdatedAt = silences.nowUTC()
 				silences.st[sil.s.Id] = &pb.MeshSilence{
 					Silence:   sil.s,
 					ExpiresAt: sil.s.EndsAt,
 				}
+
 				if sil.expectPresentAfterGc {
 					expectedRemaining = append(expectedRemaining, sil.s.Id)
 				} else {
@@ -182,7 +190,9 @@ func TestSilenceGCOverTime(t *testing.T) {
 				// simulate this silences being seen in a query
 				silences.mc.Get(silences.st[sil.s.Id].Silence)
 			}
-			silClock.Add(-time.Second)
+			// Move time forward so that these updates will produce silences with newer
+			// UpdatedAt values compared to the original batch
+			silClock.Add(time.Second)
 			for _, sil := range tc.updates {
 				if sil.s.Id != "" {
 					// we're replacing a silence which now will not get GC'd
@@ -199,6 +209,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 				silences.mc.Get(silences.st[sil.s.Id].Silence)
 			}
 
+			// Move time forward so that Silences will move past their ExpiresAt
 			silClock.Add(time.Second)
 
 			n, err := silences.GC()
