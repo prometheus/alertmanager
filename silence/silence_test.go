@@ -84,31 +84,6 @@ func TestOptionsValidate(t *testing.T) {
 	}
 }
 
-func TestSilencesGC(t *testing.T) {
-	s, err := New(Options{})
-	require.NoError(t, err)
-
-	s.clock = clock.NewMock()
-	now := s.nowUTC()
-
-	newSilence := func(id string, exp time.Time) *pb.MeshSilence {
-		return &pb.MeshSilence{Silence: &pb.Silence{Id: id}, ExpiresAt: exp}
-	}
-	s.st = state{
-		"1": newSilence("1", now),
-		"2": newSilence("2", now.Add(-time.Second)),
-		"3": newSilence("3", now.Add(time.Second)),
-	}
-	want := state{
-		"3": newSilence("3", now.Add(time.Second)),
-	}
-
-	n, err := s.GC()
-	require.NoError(t, err)
-	require.Equal(t, 2, n)
-	require.Equal(t, want, s.st)
-}
-
 func TestSilenceGCOverTime(t *testing.T) {
 	type silenceEntry struct {
 		s                    *pb.Silence
