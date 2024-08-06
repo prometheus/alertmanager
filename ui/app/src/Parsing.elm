@@ -34,7 +34,7 @@ urlParser url =
                 h :: rest ->
                     ( h, Just (String.concat rest) )
     in
-    case parse routeParser { url | query = query, fragment = Nothing, path = path } of
+    case parse routeParser { url | query = Maybe.map (String.replace "+" "%20") query, fragment = Nothing, path = path } of
         Just route ->
             route
 
