@@ -145,6 +145,53 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {
+	// Cache fingerprints, so we don't calculate them in the quadratic loop.
+	fingerprints := make([]model.Fingerprint, len(lsets))
+	for i, lset := range lsets {
+		fingerprints[i] = lset.Fingerprint()
+	}
+	var muteCount int
+	mutes := make([]bool, len(lsets))
+	for _, r := range ih.rules {
+		// The scache evaluation does not depend on the the lsets, cache it.
+		var alerts []*types.Alert
+		var scacheEval []bool
+		for i, lset := range lsets {
+			// If target side of rule doesn't match, we don't need to look any further.
+			// Also, if the alert is already muted, skip it.
+			if mutes[i] || !r.TargetMatchers.Matches(lset) {
+				continue
+			}
+			// In case no alert matches the source matchers, we can skip the scache evaluation.
+			// Evaluate the scache lazily.
+			if alerts == nil {
+				alerts = r.scache.List()
+				scacheEval = r.evaluateScache(alerts)
+			}
+			// If we are here, the target side matches. If the source side matches, too, we
+			// need to exclude inhibiting alerts for which the same is true.
+			if inhibitedByFP, eq := r.hasEqualCached(lset, r.SourceMatchers.Matches(lset), alerts, scacheEval); eq {
+				ih.marker.SetInhibited(fingerprints[i], inhibitedByFP.String())
+				mutes[i] = true
+				muteCount++
+			}
+		}
+		// When all alerts are muted, there's no need to evaluate the rest of the rules.
+		if muteCount == len(lsets) {
+			return mutes
+		}
+	}
+	// So far we have only set the inhibited state for the alerts that are muted.
+	// Set the uninhibited state for the alerts that are not muted.
+	for i := range lsets {
+		if !mutes[i] {
+			ih.marker.SetInhibited(fingerprints[i])
+		}
+	}
+	return mutes
+}
+
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts
@@ -248,4 +295,32 @@ Outer:
 		return a.Fingerprint(), true
 	}
 	return model.Fingerprint(0), false
+}
+
+func (r *InhibitRule) hasEqualCached(lset model.LabelSet, excludeTwoSidedMatch bool, alerts []*types.Alert, scacheEval []bool) (model.Fingerprint, bool) {
+Outer:
+	for i, a := range alerts {
+		// The cache might be stale and contain resolved alerts.
+		if a.Resolved() {
+			continue
+		}
+		for n := range r.Equal {
+			if a.Labels[n] != lset[n] {
+				continue Outer
+			}
+		}
+		if excludeTwoSidedMatch && scacheEval[i] {
+			continue Outer
+		}
+		return a.Fingerprint(), true
+	}
+	return model.Fingerprint(0), false
+}
+
+func (r *InhibitRule) evaluateScache(alerts []*types.Alert) []bool {
+	targetMatches := make([]bool, len(alerts))
+	for i, a := range alerts {
+		targetMatches[i] = r.TargetMatchers.Matches(a.Labels)
+	}
+	return targetMatches
 }

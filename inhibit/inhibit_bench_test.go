@@ -34,47 +34,65 @@ import (
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface
 // for different numbers of inhibition rules.
 func BenchmarkMutes(b *testing.B) {
-	b.Run("1 inhibition rule, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1))
+	b.Run("1 inhibition rule, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1, 1))
 	})
-	b.Run("10 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 10, 1))
+	b.Run("10 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 10, 1, 1))
 	})
-	b.Run("100 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1))
+	b.Run("100 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1, 1))
 	})
-	b.Run("1000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1000, 1))
+	b.Run("1000 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1000, 1, 1))
 	})
-	b.Run("10000 inhibition rules, 1 inhibiting alert", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 10000, 1))
+	b.Run("1000 inhibition rules, 100 inhibiting alert, 100 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1000, 100, 100))
 	})
-	b.Run("1 inhibition rule, 10 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10))
+	b.Run("10000 inhibition rules, 1 inhibiting alert, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 10000, 1, 1))
 	})
-	b.Run("1 inhibition rule, 100 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 100))
+	b.Run("10000 inhibition rules, 100 inhibiting alert, 100 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 10000, 100, 100))
 	})
-	b.Run("1 inhibition rule, 1000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1000))
+	b.Run("1 inhibition rule, 10 inhibiting alerts, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10, 1))
 	})
-	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
+	b.Run("1 inhibition rule, 100 inhibiting alerts, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 100, 1))
 	})
-	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000))
+	b.Run("1 inhibition rule, 100 inhibiting alerts, 100 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 100, 100))
 	})
-	b.Run("10 inhibition rules, last rule matches", func(b *testing.B) {
-		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10))
+	b.Run("1 inhibition rule, 1000 inhibiting alerts, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1000, 1))
 	})
-	b.Run("100 inhibition rules, last rule matches", func(b *testing.B) {
-		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 100))
+	b.Run("1 inhibition rule, 1000 inhibiting alerts, 1000 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1000, 1000))
 	})
-	b.Run("1000 inhibition rules, last rule matches", func(b *testing.B) {
-		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 1000))
+	b.Run("1 inhibition rule, 10000 inhibiting alerts, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000, 1))
 	})
-	b.Run("10000 inhibition rules, last rule matches", func(b *testing.B) {
-		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10000))
+	b.Run("100 inhibition rules, 1000 inhibiting alerts, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000, 1))
+	})
+	b.Run("10 inhibition rules, last rule matches, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10, 1))
+	})
+	b.Run("100 inhibition rules, last rule matches, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 100, 1))
+	})
+	b.Run("100 inhibition rules, last rule matches, 100 target alerts", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 100, 100))
+	})
+	b.Run("1000 inhibition rules, last rule matches, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 1000, 1))
+	})
+	b.Run("1000 inhibition rules, last rule matches, 1000 target alert", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 1000, 1000))
+	})
+	b.Run("10000 inhibition rules, last rule matches, 1 target alert", func(b *testing.B) {
+		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10000, 1))
 	})
 }
 
@@ -88,7 +106,7 @@ type benchmarkOptions struct {
 	// It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
-	benchFunc func(mutesFunc func(model.LabelSet) bool) error
+	benchFunc func(mutesFunc func(...model.LabelSet) []bool) error
 }
 
 // allRulesMatchBenchmark returns a new benchmark where all inhibition rules
@@ -104,7 +122,7 @@ type benchmarkOptions struct {
 // matchers, and is determined with numInhibitingAlerts.
 //
 // It expects dst=0 to be muted and will fail if not.
-func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
+func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlerts, numTargetAlerts int) benchmarkOptions {
 	return benchmarkOptions{
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
@@ -130,9 +148,16 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				})
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
-				return errors.New("expected dst=0 to be muted")
+		}, benchFunc: func(mutesFunc func(set ...model.LabelSet) []bool) error {
+			alerts := make([]model.LabelSet, 0, numTargetAlerts)
+			for i := 0; i < numTargetAlerts; i++ {
+				alerts = append(alerts, model.LabelSet{"dst": "0"})
+			}
+			mutes := mutesFunc(alerts...)
+			for _, m := range mutes {
+				if !m {
+					return errors.New("expected dst=0 to be muted")
+				}
 			}
 			return nil
 		},
@@ -147,7 +172,7 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 // across all inhibition rules (dst=0).
 //
 // It expects dst=0 to be muted and will fail if not.
-func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
+func lastRuleMatchesBenchmark(b *testing.B, n, numTargetAlerts int) benchmarkOptions {
 	return benchmarkOptions{
 		n: n,
 		newRuleFunc: func(idx int) config.InhibitRule {
@@ -172,9 +197,16 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 					},
 				},
 			}}
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
-				return errors.New("expected dst=0 to be muted")
+		}, benchFunc: func(mutesFunc func(set ...model.LabelSet) []bool) error {
+			alerts := make([]model.LabelSet, 0, numTargetAlerts)
+			for i := 0; i < numTargetAlerts; i++ {
+				alerts = append(alerts, model.LabelSet{"dst": "0"})
+			}
+			mutes := mutesFunc(alerts...)
+			for _, m := range mutes {
+				if !m {
+					return errors.New("expected dst=0 to be muted")
+				}
 			}
 			return nil
 		},
@@ -207,7 +239,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		require.NoError(b, opts.benchFunc(ih.Mutes))
+		require.NoError(b, opts.benchFunc(ih.MutesAll))
 	}
 }
 
