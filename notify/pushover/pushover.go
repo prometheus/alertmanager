@@ -68,10 +68,10 @@ func New(c *config.PushoverConfig, t *template.Template, l log.Logger, httpOpts 
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return ctx, false, fmt.Errorf("group key missing")
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
@@ -93,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.TokenFile)
 		if err != nil {
-			return false, fmt.Errorf("read token_file: %w", err)
+			return ctx, false, fmt.Errorf("read token_file: %w", err)
 		}
 		token = string(content)
 	}
@@ -102,7 +102,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.UserKeyFile)
 		if err != nil {
-			return false, fmt.Errorf("read user_key_file: %w", err)
+			return ctx, false, fmt.Errorf("read user_key_file: %w", err)
 		}
 		userKey = string(content)
 	}
@@ -154,25 +154,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	u, err := url.Parse(n.apiURL)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
 	level.Debug(n.logger).Log("msg", "Sending message", "incident", key)
 	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return ctx, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
-	return shouldRetry, err
+	return ctx, shouldRetry, err
 }

@@ -131,7 +131,7 @@ func TestWebexTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
-			ok, err := notifierWebex.Notify(ctx, []*types.Alert{
+			ctx, ok, err := notifierWebex.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{

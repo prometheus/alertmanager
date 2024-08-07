@@ -61,7 +61,7 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (context.Context, bool, error) {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
@@ -72,14 +72,15 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err != nil {
 		var e awserr.RequestFailure
 		if errors.As(err, &e) {
-			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+			retry, err := n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+			return ctx, retry, err
 		}
-		return true, err
+		return ctx, true, err
 	}
 
 	publishInput, err := n.createPublishInput(ctx, tmpl, &tmplErr)
 	if err != nil {
-		return true, err
+		return ctx, true, err
 	}
 
 	publishOutput, err := client.Publish(publishInput)
@@ -89,14 +90,14 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 			retryable, error := n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
 
 			reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(e.StatusCode()), error)
-			return retryable, reasonErr
+			return ctx, retryable, reasonErr
 		}
-		return true, err
+		return ctx, true, err
 	}
 
 	level.Debug(n.logger).Log("msg", "SNS message successfully published", "message_id", publishOutput.MessageId, "sequence number", publishOutput.SequenceNumber)
 
-	return false, nil
+	return ctx, false, nil
 }
 
 func (n *Notifier) createSNSClient(tmpl func(string) string, tmplErr *error) (*sns.SNS, error) {

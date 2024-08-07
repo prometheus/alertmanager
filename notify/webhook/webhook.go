@@ -77,7 +77,7 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (context.Context, bool, error) {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
@@ -95,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	var url string
@@ -104,20 +104,20 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	} else {
 		content, err := os.ReadFile(n.conf.URLFile)
 		if err != nil {
-			return false, fmt.Errorf("read url_file: %w", err)
+			return ctx, false, fmt.Errorf("read url_file: %w", err)
 		}
 		url = strings.TrimSpace(string(content))
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return ctx, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
-	return shouldRetry, err
+	return ctx, shouldRetry, err
 }

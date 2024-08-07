@@ -94,25 +94,25 @@ type opsGenieUpdateDescriptionMessage struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	requests, retry, err := n.createRequests(ctx, as...)
 	if err != nil {
-		return retry, err
+		return ctx, retry, err
 	}
 
 	for _, req := range requests {
 		req.Header.Set("User-Agent", notify.UserAgentHeader)
 		resp, err := n.client.Do(req)
 		if err != nil {
-			return true, err
+			return ctx, true, err
 		}
 		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 		notify.Drain(resp)
 		if err != nil {
-			return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+			return ctx, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 		}
 	}
-	return true, nil
+	return ctx, true, nil
 }
 
 // Like Split but filter out empty strings.

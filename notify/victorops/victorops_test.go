@@ -212,7 +212,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{
+			ctx, _, err = vo.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{

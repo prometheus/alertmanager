@@ -190,7 +190,7 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 	tmpl.ExternalURL, _ = url.Parse("http://am")
 	email := New(cfg, tmpl, log.NewNopLogger())
 
-	retry, err := email.Notify(ctx, firingAlert)
+	ctx, retry, err := email.Notify(ctx, firingAlert)
 	if err != nil {
 		return nil, retry, err
 	}
