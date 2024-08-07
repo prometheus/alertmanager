@@ -57,7 +57,7 @@ type issueStatus struct {
 type issueSearch struct {
 	Expand     []string `json:"expand"`
 	Fields     []string `json:"fields"`
-	Jql        string   `json:"jql"`
+	JQL        string   `json:"jql"`
 	MaxResults int      `json:"maxResults"`
 	StartAt    int      `json:"startAt"`
 }
