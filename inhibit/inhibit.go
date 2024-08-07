@@ -94,8 +94,24 @@ func (ih *Inhibitor) Run() {
 	ih.mtx.Unlock()
 	runCtx, runCancel := context.WithCancel(ctx)
 
+	// Run a periodic maintenance for each inhibition rule to remove
+	// resolved alerts from their local cache.
 	for _, rule := range ih.rules {
-		go rule.scache.Run(runCtx, 15*time.Minute)
+		rule := rule // Create a local rule variable for the goroutine.
+		g.Add(func() error {
+			ticker := time.NewTicker(15 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					rule.scache.DeleteResolved()
+				case <-runCtx.Done():
+					return nil
+				}
+			}
+		}, func(err error) {
+			runCancel()
+		})
 	}
 
 	g.Add(func() error {
