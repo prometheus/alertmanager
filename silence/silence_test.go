@@ -84,29 +84,130 @@ func TestOptionsValidate(t *testing.T) {
 	}
 }
 
-func TestSilencesGC(t *testing.T) {
-	s, err := New(Options{})
-	require.NoError(t, err)
-
-	s.clock = clock.NewMock()
-	now := s.nowUTC()
-
-	newSilence := func(exp time.Time) *pb.MeshSilence {
-		return &pb.MeshSilence{ExpiresAt: exp}
+func TestSilenceGCOverTime(t *testing.T) {
+	type silenceEntry struct {
+		s                    *pb.Silence
+		expectPresentAfterGc bool
 	}
-	s.st = state{
-		"1": newSilence(now),
-		"2": newSilence(now.Add(-time.Second)),
-		"3": newSilence(now.Add(time.Second)),
-	}
-	want := state{
-		"3": newSilence(now.Add(time.Second)),
+	c := clock.NewMock()
+	now := c.Now().UTC()
+
+	newSilence := func(id string, exp time.Time) *pb.Silence {
+		return &pb.Silence{
+			Id:       id,
+			StartsAt: now.Add(-time.Second),
+			EndsAt:   exp,
+			Matchers: []*pb.Matcher{
+				{Name: "foo", Type: pb.Matcher_REGEXP, Pattern: "bar"},
+			}}
 	}
 
-	n, err := s.GC()
-	require.NoError(t, err)
-	require.Equal(t, 2, n)
-	require.Equal(t, want, s.st)
+	// The GC will run with it's clock equal to 1 second after now
+	cases := []struct {
+		name            string
+		initialState    []silenceEntry
+		updates         []silenceEntry
+		expectedGCCount int
+	}{
+		{
+			name: "gc does not clean active silences",
+			initialState: []silenceEntry{
+				{s: newSilence("1", now), expectPresentAfterGc: false},
+				{s: newSilence("2", now.Add(-time.Second)), expectPresentAfterGc: false},
+				{s: newSilence("3", now.Add(time.Second)), expectPresentAfterGc: true},
+			},
+		},
+		{
+			name: "silences added with Set are handled correctly",
+			initialState: []silenceEntry{
+				{s: newSilence("1", now), expectPresentAfterGc: false},
+			},
+			updates: []silenceEntry{
+				{s: newSilence("", now.Add(time.Second)), expectPresentAfterGc: true},
+				{s: newSilence("", now.Add(-time.Second)), expectPresentAfterGc: false},
+			},
+		},
+		{
+			name: "silence update does not leak state",
+			initialState: []silenceEntry{
+				{s: newSilence("1", now), expectPresentAfterGc: false},
+			},
+			updates: []silenceEntry{
+				{s: newSilence("1", now.Add(time.Second)), expectPresentAfterGc: true},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			silences, err := New(Options{})
+			require.NoError(t, err)
+
+			silClock := clock.NewMock()
+			silences.clock = silClock
+
+			// Set time into the past so that silences will be updated
+			// before they're endsAt
+			silClock.Add(-2 * time.Second)
+
+			expectedRemaining := []string{}
+			expectedGCCount := 0
+			for _, sil := range tc.initialState {
+				sil.s.UpdatedAt = silences.nowUTC()
+				silences.st[sil.s.Id] = &pb.MeshSilence{
+					Silence:   sil.s,
+					ExpiresAt: sil.s.EndsAt,
+				}
+
+				if sil.expectPresentAfterGc {
+					expectedRemaining = append(expectedRemaining, sil.s.Id)
+				} else {
+					expectedGCCount += 1
+				}
+				// simulate this silences being seen in a query
+				silences.mc.Get(silences.st[sil.s.Id].Silence)
+			}
+			// Move time forward so that these updates will produce silences with newer
+			// UpdatedAt values compared to the original batch
+			silClock.Add(time.Second)
+			for _, sil := range tc.updates {
+				if sil.s.Id != "" {
+					// we're replacing a silence which now will not get GC'd
+					expectedGCCount -= 1
+				}
+				err := silences.Set(sil.s)
+				require.NoError(t, err)
+				if sil.expectPresentAfterGc {
+					expectedRemaining = append(expectedRemaining, sil.s.Id)
+				} else {
+					expectedGCCount += 1
+				}
+				// simulate this silences being seen in a query
+				silences.mc.Get(silences.st[sil.s.Id].Silence)
+			}
+
+			// Move time forward so that Silences will move past their ExpiresAt
+			silClock.Add(time.Second)
+
+			n, err := silences.GC()
+			require.NoError(t, err)
+			require.Equal(t, expectedGCCount, n)
+
+			for _, id := range expectedRemaining {
+				foundSil, inState := silences.st[id]
+				if !inState {
+					require.Failf(t, "silence %s was missing from final state", id)
+				}
+				if _, ok := silences.mc[foundSil.Silence.Id]; !ok {
+					require.Failf(t, "silence %s's matchers were missing from the matcherCache", id)
+				}
+			}
+			require.Equalf(t, len(expectedRemaining), len(silences.st), "there are extra silences in the final state")
+			require.Equalf(t, len(expectedRemaining), len(silences.mc), "there are extra entries in the matcher cache")
+
+		})
+	}
+
 }
 
 func TestSilencesSnapshot(t *testing.T) {
