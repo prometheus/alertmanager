@@ -29,6 +29,7 @@ import (
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -107,14 +108,14 @@ type pagerDutyImage struct {
 }
 
 type pagerDutyPayload struct {
-	Summary       string            `json:"summary"`
-	Source        string            `json:"source"`
-	Severity      string            `json:"severity"`
-	Timestamp     string            `json:"timestamp,omitempty"`
-	Class         string            `json:"class,omitempty"`
-	Component     string            `json:"component,omitempty"`
-	Group         string            `json:"group,omitempty"`
-	CustomDetails map[string]string `json:"custom_details,omitempty"`
+	Summary       string                 `json:"summary"`
+	Source        string                 `json:"source"`
+	Severity      string                 `json:"severity"`
+	Timestamp     string                 `json:"timestamp,omitempty"`
+	Class         string                 `json:"class,omitempty"`
+	Component     string                 `json:"component,omitempty"`
+	Group         string                 `json:"group,omitempty"`
+	CustomDetails map[string]interface{} `json:"custom_details,omitempty"`
 }
 
 func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
@@ -129,7 +130,7 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 		if n.apiV1 != "" {
 			msg.Details = map[string]string{"error": truncatedMsg}
 		} else {
-			msg.Payload.CustomDetails = map[string]string{"error": truncatedMsg}
+			msg.Payload.CustomDetails = map[string]interface{}{"error": truncatedMsg}
 		}
 
 		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
@@ -246,7 +247,7 @@ func (n *Notifier) notifyV2(
 			Summary:       summary,
 			Source:        tmpl(n.conf.Source),
 			Severity:      tmpl(n.conf.Severity),
-			CustomDetails: details,
+			CustomDetails: toCustomDetails(details),
 			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
@@ -333,6 +334,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if n.apiV1 != "" {
 		return n.notifyV1(ctx, eventType, key, data, details, as...)
 	}
+
 	return n.notifyV2(ctx, eventType, key, data, details, as...)
 }
 
@@ -351,4 +353,18 @@ func errDetails(status int, body io.Reader) string {
 		return ""
 	}
 	return fmt.Sprintf("%s: %s", pgr.Message, strings.Join(pgr.Errors, ","))
+}
+
+func toCustomDetails(details map[string]string) map[string]interface{} {
+	customDetails := make(map[string]interface{}, len(details))
+	for k, v := range details {
+		var v2 interface{}
+		// Try to unmarshall any rendered templates as YAML.
+		if err := yaml.Unmarshal([]byte(v), &v2); err != nil {
+			customDetails[k] = v
+			continue
+		}
+		customDetails[k] = v2
+	}
+	return customDetails
 }

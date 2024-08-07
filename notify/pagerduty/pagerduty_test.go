@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -323,7 +324,10 @@ func TestErrDetails(t *testing.T) {
 }
 
 func TestEventSizeEnforcement(t *testing.T) {
-	bigDetails := map[string]string{
+	bigDetailsV1 := map[string]string{
+		"firing": strings.Repeat("a", 513000),
+	}
+	bigDetailsV2 := map[string]interface{}{
 		"firing": strings.Repeat("a", 513000),
 	}
 
@@ -331,7 +335,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 	msgV1 := &pagerDutyMessage{
 		ServiceKey: "01234567890123456789012345678901",
 		EventType:  "trigger",
-		Details:    bigDetails,
+		Details:    bigDetailsV1,
 	}
 
 	notifierV1, err := New(
@@ -353,7 +357,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 		RoutingKey:  "01234567890123456789012345678901",
 		EventAction: "trigger",
 		Payload: &pagerDutyPayload{
-			CustomDetails: bigDetails,
+			CustomDetails: bigDetailsV2,
 		},
 	}
 
@@ -496,4 +500,29 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		},
 	}...)
 	require.NoError(t, err)
+}
+
+func Test_toCustomDetails(t *testing.T) {
+	type args struct {
+		details map[string]string
+	}
+	tests := []struct {
+		name string
+		args args
+		want map[string]interface{}
+	}{
+		{"number", args{map[string]string{"number": "123456789"}}, map[string]interface{}{"number": 123456789}},
+		{"string", args{map[string]string{"string": "test"}}, map[string]interface{}{"string": "test"}},
+		{"map", args{map[string]string{"map": "{key1: value1, key2: 2}"}}, map[string]interface{}{"map": map[string]interface{}{"key1": "value1", "key2": 2}}},
+		{"list_numbers", args{map[string]string{"list": "[1, 2, 3]"}}, map[string]interface{}{"list": []interface{}{1, 2, 3}}},
+		{"list_strings", args{map[string]string{"list": "[one, two, three]"}}, map[string]interface{}{"list": []interface{}{"one", "two", "three"}}},
+		{"nested", args{map[string]string{"parent": "child: {number: 123456789, string: test}"}}, map[string]interface{}{"parent": map[string]interface{}{"child": map[string]interface{}{"number": 123456789, "string": "test"}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := toCustomDetails(tt.args.details); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("toCustomDetails() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
