@@ -23,6 +23,8 @@ spec:
     value: '{{revision}}'
   - name: output-image
     value: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/release-acm-212/prometheus-alertmanager-acm-212:{{revision}}
+  - name: prefetch-input
+    value: '{"type": "npm", "path": "ui/react-app"}'
   - name: dockerfile
     value: Containerfile.operator
   - name: path-context

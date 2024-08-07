@@ -26,6 +26,8 @@ spec:
     value: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/release-acm-212/prometheus-alertmanager-acm-212:on-pr-{{revision}}
   - name: image-expires-after
     value: 5d
+  - name: prefetch-input
+    value: '{"type": "npm", "path": "ui/react-app"}'
   - name: dockerfile
     value: Containerfile.operator
   - name: path-context
