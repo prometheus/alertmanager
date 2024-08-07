@@ -78,9 +78,8 @@ func TestMSTeamsTemplating(t *testing.T) {
 		{
 			title: "full-blown message",
 			cfg: &config.MSTeamsConfig{
-				Title:   `{{ template "msteams.default.title" . }}`,
-				Summary: `{{ template "msteams.default.summary" . }}`,
-				Text:    `{{ template "msteams.default.text" . }}`,
+				Title: `{{ template "msteams.default.title" . }}`,
+				Text:  `{{ template "msteams.default.text" . }}`,
 			},
 			retry: false,
 		},
@@ -92,19 +91,10 @@ func TestMSTeamsTemplating(t *testing.T) {
 			errMsg: "template: :1: unclosed action",
 		},
 		{
-			title: "summary with templating errors",
-			cfg: &config.MSTeamsConfig{
-				Title:   `{{ template "msteams.default.title" . }}`,
-				Summary: "{{ ",
-			},
-			errMsg: "template: :1: unclosed action",
-		},
-		{
 			title: "message with templating errors",
 			cfg: &config.MSTeamsConfig{
-				Title:   `{{ template "msteams.default.title" . }}`,
-				Summary: `{{ template "msteams.default.summary" . }}`,
-				Text:    "{{ ",
+				Title: `{{ template "msteams.default.title" . }}`,
+				Text:  "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
 		},
