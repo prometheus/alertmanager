@@ -328,6 +328,15 @@ output: extended
 receiver: team-X-pager
 ```
 
+### Provide shell environment variable
+
+export FOO=team-X
+
+```yaml
+receivers:
+   name: "${FOO}-mails"
+```
+
 ### Routes
 
 `amtool` allows you to visualize the routes of your configuration in form of text tree view.
