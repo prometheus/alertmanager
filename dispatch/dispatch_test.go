@@ -96,10 +96,10 @@ func TestAggrGroup(t *testing.T) {
 		last       = time.Now()
 		current    = time.Now()
 		lastCurMtx = &sync.Mutex{}
-		alertsCh   = make(chan types.AlertSlice)
+		alertsCh   = make(chan types.AlertsSnapshot)
 	)
 
-	ntfy := func(ctx context.Context, alerts ...*types.Alert) bool {
+	ntfy := func(ctx context.Context, alerts ...*types.AlertSnapshot) bool {
 		// Validate that the context is properly populated.
 		if _, ok := notify.Now(ctx); !ok {
 			t.Errorf("now missing")
@@ -123,18 +123,9 @@ func TestAggrGroup(t *testing.T) {
 		current = time.Now().Add(-time.Millisecond)
 		lastCurMtx.Unlock()
 
-		alertsCh <- types.AlertSlice(alerts)
+		alertsCh <- types.AlertsSnapshot(alerts)
 
 		return true
-	}
-
-	removeEndsAt := func(as types.AlertSlice) types.AlertSlice {
-		for i, a := range as {
-			ac := *a
-			ac.EndsAt = time.Time{}
-			as[i] = &ac
-		}
-		return as
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
@@ -154,12 +145,11 @@ func TestAggrGroup(t *testing.T) {
 		if s < opts.GroupWait {
 			t.Fatalf("received batch too early after %v", s)
 		}
-		exp := removeEndsAt(types.AlertSlice{a1})
+		exp := types.SnapshotAlerts([]*types.Alert{a1}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
-		if !reflect.DeepEqual(batch, exp) {
-			t.Fatalf("expected alerts %v but got %v", exp, batch)
-		}
+		require.Equal(t, exp, batch)
+
 	}
 
 	for i := 0; i < 3; i++ {
@@ -177,7 +167,7 @@ func TestAggrGroup(t *testing.T) {
 			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := removeEndsAt(types.AlertSlice{a1, a3})
+			exp := types.SnapshotAlerts([]*types.Alert{a1, a3}, batch[0].SnapshotAt)
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -204,7 +194,7 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected immediate alert but received none")
 
 	case batch := <-alertsCh:
-		exp := removeEndsAt(types.AlertSlice{a1, a2})
+		exp := types.SnapshotAlerts([]*types.Alert{a1, a2}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -227,7 +217,7 @@ func TestAggrGroup(t *testing.T) {
 			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := removeEndsAt(types.AlertSlice{a1, a2, a3})
+			exp := types.SnapshotAlerts([]*types.Alert{a1, a2, a3}, batch[0].SnapshotAt)
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -240,7 +230,6 @@ func TestAggrGroup(t *testing.T) {
 	a1r := *a1
 	a1r.EndsAt = time.Now()
 	ag.insert(&a1r)
-	exp := append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
 
 	select {
 	case <-time.After(2 * opts.GroupInterval):
@@ -252,6 +241,7 @@ func TestAggrGroup(t *testing.T) {
 		if s < opts.GroupInterval {
 			t.Fatalf("received batch too early after %v", s)
 		}
+		exp := types.SnapshotAlerts([]*types.Alert{&a1r, a2, a3}, batch[0].SnapshotAt)
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -262,7 +252,7 @@ func TestAggrGroup(t *testing.T) {
 	// Resolve all remaining alerts, they should be removed after the next batch was sent.
 	// Do not add a1r as it should have been deleted following the previous batch.
 	a2r, a3r := *a2, *a3
-	resolved := types.AlertSlice{&a2r, &a3r}
+	resolved := []*types.Alert{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
 		ag.insert(a)
@@ -281,10 +271,9 @@ func TestAggrGroup(t *testing.T) {
 		}
 		sort.Sort(batch)
 
-		if !reflect.DeepEqual(batch, resolved) {
-			t.Fatalf("expected alerts %v but got %v", resolved, batch)
-		}
+		exp := types.SnapshotAlerts(resolved, batch[0].SnapshotAt)
 
+		require.Equal(t, exp, batch)
 		if !ag.empty() {
 			t.Fatalf("Expected aggregation group to be empty after resolving alerts: %v", ag)
 		}
@@ -397,7 +386,7 @@ route:
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.AlertSnapshot)}
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
@@ -424,7 +413,9 @@ route:
 	}
 	require.Len(t, recorder.Alerts(), 7)
 
+	now := time.Now()
 	alertGroups, receivers := dispatcher.Groups(
+		now,
 		func(*Route) bool {
 			return true
 		}, func(*types.Alert, time.Time) bool {
@@ -434,14 +425,14 @@ route:
 
 	require.Equal(t, AlertGroups{
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[0]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[0], now)},
 			Labels: model.LabelSet{
 				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[1]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[1], now)},
 			Labels: model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
@@ -449,7 +440,7 @@ route:
 			Receiver: "testing",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[2], now), types.NewAlertSnapshot(inputAlerts[3], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -458,7 +449,7 @@ route:
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[4]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[4], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighErrorRate",
 				"service":   "api",
@@ -467,7 +458,7 @@ route:
 			Receiver: "prod",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -476,7 +467,7 @@ route:
 			Receiver: "kafka",
 		},
 		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
+			Alerts: []*types.AlertSnapshot{types.NewAlertSnapshot(inputAlerts[5], now)},
 			Labels: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -535,7 +526,7 @@ route:
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.AlertSnapshot)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
@@ -570,7 +561,7 @@ route:
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
 
-	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ := dispatcher.Groups(time.Now(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 
 	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
@@ -588,19 +579,19 @@ route:
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
-	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ = dispatcher.Groups(time.Now(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 }
 
 type recordStage struct {
 	mtx    sync.RWMutex
-	alerts map[string]map[model.Fingerprint]*types.Alert
+	alerts map[string]map[model.Fingerprint]*types.AlertSnapshot
 }
 
-func (r *recordStage) Alerts() []*types.Alert {
+func (r *recordStage) Alerts() []*types.AlertSnapshot {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
-	alerts := make([]*types.Alert, 0)
+	alerts := make([]*types.AlertSnapshot, 0)
 	for k := range r.alerts {
 		for _, a := range r.alerts[k] {
 			alerts = append(alerts, a)
@@ -609,7 +600,7 @@ func (r *recordStage) Alerts() []*types.Alert {
 	return alerts
 }
 
-func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.AlertSnapshot) (context.Context, []*types.AlertSnapshot, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	gk, ok := notify.GroupKey(ctx)
@@ -617,7 +608,7 @@ func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 		panic("GroupKey not present!")
 	}
 	if _, ok := r.alerts[gk]; !ok {
-		r.alerts[gk] = make(map[model.Fingerprint]*types.Alert)
+		r.alerts[gk] = make(map[model.Fingerprint]*types.AlertSnapshot)
 	}
 	for _, a := range alerts {
 		r.alerts[gk][a.Fingerprint()] = a
@@ -683,7 +674,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	}
 
 	timeout := func(d time.Duration) time.Duration { return d }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.AlertSnapshot)}
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
@@ -733,7 +724,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 		},
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.AlertSnapshot)}
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, log.NewNopLogger(), NewDispatcherMetrics(false, r))
@@ -746,7 +737,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
 	dispatcher.aggrGroupsPerRoute = aggrGroups
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
-	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
+	go aggrGroup1.run(func(context.Context, ...*types.AlertSnapshot) bool { return true })
 
 	// Insert a marker for the aggregation group's group key.
 	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
