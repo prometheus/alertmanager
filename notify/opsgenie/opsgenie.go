@@ -38,11 +38,12 @@ const maxMessageLenRunes = 130
 
 // Notifier implements a Notifier for OpsGenie notifications.
 type Notifier struct {
-	conf    *config.OpsGenieConfig
-	tmpl    *template.Template
-	logger  log.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf       *config.OpsGenieConfig
+	tmpl       *template.Template
+	logger     log.Logger
+	client     *http.Client
+	retrier    *notify.Retrier
+	apiVersion string
 }
 
 // New returns a new OpsGenie notifier.
@@ -51,13 +52,22 @@ func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger, httpOpts 
 	if err != nil {
 		return nil, err
 	}
-	return &Notifier{
+
+	notifier := &Notifier{
 		conf:    c,
 		tmpl:    t,
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
-	}, nil
+	}
+
+	if strings.Contains(c.APIURL.String(), "api.atlassian") {
+		notifier.apiVersion = "v1"
+	} else {
+		notifier.apiVersion = "v2"
+	}
+
+	return notifier, nil
 }
 
 type opsGenieCreateMessage struct {
@@ -158,7 +168,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	switch alerts.Status() {
 	case model.AlertResolved:
 		resolvedEndpointURL := n.conf.APIURL.Copy()
-		resolvedEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/close", alias)
+		resolvedEndpointURL.Path += fmt.Sprintf("%s/alerts/%s/close", n.apiVersion, alias)
 		q := resolvedEndpointURL.Query()
 		q.Set("identifierType", "alias")
 		resolvedEndpointURL.RawQuery = q.Encode()
@@ -179,7 +189,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()
-		createEndpointURL.Path += "v2/alerts"
+		createEndpointURL.Path += fmt.Sprintf("%s/alerts", n.apiVersion)
 
 		var responders []opsGenieCreateMessageResponder
 		for _, r := range n.conf.Responders {
@@ -236,7 +246,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 		if n.conf.UpdateAlerts {
 			updateMessageEndpointURL := n.conf.APIURL.Copy()
-			updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
+			updateMessageEndpointURL.Path += fmt.Sprintf("%s/alerts/%s/message", n.apiVersion, alias)
 			q := updateMessageEndpointURL.Query()
 			q.Set("identifierType", "alias")
 			updateMessageEndpointURL.RawQuery = q.Encode()
@@ -254,7 +264,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			requests = append(requests, req)
 
 			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
-			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
+			updateDescriptionEndpointURL.Path += fmt.Sprintf("%s/alerts/%s/description", n.apiVersion, alias)
 			q = updateDescriptionEndpointURL.Query()
 			q.Set("identifierType", "alias")
 			updateDescriptionEndpointURL.RawQuery = q.Encode()
