@@ -44,7 +44,7 @@ type Notifier struct {
 	client  *http.Client
 	retrier *notify.Retrier
 
-	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
+	postJSONFunc func(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error)
 }
 
 // New returns a new Slack notification handler.
@@ -205,7 +205,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u = strings.TrimSpace(string(content))
 	}
 
-	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
+	resp, err := n.postJSONFunc(ctx, n.client, u, nil, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

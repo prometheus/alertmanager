@@ -196,7 +196,7 @@ func (n *Notifier) notifyV1(
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encodedMsg)
+	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, nil, &encodedMsg)
 	if err != nil {
 		return true, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
 	}
@@ -290,7 +290,7 @@ func (n *Notifier) notifyV2(
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encodedMsg)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), nil, &encodedMsg)
 	if err != nil {
 		return true, fmt.Errorf("failed to post message to PagerDuty: %w", err)
 	}

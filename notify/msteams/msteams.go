@@ -47,7 +47,7 @@ type Notifier struct {
 	client       *http.Client
 	retrier      *notify.Retrier
 	webhookURL   *config.SecretURL
-	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
+	postJSONFunc func(ctx context.Context, client *http.Client, url string, headers http.Header, body io.Reader) (*http.Response, error)
 }
 
 // Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
@@ -141,7 +141,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
+	resp, err := n.postJSONFunc(ctx, n.client, url, nil, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
