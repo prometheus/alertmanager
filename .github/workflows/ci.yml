@@ -8,7 +8,7 @@ jobs:
     name: Test alertmanager frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - run: make clean
       - run: make all
         working-directory: ./ui/app
@@ -37,10 +37,10 @@ jobs:
     # Whenever the Go version is updated here, .promu.yml
     # should also be updated.
     container:
-      image: quay.io/prometheus/golang-builder:1.21-base
+      image: quay.io/prometheus/golang-builder:1.22-base
     steps:
-      - uses: actions/checkout@v3
-      - uses: prometheus/promci@v0.0.2
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
       - uses: ./.github/promci/actions/setup_environment
       - run: make
       - run: git diff --exit-code
