@@ -584,6 +584,7 @@ type OpsGenieConfig struct {
 	Details      map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
 	Entity       string                    `yaml:"entity,omitempty" json:"entity,omitempty"`
 	Responders   []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	VisibleTo    []OpsGenieConfigVisibleTo `yaml:"visible_to,omitempty" json:"visible_to,omitempty"`
 	Actions      string                    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Tags         string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note         string                    `yaml:"note,omitempty" json:"note,omitempty"`
@@ -625,6 +626,24 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		}
 	}
 
+	for _, v := range c.VisibleTo {
+		if v.ID == "" && v.Username == "" && v.Name == "" {
+			return fmt.Errorf("opsGenieConfig visible_to %v has to have at least one of id, username or name specified", v)
+		}
+
+		if strings.Contains(v.Type, "{{") {
+			_, err := template.New("").Parse(v.Type)
+			if err != nil {
+				return fmt.Errorf("opsGenieConfig visible_to %v type is not a valid template: %w", v, err)
+			}
+		} else {
+			v.Type = strings.ToLower(v.Type)
+			if !opsgenieTypeMatcher.MatchString(v.Type) {
+				return fmt.Errorf("opsGenieConfig visible_to %v type does not match valid options %s", v, opsgenieValidTypesRe)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -635,6 +654,16 @@ type OpsGenieConfigResponder struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
 	// team, user, escalation, schedule etc.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+type OpsGenieConfigVisibleTo struct {
+	// One of those 3 should be filled.
+	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
+	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	// team, user
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 

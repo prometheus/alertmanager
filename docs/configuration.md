@@ -1075,6 +1075,10 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 responders:
   [ - <responder> ... ]
 
+# List of teams and users the alert will become visible to without sending any notification.
+visible_to:
+  [ - <visible_to> ... ]
+
 # Comma separated list of tags attached to the notifications.
 [ tags: <tmpl_string> ]
 
@@ -1111,6 +1115,22 @@ responders:
 # The `teams` responder is configured using the `name` field above.
 # This field can contain a comma-separated list of team names.
 # If the list is empty, no responders are configured.
+type: <tmpl_string>
+```
+
+#### `<visible_to>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# One of `team`, `teams` or `user`.
+#
+# The `teams` responder is configured using the `name` field above.
+# This field can contain a comma-separated list of team names.
+# If the list is empty, no additional visibility will be configured.
 type: <tmpl_string>
 ```
 

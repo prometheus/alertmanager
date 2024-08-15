@@ -67,6 +67,7 @@ type opsGenieCreateMessage struct {
 	Details     map[string]string                `json:"details"`
 	Source      string                           `json:"source"`
 	Responders  []opsGenieCreateMessageResponder `json:"responders,omitempty"`
+	VisibleTo   []opsGenieCreateMessageVisibleTo `json:"visibleTo,omitempty"`
 	Tags        []string                         `json:"tags,omitempty"`
 	Note        string                           `json:"note,omitempty"`
 	Priority    string                           `json:"priority,omitempty"`
@@ -79,6 +80,13 @@ type opsGenieCreateMessageResponder struct {
 	Name     string `json:"name,omitempty"`
 	Username string `json:"username,omitempty"`
 	Type     string `json:"type"` // team, user, escalation, schedule etc.
+}
+
+type opsGenieCreateMessageVisibleTo struct {
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Username string `json:"username,omitempty"`
+	Type     string `json:"type"` // team, user
 }
 
 type opsGenieCloseMessage struct {
@@ -211,6 +219,36 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			responders = append(responders, responder)
 		}
 
+		var visibleTos []opsGenieCreateMessageVisibleTo
+		for _, v := range n.conf.VisibleTo {
+			visibleTo := opsGenieCreateMessageVisibleTo{
+				ID:       tmpl(v.ID),
+				Name:     tmpl(v.Name),
+				Username: tmpl(v.Username),
+				Type:     tmpl(v.Type),
+			}
+
+			if visibleTo == (opsGenieCreateMessageVisibleTo{}) {
+				// Filter out empty responders. This is useful if you want to fill
+				// responders dynamically from alert's common labels.
+				continue
+			}
+
+			if visibleTo.Type == "teams" {
+				teams := safeSplit(visibleTo.Name, ",")
+				for _, team := range teams {
+					newVisibleTo := opsGenieCreateMessageVisibleTo{
+						Name: tmpl(team),
+						Type: tmpl("team"),
+					}
+					visibleTos = append(visibleTos, newVisibleTo)
+				}
+				continue
+			}
+
+			visibleTos = append(visibleTos, visibleTo)
+		}
+
 		msg := &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
@@ -218,6 +256,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
 			Responders:  responders,
+			VisibleTo:   visibleTos,
 			Tags:        safeSplit(tmpl(n.conf.Tags), ","),
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
