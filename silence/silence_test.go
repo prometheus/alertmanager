@@ -85,129 +85,134 @@ func TestOptionsValidate(t *testing.T) {
 }
 
 func TestSilenceGCOverTime(t *testing.T) {
-	type silenceEntry struct {
-		s                    *pb.Silence
-		expectPresentAfterGc bool
-	}
-	c := clock.NewMock()
-	now := c.Now().UTC()
+	t.Run("GC does not remove active silences", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		s.clock = clock.NewMock()
+		now := s.nowUTC()
+		s.st = state{
+			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}, ExpiresAt: now},
+			"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}, ExpiresAt: now.Add(-time.Second)},
+			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
+		}
+		want := state{
+			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
+		}
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+		require.Equal(t, want, s.st)
+	})
 
-	newSilence := func(id string, exp time.Time) *pb.Silence {
-		return &pb.Silence{
-			Id:       id,
-			StartsAt: now.Add(-time.Second),
-			EndsAt:   exp,
-			Matchers: []*pb.Matcher{
-				{Name: "foo", Type: pb.Matcher_REGEXP, Pattern: "bar"},
-			}}
-	}
+	t.Run("GC does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		require.NoError(t, s.Set(sil1))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		require.Len(t, s.st, 0)
+		require.Len(t, s.mc, 0)
+	})
 
-	// The GC will run with it's clock equal to 1 second after now
-	cases := []struct {
-		name            string
-		initialState    []silenceEntry
-		updates         []silenceEntry
-		expectedGCCount int
-	}{
-		{
-			name: "gc does not clean active silences",
-			initialState: []silenceEntry{
-				{s: newSilence("1", now), expectPresentAfterGc: false},
-				{s: newSilence("2", now.Add(-time.Second)), expectPresentAfterGc: false},
-				{s: newSilence("3", now.Add(time.Second)), expectPresentAfterGc: true},
-			},
-		},
-		{
-			name: "silences added with Set are handled correctly",
-			initialState: []silenceEntry{
-				{s: newSilence("1", now), expectPresentAfterGc: false},
-			},
-			updates: []silenceEntry{
-				{s: newSilence("", now.Add(time.Second)), expectPresentAfterGc: true},
-				{s: newSilence("", now.Add(-time.Second)), expectPresentAfterGc: false},
-			},
-		},
-		{
-			name: "silence update does not leak state",
-			initialState: []silenceEntry{
-				{s: newSilence("1", now), expectPresentAfterGc: false},
-			},
-			updates: []silenceEntry{
-				{s: newSilence("1", now.Add(time.Second)), expectPresentAfterGc: true},
-			},
-		},
-	}
+	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		require.NoError(t, s.Set(sil1))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// must clone sil1 before replacing it.
+		sil2 := cloneSilence(sil1)
+		sil2.Matchers = []*pb.Matcher{{
+			Type:    pb.Matcher_EQUAL,
+			Name:    "bar",
+			Pattern: "baz",
+		}}
+		require.NoError(t, s.Set(sil2))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"bar": "baz"}))
+		require.Len(t, s.st, 2)
+		require.Len(t, s.mc, 2)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+		require.Len(t, s.st, 0)
+		require.Len(t, s.mc, 0)
+	})
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			silences, err := New(Options{})
-			require.NoError(t, err)
-
-			silClock := clock.NewMock()
-			silences.clock = silClock
-
-			// Set time into the past so that silences will be updated
-			// before they're endsAt
-			silClock.Add(-2 * time.Second)
-
-			expectedRemaining := []string{}
-			expectedGCCount := 0
-			for _, sil := range tc.initialState {
-				sil.s.UpdatedAt = silences.nowUTC()
-				silences.st[sil.s.Id] = &pb.MeshSilence{
-					Silence:   sil.s,
-					ExpiresAt: sil.s.EndsAt,
-				}
-
-				if sil.expectPresentAfterGc {
-					expectedRemaining = append(expectedRemaining, sil.s.Id)
-				} else {
-					expectedGCCount += 1
-				}
-				// simulate this silences being seen in a query
-				silences.mc.Get(silences.st[sil.s.Id].Silence)
-			}
-			// Move time forward so that these updates will produce silences with newer
-			// UpdatedAt values compared to the original batch
-			silClock.Add(time.Second)
-			for _, sil := range tc.updates {
-				if sil.s.Id != "" {
-					// we're replacing a silence which now will not get GC'd
-					expectedGCCount -= 1
-				}
-				err := silences.Set(sil.s)
-				require.NoError(t, err)
-				if sil.expectPresentAfterGc {
-					expectedRemaining = append(expectedRemaining, sil.s.Id)
-				} else {
-					expectedGCCount += 1
-				}
-				// simulate this silences being seen in a query
-				silences.mc.Get(silences.st[sil.s.Id].Silence)
-			}
-
-			// Move time forward so that Silences will move past their ExpiresAt
-			silClock.Add(time.Second)
-
-			n, err := silences.GC()
-			require.NoError(t, err)
-			require.Equal(t, expectedGCCount, n)
-
-			for _, id := range expectedRemaining {
-				foundSil, inState := silences.st[id]
-				if !inState {
-					require.Failf(t, "silence %s was missing from final state", id)
-				}
-				if _, ok := silences.mc[foundSil.Silence.Id]; !ok {
-					require.Failf(t, "silence %s's matchers were missing from the matcherCache", id)
-				}
-			}
-			require.Equalf(t, len(expectedRemaining), len(silences.st), "there are extra silences in the final state")
-			require.Equalf(t, len(expectedRemaining), len(silences.mc), "there are extra entries in the matcher cache")
-
-		})
-	}
-
+	// This test checks for a memory leak that occurred in the matcher cache when
+	// updating an existing silence.
+	t.Run("updating a silences does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Id: "1",
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: clock.Now().Add(time.Minute)}
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.mc, 1)
+		// must clone sil1 before updating it.
+		sil2 := cloneSilence(sil1)
+		require.NoError(t, s.Set(sil2))
+		// The memory leak occurred because updating a silence would add a new
+		// entry in the matcher cache even though no new silence was created.
+		// This check asserts that this no longer happens.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		require.Len(t, s.st, 0)
+		require.Len(t, s.mc, 0)
+	})
 }
 
 func TestSilencesSnapshot(t *testing.T) {
