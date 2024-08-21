@@ -129,8 +129,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
-		require.Len(t, s.st, 0)
-		require.Len(t, s.mc, 0)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
 	})
 
 	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 2, n)
-		require.Len(t, s.st, 0)
-		require.Len(t, s.mc, 0)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
 	})
 
 	// This test checks for a memory leak that occurred in the matcher cache when
@@ -210,8 +210,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
-		require.Len(t, s.st, 0)
-		require.Len(t, s.mc, 0)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
 	})
 }
 
