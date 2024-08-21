@@ -29,7 +29,7 @@
     "dotenv-defaults": "^5.0.2",
     "esbuild-loader": "^2.20.0",
     "eslint": "^8.56.0",
-    "eslint-config-prettier": "^8.5.0",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsx-a11y": "^6.9.0",
     "eslint-plugin-prettier": "^5.1.3",
