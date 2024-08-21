@@ -84,29 +84,135 @@ func TestOptionsValidate(t *testing.T) {
 	}
 }
 
-func TestSilencesGC(t *testing.T) {
-	s, err := New(Options{})
-	require.NoError(t, err)
+func TestSilenceGCOverTime(t *testing.T) {
+	t.Run("GC does not remove active silences", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		s.clock = clock.NewMock()
+		now := s.nowUTC()
+		s.st = state{
+			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}, ExpiresAt: now},
+			"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}, ExpiresAt: now.Add(-time.Second)},
+			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
+		}
+		want := state{
+			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
+		}
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+		require.Equal(t, want, s.st)
+	})
 
-	s.clock = clock.NewMock()
-	now := s.nowUTC()
+	t.Run("GC does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		require.NoError(t, s.Set(sil1))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
+	})
 
-	newSilence := func(exp time.Time) *pb.MeshSilence {
-		return &pb.MeshSilence{ExpiresAt: exp}
-	}
-	s.st = state{
-		"1": newSilence(now),
-		"2": newSilence(now.Add(-time.Second)),
-		"3": newSilence(now.Add(time.Second)),
-	}
-	want := state{
-		"3": newSilence(now.Add(time.Second)),
-	}
+	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		require.NoError(t, s.Set(sil1))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// must clone sil1 before replacing it.
+		sil2 := cloneSilence(sil1)
+		sil2.Matchers = []*pb.Matcher{{
+			Type:    pb.Matcher_EQUAL,
+			Name:    "bar",
+			Pattern: "baz",
+		}}
+		require.NoError(t, s.Set(sil2))
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"bar": "baz"}))
+		require.Len(t, s.st, 2)
+		require.Len(t, s.mc, 2)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
+	})
 
-	n, err := s.GC()
-	require.NoError(t, err)
-	require.Equal(t, 2, n)
-	require.Equal(t, want, s.st)
+	// This test checks for a memory leak that occurred in the matcher cache when
+	// updating an existing silence.
+	t.Run("updating a silences does not leak cache entries", func(t *testing.T) {
+		s, err := New(Options{})
+		require.NoError(t, err)
+		clock := clock.NewMock()
+		s.clock = clock
+		sil1 := &pb.Silence{
+			Id: "1",
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: clock.Now(),
+			EndsAt:   clock.Now().Add(time.Minute),
+		}
+		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: clock.Now().Add(time.Minute)}
+		// Need to query the silence to populate the matcher cache.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.mc, 1)
+		// must clone sil1 before updating it.
+		sil2 := cloneSilence(sil1)
+		require.NoError(t, s.Set(sil2))
+		// The memory leak occurred because updating a silence would add a new
+		// entry in the matcher cache even though no new silence was created.
+		// This check asserts that this no longer happens.
+		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		require.Len(t, s.st, 1)
+		require.Len(t, s.mc, 1)
+		// Move time forward and both silence and cache entry should be garbage
+		// collected.
+		clock.Add(time.Minute)
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		require.Empty(t, s.st)
+		require.Empty(t, s.mc)
+	})
 }
 
 func TestSilencesSnapshot(t *testing.T) {
