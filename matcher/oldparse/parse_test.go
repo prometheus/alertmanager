@@ -17,18 +17,18 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 func TestMatchers(t *testing.T) {
 	for _, tc := range []struct {
 		input string
-		want  []*labels.Matcher
+		want  []*matcher.Matcher
 		err   string
 	}{
 		{
 			input: `{}`,
-			want:  make([]*labels.Matcher, 0),
+			want:  make([]*matcher.Matcher, 0),
 		},
 		{
 			input: `,`,
@@ -40,295 +40,295 @@ func TestMatchers(t *testing.T) {
 		},
 		{
 			input: `{foo='}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "'")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "'")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: "{foo=`}",
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "`")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "`")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: "{foo=\\\"}",
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "\"")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo="bar"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=~bar.*}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=~"bar.*"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo!=bar}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchNotEqual, "foo", "bar")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchNotEqual, "foo", "bar")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo!="bar"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchNotEqual, "foo", "bar")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchNotEqual, "foo", "bar")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo!~bar.*}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo!~"bar.*"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo="bar", baz!="quux"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotEqual, "baz", "quux")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotEqual, "baz", "quux")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{foo="bar", baz!~"quux.*"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotRegexp, "baz", "quux.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "baz", "quux.*")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{foo="bar",baz!~".*quux", derp="wat"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotRegexp, "baz", ".*quux")
-				m3, _ := labels.NewMatcher(labels.MatchEqual, "derp", "wat")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "baz", ".*quux")
+				m3, _ := matcher.NewMatcher(matcher.MatchEqual, "derp", "wat")
 				return append(ms, m, m2, m3)
 			}(),
 		},
 		{
 			input: `{foo="bar", baz!="quux", derp="wat"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotEqual, "baz", "quux")
-				m3, _ := labels.NewMatcher(labels.MatchEqual, "derp", "wat")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotEqual, "baz", "quux")
+				m3, _ := matcher.NewMatcher(matcher.MatchEqual, "derp", "wat")
 				return append(ms, m, m2, m3)
 			}(),
 		},
 		{
 			input: `{foo="bar", baz!~".*quux.*", derp="wat"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotRegexp, "baz", ".*quux.*")
-				m3, _ := labels.NewMatcher(labels.MatchEqual, "derp", "wat")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "baz", ".*quux.*")
+				m3, _ := matcher.NewMatcher(matcher.MatchEqual, "derp", "wat")
 				return append(ms, m, m2, m3)
 			}(),
 		},
 		{
 			input: `{foo="bar", instance=~"some-api.*"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchRegexp, "instance", "some-api.*")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchRegexp, "instance", "some-api.*")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{foo=""}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo="bar,quux", job="job1"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar,quux")
-				m2, _ := labels.NewMatcher(labels.MatchEqual, "job", "job1")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar,quux")
+				m2, _ := matcher.NewMatcher(matcher.MatchEqual, "job", "job1")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{foo = "bar", dings != "bums", }`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotEqual, "dings", "bums")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotEqual, "dings", "bums")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `foo=bar,dings!=bums`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
-				m2, _ := labels.NewMatcher(labels.MatchNotEqual, "dings", "bums")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar")
+				m2, _ := matcher.NewMatcher(matcher.MatchNotEqual, "dings", "bums")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{quote="She said: \"Hi, ladies! That's gender-neutral…\""}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "quote", `She said: "Hi, ladies! That's gender-neutral…"`)
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "quote", `She said: "Hi, ladies! That's gender-neutral…"`)
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `statuscode=~"5.."`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchRegexp, "statuscode", "5..")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchRegexp, "statuscode", "5..")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `tricky=~~~`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchRegexp, "tricky", "~~")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchRegexp, "tricky", "~~")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `trickier==\\=\=\"`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "trickier", `=\=\="`)
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "trickier", `=\=\="`)
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `contains_quote != "\"" , contains_comma !~ "foo,bar" , `,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchNotEqual, "contains_quote", `"`)
-				m2, _ := labels.NewMatcher(labels.MatchNotRegexp, "contains_comma", "foo,bar")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchNotEqual, "contains_quote", `"`)
+				m2, _ := matcher.NewMatcher(matcher.MatchNotRegexp, "contains_comma", "foo,bar")
 				return append(ms, m, m2)
 			}(),
 		},
 		{
 			input: `{foo=bar}}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar}")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar}},}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}}")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar}}")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=,bar=}}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m1, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
-				m2, _ := labels.NewMatcher(labels.MatchEqual, "bar", "}")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m1, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "")
+				m2, _ := matcher.NewMatcher(matcher.MatchEqual, "bar", "}")
 				return append(ms, m1, m2)
 			}(),
 		},
 		{
 			input: `{foo=bar\t}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\t")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar\\t")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar\n}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\n")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar\n")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar\}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar\\")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar\\}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\\")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar\\")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=bar\"}`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar\"")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "bar\"")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `job=`,
-			want: func() []*labels.Matcher {
-				m, _ := labels.NewMatcher(labels.MatchEqual, "job", "")
-				return []*labels.Matcher{m}
+			want: func() []*matcher.Matcher {
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "job", "")
+				return []*matcher.Matcher{m}
 			}(),
 		},
 		{
@@ -386,17 +386,17 @@ func TestMatchers(t *testing.T) {
 		},
 		{
 			input: `{foo=`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "")
 				return append(ms, m)
 			}(),
 		},
 		{
 			input: `{foo=}b`,
-			want: func() []*labels.Matcher {
-				ms := []*labels.Matcher{}
-				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "}b")
+			want: func() []*matcher.Matcher {
+				ms := []*matcher.Matcher{}
+				m, _ := matcher.NewMatcher(matcher.MatchEqual, "foo", "}b")
 				return append(ms, m)
 			}(),
 		},

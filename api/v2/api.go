@@ -45,8 +45,8 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -426,7 +426,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
+func (api *API) alertFilter(matchers []*matcher.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
 	return func(a *types.Alert, now time.Time) bool {
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 			return false
@@ -472,7 +472,7 @@ func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
 	return false
 }
 
-func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*labels.Matcher) bool {
+func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*matcher.Matcher) bool {
 	sms := make(map[string]string)
 	for name, value := range a.Labels {
 		sms[string(name)] = string(value)
@@ -480,11 +480,11 @@ func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*labels.Matc
 	return matchFilterLabels(matchers, sms)
 }
 
-func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
+func matchFilterLabels(matchers []*matcher.Matcher, sms map[string]string) bool {
 	for _, m := range matchers {
 		v, prs := sms[m.Name]
 		switch m.Type {
-		case labels.MatchNotRegexp, labels.MatchNotEqual:
+		case matcher.MatchNotRegexp, matcher.MatchNotEqual:
 			if m.Value == "" && prs {
 				continue
 			}
@@ -578,16 +578,16 @@ func SortSilences(sils open_api_models.GettableSilences) {
 // A silence matches a filter (list of matchers) if
 // for all matchers in the filter, there exists a matcher in the silence
 // such that their names, types, and values are equivalent.
-func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
-	for _, matcher := range matchers {
+func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*matcher.Matcher) bool {
+	for _, m1 := range matchers {
 		found := false
-		for _, m := range s.Matchers {
-			if matcher.Name == m.Name &&
-				(matcher.Type == labels.MatchEqual && m.Type == silencepb.Matcher_EQUAL ||
-					matcher.Type == labels.MatchRegexp && m.Type == silencepb.Matcher_REGEXP ||
-					matcher.Type == labels.MatchNotEqual && m.Type == silencepb.Matcher_NOT_EQUAL ||
-					matcher.Type == labels.MatchNotRegexp && m.Type == silencepb.Matcher_NOT_REGEXP) &&
-				matcher.Value == m.Pattern {
+		for _, m2 := range s.Matchers {
+			if m1.Name == m2.Name &&
+				(m1.Type == matcher.MatchEqual && m2.Type == silencepb.Matcher_EQUAL ||
+					m1.Type == matcher.MatchRegexp && m2.Type == silencepb.Matcher_REGEXP ||
+					m1.Type == matcher.MatchNotEqual && m2.Type == silencepb.Matcher_NOT_EQUAL ||
+					m1.Type == matcher.MatchNotRegexp && m2.Type == silencepb.Matcher_NOT_REGEXP) &&
+				m1.Value == m2.Pattern {
 				found = true
 				break
 			}
@@ -673,8 +673,8 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	})
 }
 
-func parseFilter(filter []string) ([]*labels.Matcher, error) {
-	matchers := make([]*labels.Matcher, 0, len(filter))
+func parseFilter(filter []string) ([]*matcher.Matcher, error) {
+	matchers := make([]*matcher.Matcher, 0, len(filter))
 	for _, matcherString := range filter {
 		matcher, err := compat.Matcher(matcherString, "api")
 		if err != nil {

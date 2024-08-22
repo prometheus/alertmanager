@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -110,10 +110,10 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
 				SourceMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+					mustNewMatcher(b, matcher.MatchEqual, "src", strconv.Itoa(idx)),
 				},
 				TargetMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+					mustNewMatcher(b, matcher.MatchEqual, "dst", "0"),
 				},
 			}
 		},
@@ -153,10 +153,10 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
 				SourceMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+					mustNewMatcher(b, matcher.MatchEqual, "src", strconv.Itoa(idx)),
 				},
 				TargetMatchers: config.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+					mustNewMatcher(b, matcher.MatchEqual, "dst", "0"),
 				},
 			}
 		},
@@ -224,8 +224,8 @@ func benchmarkFromOptions(opts benchmarkOptions) ([]types.Alert, []config.Inhibi
 	return alerts, rules
 }
 
-func mustNewMatcher(b *testing.B, op labels.MatchType, name, value string) *labels.Matcher {
-	m, err := labels.NewMatcher(op, name, value)
+func mustNewMatcher(b *testing.B, op matcher.MatchType, name, value string) *matcher.Matcher {
+	m, err := matcher.NewMatcher(op, name, value)
 	require.NoError(b, err)
 	return m
 }

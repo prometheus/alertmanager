@@ -27,8 +27,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 func username() string {
@@ -101,7 +101,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		}
 	}
 
-	matchers := make([]labels.Matcher, 0, len(c.matchers))
+	matchers := make([]matcher.Matcher, 0, len(c.matchers))
 	for _, s := range c.matchers {
 		m, err := compat.Matcher(s, "cli")
 		if err != nil {

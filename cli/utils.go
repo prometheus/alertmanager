@@ -26,7 +26,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 // getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager.
@@ -79,25 +79,25 @@ func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 }
 
 // TypeMatchers only valid for when you are going to add a silence.
-func TypeMatchers(matchers []labels.Matcher) models.Matchers {
+func TypeMatchers(matchers []matcher.Matcher) models.Matchers {
 	typeMatchers := make(models.Matchers, len(matchers))
-	for i, matcher := range matchers {
-		typeMatchers[i] = TypeMatcher(matcher)
+	for i, m := range matchers {
+		typeMatchers[i] = TypeMatcher(m)
 	}
 	return typeMatchers
 }
 
 // TypeMatcher only valid for when you are going to add a silence.
-func TypeMatcher(matcher labels.Matcher) *models.Matcher {
-	name := matcher.Name
-	value := matcher.Value
+func TypeMatcher(m matcher.Matcher) *models.Matcher {
+	name := m.Name
+	value := m.Value
 	typeMatcher := models.Matcher{
 		Name:  &name,
 		Value: &value,
 	}
 
-	isEqual := (matcher.Type == labels.MatchEqual) || (matcher.Type == labels.MatchRegexp)
-	isRegex := (matcher.Type == labels.MatchRegexp) || (matcher.Type == labels.MatchNotRegexp)
+	isEqual := (m.Type == matcher.MatchEqual) || (m.Type == matcher.MatchRegexp)
+	isRegex := (m.Type == matcher.MatchRegexp) || (m.Type == matcher.MatchNotRegexp)
 	typeMatcher.IsEqual = &isEqual
 	typeMatcher.IsRegex = &isRegex
 	return &typeMatcher

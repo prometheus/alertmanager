@@ -19,18 +19,18 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 var (
 	// '=~' has to come before '=' because otherwise only the '='
 	// will be consumed, and the '~' will be part of the 3rd token.
 	re      = regexp.MustCompile(`^\s*([a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
-	typeMap = map[string]labels.MatchType{
-		"=":  labels.MatchEqual,
-		"!=": labels.MatchNotEqual,
-		"=~": labels.MatchRegexp,
-		"!~": labels.MatchNotRegexp,
+	typeMap = map[string]matcher.MatchType{
+		"=":  matcher.MatchEqual,
+		"!=": matcher.MatchNotEqual,
+		"=~": matcher.MatchRegexp,
+		"!~": matcher.MatchNotRegexp,
 	}
 )
 
@@ -54,8 +54,8 @@ var (
 //	statuscode=~"5.."
 //
 // See ParseMatcher for details on how an individual Matcher is parsed.
-func ParseMatchers(s string) ([]*labels.Matcher, error) {
-	matchers := []*labels.Matcher{}
+func ParseMatchers(s string) ([]*matcher.Matcher, error) {
+	matchers := []*matcher.Matcher{}
 	s = strings.TrimPrefix(s, "{")
 	s = strings.TrimSuffix(s, "}")
 
@@ -116,7 +116,7 @@ func ParseMatchers(s string) ([]*labels.Matcher, error) {
 // character). However, literal line feed characters are tolerated, as are
 // single '\' characters not followed by '\', 'n', or '"'. They act as a literal
 // backslash in that case.
-func ParseMatcher(s string) (_ *labels.Matcher, err error) {
+func ParseMatcher(s string) (_ *matcher.Matcher, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) == 0 {
 		return nil, fmt.Errorf("bad matcher format: %s", s)
@@ -176,5 +176,5 @@ func ParseMatcher(s string) (_ *labels.Matcher, err error) {
 		return nil, fmt.Errorf("matcher value contains unescaped double quote: %s", ms[3])
 	}
 
-	return labels.NewMatcher(typeMap[ms[2]], ms[1], value.String())
+	return matcher.NewMatcher(typeMap[ms[2]], ms[1], value.String())
 }

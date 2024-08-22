@@ -35,7 +35,7 @@ import (
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -376,70 +376,70 @@ func postSilences(
 func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 	type test struct {
 		silenceMatchers []*silencepb.Matcher
-		filterMatchers  []*labels.Matcher
+		filterMatchers  []*matcher.Matcher
 		expected        bool
 	}
 
 	tests := []test{
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchEqual)},
 			true,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "novalue", labels.MatchEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "novalue", matcher.MatchEqual)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "(foo|bar)", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "(foo|bar)", matcher.MatchRegexp)},
 			true,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "foo", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "(foo|bar)", matcher.MatchRegexp)},
 			false,
 		},
 
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchRegexp)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchEqual)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotEqual)},
 			true,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotRegexp)},
 			true,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotEqual)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotRegexp)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotRegexp)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "value", matcher.MatchNotEqual)},
 			false,
 		},
 		{
@@ -447,7 +447,7 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 				createSilenceMatcher(t, "label", "(foo|bar)", silencepb.Matcher_REGEXP),
 				createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL),
 			},
-			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
+			[]*matcher.Matcher{createLabelMatcher(t, "label", "(foo|bar)", matcher.MatchRegexp)},
 			true,
 		},
 	}
@@ -512,34 +512,34 @@ func TestMatchFilterLabels(t *testing.T) {
 	}
 
 	testCases := []struct {
-		matcher  labels.MatchType
+		matcher  matcher.MatchType
 		name     string
 		val      string
 		expected bool
 	}{
-		{labels.MatchEqual, "foo", "bar", true},
-		{labels.MatchEqual, "baz", "", true},
-		{labels.MatchEqual, "baz", "qux", false},
-		{labels.MatchEqual, "baz", "qux|", false},
-		{labels.MatchRegexp, "foo", "bar", true},
-		{labels.MatchRegexp, "baz", "", true},
-		{labels.MatchRegexp, "baz", "qux", false},
-		{labels.MatchRegexp, "baz", "qux|", true},
-		{labels.MatchNotEqual, "foo", "bar", false},
-		{labels.MatchNotEqual, "baz", "", false},
-		{labels.MatchNotEqual, "baz", "qux", true},
-		{labels.MatchNotEqual, "baz", "qux|", true},
-		{labels.MatchNotRegexp, "foo", "bar", false},
-		{labels.MatchNotRegexp, "baz", "", false},
-		{labels.MatchNotRegexp, "baz", "qux", true},
-		{labels.MatchNotRegexp, "baz", "qux|", false},
+		{matcher.MatchEqual, "foo", "bar", true},
+		{matcher.MatchEqual, "baz", "", true},
+		{matcher.MatchEqual, "baz", "qux", false},
+		{matcher.MatchEqual, "baz", "qux|", false},
+		{matcher.MatchRegexp, "foo", "bar", true},
+		{matcher.MatchRegexp, "baz", "", true},
+		{matcher.MatchRegexp, "baz", "qux", false},
+		{matcher.MatchRegexp, "baz", "qux|", true},
+		{matcher.MatchNotEqual, "foo", "bar", false},
+		{matcher.MatchNotEqual, "baz", "", false},
+		{matcher.MatchNotEqual, "baz", "qux", true},
+		{matcher.MatchNotEqual, "baz", "qux|", true},
+		{matcher.MatchNotRegexp, "foo", "bar", false},
+		{matcher.MatchNotRegexp, "baz", "", false},
+		{matcher.MatchNotRegexp, "baz", "qux", true},
+		{matcher.MatchNotRegexp, "baz", "qux|", false},
 	}
 
 	for _, tc := range testCases {
-		m, err := labels.NewMatcher(tc.matcher, tc.name, tc.val)
+		m, err := matcher.NewMatcher(tc.matcher, tc.name, tc.val)
 		require.NoError(t, err)
 
-		ms := []*labels.Matcher{m}
+		ms := []*matcher.Matcher{m}
 		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
 	}
 }
