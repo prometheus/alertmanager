@@ -306,7 +306,7 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 			Namespace:                       "alertmanager",
 			Name:                            "notification_latency_seconds",
 			Help:                            "The latency of notifications in seconds.",
-			Buckets:                         []float64{1, 5, 10, 15, 20},
+			Buckets:                         []float64{1, 5, 10, 15, 20, 60, 300},
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
