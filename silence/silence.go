@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/coder/quartz"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	uuid "github.com/gofrs/uuid"
@@ -188,7 +188,7 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
-	clock clock.Clock
+	clock quartz.Clock
 
 	logger    log.Logger
 	metrics   *metrics
@@ -350,7 +350,7 @@ func New(o Options) (*Silences, error) {
 	}
 
 	s := &Silences{
-		clock:     clock.New(),
+		clock:     quartz.NewReal(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
 		retention: o.Retention,
@@ -397,7 +397,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		level.Error(s.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := s.clock.Ticker(interval)
+	t := s.clock.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
