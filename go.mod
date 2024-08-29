@@ -1,6 +1,8 @@
 module github.com/prometheus/alertmanager
 
-go 1.21
+go 1.21.8
+
+toolchain go1.22.4
 
 require (
 	github.com/KimMachineGun/automemlimit v0.6.1
@@ -10,6 +12,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/coder/quartz v0.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.23.0
 	github.com/go-openapi/errors v0.22.0

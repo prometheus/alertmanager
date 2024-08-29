@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/coder/quartz"
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -88,7 +88,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("GC does not remove active silences", func(t *testing.T) {
 		s, err := New(Options{})
 		require.NoError(t, err)
-		s.clock = clock.NewMock()
+		s.clock = quartz.NewMock(t)
 		now := s.nowUTC()
 		s.st = state{
 			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}, ExpiresAt: now},
@@ -107,7 +107,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("GC does not leak cache entries", func(t *testing.T) {
 		s, err := New(Options{})
 		require.NoError(t, err)
-		clock := clock.NewMock()
+		clock := quartz.NewMock(t)
 		s.clock = clock
 		sil1 := &pb.Silence{
 			Matchers: []*pb.Matcher{{
@@ -125,7 +125,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mc, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Add(time.Minute)
+		clock.Advance(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
@@ -136,7 +136,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
 		s, err := New(Options{})
 		require.NoError(t, err)
-		clock := clock.NewMock()
+		clock := quartz.NewMock(t)
 		s.clock = clock
 		sil1 := &pb.Silence{
 			Matchers: []*pb.Matcher{{
@@ -166,7 +166,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mc, 2)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Add(time.Minute)
+		clock.Advance(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 2, n)
@@ -179,7 +179,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("updating a silences does not leak cache entries", func(t *testing.T) {
 		s, err := New(Options{})
 		require.NoError(t, err)
-		clock := clock.NewMock()
+		clock := quartz.NewMock(t)
 		s.clock = clock
 		sil1 := &pb.Silence{
 			Id: "1",
@@ -206,7 +206,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mc, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Add(time.Minute)
+		clock.Advance(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
@@ -217,7 +217,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 func TestSilencesSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	now := clock.NewMock().Now().UTC()
+	now := quartz.NewMock(t).Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshSilence
@@ -297,7 +297,7 @@ func TestSilencesSnapshot(t *testing.T) {
 func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
@@ -308,7 +308,7 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 	}()
 	runtime.Gosched()
 
-	clock.Add(100 * time.Millisecond)
+	clock.Advance(100 * time.Millisecond)
 	close(stopc)
 
 	<-done
@@ -317,7 +317,7 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	reg := prometheus.NewRegistry()
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock}
 	s.metrics = newMetrics(reg, s)
@@ -337,12 +337,12 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	gosched()
 
 	// Before the first tick, no maintenance executed.
-	clock.Add(9 * time.Second)
+	clock.Advance(9 * time.Second)
 	require.EqualValues(t, 0, calls.Load())
 
 	// Tick once.
-	clock.Add(1 * time.Second)
-	require.EqualValues(t, 1, calls.Load())
+	clock.Advance(1 * time.Second)
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 5*time.Second, time.Second)
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
@@ -367,7 +367,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 
 	nowpb := s.nowUTC()
@@ -418,7 +418,7 @@ func TestSilenceSet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 	start1 := s.nowUTC()
 
@@ -446,7 +446,7 @@ func TestSilenceSet(t *testing.T) {
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
 	// Insert silence with unset start time. Must be set to now.
-	clock.Add(time.Minute)
+	clock.Advance(time.Minute)
 	start2 := s.nowUTC()
 
 	sil2 := &pb.Silence{
@@ -486,7 +486,7 @@ func TestSilenceSet(t *testing.T) {
 
 	// Extend sil4 to expire at a later time. This should not expire the
 	// existing silence, and so should also keep the same ID.
-	clock.Add(time.Minute)
+	clock.Advance(time.Minute)
 	start5 := s.nowUTC()
 	sil5 := cloneSilence(sil4)
 	sil5.EndsAt = start5.Add(100 * time.Minute)
@@ -513,7 +513,7 @@ func TestSilenceSet(t *testing.T) {
 	// will expire the existing silence and create a new silence. The new
 	// silence is expected to have a different ID to preserve the history of
 	// the previous silence.
-	clock.Add(time.Minute)
+	clock.Advance(time.Minute)
 	start6 := s.nowUTC()
 
 	sil6 := cloneSilence(sil5)
@@ -550,7 +550,7 @@ func TestSilenceSet(t *testing.T) {
 	// Re-create the silence that we just replaced. Changing the start time,
 	// just like changing the matchers, creates a new silence with a different
 	// ID. This is again to preserve the history of the original silence.
-	clock.Add(time.Minute)
+	clock.Advance(time.Minute)
 	start7 := s.nowUTC()
 	sil7 := cloneSilence(sil5)
 	sil7.StartsAt = start1
@@ -577,13 +577,13 @@ func TestSilenceSet(t *testing.T) {
 
 	// Updating an existing silence with an invalid silence should not expire
 	// the original silence.
-	clock.Add(time.Millisecond)
+	clock.Advance(time.Millisecond)
 	sil8 := cloneSilence(sil7)
 	sil8.EndsAt = time.Time{}
 	require.EqualError(t, s.Set(sil8), "invalid silence: invalid zero end timestamp")
 
 	// sil7 should not be expired because the update failed.
-	clock.Add(time.Millisecond)
+	clock.Advance(time.Millisecond)
 	sil7, err = s.QueryOne(QIDs(sil7.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil7, s.nowUTC()))
@@ -733,7 +733,7 @@ func TestSetActiveSilence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 	now := clock.Now()
 
@@ -757,7 +757,7 @@ func TestSetActiveSilence(t *testing.T) {
 	sil2.StartsAt = newStartsAt
 	sil2.EndsAt = newEndsAt
 
-	clock.Add(time.Minute)
+	clock.Advance(time.Minute)
 	now = s.nowUTC()
 	require.NoError(t, s.Set(sil2))
 	require.Equal(t, sil1.Id, sil2.Id)
@@ -781,7 +781,7 @@ func TestSilencesSetFail(t *testing.T) {
 	s, err := New(Options{})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 
 	cases := []struct {
@@ -1146,7 +1146,7 @@ func TestSilenceExpire(t *testing.T) {
 	s, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 	now := s.nowUTC()
 
@@ -1200,7 +1200,7 @@ func TestSilenceExpire(t *testing.T) {
 	}, sil)
 
 	// Let time pass...
-	clock.Add(time.Second)
+	clock.Advance(time.Second)
 
 	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
@@ -1243,7 +1243,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	s, err := New(Options{Retention: 0})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 	now := s.nowUTC()
 
@@ -1288,7 +1288,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	// Advance time. The silence state management code uses update time when
 	// merging, and the logic is "first write wins". So we must advance the clock
 	// one tick for updates to take effect.
-	clock.Add(1 * time.Millisecond)
+	clock.Advance(1 * time.Millisecond)
 
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
@@ -1297,7 +1297,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	// Advance time again. Despite what the function name says, s.Expire() does
 	// not expire a silence. It sets the silence to EndAt the current time. This
 	// means that the silence is active immediately after calling Expire.
-	clock.Add(1 * time.Millisecond)
+	clock.Advance(1 * time.Millisecond)
 
 	// Verify all silences have expired.
 	count, err = s.CountState(types.SilenceStatePending)
@@ -1318,7 +1318,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	s, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	s.clock = clock
 	now := s.nowUTC()
 
@@ -1340,9 +1340,9 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	clock.Add(time.Millisecond)
+	clock.Advance(time.Millisecond)
 	require.NoError(t, s.Expire("active"))
-	clock.Add(time.Millisecond)
+	clock.Advance(time.Millisecond)
 
 	// The silence should be expired.
 	count, err = s.CountState(types.SilenceStateActive)
@@ -1357,7 +1357,7 @@ func TestSilencer(t *testing.T) {
 	ss, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	ss.clock = clock
 	now := ss.nowUTC()
 
@@ -1386,7 +1386,7 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
 
 	// One hour passes, silence expires.
-	clock.Add(time.Hour)
+	clock.Advance(time.Hour)
 	now = ss.nowUTC()
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
@@ -1403,7 +1403,7 @@ func TestSilencer(t *testing.T) {
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
 
 	// Two hours pass, silence becomes active.
-	clock.Add(2 * time.Hour)
+	clock.Advance(2 * time.Hour)
 	now = ss.nowUTC()
 
 	// Exposes issue #2426.
@@ -1420,7 +1420,7 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
 
 	// Two hours pass, first silence expires, overlapping second silence becomes active.
-	clock.Add(2 * time.Hour)
+	clock.Advance(2 * time.Hour)
 
 	// Another variant of issue #2426 (overlapping silences).
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
