@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/coder/quartz"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	uuid "github.com/gofrs/uuid"
@@ -49,13 +49,13 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherCache map[*pb.Silence]labels.Matchers
+type matcherCache map[string]labels.Matchers
 
 // Get retrieves the matchers for a given silence. If it is a missed cache
 // access, it compiles and adds the matchers of the requested silence to the
 // cache.
 func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
-	if m, ok := c[s]; ok {
+	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
 	return c.add(s)
@@ -88,7 +88,7 @@ func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
 		ms[i] = matcher
 	}
 
-	c[s] = ms
+	c[s.Id] = ms
 	return ms, nil
 }
 
@@ -188,7 +188,7 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
-	clock clock.Clock
+	clock quartz.Clock
 
 	logger    log.Logger
 	metrics   *metrics
@@ -350,7 +350,7 @@ func New(o Options) (*Silences, error) {
 	}
 
 	s := &Silences{
-		clock:     clock.New(),
+		clock:     quartz.NewReal(),
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
 		retention: o.Retention,
@@ -397,7 +397,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		level.Error(s.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := s.clock.Ticker(interval)
+	t := s.clock.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
@@ -478,7 +478,7 @@ func (s *Silences) GC() (int, error) {
 		}
 		if !sil.ExpiresAt.After(now) {
 			delete(s.st, id)
-			delete(s.mc, sil.Silence)
+			delete(s.mc, sil.Silence.Id)
 			n++
 		}
 	}
