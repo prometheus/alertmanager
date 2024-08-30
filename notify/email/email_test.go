@@ -46,7 +46,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
-	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#B.FailNow
+	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#T.FailNow
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -665,21 +665,23 @@ func TestEmailNoUsernameStillOk(t *testing.T) {
 	require.Nil(t, a)
 }
 
+// TestEmailRejected simulates the failure of an otherwise valid message submission which fails at a later point than
+// was previously expected by the code.
 func TestEmailRejected(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	t.Cleanup(cancel)
 
-	// Setup mock SMTP server which will reject
+	// Setup mock SMTP server which will reject at the DATA stage.
 	srv, l, err := mockSMTPServer(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// We expect that the server has already been closed in the test
+		// We expect that the server has already been closed in the test.
 		require.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 	})
 
 	done := make(chan any, 1)
 	go func() {
-		// nolint:testifylint // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#B.FailNow
+		// nolint:testifylint // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#T.FailNow
 		assert.NoError(t, srv.Serve(l))
 		close(done)
 	}()
@@ -707,6 +709,7 @@ func TestEmailRejected(t *testing.T) {
 		return true
 	}, time.Second*10, time.Millisecond*100, "mock SMTP server failed to start")
 
+	// Use mock SMTP server and prepare alert to be sent.
 	require.IsType(t, &net.TCPAddr{}, l.Addr())
 	addr := l.Addr().(*net.TCPAddr)
 	cfg := &config.EmailConfig{
@@ -721,7 +724,7 @@ func TestEmailRejected(t *testing.T) {
 
 	e := New(cfg, tmpl, log.NewNopLogger())
 
-	// Send the email.
+	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)
 	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
 	require.True(t, retry)
