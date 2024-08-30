@@ -45,6 +45,8 @@ import (
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+
+	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#B.FailNow
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -672,11 +674,12 @@ func TestEmailRejected(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// We expect that the server has already been closed in the test
-		assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+		require.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 	})
 
 	done := make(chan any, 1)
 	go func() {
+		// nolint:testifylint // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#B.FailNow
 		assert.NoError(t, srv.Serve(l))
 		close(done)
 	}()
@@ -714,6 +717,8 @@ func TestEmailRejected(t *testing.T) {
 		To:        "sre@company",
 	}
 	tmpl, firingAlert, err := prepare(cfg)
+	require.NoError(t, err)
+
 	e := New(cfg, tmpl, log.NewNopLogger())
 
 	// Send the email.
