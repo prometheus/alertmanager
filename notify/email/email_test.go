@@ -32,16 +32,20 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/emersion/go-smtp"
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -165,29 +169,16 @@ func notifyEmail(cfg *config.EmailConfig, server *mailDev) (*email, bool, error)
 // notifyEmailWithContext sends a notification with one firing alert and retrieves the
 // email from the SMTP server if the notification has been successfully delivered.
 func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server *mailDev) (*email, bool, error) {
-	if cfg.RequireTLS == nil {
-		cfg.RequireTLS = new(bool)
-	}
-	if cfg.Headers == nil {
-		cfg.Headers = make(map[string]string)
-	}
-	firingAlert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-	err := server.deleteAllEmails()
+	tmpl, firingAlert, err := prepare(cfg)
 	if err != nil {
 		return nil, false, err
 	}
 
-	tmpl, err := template.FromGlobs([]string{})
+	err = server.deleteAllEmails()
 	if err != nil {
 		return nil, false, err
 	}
-	tmpl.ExternalURL, _ = url.Parse("http://am")
+
 	email := New(cfg, tmpl, log.NewNopLogger())
 
 	retry, err := email.Notify(ctx, firingAlert)
@@ -202,6 +193,34 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 		return nil, retry, fmt.Errorf("email not found")
 	}
 	return e, retry, nil
+}
+
+func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) {
+	if cfg == nil {
+		panic("nil config passed")
+	}
+
+	if cfg.RequireTLS == nil {
+		cfg.RequireTLS = new(bool)
+	}
+	if cfg.Headers == nil {
+		cfg.Headers = make(map[string]string)
+	}
+
+	tmpl, err := template.FromGlobs([]string{})
+	if err != nil {
+		return nil, nil, err
+	}
+	tmpl.ExternalURL, _ = url.Parse("http://am")
+
+	firingAlert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+	return tmpl, firingAlert, nil
 }
 
 // TestEmailNotifyWithErrors tries to send emails with buggy inputs.
@@ -643,3 +662,121 @@ func TestEmailNoUsernameStillOk(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, a)
 }
+
+func TestEmailRejected(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	t.Cleanup(cancel)
+
+	// Setup mock SMTP server which will reject
+	srv, l, err := mockSMTPServer(t)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// We expect that the server has already been closed in the test
+		assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+	})
+
+	done := make(chan any, 1)
+	go func() {
+		assert.NoError(t, srv.Serve(l))
+		close(done)
+	}()
+
+	// Wait for mock SMTP server to become ready.
+	require.Eventuallyf(t, func() bool {
+		c, err := smtp.Dial(srv.Addr)
+		if err != nil {
+			t.Logf("dial failed to %q: %s", srv.Addr, err)
+			return false
+		}
+
+		// Ping.
+		if err = c.Noop(); err != nil {
+			t.Logf("ping failed to %q: %s", srv.Addr, err)
+			return false
+		}
+
+		// Ensure we close the connection to not prevent server from shutting down cleanly.
+		if err = c.Close(); err != nil {
+			t.Logf("close failed to %q: %s", srv.Addr, err)
+			return false
+		}
+
+		return true
+	}, time.Second*10, time.Millisecond*100, "mock SMTP server failed to start")
+
+	require.IsType(t, &net.TCPAddr{}, l.Addr())
+	addr := l.Addr().(*net.TCPAddr)
+	cfg := &config.EmailConfig{
+		Smarthost: config.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
+		Hello:     "localhost",
+		Headers:   make(map[string]string),
+		From:      "alertmanager@system",
+		To:        "sre@company",
+	}
+	tmpl, firingAlert, err := prepare(cfg)
+	e := New(cfg, tmpl, log.NewNopLogger())
+
+	// Send the email.
+	retry, err := e.Notify(context.Background(), firingAlert)
+	require.ErrorContains(t, err, "501 5.5.4 Rejected!")
+	require.True(t, retry)
+	require.NoError(t, srv.Shutdown(ctx))
+
+	require.Eventuallyf(t, func() bool {
+		<-done
+		return true
+	}, time.Second*10, time.Millisecond*100, "mock SMTP server goroutine failed to close in time")
+}
+
+func mockSMTPServer(t *testing.T) (*smtp.Server, net.Listener, error) {
+	t.Helper()
+
+	// Listen on the next available high port.
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return nil, nil, fmt.Errorf("connect: %w", err)
+	}
+
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		return nil, nil, fmt.Errorf("unexpected address type: %T", l.Addr())
+	}
+
+	s := smtp.NewServer(&rejectingBackend{})
+	s.Addr = addr.String()
+	s.WriteTimeout = 10 * time.Second
+	s.ReadTimeout = 10 * time.Second
+
+	return s, l, nil
+}
+
+// rejectingBackend will reject submission at the DATA stage.
+type rejectingBackend struct{}
+
+func (b *rejectingBackend) NewSession(c *smtp.Conn) (smtp.Session, error) {
+	return &mockSMTPSession{
+		conn:    c,
+		backend: b,
+	}, nil
+}
+
+type mockSMTPSession struct {
+	conn    *smtp.Conn
+	backend smtp.Backend
+}
+
+func (s *mockSMTPSession) Mail(string, *smtp.MailOptions) error {
+	return nil
+}
+
+func (s *mockSMTPSession) Rcpt(string, *smtp.RcptOptions) error {
+	return nil
+}
+
+func (s *mockSMTPSession) Data(io.Reader) error {
+	return &smtp.SMTPError{Code: 501, EnhancedCode: smtp.EnhancedCode{5, 5, 4}, Message: "Rejected!"}
+}
+
+func (*mockSMTPSession) Reset() {}
+
+func (*mockSMTPSession) Logout() error { return nil }

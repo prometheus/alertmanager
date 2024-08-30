@@ -29,6 +29,7 @@ import (
 	"net/textproto"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -242,7 +243,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("send DATA command: %w", err)
 	}
-	defer message.Close()
+	closeOnce := sync.OnceValue(func() error {
+		return message.Close()
+	})
+	// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
+	// further down, the method may exit before then.
+	defer func() {
+		// If we try close an already-closed writer, it'll send a subsequent request to the server which is invalid.
+		_ = closeOnce()
+	}()
 
 	buffer := &bytes.Buffer{}
 	for header, t := range n.conf.Headers {
@@ -329,6 +338,11 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	_, err = message.Write(multipartBuffer.Bytes())
 	if err != nil {
 		return false, fmt.Errorf("write body buffer: %w", err)
+	}
+
+	// Complete the message and await response.
+	if err = closeOnce(); err != nil {
+		return true, fmt.Errorf("delivery failure: %w", err)
 	}
 
 	success = true
