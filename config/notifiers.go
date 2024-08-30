@@ -239,6 +239,7 @@ type DiscordConfig struct {
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
+	Content string `yaml:"content,omitempty" json:"content,omitempty"`
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
 	Message string `yaml:"message,omitempty" json:"message,omitempty"`
 }
