@@ -35,9 +35,6 @@ import (
 )
 
 const (
-	ColorAlertFiring   = "#D63232"
-	ColorAlertResolved = "#36a64f"
-
 	TextColorAttention = "attention"
 	TextColorGood      = "good"
 
