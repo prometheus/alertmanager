@@ -126,23 +126,7 @@ func (ih *Inhibitor) Stop() {
 // Mutes returns true iff the given label set is muted. It implements the Muter
 // interface.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
-	fp := lset.Fingerprint()
-
-	for _, r := range ih.rules {
-		if !r.TargetMatchers.Matches(lset) {
-			// If target side of rule doesn't match, we don't need to look any further.
-			continue
-		}
-		// If we are here, the target side matches. If the source side matches, too, we
-		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			return true
-		}
-	}
-	ih.marker.SetInhibited(fp)
-
-	return false
+	return ih.MutesAll(lset)[0]
 }
 
 func (ih *Inhibitor) MutesAll(lsets ...model.LabelSet) []bool {

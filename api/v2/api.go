@@ -69,6 +69,7 @@ type API struct {
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
 	setAlertStatus     setAlertStatusFn
+	setAlertStatuses   setAlertStatusesFn
 
 	logger log.Logger
 	m      *metrics.Alerts
@@ -77,9 +78,10 @@ type API struct {
 }
 
 type (
-	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
-	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
-	setAlertStatusFn func(prometheus_model.LabelSet)
+	groupsFn           func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	getAlertStatusFn   func(prometheus_model.Fingerprint) types.AlertStatus
+	setAlertStatusFn   func(prometheus_model.LabelSet)
+	setAlertStatusesFn func(...prometheus_model.LabelSet)
 )
 
 // NewAPI returns a new Alertmanager API v2.
@@ -155,13 +157,14 @@ func (api *API) requestLogger(req *http.Request) log.Logger {
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
+func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn, setAlertStatuses setAlertStatusesFn) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
+	api.setAlertStatuses = setAlertStatuses
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -264,11 +267,21 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
+	api.mtx.RLock()
+	allAlerts := make([]*types.Alert, 0)
+	for a := range alerts.Next() {
+		allAlerts = append(allAlerts, a)
+	}
+	allLabelsets := make([]prometheus_model.LabelSet, 0, len(allAlerts))
+	for _, a := range allAlerts {
+		allLabelsets = append(allLabelsets, a.Labels)
+	}
+	api.setAlertStatuses(allLabelsets...)
+
 	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	now := time.Now()
 
-	api.mtx.RLock()
-	for a := range alerts.Next() {
+	for _, a := range allAlerts {
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -402,7 +415,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers := api.alertGroups(rf, af)
+	alertGroups, allReceivers := api.alertGroups(rf, func(a *types.Alert, t time.Time) bool {
+		api.setAlertStatus(a.Labels)
+		return af(a, t)
+	})
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
@@ -431,9 +447,6 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 			return false
 		}
-
-		// Set alert's current status based on its label set.
-		api.setAlertStatus(a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
