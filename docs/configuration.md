@@ -700,6 +700,8 @@ email_configs:
   [ - <email_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
+msteamsv2_configs:
+  [ - <msteamsv2_config>, ... ]
 jira_configs:
   [ - <jira_config>, ... ]
 opsgenie_configs:
@@ -927,6 +929,8 @@ tls_config:
 
 Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors) API endpoint.
 
+DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsoft 365 connectors via Microsoft Teams](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). Consider migrating to using [Workflows](https://learn.microsoft.com/en-us/power-automate/teams/send-a-message-in-teams) with the msteamsv2 config.
+
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
@@ -944,6 +948,40 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<msteamsv2_config>`
+
+Microsoft Teams v2 notifications using the new message format with adaptive cards as required by [Workflow](https://support.microsoft.com/en-us/office/creating-a-workflow-from-a-channel-in-teams-242eb8f2-f328-45be-b81f-9817b51a5f0e).
+
+#### How to create a workflow
+
+1. Select the workflow template, `Post to a channel when a webhook request is received`
+2. Select `Microsoft Teams Team` you want to receive the notification
+3. Select `Microsoft Teams Channel` you want to receive the notification
+
+After that, you can get the webhook URL.
+
+A Power Automate license is required to use this feature. You can get details
+from [Types of Power Automate licenses](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types) and [Office 365 licenses](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/faqs#what-power-automate-capabilities-are-included-in-office-365-licenses).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The incoming webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
+[ webhook_url: <secret> ]
+[ webhook_url_file: <filepath> ]
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "msteamsv2.default.title" . }}' ]
+
+# Message body template.
+[ text: <tmpl_string> | default = '{{ template "msteamsv2.default.text" . }}' ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]

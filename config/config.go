@@ -263,6 +263,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.MSTeamsV2Configs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.JiraConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -549,6 +552,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
 				return fmt.Errorf("no msteams webhook URL or URLFile provided")
+			}
+		}
+		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
+			if msteamsv2.HTTPConfig == nil {
+				msteamsv2.HTTPConfig = c.Global.HTTPConfig
+			}
+			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
+				return fmt.Errorf("no msteamsv2 webhook URL or URLFile provided")
 			}
 		}
 		for _, jira := range rcv.JiraConfigs {
@@ -935,6 +946,7 @@ type Receiver struct {
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs []*MSTeamsV2Config `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs      []*JiraConfig      `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 }
 
