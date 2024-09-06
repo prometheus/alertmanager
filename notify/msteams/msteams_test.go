@@ -14,6 +14,7 @@
 package msteams
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -146,13 +147,120 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		statusCode      int
 		responseContent string
 		expectedReason  notify.Reason
+		expectedBody    string
 		noError         bool
+		isResolved      bool
+		expectRetry     bool
 	}{
 		{
-			name:            "with a 2xx status code and response 1",
+			name:            "Simple alerting message",
 			statusCode:      http.StatusOK,
-			responseContent: "1",
-			noError:         true,
+			responseContent: "",
+			expectedBody: `{
+				"attachments": [
+					{
+						"content": {
+							"body": [
+								{
+									"color":"attention",
+									"size":"large",
+									"text":"",
+									"type":"TextBlock",
+									"weight":"bolder",
+									"wrap":true
+								},
+								{
+									"text":"",
+									"type":"TextBlock",
+									"wrap":true
+								},
+								{
+									"actions":[
+										{
+											"title":"View URL",
+											"type":"Action.OpenUrl",
+											"url":"http://am"
+										}
+									],
+									"type":"ActionSet"
+								}
+							],
+							"$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
+							"msTeams": {
+								"width": "Full"
+							},
+							"type":"AdaptiveCard",
+							"version":"1.4"
+						},
+						"contentType":"application/vnd.microsoft.card.adaptive"
+					}
+				],
+				"type":"message"
+	        }`,
+			noError: true,
+		},
+		{
+			name:            "Resolved message",
+			statusCode:      http.StatusOK,
+			isResolved:      true,
+			responseContent: "",
+			expectedBody: `{
+				"attachments": [
+					{
+						"content": {
+							"body": [
+								{
+									"color":"good",
+									"size":"large",
+									"text":"",
+									"type":"TextBlock",
+									"weight":"bolder",
+									"wrap":true
+								},
+								{
+									"text":"",
+									"type":"TextBlock",
+									"wrap":true
+								},
+								{
+									"actions":[
+										{
+											"title":"View URL",
+											"type":"Action.OpenUrl",
+											"url":"http://am"
+										}
+									],
+									"type":"ActionSet"
+								}
+							],
+							"$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
+							"msTeams": {
+								"width": "Full"
+							},
+							"type":"AdaptiveCard",
+							"version":"1.4"
+						},
+						"contentType":"application/vnd.microsoft.card.adaptive"
+					}
+				],
+				"type":"message"
+	        }`,
+			noError: true,
+		},
+		{
+			name:            "Error response 400",
+			statusCode:      http.StatusBadRequest,
+			responseContent: "error",
+			expectedReason:  notify.ClientErrorReason,
+			noError:         false,
+		},
+		{
+			name:            "Error response 500",
+			statusCode:      http.StatusInternalServerError,
+			responseContent: "error",
+			expectedReason:  notify.ServerErrorReason,
+			noError:         false,
+			expectRetry:     true,
 		},
 	}
 	for _, tt := range tests {
@@ -167,11 +275,19 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			var requestBody bytes.Buffer
+
 			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+				_, err := io.Copy(&requestBody, body)
+				require.NoError(t, err)
+
 				resp := httptest.NewRecorder()
 				resp.WriteString(tt.responseContent)
-				resp.WriteHeader(tt.statusCode)
-				return resp.Result(), nil
+
+				result := resp.Result()
+				result.StatusCode = tt.statusCode
+
+				return result, nil
 			}
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
@@ -179,13 +295,23 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			alert1 := &types.Alert{
 				Alert: model.Alert{
 					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = notifier.Notify(ctx, alert1)
+			if tt.isResolved {
+				alert1.Alert.EndsAt = time.Now()
+			} else {
+				alert1.Alert.EndsAt = time.Now().Add(time.Hour)
+			}
+
+			shouldRetry, err := notifier.Notify(ctx, alert1)
+
+			require.Equal(t, tt.expectRetry, shouldRetry)
+
 			if tt.noError {
 				require.NoError(t, err)
+				require.JSONEq(t, tt.expectedBody, requestBody.String())
 			} else {
+				require.Error(t, err)
 				var reasonError *notify.ErrorWithReason
 				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
