@@ -1121,14 +1121,15 @@ type: <tmpl_string>
 #### `<visible_to>`
 
 ```yaml
-# Exactly one of these fields should be defined.
+# Exactly one of these fields must have a value after templating.
+# If none of the fields, including type, are set, the array item will be ignored.
 [ id: <tmpl_string> ]
 [ name: <tmpl_string> ]
 [ username: <tmpl_string> ]
 
 # One of `team`, `teams` or `user`.
 #
-# The `teams` responder is configured using the `name` field above.
+# The `teams` type is configured using the `name` field above.
 # This field can contain a comma-separated list of team names.
 # If the list is empty, no additional visibility will be configured.
 type: <tmpl_string>

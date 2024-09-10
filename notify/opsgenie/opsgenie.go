@@ -238,8 +238,8 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 				teams := safeSplit(visibleTo.Name, ",")
 				for _, team := range teams {
 					newVisibleTo := opsGenieCreateMessageVisibleTo{
-						Name: tmpl(team),
-						Type: tmpl("team"),
+						Name: team,
+						Type: "team",
 					}
 					visibleTos = append(visibleTos, newVisibleTo)
 				}

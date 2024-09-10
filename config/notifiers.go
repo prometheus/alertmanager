@@ -592,9 +592,15 @@ type OpsGenieConfig struct {
 	UpdateAlerts bool                      `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
 }
 
-const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
+const (
+	opsgenieValidResponderTypesRe = `^(team|teams|user|escalation|schedule)$`
+	opsgenieValidVisibleToTypesRe = `^(team|teams|user)$`
+)
 
-var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
+var (
+	opsgenieResponderTypeMatcher = regexp.MustCompile(opsgenieValidResponderTypesRe)
+	opsgenieVisibleToTypeMatcher = regexp.MustCompile(opsgenieValidVisibleToTypesRe)
+)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -620,8 +626,8 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 			}
 		} else {
 			r.Type = strings.ToLower(r.Type)
-			if !opsgenieTypeMatcher.MatchString(r.Type) {
-				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+			if !opsgenieResponderTypeMatcher.MatchString(r.Type) {
+				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidResponderTypesRe)
 			}
 		}
 	}
@@ -638,8 +644,8 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 			}
 		} else {
 			v.Type = strings.ToLower(v.Type)
-			if !opsgenieTypeMatcher.MatchString(v.Type) {
-				return fmt.Errorf("opsGenieConfig visible_to %v type does not match valid options %s", v, opsgenieValidTypesRe)
+			if !opsgenieVisibleToTypeMatcher.MatchString(v.Type) {
+				return fmt.Errorf("opsGenieConfig visible_to %v type does not match valid options %s", v, opsgenieValidVisibleToTypesRe)
 			}
 		}
 	}
@@ -653,7 +659,7 @@ type OpsGenieConfigResponder struct {
 	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
-	// team, user, escalation, schedule etc.
+	// team, user, escalation, schedule, teams etc.
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
@@ -663,7 +669,7 @@ type OpsGenieConfigVisibleTo struct {
 	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
-	// team, user
+	// team, user, teams
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
