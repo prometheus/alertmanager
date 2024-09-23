@@ -38,6 +38,8 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
+
+	maxContentLenRunes = 2000
 )
 
 const (
@@ -115,6 +117,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
+	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxContentLenRunes)
+	}
+
 	color := colorGrey
 	if alerts.Status() == model.AlertFiring {
 		color = colorRed
@@ -135,6 +145,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	w := webhook{
+		Content: content,
 		Embeds: []webhookEmbed{{
 			Title:       title,
 			Description: description,

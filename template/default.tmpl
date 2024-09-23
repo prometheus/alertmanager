@@ -123,6 +123,7 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
+{{ define "discord.default.content" }}{{ end }}
 {{ define "discord.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "discord.default.message" }}
 {{ if gt (len .Alerts.Firing) 0 }}
