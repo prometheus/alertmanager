@@ -230,8 +230,11 @@ type DiscordConfig struct {
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
+	AvatarURL string `yaml:"avatar_url,omitempty" json:"avatar_url,omitempty"`
+	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
