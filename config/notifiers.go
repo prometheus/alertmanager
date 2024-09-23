@@ -174,6 +174,14 @@ var (
 		Text:    `{{ template "msteams.default.text" . }}`,
 	}
 
+	DefaultMSTeamsV2Config = MSTeamsV2Config{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title: `{{ template "msteamsv2.default.title" . }}`,
+		Text:  `{{ template "msteamsv2.default.text" . }}`,
+	}
+
 	DefaultJiraConfig = JiraConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
@@ -821,6 +829,34 @@ type MSTeamsConfig struct {
 func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.WebhookURL == nil && c.WebhookURLFile == "" {
+		return fmt.Errorf("one of webhook_url or webhook_url_file must be configured")
+	}
+
+	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
+		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
+	return nil
+}
+
+type MSTeamsV2Config struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
+
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMSTeamsV2Config
+	type plain MSTeamsV2Config
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}

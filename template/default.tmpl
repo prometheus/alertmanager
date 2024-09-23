@@ -159,6 +159,18 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
+{{ define "msteamsv2.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "msteamsv2.default.text" }}
+{{ if gt (len .Alerts.Firing) 0 }}
+# Alerts Firing:
+{{ template "__text_alert_list_markdown" .Alerts.Firing }}
+{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 }}
+# Alerts Resolved:
+{{ template "__text_alert_list_markdown" .Alerts.Resolved }}
+{{ end }}
+{{ end }}
+
 {{ define "jira.default.summary" }}{{ template "__subject" . }}{{ end }}
 {{ define "jira.default.description" }}
 {{ if gt (len .Alerts.Firing) 0 }}
