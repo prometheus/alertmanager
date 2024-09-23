@@ -94,6 +94,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
 		ThreadID:              n.conf.MessageThreadID,
+		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
 		return true, err
