@@ -580,7 +580,8 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	if s.st.merge(msil, now) {
+	_, added := s.st.merge(msil, now)
+	if added {
 		s.version++
 	}
 	s.broadcast(b)
@@ -927,8 +928,11 @@ func (s *Silences) Merge(b []byte) error {
 	now := s.nowUTC()
 
 	for _, e := range st {
-		if merged := s.st.merge(e, now); merged {
-			s.version++
+		merged, added := s.st.merge(e, now)
+		if merged {
+			if added {
+				s.version++
+			}
 			if !cluster.OversizedMessage(b) {
 				// If this is the first we've seen the message and it's
 				// not oversized, gossip it to other nodes. We don't
@@ -953,10 +957,13 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 
 type state map[string]*pb.MeshSilence
 
-func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
+// merge returns two bools: the first is true when merge caused a state change. The second
+// is true if that state change added a new silence. In other words, the second return is
+// true whenever a silence with a new ID has been added to the state as a result of merge.
+func (s state) merge(e *pb.MeshSilence, now time.Time) (bool, bool) {
 	id := e.Silence.Id
 	if e.ExpiresAt.Before(now) {
-		return false
+		return false, false
 	}
 	// Comments list was moved to a single comment. Apply upgrade
 	// on silences received from peers.
@@ -969,9 +976,9 @@ func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
 	prev, ok := s[id]
 	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
 		s[id] = e
-		return true
+		return true, !ok
 	}
-	return false
+	return false, false
 }
 
 func (s state) MarshalBinary() ([]byte, error) {
