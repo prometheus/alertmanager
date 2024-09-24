@@ -584,6 +584,7 @@ type OpsGenieConfig struct {
 	Details      map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
 	Entity       string                    `yaml:"entity,omitempty" json:"entity,omitempty"`
 	Responders   []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	VisibleTo    []OpsGenieConfigVisibleTo `yaml:"visible_to,omitempty" json:"visible_to,omitempty"`
 	Actions      string                    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Tags         string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note         string                    `yaml:"note,omitempty" json:"note,omitempty"`
@@ -591,9 +592,15 @@ type OpsGenieConfig struct {
 	UpdateAlerts bool                      `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
 }
 
-const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
+const (
+	opsgenieValidResponderTypesRe = `^(team|teams|user|escalation|schedule)$`
+	opsgenieValidVisibleToTypesRe = `^(team|teams|user)$`
+)
 
-var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
+var (
+	opsgenieResponderTypeMatcher = regexp.MustCompile(opsgenieValidResponderTypesRe)
+	opsgenieVisibleToTypeMatcher = regexp.MustCompile(opsgenieValidVisibleToTypesRe)
+)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -619,8 +626,26 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 			}
 		} else {
 			r.Type = strings.ToLower(r.Type)
-			if !opsgenieTypeMatcher.MatchString(r.Type) {
-				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+			if !opsgenieResponderTypeMatcher.MatchString(r.Type) {
+				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidResponderTypesRe)
+			}
+		}
+	}
+
+	for _, v := range c.VisibleTo {
+		if v.ID == "" && v.Username == "" && v.Name == "" {
+			return fmt.Errorf("opsGenieConfig visible_to %v has to have at least one of id, username or name specified", v)
+		}
+
+		if strings.Contains(v.Type, "{{") {
+			_, err := template.New("").Parse(v.Type)
+			if err != nil {
+				return fmt.Errorf("opsGenieConfig visible_to %v type is not a valid template: %w", v, err)
+			}
+		} else {
+			v.Type = strings.ToLower(v.Type)
+			if !opsgenieVisibleToTypeMatcher.MatchString(v.Type) {
+				return fmt.Errorf("opsGenieConfig visible_to %v type does not match valid options %s", v, opsgenieValidVisibleToTypesRe)
 			}
 		}
 	}
@@ -634,7 +659,17 @@ type OpsGenieConfigResponder struct {
 	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
-	// team, user, escalation, schedule etc.
+	// team, user, escalation, schedule, teams etc.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+type OpsGenieConfigVisibleTo struct {
+	// One of those 3 should be filled.
+	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
+	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	// team, user, teams
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
