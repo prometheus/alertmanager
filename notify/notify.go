@@ -27,6 +27,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
@@ -36,6 +39,8 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify")
 
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
@@ -82,6 +87,14 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
+		trace.WithAttributes(
+			attribute.String("integration", i.name),
+			attribute.Int("alerts", len(alerts)),
+		),
+	)
+	defer span.End()
+
 	return i.notifier.Notify(ctx, alerts...)
 }
 
