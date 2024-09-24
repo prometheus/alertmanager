@@ -25,12 +25,18 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/dispatch")
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
 type DispatcherMetrics struct {
@@ -161,20 +167,44 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				return
 			}
 
-			level.Debug(d.logger).Log("msg", "Received alert", "alert", alert)
+			// this block is wrapped in a function to make sure that the span
+			// is ended before the next alert is processed
+			func() {
+				traceCtx, span := tracer.Start(d.ctx, "dispatch.Dispatcher.handleAlert",
+					trace.WithAttributes(
+						attribute.String("alert.name", alert.Name()),
+						attribute.String("alert.fingerprint", alert.Fingerprint().String()),
+						attribute.String("alert.status", string(alert.Status())),
+						attribute.String("receiver", d.route.RouteOpts.Receiver),
+					),
+					// we'll use producer here since the alert is not processed
+					// synchronously
+					trace.WithSpanKind(trace.SpanKindProducer),
+				)
+				defer span.End()
 
-			// Log errors but keep trying.
-			if err := it.Err(); err != nil {
-				level.Error(d.logger).Log("msg", "Error on alert update", "err", err)
-				continue
-			}
+				// make a link to this span - we can't make the processAlert
+				// span a child of this, because it would make it long-lived
+				dispatchLink := trace.LinkFromContext(traceCtx)
 
-			now := time.Now()
-			for _, r := range d.route.Match(alert.Labels) {
-				d.processAlert(alert, r)
-			}
-			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+				level.Debug(d.logger).Log("msg", "Received alert", "alert", alert)
 
+				// Log errors but keep trying.
+				if err := it.Err(); err != nil {
+					level.Error(d.logger).Log("msg", "Error on alert update", "err", err)
+
+					span.RecordError(fmt.Errorf("error on alert update: %w", err))
+					span.SetStatus(codes.Error, err.Error())
+
+					return
+				}
+
+				now := time.Now()
+				for _, r := range d.route.Match(alert.Labels) {
+					d.processAlert(dispatchLink, alert, r)
+				}
+				d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+			}()
 		case <-cleanup.C:
 			d.mtx.Lock()
 
@@ -303,7 +333,7 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
-func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+func (d *Dispatcher) processAlert(dispatchLink trace.Link, alert *types.Alert, route *Route) {
 	groupLabels := getGroupLabels(alert, route)
 
 	fp := groupLabels.Fingerprint()
@@ -341,6 +371,13 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	ag.insert(alert)
 
 	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+		ctx, span := tracer.Start(ctx, "dispatch.Dispatch.notify",
+			trace.WithAttributes(attribute.Int("alerts.count", len(alerts))),
+			trace.WithLinks(dispatchLink),
+			trace.WithSpanKind(trace.SpanKindConsumer),
+		)
+		defer span.End()
+
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
 			lvl := level.Error(d.logger)
@@ -351,6 +388,9 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 				lvl = level.Debug(d.logger)
 			}
 			lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
+
+			span.RecordError(fmt.Errorf("notify for alerts failed: %w", err))
+			span.SetStatus(codes.Error, err.Error())
 		}
 		return err == nil
 	})
