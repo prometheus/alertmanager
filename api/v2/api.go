@@ -60,6 +60,7 @@ type API struct {
 	alerts         provider.Alerts
 	alertGroups    groupsFn
 	getAlertStatus getAlertStatusFn
+	groupMutedFunc groupMutedFunc
 	uptime         time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
@@ -78,6 +79,7 @@ type API struct {
 
 type (
 	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
 )
@@ -86,7 +88,8 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	sf getAlertStatusFn,
+	asf getAlertStatusFn,
+	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l log.Logger,
@@ -94,8 +97,9 @@ func NewAPI(
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
-		getAlertStatus: sf,
+		getAlertStatus: asf,
 		alertGroups:    gf,
+		groupMutedFunc: gmf,
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
@@ -290,7 +294,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
+		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers, nil)
 
 		res = append(res, alert)
 	}
@@ -407,6 +411,11 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
 	for _, alertGroup := range alertGroups {
+		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
+		if !*params.Muted && isMuted {
+			continue
+		}
+
 		ag := &open_api_models.AlertGroup{
 			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
 			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
@@ -417,7 +426,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
+			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
 		res = append(res, ag)
