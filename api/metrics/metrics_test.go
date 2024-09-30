@@ -24,7 +24,7 @@ import (
 )
 
 func Test_NewAlerts(t *testing.T) {
-	t.Run("metrics are registered and collected successfuly despite being registered previously", func(t *testing.T) {
+	t.Run("metrics are registered and collected successfully despite being registered previously", func(t *testing.T) {
 		r := prometheus.NewRegistry()
 		l := log.NewNopLogger()
 
