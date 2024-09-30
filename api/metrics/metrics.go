@@ -13,7 +13,12 @@
 
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Alerts stores metrics for alerts.
 type Alerts struct {
@@ -24,7 +29,7 @@ type Alerts struct {
 
 // NewAlerts returns an *Alerts struct for the given API version.
 // Since v1 was deprecated in 0.28, v2 is now hardcoded.
-func NewAlerts(r prometheus.Registerer) *Alerts {
+func NewAlerts(r prometheus.Registerer, l log.Logger) *Alerts {
 	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:        "alertmanager_alerts_received_total",
 		Help:        "The total number of received alerts.",
@@ -36,7 +41,12 @@ func NewAlerts(r prometheus.Registerer) *Alerts {
 		ConstLabels: prometheus.Labels{"version": "v2"},
 	})
 	if r != nil {
-		r.MustRegister(numReceivedAlerts, numInvalidAlerts)
+		for _, c := range []prometheus.Collector{numReceivedAlerts, numInvalidAlerts} {
+			r.Unregister(c)
+			if err := r.Register(c); err != nil {
+				level.Error(l).Log("msg", "Failed to register collector", "err", err)
+			}
+		}
 	}
 	return &Alerts{
 		firing:   numReceivedAlerts.WithLabelValues("firing"),
