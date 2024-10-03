@@ -14,17 +14,18 @@
 package inhibit
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
-	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -122,18 +123,27 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	for _, c := range cases {
 		r := &InhibitRule{
-			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(),
+			Equal:          map[model.LabelName]struct{}{},
+			mtx:            &sync.RWMutex{},
+			TargetMatchers: make(labels.Matchers, 0),
+			SourceMatchers: make(labels.Matchers, 0),
+			icache:         make(map[model.Fingerprint]iCacheEntry),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
 		}
 		for _, v := range c.initial {
-			r.scache.Set(v)
+			r.set(v)
 		}
 
-		if _, have := r.hasEqual(c.input, false); have != c.result {
-			t.Errorf("Unexpected result %t, expected %t", have, c.result)
+		matcher, err := labels.NewMatcher(labels.MatchEqual, "notareallabel", "notarealvalue")
+		require.NoError(t, err)
+		r.SourceMatchers = append(r.SourceMatchers, matcher)
+
+		_, hasMatch := r.findInhibitor(c.input, time.Now())
+
+		if hasMatch != c.result {
+			t.Errorf("Unexpected result %t, expected %t", hasMatch, c.result)
 		}
 	}
 }
@@ -172,10 +182,10 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
+	ih.rules[0].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[0].set(sourceAlert1)
+	ih.rules[1].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[1].set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -268,10 +278,10 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
+	ih.rules[0].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[0].set(sourceAlert1)
+	ih.rules[1].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[1].set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
