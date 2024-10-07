@@ -197,3 +197,11 @@ Alerts Resolved:
 {{- end -}}
 {{- $priority -}}
 {{- end -}}
+
+{{ define "jira.host" }}
+{{- with index .Alerts 0 -}}
+    {{- if .Labels.hostname -}}
+    {{- .Labels.hostname -}}
+    {{- end -}}
+    {{- end -}}
+{{ end }}

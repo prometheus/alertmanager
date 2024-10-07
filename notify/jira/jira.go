@@ -133,6 +133,16 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
 	}
 
+	for key, value := range fieldsWithStringKeys {
+		if strValue, ok := value.(string); ok {
+			processedValue, err := tmplTextFunc(strValue)
+			if err != nil {
+				return issue{}, fmt.Errorf("field %s template: %w", key, err)
+			}
+			fieldsWithStringKeys[key] = processedValue
+		}
+	}
+
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
 	if truncated {
 		level.Warn(logger).Log("msg", "Truncated summary", "max_runes", maxSummaryLenRunes)
