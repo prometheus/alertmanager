@@ -25,6 +25,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -66,6 +67,8 @@ type Message struct {
 	Version         string `json:"version"`
 	GroupKey        string `json:"groupKey"`
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
+	FiringAlerts    uint64 `json:"firingAlerts"`
+	ResolvedAlerts  uint64 `json:"resolvedAlerts"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
@@ -76,8 +79,21 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 	return alerts, 0
 }
 
+func calculateNumAlerts(alerts []*types.Alert) (uint64, uint64) {
+	var numFiring, numResolved uint64
+	for _, a := range alerts {
+		if a.Status() == model.AlertFiring {
+			numFiring++
+		} else {
+			numResolved++
+		}
+	}
+	return numFiring, numResolved
+}
+
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	numFiring, numResolved := calculateNumAlerts(alerts)
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
@@ -91,6 +107,8 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		Data:            data,
 		GroupKey:        groupKey.String(),
 		TruncatedAlerts: numTruncated,
+		FiringAlerts:    numFiring,
+		ResolvedAlerts:  numResolved,
 	}
 
 	var buf bytes.Buffer
