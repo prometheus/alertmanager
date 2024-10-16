@@ -1,3 +1,50 @@
+## 0.28.0-rc.0 / 2024-10-16
+
+* [CHANGE] Deprecate and remove api/v1/ #2970
+* [CHANGE] Remove unused feature flags #3676
+* [CHANGE] Newlines in smtp password file are now ignored #3681
+* [CHANGE] Change compat metrics to counters #3686
+* [CHANGE] Do not register compat metrics in amtool #3713
+* [CHANGE] Remove metrics from compat package #3714
+* [CHANGE] Mark muted alerts #3793
+* [FEATURE] Add metric for inhibit rules #3681
+* [FEATURE] Support UTF-8 label matchers #3453, #3507, #3523, #3483, #3567, #3568, #3569, #3571, #3595, #3604, #3619, #3658, #3659, #3662, #3668, 3572
+* [FEATURE] Add counter to track alerts dropped outside of time_intervals #3565
+* [FEATURE] Add date and tz functions to templates #3812
+* [FEATURE] Add limits for silences #3852
+* [FEATURE] Add time helpers for templates #3863
+* [FEATURE] Add auto GOMAXPROCS #3837
+* [FEATURE] Add auto GOMEMLIMIT #3895
+* [FEATURE] Add Jira receiver integration #3590
+* [ENHANCEMENT] Add the receiver name to notification metrics #3045
+* [ENHANCEMENT] Add the route ID to uuid #3372
+* [ENHANCEMENT] Add duration to the notify success message #3559
+* [ENHANCEMENT] Implement webhook_url_file for discord and msteams #3555
+* [ENHANCEMENT] Add debug logs for muted alerts #3558
+* [ENHANCEMENT] API: Allow the Silences API to use their own 400 response #3610
+* [ENHANCEMENT] Add summary to msteams notification #3616
+* [ENHANCEMENT] Add context reasons to notifications failed counter #3631
+* [ENHANCEMENT] Add optional native histogram support to latency metrics #3737
+* [ENHANCEMENT] Enable setting ThreadId for Telegram notifications #3638
+* [ENHANCEMENT] Allow webex roomID from template #3801
+* [BUGFIX] Add missing integrations to notify metrics #3480
+* [BUGFIX] Add missing ttl in pushhover #3474
+* [BUGFIX] Fix scheme required for webhook url in amtool #3409
+* [BUGFIX] Remove duplicate integration from metrics #3516
+* [BUGFIX] Reflect Discord's max length message limits #3597
+* [BUGFIX] Fix nil error in warn logs about incompatible matchers #3683
+* [BUGFIX] Fix a small number of inconsistencies in compat package logging #3718
+* [BUGFIX] Fix log line in featurecontrol #3719
+* [BUGFIX] Fix panic in acceptance tests #3592
+* [BUGFIX] Fix flaky test TestClusterJoinAndReconnect/TestTLSConnection #3722
+* [BUGFIX] Fix crash on errors when url_file is used #3800
+* [BUGFIX] Fix race condition in dispatch.go #3826
+* [BUGFIX] Fix race conditions in the memory alerts store #3648
+* [BUGFIX] Hide config.SecretURL when the URL is incorrect. #3887
+* [BUGFIX] Fix invalid silence causes incomplete updates #3898
+* [BUGFIX] Fix leaking of Silences matcherCache entries #3930
+* [BUGFIX] Close SMTP submission correctly to handle errors #4006
+
 ## 0.27.0 / 2024-02-28
 
 * [CHANGE] Discord Integration: Enforce max length in `message`. #3597
