@@ -25,7 +25,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -38,12 +37,6 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
-)
-
-const (
-	colorRed   = 0x992D22
-	colorGreen = 0x2ECC71
-	colorGrey  = 0x95A5A6
 )
 
 // Notifier implements a Notifier for Discord notifications.
@@ -81,7 +74,7 @@ type webhook struct {
 type webhookEmbed struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	Color       int    `json:"color"`
+	Color       string `json:"color,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -93,7 +86,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	level.Debug(n.logger).Log("incident", key)
 
-	alerts := types.Alerts(as...)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
@@ -115,13 +107,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
 	}
 
-	color := colorGrey
-	if alerts.Status() == model.AlertFiring {
-		color = colorRed
-	}
-	if alerts.Status() == model.AlertResolved {
-		color = colorGreen
-	}
+	color := tmpl(n.conf.Color)
 
 	var url string
 	if n.conf.WebhookURL != nil {
