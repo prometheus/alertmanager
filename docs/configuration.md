@@ -955,7 +955,7 @@ DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsof
 
 ### `<msteamsv2_config>`
 
-Microsoft Teams v2 notifications using the new message format with adaptive cards as required by [Workflow](https://support.microsoft.com/en-us/office/creating-a-workflow-from-a-channel-in-teams-242eb8f2-f328-45be-b81f-9817b51a5f0e). Please follow [the documentation](https://support.microsoft.com/en-gb/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498) for more information on how to set up this integration.
+Microsoft Teams v2 notifications using the new message format with adaptive cards as required by [flows](https://learn.microsoft.com/en-us/power-automate/teams/overview). Please follow [the documentation](https://support.microsoft.com/en-gb/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498) for more information on how to set up this integration.
 
 ```yaml
 # Whether to notify about resolved alerts.
