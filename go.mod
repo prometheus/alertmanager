@@ -1,6 +1,6 @@
 module github.com/prometheus/alertmanager
 
-go 1.22
+go 1.22.8
 
 require (
 	github.com/KimMachineGun/automemlimit v0.6.1
