@@ -14,6 +14,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/textproto"
 	"regexp"
@@ -220,11 +221,11 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.RoomID == "" {
-		return fmt.Errorf("missing room_id on webex_config")
+		return errors.New("missing room_id on webex_config")
 	}
 
 	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
-		return fmt.Errorf("missing webex_configs.http_config.authorization")
+		return errors.New("missing webex_configs.http_config.authorization")
 	}
 
 	return nil
@@ -251,11 +252,11 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return fmt.Errorf("one of webhook_url or webhook_url_file must be configured")
+		return errors.New("one of webhook_url or webhook_url_file must be configured")
 	}
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
 	return nil
@@ -290,7 +291,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.To == "" {
-		return fmt.Errorf("missing to address in email config")
+		return errors.New("missing to address in email config")
 	}
 	// Header names are case-insensitive, check for collisions.
 	normalizedHeaders := map[string]string{}
@@ -351,13 +352,13 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 	if c.RoutingKey == "" && c.ServiceKey == "" && c.RoutingKeyFile == "" && c.ServiceKeyFile == "" {
-		return fmt.Errorf("missing service or routing key in PagerDuty config")
+		return errors.New("missing service or routing key in PagerDuty config")
 	}
 	if len(c.RoutingKey) > 0 && len(c.RoutingKeyFile) > 0 {
-		return fmt.Errorf("at most one of routing_key & routing_key_file must be configured")
+		return errors.New("at most one of routing_key & routing_key_file must be configured")
 	}
 	if len(c.ServiceKey) > 0 && len(c.ServiceKeyFile) > 0 {
-		return fmt.Errorf("at most one of service_key & service_key_file must be configured")
+		return errors.New("at most one of service_key & service_key_file must be configured")
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]string)
@@ -393,10 +394,10 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.Type == "" {
-		return fmt.Errorf("missing type in Slack action configuration")
+		return errors.New("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text in Slack action configuration")
+		return errors.New("missing text in Slack action configuration")
 	}
 	if c.URL != "" {
 		// Clear all message action fields.
@@ -406,7 +407,7 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	} else if c.Name != "" {
 		c.URL = ""
 	} else {
-		return fmt.Errorf("missing name or url in Slack action configuration")
+		return errors.New("missing name or url in Slack action configuration")
 	}
 	return nil
 }
@@ -428,7 +429,7 @@ func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error
 		return err
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text in Slack confirmation configuration")
+		return errors.New("missing text in Slack confirmation configuration")
 	}
 	return nil
 }
@@ -450,10 +451,10 @@ func (c *SlackField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.Title == "" {
-		return fmt.Errorf("missing title in Slack field configuration")
+		return errors.New("missing title in Slack field configuration")
 	}
 	if c.Value == "" {
-		return fmt.Errorf("missing value in Slack field configuration")
+		return errors.New("missing value in Slack field configuration")
 	}
 	return nil
 }
@@ -499,7 +500,7 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
-		return fmt.Errorf("at most one of api_url & api_url_file must be configured")
+		return errors.New("at most one of api_url & api_url_file must be configured")
 	}
 
 	return nil
@@ -529,10 +530,10 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if c.URL == nil && c.URLFile == "" {
-		return fmt.Errorf("one of url or url_file must be configured")
+		return errors.New("one of url or url_file must be configured")
 	}
 	if c.URL != nil && c.URLFile != "" {
-		return fmt.Errorf("at most one of url & url_file must be configured")
+		return errors.New("at most one of url & url_file must be configured")
 	}
 	return nil
 }
@@ -612,7 +613,7 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 
 	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
-		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
+		return errors.New("at most one of api_key & api_key_file must be configured")
 	}
 
 	for _, r := range c.Responders {
@@ -671,10 +672,10 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 	if c.RoutingKey == "" {
-		return fmt.Errorf("missing Routing key in VictorOps config")
+		return errors.New("missing Routing key in VictorOps config")
 	}
 	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
-		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
+		return errors.New("at most one of api_key & api_key_file must be configured")
 	}
 
 	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}
@@ -732,16 +733,16 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return err
 	}
 	if c.UserKey == "" && c.UserKeyFile == "" {
-		return fmt.Errorf("one of user_key or user_key_file must be configured")
+		return errors.New("one of user_key or user_key_file must be configured")
 	}
 	if c.UserKey != "" && c.UserKeyFile != "" {
-		return fmt.Errorf("at most one of user_key & user_key_file must be configured")
+		return errors.New("at most one of user_key & user_key_file must be configured")
 	}
 	if c.Token == "" && c.TokenFile == "" {
-		return fmt.Errorf("one of token or token_file must be configured")
+		return errors.New("one of token or token_file must be configured")
 	}
 	if c.Token != "" && c.TokenFile != "" {
-		return fmt.Errorf("at most one of token & token_file must be configured")
+		return errors.New("at most one of token & token_file must be configured")
 	}
 	return nil
 }
@@ -769,7 +770,7 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
-		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
+		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
 	return nil
 }
@@ -798,19 +799,19 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return err
 	}
 	if c.BotToken == "" && c.BotTokenFile == "" {
-		return fmt.Errorf("missing bot_token or bot_token_file on telegram_config")
+		return errors.New("missing bot_token or bot_token_file on telegram_config")
 	}
 	if c.BotToken != "" && c.BotTokenFile != "" {
-		return fmt.Errorf("at most one of bot_token & bot_token_file must be configured")
+		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}
 	if c.ChatID == 0 {
-		return fmt.Errorf("missing chat_id on telegram_config")
+		return errors.New("missing chat_id on telegram_config")
 	}
 	if c.ParseMode != "" &&
 		c.ParseMode != "Markdown" &&
 		c.ParseMode != "MarkdownV2" &&
 		c.ParseMode != "HTML" {
-		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+		return errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
 	return nil
 }
@@ -834,11 +835,11 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return fmt.Errorf("one of webhook_url or webhook_url_file must be configured")
+		return errors.New("one of webhook_url or webhook_url_file must be configured")
 	}
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
 	return nil
@@ -862,11 +863,11 @@ func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 
 	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return fmt.Errorf("one of webhook_url or webhook_url_file must be configured")
+		return errors.New("one of webhook_url or webhook_url_file must be configured")
 	}
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
 	return nil
@@ -901,10 +902,10 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if c.Project == "" {
-		return fmt.Errorf("missing project in jira_config")
+		return errors.New("missing project in jira_config")
 	}
 	if c.IssueType == "" {
-		return fmt.Errorf("missing issue_type in jira_config")
+		return errors.New("missing issue_type in jira_config")
 	}
 
 	return nil
