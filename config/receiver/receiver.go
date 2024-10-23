@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/googlechat"
 	"github.com/prometheus/alertmanager/notify/msteams"
+	"github.com/prometheus/alertmanager/notify/msteamsv2"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
@@ -95,6 +96,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.GoogleChatConfigs {
 		add("googlechat", i, c, func(l log.Logger) (notify.Notifier, error) { return googlechat.New(c, tmpl, l) })
+	}
+	for i, c := range nc.MSTeamsV2Configs {
+		add("msteamsv2", i, c, func(l log.Logger) (notify.Notifier, error) { return msteamsv2.New(c, tmpl, l, httpOpts...) })
 	}
 
 	if errs.Len() > 0 {
