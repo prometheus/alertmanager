@@ -221,7 +221,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			retry, err := notifier.Notify(ctx, alert1)
+			ctx, retry, err := notifier.Notify(ctx, alert1)
 			require.Equal(t, tt.expectedRetry, retry)
 			if tt.noError {
 				require.NoError(t, err)

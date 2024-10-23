@@ -80,10 +80,10 @@ func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts .
 	return n, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	level.Debug(n.logger).Log("incident", key)
@@ -91,20 +91,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	title := tmpl(n.conf.Title)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	text := tmpl(n.conf.Text)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	summary := tmpl(n.conf.Summary)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	alerts := types.Alerts(as...)
@@ -122,7 +122,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
+			return ctx, false, fmt.Errorf("read webhook_url_file: %w", err)
 		}
 		url = strings.TrimSpace(string(content))
 	}
@@ -138,19 +138,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(t); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
 	// https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using?tabs=cURL#rate-limiting-for-connectors
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return ctx, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
-	return shouldRetry, err
+	return ctx, shouldRetry, err
 }
