@@ -37,8 +37,8 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -49,12 +49,12 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherCache map[string]labels.Matchers
+type matcherCache map[string]matcher.Matchers
 
 // Get retrieves the matchers for a given silence. If it is a missed cache
 // access, it compiles and adds the matchers of the requested silence to the
 // cache.
-func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
+func (c matcherCache) Get(s *pb.Silence) (matcher.Matchers, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
@@ -63,24 +63,24 @@ func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
 
 // add compiles a silences' matchers and adds them to the cache.
 // It returns the compiled matchers.
-func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
-	ms := make(labels.Matchers, len(s.Matchers))
+func (c matcherCache) add(s *pb.Silence) (matcher.Matchers, error) {
+	ms := make(matcher.Matchers, len(s.Matchers))
 
 	for i, m := range s.Matchers {
-		var mt labels.MatchType
+		var mt matcher.MatchType
 		switch m.Type {
 		case pb.Matcher_EQUAL:
-			mt = labels.MatchEqual
+			mt = matcher.MatchEqual
 		case pb.Matcher_NOT_EQUAL:
-			mt = labels.MatchNotEqual
+			mt = matcher.MatchNotEqual
 		case pb.Matcher_REGEXP:
-			mt = labels.MatchRegexp
+			mt = matcher.MatchRegexp
 		case pb.Matcher_NOT_REGEXP:
-			mt = labels.MatchNotRegexp
+			mt = matcher.MatchNotRegexp
 		default:
 			return nil, fmt.Errorf("unknown matcher type %q", m.Type)
 		}
-		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
+		matcher, err := matcher.NewMatcher(mt, m.Name, m.Pattern)
 		if err != nil {
 			return nil, err
 		}
