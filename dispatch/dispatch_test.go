@@ -439,6 +439,8 @@ route:
 				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
+			GroupKey: "{}:{alertname=\"OtherAlert\"}",
+			RouteID:  "{}",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[1]},
@@ -447,6 +449,8 @@ route:
 				"service":   "api",
 			},
 			Receiver: "testing",
+			GroupKey: "{}/{env=\"testing\"}:{alertname=\"TestingAlert\", service=\"api\"}",
+			RouteID:  "{}/{env=\"testing\"}/0",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
@@ -456,6 +460,8 @@ route:
 				"cluster":   "aa",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"aa\", service=\"api\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[4]},
@@ -465,6 +471,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"bb\", service=\"api\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
@@ -474,6 +482,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "kafka",
+			GroupKey: "{}/{kafka=\"yes\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
+			RouteID:  "{}/{kafka=\"yes\"}/2",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
@@ -483,6 +493,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]string{

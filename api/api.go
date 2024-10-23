@@ -45,16 +45,20 @@ type API struct {
 	inFlightSem              chan struct{}
 }
 
-// Options for the creation of an API object. Alerts, Silences, and StatusFunc
-// are mandatory to set. The zero value for everything else is a safe default.
+// Options for the creation of an API object. Alerts, Silences, AlertStatusFunc
+// and GroupMutedFunc are mandatory. The zero value for everything else is a safe
+// default.
 type Options struct {
 	// Alerts to be used by the API. Mandatory.
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences
-	// StatusFunc is used be the API to retrieve the AlertStatus of an
+	// AlertStatusFunc is used be the API to retrieve the AlertStatus of an
 	// alert. Mandatory.
-	StatusFunc func(model.Fingerprint) types.AlertStatus
+	AlertStatusFunc func(model.Fingerprint) types.AlertStatus
+	// GroupMutedFunc is used be the API to know if an alert is muted.
+	// Mandatory.
+	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
 	// Timeout for all HTTP connections. The zero value (and negative
@@ -83,8 +87,11 @@ func (o Options) validate() error {
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
 	}
-	if o.StatusFunc == nil {
-		return errors.New("mandatory field StatusFunc not set")
+	if o.AlertStatusFunc == nil {
+		return errors.New("mandatory field AlertStatusFunc not set")
+	}
+	if o.GroupMutedFunc == nil {
+		return errors.New("mandatory field GroupMutedFunc not set")
 	}
 	if o.GroupFunc == nil {
 		return errors.New("mandatory field GroupFunc not set")
@@ -113,7 +120,8 @@ func New(opts Options) (*API, error) {
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
-		opts.StatusFunc,
+		opts.AlertStatusFunc,
+		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
 		log.With(l, "version", "v2"),
