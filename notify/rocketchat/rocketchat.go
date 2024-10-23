@@ -216,7 +216,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err := json.NewEncoder(&buf).Encode(body); err != nil {
 		return false, err
 	}
-	url := fmt.Sprintf("%s/%s", n.conf.APIURL.String(), "api/v1/chat.postMessage")
+	url := n.conf.APIURL.JoinPath("api/v1/chat.postMessage").String()
 	resp, err := n.postJSONFunc(ctx, n.client, url, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
