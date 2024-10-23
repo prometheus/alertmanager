@@ -186,8 +186,8 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
-	api.v2.Update(cfg, setAlertStatus)
+func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet), setAlertStatuses func(...model.LabelSet)) {
+	api.v2.Update(cfg, setAlertStatus, setAlertStatuses)
 }
 
 func (api *API) limitHandler(h http.Handler) http.Handler {

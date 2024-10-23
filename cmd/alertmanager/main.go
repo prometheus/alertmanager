@@ -490,6 +490,11 @@ func run() int {
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
 			silencer.Mutes(labels)
+		}, func(ls ...model.LabelSet) {
+			inhibitor.MutesAll(ls...)
+			for _, lset := range ls {
+				silencer.Mutes(lset)
+			}
 		})
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, nil, logger, dispMetrics)
