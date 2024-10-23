@@ -883,6 +883,9 @@ webhook_url_file: <filepath>
 # Message body template.
 [ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
 
+# Message content template. Limited with 2000 characters.
+[ content: <tmpl_string> | default = '{{ template "discord.default.content" . }}' ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
