@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/coder/quartz"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
@@ -76,7 +76,7 @@ func QGroupKey(gk string) QueryParam {
 
 // Log holds the notification log state for alerts that have been notified.
 type Log struct {
-	clock clock.Clock
+	clock quartz.Clock
 
 	logger    log.Logger
 	metrics   *metrics
@@ -259,7 +259,7 @@ func New(o Options) (*Log, error) {
 	}
 
 	l := &Log{
-		clock:     clock.New(),
+		clock:     quartz.NewReal(),
 		retention: o.Retention,
 		logger:    log.NewNopLogger(),
 		st:        state{},
@@ -305,7 +305,7 @@ func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan str
 		level.Error(l.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := l.clock.Ticker(interval)
+	t := l.clock.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
