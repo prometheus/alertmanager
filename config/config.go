@@ -269,6 +269,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.JiraConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.RocketchatConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -362,6 +365,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(c.Global.SMTPAuthPassword) > 0 && len(c.Global.SMTPAuthPasswordFile) > 0 {
 		return errors.New("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
+	}
+
+	if c.Global.RocketchatToken != nil && len(c.Global.RocketchatTokenFile) > 0 {
+		return errors.New("at most one of rocketchat_token & rocketchat_token_file must be configured")
+	}
+
+	if c.Global.RocketchatTokenID != nil && len(c.Global.RocketchatTokenIDFile) > 0 {
+		return errors.New("at most one of rocketchat_token_id & rocketchat_token_id_file must be configured")
 	}
 
 	names := map[string]struct{}{}
@@ -573,6 +584,28 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				jira.APIURL = c.Global.JiraAPIURL
 			}
 		}
+		for _, rocketchat := range rcv.RocketchatConfigs {
+			if rocketchat.HTTPConfig == nil {
+				rocketchat.HTTPConfig = c.Global.HTTPConfig
+			}
+			if rocketchat.APIURL == nil {
+				rocketchat.APIURL = c.Global.RocketchatAPIURL
+			}
+			if rocketchat.TokenID == nil && len(rocketchat.TokenIDFile) == 0 {
+				if c.Global.RocketchatTokenID == nil && len(c.Global.RocketchatTokenIDFile) == 0 {
+					return errors.New("no global Rocketchat TokenID set either inline or in a file")
+				}
+				rocketchat.TokenID = c.Global.RocketchatTokenID
+				rocketchat.TokenIDFile = c.Global.RocketchatTokenIDFile
+			}
+			if rocketchat.Token == nil && len(rocketchat.TokenFile) == 0 {
+				if c.Global.RocketchatToken == nil && len(c.Global.RocketchatTokenFile) == 0 {
+					return errors.New("no global Rocketchat Token set either inline or in a file")
+				}
+				rocketchat.Token = c.Global.RocketchatToken
+				rocketchat.TokenFile = c.Global.RocketchatTokenFile
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -665,17 +698,18 @@ func DefaultGlobalConfig() GlobalConfig {
 	defaultSMTPTLSConfig := commoncfg.TLSConfig{}
 
 	return GlobalConfig{
-		ResolveTimeout:  model.Duration(5 * time.Minute),
-		HTTPConfig:      &defaultHTTPConfig,
-		SMTPHello:       "localhost",
-		SMTPRequireTLS:  true,
-		SMTPTLSConfig:   &defaultSMTPTLSConfig,
-		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
-		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
-		WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
+		ResolveTimeout:   model.Duration(5 * time.Minute),
+		HTTPConfig:       &defaultHTTPConfig,
+		SMTPHello:        "localhost",
+		SMTPRequireTLS:   true,
+		SMTPTLSConfig:    &defaultSMTPTLSConfig,
+		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+		WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+		VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
+		WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
+		RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
 	}
 }
 
@@ -777,31 +811,36 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	JiraAPIURL           *URL                 `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
-	SMTPFrom             string               `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello            string               `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost        HostPort             `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername     string               `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword     Secret               `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthPasswordFile string               `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
-	SMTPAuthSecret       Secret               `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity     string               `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS       bool                 `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SMTPTLSConfig        *commoncfg.TLSConfig `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
-	SlackAPIURL          *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	SlackAPIURLFile      string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
-	PagerdutyURL         *URL                 `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL       *URL                 `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey       Secret               `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	OpsGenieAPIKeyFile   string               `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
-	WeChatAPIURL         *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret      Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID      string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL      *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey      Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
-	VictorOpsAPIKeyFile  string               `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
-	TelegramAPIUrl       *URL                 `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
-	WebexAPIURL          *URL                 `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	JiraAPIURL            *URL                 `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
+	SMTPFrom              string               `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello             string               `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost         HostPort             `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername      string               `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword      Secret               `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthPasswordFile  string               `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
+	SMTPAuthSecret        Secret               `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity      string               `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS        bool                 `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	SMTPTLSConfig         *commoncfg.TLSConfig `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
+	SlackAPIURL           *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	SlackAPIURLFile       string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	PagerdutyURL          *URL                 `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	OpsGenieAPIURL        *URL                 `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey        Secret               `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	OpsGenieAPIKeyFile    string               `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	WeChatAPIURL          *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret       Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID       string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL       *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	VictorOpsAPIKeyFile   string               `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
+	TelegramAPIUrl        *URL                 `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	WebexAPIURL           *URL                 `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	RocketchatAPIURL      *URL                 `yaml:"rocketchat_api_url,omitempty" json:"rocketchat_api_url,omitempty"`
+	RocketchatToken       *Secret              `yaml:"rocketchat_token,omitempty" json:"rocketchat_token,omitempty"`
+	RocketchatTokenFile   string               `yaml:"rocketchat_token_file,omitempty" json:"rocketchat_token_file,omitempty"`
+	RocketchatTokenID     *Secret              `yaml:"rocketchat_token_id,omitempty" json:"rocketchat_token_id,omitempty"`
+	RocketchatTokenIDFile string               `yaml:"rocketchat_token_id_file,omitempty" json:"rocketchat_token_id_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -933,21 +972,22 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs   []*DiscordConfig   `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs []*MSTeamsV2Config `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs      []*JiraConfig      `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs        []*SNSConfig        `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs   []*TelegramConfig   `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs      []*WebexConfig      `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs    []*MSTeamsConfig    `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

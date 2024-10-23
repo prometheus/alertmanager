@@ -209,3 +209,10 @@ Alerts Resolved:
 {{- end -}}
 {{- $priority -}}
 {{- end -}}
+
+{{ define "rocketchat.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "rocketchat.default.alias" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "rocketchat.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "rocketchat.default.emoji" }}{{ end }}
+{{ define "rocketchat.default.iconurl" }}{{ end }}
+{{ define "rocketchat.default.text" }}{{ end }}

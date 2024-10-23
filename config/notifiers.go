@@ -99,6 +99,18 @@ var (
 		CallbackID: `{{ template "slack.default.callbackid" . }}`,
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
+	// DefaultRocketchatConfig defines default values for Rocketchat configurations.
+	DefaultRocketchatConfig = RocketchatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Color:     `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
+		Emoji:     `{{ template "rocketchat.default.emoji" . }}`,
+		IconURL:   `{{ template "rocketchat.default.iconurl" . }}`,
+		Text:      `{{ template "rocketchat.default.text" . }}`,
+		Title:     `{{ template "rocketchat.default.title" . }}`,
+		TitleLink: `{{ template "rocketchat.default.titlelink" . }}`,
+	}
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
@@ -907,6 +919,73 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.IssueType == "" {
 		return errors.New("missing issue_type in jira_config")
 	}
+	return nil
+}
 
+type RocketchatAttachmentField struct {
+	Short *bool  `json:"short"`
+	Title string `json:"title,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+const (
+	ProcessingTypeSendMessage        = "sendMessage"
+	ProcessingTypeRespondWithMessage = "respondWithMessage"
+)
+
+type RocketchatAttachmentAction struct {
+	Type               string `json:"type,omitempty"`
+	Text               string `json:"text,omitempty"`
+	URL                string `json:"url,omitempty"`
+	ImageURL           string `json:"image_url,omitempty"`
+	IsWebView          bool   `json:"is_webview"`
+	WebviewHeightRatio string `json:"webview_height_ratio,omitempty"`
+	Msg                string `json:"msg,omitempty"`
+	MsgInChatWindow    bool   `json:"msg_in_chat_window"`
+	MsgProcessingType  string `json:"msg_processing_type,omitempty"`
+}
+
+// RocketchatConfig configures notifications via Rocketchat.
+type RocketchatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL      *URL    `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	TokenID     *Secret `yaml:"token_id,omitempty" json:"token_id,omitempty"`
+	TokenIDFile string  `yaml:"token_id_file,omitempty" json:"token_id_file,omitempty"`
+	Token       *Secret `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile   string  `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+
+	// RocketChat channel override, (like #other-channel or @username).
+	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
+
+	Color       string                        `yaml:"color,omitempty" json:"color,omitempty"`
+	Title       string                        `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string                        `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Text        string                        `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []*RocketchatAttachmentField  `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool                          `yaml:"short_fields" json:"short_fields,omitempty"`
+	Emoji       string                        `yaml:"emoji,omitempty" json:"emoji,omitempty"`
+	IconURL     string                        `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	ImageURL    string                        `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	ThumbURL    string                        `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
+	LinkNames   bool                          `yaml:"link_names" json:"link_names,omitempty"`
+	Actions     []*RocketchatAttachmentAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultRocketchatConfig
+	type plain RocketchatConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Token != nil && len(c.TokenFile) > 0 {
+		return errors.New("at most one of token & token_file must be configured")
+	}
+	if c.TokenID != nil && len(c.TokenIDFile) > 0 {
+		return errors.New("at most one of token_id & token_id_file must be configured")
+	}
 	return nil
 }

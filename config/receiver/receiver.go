@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
+	"github.com/prometheus/alertmanager/notify/rocketchat"
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
@@ -99,6 +100,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.JiraConfigs {
 		add("jira", i, c, func(l log.Logger) (notify.Notifier, error) { return jira.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.RocketchatConfigs {
+		add("rocketchat", i, c, func(l log.Logger) (notify.Notifier, error) { return rocketchat.New(c, tmpl, l, httpOpts...) })
 	}
 
 	if errs.Len() > 0 {
