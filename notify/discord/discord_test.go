@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -167,4 +168,64 @@ func TestDiscordReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+func TestDiscord_Notify(t *testing.T) {
+	// Create a fake HTTP server to simulate the Discord webhook
+	var resp string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Read the request as a string
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err, "reading request body failed")
+		// Store the request body in the response
+		resp = string(body)
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Create a temporary file to simulate the WebhookURLFile
+	tempFile, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove(tempFile.Name()))
+	})
+
+	// Write the fake webhook URL to the temp file
+	_, err = tempFile.WriteString(srv.URL)
+	require.NoError(t, err)
+
+	// Create a DiscordConfig with the WebhookURLFile set
+	cfg := &config.DiscordConfig{
+		WebhookURLFile: tempFile.Name(),
+		HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		Title:          "Test Title",
+		Message:        "Test Message",
+		Content:        "Test Content",
+	}
+
+	// Create a new Discord notifier
+	notifier, err := New(cfg, test.CreateTmpl(t), log.NewNopLogger())
+	require.NoError(t, err)
+
+	// Create a context and alerts
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	// Call the Notify method
+	ok, err := notifier.Notify(ctx, alerts...)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.Equal(t, "{\"content\":\"Test Content\",\"embeds\":[{\"title\":\"Test Title\",\"description\":\"Test Message\",\"color\":10038562}]}\n", resp)
 }
