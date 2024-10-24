@@ -35,9 +35,9 @@ import (
 )
 
 const (
-	colorRed   = "8C1A1A"
-	colorGreen = "2DC72D"
-	colorGrey  = "808080"
+	colorRed   = "Attention"
+	colorGreen = "Good"
+	colorGrey  = "Warning"
 )
 
 type Notifier struct {
@@ -50,14 +50,33 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
+// https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1#adaptivecarditemschema
+type Content struct {
+	Schema  string `json:"$schema"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+	Body    []Body `json:"body"`
+}
+
+type Body struct {
+	Type   string `json:"type"`
+	Text   string `json:"text"`
+	Weight string `json:"weigth,omitempty"`
+	Size   string `json:"size,omitempty"`
+	Wrap   bool   `json:"wrap,omitempty"`
+	Style  string `json:"style,omitempty"`
+	Color  string `json:"color,omitempty"`
+}
+
+type Attachment struct {
+	ContentType string  `json:"contentType"`
+	ContentURL  *string `json:"contentUrl"` // Use a pointer to handle null values
+	Content     Content `json:"content"`
+}
+
 type teamsMessage struct {
-	Context    string `json:"@context"`
-	Type       string `json:"type"`
-	Title      string `json:"title"`
-	Summary    string `json:"summary"`
-	Text       string `json:"text"`
-	ThemeColor string `json:"themeColor"`
+	Type        string       `json:"type"`
+	Attachments []Attachment `json:"attachments"`
 }
 
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
@@ -102,10 +121,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	summary := tmpl(n.conf.Summary)
-	if err != nil {
-		return false, err
-	}
 
 	alerts := types.Alerts(as...)
 	color := colorGrey
@@ -128,12 +143,33 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	t := teamsMessage{
-		Context:    "http://schema.org/extensions",
-		Type:       "MessageCard",
-		Title:      title,
-		Summary:    summary,
-		Text:       text,
-		ThemeColor: color,
+		Type: "message",
+		Attachments: []Attachment{
+			{
+				ContentType: "application/vnd.microsoft.card.adaptive",
+				ContentURL:  nil,
+				Content: Content{
+					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+					Type:    "AdaptiveCard",
+					Version: "1.2",
+					Body: []Body{
+						{
+							Type:   "TextBlock",
+							Text:   title,
+							Weight: "Bolder",
+							Size:   "Medium",
+							Wrap:   true,
+							Style:  "heading",
+							Color:  color,
+						},
+						{
+							Type: "TextBlock",
+							Text: text,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	var payload bytes.Buffer

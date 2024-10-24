@@ -943,7 +943,18 @@ tls_config:
 
 ### `<msteams_config>`
 
-Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors) API endpoint.
+Microsoft Teams notifications are sent via the [Workflow](https://support.microsoft.com/en-us/office/creating-a-workflow-from-a-channel-in-teams-242eb8f2-f328-45be-b81f-9817b51a5f0e).
+
+#### How to create a workflow
+
+1. Select the workflow template, `Post to a channel when a webhook request is received`
+2. Select `Microsoft Teams Team` you want to receive the notification
+3. Select `Microsoft Teams Channel` you want to receive the notification
+
+After that, you can get the webhook URL.
+
+A Power Automate license is required to use this feature. You can get details
+from [Types of Power Automate licenses](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/types) and [Office 365 licenses](https://learn.microsoft.com/en-us/power-platform/admin/power-automate-licensing/faqs#what-power-automate-capabilities-are-included-in-office-365-licenses).
 
 DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsoft 365 connectors via Microsoft Teams](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). Consider migrating to using [Workflows](https://learn.microsoft.com/en-us/power-automate/teams/send-a-message-in-teams) with the msteamsv2 config.
 
@@ -959,6 +970,7 @@ DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsof
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
 
+# DEPRECATED: Will be removed in future release.
 # Message summary template.
 [ summary: <tmpl_string> | default = '{{ template "msteams.default.summary" . }}' ]
 
