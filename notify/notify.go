@@ -365,7 +365,9 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"discord",
 		"webex",
 		"msteams",
+		"msteamsv2",
 		"jira",
+		"rocketchat",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)

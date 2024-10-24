@@ -178,6 +178,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -433,10 +440,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
@@ -980,6 +994,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -1256,10 +1277,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
