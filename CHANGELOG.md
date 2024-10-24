@@ -7,9 +7,9 @@
 * [FEATURE] Add support for `GOMEMLIMIT`, enable it via the feature flag `--enable-feature=auto-gomemlimit`. #3895
 * [FEATURE] Add support for `GOMAXPROCS`, enable it via the feature flag `--enable-feature=auto-gomaxprocs`. #3837
 * [FEATURE] Add support for limits of silences including the maximum number of active and pending silences, and the maximum size per silence (in bytes). You can use the flags `--silences.max-silences` and `--silences.max-silence-size-bytes` to set them accordingly #3852 #3862 #3866 #3885 #3886 #3877
-* [FEATURE] Muted alerts now show whether they are suppressed or not in the `/api/v2/alerts` endpoint. #3793 #3797 #3792
+* [FEATURE] Muted alerts now show whether they are suppressed or not in both the `/api/v2/alerts` endpoint and the Alertmanager UI. #3793 #3797 #3792
 * [ENHANCEMENT] Add support for `content` in the Discord integration. The field supports templating. #4007
-* [ENHANCEMENT] Only cycle a silence if the update is successful - should improve latency on both `GET api/v2/alerts` and `POST api/v2/alerts` API endpoint. #3961
+* [ENHANCEMENT] Only invalidate the silences cache if a new silence is created or an existing silence replaced - should improve latency on both `GET api/v2/alerts` and `POST api/v2/alerts` API endpoint. #3961
 * [ENHANCEMENT] Add image source label to Dockerfile. To get changelogs shown when using Renovate #4062
 * [ENHANCEMENT] Build using go 1.23 #4071
 * [ENHANCEMENT] Support setting a global SMTP TLS configuration. #3732
