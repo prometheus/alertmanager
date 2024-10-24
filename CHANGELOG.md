@@ -1,49 +1,35 @@
-## 0.28.0-rc.0 / 2024-10-16
+## 0.28.0-rc.0 / 2024-10-24
 
-* [CHANGE] Deprecate and remove api/v1/ #2970
-* [CHANGE] Remove unused feature flags #3676
-* [CHANGE] Newlines in smtp password file are now ignored #3681
-* [CHANGE] Change compat metrics to counters #3686
-* [CHANGE] Do not register compat metrics in amtool #3713
-* [CHANGE] Remove metrics from compat package #3714
-* [CHANGE] Mark muted alerts #3793
-* [FEATURE] Add metric for inhibit rules #3681
-* [FEATURE] Support UTF-8 label matchers #3453, #3507, #3523, #3483, #3567, #3568, #3569, #3571, #3595, #3604, #3619, #3658, #3659, #3662, #3668, 3572
-* [FEATURE] Add counter to track alerts dropped outside of time_intervals #3565
-* [FEATURE] Add date and tz functions to templates #3812
-* [FEATURE] Add limits for silences #3852
-* [FEATURE] Add time helpers for templates #3863
-* [FEATURE] Add auto GOMAXPROCS #3837
-* [FEATURE] Add auto GOMEMLIMIT #3895
-* [FEATURE] Add Jira receiver integration #3590
-* [ENHANCEMENT] Add the receiver name to notification metrics #3045
-* [ENHANCEMENT] Add the route ID to uuid #3372
-* [ENHANCEMENT] Add duration to the notify success message #3559
-* [ENHANCEMENT] Implement webhook_url_file for discord and msteams #3555
-* [ENHANCEMENT] Add debug logs for muted alerts #3558
-* [ENHANCEMENT] API: Allow the Silences API to use their own 400 response #3610
-* [ENHANCEMENT] Add summary to msteams notification #3616
-* [ENHANCEMENT] Add context reasons to notifications failed counter #3631
-* [ENHANCEMENT] Add optional native histogram support to latency metrics #3737
-* [ENHANCEMENT] Enable setting ThreadId for Telegram notifications #3638
-* [ENHANCEMENT] Allow webex roomID from template #3801
-* [BUGFIX] Add missing integrations to notify metrics #3480
-* [BUGFIX] Add missing ttl in pushhover #3474
-* [BUGFIX] Fix scheme required for webhook url in amtool #3409
-* [BUGFIX] Remove duplicate integration from metrics #3516
-* [BUGFIX] Reflect Discord's max length message limits #3597
-* [BUGFIX] Fix nil error in warn logs about incompatible matchers #3683
-* [BUGFIX] Fix a small number of inconsistencies in compat package logging #3718
-* [BUGFIX] Fix log line in featurecontrol #3719
-* [BUGFIX] Fix panic in acceptance tests #3592
-* [BUGFIX] Fix flaky test TestClusterJoinAndReconnect/TestTLSConnection #3722
-* [BUGFIX] Fix crash on errors when url_file is used #3800
-* [BUGFIX] Fix race condition in dispatch.go #3826
-* [BUGFIX] Fix race conditions in the memory alerts store #3648
-* [BUGFIX] Hide config.SecretURL when the URL is incorrect. #3887
-* [BUGFIX] Fix invalid silence causes incomplete updates #3898
-* [BUGFIX] Fix leaking of Silences matcherCache entries #3930
-* [BUGFIX] Close SMTP submission correctly to handle errors #4006
+* [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
+* [FEATURE] Add a new Microsoft Teams integration based on Flows #4024
+* [FEATURE] Add a new Rocket.Chat integration #3600
+* [FEATURE] Add a new Jira integration #3590 #3931
+* [FEATURE] Add support for `GOMEMLIMIT`, enable it via the feature flag `--enable-feature=auto-gomemlimit`. #3895
+* [FEATURE] Add support for `GOMAXPROCS`, enable it via the feature flag `--enable-feature=auto-gomaxprocs`. #3837
+* [FEATURE] Add support for limits of silences including the maximum number of active and pending silences, and the maximum size per silence (in bytes). You can use the flags `--silences.max-silences` and `--silences.max-silence-size-bytes` to set them accordingly #3852 #3862 #3866 #3885 #3886 #3877
+* [FEATURE] Muted alerts now show whether they are suppressed or not in the `/api/v2/alerts` endpoint. #3793 #3797 #3792
+* [ENHANCEMENT] Add support for `content` in the Discord integration. The field supports templating. #4007
+* [ENHANCEMENT] Only cycle a silence if the update is successful - should improve latency on both `GET api/v2/alerts` and `POST api/v2/alerts` API endpoint. #3961
+* [ENHANCEMENT] Add image source label to Dockerfile. To get changelogs shown when using Renovate #4062
+* [ENHANCEMENT] Build using go 1.23 #4071
+* [ENHANCEMENT] Support setting a global SMTP TLS configuration. #3732
+* [ENHANCEMENT] The setting `room_id` in the WebEx integration can now be templated to allow for dynamic room IDs. #3801
+* [ENHANCEMENT] Enable setting `message_thread_id` for the Telegram integration. #3638
+* [ENHANCEMENT] Support the `since` and `humanizeDuration` functions to templates. This means users can now format time to more human-readable text. #3863
+* [ENHANCEMENT] Support the `date` and `tz` functions to templates. This means users can now format time in a specified format and also change the timezone to their specific locale. #3812
+* [ENHANCEMENT] Latency metrics now support native histograms. #3737
+* [BUGFIX] Fix the SMTP integration not correctly closing an SMTP submission, which may lead to unsuccessful dispatches being marked as successful. #4006
+* [BUGFIX]  The `ParseMode` option is now set explicitly in the Telegram integration. If we don't HTML tags had not been parsed by default. #4027
+* [BUGFIX] Fix a memory leak that was caused by updates silences continuously. #3930
+* [BUGFIX] Fix hiding secret URLs when the URL is incorrect. #3887
+* [BUGFIX] Fix a race condition in the alerts - it was more of a hypothetical race condition that could have occurred in the alert reception pipeline. #3648
+* [BUGFIX] Fix a race condition in the alert delivery pipeline that would cause a firing alert that was delivered earlier to be deleted from the aggregation group when instead it should have been delivered again. #3826
+* [BUGFIX] Fix version in APIv1 deprecation notice. #3815
+* [BUGFIX] Fix crash errors when using `url_file` in the Webhook integration. #3800
+* [BUGFIX] fix `Route.ID()` returns conflicting IDs. #3803
+* [BUGFIX] Fix deadlock on the alerts memory store. #3715
+* [BUGFIX] Fix `amtool template render` when using the default values. #3725
+* [BUGFIX] Fix `webhook_url_file` for both the Discord and Microsoft Teams integrations. #3728 #3745
 
 ## 0.27.0 / 2024-02-28
 
