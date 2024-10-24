@@ -201,6 +201,8 @@ func TestDiscord_Notify(t *testing.T) {
 		Title:          "Test Title",
 		Message:        "Test Message",
 		Content:        "Test Content",
+		Username:       "Test Username",
+		AvatarURL:      "http://example.com/avatar.png",
 	}
 
 	// Create a new Discord notifier
@@ -227,5 +229,5 @@ func TestDiscord_Notify(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.Equal(t, "{\"content\":\"Test Content\",\"embeds\":[{\"title\":\"Test Title\",\"description\":\"Test Message\",\"color\":10038562}]}\n", resp)
+	require.Equal(t, "{\"content\":\"Test Content\",\"embeds\":[{\"title\":\"Test Title\",\"description\":\"Test Message\",\"color\":10038562}],\"username\":\"Test Username\",\"avatar_url\":\"http://example.com/avatar.png\"}\n", resp)
 }

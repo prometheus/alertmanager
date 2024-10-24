@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	netUrl "net/url"
 	"os"
 	"strings"
 
@@ -76,8 +77,10 @@ func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts .
 }
 
 type webhook struct {
-	Content string         `json:"content"`
-	Embeds  []webhookEmbed `json:"embeds"`
+	Content   string         `json:"content"`
+	Embeds    []webhookEmbed `json:"embeds"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
 }
 
 type webhookEmbed struct {
@@ -145,12 +148,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	w := webhook{
-		Content: content,
+		Content:  content,
+		Username: n.conf.Username,
 		Embeds: []webhookEmbed{{
 			Title:       title,
 			Description: description,
 			Color:       color,
 		}},
+	}
+
+	if len(n.conf.AvatarURL) != 0 {
+		if _, err := netUrl.Parse(n.conf.AvatarURL); err == nil {
+			w.AvatarURL = n.conf.AvatarURL
+		} else {
+			level.Warn(n.logger).Log("msg", "Bad avatar url", "key", key)
+		}
 	}
 
 	var payload bytes.Buffer
