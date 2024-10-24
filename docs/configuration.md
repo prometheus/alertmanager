@@ -887,10 +887,10 @@ webhook_url_file: <filepath>
 [ content: <tmpl_string> | default = '{{ template "discord.default.content" . }}' ]
 
 # Message username.
-[ username: <tmpl_string> | default = '' ]
+[ username: <string> | default = '' ]
 
 # Message avatar URL.
-[ avatar_url: <tmpl_string> | default = '' ]
+[ avatar_url: <string> | default = '' ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
