@@ -19,7 +19,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher"
 )
 
 var (
@@ -37,7 +37,7 @@ var (
 
 // Matchers parses one or more matchers in the input string. It returns an error
 // if the input is invalid.
-func Matchers(input string) (matchers labels.Matchers, err error) {
+func Matchers(input string) (matchers matcher.Matchers, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "parser panic: %s, %s", r, debug.Stack())
@@ -50,7 +50,7 @@ func Matchers(input string) (matchers labels.Matchers, err error) {
 
 // Matcher parses the matcher in the input string. It returns an error
 // if the input is invalid or contains two or more matchers.
-func Matcher(input string) (*labels.Matcher, error) {
+func Matcher(input string) (*matcher.Matcher, error) {
 	m, err := Matchers(input)
 	if err != nil {
 		return nil, err
@@ -76,14 +76,14 @@ type parseFunc func(l *lexer) (parseFunc, error)
 // input that does not match the expected grammar, or if the tokens returned from
 // the lexer cannot be parsed into a complete series of matchers.
 type parser struct {
-	matchers labels.Matchers
+	matchers matcher.Matchers
 	// Tracks if the input starts with an open brace and if we should expect to
 	// parse a close brace at the end of the input.
 	hasOpenBrace bool
 	lexer        lexer
 }
 
-func (p *parser) parse() (labels.Matchers, error) {
+func (p *parser) parse() (matcher.Matchers, error) {
 	var (
 		err error
 		fn  = p.parseOpenBrace
@@ -148,7 +148,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 		err                   error
 		t                     token
 		matchName, matchValue string
-		matchTy               labels.MatchType
+		matchTy               matcher.MatchType
 	)
 	// The first token should be the label name.
 	if t, err = p.expect(l, tokenQuoted, tokenUnquoted); err != nil {
@@ -164,13 +164,13 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	}
 	switch t.kind {
 	case tokenEquals:
-		matchTy = labels.MatchEqual
+		matchTy = matcher.MatchEqual
 	case tokenNotEquals:
-		matchTy = labels.MatchNotEqual
+		matchTy = matcher.MatchNotEqual
 	case tokenMatches:
-		matchTy = labels.MatchRegexp
+		matchTy = matcher.MatchRegexp
 	case tokenNotMatches:
-		matchTy = labels.MatchNotRegexp
+		matchTy = matcher.MatchNotRegexp
 	default:
 		panic(fmt.Sprintf("bad operator %s", t))
 	}
@@ -183,7 +183,7 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%d:%d: %s: invalid input", t.columnStart, t.columnEnd, t.value)
 	}
-	m, err := labels.NewMatcher(matchTy, matchName, matchValue)
+	m, err := matcher.NewMatcher(matchTy, matchName, matchValue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create matcher: %w", err)
 	}

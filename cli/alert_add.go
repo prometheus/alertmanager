@@ -25,8 +25,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matcher"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 type alertAddCmd struct {
@@ -84,26 +84,26 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	ls := make(models.LabelSet, len(a.labels))
 	for _, l := range a.labels {
-		matcher, err := compat.Matcher(l, "cli")
+		m, err := compat.Matcher(l, "cli")
 		if err != nil {
 			return err
 		}
-		if matcher.Type != labels.MatchEqual {
+		if m.Type != matcher.MatchEqual {
 			return errors.New("labels must be specified as key=value pairs")
 		}
-		ls[matcher.Name] = matcher.Value
+		ls[m.Name] = m.Value
 	}
 
 	annotations := make(models.LabelSet, len(a.annotations))
 	for _, a := range a.annotations {
-		matcher, err := compat.Matcher(a, "cli")
+		m, err := compat.Matcher(a, "cli")
 		if err != nil {
 			return err
 		}
-		if matcher.Type != labels.MatchEqual {
+		if m.Type != matcher.MatchEqual {
 			return errors.New("annotations must be specified as key=value pairs")
 		}
-		annotations[matcher.Name] = matcher.Value
+		annotations[m.Name] = m.Value
 	}
 
 	var startsAt, endsAt time.Time
