@@ -1071,16 +1071,28 @@ Jira issue field can have multiple types.
 Depends on the field type, the values must be provided differently.
 See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types for further examples.
 
+All values must be declared as string. Quotes around the values are important.
+
 ```yaml
 fields:
     # Components
-    components: { name: "Monitoring" }
+    components: '{ name: "Monitoring" }'
     # Custom Field TextField
     customfield_10001: "Random text"
     # Custom Field SelectList
-    customfield_10002: {"value": "red"}
+    customfield_10002: '{"value": "red"}'
     # Custom Field MultiSelect
-    customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
+    customfield_10003: '[{"value": "red"}, {"value": "blue"}, {"value": "green"}]'
+```
+
+Alertmanager will always try to detect the correct type of the value.
+This can be problematic if a numeric value has to be sent as a string type.
+To explicitly declare a string, the value needs to be quoted again, for example:
+
+```yaml
+fields:
+    # Example: Numeric string values
+    customfield_10004: '"0"'
 ```
 
 ### `<opsgenie_config>`
