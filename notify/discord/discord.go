@@ -90,10 +90,10 @@ type webhookEmbed struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	level.Debug(n.logger).Log("incident", key)
@@ -102,19 +102,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
@@ -142,7 +142,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		b, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
+			return ctx, false, fmt.Errorf("read webhook_url_file: %w", err)
 		}
 		url = strings.TrimSpace(string(b))
 	}
@@ -167,17 +167,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return ctx, true, notify.RedactURL(err)
 	}
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		return ctx, shouldRetry, err
 	}
-	return false, nil
+	return ctx, false, nil
 }

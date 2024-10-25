@@ -151,7 +151,7 @@ func (n *Notifier) notifyV1(
 	data *template.Data,
 	details map[string]string,
 	as ...*types.Alert,
-) (bool, error) {
+) (context.Context, bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
@@ -164,7 +164,7 @@ func (n *Notifier) notifyV1(
 	if serviceKey == "" {
 		content, fileErr := os.ReadFile(n.conf.ServiceKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read service key from file: %w", fileErr)
+			return ctx, false, fmt.Errorf("failed to read service key from file: %w", fileErr)
 		}
 		serviceKey = strings.TrimSpace(string(content))
 	}
@@ -183,26 +183,27 @@ func (n *Notifier) notifyV1(
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v1 message: %w", tmplErr)
+		return ctx, false, fmt.Errorf("failed to template PagerDuty v1 message: %w", tmplErr)
 	}
 
 	// Ensure that the service key isn't empty after templating.
 	if msg.ServiceKey == "" {
-		return false, errors.New("service key cannot be empty")
+		return ctx, false, errors.New("service key cannot be empty")
 	}
 
 	encodedMsg, err := n.encodeMessage(msg)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encodedMsg)
 	if err != nil {
-		return true, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
+		return ctx, true, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, resp.Body)
+	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	return ctx, retry, err
 }
 
 func (n *Notifier) notifyV2(
@@ -212,7 +213,7 @@ func (n *Notifier) notifyV2(
 	data *template.Data,
 	details map[string]string,
 	as ...*types.Alert,
-) (bool, error) {
+) (context.Context, bool, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
@@ -229,7 +230,7 @@ func (n *Notifier) notifyV2(
 	if routingKey == "" {
 		content, fileErr := os.ReadFile(n.conf.RoutingKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read routing key from file: %w", fileErr)
+			return ctx, false, fmt.Errorf("failed to read routing key from file: %w", fileErr)
 		}
 		routingKey = strings.TrimSpace(string(content))
 	}
@@ -277,37 +278,37 @@ func (n *Notifier) notifyV2(
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v2 message: %w", tmplErr)
+		return ctx, false, fmt.Errorf("failed to template PagerDuty v2 message: %w", tmplErr)
 	}
 
 	// Ensure that the routing key isn't empty after templating.
 	if msg.RoutingKey == "" {
-		return false, errors.New("routing key cannot be empty")
+		return ctx, false, errors.New("routing key cannot be empty")
 	}
 
 	encodedMsg, err := n.encodeMessage(msg)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encodedMsg)
 	if err != nil {
-		return true, fmt.Errorf("failed to post message to PagerDuty: %w", err)
+		return ctx, true, fmt.Errorf("failed to post message to PagerDuty: %w", err)
 	}
 	defer notify.Drain(resp)
 
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return ctx, retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
-	return retry, err
+	return ctx, retry, err
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (context.Context, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
 	var (
@@ -325,7 +326,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	for k, v := range n.conf.Details {
 		detail, err := n.tmpl.ExecuteTextString(v, data)
 		if err != nil {
-			return false, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
+			return ctx, false, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
 		}
 		details[k] = detail
 	}

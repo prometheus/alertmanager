@@ -40,7 +40,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Message: `{{ template "webex.default.message" . }}`,
+		Message:  `{{ template "webex.default.message" . }}`,
+		Threaded: false,
 	}
 
 	// DefaultDiscordConfig defines default values for Discord configurations.
@@ -220,8 +221,9 @@ type WebexConfig struct {
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
-	RoomID  string `yaml:"room_id" json:"room_id"`
+	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID   string `yaml:"room_id" json:"room_id"`
+	Threaded bool   `yaml:"threaded,omitempty" json:"threaded,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

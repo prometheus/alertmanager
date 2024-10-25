@@ -183,7 +183,7 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 
 	email := New(cfg, tmpl, log.NewNopLogger())
 
-	retry, err := email.Notify(ctx, firingAlert)
+	ctx, retry, err := email.Notify(ctx, firingAlert)
 	if err != nil {
 		return nil, retry, err
 	}
