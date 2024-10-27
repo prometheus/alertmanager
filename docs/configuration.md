@@ -1633,7 +1633,7 @@ this feature.
 ### `<wechat_config>`
 
 WeChat notifications are sent via the [WeChat
-API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
+API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html).
 
 ```yaml
 # Whether to notify about resolved alerts.
