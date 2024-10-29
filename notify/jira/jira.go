@@ -28,7 +28,6 @@ import (
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/trivago/tgo/tcontainer"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -120,17 +119,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
-func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger log.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
 		return issue{}, fmt.Errorf("summary template: %w", err)
 	}
 
-	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
-	// doesn't blow up when marshaling JIRA requests.
-	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
-	if err != nil {
-		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
+	fields := make(map[string]any)
+	for name, field := range n.conf.Fields {
+		templatedFieldValue, err := tmplTextFunc(field)
+		if err != nil {
+			return issue{}, fmt.Errorf("field %q template: %w", name, err)
+		}
+
+		parsedValue, err := n.unmarshalField(templatedFieldValue)
+		if err != nil {
+			return issue{}, fmt.Errorf("field %q conversion: %w", name, err)
+		}
+
+		fields[name] = parsedValue
 	}
 
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
@@ -143,7 +150,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 		Issuetype: &idNameValue{Name: n.conf.IssueType},
 		Summary:   summary,
 		Labels:    make([]string, 0, len(n.conf.Labels)+1),
-		Fields:    fieldsWithStringKeys,
+		Fields:    fields,
 	}}
 
 	issueDescriptionString, err := tmplTextFunc(n.conf.Description)
@@ -172,6 +179,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 		}
 		requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
 	}
+
 	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
 	sort.Strings(requestBody.Fields.Labels)
 
@@ -185,6 +193,74 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 	}
 
 	return requestBody, nil
+}
+
+func (n *Notifier) unmarshalField(fieldValue any) (any, error) {
+	// Handle type based on input directly without casting to string
+	switch fieldValueTyped := fieldValue.(type) {
+	case string:
+		if len(fieldValueTyped) == 0 {
+			return fieldValueTyped, nil
+		}
+
+		// Try to parse as JSON. This includes the handling of strings, numbers, arrays, and maps.
+		var parsedJSON any
+		if err := json.Unmarshal([]byte(fieldValueTyped), &parsedJSON); err == nil {
+			// if the JSON is a string, return it as a string.
+			// Otherwise, numeric values inside strings are converted to float64.
+			if parsedString, ok := parsedJSON.(string); ok {
+				return parsedString, nil
+			}
+
+			return n.unmarshalField(parsedJSON)
+		}
+
+		// If no type conversion was possible, keep it as a string
+		return fieldValueTyped, nil
+	case []any:
+		// Handle arrays by recursively parsing each element
+		fieldValues := make([]any, len(fieldValueTyped))
+		for i, elem := range fieldValueTyped {
+			// if the JSON is a string, return it as a string.
+			// Otherwise, numeric values inside strings are converted to float64.
+			if v, ok := elem.(string); ok {
+				fieldValues[i] = v
+				continue
+			}
+
+			parsedElem, err := n.unmarshalField(elem)
+			if err != nil {
+				return nil, err
+			}
+
+			fieldValues[i] = parsedElem
+		}
+
+		return fieldValues, nil
+	case map[string]any:
+		// Handle maps by recursively parsing each value
+		for key, val := range fieldValueTyped {
+			// if the JSON is a string, return it as a string.
+			// Otherwise, numeric values inside strings are converted to float64.
+			if stringVal, ok := val.(string); ok {
+				fieldValueTyped[key] = stringVal
+
+				continue
+			}
+
+			parsedVal, err := n.unmarshalField(val)
+			if err != nil {
+				return nil, err
+			}
+
+			fieldValueTyped[key] = parsedVal
+		}
+
+		return fieldValueTyped, nil
+	default:
+		// Return the value as-is if no specific handling is required
+		return fieldValueTyped, nil
+	}
 }
 
 func (n *Notifier) searchExistingIssue(ctx context.Context, logger log.Logger, groupID string, firing bool) (*issue, bool, error) {

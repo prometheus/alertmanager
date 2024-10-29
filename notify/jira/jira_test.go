@@ -218,16 +218,19 @@ func TestJiraNotify(t *testing.T) {
 				Project:     "OPS",
 				Priority:    `{{ template "jira.default.priority" . }}`,
 				Labels:      []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
-				Fields: map[string]any{
-					"components":        map[any]any{"name": "Monitoring"},
-					"customfield_10001": "value",
-					"customfield_10002": 0,
-					"customfield_10003": []any{0},
-					"customfield_10004": map[any]any{"value": "red"},
-					"customfield_10005": map[any]any{"value": 0},
-					"customfield_10006": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
-					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
-					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
+				Fields: map[string]string{
+					"components":        `{"name": "Monitoring"}`,
+					"customfield_10001": `value`,
+					"customfield_10002": `0`,
+					"customfield_10003": `"0"`,
+					"customfield_10004": `[0]`,
+					"customfield_10005": `["0"]`,
+					"customfield_10006": `{"value": "red"}`,
+					"customfield_10007": `{"value": 0}`,
+					"customfield_10008": `[{"value": "red"}, {"value": "blue"}, {"value": "green"}]`,
+					"customfield_10009": `[{"value": "red"}, {"value": "blue"}, {"value": 0}]`,
+					"customfield_10010": `[{"value": 0}, {"value": 1}, {"value": 2}]`,
+					"customfield_10011": `[{"value": {{ .Alerts.Firing | len }} }]`,
 				},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
@@ -261,12 +264,15 @@ func TestJiraNotify(t *testing.T) {
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
 				require.Equal(t, "value", issue["customfield_10001"])
 				require.Equal(t, float64(0), issue["customfield_10002"])
-				require.Equal(t, []any{float64(0)}, issue["customfield_10003"])
-				require.Equal(t, map[string]any{"value": "red"}, issue["customfield_10004"])
-				require.Equal(t, map[string]any{"value": float64(0)}, issue["customfield_10005"])
-				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": "green"}}, issue["customfield_10006"])
-				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": float64(0)}}, issue["customfield_10007"])
-				require.Equal(t, []any{map[string]any{"value": float64(0)}, map[string]any{"value": float64(1)}, map[string]any{"value": float64(2)}}, issue["customfield_10008"])
+				require.Equal(t, "0", issue["customfield_10003"])
+				require.Equal(t, []any{float64(0)}, issue["customfield_10004"])
+				require.Equal(t, []any{"0"}, issue["customfield_10005"])
+				require.Equal(t, map[string]any{"value": "red"}, issue["customfield_10006"])
+				require.Equal(t, map[string]any{"value": float64(0)}, issue["customfield_10007"])
+				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": "green"}}, issue["customfield_10008"])
+				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": float64(0)}}, issue["customfield_10009"])
+				require.Equal(t, []any{map[string]any{"value": float64(0)}, map[string]any{"value": float64(1)}, map[string]any{"value": float64(2)}}, issue["customfield_10010"])
+				require.Equal(t, []any{map[string]any{"value": float64(1)}}, issue["customfield_10011"])
 			},
 			errMsg: "",
 		},
@@ -563,9 +569,6 @@ func TestJiraNotify(t *testing.T) {
 					}
 
 					w.WriteHeader(http.StatusCreated)
-
-					w.WriteHeader(http.StatusCreated)
-
 				default:
 					t.Fatalf("unexpected path %s", r.URL.Path)
 				}
