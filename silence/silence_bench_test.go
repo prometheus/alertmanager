@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -74,7 +74,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	require.Len(b, silenceIDs, n)
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(silences, m, log.NewNopLogger())
+	s := NewSilencer(silences, m, promslog.NewNopLogger())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
