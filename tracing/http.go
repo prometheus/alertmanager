@@ -30,7 +30,7 @@ import (
 func Transport(rt http.RoundTripper, name string) http.RoundTripper {
 	rt = otelhttp.NewTransport(rt,
 		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
-			return otelhttptrace.NewClientTrace(ctx)
+			return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
 		}),
 		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
 			return name + "/HTTP " + r.Method
