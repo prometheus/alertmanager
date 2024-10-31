@@ -242,7 +242,6 @@ func TestShutdown(t *testing.T) {
 	// Sleeping to make sure listeners have started and can subsequently be shut down gracefully.
 	time.Sleep(500 * time.Millisecond)
 	err := t1.Shutdown()
-	fmt.Printf("TJ DEBUG | buffer is: %s\n", buf.String())
 	require.NoError(t, err)
 	require.NotContains(t, buf.String(), "use of closed network connection")
 	require.Contains(t, buf.String(), "shutting down tls transport")
