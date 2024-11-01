@@ -110,7 +110,7 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	for i, c := range nc.RocketchatConfigs {
 		add("rocketchat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return rocketchat.New(c, tmpl, l, httpOpts...) })
 	}
-	for i,c:= range nc.MattermostConfigs {
+	for i, c := range nc.MattermostConfigs {
 		add("mattermost", i, c, func(l log.Logger) (notify.Notifier, error) { return mattermost.New(c, tmpl, l, httpOpts...) })
 	}
 
