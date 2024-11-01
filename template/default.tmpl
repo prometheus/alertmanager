@@ -217,3 +217,14 @@ Alerts Resolved:
 {{ define "rocketchat.default.emoji" }}{{ end }}
 {{ define "rocketchat.default.iconurl" }}{{ end }}
 {{ define "rocketchat.default.text" }}{{ end }}
+
+{{ define "mattermost.default.text" }}
+{{ if gt (len .Alerts.Firing) 0 }}
+# Alerts Firing:
+{{ template "__text_alert_list_markdown" .Alerts.Firing }}
+{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 }}
+# Alerts Resolved:
+{{ template "__text_alert_list_markdown" .Alerts.Resolved }}
+{{ end }}
+{{ end }}

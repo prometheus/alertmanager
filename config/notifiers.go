@@ -203,6 +203,13 @@ var (
 		Description: `{{ template "jira.default.description" . }}`,
 		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
+
+	DefaultMattermostConfig = MattermostConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Text: `{{ template "mattermost.default.text" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -990,5 +997,100 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if c.TokenID != nil && len(c.TokenIDFile) > 0 {
 		return errors.New("at most one of token_id & token_id_file must be configured")
 	}
+	return nil
+}
+
+// MattermostPriority defines the priority for a mattermost notification.
+type MattermostPriority struct {
+	Priority                string `yaml:"priority,omitempty" json:"priority,omitempty"`
+	RequestedAck            bool   `yaml:"requested_ack,omitempty" json:"requested_ack,omitempty"`
+	PersistentNotifications bool   `yaml:"persistent_notifications,omitempty" json:"persistent_notifications,omitempty"`
+}
+
+// MattermostProps defines additional properties for a mattermost notification.
+// Only 'card' property takes effect now.
+type MattermostProps struct {
+	Card string `yaml:"card,omitempty" json:"card,omitempty"`
+}
+
+// MattermostField configures a single Mattermost field for Slack compatibility.
+// See https://developers.mattermost.com/integrate/reference/message-attachments/#fields for more information.
+type MattermostField struct {
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Value string `yaml:"value,omitempty" json:"value,omitempty"`
+	Short *bool  `yaml:"short,omitempty" json:"short,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MattermostField.
+func (c *MattermostField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MattermostField
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Title == "" {
+		return errors.New("missing title in Mattermost field configuration")
+	}
+	if c.Value == "" {
+		return errors.New("missing value in Mattermost field configuration")
+	}
+	return nil
+}
+
+// MattermostAttachment defines an attachment for a Mattermost notification.
+// See https://developers.mattermost.com/integrate/reference/message-attachments/#fields for more information.
+type MattermostAttachment struct {
+	Fallback   string             `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	Color      string             `yaml:"color,omitempty" json:"color,omitempty"`
+	Pretext    string             `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text       string             `yaml:"text,omitempty" json:"text,omitempty"`
+	AuthorName string             `yaml:"author_name,omitempty" json:"author_name,omitempty"`
+	AuthorLink string             `yaml:"author_link,omitempty" json:"author_link,omitempty"`
+	AuthorIcon string             `yaml:"author_icon,omitempty" json:"author_icon,omitempty"`
+	Title      string             `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink  string             `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Fields     []*MattermostField `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ThumbURL   string             `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
+	Footer     string             `yaml:"footer,omitempty" json:"footer,omitempty"`
+	FooterIcon string             `yaml:"footer_icon,omitempty" json:"footer_icon,omitempty"`
+	ImageURL   string             `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+}
+
+// MattermostConfig configures notifications via Mattermost.
+// See https://developers.mattermost.com/integrate/webhooks/incoming/ for more information.
+type MattermostConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
+
+	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	Text        string                  `yaml:"text,omitempty" json:"text,omitempty"`
+	IconURL     string                  `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	IconEmoji   string                  `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	Attachments []*MattermostAttachment `yaml:"attachments,omitempty" json:"attachments,omitempty"`
+	Type        string                  `yaml:"type,omitempty" json:"type,omitempty"`
+	Props       *MattermostProps        `yaml:"props,omitempty" json:"props,omitempty"`
+	Priority    *MattermostPriority     `yaml:"priority,omitempty" json:"priority,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *MattermostConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMattermostConfig
+	type plain MattermostConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.WebhookURL == nil && c.WebhookURLFile == "" {
+		return errors.New("one of webhook_url or webhook_url_file must be configured")
+	}
+
+	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
+		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
 	return nil
 }
