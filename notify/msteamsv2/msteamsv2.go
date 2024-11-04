@@ -166,6 +166,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 						{
 							Type: "TextBlock",
 							Text: text,
+							Wrap: true,
 						},
 					},
 				},
