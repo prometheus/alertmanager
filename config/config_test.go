@@ -872,14 +872,15 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPTLSConfig: &commoncfg.TLSConfig{
 				InsecureSkipVerify: false,
 			},
-			SlackAPIURL:     (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			SMTPRequireTLS:  true,
-			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
-			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
-			WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
+			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
+			SMTPRequireTLS:   true,
+			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
+			WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
+			RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
 		},
 
 		Templates: []string{
@@ -1200,6 +1201,100 @@ func TestInvalidSNSConfig(t *testing.T) {
 	const expectedErr = `must provide either a Target ARN, Topic ARN, or Phone Number for SNS config`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
+}
+
+func TestRocketchatDefaultToken(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.rocketchat-default-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.rocketchat-default-token.yml", err)
+	}
+
+	defaultToken := conf.Global.RocketchatToken
+	overrideToken := Secret("token456")
+	if defaultToken != conf.Receivers[0].RocketchatConfigs[0].Token {
+		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(*defaultToken))
+	}
+	if overrideToken != *conf.Receivers[1].RocketchatConfigs[0].Token {
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(overrideToken))
+	}
+}
+
+func TestRocketchatDefaultTokenID(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.rocketchat-default-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.rocketchat-default-token.yml", err)
+	}
+
+	defaultTokenID := conf.Global.RocketchatTokenID
+	overrideTokenID := Secret("id456")
+	if defaultTokenID != conf.Receivers[0].RocketchatConfigs[0].TokenID {
+		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(*defaultTokenID))
+	}
+	if overrideTokenID != *conf.Receivers[1].RocketchatConfigs[0].TokenID {
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(overrideTokenID))
+	}
+}
+
+func TestRocketchatDefaultTokenFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.rocketchat-default-token-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.rocketchat-default-token-file.yml", err)
+	}
+
+	defaultTokenFile := conf.Global.RocketchatTokenFile
+	overrideTokenFile := "/override_file"
+	if defaultTokenFile != conf.Receivers[0].RocketchatConfigs[0].TokenFile {
+		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, defaultTokenFile)
+	}
+	if overrideTokenFile != conf.Receivers[1].RocketchatConfigs[0].TokenFile {
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, overrideTokenFile)
+	}
+}
+
+func TestRocketchatDefaultIDTokenFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.rocketchat-default-token-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.rocketchat-default-token-file.yml", err)
+	}
+
+	defaultTokenIDFile := conf.Global.RocketchatTokenIDFile
+	overrideTokenIDFile := "/override_file"
+	if defaultTokenIDFile != conf.Receivers[0].RocketchatConfigs[0].TokenIDFile {
+		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, defaultTokenIDFile)
+	}
+	if overrideTokenIDFile != conf.Receivers[1].RocketchatConfigs[0].TokenIDFile {
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, overrideTokenIDFile)
+	}
+}
+
+func TestRocketchatBothTokenAndTokenFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.rocketchat-both-token-and-tokenfile.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.rocketchat-both-token-and-tokenfile.yml", err)
+	}
+	if err.Error() != "at most one of rocketchat_token & rocketchat_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of rocketchat_token & rocketchat_token_file must be configured", err.Error())
+	}
+}
+
+func TestRocketchatBothTokenIDAndTokenIDFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.rocketchat-both-tokenid-and-tokenidfile.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.rocketchat-both-tokenid-and-tokenidfile.yml", err)
+	}
+	if err.Error() != "at most one of rocketchat_token_id & rocketchat_token_id_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of rocketchat_token_id & rocketchat_token_id_file must be configured", err.Error())
+	}
+}
+
+func TestRocketchatNoToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.rocketchat-no-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.rocketchat-no-token.yml", err)
+	}
+	if err.Error() != "no global Rocketchat Token set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Rocketchat Token set either inline or in a file", err.Error())
 	}
 }
 
