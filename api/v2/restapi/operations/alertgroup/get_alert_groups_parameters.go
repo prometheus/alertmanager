@@ -39,6 +39,7 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 		activeDefault = bool(true)
 
 		inhibitedDefault = bool(true)
+		mutedDefault     = bool(true)
 
 		silencedDefault = bool(true)
 	)
@@ -47,6 +48,8 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 		Active: &activeDefault,
 
 		Inhibited: &inhibitedDefault,
+
+		Muted: &mutedDefault,
 
 		Silenced: &silencedDefault,
 	}
@@ -76,6 +79,11 @@ type GetAlertGroupsParams struct {
 	  Default: true
 	*/
 	Inhibited *bool
+	/*Show muted alerts
+	  In: query
+	  Default: true
+	*/
+	Muted *bool
 	/*A regex matching receivers to filter alerts by
 	  In: query
 	*/
@@ -110,6 +118,11 @@ func (o *GetAlertGroupsParams) BindRequest(r *http.Request, route *middleware.Ma
 
 	qInhibited, qhkInhibited, _ := qs.GetOK("inhibited")
 	if err := o.bindInhibited(qInhibited, qhkInhibited, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qMuted, qhkMuted, _ := qs.GetOK("muted")
+	if err := o.bindMuted(qMuted, qhkMuted, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -194,6 +207,30 @@ func (o *GetAlertGroupsParams) bindInhibited(rawData []string, hasKey bool, form
 		return errors.InvalidType("inhibited", "query", "bool", raw)
 	}
 	o.Inhibited = &value
+
+	return nil
+}
+
+// bindMuted binds and validates parameter Muted from query.
+func (o *GetAlertGroupsParams) bindMuted(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetAlertGroupsParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("muted", "query", "bool", raw)
+	}
+	o.Muted = &value
 
 	return nil
 }
