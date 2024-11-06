@@ -16,13 +16,14 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
 
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
@@ -70,7 +71,7 @@ type Options struct {
 	// the concurrency limit.
 	Concurrency int
 	// Logger is used for logging, if nil, no logging will happen.
-	Logger log.Logger
+	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
 	Registry prometheus.Registerer
@@ -107,7 +108,7 @@ func New(opts Options) (*API, error) {
 	}
 	l := opts.Logger
 	if l == nil {
-		l = log.NewNopLogger()
+		l = promslog.NewNopLogger()
 	}
 	concurrency := opts.Concurrency
 	if concurrency < 1 {
@@ -124,7 +125,7 @@ func New(opts Options) (*API, error) {
 		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
-		log.With(l, "version", "v2"),
+		l.With("version", "v2"),
 		opts.Registry,
 	)
 	if err != nil {
@@ -153,7 +154,7 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		deprecationRouter:        NewV1DeprecationRouter(log.With(l, "version", "v1")),
+		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,

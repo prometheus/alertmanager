@@ -19,12 +19,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -38,7 +37,7 @@ const maxTitleLenRunes = 1024
 type Notifier struct {
 	conf    *config.RocketchatConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 	token   string
@@ -88,7 +87,7 @@ func (t *rocketchatRoundTripper) RoundTrip(req *http.Request) (res *http.Respons
 }
 
 // New returns a new Rocketchat notification handler.
-func New(c *config.RocketchatConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.RocketchatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "rocketchat", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -157,7 +156,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+		n.logger.Warn("Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	att := &Attachment{
 		Title:     title,

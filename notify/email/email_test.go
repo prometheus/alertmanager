@@ -42,9 +42,9 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 
 	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#T.FailNow
 	"github.com/stretchr/testify/assert"
@@ -181,7 +181,7 @@ func notifyEmailWithContext(ctx context.Context, cfg *config.EmailConfig, server
 		return nil, false, err
 	}
 
-	email := New(cfg, tmpl, log.NewNopLogger())
+	email := New(cfg, tmpl, promslog.NewNopLogger())
 
 	retry, err := email.Notify(ctx, firingAlert)
 	if err != nil {
@@ -627,7 +627,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 
 func TestEmailConfigNoAuthMechs(t *testing.T) {
 	email := &Email{
-		conf: &config.EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+		conf: &config.EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
 	_, err := email.auth("")
 	require.Error(t, err)
@@ -637,7 +637,7 @@ func TestEmailConfigNoAuthMechs(t *testing.T) {
 func TestEmailConfigMissingAuthParam(t *testing.T) {
 	conf := &config.EmailConfig{AuthUsername: "test"}
 	email := &Email{
-		conf: conf, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+		conf: conf, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
 	_, err := email.auth("CRAM-MD5")
 	require.Error(t, err)
@@ -658,7 +658,7 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 
 func TestEmailNoUsernameStillOk(t *testing.T) {
 	email := &Email{
-		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
 	a, err := email.auth("CRAM-MD5")
 	require.NoError(t, err)
@@ -722,7 +722,7 @@ func TestEmailRejected(t *testing.T) {
 	tmpl, firingAlert, err := prepare(cfg)
 	require.NoError(t, err)
 
-	e := New(cfg, tmpl, log.NewNopLogger())
+	e := New(cfg, tmpl, promslog.NewNopLogger())
 
 	// Send the alert to mock SMTP server.
 	retry, err := e.Notify(context.Background(), firingAlert)

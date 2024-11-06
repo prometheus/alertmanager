@@ -28,6 +28,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
@@ -39,8 +40,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	"github.com/go-kit/log"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -192,7 +191,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		api := API{
 			uptime:   time.Now(),
 			silences: silences,
-			logger:   log.NewNopLogger(),
+			logger:   promslog.NewNopLogger(),
 		}
 
 		r, err := http.NewRequest("DELETE", "/api/v2/silence/${tc.sid}", nil)
@@ -274,7 +273,7 @@ func TestPostSilencesHandler(t *testing.T) {
 				api := API{
 					uptime:   time.Now(),
 					silences: silences,
-					logger:   log.NewNopLogger(),
+					logger:   promslog.NewNopLogger(),
 				}
 
 				sil := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
@@ -293,7 +292,7 @@ func TestPostSilencesHandlerMissingIdCreatesSilence(t *testing.T) {
 	api := API{
 		uptime:   time.Now(),
 		silences: silences,
-		logger:   log.NewNopLogger(),
+		logger:   promslog.NewNopLogger(),
 	}
 
 	// Create a new silence. It should be assigned a random UUID.
@@ -557,7 +556,7 @@ receivers:
 	cfg, _ := config.Load(in)
 	api := API{
 		uptime:             time.Now(),
-		logger:             log.NewNopLogger(),
+		logger:             promslog.NewNopLogger(),
 		alertmanagerConfig: cfg,
 	}
 
