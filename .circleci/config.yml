@@ -2,7 +2,7 @@
 version: 2.1
 orbs:
   prometheus: prometheus/prometheus@0.17.1
-  go: circleci/go@1.11.0
+  go: circleci/go@1.12.0
 jobs:
   test_frontend:
     # We need to use a machine executor because the front-end validation runs
@@ -18,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.22.6"
+          version: "1.23.2"
       - run:
           name: Remove generated code
           command: make clean

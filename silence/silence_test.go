@@ -25,11 +25,11 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
@@ -298,7 +298,7 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := quartz.NewMock(t)
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
+	s := &Silences{st: state{}, logger: promslog.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
 	done := make(chan struct{})
@@ -319,7 +319,7 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	require.NoError(t, err, "creating temp file failed")
 	clock := quartz.NewMock(t)
 	reg := prometheus.NewRegistry()
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock}
+	s := &Silences{st: state{}, logger: promslog.NewNopLogger(), clock: clock}
 	s.metrics = newMetrics(reg, s)
 	stopc := make(chan struct{})
 
@@ -428,8 +428,10 @@ func TestSilenceSet(t *testing.T) {
 		StartsAt: start1.Add(2 * time.Minute),
 		EndsAt:   start1.Add(5 * time.Minute),
 	}
+	versionBeforeOp := s.Version()
 	require.NoError(t, s.Set(sil1))
 	require.NotEqual(t, "", sil1.Id)
+	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	want := state{
 		sil1.Id: &pb.MeshSilence{
@@ -453,8 +455,10 @@ func TestSilenceSet(t *testing.T) {
 		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
 		EndsAt:   start2.Add(1 * time.Minute),
 	}
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil2))
 	require.NotEqual(t, "", sil2.Id)
+	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	want = state{
 		sil1.Id: want[sil1.Id],
@@ -474,15 +478,19 @@ func TestSilenceSet(t *testing.T) {
 	// Should be able to update silence without modifications. It is expected to
 	// keep the same ID.
 	sil3 := cloneSilence(sil2)
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil3))
 	require.Equal(t, sil2.Id, sil3.Id)
+	require.Equal(t, versionBeforeOp, s.Version())
 
 	// Should be able to update silence with comment. It is also expected to
 	// keep the same ID.
 	sil4 := cloneSilence(sil3)
 	sil4.Comment = "c"
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil4))
 	require.Equal(t, sil3.Id, sil4.Id)
+	require.Equal(t, versionBeforeOp, s.Version())
 
 	// Extend sil4 to expire at a later time. This should not expire the
 	// existing silence, and so should also keep the same ID.
@@ -490,6 +498,7 @@ func TestSilenceSet(t *testing.T) {
 	start5 := s.nowUTC()
 	sil5 := cloneSilence(sil4)
 	sil5.EndsAt = start5.Add(100 * time.Minute)
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil5))
 	require.Equal(t, sil4.Id, sil5.Id)
 	want = state{
@@ -507,6 +516,7 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, versionBeforeOp, s.Version())
 
 	// Replace the silence sil5 with another silence with different matchers.
 	// Unlike previous updates, changing the matchers for an existing silence
@@ -518,6 +528,7 @@ func TestSilenceSet(t *testing.T) {
 
 	sil6 := cloneSilence(sil5)
 	sil6.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil6))
 	require.NotEqual(t, sil5.Id, sil6.Id)
 	want = state{
@@ -546,6 +557,7 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	// Re-create the silence that we just replaced. Changing the start time,
 	// just like changing the matchers, creates a new silence with a different
@@ -555,6 +567,7 @@ func TestSilenceSet(t *testing.T) {
 	sil7 := cloneSilence(sil5)
 	sil7.StartsAt = start1
 	sil7.EndsAt = start1.Add(5 * time.Minute)
+	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil7))
 	require.NotEqual(t, sil2.Id, sil7.Id)
 	want = state{
@@ -574,12 +587,14 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	// Updating an existing silence with an invalid silence should not expire
 	// the original silence.
 	clock.Advance(time.Millisecond)
 	sil8 := cloneSilence(sil7)
 	sil8.EndsAt = time.Time{}
+	versionBeforeOp = s.Version()
 	require.EqualError(t, s.Set(sil8), "invalid silence: invalid zero end timestamp")
 
 	// sil7 should not be expired because the update failed.
@@ -587,6 +602,7 @@ func TestSilenceSet(t *testing.T) {
 	sil7, err = s.QueryOne(QIDs(sil7.Id))
 	require.NoError(t, err)
 	require.Equal(t, types.SilenceStateActive, getState(sil7, s.nowUTC()))
+	require.Equal(t, versionBeforeOp, s.Version())
 }
 
 func TestSilenceLimits(t *testing.T) {
@@ -1362,7 +1378,7 @@ func TestSilencer(t *testing.T) {
 	now := ss.nowUTC()
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, log.NewNopLogger())
+	s := NewSilencer(ss, m, promslog.NewNopLogger())
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
@@ -1602,14 +1618,14 @@ func TestValidateUTF8Matcher(t *testing.T) {
 	}
 
 	// Change the mode to UTF-8 mode.
-	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
 	require.NoError(t, err)
-	compat.InitFromFlags(log.NewNopLogger(), ff)
+	compat.InitFromFlags(promslog.NewNopLogger(), ff)
 
 	// Restore the mode to classic at the end of the test.
-	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
 	require.NoError(t, err)
-	defer compat.InitFromFlags(log.NewNopLogger(), ff)
+	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
 
 	for _, c := range cases {
 		checkErr(t, c.err, validateMatcher(c.m))

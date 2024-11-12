@@ -18,12 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -40,13 +39,13 @@ const maxMessageLenRunes = 130
 type Notifier struct {
 	conf    *config.OpsGenieConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new OpsGenie notifier.
-func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -135,7 +134,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	level.Debug(n.logger).Log("alert", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
@@ -175,7 +174,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	default:
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
-			level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
+			n.logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()

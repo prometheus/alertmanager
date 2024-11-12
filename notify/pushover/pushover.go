@@ -16,14 +16,13 @@ package pushover
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,14 +44,14 @@ const (
 type Notifier struct {
 	conf    *config.PushoverConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 	apiURL  string // for tests.
 }
 
 // New returns a new Pushover notifier.
-func New(c *config.PushoverConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -75,7 +74,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	level.Debug(n.logger).Log("incident", key)
+	// @tjhop: should this use `group` for the keyval like most other notify implementations?
+	n.logger.Debug("extracted group key", "incident", key)
 
 	var (
 		err     error
@@ -113,7 +113,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
+		n.logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
 	}
 	parameters.Add("title", title)
 
@@ -126,7 +126,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
+		n.logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -137,7 +137,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
+		n.logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))
@@ -163,7 +163,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
-	level.Debug(n.logger).Log("msg", "Sending message", "incident", key)
+	n.logger.Debug("Sending message", "incident", key)
 	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
 	if err != nil {
 		return true, notify.RedactURL(err)

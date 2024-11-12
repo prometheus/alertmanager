@@ -1,3 +1,36 @@
+## 0.28.0-rc.0 / 2024-10-24
+
+* [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
+* [FEATURE] Add a new Microsoft Teams integration based on Flows #4024
+* [FEATURE] Add a new Rocket.Chat integration #3600
+* [FEATURE] Add a new Jira integration #3590 #3931
+* [FEATURE] Add support for `GOMEMLIMIT`, enable it via the feature flag `--enable-feature=auto-gomemlimit`. #3895
+* [FEATURE] Add support for `GOMAXPROCS`, enable it via the feature flag `--enable-feature=auto-gomaxprocs`. #3837
+* [FEATURE] Add support for limits of silences including the maximum number of active and pending silences, and the maximum size per silence (in bytes). You can use the flags `--silences.max-silences` and `--silences.max-silence-size-bytes` to set them accordingly #3852 #3862 #3866 #3885 #3886 #3877
+* [FEATURE] Muted alerts now show whether they are suppressed or not in both the `/api/v2/alerts` endpoint and the Alertmanager UI. #3793 #3797 #3792
+* [ENHANCEMENT] Add support for `content`, `username` and `avatar_url` in the Discord integration. `content` and `username` also support templating. #4007
+* [ENHANCEMENT] Only invalidate the silences cache if a new silence is created or an existing silence replaced - should improve latency on both `GET api/v2/alerts` and `POST api/v2/alerts` API endpoint. #3961
+* [ENHANCEMENT] Add image source label to Dockerfile. To get changelogs shown when using Renovate #4062
+* [ENHANCEMENT] Build using go 1.23 #4071
+* [ENHANCEMENT] Support setting a global SMTP TLS configuration. #3732
+* [ENHANCEMENT] The setting `room_id` in the WebEx integration can now be templated to allow for dynamic room IDs. #3801
+* [ENHANCEMENT] Enable setting `message_thread_id` for the Telegram integration. #3638
+* [ENHANCEMENT] Support the `since` and `humanizeDuration` functions to templates. This means users can now format time to more human-readable text. #3863
+* [ENHANCEMENT] Support the `date` and `tz` functions to templates. This means users can now format time in a specified format and also change the timezone to their specific locale. #3812
+* [ENHANCEMENT] Latency metrics now support native histograms. #3737
+* [BUGFIX] Fix the SMTP integration not correctly closing an SMTP submission, which may lead to unsuccessful dispatches being marked as successful. #4006
+* [BUGFIX]  The `ParseMode` option is now set explicitly in the Telegram integration. If we don't HTML tags had not been parsed by default. #4027
+* [BUGFIX] Fix a memory leak that was caused by updates silences continuously. #3930
+* [BUGFIX] Fix hiding secret URLs when the URL is incorrect. #3887
+* [BUGFIX] Fix a race condition in the alerts - it was more of a hypothetical race condition that could have occurred in the alert reception pipeline. #3648
+* [BUGFIX] Fix a race condition in the alert delivery pipeline that would cause a firing alert that was delivered earlier to be deleted from the aggregation group when instead it should have been delivered again. #3826
+* [BUGFIX] Fix version in APIv1 deprecation notice. #3815
+* [BUGFIX] Fix crash errors when using `url_file` in the Webhook integration. #3800
+* [BUGFIX] fix `Route.ID()` returns conflicting IDs. #3803
+* [BUGFIX] Fix deadlock on the alerts memory store. #3715
+* [BUGFIX] Fix `amtool template render` when using the default values. #3725
+* [BUGFIX] Fix `webhook_url_file` for both the Discord and Microsoft Teams integrations. #3728 #3745
+
 ## 0.27.0 / 2024-02-28
 
 * [CHANGE] Discord Integration: Enforce max length in `message`. #3597

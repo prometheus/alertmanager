@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,7 +86,7 @@ func TestExternalURL(t *testing.T) {
 			}
 		}
 		t.Run(fmt.Sprintf("external=%q,listen=%q", tc.external, tc.listen), func(t *testing.T) {
-			u, err := extURL(log.NewNopLogger(), tc.hostnameResolver, tc.listen, tc.external)
+			u, err := extURL(promslog.NewNopLogger(), tc.hostnameResolver, tc.listen, tc.external)
 			if tc.err {
 				require.Error(t, err)
 				return

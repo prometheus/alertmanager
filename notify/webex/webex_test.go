@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -44,7 +44,7 @@ func TestWebexRetry(t *testing.T) {
 			APIURL:     &config.URL{URL: testWebhookURL},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -123,7 +123,7 @@ func TestWebexTemplating(t *testing.T) {
 
 			tt.cfg.APIURL = &config.URL{URL: u}
 			tt.cfg.HTTPConfig = tt.commonCfg
-			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

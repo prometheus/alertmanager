@@ -223,6 +223,11 @@ paths:
           type: boolean
           description: Show inhibited alerts
           default: true
+        - in: query
+          name: muted
+          type: boolean
+          description: Show muted alerts
+          default: true
         - name: filter
           in: query
           description: A list of matchers to filter alerts by
@@ -501,10 +506,15 @@ definitions:
         type: array
         items:
           type: string
+      mutedBy:
+        type: array
+        items:
+          type: string
     required:
       - state
       - silencedBy
       - inhibitedBy
+      - mutedBy
   receiver:
     type: object
     properties:

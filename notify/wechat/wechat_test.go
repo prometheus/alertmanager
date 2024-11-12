@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -39,7 +39,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 			APISecret:  config.Secret(secret),
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -61,7 +61,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 			APISecret:  config.Secret(secret),
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 			MessageType: "markdown",
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 

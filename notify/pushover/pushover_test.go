@@ -18,8 +18,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -32,7 +32,7 @@ func TestPushoverRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
@@ -53,7 +53,7 @@ func TestPushoverRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiURL = u.String()
@@ -78,7 +78,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)

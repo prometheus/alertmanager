@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -184,7 +184,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	r := prometheus.NewRegistry()
 	m := types.NewMarker(r)
-	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, nil, log.NewNopLogger(), r)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, nil, promslog.NewNopLogger(), r)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, log.NewNopLogger())
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
 

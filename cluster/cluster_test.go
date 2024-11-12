@@ -18,11 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 )
 
 func TestClusterJoinAndReconnect(t *testing.T) {
@@ -39,7 +39,7 @@ func TestClusterJoinAndReconnect(t *testing.T) {
 }
 
 func testJoinLeave(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -110,7 +110,7 @@ func testJoinLeave(t *testing.T) {
 }
 
 func testReconnect(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -177,7 +177,7 @@ func testReconnect(t *testing.T) {
 }
 
 func testRemoveFailedPeers(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -227,7 +227,7 @@ func testRemoveFailedPeers(t *testing.T) {
 }
 
 func testInitiallyFailingPeers(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	myAddr := "1.2.3.4:5000"
 	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000", "foo.example.com:5000"}
 	p, err := Create(
@@ -275,7 +275,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 }
 
 func testTLSConnection(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	tlsTransportConfig1, err := GetTLSTransportConfig("./testdata/tls_config_node1.yml")
 	require.NoError(t, err)
 	p1, err := Create(

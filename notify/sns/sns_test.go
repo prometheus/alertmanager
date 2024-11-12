@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/sigv4"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var logger = log.NewNopLogger()
+var logger = promslog.NewNopLogger()
 
 func TestValidateAndTruncateMessage(t *testing.T) {
 	sBuff := make([]byte, 257*1024)

@@ -15,11 +15,11 @@ package ui
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 
@@ -27,7 +27,7 @@ import (
 )
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
