@@ -291,6 +291,7 @@ type EmailConfig struct {
 	AuthPasswordFile string               `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
 	AuthSecret       Secret               `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
 	AuthIdentity     string               `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	AuthXOAuth2      *commoncfg.OAuth2    `yaml:"auth_xoauth2,omitempty" json:"auth_xoauth2,omitempty"`
 	Headers          map[string]string    `yaml:"headers,omitempty" json:"headers,omitempty"`
 	HTML             string               `yaml:"html,omitempty" json:"html,omitempty"`
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`

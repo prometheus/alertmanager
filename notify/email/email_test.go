@@ -654,6 +654,10 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
 	require.Equal(t, "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism", err.Error())
+
+	_, err = email.auth("XOAUTH2")
+	require.Error(t, err)
+	require.Equal(t, "missing OAuth2 configuration", err.Error())
 }
 
 func TestEmailNoUsernameStillOk(t *testing.T) {
@@ -672,7 +676,7 @@ func TestEmailRejected(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Setup mock SMTP server which will reject at the DATA stage.
-	srv, l, err := mockSMTPServer(t)
+	srv, l, err := mockSMTPServer(t, &rejectingBackend{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// We expect that the server has already been closed in the test.
@@ -736,7 +740,7 @@ func TestEmailRejected(t *testing.T) {
 	}, time.Second*10, time.Millisecond*100, "mock SMTP server goroutine failed to close in time")
 }
 
-func mockSMTPServer(t *testing.T) (*smtp.Server, net.Listener, error) {
+func mockSMTPServer(t *testing.T, backend smtp.Backend) (*smtp.Server, net.Listener, error) {
 	t.Helper()
 
 	// Listen on the next available high port.
@@ -750,7 +754,7 @@ func mockSMTPServer(t *testing.T) (*smtp.Server, net.Listener, error) {
 		return nil, nil, fmt.Errorf("unexpected address type: %T", l.Addr())
 	}
 
-	s := smtp.NewServer(&rejectingBackend{})
+	s := smtp.NewServer(backend)
 	s.Addr = addr.String()
 	s.WriteTimeout = 10 * time.Second
 	s.ReadTimeout = 10 * time.Second
