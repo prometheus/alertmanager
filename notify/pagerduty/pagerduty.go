@@ -308,17 +308,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	logger := n.logger.With("group_key", key)
 
 	var (
 		alerts    = types.Alerts(as...)
-		data      = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)
 	if alerts.Status() == model.AlertResolved {
 		eventType = pagerDutyEventResolve
 	}
 
-	n.logger.Debug("extracted group key", "key", key, "eventType", eventType)
+	logger.Debug("extracted group key", "eventType", eventType)
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
