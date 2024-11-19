@@ -21,7 +21,7 @@ require (
 	github.com/go-openapi/validate v0.24.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gogo/protobuf v1.3.2
-	github.com/hashicorp/go-sockaddr v1.0.6
+	github.com/hashicorp/go-sockaddr v1.0.7
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/memberlist v0.5.1
 	github.com/jessevdk/go-flags v1.6.1
