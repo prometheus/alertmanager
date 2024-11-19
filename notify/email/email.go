@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,12 +29,15 @@ import (
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -82,6 +86,12 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	err := &types.MultiError{}
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
+		case "XOAUTH2":
+			if n.conf.AuthXOAuth2 == nil {
+				err.Add(errors.New("missing OAuth2 configuration"))
+				continue
+			}
+			return XOAuth2Auth(n.conf.AuthUsername, n.conf.AuthXOAuth2)
 		case "CRAM-MD5":
 			secret := string(n.conf.AuthSecret)
 			if secret == "" {
@@ -375,6 +385,76 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
+type xOAuth2Auth struct {
+	smtpFrom string
+	ts       oauth2.TokenSource
+}
+
+func XOAuth2Auth(authUsername string, cfg *commoncfg.OAuth2) (smtp.Auth, error) {
+	if cfg == nil {
+		return nil, errors.New("missing OAuth2 configuration")
+	}
+
+	var clientSecret string
+
+	switch {
+	case cfg.ClientSecret != "":
+		clientSecret = string(cfg.ClientSecret)
+	case cfg.ClientSecretFile != "":
+		fileBytes, err := os.ReadFile(cfg.ClientSecretFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read file %s: %w", cfg.ClientSecretFile, err)
+		}
+
+		clientSecret = strings.TrimSpace(string(fileBytes))
+	default:
+		return nil, errors.New("no client secret provided")
+	}
+
+	oauth2cfg := &clientcredentials.Config{
+		ClientID:       cfg.ClientID,
+		ClientSecret:   clientSecret,
+		TokenURL:       cfg.TokenURL,
+		Scopes:         cfg.Scopes,
+		EndpointParams: mapToValues(cfg.EndpointParams),
+	}
+
+	ts := oauth2cfg.TokenSource(context.Background())
+	if _, err := ts.Token(); err != nil {
+		return nil, fmt.Errorf("unable to get token: %w", err)
+	}
+
+	return &xOAuth2Auth{authUsername, ts}, nil
+}
+
+// Start implements the [smtp.Auth] interface.
+func (*xOAuth2Auth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	return "XOAUTH2", []byte{}, nil
+}
+
+// Next implements the [smtp.Auth] interface.
+func (x *xOAuth2Auth) Next(_ []byte, more bool) ([]byte, error) {
+	if more {
+		accessToken, err := x.ts.Token()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get token: %w", err)
+		}
+
+		// Generates an unencoded XOAuth2 string of the form
+		//   "user=" {User} "^Aauth=Bearer " {Access Token} "^A^A"
+		// as defined at https://developers.google.com/google-apps/gmail/xoauth2_protocol#the_sasl_xoauth2_mechanism.
+		// as well as https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth#sasl-xoauth2
+		saslOAuth2String := fmt.Sprintf("user=%s\x01auth=Bearer %s\x01\x01", x.smtpFrom, accessToken.AccessToken)
+
+		saslOAuth2Encoded := make([]byte, base64.RawStdEncoding.EncodedLen(len(saslOAuth2String)))
+		base64.RawStdEncoding.Encode(saslOAuth2Encoded, []byte(saslOAuth2String))
+
+		return saslOAuth2Encoded, nil
+	}
+
+	return nil, nil
+}
+
 func (n *Email) getPassword() (string, error) {
 	if len(n.conf.AuthPasswordFile) > 0 {
 		content, err := os.ReadFile(n.conf.AuthPasswordFile)
@@ -384,4 +464,13 @@ func (n *Email) getPassword() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
+}
+
+func mapToValues(m map[string]string) url.Values {
+	v := url.Values{}
+	for name, value := range m {
+		v.Set(name, value)
+	}
+
+	return v
 }

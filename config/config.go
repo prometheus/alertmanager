@@ -412,6 +412,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
 			}
+			if ec.AuthXOAuth2 == nil {
+				ec.AuthXOAuth2 = c.Global.SMTPAuthXOAuth2
+			}
 			if ec.AuthSecret == "" {
 				ec.AuthSecret = c.Global.SMTPAuthSecret
 			}
@@ -820,6 +823,7 @@ type GlobalConfig struct {
 	SMTPAuthPasswordFile  string               `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
 	SMTPAuthSecret        Secret               `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity      string               `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPAuthXOAuth2       *commoncfg.OAuth2    `yaml:"smtp_auth_xoauth2,omitempty" json:"smtp_auth_xoauth2,omitempty"`
 	SMTPRequireTLS        bool                 `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
 	SMTPTLSConfig         *commoncfg.TLSConfig `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
 	SlackAPIURL           *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
