@@ -11,21 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Some tests require a running mail catcher. We use MailDev for this purpose,
-// it can work without or with authentication (LOGIN only). It exposes a REST
-// API which we use to retrieve and check the sent emails.
+// Some tests require a working OAUTH2 smtp server.
+// At the time of writing, the only available server are Google's and Microsoft's.
+// Follow the instructions on the respective pages to set up the client configuration:
+// * https://learn.microsoft.com/de-de/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth
+// * https://developers.google.com/gmail/imap/xoauth2-protocol
 //
-// Those tests are only executed when specific environment variables are set,
-// otherwise they are skipped. The tests must be run by the CI.
-//
-// To run the tests locally, you should start 2 MailDev containers:
-//
-// $ docker run --rm -p 1080:1080 -p 1025:1025 --entrypoint bin/maildev djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa -v
-// $ docker run --rm -p 1081:1080 -p 1026:1025 --entrypoint bin/maildev djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa --incoming-user user --incoming-pass pass -v
-//
-// $ EMAIL_NO_AUTH_CONFIG=testdata/noauth.yml EMAIL_AUTH_CONFIG=testdata/auth.yml make
-//
-// See also https://github.com/djfarrelly/MailDev for more details.
+// To run the tests locally, run:
+// $ EMAIL_AUTH_XOAUTH2_CONFIG=testdata/auth_xoauth2.yml make
 package email
 
 import (
@@ -36,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -53,6 +47,8 @@ import (
 )
 
 const (
+	emailAuthXOAuth2ConfigVar = "EMAIL_AUTH_XOAUTH2_CONFIG"
+
 	TestBearerUsername = "fxcp"
 	TestBearerToken    = "VkIvciKi9ijpiKNWrQmYCJrzgd9QYCMB"
 )
@@ -199,4 +195,126 @@ func (*xOAuth2BackendAuth) Next(response []byte) ([]byte, bool, error) {
 	}
 
 	return nil, true, fmt.Errorf("unexpected token: %s, expected: %s", token, expectedToken)
+}
+
+// TestEmailNotifyWithXOAuth2Authentication sends emails to an instance of MailDev
+// configured with authentication.
+func TestEmailNotifyWithXOAuth2Authentication(t *testing.T) {
+	cfgFile := os.Getenv(emailAuthXOAuth2ConfigVar)
+	if len(cfgFile) == 0 {
+		t.Skipf("%s not set", emailAuthXOAuth2ConfigVar)
+	}
+
+	c, err := loadEmailTestConfiguration(cfgFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fileWithCorrectClientSecret, err := os.CreateTemp("", "client-secret-correct")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithCorrectClientSecret.WriteString(string(c.XOAuth2.ClientSecret))
+	require.NoError(t, err, "writing to temp file failed")
+
+	fileWithIncorrectClientSecret, err := os.CreateTemp("", "client-secret-incorrect")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithIncorrectClientSecret.WriteString(string(c.XOAuth2.ClientSecret) + "wrong")
+	require.NoError(t, err, "writing to temp file failed")
+
+	for _, tc := range []struct {
+		title     string
+		updateCfg func(*config.EmailConfig)
+
+		errMsg string
+		retry  bool
+	}{
+		{
+			title: "email with authentication",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthXOAuth2 = c.XOAuth2
+			},
+		},
+		{
+			title: "email with authentication (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthXOAuth2 = c.XOAuth2
+				cfg.AuthXOAuth2.ClientSecret = ""
+				cfg.AuthXOAuth2.ClientSecretFile = fileWithCorrectClientSecret.Name()
+			},
+		},
+		{
+			title: "wrong credentials",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthXOAuth2 = c.XOAuth2
+				cfg.AuthXOAuth2.ClientSecret = cfg.AuthXOAuth2.ClientSecret + "wrong"
+			},
+
+			errMsg: "Invalid username or password",
+			retry:  true,
+		},
+		{
+			title: "wrong credentials (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthXOAuth2 = c.XOAuth2
+				cfg.AuthXOAuth2.ClientSecret = ""
+				cfg.AuthXOAuth2.ClientSecretFile = fileWithIncorrectClientSecret.Name()
+			},
+
+			errMsg: "Invalid username or password",
+			retry:  true,
+		},
+		{
+			title: "wrong credentials (missing password file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthXOAuth2 = c.XOAuth2
+				cfg.AuthXOAuth2.ClientSecret = ""
+				cfg.AuthXOAuth2.ClientSecretFile = "/does/not/exist"
+			},
+
+			errMsg: "could not read",
+			retry:  true,
+		},
+		{
+			title:  "no credentials",
+			errMsg: "authentication Required",
+			retry:  true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			emailCfg := &config.EmailConfig{
+				TLSConfig: &commoncfg.TLSConfig{},
+				Smarthost: c.Smarthost,
+				To:        emailTo,
+				From:      emailFrom,
+				HTML:      "HTML body",
+				Text:      "Text body",
+				Headers: map[string]string{
+					"Subject": "{{ len .Alerts }} {{ .Status }} alert(s)",
+				},
+			}
+
+			if c.Smarthost.Port == "587" {
+				requireTLS := true
+				emailCfg.RequireTLS = &requireTLS
+			}
+
+			if tc.updateCfg != nil {
+				tc.updateCfg(emailCfg)
+			}
+
+			tmpl, firingAlert, err := prepare(emailCfg)
+			require.NoError(t, err)
+
+			email := New(emailCfg, tmpl, promslog.NewNopLogger())
+
+			retry, err := email.Notify(context.Background(), firingAlert)
+			require.NoError(t, err)
+			require.Equal(t, tc.retry, retry)
+		})
+	}
 }

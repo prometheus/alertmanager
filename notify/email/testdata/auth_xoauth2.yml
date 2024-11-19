@@ -1,0 +1,7 @@
+smarthost: smtp.gmail.com:587
+username: ""
+xoauth2:
+  client_id:
+  client_secret:
+  token_url: "https://oauth2.googleapis.com/token"
+  scopes: [ "https://mail.google.com/" ]

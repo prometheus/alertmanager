@@ -143,10 +143,11 @@ func (m *mailDev) doEmailRequest(method, path string) (int, []byte, error) {
 
 // emailTestConfig is the configuration for the tests.
 type emailTestConfig struct {
-	Smarthost config.HostPort `yaml:"smarthost"`
-	Username  string          `yaml:"username"`
-	Password  string          `yaml:"password"`
-	Server    *mailDev        `yaml:"server"`
+	Smarthost config.HostPort   `yaml:"smarthost"`
+	Username  string            `yaml:"username"`
+	Password  string            `yaml:"password"`
+	Server    *mailDev          `yaml:"server"`
+	XOAuth2   *commoncfg.OAuth2 `yaml:"xoauth2,omitempty"`
 }
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
