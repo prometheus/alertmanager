@@ -28,7 +28,7 @@
     "css-loader": "^7.1.2",
     "dotenv-defaults": "^5.0.2",
     "esbuild-loader": "^2.20.0",
-    "eslint": "^8.56.0",
+    "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
