@@ -75,6 +75,16 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 	return m, nil
 }
 
+// MustNewMatcher returns a matcher object. It is equivalent to
+// NewMatcher, but panics on error. It is useful for tests.
+func MustNewMatcher(t MatchType, n, v string) *Matcher {
+	m, err := NewMatcher(t, n, v)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 func (m *Matcher) String() string {
 	if strings.ContainsFunc(m.Name, isReserved) {
 		return fmt.Sprintf(`%s%s%s`, strconv.Quote(m.Name), m.Type, strconv.Quote(m.Value))
