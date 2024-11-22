@@ -312,7 +312,6 @@ func (r *InhibitRule) findInhibitor(lset model.LabelSet, now time.Time) (model.F
 
 			return fp, true
 		}
-
 	}
 
 	return model.Fingerprint(0), false
