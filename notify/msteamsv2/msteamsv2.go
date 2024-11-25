@@ -52,10 +52,11 @@ type Notifier struct {
 
 // https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1#adaptivecarditemschema
 type Content struct {
-	Schema  string `json:"$schema"`
-	Type    string `json:"type"`
-	Version string `json:"version"`
-	Body    []Body `json:"body"`
+	Schema  string  `json:"$schema"`
+	Type    string  `json:"type"`
+	Version string  `json:"version"`
+	Body    []Body  `json:"body"`
+	Msteams Msteams `json:"msteams,omitempty"`
 }
 
 type Body struct {
@@ -66,6 +67,10 @@ type Body struct {
 	Wrap   bool   `json:"wrap,omitempty"`
 	Style  string `json:"style,omitempty"`
 	Color  string `json:"color,omitempty"`
+}
+
+type Msteams struct {
+	Width string `json:"width"`
 }
 
 type Attachment struct {
@@ -167,6 +172,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 							Type: "TextBlock",
 							Text: text,
 						},
+					},
+					Msteams: Msteams{
+						Width: "full",
 					},
 				},
 			},
