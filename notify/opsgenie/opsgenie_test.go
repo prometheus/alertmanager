@@ -321,6 +321,56 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 `, body2)
 }
 
+func TestOpsGenieWithAlias(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+		Message:      `{{ .CommonLabels.Message }}`,
+		Description:  `{{ .CommonLabels.Description }}`,
+		UpdateAlerts: true,
+		APIKey:       "test-api-key",
+		APIURL:       &config.URL{URL: u},
+		HTTPConfig:   &commoncfg.HTTPClientConfig{},
+		AliasPrefix:  "test-alias-prefix-",
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, log.NewNopLogger())
+	alert := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+			Labels: model.LabelSet{
+				"Message":     "new message",
+				"Description": "new description",
+			},
+		},
+	}
+	require.NoError(t, err)
+	requests, retry, err := notifierWithUpdate.createRequests(ctx, alert)
+	require.NoError(t, err)
+	require.True(t, retry)
+	require.Len(t, requests, 3)
+
+	body0 := readBody(t, requests[0])
+	body1 := readBody(t, requests[1])
+	body2 := readBody(t, requests[2])
+	key, _ := notify.ExtractGroupKey(ctx)
+	alias := fmt.Sprintf("test-alias-prefix-%s", key.Hash())
+
+	require.Equal(t, "https://test-opsgenie-url/v2/alerts", requests[0].URL.String())
+	require.NotEmpty(t, body0)
+
+	require.Equal(t, requests[0].URL.String(), "https://test-opsgenie-url/v2/alerts")
+	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/message?identifierType=alias", alias))
+	require.Equal(t, `{"message":"new message"}
+`, body1)
+	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
+	require.Equal(t, `{"description":"new description"}
+`, body2)
+}
+
 func readBody(t *testing.T, r *http.Request) string {
 	t.Helper()
 	body, err := io.ReadAll(r.Body)
