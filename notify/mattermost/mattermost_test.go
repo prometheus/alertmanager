@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,7 +45,7 @@ func TestMattermostRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -91,7 +91,7 @@ func TestMattermostTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.WebhookURL = &config.SecretURL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -130,7 +130,7 @@ func TestMattermostRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -152,7 +152,7 @@ func TestMattermostReadingURLFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -246,7 +246,7 @@ func TestMattermost_Notify(t *testing.T) {
 			}
 
 			// Create a new Mattermost notifier
-			notifier, err := New(cfg, test.CreateTmpl(t), log.NewNopLogger())
+			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			// Call the Notify method

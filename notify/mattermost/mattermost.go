@@ -20,12 +20,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -42,7 +41,7 @@ const maxTextLenRunes = 16383
 type Notifier struct {
 	conf    *config.MattermostConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 
@@ -50,7 +49,7 @@ type Notifier struct {
 }
 
 // New returns a new Mattermost notifier.
-func New(c *config.MattermostConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "mattermost", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -147,8 +146,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
-	level.Debug(n.logger).Log(
-		"msg", "Message sent to Mattermost successfully",
+	n.logger.Debug("Message sent to Mattermost successfully",
 		"status", resp.StatusCode)
 
 	return false, nil
@@ -226,8 +224,7 @@ func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
 	// Truncate the text if it's too long.
 	text, truncated := notify.TruncateInRunes(r.Text, maxTextLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log(
-			"msg", "Truncated text",
+		n.logger.Warn("Truncated text",
 			"key", key,
 			"max_runes", maxTextLenRunes)
 		r.Text = text
@@ -248,8 +245,7 @@ func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
 	case priorityUrgent, priorityImportant, priorityStandard:
 		r.Priority.Priority = strings.ToLower(r.Priority.Priority)
 	default:
-		level.Warn(n.logger).Log(
-			"msg", "Priority is set to standard due to invalid value",
+		n.logger.Warn("Priority is set to standard due to invalid value",
 			"key", key,
 			"priority", r.Priority.Priority)
 		r.Priority.Priority = priorityStandard
@@ -257,8 +253,7 @@ func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
 
 	// Check RequestedAck flag
 	if r.Priority.RequestedAck && r.Priority.Priority == priorityStandard {
-		level.Warn(n.logger).Log(
-			"msg", "RequestedAck is set to false due to priority is standard",
+		n.logger.Warn("RequestedAck is set to false due to priority is standard",
 			"key", key,
 		)
 		r.Priority.RequestedAck = false
@@ -266,8 +261,7 @@ func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
 
 	// Check PersistentNotifications flag
 	if r.Priority.PersistentNotifications && r.Priority.Priority != priorityUrgent {
-		level.Warn(n.logger).Log(
-			"msg", "PersistentNotifications is set to false due to priority is not urgent",
+		n.logger.Warn("PersistentNotifications is set to false due to priority is not urgent",
 			"key", key,
 		)
 		r.Priority.PersistentNotifications = false
