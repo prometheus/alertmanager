@@ -1594,6 +1594,12 @@ url_file: <filepath>
 # above this threshold are truncated. When leaving this at its default value of
 # 0, all alerts are included.
 [ max_alerts: <int> | default = 0 ]
+
+# The maximum time to wait for a webhook request to complete, before failing the
+# request and allowing it to be retried.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = <none> ]
+
 ```
 
 The Alertmanager

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -112,8 +113,17 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		url = strings.TrimSpace(string(content))
 	}
 
+	if n.conf.Timeout != nil {
+		postCtx, cancel := context.WithTimeoutCause(ctx, *n.conf.Timeout, fmt.Errorf("configured webhook timeout (%s) reached", *n.conf.Timeout))
+		defer cancel()
+		ctx = postCtx
+	}
+
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil {
+			err = context.Cause(ctx)
+		}
 		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
