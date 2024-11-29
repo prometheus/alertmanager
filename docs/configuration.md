@@ -1596,9 +1596,10 @@ url_file: <filepath>
 [ max_alerts: <int> | default = 0 ]
 
 # The maximum time to wait for a webhook request to complete, before failing the
-# request and allowing it to be retried.
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
-[ timeout: <duration> | default = <none> ]
+[ timeout: <duration> | default = 0s ]
 
 ```
 
