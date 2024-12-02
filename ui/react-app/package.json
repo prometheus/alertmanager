@@ -16,13 +16,13 @@
     "@tanstack/react-query": "^4.7.1",
     "mdi-material-ui": "^7.9.2",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0",
+    "react-dom": "^18.3.1",
     "react-router-dom": "^6.3.0",
     "use-query-params": "^2.2.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.51",
-    "@types/react-dom": "^18.2.19",
+    "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@typescript-eslint/parser": "^5.62.0",
     "css-loader": "^7.1.2",
