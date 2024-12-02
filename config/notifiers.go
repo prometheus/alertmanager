@@ -501,6 +501,10 @@ type WebhookConfig struct {
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
