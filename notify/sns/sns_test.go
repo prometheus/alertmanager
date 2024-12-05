@@ -21,7 +21,7 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/common/sigv4"
+	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
