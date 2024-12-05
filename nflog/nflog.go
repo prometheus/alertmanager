@@ -33,7 +33,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
 
-	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 )
 
@@ -526,7 +525,7 @@ func (l *Log) Merge(b []byte) error {
 	defer l.mtx.Unlock()
 	now := l.now()
 
-	var needsBroadcast = false
+	needsBroadcast := false
 	for _, e := range st {
 		if merged := l.st.merge(e, now); merged {
 			// If this is the first we've seen the message, gossip state to other nodes.
@@ -537,7 +536,7 @@ func (l *Log) Merge(b []byte) error {
 	if needsBroadcast {
 		l.broadcast(b)
 		l.metrics.propagatedMessagesTotal.Inc()
-		l.logger.Debug("gossiping new entry", "entry", e)
+		l.logger.Debug("gossiping received state")
 	}
 	return nil
 }
