@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +51,7 @@ func TestPagerDutyRetryV1(t *testing.T) {
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusForbidden)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "retryv1 - error on status %d", statusCode)
 	}
 }
 
@@ -70,7 +69,7 @@ func TestPagerDutyRetryV2(t *testing.T) {
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "retryv2 - error on status %d", statusCode)
 	}
 }
 
@@ -274,8 +273,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			if tc.errMsg == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.ErrorContains(t, err, tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
 		})

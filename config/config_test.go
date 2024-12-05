@@ -547,7 +547,7 @@ func TestJSONMarshalSecret(t *testing.T) {
 
 	// u003c -> "<"
 	// u003e -> ">"
-	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
+	require.JSONEq(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
 }
 
 func TestMarshalSecretURL(t *testing.T) {
@@ -1382,8 +1382,7 @@ func TestNilRegexp(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = LoadFile(tc.file)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tc.errMsg)
+			require.ErrorContains(t, err, tc.errMsg)
 		})
 	}
 }
