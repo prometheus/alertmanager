@@ -526,16 +526,18 @@ func (l *Log) Merge(b []byte) error {
 	defer l.mtx.Unlock()
 	now := l.now()
 
+	var needsBroadcast = false
 	for _, e := range st {
-		if merged := l.st.merge(e, now); merged && !cluster.OversizedMessage(b) {
-			// If this is the first we've seen the message and it's
-			// not oversized, gossip it to other nodes. We don't
-			// propagate oversized messages because they're sent to
-			// all nodes already.
-			l.broadcast(b)
-			l.metrics.propagatedMessagesTotal.Inc()
-			l.logger.Debug("gossiping new entry", "entry", e)
+		if merged := l.st.merge(e, now); merged {
+			// If this is the first we've seen the message, gossip state to other nodes.
+			needsBroadcast = true
 		}
+	}
+
+	if needsBroadcast {
+		l.broadcast(b)
+		l.metrics.propagatedMessagesTotal.Inc()
+		l.logger.Debug("gossiping new entry", "entry", e)
 	}
 	return nil
 }
