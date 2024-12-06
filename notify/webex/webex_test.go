@@ -15,7 +15,6 @@ package webex
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -50,7 +49,7 @@ func TestWebexRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -159,8 +158,7 @@ func TestWebexTemplating(t *testing.T) {
 				require.Equal(t, tt.expHeader, header.Get("Authorization"))
 				require.JSONEq(t, tt.expJSON, string(out))
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errMsg)
+				require.ErrorContains(t, err, tt.errMsg)
 			}
 
 			require.Equal(t, tt.retry, ok)
