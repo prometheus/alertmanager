@@ -34,7 +34,7 @@ import (
 const truncationMarker = "…"
 
 // UserAgentHeader is the default User-Agent for notification requests.
-var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
+var UserAgentHeader = version.ComponentUserAgent("Alertmanager")
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
