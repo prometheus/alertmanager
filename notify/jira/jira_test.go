@@ -96,6 +96,24 @@ func TestJiraTemplating(t *testing.T) {
 			retry: false,
 		},
 		{
+			title: "template project",
+			cfg: &config.JiraConfig{
+				Project:     `{{ .CommonLabels.lbl1 }}`,
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+			},
+			retry: false,
+		},
+		{
+			title: "template issue type",
+			cfg: &config.JiraConfig{
+				IssueType:   `{{ .CommonLabels.lbl1 }}`,
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+			},
+			retry: false,
+		},
+		{
 			title: "summary with templating errors",
 			cfg: &config.JiraConfig{
 				Summary: "{{ ",
@@ -202,6 +220,51 @@ func TestJiraNotify(t *testing.T) {
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "",
+		},
+		{
+			title: "create new issue with template project and issue type",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "{{ .CommonLabels.issue_type }}",
+				Project:           "{{ .CommonLabels.project }}",
+				Priority:          `{{ template "jira.default.priority" . }}`,
+				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Total:  0,
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "[FIRING:1] test (vm1 MINOR MONITORING critical)",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Issuetype:   &idNameValue{Name: "MINOR"},
+					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
+					Project:     &issueProject{Key: "MONITORING"},
 					Priority:    &idNameValue{Name: "High"},
 				},
 			},
