@@ -49,12 +49,17 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
+type MSTeams struct {
+	Width string `json:"width"`
+}
+
 // https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1#adaptivecarditemschema
 type Content struct {
-	Schema  string `json:"$schema"`
-	Type    string `json:"type"`
-	Version string `json:"version"`
-	Body    []Body `json:"body"`
+	Schema  string  `json:"$schema"`
+	Type    string  `json:"type"`
+	Version string  `json:"version"`
+	Body    []Body  `json:"body"`
+	MSTeams MSTeams `json:"msTeams"`
 }
 
 type Body struct {
@@ -166,6 +171,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 							Type: "TextBlock",
 							Text: text,
 						},
+					},
+					MSTeams: MSTeams{
+						Width: "full",
 					},
 				},
 			},
