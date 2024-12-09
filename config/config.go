@@ -943,6 +943,8 @@ type InhibitRule struct {
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
+	// EqualPairs defines a set of pairs that have to be equal in the source and target alert
+	EqualPairs []LabelPair `yaml:"equal_pairs,omitempty" json:"equal_pairs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
@@ -965,6 +967,12 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+// LabelPair defines a source / target label pair
+type LabelPair struct {
+	SourceLabel model.LabelName `yaml:"source_label,omitempty" json:"source_label,omitempty"`
+	TargetLabel model.LabelName `yaml:"target_label,omitempty" json:"target_label,omitempty"`
 }
 
 // Receiver configuration provides configuration on how to contact a receiver.
