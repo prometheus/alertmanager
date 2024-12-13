@@ -72,6 +72,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	logger := n.logger.With("group_key", key.String())
+	logger.Debug("extracted group key")
 
 	var (
 		alerts = types.Alerts(as...)
