@@ -19,9 +19,11 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
@@ -40,6 +42,7 @@ type API struct {
 	v2                *apiv2.API
 	deprecationRouter *V1DeprecationRouter
 
+	latency                  *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
 	concurrencyLimitExceeded prometheus.Counter
 	timeout                  time.Duration
@@ -132,8 +135,14 @@ func New(opts Options) (*API, error) {
 		return nil, err
 	}
 
-	// TODO(beorn7): For now, this hardcodes the method="get" label. Other
-	// methods should get the same instrumentation.
+	latency := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "alertmanager_api_http_request_duration_seconds",
+			Help:    "Histogram of latencies for api HTTP requests.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code", "handler", "method"},
+	)
 	requestsInFlight := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:        "alertmanager_http_requests_in_flight",
 		Help:        "Current number of HTTP requests being processed.",
@@ -145,6 +154,9 @@ func New(opts Options) (*API, error) {
 		ConstLabels: prometheus.Labels{"method": "get"},
 	})
 	if opts.Registry != nil {
+		if err := opts.Registry.Register(latency); err != nil {
+			return nil, err
+		}
 		if err := opts.Registry.Register(requestsInFlight); err != nil {
 			return nil, err
 		}
@@ -156,6 +168,7 @@ func New(opts Options) (*API, error) {
 	return &API{
 		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
+		latency:                  latency,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
 		timeout:                  opts.Timeout,
@@ -181,13 +194,17 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
-	// TODO(beorn7): HTTP instrumentation is only in place for Router. Since
-	// /api/v2 works on the Handler level, it is currently not instrumented
-	// at all (with the exception of requestsInFlight, which is handled in
-	// limitHandler below).
 	mux.Handle(
 		apiPrefix+"/api/v2/",
-		api.limitHandler(http.StripPrefix(apiPrefix, api.v2.Handler)),
+		api.instrumentHandler(
+			apiPrefix,
+			api.limitHandler(
+				http.StripPrefix(
+					apiPrefix,
+					api.v2.Handler,
+				),
+			),
+		),
 	)
 
 	return mux
@@ -225,4 +242,18 @@ func (api *API) limitHandler(h http.Handler) http.Handler {
 	return http.TimeoutHandler(concLimiter, api.timeout, fmt.Sprintf(
 		"Exceeded configured timeout of %v.\n", api.timeout,
 	))
+}
+
+func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, _ := strings.CutPrefix(r.URL.Path, prefix)
+		// avoid high cardinality label values by replacing the actual silence IDs with a placeholder
+		if strings.HasPrefix(path, "/api/v2/silence/") {
+			path = "/api/v2/silence/{silenceID}"
+		}
+		promhttp.InstrumentHandlerDuration(
+			api.latency.MustCurryWith(prometheus.Labels{"handler": path}),
+			h,
+		).ServeHTTP(w, r)
+	})
 }
