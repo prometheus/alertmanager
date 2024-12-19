@@ -175,7 +175,10 @@ current node.
 See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
 
 ```yaml
+# The default receiver is required. It acts as a last resort for alerts
+# that don't match any specific route.
 [ receiver: <string> ]
+
 # The labels by which incoming alerts are grouped together. For example,
 # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
 # be batched into a single group.
