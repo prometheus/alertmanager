@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/KimMachineGun/automemlimit v0.7.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
+	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -35,8 +35,8 @@ require (
 	github.com/prometheus/common/sigv4 v0.1.0
 	github.com/prometheus/exporter-toolkit v0.13.2
 	github.com/rs/cors v1.11.1
-	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
-	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
+	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c
+	github.com/shurcooL/vfsgen v0.0.0-20230704071429-0000e147ea92
 	github.com/stretchr/testify v1.10.0
 	github.com/trivago/tgo v1.0.7
 	github.com/xlab/treeprint v1.2.0
