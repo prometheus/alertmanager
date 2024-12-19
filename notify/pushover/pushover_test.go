@@ -14,7 +14,6 @@
 package pushover
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestPushoverRetry(t *testing.T) {
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 

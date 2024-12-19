@@ -268,7 +268,7 @@ func TestDedupStage(t *testing.T) {
 		},
 	}
 	ctx, _, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
-	require.Contains(t, err.Error(), "result size")
+	require.ErrorContains(t, err, "result size")
 
 	// Must return no error and no alerts no need to update.
 	i = 0
