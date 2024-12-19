@@ -272,6 +272,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.RocketchatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.MattermostConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -604,6 +607,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				rocketchat.Token = c.Global.RocketchatToken
 				rocketchat.TokenFile = c.Global.RocketchatTokenFile
+			}
+		}
+		for _, mattermost := range rcv.MattermostConfigs {
+			if mattermost.HTTPConfig == nil {
+				mattermost.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
 
@@ -988,6 +996,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
