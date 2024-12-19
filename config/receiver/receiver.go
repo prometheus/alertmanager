@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/notify/kafka"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -108,6 +109,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.RocketchatConfigs {
 		add("rocketchat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return rocketchat.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.KafkaConfigs {
+		add("kafka", i, c, func(l *slog.Logger) (notify.Notifier, error) { return kafka.New(c, l) })
 	}
 
 	if errs.Len() > 0 {

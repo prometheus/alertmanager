@@ -203,6 +203,16 @@ var (
 		Description: `{{ template "jira.default.description" . }}`,
 		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
+
+	DefaultKafkaConfig = KafkaConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+
+		BootstrapServers: 	`{{ template "kafka.default.bootstrap_servers" . }}`,
+		Topic:            	`{{ template "kafka.default.topic" . }}`,
+		NumberOfPartition:  0,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -993,6 +1003,25 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	}
 	if c.TokenID != nil && len(c.TokenIDFile) > 0 {
 		return errors.New("at most one of token_id & token_id_file must be configured")
+	}
+	return nil
+}
+
+type KafkaConfig struct {
+	NotifierConfig 							`yaml:",inline" json:",inline"`
+
+	BootstrapServers 	string   			`yaml:"bootstrap_servers" json:"bootstrap_servers"`
+	Topic            	string   			`yaml:"topic" json:"topic"`
+	ExtrasConfigs     	*map[string]string 	`yaml:"extras_configs" json:"extras_configs"`
+	NumberOfPartition   int      			`yaml:"number_of_partitions" json:"number_of_partitions"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *KafkaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultKafkaConfig
+	type plain KafkaConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
 	return nil
 }

@@ -988,6 +988,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	KafkaConfigs      []*KafkaConfig	  `yaml:"kafka_configs,omitempty" json:"kafka_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
