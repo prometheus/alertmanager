@@ -156,12 +156,21 @@ type InhibitRule struct {
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
-	// A set of label names whose label values need to be identical in source and
+	// A set of label name pairs whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
-	Equal map[model.LabelName]struct{}
+	EqualPairs LabelPairs
 
 	// Cache of alerts matching source labels.
 	scache *store.Alerts
+}
+
+// LabelPairs defines a set of source / target label pairs
+type LabelPairs []LabelPair
+
+// LabelPair defines a source / target label pair
+type LabelPair struct {
+	SourceLabel model.LabelName
+	TargetLabel model.LabelName
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
@@ -169,6 +178,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	var (
 		sourcem labels.Matchers
 		targetm labels.Matchers
+		pairs   LabelPairs
 	)
 	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatch {
@@ -212,15 +222,26 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	targetm = append(targetm, cr.TargetMatchers...)
 
-	equal := map[model.LabelName]struct{}{}
 	for _, ln := range cr.Equal {
-		equal[ln] = struct{}{}
+		pair := LabelPair{
+			SourceLabel: ln,
+			TargetLabel: ln,
+		}
+		pairs = append(pairs, pair)
+	}
+
+	for _, p := range cr.EqualPairs {
+		pair := LabelPair{
+			SourceLabel: p.SourceLabel,
+			TargetLabel: p.TargetLabel,
+		}
+		pairs = append(pairs, pair)
 	}
 
 	return &InhibitRule{
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
-		Equal:          equal,
+		EqualPairs:     pairs,
 		scache:         store.NewAlerts(),
 	}
 }
@@ -236,8 +257,8 @@ Outer:
 		if a.Resolved() {
 			continue
 		}
-		for n := range r.Equal {
-			if a.Labels[n] != lset[n] {
+		for _, p := range r.EqualPairs {
+			if a.Labels[p.SourceLabel] != lset[p.TargetLabel] {
 				continue Outer
 			}
 		}
