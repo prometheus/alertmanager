@@ -1,6 +1,7 @@
-## 0.28.0-rc.0 / 2024-10-24
+## 0.28.0 / 2024-12-20
 
 * [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
+* [CHANGE] Adopt log/slog, drop go-kit/log #4089
 * [FEATURE] Add a new Microsoft Teams integration based on Flows #4024
 * [FEATURE] Add a new Rocket.Chat integration #3600
 * [FEATURE] Add a new Jira integration #3590 #3931
@@ -18,6 +19,7 @@
 * [ENHANCEMENT] Support the `since` and `humanizeDuration` functions to templates. This means users can now format time to more human-readable text. #3863
 * [ENHANCEMENT] Support the `date` and `tz` functions to templates. This means users can now format time in a specified format and also change the timezone to their specific locale. #3812
 * [ENHANCEMENT] Latency metrics now support native histograms. #3737
+* [ENHANCEMENT] Add timeout option for webhook notifier. #4137
 * [BUGFIX] Fix the SMTP integration not correctly closing an SMTP submission, which may lead to unsuccessful dispatches being marked as successful. #4006
 * [BUGFIX]  The `ParseMode` option is now set explicitly in the Telegram integration. If we don't HTML tags had not been parsed by default. #4027
 * [BUGFIX] Fix a memory leak that was caused by updates silences continuously. #3930
@@ -30,6 +32,8 @@
 * [BUGFIX] Fix deadlock on the alerts memory store. #3715
 * [BUGFIX] Fix `amtool template render` when using the default values. #3725
 * [BUGFIX] Fix `webhook_url_file` for both the Discord and Microsoft Teams integrations. #3728 #3745
+* [BUGFIX] Fix wechat api link #4084
+* [BUGFIX] Fix build info metric #4166
 
 ## 0.27.0 / 2024-02-28
 
