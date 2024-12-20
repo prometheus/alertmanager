@@ -25,8 +25,12 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -1276,4 +1280,46 @@ func TestNilRegexp(t *testing.T) {
 			require.Contains(t, err.Error(), tc.errMsg)
 		})
 	}
+}
+
+func TestInhibitRuleEqual(t *testing.T) {
+	c, err := LoadFile("testdata/conf.inhibit-equal.yml")
+	require.NoError(t, err)
+
+	// The inhibition rule should have the expected equal labels.
+	require.Len(t, c.InhibitRules, 1)
+	r := c.InhibitRules[0]
+	require.Equal(t, model.LabelNames{"qux", "corge"}, r.Equal)
+
+	// Should not be able to load configuration with UTF-8 in equals list.
+	_, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
+	require.Error(t, err)
+	require.Equal(t, "invalid label name \"qux🙂\" in equal list", err.Error())
+
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(promslog.NewNopLogger(), ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
+
+	c, err = LoadFile("testdata/conf.inhibit-equal.yml")
+	require.NoError(t, err)
+
+	// The inhibition rule should have the expected equal labels.
+	require.Len(t, c.InhibitRules, 1)
+	r = c.InhibitRules[0]
+	require.Equal(t, model.LabelNames{"qux", "corge"}, r.Equal)
+
+	// Should also be able to load configuration with UTF-8 in equals list.
+	c, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
+	require.NoError(t, err)
+
+	// The inhibition rule should have the expected equal labels.
+	require.Len(t, c.InhibitRules, 1)
+	r = c.InhibitRules[0]
+	require.Equal(t, model.LabelNames{"qux🙂", "corge"}, r.Equal)
 }
