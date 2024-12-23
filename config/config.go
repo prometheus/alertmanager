@@ -272,6 +272,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.RocketchatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.FeishuConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -606,6 +609,29 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				rocketchat.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
+		for _, feishu := range rcv.FeishuConfigs {
+			if feishu.HTTPConfig == nil {
+				feishu.HTTPConfig = c.Global.HTTPConfig
+			}
+			if feishu.APIURL == nil {
+				if c.Global.FeishuAPIURL == nil {
+					return errors.New("no global FeishuAPIURL set ")
+				}
+				feishu.APIURL = c.Global.FeishuAPIURL
+			}
+			if feishu.APPID == "" {
+				if c.Global.FeishuAPPID == "" {
+					return errors.New("no global FeishuAPPID set ")
+				}
+				feishu.APPID = c.Global.FeishuAPPID
+			}
+			if feishu.APPSecret == "" {
+				if c.Global.FeishuAPPSecret == "" {
+					return errors.New("no global FeishuAPPSecret set ")
+				}
+				feishu.APPSecret = c.Global.FeishuAPPSecret
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -710,6 +736,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
 		WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
 		RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
+		FeishuAPIURL:     mustParseURL("https://open.feishu.cn/open-apis"),
 	}
 }
 
@@ -831,6 +858,9 @@ type GlobalConfig struct {
 	WeChatAPIURL          *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret       Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID       string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	FeishuAPIURL          *URL                 `yaml:"feishu_api_url,omitempty" json:"feishu_api_url,omitempty"`
+	FeishuAPPID           string               `yaml:"feishu_app_id,omitempty" json:"feishu_app_id,omitempty"`
+	FeishuAPPSecret       Secret               `yaml:"feishu_app_secret,omitempty" json:"feishu_app_secret,omitempty"`
 	VictorOpsAPIURL       *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile   string               `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
@@ -988,6 +1018,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	FeishuConfigs     []*FeishuConfig     `yaml:"feishu_configs,omitempty" json:"feishu_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

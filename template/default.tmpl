@@ -73,6 +73,22 @@ AlertmanagerUrl:
 {{ define "wechat.default.agent_id" }}{{ end }}
 
 
+{{ define "feishu.default.message" }}{{ template "__subject" . }}
+{{ .CommonAnnotations.SortedPairs.Values | join " " }}
+{{ if gt (len .Alerts.Firing) 0 -}}
+Alerts Firing:
+{{ template "__text_alert_list" .Alerts.Firing }}
+{{- end }}
+{{ if gt (len .Alerts.Resolved) 0 -}}
+Alerts Resolved:
+{{ template "__text_alert_list" .Alerts.Resolved }}
+{{- end }}
+AlertmanagerUrl:
+{{ template "__alertmanagerURL" . }}
+{{- end }}
+{{ define "feishu.default.to_chat" }}{{ end }}
+{{ define "feishu.default.to_user" }}{{ end }}
+
 
 {{ define "victorops.default.state_message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 -}}
