@@ -16,7 +16,6 @@ package pushover
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/common/model"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -30,6 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -79,7 +79,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
 	// @tjhop: should this use `group` for the keyval like most other notify implementations?
-	n.logger.Debug("extracted group key", "incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	var message string
 	tmpl := notify.TmplText(n.tmpl, data, &err)
@@ -115,69 +115,75 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	priority := tmpl(n.conf.Priority)
 
 	var (
-		alerts    = types.Alerts(as...)
-		dedupeKey = fmt.Sprintf("dedupeKey=%s", key.Hash())
-		u         *url.URL
+		alerts   = types.Alerts(as...)
+		groupKey = fmt.Sprintf("groupKey=%s", key.Hash())
+		u        *url.URL
 	)
-	if priority == "2" && alerts.Status() == model.AlertResolved {
-		u, err = url.Parse(fmt.Sprintf("%s%s.json", n.apiReceiptsURL, dedupeKey))
-		if err != nil {
-			return false, err
-		}
+
+	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
+	if truncated {
+		n.logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
+	}
+	parameters.Add("title", title)
+
+	if n.conf.HTML {
+		parameters.Add("html", "1")
+		message = tmplHTML(n.conf.Message)
 	} else {
-		title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
-		if truncated {
-			n.logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
-		}
-		parameters.Add("title", title)
+		message = tmpl(n.conf.Message)
+	}
 
-		if n.conf.HTML {
-			parameters.Add("html", "1")
-			message = tmplHTML(n.conf.Message)
-		} else {
-			message = tmpl(n.conf.Message)
-		}
+	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
+	if truncated {
+		n.logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		// Pushover rejects empty messages.
+		message = "(no details)"
+	}
+	parameters.Add("message", message)
 
-		message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
-		if truncated {
-			n.logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
-		}
-		message = strings.TrimSpace(message)
-		if message == "" {
-			// Pushover rejects empty messages.
-			message = "(no details)"
-		}
-		parameters.Add("message", message)
+	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
+	if truncated {
+		n.logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
+	}
+	parameters.Add("url", supplementaryURL)
+	parameters.Add("url_title", tmpl(n.conf.URLTitle))
 
-		supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
-		if truncated {
-			n.logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
-		}
-		parameters.Add("url", supplementaryURL)
-		parameters.Add("url_title", tmpl(n.conf.URLTitle))
+	parameters.Add("priority", priority)
+	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
+	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+	parameters.Add("device", tmpl(n.conf.Device))
+	parameters.Add("sound", tmpl(n.conf.Sound))
+	if priority == "2" {
+		parameters.Add("tags", groupKey)
+	}
+	newttl := int64(time.Duration(n.conf.TTL).Seconds())
+	if newttl > 0 {
+		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
+	}
 
-		parameters.Add("priority", priority)
-		parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
-		parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
-		parameters.Add("device", tmpl(n.conf.Device))
-		parameters.Add("sound", tmpl(n.conf.Sound))
-		if priority == "2" {
-			parameters.Add("tags", fmt.Sprintf("dedupeKey=%s", key.Hash()))
-		}
-		newttl := int64(time.Duration(n.conf.TTL).Seconds())
-		if newttl > 0 {
-			parameters.Add("ttl", fmt.Sprintf("%d", newttl))
-		}
-
-		u, err = url.Parse(n.apiMessagesURL)
-		if err != nil {
-			return false, err
-		}
+	u, err = url.Parse(n.apiMessagesURL)
+	if err != nil {
+		return false, err
 	}
 
 	if err != nil {
 		return false, err
 	}
+	shouldRetry, err := n.sendMessage(ctx, key, u, parameters)
+	if err == nil && priority == "2" && alerts.Status() == model.AlertResolved {
+		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKey))
+		if err != nil {
+			return false, err
+		}
+		shouldRetry, err = n.sendMessage(ctx, key, u, parameters)
+	}
+	return shouldRetry, err
+}
+
+func (n *Notifier) sendMessage(ctx context.Context, key notify.Key, u *url.URL, parameters url.Values) (bool, error) {
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
 	n.logger.Debug("Sending message", "incident", key)
