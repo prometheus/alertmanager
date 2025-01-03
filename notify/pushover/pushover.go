@@ -78,7 +78,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	// @tjhop: should this use `group` for the keyval like most other notify implementations?
 	n.logger.Debug("extracted group key", "key", key)
 
 	var message string
@@ -112,9 +111,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("token", tmpl(token))
 	parameters.Add("user", tmpl(userKey))
 
-	priority := tmpl(n.conf.Priority)
-
 	var (
+		priority    = tmpl(n.conf.Priority)
 		alerts      = types.Alerts(as...)
 		groupKeyTag = fmt.Sprintf("promAlertGroupKey_%s", key.Hash())
 		u           *url.URL
@@ -156,7 +154,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
 	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
-	if priority == "2" {
+	if n.conf.CancelOnResolve && priority == "2" {
 		parameters.Add("tags", groupKeyTag)
 	}
 	newttl := int64(time.Duration(n.conf.TTL).Seconds())
@@ -173,7 +171,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	shouldRetry, err := n.sendMessage(ctx, key, u, parameters)
-	if err == nil && priority == "2" && alerts.Status() == model.AlertResolved {
+	if err == nil && n.conf.CancelOnResolve && alerts.Status() == model.AlertResolved {
 		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKeyTag))
 		if err != nil {
 			return false, err
