@@ -115,9 +115,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	priority := tmpl(n.conf.Priority)
 
 	var (
-		alerts   = types.Alerts(as...)
-		groupKey = fmt.Sprintf("groupKey=%s", key.Hash())
-		u        *url.URL
+		alerts      = types.Alerts(as...)
+		groupKeyTag = fmt.Sprintf("promAlertGroupKey_%s", key.Hash())
+		u           *url.URL
 	)
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
@@ -157,7 +157,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
 	if priority == "2" {
-		parameters.Add("tags", groupKey)
+		parameters.Add("tags", groupKeyTag)
 	}
 	newttl := int64(time.Duration(n.conf.TTL).Seconds())
 	if newttl > 0 {
@@ -174,7 +174,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	shouldRetry, err := n.sendMessage(ctx, key, u, parameters)
 	if err == nil && priority == "2" && alerts.Status() == model.AlertResolved {
-		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKey))
+		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKeyTag))
 		if err != nil {
 			return false, err
 		}
