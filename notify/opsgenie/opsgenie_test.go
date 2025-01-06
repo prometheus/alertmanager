@@ -321,6 +321,24 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 `, body2)
 }
 
+func TestOpsGenieApiKeyFile(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+		APIKeyFile: `./api_key_file`,
+		APIURL:     &config.URL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
+
+	require.NoError(t, err)
+	requests, _, err := notifierWithUpdate.createRequests(ctx)
+	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
+}
+
 func readBody(t *testing.T, r *http.Request) string {
 	t.Helper()
 	body, err := io.ReadAll(r.Body)
