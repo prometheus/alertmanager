@@ -39,8 +39,6 @@ const (
 	maxMessageLenRunes = 1024
 	// https://pushover.net/api#limits - 512 characters or runes.
 	maxURLLenRunes = 512
-	// https://pushover.net/api#priority - 2 is emergency priority.
-	emergencyPriority = "2"
 )
 
 // Notifier implements a Notifier for Pushover notifications.
@@ -156,7 +154,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
 	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
-	if priority == emergencyPriority {
+	if n.conf.CancelOnResolve && priority == "2" {
 		parameters.Add("tags", groupKeyTag)
 	}
 	newttl := int64(time.Duration(n.conf.TTL).Seconds())
@@ -173,11 +171,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	shouldRetry, err := n.sendMessage(ctx, key, u, parameters)
-
-	// Notifications sent for firing alerts could be sent with emergency priority, but the resolution notifications
-	// might be sent with a different priority. Because of this, and the desire to reduce unnecessary cancel_by_tag
-	// call again Pushover, we only call cancel_by_tag if the priority config value contains.
-	if err == nil && strings.Contains(n.conf.Priority, emergencyPriority) && alerts.Status() == model.AlertResolved {
+	if err == nil && n.conf.CancelOnResolve && alerts.Status() == model.AlertResolved {
 		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKeyTag))
 		if err != nil {
 			return false, err
