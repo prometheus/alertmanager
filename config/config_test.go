@@ -525,6 +525,22 @@ func TestHideConfigSecrets(t *testing.T) {
 	}
 }
 
+func TestShowMarshalSecretValues(t *testing.T) {
+	MarshalSecretValue = true
+	defer func() { MarshalSecretValue = false }()
+
+	c, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	// String method must reveal authentication credentials.
+	s := c.String()
+	if strings.Count(s, "<secret>") > 0 || !strings.Contains(s, "mysecret") {
+		t.Fatal("config's String method must reveal authentication credentials when MarshalSecretValue = true.")
+	}
+}
+
 func TestJSONMarshal(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
@@ -537,7 +553,7 @@ func TestJSONMarshal(t *testing.T) {
 	}
 }
 
-func TestJSONMarshalSecret(t *testing.T) {
+func TestJSONMarshalHideSecret(t *testing.T) {
 	test := struct {
 		S Secret
 	}{
@@ -554,7 +570,24 @@ func TestJSONMarshalSecret(t *testing.T) {
 	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
 }
 
-func TestMarshalSecretURL(t *testing.T) {
+func TestJSONMarshalShowSecret(t *testing.T) {
+	MarshalSecretValue = true
+	defer func() { MarshalSecretValue = false }()
+
+	test := struct {
+		S Secret
+	}{
+		S: Secret("test"),
+	}
+
+	c, err := json.Marshal(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "{\"S\":\"test\"}", string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
+}
+
+func TestJSONMarshalHideSecretURL(t *testing.T) {
 	urlp, err := url.Parse("http://example.com/")
 	if err != nil {
 		t.Fatal(err)
@@ -588,6 +621,23 @@ func TestMarshalSecretURL(t *testing.T) {
 	}
 }
 
+func TestJSONMarshalShowSecretURL(t *testing.T) {
+	MarshalSecretValue = true
+	defer func() { MarshalSecretValue = false }()
+
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := &SecretURL{urlp}
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "\"http://example.com/\"", string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
+}
+
 func TestUnmarshalSecretURL(t *testing.T) {
 	b := []byte(`"http://example.com/se cret"`)
 	var u SecretURL
@@ -613,6 +663,18 @@ func TestHideSecretURL(t *testing.T) {
 	err := json.Unmarshal(b, &u)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "wrongurl")
+}
+
+func TestShowMarshalSecretURL(t *testing.T) {
+	MarshalSecretValue = true
+	defer func() { MarshalSecretValue = false }()
+
+	b := []byte(`"://wrongurl/"`)
+	var u SecretURL
+
+	err := json.Unmarshal(b, &u)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "wrongurl")
 }
 
 func TestMarshalURL(t *testing.T) {
