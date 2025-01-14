@@ -21,17 +21,22 @@ import Views.ReceiverBar.Views as ReceiverBar
 
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
 renderCheckbox textLabel maybeChecked toggleMsg =
+    let
+        checkboxId = "checkbox-" ++ textLabel
+    in
     li [ class "nav-item" ]
         [ div [ class "form-check mt-1 ms-1" ]
             [ input
                 [ type_ "checkbox"
                 , class "form-check-input"
+                , id checkboxId
                 , checked (Maybe.withDefault False maybeChecked)
                 , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
             , label
                 [ class "form-check-label ms-1"
+                , for checkboxId
                 ]
                 [ text textLabel ]
             ]
