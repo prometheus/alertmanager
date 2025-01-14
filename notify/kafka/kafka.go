@@ -34,6 +34,7 @@ type Notifier struct {
 	conf                *config.KafkaConfig
 	logger              *slog.Logger
 	writer              *ckafka.Writer
+	numberOfPartition   int
 	partitionIndex      int
 	partitionIndexMutex sync.Mutex
 }
@@ -45,15 +46,18 @@ type KafkaMessage struct {
 
 // New returns a new Kafka notifier.
 func New(c *config.KafkaConfig, l *slog.Logger) (*Notifier, error) {
-	mechanism := plain.Mechanism{
-		Username: c.Username,
-		Password: c.Password,
-	}
+	transport := ckafka.Transport{}
 
-	transport := ckafka.Transport{
-		SASL:        mechanism,
-		DialTimeout: 45 * time.Second,
-		TLS:         &tls.Config{},
+	if c.SecurityProtocol != nil {
+		transport.TLS = &tls.Config{}
+
+		if *c.SecurityProtocol == "SASL_SSL" {
+			// default is PLAIN mechanism
+			transport.SASL = plain.Mechanism{
+				Username: *c.Username,
+				Password: *c.Password,
+			}
+		}
 	}
 
 	writer := &ckafka.Writer{
@@ -64,10 +68,22 @@ func New(c *config.KafkaConfig, l *slog.Logger) (*Notifier, error) {
 		Transport:    &transport,
 	}
 
+	if c.Timeout != nil {
+		writer.WriteTimeout = *c.Timeout
+	} else {
+		writer.WriteTimeout = 45 * time.Second
+	}
+
 	n := &Notifier{
 		conf:   c,
 		logger: l,
 		writer: writer,
+	}
+
+	if c.NumberOfPartition != nil {
+		n.numberOfPartition = *c.NumberOfPartition
+	} else {
+		n.numberOfPartition = 1
 	}
 
 	return n, nil
@@ -81,7 +97,7 @@ func (n *Notifier) GetPartitionIndex() int {
 // NextPartition returns the next partition index.
 func (n *Notifier) NextPartition() {
 	n.partitionIndexMutex.Lock()
-	n.partitionIndex = (n.partitionIndex + 1) % n.conf.NumberOfPartition
+	n.partitionIndex = (n.partitionIndex + 1) % n.numberOfPartition
 	n.partitionIndexMutex.Unlock()
 }
 

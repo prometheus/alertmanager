@@ -211,7 +211,7 @@ var (
 
 		Brokers:           []string{},
 		Topic:             `{{ template "kafka.default.topic" . }}`,
-		NumberOfPartition: 0,
+		NumberOfPartition: nil,
 	}
 )
 
@@ -1010,12 +1010,13 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 type KafkaConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	Brokers           []string `yaml:"brokers" json:"brokers"`
-	Topic             string   `yaml:"topic" json:"topic"`
-	NumberOfPartition int      `yaml:"number_of_partitions" json:"number_of_partitions"`
-	UseSASL           bool     `yaml:"use_sasl" json:"use_sasl"`
-	Username          string   `yaml:"username" json:"username"`
-	Password          string   `yaml:"password" json:"password"`
+	Brokers           []string       `yaml:"brokers" json:"brokers"`
+	Topic             string         `yaml:"topic" json:"topic"`
+	NumberOfPartition *int           `yaml:"number_of_partitions" json:"number_of_partitions"`
+	SecurityProtocol  *string        `yaml:"security_protocol" json:"security_protocol"`
+	Username          *string        `yaml:"username" json:"username"`
+	Password          *string        `yaml:"password" json:"password"`
+	Timeout           *time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
