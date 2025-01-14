@@ -13,7 +13,6 @@ build:
     tags:
         all:
             - netgo
-            - static
         windows: []
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}
