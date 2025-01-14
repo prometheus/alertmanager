@@ -14,13 +14,13 @@ annotationsButton activeAlertId alert =
     if activeAlertId == Just alert.fingerprint then
         button
             [ onClick Nothing
-            , class "btn btn-outline-info border-0 active"
+            , class "btn btn-outline-info active me-2 mb-2"
             ]
             [ i [ class "fa fa-minus me-2" ] [], text "Info" ]
 
     else
         button
-            [ class "btn btn-outline-info border-0"
+            [ class "btn btn-outline-info me-2 mb-2"
             , onClick (Just alert.fingerprint)
             ]
             [ i [ class "fa fa-plus me-2" ] [], text "Info" ]
@@ -47,7 +47,7 @@ generatorUrlButton : String -> Html msg
 generatorUrlButton url =
     if String.startsWith "http://" url || String.startsWith "https://" url then
         a
-            [ class "btn btn-outline-info border-0", href url ]
+            [ class "btn btn-outline-info me-2 mb-2", href url ]
             [ i [ class "fa fa-line-chart me-2" ] []
             , text "Source"
             ]
