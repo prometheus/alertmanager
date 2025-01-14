@@ -9,13 +9,20 @@ import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, settingsTab, silenc
 navBar : Route -> Html msg
 navBar currentRoute =
     header
-        [ class "navbar navbar-toggleable-md navbar-light bg-faded mb-5 pt-3 pb-3"
+        [ class "navbar navbar-expand-md navbar-light bg-faded mb-5 pt-3 pb-3"
         , style "border-bottom" "1px solid rgba(0, 0, 0, .125)"
         ]
         [ nav [ class "container" ]
-            [ a [ class "navbar-brand", href "#" ] [ text "Alertmanager" ]
-            , ul [ class "navbar-nav" ] (navBarItems currentRoute)
-            , case currentRoute of
+            [ -- Brand
+              a [ class "navbar-brand", href "#" ]
+                [ text "Alertmanager" ]
+
+            , -- Nav items: vertically stacked on small screens, horizontal from md up.
+              ul [ class "navbar-nav me-auto" ]
+                  (navBarItems currentRoute)
+
+            , -- “New Silence” button on the right (below the nav on small screens).
+              case currentRoute of
                 SilenceFormEditRoute _ ->
                     text ""
 
@@ -23,7 +30,7 @@ navBar currentRoute =
                     text ""
 
                 _ ->
-                    div [ class "form-inline ml-auto" ]
+                    div [ class "d-inline-flex" ]
                         [ a
                             [ class "btn btn-outline-info"
                             , href "#/silences/new"
