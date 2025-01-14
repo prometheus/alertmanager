@@ -1,0 +1,18 @@
+.month-header {
+    width:70%;
+    margin: 0 auto;
+}
+
+.month-header .prev-month {
+    width:20%;
+}
+
+.month-header .month-text {
+    width:60%;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.month-header .next-month {
+    width:20%;
+}

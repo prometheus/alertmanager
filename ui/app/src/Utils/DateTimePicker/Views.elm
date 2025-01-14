@@ -1,7 +1,7 @@
 module Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 
 import Html exposing (Html, br, button, div, i, input, p, strong, text)
-import Html.Attributes exposing (class, maxlength, value)
+import Html.Attributes as Attr exposing (class, value, type_, maxlength)
 import Html.Events exposing (on, onClick, onMouseOut, onMouseOver)
 import Iso8601
 import Json.Decode as Decode
@@ -21,7 +21,7 @@ import Utils.DateTimePicker.Utils
 
 viewDateTimePicker : DateTimePicker -> Html Msg
 viewDateTimePicker dateTimePicker =
-    div [ class "w-100 container" ]
+    div [ class "container" ]
         [ viewCalendar dateTimePicker
         , div [ class "pt-4 row justify-content-center" ]
             [ viewTimePicker dateTimePicker Start
@@ -37,42 +37,36 @@ viewCalendar dateTimePicker =
             dateTimePicker.month
                 |> Maybe.withDefault (Time.millisToPosix 0)
     in
-    div [ class "calendar_ month" ]
-        [ viewMonthHeader justViewTime
-        , viewMonth dateTimePicker justViewTime
+    div [ class "row" ]
+        [ div [ class "col-12" ]
+            [ viewMonthHeader justViewTime
+            , viewMonth dateTimePicker justViewTime
+            ]
         ]
 
 
 viewMonthHeader : Posix -> Html Msg
 viewMonthHeader justViewTime =
-    div [ class "row month-header" ]
+    div [ class "row align-items-center mb-3 month-header" ]
         [ div
-            [ class "prev-month d-flex-center"
+            [ class "col text-start prev-month"
             , onClick PrevMonth
             ]
-            [ p
-                [ class "arrow" ]
-                [ i
-                    [ class "fa fa-angle-left fa-3x cursor-pointer" ]
-                    []
-                ]
+            [ button [ class "btn" ]
+                [ i [ class "fa fa-angle-left fa-3x" ] [] ]
             ]
         , div
-            [ class "month-text d-flex-center" ]
+            [ class "col text-center month-text" ]
             [ text (Time.toYear utc justViewTime |> String.fromInt)
             , br [] []
             , text (Time.toMonth utc justViewTime |> monthToString)
             ]
         , div
-            [ class "next-month d-flex-center"
+            [ class "col text-end next-month"
             , onClick NextMonth
             ]
-            [ p
-                [ class "arrow" ]
-                [ i
-                    [ class "fa fa-angle-right fa-3x cursor-pointer" ]
-                    []
-                ]
+            [ button [ class "btn" ]
+                [ i [ class "fa fa-angle-right fa-3x" ] [] ]
             ]
         ]
 
@@ -86,8 +80,8 @@ viewMonth dateTimePicker justViewTime =
         weeks =
             splitWeek days []
     in
-    div [ class "row justify-content-center" ]
-        [ div [ class "weekheader" ]
+    div []
+        [ div [ class "row mb-2" ]
             (case dateTimePicker.firstDayOfWeek of
                 Sunday ->
                     List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
@@ -96,23 +90,21 @@ viewMonth dateTimePicker justViewTime =
                     List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
             )
         , div
-            [ class "date-container"
-            , onMouseOut ClearMouseOverDay
-            ]
+            [ onMouseOut ClearMouseOverDay ]
             (List.map (viewWeek dateTimePicker justViewTime) weeks)
         ]
 
 
 viewWeekHeader : String -> Html Msg
 viewWeekHeader weekday =
-    div [ class "date text-muted" ]
+    div [ class "col text-center text-muted" ]
         [ text weekday ]
 
 
 viewWeek : DateTimePicker -> Posix -> List Posix -> Html Msg
 viewWeek dateTimePicker justViewTime days =
-    div []
-        [ div [] (List.map (viewDay dateTimePicker justViewTime) days) ]
+    div [ class "row" ]
+        (List.map (\day -> div [ class "col p-1" ] [ viewDay dateTimePicker justViewTime day ]) days)
 
 
 viewDay : DateTimePicker -> Posix -> Posix -> Html Msg
@@ -123,68 +115,51 @@ viewDay dateTimePicker justViewTime day =
             compare (floorDate a |> Time.posixToMillis)
                 (floorDate b |> Time.posixToMillis)
 
-        setClass_ : Maybe Posix -> String -> String
-        setClass_ d s =
-            case d of
-                Just m ->
-                    case compareDate_ m day of
-                        EQ ->
-                            s
+        isSameDate maybeDate =
+            Maybe.map (\m -> compareDate_ m day == EQ) maybeDate
+                |> Maybe.withDefault False
 
-                        _ ->
-                            ""
+        thisMonth =
+            floorMonth justViewTime == floorMonth day
 
-                Nothing ->
-                    ""
-
-        thisMonthClass =
-            if floorMonth justViewTime == floorMonth day then
-                " thismonth"
-
-            else
-                ""
-
-        mouseoverClass =
-            setClass_ dateTimePicker.mouseOverDay " mouseover"
-
-        startClass =
-            setClass_ dateTimePicker.startDate " start"
-
-        endClass =
-            setClass_ dateTimePicker.endDate " end"
-
-        ( startClassBack, endClassBack ) =
-            Maybe.map2 (\_ _ -> ( startClass, endClass )) dateTimePicker.startDate dateTimePicker.endDate
-                |> Maybe.withDefault ( "", "" )
-
-        betweenClass =
+        between =
             case ( dateTimePicker.startDate, dateTimePicker.endDate ) of
                 ( Just start, Just end ) ->
-                    case ( compareDate_ start day, compareDate_ end day ) of
-                        ( LT, GT ) ->
-                            " between"
-
-                        _ ->
-                            ""
+                    compareDate_ start day == LT && compareDate_ end day == GT
 
                 _ ->
-                    ""
+                    False
+
+        classes =
+            [ "btn", "w-100", "h-100", "text-center" ]
+                ++
+                (if isSameDate dateTimePicker.startDate then
+                    [ "btn-primary" ]
+                 else if isSameDate dateTimePicker.endDate then
+                    [ "btn-primary" ]
+                 else if between then
+                    [ "btn-outline-secondary" ]
+                 else
+                    [ "btn-light" ])
+                ++
+                (if not thisMonth then
+                    [ "text-muted" ]
+                 else
+                    [])
     in
-    div [ class ("date back" ++ startClassBack ++ endClassBack ++ betweenClass) ]
-        [ div
-            [ class ("date front" ++ mouseoverClass ++ startClass ++ endClass ++ thisMonthClass)
-            , onMouseOver <| MouseOverDay day
-            , onClick OnClickDay
-            ]
-            [ text (Time.toDay utc day |> String.fromInt) ]
+    button
+        [ class (String.join " " classes)
+        , onMouseOver <| MouseOverDay day
+        , onClick <| OnClickDay
         ]
+        [ text (Time.toDay utc day |> String.fromInt) ]
 
 
 viewTimePicker : DateTimePicker -> StartOrEnd -> Html Msg
 viewTimePicker dateTimePicker startOrEnd =
     div
-        [ class "row timepicker" ]
-        [ strong [ class "subject" ]
+        [ class "col-12 col-md-6 mb-3" ]
+        [ strong [ class "d-block mb-2" ]
             [ text
                 (case startOrEnd of
                     Start ->
@@ -194,17 +169,15 @@ viewTimePicker dateTimePicker startOrEnd =
                         "End"
                 )
             ]
-        , div [ class "hour" ]
+        , div [ class "input-group" ]
             [ button
-                [ class "up-button d-flex-center"
+                [ class "btn btn-sm"
                 , onClick <| IncrementTime startOrEnd InputHour 1
                 ]
-                [ i
-                    [ class "fa fa-angle-up" ]
-                    []
-                ]
+                [ i [ class "fa fa-angle-up" ] [] ]
             , input
-                [ on "blur" <| Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse
+                [ Attr.type_ "number"
+                , on "blur" (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)
                 , value
                     (case startOrEnd of
                         Start ->
@@ -223,31 +196,26 @@ viewTimePicker dateTimePicker startOrEnd =
                                 Nothing ->
                                     "0"
                     )
-                , maxlength 2
-                , class "view d-flex-center"
+                , Attr.maxlength 2
+                , class "form-control text-center"
+                , Attr.min (String.fromInt 0)
+                , Attr.max (String.fromInt 23)
                 ]
                 []
             , button
-                [ class "down-button d-flex-center"
+                [ class "btn btn-sm"
                 , onClick <| IncrementTime startOrEnd InputHour -1
                 ]
-                [ i
-                    [ class "fa fa-angle-down" ]
-                    []
-                ]
-            ]
-        , div [ class "colon d-flex-center" ] [ text ":" ]
-        , div [ class "minute" ]
-            [ button
-                [ class "up-button d-flex-center"
+                [ i [ class "fa fa-angle-down" ] [] ]
+            , div [ class "input-group-text" ] [ text ":" ]
+            , button
+                [ class "btn btn-sm"
                 , onClick <| IncrementTime startOrEnd InputMinute 1
                 ]
-                [ i
-                    [ class "fa fa-angle-up" ]
-                    []
-                ]
+                [ i [ class "fa fa-angle-up" ] [] ]
             , input
-                [ on "blur" <| Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse
+                [ Attr.type_ "number"
+                , on "blur" (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)
                 , value
                     (case startOrEnd of
                         Start ->
@@ -266,20 +234,19 @@ viewTimePicker dateTimePicker startOrEnd =
                                 Nothing ->
                                     "0"
                     )
-                , maxlength 2
-                , class "view"
+                , Attr.maxlength 2
+                , class "form-control text-center"
+                , Attr.min (String.fromInt 0)
+                , Attr.max (String.fromInt 59)
                 ]
                 []
             , button
-                [ class "down-button d-flex-center"
+                [ class "btn btn-sm"
                 , onClick <| IncrementTime startOrEnd InputMinute -1
                 ]
-                [ i
-                    [ class "fa fa-angle-down" ]
-                    []
-                ]
+                [ i [ class "fa fa-angle-down" ] [] ]
             ]
-        , div [ class "timeview d-flex-center" ]
+        , div [ class "mt-2 text-center" ]
             [ text
                 (let
                     toString_ : Maybe Posix -> Maybe Posix -> String
