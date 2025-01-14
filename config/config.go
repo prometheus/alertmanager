@@ -39,6 +39,11 @@ const secretToken = "<secret>"
 
 var secretTokenJSON string
 
+// MarshalSecretValue if set to true will expose Secret type
+// through the marshal interfaces. Useful for outside projects
+// that load and marshal the Alertmanager config.
+var MarshalSecretValue bool = commoncfg.MarshalSecretValue
+
 func init() {
 	b, err := json.Marshal(secretToken)
 	if err != nil {
@@ -52,6 +57,9 @@ type Secret string
 
 // MarshalYAML implements the yaml.Marshaler interface for Secret.
 func (s Secret) MarshalYAML() (interface{}, error) {
+	if MarshalSecretValue {
+		return string(s), nil
+	}
 	if s != "" {
 		return secretToken, nil
 	}
@@ -66,6 +74,12 @@ func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the json.Marshaler interface for Secret.
 func (s Secret) MarshalJSON() ([]byte, error) {
+	if MarshalSecretValue {
+		return json.Marshal(string(s))
+	}
+	if len(s) == 0 {
+		return json.Marshal("")
+	}
 	return json.Marshal(secretToken)
 }
 
@@ -130,6 +144,9 @@ type SecretURL URL
 // MarshalYAML implements the yaml.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalYAML() (interface{}, error) {
 	if s.URL != nil {
+		if MarshalSecretValue {
+			return s.URL.String(), nil
+		}
 		return secretToken, nil
 	}
 	return nil, nil
@@ -153,6 +170,12 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalJSON() ([]byte, error) {
+	if s.URL == nil {
+		return json.Marshal("")
+	}
+	if MarshalSecretValue {
+		return json.Marshal(s.URL.String())
+	}
 	return json.Marshal(secretToken)
 }
 
@@ -167,6 +190,9 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	}
 	// Redact the secret URL in case of errors
 	if err := json.Unmarshal(data, (*URL)(s)); err != nil {
+		if MarshalSecretValue {
+			return err
+		}
 		return errors.New(strings.ReplaceAll(err.Error(), string(data), "[REDACTED]"))
 	}
 
@@ -942,7 +968,11 @@ type InhibitRule struct {
 	TargetMatchers Matchers `yaml:"target_matchers,omitempty" json:"target_matchers,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
-	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
+	Equal model.LabelNames `yaml:"-" json:"-"`
+	// EqualStr allows us to validate the label depending on whether UTF-8 is
+	// enabled or disabled. It should be removed when Alertmanager is updated
+	// to use the validation modes in recent versions of prometheus/common.
+	EqualStr []string `yaml:"equal,omitempty" json:"equal,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
@@ -962,6 +992,14 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
+	}
+
+	for _, l := range r.EqualStr {
+		labelName := model.LabelName(l)
+		if !compat.IsValidLabelName(labelName) {
+			return fmt.Errorf("invalid label name %q in equal list", l)
+		}
+		r.Equal = append(r.Equal, labelName)
 	}
 
 	return nil
