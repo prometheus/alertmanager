@@ -17,8 +17,11 @@ view maybeRegex model =
         viewResult maybeRegex model.receivers
 
 
+
 -- This is shown when the dropdown is *not* open;
 -- we just display the current receiver or "All"
+
+
 viewResult : Maybe String -> List Receiver -> Html Msg
 viewResult maybeRegex receivers =
     let
@@ -44,7 +47,10 @@ viewResult maybeRegex receivers =
         ]
 
 
+
 -- When the dropdown is open, we show an <input> plus the suggestions list
+
+
 viewDropdown : Model -> Html Msg
 viewDropdown { matches, fieldText, selectedReceiver } =
     let

@@ -1,7 +1,7 @@
 module Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 
 import Html exposing (Html, br, button, div, i, input, p, strong, text)
-import Html.Attributes as Attr exposing (class, value, type_, maxlength)
+import Html.Attributes as Attr exposing (class, maxlength, type_, value)
 import Html.Events exposing (on, onClick, onMouseOut, onMouseOver)
 import Iso8601
 import Json.Decode as Decode
@@ -132,20 +132,24 @@ viewDay dateTimePicker justViewTime day =
 
         classes =
             [ "btn", "w-100", "h-100", "text-center" ]
-                ++
-                (if isSameDate dateTimePicker.startDate then
-                    [ "btn-primary" ]
-                 else if isSameDate dateTimePicker.endDate then
-                    [ "btn-primary" ]
-                 else if between then
-                    [ "btn-outline-secondary" ]
-                 else
-                    [ "btn-light" ])
-                ++
-                (if not thisMonth then
-                    [ "text-muted" ]
-                 else
-                    [])
+                ++ (if isSameDate dateTimePicker.startDate then
+                        [ "btn-primary" ]
+
+                    else if isSameDate dateTimePicker.endDate then
+                        [ "btn-primary" ]
+
+                    else if between then
+                        [ "btn-outline-secondary" ]
+
+                    else
+                        [ "btn-light" ]
+                   )
+                ++ (if not thisMonth then
+                        [ "text-muted" ]
+
+                    else
+                        []
+                   )
     in
     button
         [ class (String.join " " classes)

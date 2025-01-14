@@ -4,8 +4,8 @@ import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
 import Data.ClusterStatus exposing (ClusterStatus, Status(..))
 import Data.PeerStatus exposing (PeerStatus)
 import Data.VersionInfo exposing (VersionInfo)
-import Html exposing (Html, a, b, div, h1, h2, i, pre, span, td, text, th, tr, ul, li, code)
-import Html.Attributes exposing (class, classList, style, href, target, rel, type_, id)
+import Html exposing (Html, a, b, code, div, h1, h2, i, li, pre, span, td, text, th, tr, ul)
+import Html.Attributes exposing (class, classList, href, id, rel, style, target, type_)
 import Status.Api exposing (clusterStatusToString)
 import Status.Types exposing (VersionInfo)
 import Types
@@ -91,7 +91,7 @@ viewClusterStatus { name, status, peers } =
 
 viewClusterPeer : PeerStatus -> Html Types.Msg
 viewClusterPeer peer =
-    li [ ]
+    li []
         [ div [ class "mb-2" ]
             [ b [ class "me-2" ] [ text "Name:" ]
             , text peer.name

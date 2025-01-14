@@ -117,6 +117,7 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                     , style "min-width"
                         (if showSilenceButton then
                             "300px"
+
                          else
                             "200px"
                         )

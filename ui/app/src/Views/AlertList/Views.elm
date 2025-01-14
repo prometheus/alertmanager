@@ -22,7 +22,8 @@ import Views.ReceiverBar.Views as ReceiverBar
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
 renderCheckbox textLabel maybeChecked toggleMsg =
     let
-        checkboxId = "checkbox-" ++ textLabel
+        checkboxId =
+            "checkbox-" ++ textLabel
     in
     li [ class "nav-item" ]
         [ div [ class "form-check mt-1 ms-1" ]
@@ -87,6 +88,7 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
                     [ i [ class "fa fa-minus me-3" ] []
                     , text "Collapse all groups"
                     ]
+
                  else
                     [ i [ class "fa fa-plus me-3" ] []
                     , text "Expand all groups"

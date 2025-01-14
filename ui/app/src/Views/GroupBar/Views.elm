@@ -67,8 +67,10 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
         inputValidationClass =
             if String.isEmpty fieldText then
                 ""
+
             else if isDisabled then
                 " is-invalid"
+
             else
                 " is-valid"
 
@@ -157,10 +159,12 @@ autoCompleteResults { maybeSelectedMatch, focused, resultsHovered, matches } =
 
         dropdownClasses =
             "dropdown-menu"
-                ++ if showMenu then
-                    " show"
-                   else
-                    ""
+                ++ (if showMenu then
+                        " show"
+
+                    else
+                        ""
+                   )
     in
     div
         [ class "position-relative"
@@ -181,6 +185,7 @@ matchedField maybeSelectedMatch field =
         className =
             if maybeSelectedMatch == Just field then
                 "active"
+
             else
                 ""
     in

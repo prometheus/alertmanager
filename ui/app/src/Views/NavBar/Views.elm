@@ -16,11 +16,9 @@ navBar currentRoute =
             [ -- Brand
               a [ class "navbar-brand", href "#" ]
                 [ text "Alertmanager" ]
-
             , -- Nav items: vertically stacked on small screens, horizontal from md up.
               ul [ class "navbar-nav me-auto" ]
-                  (navBarItems currentRoute)
-
+                (navBarItems currentRoute)
             , -- “New Silence” button on the right (below the nav on small screens).
               case currentRoute of
                 SilenceFormEditRoute _ ->
