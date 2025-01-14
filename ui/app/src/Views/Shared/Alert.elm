@@ -16,14 +16,14 @@ annotationsButton activeAlertId alert =
             [ onClick Nothing
             , class "btn btn-outline-info border-0 active"
             ]
-            [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
+            [ i [ class "fa fa-minus me-2" ] [], text "Info" ]
 
     else
         button
             [ class "btn btn-outline-info border-0"
             , onClick (Just alert.fingerprint)
             ]
-            [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
+            [ i [ class "fa fa-plus me-2" ] [], text "Info" ]
 
 
 annotation : ( String, String ) -> Html msg
@@ -37,7 +37,7 @@ annotation ( key, value ) =
 titleView : GettableAlert -> Html msg
 titleView alert =
     span
-        [ class "align-self-center mr-2" ]
+        [ class "align-self-center me-2" ]
         [ text
             (dateTimeFormat alert.startsAt)
         ]
@@ -48,7 +48,7 @@ generatorUrlButton url =
     if String.startsWith "http://" url || String.startsWith "https://" url then
         a
             [ class "btn btn-outline-info border-0", href url ]
-            [ i [ class "fa fa-line-chart mr-2" ] []
+            [ i [ class "fa fa-line-chart me-2" ] []
             , text "Source"
             ]
 
