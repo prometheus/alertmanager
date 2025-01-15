@@ -24,7 +24,7 @@
                 }
 
                 // Apply the theme to the body
-                document.body.setAttribute('data-bs-theme', themeToSet);
+                document.documentElement.setAttribute('data-bs-theme', themeToSet);
 
                 // Persist the requested theme back to localStorage
                 localStorage.setItem('bootstrapTheme', requestedBootstrapTheme);
