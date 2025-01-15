@@ -114,9 +114,6 @@ update msg ({ basePath, apiUrl } as model) =
         FontAwesomeCSSLoaded css ->
             ( { model | fontAwesomeCSS = css }, Cmd.none )
 
-        ElmDatepickerCSSLoaded css ->
-            ( { model | elmDatepickerCSS = css }, Cmd.none )
-
         SetDefaultCreator name ->
             ( { model | defaultCreator = name }, Cmd.none )
 
