@@ -74,7 +74,7 @@ labelButton ( key, val ) =
             ]
             [ text (key ++ "=\"" ++ val ++ "\"") ]
         , button
-            [ class "btn btn-sm bg-light btn-outline-secondary"
+            [ class "btn btn-sm bg-light btn-outline-secondary text-black"
             , onClick (addLabelMsg ( key, val ))
             , title "Filter by this label"
             ]

@@ -14,13 +14,13 @@ annotationsButton activeAlertId alert =
     if activeAlertId == Just alert.fingerprint then
         button
             [ onClick Nothing
-            , class "btn btn-outline-info active me-2 mb-2"
+            , class "btn btn-outline-info active border-0"
             ]
             [ i [ class "fa fa-minus me-2" ] [], text "Info" ]
 
     else
         button
-            [ class "btn btn-outline-info me-2 mb-2"
+            [ class "btn btn-outline-info border-0"
             , onClick (Just alert.fingerprint)
             ]
             [ i [ class "fa fa-plus me-2" ] [], text "Info" ]

@@ -131,7 +131,7 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
         labels_ =
             case labels of
                 [] ->
-                    [ span [ class "btn btn-secondary me-1 mb-1" ] [ text "Not grouped" ] ]
+                    [ span [ class "btn btn-outline-secondary me-1 mb-1" ] [ text "Not grouped" ] ]
 
                 _ ->
                     List.map

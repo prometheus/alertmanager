@@ -9,7 +9,7 @@ import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, settingsTab, silenc
 navBar : Route -> Html msg
 navBar currentRoute =
     header
-        [ class "navbar navbar-expand-md navbar-light bg-faded mb-5 pt-3 pb-3"
+        [ class "navbar navbar-expand-md bg-body-secondary mb-5 pt-3 pb-3"
         , style "border-bottom" "1px solid rgba(0, 0, 0, .125)"
         ]
         [ nav [ class "container" ]

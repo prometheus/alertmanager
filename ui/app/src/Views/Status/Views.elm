@@ -38,7 +38,7 @@ viewConfig : String -> Html Types.Msg
 viewConfig config =
     div []
         [ h2 [ class "mb-3" ] [ text "Config" ]
-        , pre [ class "p-4 bg-light rounded", style "font-family" "monospace" ]
+        , pre [ class "p-4 bg-body-secondary rounded", style "font-family" "monospace" ]
             [ code [] [ text config ] ]
         ]
 

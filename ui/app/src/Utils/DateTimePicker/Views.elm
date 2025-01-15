@@ -139,13 +139,13 @@ viewDay dateTimePicker justViewTime day =
                         [ "btn-primary" ]
 
                     else if between then
-                        [ "btn-outline-secondary" ]
+                        [ "bg-primary-subtle" ]
 
                     else
-                        [ "btn-light" ]
+                        [ "bg-body-secondary" ]
                    )
                 ++ (if not thisMonth then
-                        [ "text-muted" ]
+                        [ "text-body-tertiary" ]
 
                     else
                         []
