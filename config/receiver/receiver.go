@@ -111,7 +111,7 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 		add("rocketchat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return rocketchat.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.KafkaConfigs {
-		add("kafka", i, c, func(l *slog.Logger) (notify.Notifier, error) { return kafka.New(c, l) })
+		add("kafka", i, c, func(l *slog.Logger) (notify.Notifier, error) { return kafka.New(c, l, nil) })
 	}
 
 	if errs.Len() > 0 {

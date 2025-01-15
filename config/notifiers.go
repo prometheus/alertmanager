@@ -209,9 +209,8 @@ var (
 			VSendResolved: true,
 		},
 
-		Brokers:           []string{},
-		Topic:             `{{ template "kafka.default.topic" . }}`,
-		NumberOfPartition: nil,
+		Brokers: []string{},
+		Topic:   `{{ template "kafka.default.topic" . }}`,
 	}
 )
 
@@ -1012,7 +1011,7 @@ type KafkaConfig struct {
 
 	Brokers           []string       `yaml:"brokers" json:"brokers"`
 	Topic             string         `yaml:"topic" json:"topic"`
-	NumberOfPartition *int           `yaml:"number_of_partitions" json:"number_of_partitions"`
+	NumberOfPartition int            `yaml:"number_of_partitions" json:"number_of_partitions"`
 	SecurityProtocol  *string        `yaml:"security_protocol" json:"security_protocol"`
 	Username          *string        `yaml:"username" json:"username"`
 	Password          *string        `yaml:"password" json:"password"`

@@ -32,16 +32,25 @@ import (
 
 // Notifier implements a Notifier for Discord notifications.
 type Notifier struct {
-	conf                *config.KafkaConfig
-	logger              *slog.Logger
-	writer              *ckafka.Writer
-	numberOfPartition   int
-	partitionIndex      int
-	partitionIndexMutex sync.Mutex
+	conf           *config.KafkaConfig
+	logger         *slog.Logger
+	partition      int
+	partitionMutex sync.Mutex
+	sendFunc       func(ctx context.Context, msgs ...ckafka.Message) error
 }
 
 // New returns a new Kafka notifier.
-func New(c *config.KafkaConfig, l *slog.Logger) (*Notifier, error) {
+func New(c *config.KafkaConfig, l *slog.Logger, sendFunc *func(ctx context.Context, msgs ...ckafka.Message) error) (*Notifier, error) {
+	n := &Notifier{
+		conf:   c,
+		logger: l,
+	}
+
+	if sendFunc != nil {
+		n.sendFunc = *sendFunc
+		return n, nil
+	}
+
 	transport := ckafka.Transport{}
 
 	if c.SecurityProtocol != nil {
@@ -70,16 +79,14 @@ func New(c *config.KafkaConfig, l *slog.Logger) (*Notifier, error) {
 		writer.WriteTimeout = 45 * time.Second
 	}
 
-	n := &Notifier{
-		conf:   c,
-		logger: l,
-		writer: writer,
+	if c.NumberOfPartition > 0 {
+		n.partition = c.NumberOfPartition
+	} else {
+		n.partition = 1
 	}
 
-	if c.NumberOfPartition != nil {
-		n.numberOfPartition = *c.NumberOfPartition
-	} else {
-		n.numberOfPartition = 1
+	n.sendFunc = func(ctx context.Context, msgs ...ckafka.Message) error {
+		return writer.WriteMessages(ctx, msgs...)
 	}
 
 	return n, nil
@@ -87,20 +94,21 @@ func New(c *config.KafkaConfig, l *slog.Logger) (*Notifier, error) {
 
 // GetPartitionIndex returns the current partition index.
 func (n *Notifier) GetPartitionIndex() int {
-	return n.partitionIndex
+	return n.partition
 }
 
 // NextPartition returns the next partition index.
 func (n *Notifier) NextPartition() {
-	n.partitionIndexMutex.Lock()
-	n.partitionIndex = (n.partitionIndex + 1) % n.numberOfPartition
-	n.partitionIndexMutex.Unlock()
+	n.partitionMutex.Lock()
+	n.partition = (n.partition + 1) % n.conf.NumberOfPartition
+	n.partitionMutex.Unlock()
 }
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	// Because retry is supported by kafka-go so it will be always false
 	var buf bytes.Buffer
+	var msgs []ckafka.Message
+	// Because retry is supported by kafka-go so it will be always false
 	shouldRetry := false
 
 	for _, alert := range as {
@@ -108,24 +116,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			slog.Log(ctx, slog.LevelError, fmt.Sprintf("Failed to marshal alert: %s", alert.Name()), "err", err)
 		}
 
-		if err := n.Produce(ctx, alert.Name(), buf.Bytes()); err != nil {
-			slog.Log(ctx, slog.LevelError, fmt.Sprintf("Failed to produce alert: %s", alert.Name()), "err", err)
+		message := ckafka.Message{
+			Key:   []byte(alert.Name()),
+			Value: buf.Bytes(),
 		}
+
+		if n.conf.NumberOfPartition > 0 {
+			message.Partition = n.GetPartitionIndex()
+			n.NextPartition()
+		}
+
+		msgs = append(msgs, message)
+	}
+
+	if err := n.sendFunc(ctx, msgs...); err != nil {
+		slog.Log(ctx, slog.LevelError, "Failed to send message", "err", err)
+		return shouldRetry, err
 	}
 
 	return shouldRetry, nil
-}
-
-// Produce sends a message to Kafka.
-func (n *Notifier) Produce(ctx context.Context, key string, value []byte) error {
-	message := ckafka.Message{
-		Key:   []byte(key),
-		Value: value,
-	}
-
-	if n.conf.NumberOfPartition != nil {
-		message.Partition = n.GetPartitionIndex()
-	}
-
-	return n.writer.WriteMessages(ctx, message)
 }
