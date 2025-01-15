@@ -55,6 +55,7 @@ type Msg
     | ElmDatepickerCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
+    | SetAndPersistBootstrapTheme String
 
 
 type Route
