@@ -731,6 +731,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+kafka_configs:
+  [ - <kafka_config>, ... ]
 ```
 
 ### `<http_config>`
@@ -1683,4 +1685,60 @@ room_id: <tmpl_string>
 
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<kafka_config>`
+
+The Kafka receiver allows configuring a generic receiver.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Kafka broker to send Kafka messages to.
+brokers: <[]string>
+
+# The topic to send Kafka messages to.
+topic: <string>
+
+# The number of partitions to send Kafka messages to.
+# 0 for any topic
+[ number_of_partitions: <int> | default = 0 ]
+
+# The Kafka security protocol.
+# Valid values are: SASL_SSL, SSL
+[ security_protocol: <string> | default = nil ]
+
+# The Kafka SASL username.
+[ username: <string> | default = nil ]
+
+# The Kafka SASL password.
+[ password: <secret> | default = nil ]
+
+```
+
+The Alertmanager
+will send Kafka requests in the following JSON format to the configured
+topic
+
+```
+{
+  "alerts": [
+    {
+      "labels": {
+        "alertname": "HighCPU",
+        "severity": "warning"
+      },
+      "annotations": {
+        "description": "High CPU usage on ",
+        "summary": "High CPU usage"
+      },
+      "startsAt": "2025-01-13T07:36:19.333Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://MacBook-Pro.local:9090/graph?g0.expr=avg%28node_cpu_seconds_total%7Binstance%3D%22127.0.0.1%3A9100%22%2Cmode%3D%22user%22%7D%29+%3E+40000&g0.tab=1",
+      "UpdatedAt": "2025-01-13T14:41:44.343789+07:00",
+      "Timeout": false
+    }
+  ]
+}
 ```

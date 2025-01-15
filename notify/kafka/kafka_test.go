@@ -54,7 +54,7 @@ func TestKafkaNotifyRoundRobin(t *testing.T) {
 	var counter int
 	partitions := 2
 	sendFunc := func(ctx context.Context, msgs ...ckafka.Message) error {
-		require.Equal(t, counter%partitions+1, msgs[0].Partition)
+		require.Equal(t, counter%partitions, msgs[0].Partition)
 		counter++
 		return nil
 	}
