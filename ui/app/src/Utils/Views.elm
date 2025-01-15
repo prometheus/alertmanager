@@ -42,7 +42,7 @@ labelButton maybeMsg labelText =
     case maybeMsg of
         Nothing ->
             span
-                [ class "btn btn-sm bg-body-secondary me-2 mb-2"
+                [ class "btn btn-sm bg-body-secondary text-start me-2 mb-2"
                 , style "user-select" "text"
                 , style "-moz-user-select" "text"
                 , style "-webkit-user-select" "text"
@@ -51,7 +51,7 @@ labelButton maybeMsg labelText =
 
         Just msg ->
             button
-                [ class "btn btn-sm bg-body-secondary me-2 mb-2"
+                [ class "btn btn-sm bg-body-secondary text-start me-2 mb-2"
                 , onClick msg
                 ]
                 [ span [] [ text labelText ] ]

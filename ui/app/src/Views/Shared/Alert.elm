@@ -47,7 +47,7 @@ generatorUrlButton : String -> Html msg
 generatorUrlButton url =
     if String.startsWith "http://" url || String.startsWith "https://" url then
         a
-            [ class "btn btn-outline-info me-2 mb-2", href url ]
+            [ class "btn btn-outline-info border-0", href url ]
             [ i [ class "fa fa-line-chart me-2" ] []
             , text "Source"
             ]
