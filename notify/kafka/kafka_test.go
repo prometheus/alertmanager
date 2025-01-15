@@ -90,6 +90,7 @@ func TestKafkaNotifyRoundRobin(t *testing.T) {
 	}()
 
 	notifier.Notify(context.Background(), &types.Alert{})
+	notifier.Notify(context.Background(), &types.Alert{})
 
 	wg.Wait()
 }
