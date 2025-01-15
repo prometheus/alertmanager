@@ -38,7 +38,7 @@ viewCalendar dateTimePicker =
                 |> Maybe.withDefault (Time.millisToPosix 0)
     in
     div [ class "row" ]
-        [ div [ class "col-12" ]
+        [ div [ class "col-12 mx-auto p-1 w-auto", Attr.style "max-width" "300px" ]
             [ viewMonthHeader justViewTime
             , viewMonth dateTimePicker justViewTime
             ]
@@ -47,25 +47,25 @@ viewCalendar dateTimePicker =
 
 viewMonthHeader : Posix -> Html Msg
 viewMonthHeader justViewTime =
-    div [ class "row align-items-center mb-3 month-header" ]
+    div [ class "row align-items-center mb-1 w-100 mx-auto" ]
         [ div
-            [ class "col text-start prev-month"
+            [ class "col text-start px-0"
             , onClick PrevMonth
             ]
-            [ button [ class "btn" ]
+            [ button [ class "btn btn-sm p-0" ]
                 [ i [ class "fa fa-angle-left fa-3x" ] [] ]
             ]
         , div
-            [ class "col text-center month-text" ]
+            [ class "col text-center small fw-bold px-0" ]
             [ text (Time.toYear utc justViewTime |> String.fromInt)
             , br [] []
             , text (Time.toMonth utc justViewTime |> monthToString)
             ]
         , div
-            [ class "col text-end next-month"
+            [ class "col text-end px-0"
             , onClick NextMonth
             ]
-            [ button [ class "btn" ]
+            [ button [ class "btn btn-sm p-0" ]
                 [ i [ class "fa fa-angle-right fa-3x" ] [] ]
             ]
         ]
@@ -97,7 +97,7 @@ viewMonth dateTimePicker justViewTime =
 
 viewWeekHeader : String -> Html Msg
 viewWeekHeader weekday =
-    div [ class "col text-center text-muted" ]
+    div [ class "col text-center small text-muted p-1" ]
         [ text weekday ]
 
 
@@ -131,7 +131,7 @@ viewDay dateTimePicker justViewTime day =
                     False
 
         classes =
-            [ "btn", "w-100", "h-100", "text-center" ]
+            [ "btn", "btn-sm", "w-100", "h-100", "text-center", "p-1" ]
                 ++ (if isSameDate dateTimePicker.startDate then
                         [ "btn-primary" ]
 
@@ -163,7 +163,7 @@ viewTimePicker : DateTimePicker -> StartOrEnd -> Html Msg
 viewTimePicker dateTimePicker startOrEnd =
     div
         [ class "col-12 col-md-6 mb-3" ]
-        [ strong [ class "d-block mb-2" ]
+        [ strong [ class "d-block" ]
             [ text
                 (case startOrEnd of
                     Start ->
@@ -173,84 +173,88 @@ viewTimePicker dateTimePicker startOrEnd =
                         "End"
                 )
             ]
-        , div [ class "input-group" ]
-            [ button
-                [ class "btn btn-sm"
-                , onClick <| IncrementTime startOrEnd InputHour 1
-                ]
-                [ i [ class "fa fa-angle-up" ] [] ]
-            , input
-                [ Attr.type_ "number"
-                , on "blur" (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)
-                , value
-                    (case startOrEnd of
-                        Start ->
-                            case dateTimePicker.startTime of
-                                Just t ->
-                                    Time.toHour utc t |> String.fromInt
+        , div [ class "d-flex justify-content-center align-items-center" ]
+            [ div [ class "d-flex flex-column align-items-center mx-1" ]
+                [ button
+                    [ class "btn btn-sm"
+                    , onClick <| IncrementTime startOrEnd InputHour 1
+                    ]
+                    [ i [ class "fa fa-angle-up" ] [] ]
+                , input
+                    [ Attr.type_ "number"
+                    , on "blur" (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)
+                    , value
+                        (case startOrEnd of
+                            Start ->
+                                case dateTimePicker.startTime of
+                                    Just t ->
+                                        Time.toHour utc t |> String.fromInt
 
-                                Nothing ->
-                                    "0"
+                                    Nothing ->
+                                        "0"
 
-                        End ->
-                            case dateTimePicker.endTime of
-                                Just t ->
-                                    Time.toHour utc t |> String.fromInt
+                            End ->
+                                case dateTimePicker.endTime of
+                                    Just t ->
+                                        Time.toHour utc t |> String.fromInt
 
-                                Nothing ->
-                                    "0"
-                    )
-                , Attr.maxlength 2
-                , class "form-control text-center"
-                , Attr.min (String.fromInt 0)
-                , Attr.max (String.fromInt 23)
+                                    Nothing ->
+                                        "0"
+                        )
+                    , Attr.maxlength 2
+                    , class "form-control text-center"
+                    , Attr.min (String.fromInt 0)
+                    , Attr.max (String.fromInt 23)
+                    ]
+                    []
+                , button
+                    [ class "btn btn-sm"
+                    , onClick <| IncrementTime startOrEnd InputHour -1
+                    ]
+                    [ i [ class "fa fa-angle-down" ] [] ]
                 ]
-                []
-            , button
-                [ class "btn btn-sm"
-                , onClick <| IncrementTime startOrEnd InputHour -1
-                ]
-                [ i [ class "fa fa-angle-down" ] [] ]
-            , div [ class "input-group-text" ] [ text ":" ]
-            , button
-                [ class "btn btn-sm"
-                , onClick <| IncrementTime startOrEnd InputMinute 1
-                ]
-                [ i [ class "fa fa-angle-up" ] [] ]
-            , input
-                [ Attr.type_ "number"
-                , on "blur" (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)
-                , value
-                    (case startOrEnd of
-                        Start ->
-                            case dateTimePicker.startTime of
-                                Just t ->
-                                    Time.toMinute utc t |> String.fromInt
+            , div [ class "mx-2" ] [ text ":" ]
+            , div [ class "d-flex flex-column align-items-center mx-1" ]
+                [ button
+                    [ class "btn btn-sm"
+                    , onClick <| IncrementTime startOrEnd InputMinute 1
+                    ]
+                    [ i [ class "fa fa-angle-up" ] [] ]
+                , input
+                    [ Attr.type_ "number"
+                    , on "blur" (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)
+                    , value
+                        (case startOrEnd of
+                            Start ->
+                                case dateTimePicker.startTime of
+                                    Just t ->
+                                        Time.toMinute utc t |> String.fromInt
 
-                                Nothing ->
-                                    "0"
+                                    Nothing ->
+                                        "0"
 
-                        End ->
-                            case dateTimePicker.endTime of
-                                Just t ->
-                                    Time.toMinute utc t |> String.fromInt
+                            End ->
+                                case dateTimePicker.endTime of
+                                    Just t ->
+                                        Time.toMinute utc t |> String.fromInt
 
-                                Nothing ->
-                                    "0"
-                    )
-                , Attr.maxlength 2
-                , class "form-control text-center"
-                , Attr.min (String.fromInt 0)
-                , Attr.max (String.fromInt 59)
+                                    Nothing ->
+                                        "0"
+                        )
+                    , Attr.maxlength 2
+                    , class "form-control text-center"
+                    , Attr.min (String.fromInt 0)
+                    , Attr.max (String.fromInt 59)
+                    ]
+                    []
+                , button
+                    [ class "btn btn-sm"
+                    , onClick <| IncrementTime startOrEnd InputMinute -1
+                    ]
+                    [ i [ class "fa fa-angle-down" ] [] ]
                 ]
-                []
-            , button
-                [ class "btn btn-sm"
-                , onClick <| IncrementTime startOrEnd InputMinute -1
-                ]
-                [ i [ class "fa fa-angle-down" ] [] ]
             ]
-        , div [ class "mt-2 text-center" ]
+        , div [ class "text-center" ]
             [ text
                 (let
                     toString_ : Maybe Posix -> Maybe Posix -> String
