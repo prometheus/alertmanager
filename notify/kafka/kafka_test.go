@@ -28,9 +28,7 @@ import (
 )
 
 func TestKafkaNotify(t *testing.T) {
-	var counter int
 	sendFunc := func(ctx context.Context, msgs ...ckafka.Message) error {
-		counter++
 		return nil
 	}
 
@@ -47,13 +45,18 @@ func TestKafkaNotify(t *testing.T) {
 
 	notifier.Notify(context.Background(), &types.Alert{})
 
-	require.Equal(t, 1, counter)
+	require.Equal(t, 0, notifier.Partition)
 }
 
 func TestKafkaNotifyRoundRobin(t *testing.T) {
-	var counter int
+	var (
+		counter      int
+		counterMutex sync.Mutex
+	)
 	partitions := 2
 	sendFunc := func(ctx context.Context, msgs ...ckafka.Message) error {
+		counterMutex.Lock()
+		defer counterMutex.Unlock()
 		require.Equal(t, counter%partitions, msgs[0].Partition)
 		counter++
 		return nil
@@ -73,10 +76,6 @@ func TestKafkaNotifyRoundRobin(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	notifier.Notify(context.Background(), &types.Alert{})
-	notifier.Notify(context.Background(), &types.Alert{})
-	notifier.Notify(context.Background(), &types.Alert{})
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -88,9 +87,8 @@ func TestKafkaNotifyRoundRobin(t *testing.T) {
 		defer wg.Done()
 		notifier.Notify(context.Background(), &types.Alert{})
 	}()
-
-	notifier.Notify(context.Background(), &types.Alert{})
-	notifier.Notify(context.Background(), &types.Alert{})
 
 	wg.Wait()
+
+	require.Equal(t, partitions, counter)
 }

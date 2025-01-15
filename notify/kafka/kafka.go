@@ -34,7 +34,7 @@ import (
 type Notifier struct {
 	conf           *config.KafkaConfig
 	logger         *slog.Logger
-	partition      int
+	Partition      int
 	partitionMutex sync.Mutex
 	sendFunc       func(ctx context.Context, msgs ...ckafka.Message) error
 }
@@ -80,9 +80,9 @@ func New(c *config.KafkaConfig, l *slog.Logger, sendFunc *func(ctx context.Conte
 	}
 
 	if c.NumberOfPartition > 0 {
-		n.partition = c.NumberOfPartition
+		n.Partition = c.NumberOfPartition
 	} else {
-		n.partition = 1
+		n.Partition = 1
 	}
 
 	n.sendFunc = func(ctx context.Context, msgs ...ckafka.Message) error {
@@ -94,14 +94,16 @@ func New(c *config.KafkaConfig, l *slog.Logger, sendFunc *func(ctx context.Conte
 
 // GetPartitionIndex returns the current partition index.
 func (n *Notifier) GetPartitionIndex() int {
-	return n.partition
+	n.partitionMutex.Lock()
+	defer n.partitionMutex.Unlock()
+	return n.Partition
 }
 
 // NextPartition returns the next partition index.
 func (n *Notifier) NextPartition() {
 	n.partitionMutex.Lock()
-	n.partition = (n.partition + 1) % n.conf.NumberOfPartition
-	n.partitionMutex.Unlock()
+	defer n.partitionMutex.Unlock()
+	n.Partition = (n.Partition + 1) % n.conf.NumberOfPartition
 }
 
 // Notify implements the Notifier interface.
