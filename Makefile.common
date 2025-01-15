@@ -93,11 +93,9 @@ TAG_DOCKER_ARCHS = $(addprefix common-docker-tag-latest-,$(DOCKER_ARCHS))
 
 SANITIZED_DOCKER_IMAGE_TAG := $(subst +,-,$(DOCKER_IMAGE_TAG))
 
-ifeq ($(GOHOSTARCH),amd64)
-        ifeq ($(GOHOSTOS),$(filter $(GOHOSTOS),linux freebsd darwin windows))
-                # Only supported on amd64
-                test-flags := -race
-        endif
+ifeq ($(GOHOSTOS),$(filter $(GOHOSTOS),linux freebsd darwin windows))
+		# Only supported on amd64
+		test-flags := -race
 endif
 
 # This rule is used to forward a target like "build" to "common-build".  This
