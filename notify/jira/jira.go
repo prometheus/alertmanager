@@ -124,6 +124,14 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Log
 	if err != nil {
 		return issue{}, fmt.Errorf("summary template: %w", err)
 	}
+	project, err := tmplTextFunc(n.conf.Project)
+	if err != nil {
+		return issue{}, fmt.Errorf("project template: %w", err)
+	}
+	issueType, err := tmplTextFunc(n.conf.IssueType)
+	if err != nil {
+		return issue{}, fmt.Errorf("issue_type template: %w", err)
+	}
 
 	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
 	// doesn't blow up when marshaling JIRA requests.
@@ -138,8 +146,8 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Log
 	}
 
 	requestBody := issue{Fields: &issueFields{
-		Project:   &issueProject{Key: n.conf.Project},
-		Issuetype: &idNameValue{Name: n.conf.IssueType},
+		Project:   &issueProject{Key: project},
+		Issuetype: &idNameValue{Name: issueType},
 		Summary:   summary,
 		Labels:    make([]string, 0, len(n.conf.Labels)+1),
 		Fields:    fieldsWithStringKeys,

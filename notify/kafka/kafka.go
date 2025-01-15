@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -37,11 +38,6 @@ type Notifier struct {
 	numberOfPartition   int
 	partitionIndex      int
 	partitionIndexMutex sync.Mutex
-}
-
-// KafkaMessage is the message sent to Kafka.
-type KafkaMessage struct {
-	Alerts []*types.Alert `json:"alerts"`
 }
 
 // New returns a new Kafka notifier.
@@ -103,29 +99,33 @@ func (n *Notifier) NextPartition() {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	// Because retry is supported by kafka-go so it will be always false
 	var buf bytes.Buffer
-	message := KafkaMessage{Alerts: as}
+	shouldRetry := false
 
-	if err := json.NewEncoder(&buf).Encode(message); err != nil {
-		slog.Log(ctx, slog.LevelError, "Failed to encode alert", "err", err)
-		return false, err
+	for _, alert := range as {
+		if err := json.NewEncoder(&buf).Encode(alert); err != nil {
+			slog.Log(ctx, slog.LevelError, fmt.Sprintf("Failed to marshal alert: %s", alert.Name()), "err", err)
+		}
+
+		if err := n.Produce(ctx, alert.Name(), buf.Bytes()); err != nil {
+			slog.Log(ctx, slog.LevelError, fmt.Sprintf("Failed to produce alert: %s", alert.Name()), "err", err)
+		}
 	}
 
-	if err := n.Produce(ctx, n.conf.Topic, "", buf.Bytes()); err != nil {
-		slog.Log(ctx, slog.LevelError, "Failed to produce alert", "err", err)
-		return false, err
-	}
-
-	return false, nil
+	return shouldRetry, nil
 }
 
 // Produce sends a message to Kafka.
-func (n *Notifier) Produce(ctx context.Context, topic, key string, value []byte) error {
-	return n.writer.WriteMessages(ctx,
-		ckafka.Message{
-			Key:       []byte(key),
-			Value:     value,
-			Partition: n.GetPartitionIndex(),
-		},
-	)
+func (n *Notifier) Produce(ctx context.Context, key string, value []byte) error {
+	message := ckafka.Message{
+		Key:   []byte(key),
+		Value: value,
+	}
+
+	if n.conf.NumberOfPartition != nil {
+		message.Partition = n.GetPartitionIndex()
+	}
+
+	return n.writer.WriteMessages(ctx, message)
 }
