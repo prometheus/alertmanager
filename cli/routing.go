@@ -27,11 +27,12 @@ import (
 )
 
 type routingShow struct {
-	configFile        string
-	labels            []string
-	expectedReceivers string
-	expectedGrouping  string
-	debugTree         bool
+	configFile             string
+	labels                 []string
+	expectedReceivers      string
+	expectedReceiversGroup string
+	receiversGrouping      map[string][]string // maps receiver name to its expected grouping
+	debugTree              bool
 }
 
 const (
