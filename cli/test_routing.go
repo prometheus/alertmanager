@@ -107,7 +107,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	receiversSlug := strings.Join(receivers, ",")
 	finalRoutes := mainRoute.Match(convertClientToCommonLabelSet(ls))
 
-	var groupingStr string
+	var groupingSlug string
 
 	if len(finalRoutes) > 0 {
 		lastRoute := finalRoutes[len(finalRoutes)-1]
@@ -118,11 +118,11 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 				groupBySlice = append(groupBySlice, string(k))
 			}
 
-			groupingStr = fmt.Sprintf(", grouping: [%s]", strings.Join(groupBySlice, ","))
+			groupingSlug = fmt.Sprintf(", grouping: [%s]", strings.Join(groupBySlice, ","))
 		}
 	}
 
-	fmt.Printf("%s%s\n", receiversSlug, groupingStr)
+	fmt.Printf("%s%s\n", receiversSlug, groupingSlug)
 
 	if c.expectedReceivers != "" && c.expectedReceivers != receiversSlug {
 		fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\n")
