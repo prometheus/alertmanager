@@ -46,6 +46,7 @@ func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
 	routingTestCmd := cc.Command("test", routingTestHelp)
 
 	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers. The command fails if the labelset does not route to the specified receivers.").StringVar(&c.expectedReceivers)
+	routingTestCmd.Flag("verify.grouping", "Checks if specified grouping matches resolved grouping. The command fails if the grouping does not match.").StringVar(&c.expectedGrouping)
 	routingTestCmd.Flag("tree", "Prints out matching routes tree.").BoolVar(&c.debugTree)
 	routingTestCmd.Arg("labels", "List of labels to be tested against the configured routes.").StringsVar(&c.labels)
 	routingTestCmd.Action(execWithTimeout(c.routingTestAction))
@@ -99,13 +100,64 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	}
 
 	receivers, err := resolveAlertReceivers(mainRoute, &ls)
+	if err != nil {
+		return err
+	}
+
 	receiversSlug := strings.Join(receivers, ",")
-	fmt.Printf("%s\n", receiversSlug)
+	finalRoutes := mainRoute.Match(convertClientToCommonLabelSet(ls))
+
+	var groupingStr string
+
+	if len(finalRoutes) > 0 {
+		lastRoute := finalRoutes[len(finalRoutes)-1]
+
+		if len(lastRoute.RouteOpts.GroupBy) > 0 {
+			groupBySlice := make([]string, 0, len(lastRoute.RouteOpts.GroupBy))
+			for k := range lastRoute.RouteOpts.GroupBy {
+				groupBySlice = append(groupBySlice, string(k))
+			}
+
+			groupingStr = fmt.Sprintf(", grouping: [%s]", strings.Join(groupBySlice, ","))
+		}
+	}
+
+	fmt.Printf("%s%s\n", receiversSlug, groupingStr)
 
 	if c.expectedReceivers != "" && c.expectedReceivers != receiversSlug {
 		fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\n")
 		os.Exit(1)
 	}
 
-	return err
+	if c.expectedGrouping != "" {
+		expectedGroups := strings.Split(c.expectedGrouping, ",")
+
+		if len(finalRoutes) > 0 {
+			lastRoute := finalRoutes[len(finalRoutes)-1]
+			actualGroups := make([]string, 0, len(lastRoute.RouteOpts.GroupBy))
+
+			for k := range lastRoute.RouteOpts.GroupBy {
+				actualGroups = append(actualGroups, string(k))
+			}
+
+			if !stringSlicesEqual(expectedGroups, actualGroups) {
+				fmt.Printf("WARNING: Expected grouping did not match resolved grouping.\n")
+				os.Exit(1)
+			}
+		}
+	}
+
+	return nil
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
