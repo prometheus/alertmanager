@@ -31,8 +31,9 @@ type routingShow struct {
 	labels                 []string
 	expectedReceivers      string
 	expectedReceiversGroup string
-	receiversGrouping      map[string][]string // maps receiver name to its expected grouping
-	debugTree              bool
+	// receiversGrouping maps receiver name to its expected grouping.
+	receiversGrouping map[string][]string
+	debugTree         bool
 }
 
 const (
