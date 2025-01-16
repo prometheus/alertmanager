@@ -215,10 +215,12 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 
 			for expectedReceiver, expectedGroups := range c.receiversGrouping {
 				baseReceiver := strings.Split(expectedReceiver, "_")[0]
+
 				if baseReceiver == receiver && expectedGroups != nil {
 					if stringSlicesEqual(expectedGroups, actualGroups) {
 						matchedReceivers[expectedReceiver] = true
 						matched = true
+
 						break
 					}
 				}
@@ -249,6 +251,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 		for _, route := range finalRoutes {
 			if len(route.RouteOpts.GroupBy) > 0 {
 				groupBySlice := make([]string, 0, len(route.RouteOpts.GroupBy))
+
 				for k := range route.RouteOpts.GroupBy {
 					groupBySlice = append(groupBySlice, string(k))
 				}
