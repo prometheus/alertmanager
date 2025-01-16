@@ -1,0 +1,19 @@
+global:
+  slack_app_token: 'xoxb-1234-abcdefgh'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # use global
+      - channel: '#alerts1'
+        text: 'test'
+      # use override
+      - channel: '#alerts2'
+        text: 'test'
+        app_token: 'xoxb-1234-xxxxxx'
+      # use custom app url
+      - channel: '#alerts3'
+        text: 'test'
+        app_url: http://api.fakeslack.example/
