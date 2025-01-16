@@ -55,7 +55,7 @@ func NewCoordinator(configFilePath string, r prometheus.Registerer, l *slog.Logg
 func (c *Coordinator) registerMetrics(r prometheus.Registerer) {
 	configHash := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
-		Help: "Hash of the currently loaded alertmanager configuration.",
+		Help: "Hash of the currently loaded alertmanager configuration. Note that this is not a cryptographically strong hash.",
 	})
 	configSuccess := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_last_reload_successful",
