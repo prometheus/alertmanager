@@ -309,6 +309,7 @@ name: <string>
 time_intervals:
   [ - <time_interval_spec> ... ]
 ```
+
 #### `<time_interval_spec>`
 
 A `time_interval_spec` contains the actual definition for an interval of time. The syntax
@@ -339,9 +340,11 @@ make it easy to represent times that start/end on hour boundaries.
 For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
 
-        times:
-        - start_time: HH:MM
-          end_time: HH:MM
+```yaml
+times:
+- start_time: HH:MM
+  end_time: HH:MM
+```
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
@@ -367,10 +370,12 @@ example, `'Australia/Sydney'`. The location provides the time zone for the time
 interval. For example, a time interval with a location of `'Australia/Sydney'` that
 contained something like:
 
-        times:
-        - start_time: 09:00
-          end_time: 17:00
-        weekdays: ['monday:friday']
+```yaml
+times:
+- start_time: 09:00
+  end_time: 17:00
+weekdays: ['monday:friday']
+```
 
 would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
 and Friday, using the local time in Sydney, Australia.
@@ -437,7 +442,6 @@ source_matchers:
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
 [ equal: '[' <labelname>, ... ']' ]
-
 ```
 
 ## Label matchers
@@ -482,7 +486,7 @@ Any occurrences of disagreement should be looked at on a case by case basis as d
 
 In UTF-8 strict mode, Alertmanager disables support for classic matchers:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
 ```
 
@@ -498,7 +502,7 @@ UTF-8 strict mode will be the default mode of Alertmanager at the end of the tra
 
 Classic mode is equivalent to Alertmanager versions 0.26.0 and older:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="classic-mode"
 ```
 
@@ -1347,6 +1351,7 @@ The fields are documented in the [Rocketchat API documentation](https://develope
 ```
 
 #### `<rocketchat_action_config>`
+
 The fields are documented in the [Rocketchat API api models](https://github.com/RocketChat/Rocket.Chat.Go.SDK/blob/master/models/message.go).
 
 ```yaml
@@ -1354,6 +1359,7 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ text: <tmpl_string> ]
 [ url: <tmpl_string> ]
 [ msg: <tmpl_string> ]
+```
 
 ### `<slack_config>`
 
@@ -1600,7 +1606,6 @@ url_file: <filepath>
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
-
 ```
 
 The Alertmanager
