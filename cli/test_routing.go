@@ -87,46 +87,71 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 		return flattenGroupingMap(result), nil
 	}
 
-	receivers := strings.Split(input, ",")
+	// Split by comma but preserve commas within square brackets
+	var receivers []string
+	var currentReceiver strings.Builder
+	inBrackets := false
+
+	for i := 0; i < len(input); i++ {
+		char := input[i]
+		if char == '[' {
+			inBrackets = true
+		} else if char == ']' {
+			inBrackets = false
+		}
+
+		if char == ',' && !inBrackets {
+			if currentReceiver.Len() > 0 {
+				receivers = append(receivers, currentReceiver.String())
+				currentReceiver.Reset()
+			}
+		} else {
+			currentReceiver.WriteByte(char)
+		}
+	}
+	if currentReceiver.Len() > 0 {
+		receivers = append(receivers, currentReceiver.String())
+	}
+
 	for _, r := range receivers {
 		r = strings.TrimSpace(r)
 		if r == "" {
 			continue
 		}
 
-		parts := strings.Split(r, "[")
-		if len(parts) > 2 {
-			return nil, fmt.Errorf("invalid receiver format: %s", r)
+		bracketIndex := strings.LastIndex(r, "[")
+		if bracketIndex == -1 {
+			// No grouping specified
+			result[r] = nil
+			continue
 		}
 
-		receiverName := strings.TrimSpace(parts[0])
+		receiverName := strings.TrimSpace(r[:bracketIndex])
 		if receiverName == "" {
 			return nil, fmt.Errorf("empty receiver name in: %s", r)
 		}
 
-		if len(parts) == 2 {
-			if !strings.HasSuffix(parts[1], "]") {
-				return nil, fmt.Errorf("missing closing bracket in: %s", r)
-			}
-			grouping := strings.TrimSuffix(parts[1], "]")
-			groups := strings.Split(grouping, ",")
-
-			// Clean up group names
-			cleanGroups := make([]string, 0, len(groups))
-			for _, g := range groups {
-				g = strings.TrimSpace(g)
-				if g != "" {
-					cleanGroups = append(cleanGroups, g)
-				}
-			}
-
-			if result[receiverName] == nil {
-				result[receiverName] = make([][]string, 0)
-			}
-			result[receiverName] = append(result[receiverName], cleanGroups)
-		} else {
-			result[receiverName] = nil
+		groupingPart := r[bracketIndex:]
+		if !strings.HasPrefix(groupingPart, "[") || !strings.HasSuffix(groupingPart, "]") {
+			return nil, fmt.Errorf("invalid grouping format in: %s", r)
 		}
+
+		grouping := strings.TrimSuffix(strings.TrimPrefix(groupingPart, "["), "]")
+		groups := strings.Split(grouping, ",")
+
+		// Clean up group names
+		cleanGroups := make([]string, 0, len(groups))
+		for _, g := range groups {
+			g = strings.TrimSpace(g)
+			if g != "" {
+				cleanGroups = append(cleanGroups, g)
+			}
+		}
+
+		if result[receiverName] == nil {
+			result[receiverName] = make([][]string, 0)
+		}
+		result[receiverName] = append(result[receiverName], cleanGroups)
 	}
 	return flattenGroupingMap(result), nil
 }
@@ -193,9 +218,15 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	finalRoutes := mainRoute.Match(convertClientToCommonLabelSet(ls))
 
 	// Verify receivers.
-	if c.expectedReceivers != "" && c.expectedReceivers != receiversSlug {
-		fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\n")
-		os.Exit(1)
+	if c.expectedReceivers != "" {
+		expectedReceivers := strings.Split(c.expectedReceivers, ",")
+		actualReceivers := strings.Split(receiversSlug, ",")
+
+		if !stringSlicesEqual(expectedReceivers, actualReceivers) {
+			fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\nExpected: %v\nGot: %v\n",
+				expectedReceivers, actualReceivers)
+			os.Exit(1)
+		}
 	}
 
 	// Verify receivers and their grouping.
@@ -220,7 +251,6 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 					if stringSlicesEqual(expectedGroups, actualGroups) {
 						matchedReceivers[expectedReceiver] = true
 						matched = true
-
 						break
 					}
 				}
@@ -244,18 +274,15 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	}
 
 	var output strings.Builder
-
 	output.WriteString(receiversSlug)
 
 	if len(finalRoutes) > 0 {
 		for _, route := range finalRoutes {
 			if len(route.RouteOpts.GroupBy) > 0 {
 				groupBySlice := make([]string, 0, len(route.RouteOpts.GroupBy))
-
 				for k := range route.RouteOpts.GroupBy {
 					groupBySlice = append(groupBySlice, string(k))
 				}
-
 				output.WriteString(fmt.Sprintf("[%s]", strings.Join(groupBySlice, ",")))
 			}
 		}
@@ -269,10 +296,24 @@ func stringSlicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+
+	// Create maps to count occurrences
+	mapA := make(map[string]int)
+	mapB := make(map[string]int)
+
+	for _, val := range a {
+		mapA[val]++
+	}
+	for _, val := range b {
+		mapB[val]++
+	}
+
+	// Compare maps
+	for key, countA := range mapA {
+		if countB, exists := mapB[key]; !exists || countA != countB {
 			return false
 		}
 	}
+
 	return true
 }
