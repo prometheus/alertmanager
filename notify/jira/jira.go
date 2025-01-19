@@ -19,13 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/trivago/tgo/tcontainer"
@@ -45,12 +44,12 @@ const (
 type Notifier struct {
 	conf    *config.JiraConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
-func New(c *config.JiraConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.JiraConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "jira", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -72,7 +71,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	logger := log.With(n.logger, "group_key", key.String())
+	logger := n.logger.With("group_key", key.String())
 
 	var (
 		alerts = types.Alerts(as...)
@@ -99,12 +98,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, nil
 		}
 
-		level.Debug(logger).Log("msg", "create new issue")
+		logger.Debug("create new issue")
 	} else {
 		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
 
-		level.Debug(logger).Log("msg", "updating existing issue", "issue_key", existingIssue.Key)
+		logger.Debug("updating existing issue", "issue_key", existingIssue.Key)
 	}
 
 	requestBody, err := n.prepareIssueRequestBody(ctx, logger, key.Hash(), tmplTextFunc)
@@ -120,10 +119,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
-func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
 		return issue{}, fmt.Errorf("summary template: %w", err)
+	}
+	project, err := tmplTextFunc(n.conf.Project)
+	if err != nil {
+		return issue{}, fmt.Errorf("project template: %w", err)
+	}
+	issueType, err := tmplTextFunc(n.conf.IssueType)
+	if err != nil {
+		return issue{}, fmt.Errorf("issue_type template: %w", err)
 	}
 
 	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
@@ -135,12 +142,12 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
 	if truncated {
-		level.Warn(logger).Log("msg", "Truncated summary", "max_runes", maxSummaryLenRunes)
+		logger.Warn("Truncated summary", "max_runes", maxSummaryLenRunes)
 	}
 
 	requestBody := issue{Fields: &issueFields{
-		Project:   &issueProject{Key: n.conf.Project},
-		Issuetype: &idNameValue{Name: n.conf.IssueType},
+		Project:   &issueProject{Key: project},
+		Issuetype: &idNameValue{Name: issueType},
 		Summary:   summary,
 		Labels:    make([]string, 0, len(n.conf.Labels)+1),
 		Fields:    fieldsWithStringKeys,
@@ -153,7 +160,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 
 	issueDescriptionString, truncated = notify.TruncateInRunes(issueDescriptionString, maxDescriptionLenRunes)
 	if truncated {
-		level.Warn(logger).Log("msg", "Truncated description", "max_runes", maxDescriptionLenRunes)
+		logger.Warn("Truncated description", "max_runes", maxDescriptionLenRunes)
 	}
 
 	requestBody.Fields.Description = issueDescriptionString
@@ -187,7 +194,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger log.Logge
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(ctx context.Context, logger log.Logger, groupID string, firing bool) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -216,7 +223,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger log.Logger, g
 		Expand:     []string{},
 	}
 
-	level.Debug(logger).Log("msg", "search for recent issues", "jql", requestBody.JQL)
+	logger.Debug("search for recent issues", "jql", requestBody.JQL)
 
 	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search", requestBody)
 	if err != nil {
@@ -230,12 +237,12 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger log.Logger, g
 	}
 
 	if issueSearchResult.Total == 0 {
-		level.Debug(logger).Log("msg", "found no existing issue")
+		logger.Debug("found no existing issue")
 		return nil, false, nil
 	}
 
 	if issueSearchResult.Total > 1 {
-		level.Warn(logger).Log("msg", "more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
+		logger.Warn("more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 
 	return &issueSearchResult.Issues[0], false, nil
@@ -264,7 +271,7 @@ func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, trans
 	return "", false, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
 }
 
-func (n *Notifier) transitionIssue(ctx context.Context, logger log.Logger, i *issue, firing bool) (bool, error) {
+func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *issue, firing bool) (bool, error) {
 	if i == nil || i.Key == "" || i.Fields == nil || i.Fields.Status == nil {
 		return false, nil
 	}
@@ -297,7 +304,7 @@ func (n *Notifier) transitionIssue(ctx context.Context, logger log.Logger, i *is
 
 	path := fmt.Sprintf("issue/%s/transitions", i.Key)
 
-	level.Debug(logger).Log("msg", "transitions jira issue", "issue_key", i.Key, "transition", transition)
+	logger.Debug("transitions jira issue", "issue_key", i.Key, "transition", transition)
 	_, shouldRetry, err = n.doAPIRequest(ctx, http.MethodPost, path, requestBody)
 
 	return shouldRetry, err
