@@ -167,15 +167,17 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	return flattenGroupingMap(result), nil
 }
 
-// flattenGroupingMap converts the internal map[string][][]string to the expected map[string][]string format
+// flattenGroupingMap converts the internal map[string][][]string to the expected map[string][]string format.
 func flattenGroupingMap(input map[string][][]string) map[string][]string {
 	result := make(map[string][]string)
+
 	for receiver, groupings := range input {
 		if groupings == nil {
 			result[receiver] = nil
 			continue
 		}
-		// For receivers with grouping, we'll create separate entries with suffixes
+
+		// For receivers with grouping, we'll create separate entries with suffixes.
 		for i, groups := range groupings {
 			if i == 0 {
 				result[receiver] = groups
@@ -184,6 +186,7 @@ func flattenGroupingMap(input map[string][][]string) map[string][]string {
 			}
 		}
 	}
+
 	return result
 }
 
