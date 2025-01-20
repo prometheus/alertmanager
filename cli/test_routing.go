@@ -229,7 +229,7 @@ func parseLabelSet(labels []string) (models.LabelSet, error) {
 	for _, l := range labels {
 		matcher, err := compat.Matcher(l, "cli")
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse labels: %w", err)
+			return nil, fmt.Errorf("Failed to parse labels: %w", err)
 		}
 
 		if matcher.Type != 0 { // 0 is labels.MatchEqual
@@ -292,13 +292,17 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 
 		if !matched {
 			var msg strings.Builder
+
 			msg.WriteString(fmt.Sprintf("WARNING: No matching grouping found for receiver %s with groups [%s] expected groups are\n",
-				receiver, strings.Join(actualGroups, ",")))
+				receiver,
+				strings.Join(actualGroups, ","),
+			))
 
 			for _, groups := range expectedGroupings[receiver] {
 				msg.WriteString(fmt.Sprintf("- [%s]\n", strings.Join(groups, ",")))
 			}
-			return fmt.Errorf(msg.String())
+
+			return fmt.Errorf("%s", msg.String())
 		}
 	}
 
