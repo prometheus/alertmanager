@@ -98,10 +98,9 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	var (
 		receivers       []string
 		currentReceiver strings.Builder
+		inBrackets      = false
+		bracketCount    = 0
 	)
-
-	inBrackets := false
-	bracketCount := 0
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
@@ -119,12 +118,14 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 			}
 		}
 
-		if char == ',' && !inBrackets {
+		switch {
+		case char == ',' && !inBrackets:
 			if currentReceiver.Len() > 0 {
 				receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
 				currentReceiver.Reset()
 			}
-		} else {
+
+		default:
 			currentReceiver.WriteByte(char)
 		}
 	}
