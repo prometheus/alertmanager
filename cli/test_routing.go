@@ -73,10 +73,11 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 	fmt.Print("\n")
 }
 
+// parseReceiversWithGrouping parses the input string and returns a map of receiver names to their expected groupings.
 func parseReceiversWithGrouping(input string) (map[string][]string, error) {
-	result := make(map[string][][]string) // maps receiver to list of possible groupings
+	result := make(map[string][][]string) // maps receiver to list of possible groupings.
 
-	// Remove spaces around commas
+	// Remove spaces around commas.
 	input = strings.ReplaceAll(input, " ,", ",")
 	input = strings.ReplaceAll(input, ", ", ",")
 
