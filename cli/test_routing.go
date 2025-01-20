@@ -276,15 +276,22 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 		receiver := route.RouteOpts.Receiver
 		actualGroups := sortGroupLabels(route.RouteOpts.GroupBy)
 
-		// Skip if no grouping expectations for this receiver
+		// Skip if no grouping expectations for this receiver.
 		if _, exists := expectedGroupings[receiver]; !exists {
 			continue
 		}
 
-		// Try to match with any of the expected groupings
+		// Try to match with any of the expected groupings.
 		matched := false
+
 		for _, expectedGroups := range expectedGroupings[receiver] {
-			if slices.Equal[[]string](expectedGroups, actualGroups) {
+			sortedExpected := slices.Clone(expectedGroups)
+			sortedActual := slices.Clone(actualGroups)
+
+			slices.Sort[[]string](sortedExpected)
+			slices.Sort[[]string](sortedActual)
+
+			if slices.Equal(sortedExpected, sortedActual) {
 				matched = true
 				break
 			}
