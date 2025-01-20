@@ -263,45 +263,42 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 		return nil
 	}
 
-	matchedReceivers := make(map[string]bool)
+	// First, build a map of base receivers to their expected groupings
+	expectedGroupings := make(map[string][][]string)
+	for receiver, groups := range receiversGrouping {
+		baseReceiver := strings.Split(receiver, "_")[0]
+		if groups != nil {
+			expectedGroupings[baseReceiver] = append(expectedGroupings[baseReceiver], groups)
+		}
+	}
 
 	for _, route := range finalRoutes {
 		receiver := route.RouteOpts.Receiver
 		actualGroups := sortGroupLabels(route.RouteOpts.GroupBy)
 
-		// Try to match with any of the expected groupings.
+		// Skip if no grouping expectations for this receiver
+		if _, exists := expectedGroupings[receiver]; !exists {
+			continue
+		}
+
+		// Try to match with any of the expected groupings
 		matched := false
-
-		for expectedReceiver, expectedGroups := range receiversGrouping {
-			baseReceiver := strings.Split(expectedReceiver, "_")[0]
-
-			if baseReceiver == receiver && expectedGroups != nil {
-				if slices.Equal[[]string](expectedGroups, actualGroups) {
-					matchedReceivers[expectedReceiver] = true
-					matched = true
-
-					break
-				}
+		for _, expectedGroups := range expectedGroupings[receiver] {
+			if slices.Equal[[]string](expectedGroups, actualGroups) {
+				matched = true
+				break
 			}
 		}
 
-		if !matched && receiversGrouping[receiver] != nil {
-			return fmt.Errorf("no matching grouping found for receiver %s with groups [%s]",
-				receiver,
-				strings.Join(actualGroups, ","),
-			)
-		}
-	}
+		if !matched {
+			var msg strings.Builder
+			msg.WriteString(fmt.Sprintf("WARNING: No matching grouping found for receiver %s with groups [%s] expected groups are\n",
+				receiver, strings.Join(actualGroups, ",")))
 
-	// Check if all expected receivers with grouping were matched.
-	for expectedReceiver, expectedGroups := range receiversGrouping {
-		if expectedGroups != nil && !matchedReceivers[expectedReceiver] {
-			slices.Sort[[]string](expectedGroups)
-
-			return fmt.Errorf("expected receiver %s with grouping [%s] was not matched",
-				expectedReceiver,
-				strings.Join(expectedGroups, ","),
-			)
+			for _, groups := range expectedGroupings[receiver] {
+				msg.WriteString(fmt.Sprintf("- [%s]\n", strings.Join(groups, ",")))
+			}
+			return fmt.Errorf(msg.String())
 		}
 	}
 
