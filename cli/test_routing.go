@@ -75,6 +75,11 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 
 func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	result := make(map[string][][]string) // maps receiver to list of possible groupings
+
+	// Remove spaces around commas
+	input = strings.ReplaceAll(input, " ,", ",")
+	input = strings.ReplaceAll(input, ", ", ",")
+
 	// If no square brackets in input, treat it as simple receiver list
 	if !strings.Contains(input, "[") {
 		receivers := strings.Split(input, ",")
@@ -91,18 +96,23 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	var receivers []string
 	var currentReceiver strings.Builder
 	inBrackets := false
+	bracketCount := 0
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
 		if char == '[' {
 			inBrackets = true
+			bracketCount++
 		} else if char == ']' {
-			inBrackets = false
+			bracketCount--
+			if bracketCount == 0 {
+				inBrackets = false
+			}
 		}
 
 		if char == ',' && !inBrackets {
 			if currentReceiver.Len() > 0 {
-				receivers = append(receivers, currentReceiver.String())
+				receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
 				currentReceiver.Reset()
 			}
 		} else {
@@ -110,7 +120,7 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 		}
 	}
 	if currentReceiver.Len() > 0 {
-		receivers = append(receivers, currentReceiver.String())
+		receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
 	}
 
 	for _, r := range receivers {
@@ -133,7 +143,7 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 
 		groupingPart := r[bracketIndex:]
 		if !strings.HasPrefix(groupingPart, "[") || !strings.HasSuffix(groupingPart, "]") {
-			return nil, fmt.Errorf("invalid grouping format in: %s", r)
+			return nil, fmt.Errorf("missing closing bracket in: %s", r)
 		}
 
 		grouping := strings.TrimSuffix(strings.TrimPrefix(groupingPart, "["), "]")
