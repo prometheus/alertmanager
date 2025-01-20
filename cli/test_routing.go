@@ -17,15 +17,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/common/model"
 	"github.com/xlab/treeprint"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const routingTestHelp = `Test alert routing
@@ -77,35 +78,42 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	result := make(map[string][][]string) // maps receiver to list of possible groupings.
 
-	// Remove spaces around commas.
-	input = strings.ReplaceAll(input, " ,", ",")
-	input = strings.ReplaceAll(input, ", ", ",")
+	input = removeSpacesAroundCommas(input)
 
-	// If no square brackets in input, treat it as simple receiver list
+	// If no square brackets in input, treat it as simple receiver list.
 	if !strings.Contains(input, "[") {
 		receivers := strings.Split(input, ",")
+
 		for _, r := range receivers {
 			r = strings.TrimSpace(r)
 			if r != "" {
 				result[r] = nil
 			}
 		}
+
 		return flattenGroupingMap(result), nil
 	}
 
-	// Split by comma but preserve commas within square brackets
-	var receivers []string
-	var currentReceiver strings.Builder
+	// Split by comma but preserve commas within square brackets.
+	var (
+		receivers       []string
+		currentReceiver strings.Builder
+	)
+
 	inBrackets := false
 	bracketCount := 0
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
+
 		if char == '[' {
 			inBrackets = true
 			bracketCount++
-		} else if char == ']' {
+		}
+
+		if char == ']' {
 			bracketCount--
+
 			if bracketCount == 0 {
 				inBrackets = false
 			}
@@ -120,6 +128,7 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 			currentReceiver.WriteByte(char)
 		}
 	}
+
 	if currentReceiver.Len() > 0 {
 		receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
 	}
@@ -132,7 +141,7 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 
 		bracketIndex := strings.LastIndex(r, "[")
 		if bracketIndex == -1 {
-			// No grouping specified
+			// No grouping specified.
 			result[r] = nil
 			continue
 		}
@@ -162,9 +171,19 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 		if result[receiverName] == nil {
 			result[receiverName] = make([][]string, 0)
 		}
+
 		result[receiverName] = append(result[receiverName], cleanGroups)
 	}
+
 	return flattenGroupingMap(result), nil
+}
+
+// removeSpacesAroundCommas removes spaces around commas.
+func removeSpacesAroundCommas(input string) string {
+	input = strings.ReplaceAll(input, " ,", ",")
+	input = strings.ReplaceAll(input, ", ", ",")
+
+	return input
 }
 
 // flattenGroupingMap converts the internal map[string][][]string to the expected map[string][]string format.
@@ -190,6 +209,128 @@ func flattenGroupingMap(input map[string][][]string) map[string][]string {
 	return result
 }
 
+// sortGroupLabels returns a sorted slice of group labels.
+func sortGroupLabels(groupBy map[model.LabelName]struct{}) []string {
+	result := make([]string, 0, len(groupBy))
+
+	for k := range groupBy {
+		result = append(result, string(k))
+	}
+
+	slices.Sort[[]string](result)
+
+	return result
+}
+
+// parseLabelSet parses command line labels into a LabelSet.
+func parseLabelSet(labels []string) (models.LabelSet, error) {
+	ls := make(models.LabelSet, len(labels))
+	for _, l := range labels {
+		matcher, err := compat.Matcher(l, "cli")
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse labels: %w", err)
+		}
+
+		if matcher.Type != 0 { // 0 is labels.MatchEqual
+			return nil, fmt.Errorf("labels must be specified as key=value pairs")
+		}
+
+		ls[matcher.Name] = matcher.Value
+	}
+	return ls, nil
+}
+
+// verifyReceivers checks if the actual receivers match the expected ones.
+func verifyReceivers(expected, actual string) error {
+	if expected == "" {
+		return nil
+	}
+	expectedReceivers := strings.Split(expected, ",")
+	actualReceivers := strings.Split(actual, ",")
+
+	if !slices.Equal[[]string](expectedReceivers, actualReceivers) {
+		return fmt.Errorf("expected receivers did not match resolved receivers.\nExpected: %v\nGot: %v",
+			expectedReceivers, actualReceivers)
+	}
+
+	return nil
+}
+
+// verifyReceiversGrouping checks if receivers and their groupings match the expected configuration.
+func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes []*dispatch.Route) error {
+	if len(receiversGrouping) == 0 {
+		return nil
+	}
+
+	matchedReceivers := make(map[string]bool)
+
+	for _, route := range finalRoutes {
+		receiver := route.RouteOpts.Receiver
+		actualGroups := sortGroupLabels(route.RouteOpts.GroupBy)
+
+		// Try to match with any of the expected groupings.
+		matched := false
+
+		for expectedReceiver, expectedGroups := range receiversGrouping {
+			baseReceiver := strings.Split(expectedReceiver, "_")[0]
+
+			if baseReceiver == receiver && expectedGroups != nil {
+				if slices.Equal[[]string](expectedGroups, actualGroups) {
+					matchedReceivers[expectedReceiver] = true
+					matched = true
+
+					break
+				}
+			}
+		}
+
+		if !matched && receiversGrouping[receiver] != nil {
+			return fmt.Errorf("no matching grouping found for receiver %s with groups [%s]",
+				receiver,
+				strings.Join(actualGroups, ","),
+			)
+		}
+	}
+
+	// Check if all expected receivers with grouping were matched.
+	for expectedReceiver, expectedGroups := range receiversGrouping {
+		if expectedGroups != nil && !matchedReceivers[expectedReceiver] {
+			slices.Sort[[]string](expectedGroups)
+
+			return fmt.Errorf("expected receiver %s with grouping [%s] was not matched",
+				expectedReceiver,
+				strings.Join(expectedGroups, ","),
+			)
+		}
+	}
+
+	return nil
+}
+
+// formatOutput generates the output string showing receivers and their groupings.
+func formatOutput(finalRoutes []*dispatch.Route) string {
+	var (
+		sb    strings.Builder
+		first = true
+	)
+
+	for _, route := range finalRoutes {
+		if !first {
+			sb.WriteString(",")
+		}
+
+		first = false
+		sb.WriteString(route.RouteOpts.Receiver)
+
+		if len(route.RouteOpts.GroupBy) > 0 {
+			groupBySlice := sortGroupLabels(route.RouteOpts.GroupBy)
+			sb.WriteString(fmt.Sprintf("[%s]", strings.Join(groupBySlice, ",")))
+		}
+	}
+
+	return sb.String()
+}
+
 func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseContext) error {
 	cfg, err := loadAlertmanagerConfig(ctx, alertmanagerURL, c.configFile)
 	if err != nil {
@@ -206,17 +347,9 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
-	// Parse labels to LabelSet.
-	ls := make(models.LabelSet, len(c.labels))
-	for _, l := range c.labels {
-		matcher, err := compat.Matcher(l, "cli")
-		if err != nil {
-			kingpin.Fatalf("Failed to parse labels: %v\n", err)
-		}
-		if matcher.Type != labels.MatchEqual {
-			kingpin.Fatalf("%s\n", "Labels must be specified as key=value pairs")
-		}
-		ls[matcher.Name] = matcher.Value
+	ls, err := parseLabelSet(c.labels)
+	if err != nil {
+		kingpin.Fatalf("%v\n", err)
 	}
 
 	if c.debugTree {
@@ -231,103 +364,17 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	receiversSlug := strings.Join(receivers, ",")
 	finalRoutes := mainRoute.Match(convertClientToCommonLabelSet(ls))
 
-	// Verify receivers.
-	if c.expectedReceivers != "" {
-		expectedReceivers := strings.Split(c.expectedReceivers, ",")
-		actualReceivers := strings.Split(receiversSlug, ",")
-
-		if !stringSlicesEqual(expectedReceivers, actualReceivers) {
-			fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\nExpected: %v\nGot: %v\n",
-				expectedReceivers, actualReceivers)
-			os.Exit(1)
-		}
+	if err := verifyReceivers(c.expectedReceivers, receiversSlug); err != nil {
+		fmt.Printf("WARNING: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Verify receivers and their grouping.
-	if len(c.receiversGrouping) > 0 {
-		matchedReceivers := make(map[string]bool)
-
-		for _, route := range finalRoutes {
-			receiver := route.RouteOpts.Receiver
-			actualGroups := make([]string, 0, len(route.RouteOpts.GroupBy))
-
-			for k := range route.RouteOpts.GroupBy {
-				actualGroups = append(actualGroups, string(k))
-			}
-
-			// Try to match with any of the expected groupings.
-			matched := false
-
-			for expectedReceiver, expectedGroups := range c.receiversGrouping {
-				baseReceiver := strings.Split(expectedReceiver, "_")[0]
-
-				if baseReceiver == receiver && expectedGroups != nil {
-					if stringSlicesEqual(expectedGroups, actualGroups) {
-						matchedReceivers[expectedReceiver] = true
-						matched = true
-						break
-					}
-				}
-			}
-
-			if !matched && c.receiversGrouping[receiver] != nil {
-				fmt.Printf("WARNING: No matching grouping found for receiver %s with groups %v\n",
-					receiver, actualGroups)
-				os.Exit(1)
-			}
-		}
-
-		// Check if all expected receivers with grouping were matched.
-		for expectedReceiver, expectedGroups := range c.receiversGrouping {
-			if expectedGroups != nil && !matchedReceivers[expectedReceiver] {
-				fmt.Printf("WARNING: Expected receiver %s with grouping %v was not matched\n",
-					expectedReceiver, expectedGroups)
-				os.Exit(1)
-			}
-		}
+	if err := verifyReceiversGrouping(c.receiversGrouping, finalRoutes); err != nil {
+		fmt.Printf("WARNING: %v\n", err)
+		os.Exit(1)
 	}
 
-	var output strings.Builder
-	output.WriteString(receiversSlug)
+	fmt.Println(formatOutput(finalRoutes))
 
-	if len(finalRoutes) > 0 {
-		for _, route := range finalRoutes {
-			if len(route.RouteOpts.GroupBy) > 0 {
-				groupBySlice := make([]string, 0, len(route.RouteOpts.GroupBy))
-				for k := range route.RouteOpts.GroupBy {
-					groupBySlice = append(groupBySlice, string(k))
-				}
-				output.WriteString(fmt.Sprintf("[%s]", strings.Join(groupBySlice, ",")))
-			}
-		}
-	}
-
-	fmt.Println(output.String())
 	return nil
-}
-
-func stringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	// Create maps to count occurrences
-	mapA := make(map[string]int)
-	mapB := make(map[string]int)
-
-	for _, val := range a {
-		mapA[val]++
-	}
-	for _, val := range b {
-		mapB[val]++
-	}
-
-	// Compare maps
-	for key, countA := range mapA {
-		if countB, exists := mapB[key]; !exists || countA != countB {
-			return false
-		}
-	}
-
-	return true
 }
