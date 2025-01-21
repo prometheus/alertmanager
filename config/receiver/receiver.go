@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/victorops"
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
+	"github.com/prometheus/alertmanager/notify/webhook_template"
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -63,6 +64,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 
 	for i, c := range nc.WebhookConfigs {
 		add("webhook", i, c, func(l *slog.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.WebHookTemplateConfigs {
+		add("webhook_template", i, c, func(l *slog.Logger) (notify.Notifier, error) { return webhook_template.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.EmailConfigs {
 		add("email", i, c, func(l *slog.Logger) (notify.Notifier, error) { return email.New(c, tmpl, l), nil })

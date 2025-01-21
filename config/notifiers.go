@@ -35,6 +35,13 @@ var (
 		},
 	}
 
+	// DefaultWebhookTemplateConfig defines default values for Webhook template configurations.
+	DefaultWebhookTemplateConfig = WebhookTemplateConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
 		NotifierConfig: NotifierConfig{
@@ -545,6 +552,39 @@ type WebhookConfig struct {
 func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWebhookConfig
 	type plain WebhookConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	return nil
+}
+
+// WebhookTemplateConfig configures notifications via a generic webhook.
+type WebhookTemplateConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     *SecretURL `yaml:"url" json:"url"`
+	URLFile string     `yaml:"url_file" json:"url_file"`
+
+	Template string `yaml:"template,omitempty" json:"template,omitempty"`
+
+	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WebhookTemplateConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWebhookTemplateConfig
+	type plain WebhookTemplateConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
