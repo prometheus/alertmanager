@@ -38,7 +38,7 @@ viewCalendar dateTimePicker =
                 |> Maybe.withDefault (Time.millisToPosix 0)
     in
     div [ class "row" ]
-        [ div [ class "col-12 mx-auto p-1 w-auto", Attr.style "max-width" "300px" ]
+        [ div [ class "col mx-auto p-1 w-auto", Attr.style "max-width" "300px" ]
             [ viewMonthHeader justViewTime
             , viewMonth dateTimePicker justViewTime
             ]
@@ -81,7 +81,7 @@ viewMonth dateTimePicker justViewTime =
             splitWeek days []
     in
     div []
-        [ div [ class "row mb-2" ]
+        [ div [ class "row mb-1 mt-3" ]
             (case dateTimePicker.firstDayOfWeek of
                 Sunday ->
                     List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
@@ -97,7 +97,7 @@ viewMonth dateTimePicker justViewTime =
 
 viewWeekHeader : String -> Html Msg
 viewWeekHeader weekday =
-    div [ class "col text-center small text-muted p-1" ]
+    div [ class "col text-center small text-body-tertiary p-1" ]
         [ text weekday ]
 
 
@@ -131,20 +131,29 @@ viewDay dateTimePicker justViewTime day =
                     False
 
         classes =
-            [ "btn", "btn-sm", "w-100", "h-100", "text-center", "p-1" ]
-                ++ (if isSameDate dateTimePicker.startDate then
-                        [ "btn-primary" ]
+            [ "btn", "btn-sm", "w-100", "h-100", "text-center", "p-0" ]
+                ++ (if isSameDate dateTimePicker.startDate && isSameDate dateTimePicker.endDate then
+                        -- Single-day range: both start and end
+                        [ "btn-primary", "rounded-4" ]
+
+                    else if isSameDate dateTimePicker.startDate then
+                        -- Start date of a range
+                        [ "btn-primary", "rounded-start-4" ]
 
                     else if isSameDate dateTimePicker.endDate then
-                        [ "btn-primary" ]
+                        -- End date of a range
+                        [ "btn-primary", "rounded-end-4" ]
 
                     else if between then
+                        -- Dates between start and end
                         [ "bg-primary-subtle" ]
 
                     else
-                        [ "bg-body-secondary" ]
+                        -- Default: no specific styling
+                        []
                    )
                 ++ (if not thisMonth then
+                        -- Dates outside the current month
                         [ "text-body-tertiary" ]
 
                     else
@@ -162,8 +171,8 @@ viewDay dateTimePicker justViewTime day =
 viewTimePicker : DateTimePicker -> StartOrEnd -> Html Msg
 viewTimePicker dateTimePicker startOrEnd =
     div
-        [ class "col-12 col-md-6 mb-3" ]
-        [ strong [ class "d-block" ]
+        [ class "row align-items-center mb-2 gx-3" ] -- Grid row with spacing
+        [ div [ class "col-2 small fw-bold" ] -- Label column
             [ text
                 (case startOrEnd of
                     Start ->
@@ -173,16 +182,13 @@ viewTimePicker dateTimePicker startOrEnd =
                         "End"
                 )
             ]
-        , div [ class "d-flex justify-content-center align-items-center" ]
+        , div [ class "col-4 d-flex justify-content-center align-items-center" ]
             [ div [ class "d-flex flex-column align-items-center mx-1" ]
-                [ button
-                    [ class "btn btn-sm"
-                    , onClick <| IncrementTime startOrEnd InputHour 1
+                [ div [ class "d-flex w-100 justify-content-center bg-secondary-subtle my-1", onClick <| IncrementTime startOrEnd InputHour 1 ]
+                    [ i [ class "fa fa-angle-up" ] []
                     ]
-                    [ i [ class "fa fa-angle-up" ] [] ]
                 , input
-                    [ Attr.type_ "number"
-                    , on "blur" (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)
+                    [ on "blur" (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)
                     , value
                         (case startOrEnd of
                             Start ->
@@ -207,22 +213,21 @@ viewTimePicker dateTimePicker startOrEnd =
                     , Attr.max (String.fromInt 23)
                     ]
                     []
-                , button
-                    [ class "btn btn-sm"
+                , div
+                    [ class "d-flex w-100 justify-content-center bg-secondary-subtle my-1"
                     , onClick <| IncrementTime startOrEnd InputHour -1
                     ]
                     [ i [ class "fa fa-angle-down" ] [] ]
                 ]
             , div [ class "mx-2" ] [ text ":" ]
             , div [ class "d-flex flex-column align-items-center mx-1" ]
-                [ button
-                    [ class "btn btn-sm"
+                [ div
+                    [ class "d-flex w-100 justify-content-center bg-secondary-subtle my-1"
                     , onClick <| IncrementTime startOrEnd InputMinute 1
                     ]
                     [ i [ class "fa fa-angle-up" ] [] ]
                 , input
-                    [ Attr.type_ "number"
-                    , on "blur" (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)
+                    [ on "blur" (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)
                     , value
                         (case startOrEnd of
                             Start ->
@@ -247,14 +252,14 @@ viewTimePicker dateTimePicker startOrEnd =
                     , Attr.max (String.fromInt 59)
                     ]
                     []
-                , button
-                    [ class "btn btn-sm"
+                , div
+                    [ class "d-flex w-100 justify-content-center bg-secondary-subtle my-1"
                     , onClick <| IncrementTime startOrEnd InputMinute -1
                     ]
                     [ i [ class "fa fa-angle-down" ] [] ]
                 ]
             ]
-        , div [ class "text-center" ]
+        , div [ class "col-6" ] -- Resulting datetime column
             [ text
                 (let
                     toString_ : Maybe Posix -> Maybe Posix -> String
