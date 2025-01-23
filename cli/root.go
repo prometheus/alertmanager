@@ -52,6 +52,7 @@ var (
 func initMatchersCompat(_ *kingpin.ParseContext) error {
 	promslogConfig := &promslog.Config{Writer: os.Stdout}
 	if verbose {
+		promslogConfig.Level = &promslog.AllowedLevel{}
 		_ = promslogConfig.Level.Set("debug")
 	}
 	logger := promslog.New(promslogConfig)
@@ -144,7 +145,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 }
 
 // Execute is the main function for the amtool command.
-func Execute() {
+func Execute(args []string) {
 	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
@@ -175,12 +176,12 @@ func Execute() {
 
 	app.Action(initMatchersCompat)
 
-	err = resolver.Bind(app, os.Args[1:])
+	err = resolver.Bind(app, args[1:])
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
 	}
 
-	_, err = app.Parse(os.Args[1:])
+	_, err = app.Parse(args[1:])
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
 	}
