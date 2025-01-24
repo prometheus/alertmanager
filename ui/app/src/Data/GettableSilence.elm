@@ -13,6 +13,8 @@
 module Data.GettableSilence exposing (GettableSilence, decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
+import DateTime exposing (DateTime)
+import DateTime exposing (DateTime)
 import Data.SilenceStatus as SilenceStatus exposing (SilenceStatus)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
@@ -22,7 +24,7 @@ import Json.Encode as Encode
 
 
 type alias GettableSilence =
-    { matchers : List Matcher
+    { matchers : (List Matcher)
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
@@ -46,10 +48,11 @@ decoder =
         |> required "updatedAt" DateTime.decoder
 
 
+
 encoder : GettableSilence -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "matchers", Encode.list Matcher.encoder model.matchers )
+        [ ( "matchers", (Encode.list Matcher.encoder) model.matchers )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
@@ -57,4 +60,7 @@ encoder model =
         , ( "id", Encode.string model.id )
         , ( "status", SilenceStatus.encoder model.status )
         , ( "updatedAt", DateTime.encoder model.updatedAt )
+
         ]
+
+

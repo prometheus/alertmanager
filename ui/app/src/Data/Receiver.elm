@@ -29,8 +29,12 @@ decoder =
         |> required "name" Decode.string
 
 
+
 encoder : Receiver -> Encode.Value
 encoder model =
     Encode.object
         [ ( "name", Encode.string model.name )
+
         ]
+
+

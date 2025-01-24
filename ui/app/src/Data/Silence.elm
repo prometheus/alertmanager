@@ -14,6 +14,7 @@ module Data.Silence exposing (Silence(..), decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
 import DateTime exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -21,7 +22,7 @@ import Json.Encode as Encode
 
 
 type alias Silence =
-    { matchers : List Matcher
+    { matchers : (List Matcher)
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
@@ -39,12 +40,16 @@ decoder =
         |> required "comment" Decode.string
 
 
+
 encoder : Silence -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "matchers", Encode.list Matcher.encoder model.matchers )
+        [ ( "matchers", (Encode.list Matcher.encoder) model.matchers )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
+
         ]
+
+

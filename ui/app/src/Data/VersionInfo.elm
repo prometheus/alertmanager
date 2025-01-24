@@ -39,6 +39,7 @@ decoder =
         |> required "goVersion" Decode.string
 
 
+
 encoder : VersionInfo -> Encode.Value
 encoder model =
     Encode.object
@@ -48,4 +49,7 @@ encoder model =
         , ( "buildUser", Encode.string model.buildUser )
         , ( "buildDate", Encode.string model.buildDate )
         , ( "goVersion", Encode.string model.goVersion )
+
         ]
+
+

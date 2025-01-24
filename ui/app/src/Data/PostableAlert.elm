@@ -13,6 +13,7 @@
 module Data.PostableAlert exposing (PostableAlert, decoder, encoder)
 
 import DateTime exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -20,11 +21,11 @@ import Json.Encode as Encode
 
 
 type alias PostableAlert =
-    { labels : Dict String String
-    , generatorURL : Maybe String
-    , startsAt : Maybe DateTime
-    , endsAt : Maybe DateTime
-    , annotations : Maybe (Dict String String)
+    { labels : (Dict String String)
+    , generatorURL : Maybe (String)
+    , startsAt : Maybe (DateTime)
+    , endsAt : Maybe (DateTime)
+    , annotations : Maybe ((Dict String String))
     }
 
 
@@ -38,12 +39,16 @@ decoder =
         |> optional "annotations" (Decode.nullable (Decode.dict Decode.string)) Nothing
 
 
+
 encoder : PostableAlert -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "labels", Encode.dict identity Encode.string model.labels )
+        [ ( "labels", (Encode.dict identity Encode.string) model.labels )
         , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
         , ( "startsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.startsAt) )
         , ( "endsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.endsAt) )
         , ( "annotations", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.annotations) )
+
         ]
+
+

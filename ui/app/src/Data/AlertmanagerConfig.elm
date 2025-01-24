@@ -29,8 +29,12 @@ decoder =
         |> required "original" Decode.string
 
 
+
 encoder : AlertmanagerConfig -> Encode.Value
 encoder model =
     Encode.object
         [ ( "original", Encode.string model.original )
+
         ]
+
+

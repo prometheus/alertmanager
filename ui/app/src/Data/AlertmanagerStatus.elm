@@ -12,9 +12,9 @@
 
 module Data.AlertmanagerStatus exposing (AlertmanagerStatus, decoder, encoder)
 
-import Data.AlertmanagerConfig as AlertmanagerConfig exposing (AlertmanagerConfig)
 import Data.ClusterStatus as ClusterStatus exposing (ClusterStatus)
 import Data.VersionInfo as VersionInfo exposing (VersionInfo)
+import Data.AlertmanagerConfig as AlertmanagerConfig exposing (AlertmanagerConfig)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -39,6 +39,7 @@ decoder =
         |> required "uptime" DateTime.decoder
 
 
+
 encoder : AlertmanagerStatus -> Encode.Value
 encoder model =
     Encode.object
@@ -46,4 +47,7 @@ encoder model =
         , ( "versionInfo", VersionInfo.encoder model.versionInfo )
         , ( "config", AlertmanagerConfig.encoder model.config )
         , ( "uptime", DateTime.encoder model.uptime )
+
         ]
+
+

@@ -29,17 +29,21 @@ type State
     | Pending
 
 
+
 decoder : Decoder SilenceStatus
 decoder =
     Decode.succeed SilenceStatus
         |> required "state" stateDecoder
 
 
+
 encoder : SilenceStatus -> Encode.Value
 encoder model =
     Encode.object
         [ ( "state", stateEncoder model.state )
+
         ]
+
 
 
 stateDecoder : Decoder State
@@ -62,6 +66,7 @@ stateDecoder =
             )
 
 
+
 stateEncoder : State -> Encode.Value
 stateEncoder model =
     case model of
@@ -73,3 +78,6 @@ stateEncoder model =
 
         Pending ->
             Encode.string "pending"
+
+
+

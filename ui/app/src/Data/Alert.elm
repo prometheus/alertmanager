@@ -19,8 +19,8 @@ import Json.Encode as Encode
 
 
 type alias Alert =
-    { labels : Dict String String
-    , generatorURL : Maybe String
+    { labels : (Dict String String)
+    , generatorURL : Maybe (String)
     }
 
 
@@ -31,9 +31,13 @@ decoder =
         |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
 
 
+
 encoder : Alert -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "labels", Encode.dict identity Encode.string model.labels )
+        [ ( "labels", (Encode.dict identity Encode.string) model.labels )
         , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
+
         ]
+
+

@@ -20,8 +20,8 @@ import Json.Encode as Encode
 
 type alias AlertStatus =
     { state : State
-    , silencedBy : List String
-    , inhibitedBy : List String
+    , silencedBy : (List String)
+    , inhibitedBy : (List String)
     }
 
 
@@ -29,6 +29,7 @@ type State
     = Unprocessed
     | Active
     | Suppressed
+
 
 
 decoder : Decoder AlertStatus
@@ -39,13 +40,16 @@ decoder =
         |> required "inhibitedBy" (Decode.list Decode.string)
 
 
+
 encoder : AlertStatus -> Encode.Value
 encoder model =
     Encode.object
         [ ( "state", stateEncoder model.state )
-        , ( "silencedBy", Encode.list Encode.string model.silencedBy )
-        , ( "inhibitedBy", Encode.list Encode.string model.inhibitedBy )
+        , ( "silencedBy", (Encode.list Encode.string) model.silencedBy )
+        , ( "inhibitedBy", (Encode.list Encode.string) model.inhibitedBy )
+
         ]
+
 
 
 stateDecoder : Decoder State
@@ -68,6 +72,7 @@ stateDecoder =
             )
 
 
+
 stateEncoder : State -> Encode.Value
 stateEncoder model =
     case model of
@@ -79,3 +84,6 @@ stateEncoder model =
 
         Suppressed ->
             Encode.string "suppressed"
+
+
+

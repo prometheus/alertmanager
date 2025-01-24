@@ -31,9 +31,13 @@ decoder =
         |> required "address" Decode.string
 
 
+
 encoder : PeerStatus -> Encode.Value
 encoder model =
     Encode.object
         [ ( "name", Encode.string model.name )
         , ( "address", Encode.string model.address )
+
         ]
+
+

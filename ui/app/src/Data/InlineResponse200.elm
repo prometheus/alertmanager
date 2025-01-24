@@ -19,7 +19,7 @@ import Json.Encode as Encode
 
 
 type alias InlineResponse200 =
-    { silenceID : Maybe String
+    { silenceID : Maybe (String)
     }
 
 
@@ -29,8 +29,12 @@ decoder =
         |> optional "silenceID" (Decode.nullable Decode.string) Nothing
 
 
+
 encoder : InlineResponse200 -> Encode.Value
 encoder model =
     Encode.object
         [ ( "silenceID", Maybe.withDefault Encode.null (Maybe.map Encode.string model.silenceID) )
+
         ]
+
+

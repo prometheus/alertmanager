@@ -14,6 +14,7 @@ module Data.PostableSilence exposing (PostableSilence, decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
 import DateTime exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -21,12 +22,12 @@ import Json.Encode as Encode
 
 
 type alias PostableSilence =
-    { matchers : List Matcher
+    { matchers : (List Matcher)
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
     , comment : String
-    , id : Maybe String
+    , id : Maybe (String)
     }
 
 
@@ -41,13 +42,17 @@ decoder =
         |> optional "id" (Decode.nullable Decode.string) Nothing
 
 
+
 encoder : PostableSilence -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "matchers", Encode.list Matcher.encoder model.matchers )
+        [ ( "matchers", (Encode.list Matcher.encoder) model.matchers )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
         , ( "id", Maybe.withDefault Encode.null (Maybe.map Encode.string model.id) )
+
         ]
+
+
