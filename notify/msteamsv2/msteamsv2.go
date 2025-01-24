@@ -59,7 +59,7 @@ type Content struct {
 	Type    string  `json:"type"`
 	Version string  `json:"version"`
 	Body    []Body  `json:"body"`
-	MSTeams MSTeams `json:"msTeams"`
+	MSTeams MSTeams `json:"msTeams, omitempty"`
 }
 
 type Body struct {
@@ -70,6 +70,10 @@ type Body struct {
 	Wrap   bool   `json:"wrap,omitempty"`
 	Style  string `json:"style,omitempty"`
 	Color  string `json:"color,omitempty"`
+}
+
+type Msteams struct {
+	Width string `json:"width"`
 }
 
 type Attachment struct {
