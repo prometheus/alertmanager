@@ -366,8 +366,7 @@ func TestAlertsGC(t *testing.T) {
 
 	for i, a := range insert {
 		_, err := alerts.Get(a.Fingerprint())
-		require.Error(t, err)
-		require.Equal(t, store.ErrNotFound, err, fmt.Sprintf("alert %d didn't get GC'd: %v", i, err))
+		require.ErrorIs(t, err, store.ErrNotFound, "alert %d didn't get GC'd: %v", i, err)
 
 		s := marker.Status(a.Fingerprint())
 		if s.State != types.AlertStateUnprocessed {

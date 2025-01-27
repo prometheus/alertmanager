@@ -15,7 +15,6 @@ package slack
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -48,7 +47,7 @@ func TestSlackRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -229,8 +228,8 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				var reasonError *notify.ErrorWithReason
 				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
-				require.Contains(t, err.Error(), tt.expectedErr)
-				require.Contains(t, err.Error(), "channelname")
+				require.ErrorContains(t, err, tt.expectedErr)
+				require.ErrorContains(t, err, "channelname")
 			}
 		})
 	}

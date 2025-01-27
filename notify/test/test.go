@@ -154,8 +154,7 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 		},
 	}...)
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.ErrorContains(t, err, context.Canceled.Error())
 	for _, s := range secret {
 		require.NotContains(t, err.Error(), s)
 	}
