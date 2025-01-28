@@ -309,6 +309,7 @@ name: <string>
 time_intervals:
   [ - <time_interval_spec> ... ]
 ```
+
 #### `<time_interval_spec>`
 
 A `time_interval_spec` contains the actual definition for an interval of time. The syntax
@@ -339,9 +340,11 @@ make it easy to represent times that start/end on hour boundaries.
 For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
 
-        times:
-        - start_time: HH:MM
-          end_time: HH:MM
+```yaml
+times:
+- start_time: HH:MM
+  end_time: HH:MM
+```
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
@@ -367,10 +370,12 @@ example, `'Australia/Sydney'`. The location provides the time zone for the time
 interval. For example, a time interval with a location of `'Australia/Sydney'` that
 contained something like:
 
-        times:
-        - start_time: 09:00
-          end_time: 17:00
-        weekdays: ['monday:friday']
+```yaml
+times:
+- start_time: 09:00
+  end_time: 17:00
+weekdays: ['monday:friday']
+```
 
 would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
 and Friday, using the local time in Sydney, Australia.
@@ -437,7 +442,6 @@ source_matchers:
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
 [ equal: '[' <labelname>, ... ']' ]
-
 ```
 
 ## Label matchers
@@ -465,7 +469,7 @@ Alertmanager runs in a special mode called fallback mode as its default mode. As
 In fallback mode, configurations are first parsed as UTF-8 matchers, and if incompatible with the UTF-8 parser, are then parsed as classic matchers. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will parse them as classic matchers and log a warning. This warning also includes a suggestion on how to change the matchers from classic matchers to UTF-8 matchers. For example:
 
 ```
-ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 ```
 
 Here the matcher `foo=` can be made into a valid UTF-8 matcher by double quoting the right hand side of the expression to give `foo=""`. These two matchers are equivalent, however with UTF-8 matchers the right hand side of the matcher is a required field.
@@ -482,7 +486,7 @@ Any occurrences of disagreement should be looked at on a case by case basis as d
 
 In UTF-8 strict mode, Alertmanager disables support for classic matchers:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
 ```
 
@@ -498,7 +502,7 @@ UTF-8 strict mode will be the default mode of Alertmanager at the end of the tra
 
 Classic mode is equivalent to Alertmanager versions 0.26.0 and older:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="classic-mode"
 ```
 
@@ -513,7 +517,7 @@ Just like Alertmanager server, `amtool` will log a warning if the configuration 
 ```
 amtool check-config config.yml
 Checking 'config.yml'
-level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
   SUCCESS
 Found:
@@ -571,9 +575,9 @@ A UTF-8 matcher consists of three tokens:
 - One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
-Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
-Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"` are valid double-quoted strings.
+Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
 
 #### Classic matchers
 
@@ -1347,6 +1351,7 @@ The fields are documented in the [Rocketchat API documentation](https://develope
 ```
 
 #### `<rocketchat_action_config>`
+
 The fields are documented in the [Rocketchat API api models](https://github.com/RocketChat/Rocket.Chat.Go.SDK/blob/master/models/message.go).
 
 ```yaml
@@ -1354,6 +1359,7 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ text: <tmpl_string> ]
 [ url: <tmpl_string> ]
 [ msg: <tmpl_string> ]
+```
 
 ### `<slack_config>`
 
@@ -1600,7 +1606,6 @@ url_file: <filepath>
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
-
 ```
 
 The Alertmanager
