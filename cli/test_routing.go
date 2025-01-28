@@ -182,14 +182,6 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 	return flattenGroupingMap(result), nil
 }
 
-// removeSpacesAroundCommas removes spaces around commas.
-func removeSpacesAroundCommas(input string) string {
-	input = strings.ReplaceAll(input, " ,", ",")
-	input = strings.ReplaceAll(input, ", ", ",")
-
-	return input
-}
-
 // flattenGroupingMap converts the internal map[string][][]string to the expected map[string][]string format.
 func flattenGroupingMap(input map[string][][]string) map[string][]string {
 	result := make(map[string][]string)
@@ -295,7 +287,7 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 			continue
 		}
 
-		// Try to match with expected grouping
+		// Try to match with expected grouping.
 		if expectedGroups != nil {
 			sortedExpected := slices.Clone(expectedGroups)
 			sortedActual := slices.Clone(actualGroups)
