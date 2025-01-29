@@ -23,14 +23,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/matchers/compat"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -1297,14 +1297,14 @@ func TestInhibitRuleEqual(t *testing.T) {
 	require.Equal(t, "invalid label name \"qux🙂\" in equal list", err.Error())
 
 	// Change the mode to UTF-8 mode.
-	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
 	require.NoError(t, err)
-	compat.InitFromFlags(promslog.NewNopLogger(), ff)
+	compat.InitFromFlags(log.NewNopLogger(), ff)
 
 	// Restore the mode to classic at the end of the test.
-	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
 	require.NoError(t, err)
-	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
+	defer compat.InitFromFlags(log.NewNopLogger(), ff)
 
 	c, err = LoadFile("testdata/conf.inhibit-equal.yml")
 	require.NoError(t, err)
