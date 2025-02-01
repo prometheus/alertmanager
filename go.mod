@@ -33,7 +33,7 @@ require (
 	github.com/prometheus/common v0.61.0
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/exporter-toolkit v0.13.2
-	github.com/prometheus/sigv4 v0.1.0
+	github.com/prometheus/sigv4 v0.1.1
 	github.com/rs/cors v1.11.1
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c
 	github.com/shurcooL/vfsgen v0.0.0-20230704071429-0000e147ea92
