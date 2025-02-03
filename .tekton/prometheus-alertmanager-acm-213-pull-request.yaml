@@ -36,7 +36,7 @@ spec:
   - name: hermetic
     value: true
   - name: prefetch-input
-    value: '{"type": "gomod", "path": "."}'
+    value: '[{"path": ".", "type": "gomod"}, {"path": "promu/", "type": "gomod"}]'
   pipelineSpec:
     description: |
       This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
