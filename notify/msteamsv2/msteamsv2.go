@@ -186,7 +186,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 				},
 			},
 		}
-		
+
 		if err = json.NewEncoder(&payload).Encode(t); err != nil {
 			return false, err
 		}
@@ -195,7 +195,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		var jsonMap map[string]interface{}
 		json.Unmarshal([]byte(card), &jsonMap)
 		n.logger.Debug("jsonMap", "jsonMap", jsonMap)
-		
+
 		if err = json.NewEncoder(&payload).Encode(jsonMap); err != nil {
 			return false, err
 		}
