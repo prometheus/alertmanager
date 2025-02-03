@@ -130,17 +130,10 @@ func TestMSTeamsV2Templating(t *testing.T) {
 		errMsg string
 	}{
 		{
-			title: "full-blown message (Title and Text)",
+			title: "full-blown message",
 			cfg: &config.MSTeamsV2Config{
 				Title: `{{ template "msteams.default.title" . }}`,
 				Text:  `{{ template "msteams.default.text" . }}`,
-			},
-			retry: false,
-		},
-		{
-			title: "full-blown message (Card)",
-			cfg: &config.MSTeamsV2Config{
-				Card: `{{ template "msteamsv2.default.card" . }}`,
 			},
 			retry: false,
 		},
