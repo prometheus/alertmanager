@@ -17,8 +17,6 @@ COPY --from=builder /workspace/amtool /bin/amtool
 COPY --from=builder /workspace/alertmanager /bin/alertmanager
 COPY --from=builder /workspace/examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
 
-RUN microdnf update -y && microdnf clean all
-
 RUN mkdir -p /alertmanager && \
     chown -R nobody:nobody etc/alertmanager /alertmanager
 
