@@ -125,6 +125,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	card := tmpl(n.conf.Card)
+	if err != nil {
+		return false, err
+	}
 
 	alerts := types.Alerts(as...)
 	color := colorGrey
@@ -146,44 +150,55 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		url = strings.TrimSpace(string(content))
 	}
 
-	// A message as referenced in https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1%2Cdotnet#request-body-schema
-	t := teamsMessage{
-		Type: "message",
-		Attachments: []Attachment{
-			{
-				ContentType: "application/vnd.microsoft.card.adaptive",
-				ContentURL:  nil,
-				Content: Content{
-					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
-					Type:    "AdaptiveCard",
-					Version: "1.2",
-					Body: []Body{
-						{
-							Type:   "TextBlock",
-							Text:   title,
-							Weight: "Bolder",
-							Size:   "Medium",
-							Wrap:   true,
-							Style:  "heading",
-							Color:  color,
+	// If the card is empty, use title and text otherwise use card.
+	var payload bytes.Buffer
+	if card == "" {
+		// A message as referenced in https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1%2Cdotnet#request-body-schema
+		t := teamsMessage{
+			Type: "message",
+			Attachments: []Attachment{
+				{
+					ContentType: "application/vnd.microsoft.card.adaptive",
+					ContentURL:  nil,
+					Content: Content{
+						Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+						Type:    "AdaptiveCard",
+						Version: "1.2",
+						Body: []Body{
+							{
+								Type:   "TextBlock",
+								Text:   title,
+								Weight: "Bolder",
+								Size:   "Medium",
+								Wrap:   true,
+								Style:  "heading",
+								Color:  color,
+							},
+							{
+								Type: "TextBlock",
+								Text: text,
+							},
 						},
-						{
-							Type: "TextBlock",
-							Text: text,
-							Wrap: true,
+						Msteams: Msteams{
+							Width: "full",
 						},
-					},
-					Msteams: Msteams{
-						Width: "full",
 					},
 				},
 			},
-		},
-	}
-
-	var payload bytes.Buffer
-	if err = json.NewEncoder(&payload).Encode(t); err != nil {
-		return false, err
+		}
+		
+		if err = json.NewEncoder(&payload).Encode(t); err != nil {
+			return false, err
+		}
+	} else {
+		// Transform card string into object
+		var jsonMap map[string]interface{}
+		json.Unmarshal([]byte(card), &jsonMap)
+		n.logger.Debug("jsonMap", "jsonMap", jsonMap)
+		
+		if err = json.NewEncoder(&payload).Encode(jsonMap); err != nil {
+			return false, err
+		}
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
