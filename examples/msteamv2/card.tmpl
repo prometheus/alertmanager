@@ -1,0 +1,75 @@
+{{ define "msteams.card" }}
+{
+  "Type": "message",
+  "Attachments": [
+    {
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.4",
+        "msteams": {
+          "width": "Full"
+        },
+        "body": [
+          {
+            "type": "ColumnSet",
+            "style": "{{ if eq .Status "firing" }}attention{{ else if eq .Status "resolved" }}good{{ else }}warning{{ end }}",
+            "columns": [
+              {
+                "type": "Column",
+                "width": "stretch",
+                "items": [
+                  {
+                    "type": "TextBlock",
+                    "weight": "Bolder",
+                    "size": "ExtraLarge",
+                    "color": "{{ if eq .Status "firing" }}attention{{ else if eq .Status "resolved" }}good{{ else }}warning{{ end }}",
+                    "text": "{{ if eq .Status "firing" }}🔥{{ else if eq .Status "resolved" }}✅{{ else }}⚠️{{ end }} Prometheus alert {{ if eq .Status "resolved" }}(Resolved){{ else if eq .Status "firing" }}(Firing){{ else if eq .Status "unknown" }}(Unknown){{ else }}(Warning){{ end }}"
+                  },
+                  {
+                    "type": "TextBlock",
+                    "weight": "Bolder",
+                    "size": "ExtraLarge",
+                    "text": "{{ if eq .Status "resolved" }}(Resolved) {{ end }}{{ .CommonAnnotations.summary }}",
+                    "wrap": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "FactSet",
+            "facts": [
+              { "title": "Status", "value": "{{ .Status }} {{ if eq .Status "firing" }}🔥{{ else if eq .Status "resolved" }}✅{{ else }}⚠️{{ end }}" }
+              {{ if .CommonLabels.alertname }}, { "title": "Alert", "value": "{{ .CommonLabels.alertname }}" }{{ end }}
+              {{ if .CommonLabels.instance }}, { "title": "In host", "value": "{{ .CommonLabels.instance }}" }{{ end }}
+              {{ if .CommonLabels.severity }}, { "title": "Severity", "value": "{{ .CommonLabels.severity }} {{ if eq .CommonLabels.severity "critical" }}❌{{ else if eq .CommonLabels.severity "error" }}❗️{{ else if eq .CommonLabels.severity "warning" }}⚠️{{ else if eq .CommonLabels.severity "info" }}ℹ️{{ else }}❓{{ end }}" }{{ end }}
+              {{ if .CommonAnnotations.description }}, { "title": "Description", "value": "{{ .CommonAnnotations.description }}" }{{ end }}
+              {{- range $key, $value := .CommonLabels }}
+                {{- if and (ne $key "alertname") (ne $key "instance") (ne $key "severity") }}
+                , { "title": "{{ $key }}", "value": "{{ $value }}" }
+                {{- end }}
+              {{- end }}
+              {{- range $key, $value := .CommonAnnotations }}
+                {{- if and (ne $key "summary") (ne $key "description") }}
+                , { "title": "{{ $key }}", "value": "{{ $value }}" }
+                {{- end }}
+              {{- end }}
+            ]
+          }
+        ]
+        {{ if .CommonAnnotations.runbook_url }},
+        "actions": [
+            {
+                "type": "Action.OpenUrl",
+                "title": "View details",
+                "url": "{{ .CommonAnnotations.runbook_url }}"
+            }
+        ]
+        {{ end }}
+      }
+    }
+  ]
+}
+{{ end }}

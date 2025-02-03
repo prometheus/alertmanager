@@ -130,10 +130,17 @@ func TestMSTeamsV2Templating(t *testing.T) {
 		errMsg string
 	}{
 		{
-			title: "full-blown message",
+			title: "full-blown message (Title and Text)",
 			cfg: &config.MSTeamsV2Config{
 				Title: `{{ template "msteams.default.title" . }}`,
 				Text:  `{{ template "msteams.default.text" . }}`,
+			},
+			retry: false,
+		},
+		{
+			title: "full-blown message (Card)",
+			cfg: &config.MSTeamsV2Config{
+				Card: `{{ template "msteamsv2.default.card" . }}`,
 			},
 			retry: false,
 		},
@@ -149,6 +156,13 @@ func TestMSTeamsV2Templating(t *testing.T) {
 			cfg: &config.MSTeamsV2Config{
 				Title: `{{ template "msteams.default.title" . }}`,
 				Text:  "{{ ",
+			},
+			errMsg: "template: :1: unclosed action",
+		},
+		{
+			title: "card with templating errors",
+			cfg: &config.MSTeamsV2Config{
+				Card:  "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
 		},
