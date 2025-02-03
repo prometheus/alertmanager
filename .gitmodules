@@ -1,0 +1,3 @@
+[submodule "promu"]
+	path = promu
+	url = https://github.com/prometheus/promu
