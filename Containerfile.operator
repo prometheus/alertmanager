@@ -29,3 +29,13 @@ WORKDIR    /alertmanager
 ENTRYPOINT [ "/bin/alertmanager" ]
 CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
              "--storage.path=/alertmanager" ]
+
+LABEL com.redhat.component="prometheus-alermanager" \
+  name="prometheus-alermanager" \
+  summary="prometheus-alermanager" \
+  io.openshift.expose-services="" \
+  io.openshift.tags="data,images" \
+  io.k8s.display-name="prometheus-alermanager" \
+  maintainer="" \
+  description="prometheus-alermanager" \
+  io.k8s.description="prometheus-alermanager"
