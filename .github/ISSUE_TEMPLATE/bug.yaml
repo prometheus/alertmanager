@@ -1,0 +1,121 @@
+name: 🐞 Bug
+description: Report a bug related to the Alertmanager
+labels: ["kind/bug", "needs-triage"]
+body:
+- type: checkboxes
+  attributes:
+    label: Is there an existing issue for this?
+    description: |
+      Before filing a bug, please be sure you have searched through [existing bugs](https://github.com/prometheus/alertmanager/issues?q=is%3Aopen+is%3Aissue+label%3Akind%2Fbug) to see if an existing issue covers your bug.
+    options:
+    - label: I have searched the existing issues
+      required: true
+- type: textarea
+  attributes:
+    label: What happened?
+    description: A concise description of what you're experiencing.
+    value: |
+      ## Description
+
+      ## Steps to Reproduce
+
+      ## Expected Result
+
+      ## Actual Result
+
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: System Information
+    description: |
+      Provide the operating system info here
+      This will be automatically formatted into code, so no need for backticks.
+    placeholder: |
+        - Operating System info:
+          ```console
+          insert output of `uname -srm` here
+          # paste output here
+          ```
+    render: shell
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Alertmanager Version
+    description: |
+      Provide the alertmanager version used
+      This will be automatically formatted into code, so no need for backticks.
+    placeholder: |
+        - Alertmanager version:
+          ```console
+          alertmanager --version
+          # paste output here
+          ```
+    render: shell
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Prometheus Version
+    description: |
+      Provide the prometheus version used
+      This will be automatically formatted into code, so no need for backticks.
+    placeholder: |
+        - Prometheus version:
+          ```console
+          prometheus --version
+          # paste output here
+          ```
+    render: shell
+  validations:
+    required: true
+- type: dropdown
+  attributes:
+    label: How did you deploy Alertmanager?
+    description: |
+      Select the method how you deployed alertmanager
+    options:
+    - prometheus-operator/kube-prometheus
+    - helm chart:prometheus-community/kube-prometheus-stack
+    - manual installation
+    - prometheus-community/ansible
+    - Other (please comment)
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Alertmanager Configuration
+    description: |
+      Insert Alertmanager configuration relevant to the issue
+      This will be automatically formatted into code, so no need for backticks.
+    render: yaml
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Prometheus Configuration
+    description: |
+      Insert Prometheus configuration if relevant to the issue
+      This will be automatically formatted into code, so no need for backticks.
+    render: yaml
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: alertmanager log output
+    description: |
+      Please provide alertmanager log output
+      This will be automatically formatted into code, so no need for backticks.
+    render: shell
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Anything else?
+    description: |
+      Links? References? Anything that will give us more context about the issue you are encountering!
+
+      Tip: You can attach images or any other relevant log files by clicking this area to highlight it and then dragging files in.
+  validations:
+    required: false
