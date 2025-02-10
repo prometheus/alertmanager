@@ -62,3 +62,52 @@ func TestRoutingTest(t *testing.T) {
 		fmt.Println("  OK")
 	}
 }
+
+func TestParseReceiversWithGrouping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected map[string][]string
+		wantErr  bool
+	}{
+		{
+			input: "infrasec-team-opsgenie[product],infrasec-team-opsgenie",
+			expected: map[string][]string{
+				"infrasec-team-opsgenie":   {"product"},
+				"infrasec-team-opsgenie_1": nil,
+			},
+		},
+		{
+			input: "team1[group1,group2],team2",
+			expected: map[string][]string{
+				"team1": {"group1", "group2"},
+				"team2": nil,
+			},
+		},
+		{
+			input: "team1[group1],team1[group2],team1",
+			expected: map[string][]string{
+				"team1":   {"group1"},
+				"team1_1": {"group2"},
+				"team1_2": nil,
+			},
+		},
+		{
+			input: "team1,team1[group1]",
+			expected: map[string][]string{
+				"team1":   nil,
+				"team1_1": {"group1"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		got, err := parseReceiversWithGrouping(tt.input)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("parseReceiversWithGrouping(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.expected) {
+			t.Errorf("parseReceiversWithGrouping(%q) = %v, want %v", tt.input, got, tt.expected)
+		}
+	}
+}
