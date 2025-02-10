@@ -6,15 +6,16 @@ FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.21 AS bui
 WORKDIR /workspace
 COPY . .
 
-RUN go install -mod=mod github.com/prometheus/promu@v0.17.0 && go mod vendor &&  make common-build
+RUN cd promu && go build -mod=mod -o /cachi2/output/deps/gomod/bin/promu
+
+WORKDIR /workspace
+RUN go mod vendor && make common-build
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 COPY --from=builder /workspace/amtool /bin/amtool
 COPY --from=builder /workspace/alertmanager /bin/alertmanager
 COPY --from=builder /workspace/examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
-
-RUN microdnf update -y && microdnf clean all
 
 RUN mkdir -p /alertmanager && \
     chown -R nobody:nobody etc/alertmanager /alertmanager
@@ -28,3 +29,13 @@ WORKDIR    /alertmanager
 ENTRYPOINT [ "/bin/alertmanager" ]
 CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
              "--storage.path=/alertmanager" ]
+
+LABEL com.redhat.component="prometheus-alermanager" \
+  name="prometheus-alermanager" \
+  summary="prometheus-alermanager" \
+  io.openshift.expose-services="" \
+  io.openshift.tags="data,images" \
+  io.k8s.display-name="prometheus-alermanager" \
+  maintainer="" \
+  description="prometheus-alermanager" \
+  io.k8s.description="prometheus-alermanager"
