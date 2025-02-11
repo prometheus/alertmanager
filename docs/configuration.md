@@ -95,6 +95,9 @@ global:
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
 
+  # Default settings for the JIRA integration. 
+  [ jira_api_url: <string> ]
+
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
@@ -695,6 +698,8 @@ email_configs:
   [ - <email_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
+jira_configs:
+  [ - <jira_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
@@ -940,6 +945,97 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<jira_config>`
+
+JIRA notifications are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
+or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
+
+Note: This integration is only tested against a Jira Cloud instance. 
+Jira Data Center (on premise instance) can work, but it's not guaranteed.
+
+Both APIs have the same feature set. The difference is that V2 supports [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
+for the issue description and V3 supports [Atlassian Document Format (ADF)](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
+The default `jira.default.description` template only works with V2.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The URL to send API requests to. The full API path must be included.
+# Example: https://company.atlassian.net/rest/api/2/
+[ api_url: <string> | default = global.jira_api_url ]
+
+# The project key where issues are created.
+project: <string>
+
+# Issue summary template.
+[ summary: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
+
+# Issue description template.
+[ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
+
+# Labels to be added to the issue.
+labels: 
+  [ - <tmpl_string> ... ]
+
+# Priority of the issue.
+[ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
+
+# Type of the issue (e.g. Bug).
+[ issue_type: <string> ]
+
+# Name of the workflow transition to resolve an issue. The target status must have the category "done".
+# NOTE: The name of the transition can be localized and depends on the language setting of the service account.
+[ resolve_transition: <string> ]
+
+# Name of the workflow transition to reopen an issue. The target status should not have the category "done".
+# NOTE: The name of the transition can be localized and depends on the language setting of the service account.
+[ reopen_transition: <string> ]
+
+# If reopen_transition is defined, ignore issues with that resolution.
+[ wont_fix_resolution: <string> ]
+
+# If reopen_transition is defined, reopen the issue when it is not older than this value (rounded down to the nearest minute).
+# The resolutiondate field is used to determine the age of the issue.
+[ reopen_duration: <duration> ]
+
+# Other issue and custom fields.
+fields:
+  [ <string>: <jira_field> ... ]
+
+
+# The HTTP client's configuration. You must use this configuration to supply the personal access token (PAT) as part of the HTTP `Authorization` header.
+# For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
+# For Jira Data Center, use the 'authorization' field with 'credentials: <PAT value>'.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+The `labels` field is a list of labels added to the issue. Template expressions are supported. For example:
+
+```yaml
+labels:
+  - 'alertmanager'
+  - '{{ .CommonLabels.severity }}'
+```
+
+#### `<jira_field>`
+
+Jira issue field can have multiple types.
+Depends on the field type, the values must be provided differently.
+See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types for further examples.
+
+```yaml
+fields:
+    # Components
+    components: { name: "Monitoring" }
+    # Custom Field TextField
+    customfield_10001: "Random text"
+    # Custom Field SelectList
+    customfield_10002: {"value": "red"}
+    # Custom Field MultiSelect
+    customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
 ```
 
 ### `<opsgenie_config>`

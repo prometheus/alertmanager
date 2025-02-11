@@ -22,6 +22,7 @@ import (
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/sigv4"
 )
 
@@ -171,6 +172,15 @@ var (
 		Title:   `{{ template "msteams.default.title" . }}`,
 		Summary: `{{ template "msteams.default.summary" . }}`,
 		Text:    `{{ template "msteams.default.text" . }}`,
+	}
+
+	DefaultJiraConfig = JiraConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Summary:     `{{ template "jira.default.summary" . }}`,
+		Description: `{{ template "jira.default.description" . }}`,
+		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
 )
 
@@ -824,6 +834,44 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return fmt.Errorf("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
+	return nil
+}
+
+type JiraConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+
+	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
+	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Labels      []string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	IssueType   string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
+
+	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
+	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
+	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
+	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
+
+	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
+}
+
+func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultJiraConfig
+	type plain JiraConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.Project == "" {
+		return fmt.Errorf("missing project in jira_config")
+	}
+	if c.IssueType == "" {
+		return fmt.Errorf("missing issue_type in jira_config")
 	}
 
 	return nil
