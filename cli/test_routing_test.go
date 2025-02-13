@@ -70,32 +70,40 @@ func TestParseReceiversWithGrouping(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			input: "infrasec-team-opsgenie[product],infrasec-team-opsgenie",
+			input: "infrasec-team-opsgenie=[product],infrasec-team-opsgenie=[...]",
 			expected: map[string][]string{
 				"infrasec-team-opsgenie":   {"product"},
-				"infrasec-team-opsgenie_1": nil,
+				"infrasec-team-opsgenie_1": {"..."},
 			},
 		},
 		{
-			input: "team1[group1,group2],team2",
+			input: "team1=[group1,group2],team2",
 			expected: map[string][]string{
 				"team1": {"group1", "group2"},
-				"team2": nil,
+				"team2": {"..."},
 			},
 		},
 		{
-			input: "team1[group1],team1[group2],team1",
+			input: "team1=[...],team1=[group2],team1",
 			expected: map[string][]string{
-				"team1":   {"group1"},
+				"team1":   {"..."},
 				"team1_1": {"group2"},
-				"team1_2": nil,
+				"team1_2": {"..."},
 			},
 		},
 		{
-			input: "team1,team1[group1]",
+			input: "team1,team1=[group1]",
 			expected: map[string][]string{
-				"team1":   nil,
+				"team1":   {"..."},
 				"team1_1": {"group1"},
+			},
+		},
+		{
+			input: "team1=[],team2=[...],team3",
+			expected: map[string][]string{
+				"team1": {"..."},
+				"team2": {"..."},
+				"team3": {"..."},
 			},
 		},
 	}

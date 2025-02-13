@@ -90,32 +90,32 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 			continue
 		}
 
-		// Check if this receiver has grouping
-		bracketIndex := strings.Index(r, "[")
-		var receiverName string
+		// Check if this receiver has explicit grouping
+		parts := strings.SplitN(r, "=", 2)
+		receiverName := strings.TrimSpace(parts[0])
 		var cleanGroups []string
 
-		if bracketIndex == -1 {
-			// No grouping specified
-			receiverName = r
-			cleanGroups = nil
+		if len(parts) == 1 {
+			// No explicit grouping specified - treat as [...].
+			cleanGroups = []string{"..."}
 		} else {
-			receiverName = strings.TrimSpace(r[:bracketIndex])
-			groupingPart := r[bracketIndex:]
-
+			groupingPart := strings.TrimSpace(parts[1])
 			if !strings.HasPrefix(groupingPart, "[") || !strings.HasSuffix(groupingPart, "]") {
-				return nil, fmt.Errorf("invalid grouping format in %q", r)
+				return nil, fmt.Errorf("invalid grouping format in %q, expected [group1,group2] or [...] after =", r)
 			}
 
 			// Extract and clean up group names
 			grouping := strings.TrimSuffix(strings.TrimPrefix(groupingPart, "["), "]")
-			groups := strings.Split(grouping, ",")
-
-			cleanGroups = make([]string, 0, len(groups))
-			for _, g := range groups {
-				g = strings.TrimSpace(g)
-				if g != "" {
-					cleanGroups = append(cleanGroups, g)
+			if grouping == "" || grouping == "..." {
+				cleanGroups = []string{"..."}
+			} else {
+				groups := strings.Split(grouping, ",")
+				cleanGroups = make([]string, 0, len(groups))
+				for _, g := range groups {
+					g = strings.TrimSpace(g)
+					if g != "" {
+						cleanGroups = append(cleanGroups, g)
+					}
 				}
 			}
 		}
