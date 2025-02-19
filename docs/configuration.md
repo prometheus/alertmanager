@@ -719,7 +719,7 @@ pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
-rocket_configs:
+rocketchat_configs:
   [ - <rocketchat_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
