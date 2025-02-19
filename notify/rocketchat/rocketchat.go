@@ -202,7 +202,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	body := &PostMessage{
-		Channel:     n.conf.Channel,
+		Channel:     tmplText(n.conf.Channel),
 		Emoji:       tmplText(n.conf.Emoji),
 		Avatar:      tmplText(n.conf.IconURL),
 		Attachments: []Attachment{*att},
