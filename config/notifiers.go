@@ -178,7 +178,7 @@ var (
 			VSendResolved: true,
 		},
 		Message:   `{{ template "googlechat.default.message" . }}`,
-		Threading: true,
+		Threading: false,
 	}
 )
 
