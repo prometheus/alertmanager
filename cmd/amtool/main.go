@@ -13,8 +13,16 @@
 
 package main
 
-import "github.com/prometheus/alertmanager/cli"
+import (
+	"os"
+
+	"github.com/prometheus/alertmanager/cli"
+)
 
 func main() {
-	cli.Execute()
+	run(os.Args)
+}
+
+func run(args []string) {
+	cli.Execute(args)
 }
