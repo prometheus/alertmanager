@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/coder/quartz v0.1.2
+	github.com/coder/quartz v0.1.3
 	github.com/emersion/go-smtp v0.21.3
 	github.com/go-openapi/analysis v0.23.0
 	github.com/go-openapi/errors v0.22.0
