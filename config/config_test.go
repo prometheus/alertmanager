@@ -1292,6 +1292,26 @@ func TestSlackGlobalAppToken(t *testing.T) {
 	if thirdConfig.AppURL.String() != "http://api.fakeslack.example/" {
 		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
 	}
+
+	// workaround override
+	workaroundToken := "xoxb-my-bot-token"
+	fourthAuth := commoncfg.Authorization{
+		Type:        "Bearer",
+		Credentials: commoncfg.Secret(workaroundToken),
+	}
+	fourthConfig := conf.Receivers[0].SlackConfigs[3]
+	if fourthConfig.AppToken != "" {
+		t.Fatalf("Invalid Slack App token: %q\nExpected: %q", fourthConfig.AppToken, "")
+	}
+	if fourthConfig.HTTPConfig == nil || fourthConfig.HTTPConfig.Authorization == nil {
+		t.Fatalf("Error configuring Slack App authorization: %s", fourthConfig.HTTPConfig)
+	}
+	if fourthConfig.HTTPConfig.Authorization.Type != fourthAuth.Type {
+		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Type, fourthAuth.Type)
+	}
+	if fourthConfig.HTTPConfig.Authorization.Credentials != fourthAuth.Credentials {
+		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Credentials, fourthAuth.Credentials)
+	}
 }
 
 func TestSlackNoAPIURL(t *testing.T) {

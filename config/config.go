@@ -386,7 +386,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if (c.Global.SlackAppToken != "" || len(c.Global.SlackAppTokenFile) > 0) && (c.Global.SlackAPIURL != nil || len(c.Global.SlackAPIURLFile) > 0) {
-		return errors.New("at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured")
+		// Support transition from workaround suggested in https://github.com/prometheus/alertmanager/issues/2513,
+		// where users might set `slack_api_url` at the top level and then have `http_config` with individual
+		// bearer tokens in the receivers.
+		if c.Global.SlackAPIURL.String() != c.Global.SlackAppURL.String() {
+			return errors.New("at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured")
+		}
 	}
 
 	if c.Global.OpsGenieAPIKey != "" && len(c.Global.OpsGenieAPIKeyFile) > 0 {
