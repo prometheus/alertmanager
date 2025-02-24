@@ -200,6 +200,9 @@ var DefaultFuncs = FuncMap{
 	"unix": func(t time.Time) int64 {
 		return t.Unix()
 	},
+	"unixMillis": func(t time.Time) int64 {
+		return t.UnixMilli()
+	},
 	"humanizeFloat": func(val string) (string, error) {
 		f, err := strconv.ParseFloat(val, 64)
 		if err != nil {
