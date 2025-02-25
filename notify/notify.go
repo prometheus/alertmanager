@@ -424,7 +424,7 @@ func (pb *PipelineBuilder) New(
 	}
 
 	ms := NewGossipSettleStage(peer)
-	is := NewMuteStage(inhibitor, pb.metrics)
+	is := NewMuteStage(inhibitor, pb.metrics, o)
 	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
 	tms := NewTimeMuteStage(intervener, marker, pb.metrics)
 	ss := NewMuteStage(silencer, pb.metrics, o)

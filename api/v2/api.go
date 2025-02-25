@@ -898,7 +898,7 @@ func (api *API) getAlertsFromAlertGroup(ctx context.Context, receiverFilter *reg
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
+			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, nil)
 			res = append(res, apiAlert)
 		}
 	}

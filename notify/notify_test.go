@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/alertobserver"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -347,7 +346,7 @@ func TestMultiStage(t *testing.T) {
 	observer := alertobserver.NewFakeLifeCycleObserver()
 	ctx := WithGroupKey(context.Background(), "test")
 	stage.alertLCObserver = observer
-	_, _, err = stage.Exec(ctx, log.NewNopLogger(), alerts1...)
+	_, _, err = stage.Exec(ctx, promslog.NewNopLogger(), alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -405,7 +404,7 @@ func TestRoutingStage(t *testing.T) {
 	// Rerun RoutingStage but with alert life cycle observer
 	observer := alertobserver.NewFakeLifeCycleObserver()
 	stage.alertLCObserver = observer
-	_, _, err = stage.Exec(ctx, log.NewNopLogger(), alerts1...)
+	_, _, err = stage.Exec(ctx, promslog.NewNopLogger(), alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -455,7 +454,7 @@ func TestRetryStageWithError(t *testing.T) {
 	// Rerun recoverable error but with alert life cycle observer
 	observer := alertobserver.NewFakeLifeCycleObserver()
 	r.alertLCObserver = observer
-	_, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.Nil(t, err)
 	require.Equal(t, len(alerts), len(observer.AlertsPerEvent[alertobserver.EventAlertSent]))
 	meta := observer.MetaPerEvent[alertobserver.EventAlertSent][0]
@@ -477,7 +476,7 @@ func TestRetryStageWithError(t *testing.T) {
 	// Rerun the unrecoverable error but with alert life cycle observer
 	fail = true
 	r.alertLCObserver = observer
-	_, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NotNil(t, err)
 	require.Equal(t, len(alerts), len(observer.AlertsPerEvent[alertobserver.EventAlertSendFailed]))
 	meta = observer.MetaPerEvent[alertobserver.EventAlertSendFailed][0]
@@ -892,7 +891,7 @@ func TestMuteStageWithAlertObserver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = silences.Set(&silencepb.Silence{
+	err = silences.Set(&silencepb.Silence{
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	})
@@ -901,7 +900,7 @@ func TestMuteStageWithAlertObserver(t *testing.T) {
 	}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
+	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger())
 	observer := alertobserver.NewFakeLifeCycleObserver()
 	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
 	stage := NewMuteStage(silencer, metrics, observer)
@@ -919,7 +918,7 @@ func TestMuteStageWithAlertObserver(t *testing.T) {
 		})
 	}
 
-	_, _, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	_, _, err = stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}

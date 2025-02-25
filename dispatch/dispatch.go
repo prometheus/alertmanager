@@ -456,7 +456,6 @@ type aggrGroup struct {
 	logger   *slog.Logger
 	routeID  string
 	routeKey string
-	routeID  string
 
 	alerts  *store.Alerts
 	ctx     context.Context
@@ -478,7 +477,6 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		labels:   labels,
 		routeID:  r.ID(),
 		routeKey: r.Key(),
-		routeID:  r.ID(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),

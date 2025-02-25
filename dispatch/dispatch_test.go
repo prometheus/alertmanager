@@ -642,7 +642,7 @@ route:
 		t.Fatal(err)
 	}
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
@@ -781,7 +781,7 @@ route:
 		t.Fatal(err)
 	}
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
@@ -979,7 +979,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 
 	ctx := context.Background()
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r), nil)
 	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
 	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
 

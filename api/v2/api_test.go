@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"io"
@@ -236,7 +237,7 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 			alertGroupInfos: func(f func(*dispatch.Route) bool) dispatch.AlertGroupInfos {
 				return aginfos
 			},
-			logger: log.NewNopLogger(),
+			logger: promslog.NewNopLogger(),
 		}
 		r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
 		require.NoError(t, err)
@@ -825,7 +826,7 @@ func TestListAlertsHandler(t *testing.T) {
 			api := API{
 				uptime:         time.Now(),
 				getAlertStatus: newGetAlertStatus(alertsProvider),
-				logger:         log.NewNopLogger(),
+				logger:         promslog.NewNopLogger(),
 				apiCallback:    tc.callback,
 				alerts:         alertsProvider,
 				setAlertStatus: func(model.LabelSet) {},
@@ -939,7 +940,7 @@ func TestGetAlertGroupsHandler(t *testing.T) {
 					return aginfos, nil
 				},
 				getAlertStatus: getAlertStatus,
-				logger:         log.NewNopLogger(),
+				logger:         promslog.NewNopLogger(),
 				apiCallback:    tc.callback,
 			}
 			r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
@@ -1144,7 +1145,7 @@ func TestListAlertInfosHandler(t *testing.T) {
 			api := API{
 				uptime:         time.Now(),
 				getAlertStatus: newGetAlertStatus(alertsProvider),
-				logger:         log.NewNopLogger(),
+				logger:         promslog.NewNopLogger(),
 				alerts:         alertsProvider,
 				alertGroups: func(f func(*dispatch.Route) bool, f2 func(*types.Alert, time.Time) bool, f3 func(string) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 					return ags, nil
@@ -1220,7 +1221,7 @@ func TestPostAlertHandler(t *testing.T) {
 		api := API{
 			uptime: time.Now(),
 			alerts: newFakeAlerts([]*types.Alert{}),
-			logger: log.NewNopLogger(),
+			logger: promslog.NewNopLogger(),
 			m:      metrics.NewAlerts(prometheus.NewRegistry()),
 		}
 		api.Update(&config.Config{

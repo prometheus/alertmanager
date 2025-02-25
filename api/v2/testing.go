@@ -14,10 +14,12 @@
 package v2
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
