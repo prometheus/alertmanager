@@ -1312,6 +1312,13 @@ func TestSlackGlobalAppToken(t *testing.T) {
 	if fourthConfig.HTTPConfig.Authorization.Credentials != fourthAuth.Credentials {
 		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Credentials, fourthAuth.Credentials)
 	}
+
+	// override the global file with an inline webhook URL
+	apiURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+	fifthConfig := conf.Receivers[0].SlackConfigs[4]
+	if fifthConfig.APIURL.String() != apiURL || fifthConfig.APIURLFile != "" {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", fifthConfig.APIURL.String(), apiURL)
+	}
 }
 
 func TestSlackNoAPIURL(t *testing.T) {

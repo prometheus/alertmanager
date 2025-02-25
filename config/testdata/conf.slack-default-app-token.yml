@@ -25,3 +25,5 @@ receivers:
         http_config:
           authorization:
             credentials: 'xoxb-my-bot-token'
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+        send_resolved: true
