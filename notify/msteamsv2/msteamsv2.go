@@ -240,11 +240,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 									},
 									{
 										Title: "Alert",
-										Value: data.CommonLabels["alertname"],
+										Value: extractKV(data.CommonLabels, "alertname"),
 									},
 									{
 										Title: "Summary",
-										Value: data.CommonAnnotations["summary"],
+										Value: extractKV(data.CommonAnnotations, "summary"),
 									},
 									{
 										Title: "Severity",
@@ -252,11 +252,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 									},
 									{
 										Title: "In Host",
-										Value: data.CommonLabels["instance"],
+										Value: extractKV(data.CommonLabels, "instance"),
 									},
 									{
 										Title: "Description",
-										Value: data.CommonAnnotations["description"],
+										Value: extractKV(data.CommonAnnotations, "description"),
 									},
 									{
 										Title: "Common Labels",
@@ -273,13 +273,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 							{
 								Type:  "Action.OpenUrl",
 								Title: "View details",
-								URL:   data.CommonAnnotations["runbook_url"],
+								URL:   extractKV(data.CommonAnnotations, "runbook_url"),
 							},
 						},
 					},
 				},
 			},
 		}
+
+		// Check if summary exists in CommonLabels
 
 		if err = json.NewEncoder(&payload).Encode(t); err != nil {
 			return false, err
@@ -334,4 +336,11 @@ func renderCommonAnnotations(commonLabels template.KV) string {
 	removeList := []string{"summary", "description"}
 
 	return commonLabels.Remove(removeList).String()
+}
+
+func extractKV(kv template.KV, key string) string {
+	if v, ok := kv[key]; ok {
+		return v
+	}
+	return ""
 }
