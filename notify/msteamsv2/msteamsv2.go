@@ -248,7 +248,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 									},
 									{
 										Title: "Severity",
-										Value: renderSeverity(data.CommonLabels["severity"]),
+										Value: renderSeverity(extractKV(data.CommonLabels, "severity")),
 									},
 									{
 										Title: "In Host",
@@ -322,7 +322,7 @@ func renderSeverity(severity string) string {
 	case "info":
 		return fmt.Sprintf("%s %s", severity, "ℹ️")
 	default:
-		return fmt.Sprintf("%s %s", severity, "ℹ❓")
+		return "unknown ❓"
 	}
 }
 
