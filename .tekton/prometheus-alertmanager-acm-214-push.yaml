@@ -4,17 +4,16 @@ metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/stolostron/prometheus-alertmanager?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
-    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
-      == "release-2.13"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "release-2.14"
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: release-acm-213
-    appstudio.openshift.io/component: prometheus-alertmanager-acm-213
+    appstudio.openshift.io/application: release-acm-214
+    appstudio.openshift.io/component: prometheus-alertmanager-acm-214
     pipelines.appstudio.openshift.io/type: build
-  name: prometheus-alertmanager-acm-213-on-pull-request
+  name: prometheus-alertmanager-acm-214-on-push
   namespace: crt-redhat-acm-tenant
 spec:
   params:
@@ -23,9 +22,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/prometheus-alertmanager-acm-213:on-pr-{{revision}}
-  - name: image-expires-after
-    value: 5d
+    value: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/prometheus-alertmanager-acm-214:{{revision}}
   - name: build-platforms
     value:
     - linux/x86_64
