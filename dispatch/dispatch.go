@@ -171,7 +171,11 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 			now := time.Now()
-			for _, r := range d.route.Match(alert.Labels) {
+			routes := d.route.Match(alert.Labels)
+			if len(routes) == 0 {
+				d.logger.Info("No routes matched the alert", "alert", alert)
+			}
+			for _, r := range routes {
 				d.processAlert(alert, r)
 			}
 			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
