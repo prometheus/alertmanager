@@ -158,7 +158,6 @@ func TestSearchExistingIssue(t *testing.T) {
 			require.Equal(t, tc.expectedRetry, retry)
 		})
 	}
-
 }
 
 func TestJiraTemplating(t *testing.T) {
