@@ -498,6 +498,57 @@ func TestJiraNotify(t *testing.T) {
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
+		{
+			title: "skip update issue",
+			cfg: &config.JiraConfig{
+				Summary:        `{{ template "jira.default.summary" . }}`,
+				Description:    `{{ template "jira.default.description" . }}`,
+				IssueType:      "{{  .CommonLabels.issue_type }}",
+				Project:        "{{  .CommonLabels.project }}",
+				Priority:       `{{ template "jira.default.priority" . }}`,
+				Labels:         []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				DisableUpdates: true,
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "SkipUpdatesConfig",
+						"project":    "OPS",
+						"issue_type": "Bug",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Total: 1,
+				Issues: []issue{
+					{
+						Key: "OPS-3",
+						Fields: &issueFields{
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			// If the test checks these fields, then it means that the flag to skip updates didn't work and a request
+			// was sent to the issue endpoint.
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "This fields in the issue don't matter at this point",
+					Description: "If the test check this values, it means that the flag to skip updates didn't work",
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+		},
 	} {
 		tc := tc
 
