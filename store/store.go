@@ -114,12 +114,17 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	return nil
 }
 
-// Delete removes the Alert with the matching fingerprint from the store.
-func (a *Alerts) Delete(fp model.Fingerprint) error {
+// DeleteIfNotModified deletes the slice of Alerts from the store if not
+// modified.
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 	a.Lock()
 	defer a.Unlock()
-
-	delete(a.c, fp)
+	for _, alert := range alerts {
+		fp := alert.Fingerprint()
+		if other, ok := a.c[fp]; ok && alert.UpdatedAt == other.UpdatedAt {
+			delete(a.c, fp)
+		}
+	}
 	return nil
 }
 
