@@ -1461,7 +1461,7 @@ func TestInhibitRuleEqual(t *testing.T) {
 	// The inhibition rule should have the expected equal labels.
 	require.Len(t, c.InhibitRules, 1)
 	r := c.InhibitRules[0]
-	require.Equal(t, model.LabelNames{"qux", "corge"}, r.Equal)
+	require.Equal(t, []string{"qux", "corge"}, r.Equal)
 
 	// Should not be able to load configuration with UTF-8 in equals list.
 	_, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
@@ -1484,7 +1484,7 @@ func TestInhibitRuleEqual(t *testing.T) {
 	// The inhibition rule should have the expected equal labels.
 	require.Len(t, c.InhibitRules, 1)
 	r = c.InhibitRules[0]
-	require.Equal(t, model.LabelNames{"qux", "corge"}, r.Equal)
+	require.Equal(t, []string{"qux", "corge"}, r.Equal)
 
 	// Should also be able to load configuration with UTF-8 in equals list.
 	c, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
@@ -1493,5 +1493,5 @@ func TestInhibitRuleEqual(t *testing.T) {
 	// The inhibition rule should have the expected equal labels.
 	require.Len(t, c.InhibitRules, 1)
 	r = c.InhibitRules[0]
-	require.Equal(t, model.LabelNames{"qux🙂", "corge"}, r.Equal)
+	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
