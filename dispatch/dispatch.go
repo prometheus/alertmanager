@@ -560,13 +560,13 @@ func (ag *aggrGroup) flush(ctx context.Context, nf notifyFunc) {
 	tickTime, _ := notify.Now(ctx)
 	l := log.With(ag.logger, "tickTime", tickTime)
 
-	if notify(alertsSlice...) {
+	if nf(ctx, alertsSlice...) {
 		// Delete all resolved alerts as we just sent a notification for them,
 		// and we don't want to send another one. However, we need to make sure
 		// that each resolved alert has not fired again during the flush as then
 		// we would delete an active alert thinking it was resolved.
 		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
-			level.Error(ag.logger).Log("msg", "error on delete alerts", "err", err)
+			level.Error(l).Log("msg", "error on delete alerts", "err", err)
 		}
 	}
 }
