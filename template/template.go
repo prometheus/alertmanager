@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -204,6 +205,11 @@ var DefaultFuncs = FuncMap{
 			return time.Time{}, err
 		}
 		return t.In(loc), nil
+	},
+	"parseJSON": func(jsonStr string) (interface{}, error) {
+		var result interface{}
+		err := json.Unmarshal([]byte(jsonStr), &result)
+		return result, err
 	},
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
