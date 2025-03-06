@@ -336,6 +336,7 @@ func TestOpsGenieApiKeyFile(t *testing.T) {
 
 	require.NoError(t, err)
 	requests, _, err := notifierWithUpdate.createRequests(ctx)
+	require.NoError(t, err)
 	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
 }
 
