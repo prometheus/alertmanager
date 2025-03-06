@@ -52,6 +52,7 @@ var (
 func initMatchersCompat(_ *kingpin.ParseContext) error {
 	promslogConfig := &promslog.Config{Writer: os.Stdout}
 	if verbose {
+		promslogConfig.Level = &promslog.AllowedLevel{}
 		_ = promslogConfig.Level.Set("debug")
 	}
 	logger := promslog.New(promslogConfig)
