@@ -968,11 +968,7 @@ type InhibitRule struct {
 	TargetMatchers Matchers `yaml:"target_matchers,omitempty" json:"target_matchers,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
-	Equal model.LabelNames `yaml:"-" json:"-"`
-	// EqualStr allows us to validate the label depending on whether UTF-8 is
-	// enabled or disabled. It should be removed when Alertmanager is updated
-	// to use the validation modes in recent versions of prometheus/common.
-	EqualStr []string `yaml:"equal,omitempty" json:"equal,omitempty"`
+	Equal []string `yaml:"equal,omitempty" json:"equal,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
@@ -994,12 +990,11 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	for _, l := range r.EqualStr {
+	for _, l := range r.Equal {
 		labelName := model.LabelName(l)
 		if !compat.IsValidLabelName(labelName) {
 			return fmt.Errorf("invalid label name %q in equal list", l)
 		}
-		r.Equal = append(r.Equal, labelName)
 	}
 
 	return nil
