@@ -203,6 +203,15 @@ var (
 		Description: `{{ template "jira.default.description" . }}`,
 		Priority:    `{{ template "jira.default.priority" . }}`,
 	}
+
+	DefaultFeishuConfig = FeishuConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		ToUser:  `{{ template "feishu.default.to_user" . }}`,
+		ToChat:  `{{ template "feishu.default.to_chat" . }}`,
+		Message: `{{ template "feishu.default.message" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -594,6 +603,29 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("weChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
 	}
 
+	return nil
+}
+
+// FeishuConfig configures notifications via Feishu.
+type FeishuConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL    *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APPID     string `yaml:"app_id,omitempty" json:"app_id,omitempty"`
+	APPSecret Secret `yaml:"app_secret,omitempty" json:"app_secret,omitempty"`
+	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToChat    string `yaml:"to_chat,omitempty" json:"to_chat,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+func (c *FeishuConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultFeishuConfig
+	type plain FeishuConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
 	return nil
 }
 
