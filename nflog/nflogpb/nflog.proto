@@ -39,6 +39,8 @@ message Entry {
   repeated uint64 firing_alerts = 6;
   // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
   repeated uint64 resolved_alerts = 7;
+  // Timestamp of the flush pipeline.
+  google.protobuf.Timestamp pipeline_time = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 // MeshEntry is a wrapper message to communicate a notify log
