@@ -378,8 +378,8 @@ func (d *Dispatcher) processAlert(dispatchLink trace.Link, alert *types.Alert, r
 		)
 		defer span.End()
 
-		tickTime, _ := notify.Now(ctx)
-		l := log.With(d.logger, "tickTime", tickTime)
+		pipelineTime, _ := notify.Now(ctx)
+		l := log.With(d.logger, "pipeline_time", pipelineTime)
 
 		_, _, err := d.stage.Exec(ctx, l, alerts...)
 		if err != nil {
@@ -557,8 +557,8 @@ func (ag *aggrGroup) flush(ctx context.Context, nf notifyFunc) {
 	}
 	sort.Stable(alertsSlice)
 
-	tickTime, _ := notify.Now(ctx)
-	l := log.With(ag.logger, "tickTime", tickTime)
+	pipelineTime, _ := notify.Now(ctx)
+	l := log.With(ag.logger, "pipeline_time", pipelineTime)
 
 	level.Debug(l).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
