@@ -151,13 +151,14 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title:    `{{ template "pushover.default.title" . }}`,
-		Message:  `{{ template "pushover.default.message" . }}`,
-		URL:      `{{ template "pushover.default.url" . }}`,
-		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
-		Retry:    duration(1 * time.Minute),
-		Expire:   duration(1 * time.Hour),
-		HTML:     false,
+		Title:           `{{ template "pushover.default.title" . }}`,
+		Message:         `{{ template "pushover.default.message" . }}`,
+		URL:             `{{ template "pushover.default.url" . }}`,
+		Priority:        `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
+		Retry:           duration(1 * time.Minute),
+		Expire:          duration(1 * time.Hour),
+		HTML:            false,
+		CancelOnResolve: false,
 	}
 
 	// DefaultSNSConfig defines default values for SNS configurations.
@@ -727,21 +728,22 @@ type PushoverConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserKey     Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	UserKeyFile string   `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
-	Token       Secret   `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string   `yaml:"token_file,omitempty" json:"token_file,omitempty"`
-	Title       string   `yaml:"title,omitempty" json:"title,omitempty"`
-	Message     string   `yaml:"message,omitempty" json:"message,omitempty"`
-	URL         string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle    string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
-	Device      string   `yaml:"device,omitempty" json:"device,omitempty"`
-	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
-	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
-	HTML        bool     `yaml:"html" json:"html,omitempty"`
+	UserKey         Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	UserKeyFile     string   `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
+	Token           Secret   `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile       string   `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+	Title           string   `yaml:"title,omitempty" json:"title,omitempty"`
+	Message         string   `yaml:"message,omitempty" json:"message,omitempty"`
+	URL             string   `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle        string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
+	Device          string   `yaml:"device,omitempty" json:"device,omitempty"`
+	Sound           string   `yaml:"sound,omitempty" json:"sound,omitempty"`
+	Priority        string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Retry           duration `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire          duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	TTL             duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
+	HTML            bool     `yaml:"html" json:"html,omitempty"`
+	CancelOnResolve bool     `yaml:"cancel_on_resolve" json:"cancel_on_resolve,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
