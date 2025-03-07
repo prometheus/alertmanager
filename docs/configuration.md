@@ -1035,6 +1035,10 @@ labels:
 # Type of the issue (e.g. Bug).
 [ issue_type: <string> ]
 
+# Disable updates to fields once an issue is created. If false, the alertmanager will overwrite changes after every notification.
+# NOTE: Disabling field updates does not disable transitions.
+[ disable_field_updates: <boolean> | default = false ]
+
 # Name of the workflow transition to resolve an issue. The target status must have the category "done".
 # NOTE: The name of the transition can be localized and depends on the language setting of the service account.
 [ resolve_transition: <string> ]

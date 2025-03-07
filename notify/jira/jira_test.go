@@ -597,20 +597,20 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
 		{
-			title: "skip update request when DisableUpdates is true",
+			title: "skip update request when DisableFieldUpdates is true",
 			cfg: &config.JiraConfig{
-				Summary:        `{{ template "jira.default.summary" . }}`,
-				Description:    `{{ template "jira.default.description" . }}`,
-				IssueType:      "{{  .CommonLabels.issue_type }}",
-				Project:        "{{  .CommonLabels.project }}",
-				Priority:       `{{ template "jira.default.priority" . }}`,
-				Labels:         []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
-				DisableUpdates: true,
+				Summary:             `{{ template "jira.default.summary" . }}`,
+				Description:         `{{ template "jira.default.description" . }}`,
+				IssueType:           "{{  .CommonLabels.issue_type }}",
+				Project:             "{{  .CommonLabels.project }}",
+				Priority:            `{{ template "jira.default.priority" . }}`,
+				Labels:              []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				DisableFieldUpdates: true,
 			},
 			alert: &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
-						"alertname":  "SkipUpdatesConfig",
+						"alertname":  "DisableFieldUpdates",
 						"project":    "OPS",
 						"issue_type": "Bug",
 					},
@@ -639,8 +639,8 @@ func TestJiraNotify(t *testing.T) {
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "These issue fields don't matter at this point",
-					Description: "If the test checks these values, it means that the flag to skip updates didn't work",
+					Summary:     "These issue fields don't match the issue in the search response above",
+					Description: "If the test checks these values, then it tried to update the fields and it should fail",
 				},
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
