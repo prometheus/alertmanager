@@ -17,15 +17,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/common/model"
 	"github.com/xlab/treeprint"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const routingTestHelp = `Test alert routing
@@ -45,7 +46,8 @@ Example:
 func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
 	routingTestCmd := cc.Command("test", routingTestHelp)
 
-	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers. The command fails if the labelset does not route to the specified receivers.").StringVar(&c.expectedReceivers)
+	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers.").StringVar(&c.expectedReceivers)
+	routingTestCmd.Flag("verify.receivers-grouping", "Checks if specified receivers and their grouping match resolved values. Format: receiver1[group1,group2],receiver2[group3]").StringVar(&c.expectedReceiversGroup)
 	routingTestCmd.Flag("tree", "Prints out matching routes tree.").BoolVar(&c.debugTree)
 	routingTestCmd.Arg("labels", "List of labels to be tested against the configured routes.").StringsVar(&c.labels)
 	routingTestCmd.Action(execWithTimeout(c.routingTestAction))
@@ -72,6 +74,263 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 	fmt.Print("\n")
 }
 
+// parseReceiversWithGrouping parses the input string and returns a map of receiver names to their expected groupings.
+func parseReceiversWithGrouping(input string) (map[string][]string, error) {
+	result := make(map[string][][]string)
+
+	// If no square brackets in input, treat it as simple receiver list
+	if !strings.Contains(input, "[") {
+		receivers := strings.Split(input, ",")
+		for _, r := range receivers {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				result[r] = nil
+			}
+		}
+		return flattenGroupingMap(result), nil
+	}
+
+	var (
+		receivers       []string
+		currentReceiver strings.Builder
+		inBrackets      = false
+		bracketCount    = 0
+		inQuotes        = false
+	)
+
+	for i := 0; i < len(input); i++ {
+		char := input[i]
+
+		if char == '"' {
+			inQuotes = !inQuotes
+			currentReceiver.WriteByte(char)
+			continue
+		}
+
+		if !inQuotes {
+			if char == '[' {
+				inBrackets = true
+				bracketCount++
+			}
+			if char == ']' {
+				bracketCount--
+				if bracketCount == 0 {
+					inBrackets = false
+				}
+			}
+		}
+
+		switch {
+		case char == ',' && !inBrackets && !inQuotes:
+			if currentReceiver.Len() > 0 {
+				receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
+				currentReceiver.Reset()
+			}
+		default:
+			currentReceiver.WriteByte(char)
+		}
+	}
+
+	if currentReceiver.Len() > 0 {
+		receivers = append(receivers, strings.TrimSpace(currentReceiver.String()))
+	}
+
+	for _, r := range receivers {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+
+		bracketIndex := strings.LastIndex(r, "[")
+		if bracketIndex == -1 {
+			// No grouping specified
+			result[r] = nil
+			continue
+		}
+
+		receiverName := strings.TrimSpace(r[:bracketIndex])
+		// Remove surrounding quotes if present
+		if strings.HasPrefix(receiverName, "\"") && strings.HasSuffix(receiverName, "\"") {
+			receiverName = receiverName[1 : len(receiverName)-1]
+		}
+		if receiverName == "" {
+			return nil, fmt.Errorf("empty receiver name in: %s", r)
+		}
+
+		groupingPart := r[bracketIndex:]
+		if !strings.HasPrefix(groupingPart, "[") || !strings.HasSuffix(groupingPart, "]") {
+			return nil, fmt.Errorf("missing closing bracket in: %s", r)
+		}
+
+		grouping := strings.TrimSuffix(strings.TrimPrefix(groupingPart, "["), "]")
+		groups := strings.Split(grouping, ",")
+
+		cleanGroups := make([]string, 0, len(groups))
+		for _, g := range groups {
+			g = strings.TrimSpace(g)
+			if g != "" {
+				cleanGroups = append(cleanGroups, g)
+			}
+		}
+
+		if result[receiverName] == nil {
+			result[receiverName] = make([][]string, 0)
+		}
+		result[receiverName] = append(result[receiverName], cleanGroups)
+	}
+
+	return flattenGroupingMap(result), nil
+}
+
+// flattenGroupingMap converts the internal map[string][][]string to the expected map[string][]string format.
+func flattenGroupingMap(input map[string][][]string) map[string][]string {
+	result := make(map[string][]string)
+
+	for receiver, groupings := range input {
+		if groupings == nil {
+			result[receiver] = nil
+			continue
+		}
+
+		// For receivers with grouping, we'll create separate entries with suffixes.
+		for i, groups := range groupings {
+			if i == 0 {
+				result[receiver] = groups
+			} else {
+				result[fmt.Sprintf("%s_%d", receiver, i)] = groups
+			}
+		}
+	}
+
+	return result
+}
+
+// sortGroupLabels returns a sorted slice of group labels.
+func sortGroupLabels(groupBy map[model.LabelName]struct{}) []string {
+	result := make([]string, 0, len(groupBy))
+
+	for k := range groupBy {
+		result = append(result, string(k))
+	}
+
+	slices.Sort[[]string](result)
+
+	return result
+}
+
+// parseLabelSet parses command line labels into a LabelSet.
+func parseLabelSet(labels []string) (models.LabelSet, error) {
+	ls := make(models.LabelSet, len(labels))
+	for _, l := range labels {
+		matcher, err := compat.Matcher(l, "cli")
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse labels: %w", err)
+		}
+
+		if matcher.Type != 0 { // 0 is labels.MatchEqual
+			return nil, fmt.Errorf("labels must be specified as key=value pairs")
+		}
+
+		ls[matcher.Name] = matcher.Value
+	}
+	return ls, nil
+}
+
+// verifyReceivers checks if the actual receivers match the expected ones.
+func verifyReceivers(expected, actual string) error {
+	if expected == "" {
+		return nil
+	}
+	expectedReceivers := strings.Split(expected, ",")
+	actualReceivers := strings.Split(actual, ",")
+
+	if !slices.Equal[[]string](expectedReceivers, actualReceivers) {
+		return fmt.Errorf("expected receivers did not match resolved receivers.\nExpected: %v\nGot: %v",
+			expectedReceivers, actualReceivers)
+	}
+
+	return nil
+}
+
+// verifyReceiversGrouping checks if receivers and their groupings match the expected configuration.
+func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes []*dispatch.Route) error {
+	if len(receiversGrouping) == 0 {
+		return nil
+	}
+
+	// Build a map of actual receivers from routes.
+	actualReceivers := make(map[string][]string)
+	for _, route := range finalRoutes {
+		actualReceivers[route.RouteOpts.Receiver] = sortGroupLabels(route.RouteOpts.GroupBy)
+	}
+
+	// Check for missing receivers.
+	var missingReceivers []string
+	for expectedReceiver := range receiversGrouping {
+		if _, exists := actualReceivers[expectedReceiver]; !exists {
+			missingReceivers = append(missingReceivers, expectedReceiver)
+		}
+	}
+
+	if len(missingReceivers) > 0 {
+		return fmt.Errorf("receivers not found in routing tree: %s", strings.Join(missingReceivers, ", "))
+	}
+
+	// Verify groupings for found receivers.
+	for _, route := range finalRoutes {
+		receiver := route.RouteOpts.Receiver
+		actualGroups := sortGroupLabels(route.RouteOpts.GroupBy)
+
+		// Skip if no grouping expectations for this receiver.
+		expectedGroups, exists := receiversGrouping[receiver]
+		if !exists {
+			continue
+		}
+
+		// Try to match with expected grouping.
+		if expectedGroups != nil {
+			sortedExpected := slices.Clone(expectedGroups)
+			sortedActual := slices.Clone(actualGroups)
+			slices.Sort(sortedExpected)
+			slices.Sort(sortedActual)
+
+			if !slices.Equal(sortedExpected, sortedActual) {
+				var msg strings.Builder
+				msg.WriteString(fmt.Sprintf("WARNING: No matching grouping found for receiver %s with groups [%s] expected groups are\n",
+					receiver, strings.Join(actualGroups, ",")))
+				msg.WriteString(fmt.Sprintf("- [%s]\n", strings.Join(expectedGroups, ",")))
+				return fmt.Errorf("%s", msg.String())
+			}
+		}
+	}
+
+	return nil
+}
+
+// formatOutput generates the output string showing receivers and their groupings.
+func formatOutput(finalRoutes []*dispatch.Route) string {
+	var (
+		sb    strings.Builder
+		first = true
+	)
+
+	for _, route := range finalRoutes {
+		if !first {
+			sb.WriteString(",")
+		}
+
+		first = false
+		sb.WriteString(route.RouteOpts.Receiver)
+
+		if len(route.RouteOpts.GroupBy) > 0 {
+			groupBySlice := sortGroupLabels(route.RouteOpts.GroupBy)
+			sb.WriteString(fmt.Sprintf("[%s]", strings.Join(groupBySlice, ",")))
+		}
+	}
+
+	return sb.String()
+}
+
 func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseContext) error {
 	cfg, err := loadAlertmanagerConfig(ctx, alertmanagerURL, c.configFile)
 	if err != nil {
@@ -79,19 +338,18 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 		return err
 	}
 
+	if c.expectedReceiversGroup != "" {
+		c.receiversGrouping, err = parseReceiversWithGrouping(c.expectedReceiversGroup)
+		if err != nil {
+			kingpin.Fatalf("Failed to parse receivers with grouping: %v\n", err)
+		}
+	}
+
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
-	// Parse labels to LabelSet.
-	ls := make(models.LabelSet, len(c.labels))
-	for _, l := range c.labels {
-		matcher, err := compat.Matcher(l, "cli")
-		if err != nil {
-			kingpin.Fatalf("Failed to parse labels: %v\n", err)
-		}
-		if matcher.Type != labels.MatchEqual {
-			kingpin.Fatalf("%s\n", "Labels must be specified as key=value pairs")
-		}
-		ls[matcher.Name] = matcher.Value
+	ls, err := parseLabelSet(c.labels)
+	if err != nil {
+		kingpin.Fatalf("%v\n", err)
 	}
 
 	if c.debugTree {
@@ -99,13 +357,24 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	}
 
 	receivers, err := resolveAlertReceivers(mainRoute, &ls)
-	receiversSlug := strings.Join(receivers, ",")
-	fmt.Printf("%s\n", receiversSlug)
+	if err != nil {
+		return err
+	}
 
-	if c.expectedReceivers != "" && c.expectedReceivers != receiversSlug {
-		fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\n")
+	receiversSlug := strings.Join(receivers, ",")
+	finalRoutes := mainRoute.Match(convertClientToCommonLabelSet(ls))
+
+	if err := verifyReceivers(c.expectedReceivers, receiversSlug); err != nil {
+		fmt.Printf("WARNING: %v\n", err)
 		os.Exit(1)
 	}
 
-	return err
+	if err := verifyReceiversGrouping(c.receiversGrouping, finalRoutes); err != nil {
+		fmt.Printf("WARNING: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(formatOutput(finalRoutes))
+
+	return nil
 }
