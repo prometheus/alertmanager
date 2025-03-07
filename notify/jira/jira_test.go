@@ -597,7 +597,7 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
 		{
-			title: "skip update issue",
+			title: "skip update request when DisableUpdates is true",
 			cfg: &config.JiraConfig{
 				Summary:        `{{ template "jira.default.summary" . }}`,
 				Description:    `{{ template "jira.default.description" . }}`,
@@ -636,13 +636,11 @@ func TestJiraNotify(t *testing.T) {
 					},
 				},
 			},
-			// If the test checks these fields, then it means that the flag to skip updates didn't work and a request
-			// was sent to the issue endpoint.
 			issue: issue{
 				Key: "",
 				Fields: &issueFields{
-					Summary:     "This fields in the issue don't matter at this point",
-					Description: "If the test check this values, it means that the flag to skip updates didn't work",
+					Summary:     "These issue fields don't matter at this point",
+					Description: "If the test checks these values, it means that the flag to skip updates didn't work",
 				},
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
