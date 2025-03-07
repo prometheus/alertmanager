@@ -2,7 +2,7 @@
 
 * [ENHANCEMENT] Improved performance of inhibition rules when using Equal labels. #4119
 * [ENHANCEMENT] Improve the documentation on escaping in UTF-8 matchers. #4157
-* [ENHANCEMENT] Update alertmanager_config_hash metric help to document the hash is not cryptographically strong. #4157
+* [ENHANCEMENT] Update alertmanager_config_hash metric help to document the hash is not cryptographically strong. #4210
 * [BUGFIX] Fix panic in amtool when using `--verbose`. #4218
 * [BUGFIX] Fix templating of channel field for Rocket.Chat. #4220
 * [BUGFIX] Fix `rocketchat_configs` written as `rocket_configs` in docs. #4217
