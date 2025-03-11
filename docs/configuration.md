@@ -205,25 +205,56 @@ match_re:
 matchers:
   [ - <matcher> ... ]
 
-# How long to initially wait to send a notification for a group
-# of alerts. Allows to wait for an inhibiting alert to arrive or collect
-# more initial alerts for the same group. (Usually ~0s to few minutes.)
+# How long to wait before sending the first notification for a new group of
+# alerts. Allows to wait for alerts to arrive from other rule groups or
+# Prometheus servers, and for one or more inhibiting alerts to arrive and mute
+# any target alerts before the first notification.
+#
+# A short group_wait will reduce the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too short
+# then the first notification might not contain the complete set of expected
+# alerts, and alerts that should be inhibited might not be inhibited if the
+# inhibiting alerts have not arrived in time.
+#
+# A long group_wait will increase the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too long
+# then notifications for firing alerts might not be sent within a reasonable
+# time.
+#
+# If an alert is resolved before group_wait has elapsed, no notification will
+# be sent for that alert. This reduces noise of flapping alerts.
+
+# A notification for any alerts that missed the initial group_wait will be
+# sent at the next group_interval instead.
+#
 # If omitted, child routes inherit the group_wait of the parent route.
 [ group_wait: <duration> | default = 30s ]
 
-# How long to wait before sending a notification about new alerts that
-# are added to a group of alerts for which an initial notification has
-# already been sent. (Usually ~5m or more.) If omitted, child routes
-# inherit the group_interval of the parent route.
+# How long to wait before sending subsequent notifications for an existing
+# group of alerts after group_wait.
+#
+# The group_interval is a recurring timer that starts as soon as group_wait
+# has elapsed. At each group_interval, Alertmanager checks if any new alerts
+# have fired or any firing alerts have resolved since the last group_interval,
+# and if they have a notification is sent. If they haven't, Alertmanager checks
+# if the repeat_interval has elapsed instead.
+#
+# If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
-# How long to wait before sending a notification again if it has already
-# been sent successfully for an alert. (Usually ~3h or more). If omitted,
-# child routes inherit the repeat_interval of the parent route.
-# Note that this parameter is implicitly bound by Alertmanager's
-# `--data.retention` configuration flag. Notifications will be resent after either
-# repeat_interval or the data retention period have passed, whichever
-# occurs first. `repeat_interval` should be a multiple of `group_interval`.
+# How long to wait before repeating the last notification. Notifications are
+# not repeated if any new alerts have fired or any firing alerts have resolved
+# since the last group_interval.
+#
+# Since the repeat_interval is checked after each group_interval, it should
+# be a multiple of the group_interval. If it's not, the repeat_interval
+# is rounded up to the next multiple of the group_interval.
+#
+# In addition, if repeat_interval is longer then `--data.retention`, the
+# notification will be repeated at the end of the data retention period
+# instead.
+#
+# If omitted, child routes inherit the repeat_interval of the parent route.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
