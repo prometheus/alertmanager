@@ -236,8 +236,8 @@ matchers:
 # The group_interval is a recurring timer that starts as soon as group_wait
 # has elapsed. At each group_interval, Alertmanager checks if any new alerts
 # have fired or any firing alerts have resolved since the last group_interval,
-# and if they have a notification is sent. If they haven't, then
-# Alertmanager checks if the repeat_interval has elapsed instead.
+# and if they have a notification is sent. If they haven't, Alertmanager checks
+# if the repeat_interval has elapsed instead.
 #
 # If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
