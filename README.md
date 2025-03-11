@@ -195,12 +195,10 @@ of the HTTP handlers themselves. The API specification can be found in
 accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major languages.
 
-With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
+With the default config, endpoints are accessed under a `/api/v2` prefix (`/api/v1` was deprecated in version `0.16.0` and is removed as of version `0.27.0`).
 The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is set then API routes are
 prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
 relate to `/alertmanager/api/v2/status`.
-
-_API v2 is still under heavy development and thereby subject to change._
 
 ## amtool
 
