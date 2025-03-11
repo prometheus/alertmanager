@@ -13,8 +13,7 @@ crashes or restarts.
 # Alerts API
 
 You send alerts to Alertmanager via APIv2. The APIv2 is specified as an
-OpenAPI specification that can be found [here
-](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml).
+OpenAPI specification that can be found [here](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml).
 
 APIv1 was deprecated in Alertmanager version 0.16.0 and removed in Alertmanager
 version 0.27.0.
