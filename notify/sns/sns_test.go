@@ -54,6 +54,10 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	invalidUtf8String := "\xc3\x28"
 	_, _, err = validateAndTruncateMessage(invalidUtf8String, 100)
 	require.Error(t, err)
+
+	emptyString := ""
+	_, _, err = validateAndTruncateMessage(emptyString, 100)
+	require.Error(t, err)
 }
 
 func TestNotifyWithInvalidTemplate(t *testing.T) {
