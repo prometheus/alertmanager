@@ -371,9 +371,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
-			if ec.TLSConfig == nil {
-				ec.TLSConfig = c.Global.SMTPTLSConfig
-			}
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
 					return errors.New("no global SMTP smarthost set")
