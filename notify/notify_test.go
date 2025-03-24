@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
@@ -221,7 +220,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		res, reason := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
 		require.Equal(t, c.res, res)
 		if res {
-			assert.Equal(t, c.reason, reason)
+			require.Equal(t, c.reason, reason)
 		}
 	}
 }
