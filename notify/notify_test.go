@@ -101,6 +101,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		resolve        bool
 
 		res    bool
+		reason string
 	}{
 		{
 			// No matching nflog entry should update.
@@ -237,10 +238,14 @@ func TestDedupStage(t *testing.T) {
 		now: func() time.Time {
 			return now
 		},
+		recv: &nflogpb.Receiver{
+			GroupName:   "test-receiver",
+			Integration: "test-integration",
+		},
 		rs: sendResolved(false),
 	}
 
-	ctx := context.Background()
+	ctx := WithNow(context.Background(), now)
 
 	_, _, err := s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "group key missing")
@@ -308,6 +313,20 @@ func TestDedupStage(t *testing.T) {
 	_, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
+
+	// Must return no error and no alerts if notification log entry is from the future
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{
+				FiringAlerts: []uint64{1, 2, 3, 4},
+				Timestamp:    now.Add(1 * time.Millisecond),
+			},
+		},
+	}
+	_, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Nil(t, res)
 }
 
 func TestMultiStage(t *testing.T) {

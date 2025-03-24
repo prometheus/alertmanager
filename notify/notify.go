@@ -706,6 +706,11 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 		return ctx, nil, errors.New("repeat interval missing")
 	}
 
+	timeNow, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
+	}
+
 	firingSet := map[uint64]struct{}{}
 	resolvedSet := map[uint64]struct{}{}
 	firing := []uint64{}
@@ -742,6 +747,15 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 
 	needsUpdate, reason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
 	if !needsUpdate {
+		return ctx, nil, nil
+	}
+	// now make sure that the current state is from past
+	if entry != nil && entry.Timestamp.After(timeNow) {
+		diff := entry.Timestamp.Sub(timeNow)
+		// when entry's timestamp is greater than the flushing time, it means that the pipeline was already ran by other Alertmanager instance while this one was sleeping in WaitStage.
+		// In this case, this instance cannot proceed with the pipeline anymore because there is a risk that the instance holds the obsolete alerts, and it could cause flapping or duplicated notifications.
+		// This could happen only in high-availability mode.
+		_ = level.Warn(l).Log("msg", "Timestamp of notification log entry is after the current pipeline timestamp.", "entry_time", entry.Timestamp, "pipeline_time", timeNow, "diff", diff, "aggrGroup", gkey, "alerts", fmt.Sprintf("%+v", alerts), "receiver", n.recv.GroupName, "integration", n.recv.Integration, "needsUpdateReason", reason)
 		return ctx, nil, nil
 	}
 	_ = level.Debug(l).Log("msg", "Need to notify", "aggrGroup", gkey, "receiver", n.recv.GroupName, "integration", n.recv.Integration, "reason", reason)
