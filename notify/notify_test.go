@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
@@ -99,13 +100,14 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		repeat         time.Duration
 		resolve        bool
 
-		res bool
+		res    bool
 	}{
 		{
 			// No matching nflog entry should update.
 			entry:        nil,
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
+			reason:       "fire",
 		}, {
 			// No matching nflog entry shouldn't update if no alert fires.
 			entry:          nil,
@@ -116,6 +118,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry:        &nflogpb.Entry{FiringAlerts: []uint64{1, 2, 3}},
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
+			reason:       "fire subset",
 		}, {
 			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
@@ -124,6 +127,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
+			reason:       "repeat",
 		}, {
 			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
@@ -142,6 +146,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
+			reason:       "repeat",
 		}, {
 			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
@@ -176,6 +181,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(2, 3),
 			resolve:        true,
 			res:            true,
+			reason:         "resolve subset",
 		}, {
 			// Empty set of firing alerts should update when resolve is false.
 			entry: &nflogpb.Entry{
@@ -188,6 +194,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(1, 2, 3),
 			resolve:        false,
 			res:            true,
+			reason:         "resolve",
 		}, {
 			// Empty set of firing alerts should update when resolve is true.
 			entry: &nflogpb.Entry{
@@ -200,6 +207,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(1, 2, 3),
 			resolve:        true,
 			res:            true,
+			reason:         "resolve",
 		},
 	}
 	for i, c := range cases {
@@ -209,8 +217,11 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res, reason := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
 		require.Equal(t, c.res, res)
+		if res {
+			assert.Equal(t, c.reason, reason)
+		}
 	}
 }
 

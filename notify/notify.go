@@ -664,15 +664,15 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) (bool, string) {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		return len(firing) > 0
+		return len(firing) > 0, "fire"
 	}
 
 	if !entry.IsFiringSubset(firing) {
-		return true
+		return true, "fire subset"
 	}
 
 	// Notify about all alerts being resolved.
@@ -683,15 +683,15 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		// alert, it means that some alerts have been fired and resolved during the
 		// last interval. In this case, there is no need to notify the receiver
 		// since it doesn't know about them.
-		return len(entry.FiringAlerts) > 0
+		return len(entry.FiringAlerts) > 0, "resolve"
 	}
 
 	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
-		return true
+		return true, "resolve subset"
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.Timestamp.Before(n.now().Add(-repeat)), "repeat"
 }
 
 // Exec implements the Stage interface.
