@@ -99,13 +99,15 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		repeat         time.Duration
 		resolve        bool
 
-		res bool
+		res    bool
+		reason string
 	}{
 		{
 			// No matching nflog entry should update.
 			entry:        nil,
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
+			reason:       "fire",
 		}, {
 			// No matching nflog entry shouldn't update if no alert fires.
 			entry:          nil,
@@ -116,6 +118,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry:        &nflogpb.Entry{FiringAlerts: []uint64{1, 2, 3}},
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
+			reason:       "fire subset",
 		}, {
 			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
@@ -124,6 +127,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
+			reason:       "repeat",
 		}, {
 			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
@@ -142,6 +146,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
+			reason:       "repeat",
 		}, {
 			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
@@ -176,6 +181,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(2, 3),
 			resolve:        true,
 			res:            true,
+			reason:         "resolve subset",
 		}, {
 			// Empty set of firing alerts should update when resolve is false.
 			entry: &nflogpb.Entry{
@@ -188,6 +194,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(1, 2, 3),
 			resolve:        false,
 			res:            true,
+			reason:         "resolve",
 		}, {
 			// Empty set of firing alerts should update when resolve is true.
 			entry: &nflogpb.Entry{
@@ -200,6 +207,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(1, 2, 3),
 			resolve:        true,
 			res:            true,
+			reason:         "resolve",
 		},
 	}
 	for i, c := range cases {
@@ -209,8 +217,11 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res, reason := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
 		require.Equal(t, c.res, res)
+		if res {
+			require.Equal(t, c.reason, reason)
+		}
 	}
 }
 
@@ -226,10 +237,14 @@ func TestDedupStage(t *testing.T) {
 		now: func() time.Time {
 			return now
 		},
+		recv: &nflogpb.Receiver{
+			GroupName:   "test-receiver",
+			Integration: "test-integration",
+		},
 		rs: sendResolved(false),
 	}
 
-	ctx := context.Background()
+	ctx := WithNow(context.Background(), now)
 
 	_, _, err := s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "group key missing")
@@ -297,6 +312,20 @@ func TestDedupStage(t *testing.T) {
 	_, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
+
+	// Must return no error and no alerts if notification log entry is from the future
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{
+				FiringAlerts: []uint64{1, 2, 3, 4},
+				Timestamp:    now.Add(1 * time.Millisecond),
+			},
+		},
+	}
+	_, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Nil(t, res)
 }
 
 func TestMultiStage(t *testing.T) {

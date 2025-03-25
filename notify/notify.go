@@ -664,15 +664,15 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) (bool, string) {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		return len(firing) > 0
+		return len(firing) > 0, "fire"
 	}
 
 	if !entry.IsFiringSubset(firing) {
-		return true
+		return true, "fire subset"
 	}
 
 	// Notify about all alerts being resolved.
@@ -683,19 +683,19 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		// alert, it means that some alerts have been fired and resolved during the
 		// last interval. In this case, there is no need to notify the receiver
 		// since it doesn't know about them.
-		return len(entry.FiringAlerts) > 0
+		return len(entry.FiringAlerts) > 0, "resolve"
 	}
 
 	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
-		return true
+		return true, "resolve subset"
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.Timestamp.Before(n.now().Add(-repeat)), "repeat"
 }
 
 // Exec implements the Stage interface.
-func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
@@ -704,6 +704,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, errors.New("repeat interval missing")
+	}
+
+	timeNow, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -740,10 +745,21 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
-		return ctx, alerts, nil
+	needsUpdate, reason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
+	if !needsUpdate {
+		return ctx, nil, nil
 	}
-	return ctx, nil, nil
+	// now make sure that the current state is from past
+	if entry != nil && entry.Timestamp.After(timeNow) {
+		diff := entry.Timestamp.Sub(timeNow)
+		// when entry's timestamp is greater than the flushing time, it means that the pipeline was already ran by other Alertmanager instance while this one was sleeping in WaitStage.
+		// In this case, this instance cannot proceed with the pipeline anymore because there is a risk that the instance holds the obsolete alerts, and it could cause flapping or duplicated notifications.
+		// This could happen only in high-availability mode.
+		_ = level.Warn(l).Log("msg", "Timestamp of notification log entry is after the current pipeline timestamp.", "entry_time", entry.Timestamp, "pipeline_time", timeNow, "diff", diff, "aggrGroup", gkey, "alerts", fmt.Sprintf("%+v", alerts), "receiver", n.recv.GroupName, "integration", n.recv.Integration, "needsUpdateReason", reason)
+		return ctx, nil, nil
+	}
+	_ = level.Debug(l).Log("msg", "Need to notify", "aggrGroup", gkey, "receiver", n.recv.GroupName, "integration", n.recv.Integration, "reason", reason)
+	return ctx, alerts, nil
 }
 
 // RetryStage notifies via passed integration with exponential backoff until it
