@@ -47,7 +47,7 @@ func TestOpsGenieRetry(t *testing.T) {
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -314,10 +314,10 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	require.NotEmpty(t, body0)
 
 	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/message?identifierType=alias", alias))
-	require.Equal(t, `{"message":"new message"}
+	require.JSONEq(t, `{"message":"new message"}
 `, body1)
 	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
-	require.Equal(t, `{"description":"new description"}
+	require.JSONEq(t, `{"description":"new description"}
 `, body2)
 }
 

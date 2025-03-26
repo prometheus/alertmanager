@@ -16,7 +16,6 @@ package msteams
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +51,7 @@ func TestMSTeamsRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equalf(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
 
@@ -132,8 +131,7 @@ func TestMSTeamsTemplating(t *testing.T) {
 			if tc.errMsg == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.ErrorContains(t, err, tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
 		})

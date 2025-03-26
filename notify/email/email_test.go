@@ -319,8 +319,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 			}
 
 			_, retry, err := notifyEmail(emailCfg, c.Server)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tc.errMsg)
+			require.ErrorContains(t, err, tc.errMsg)
 			require.False(t, retry)
 
 			e, err := c.Server.getLastEmail()
@@ -359,8 +358,7 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 		},
 		c.Server,
 	)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "establish connection to server")
+	require.ErrorContains(t, err, "establish connection to server")
 }
 
 // TestEmailNotifyWithoutAuthentication sends an email to an instance of
@@ -589,8 +587,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 
 			e, retry, err := notifyEmail(emailCfg, c.Server)
 			if len(tc.errMsg) > 0 {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.ErrorContains(t, err, tc.errMsg)
 				require.Equal(t, tc.retry, retry)
 				return
 			}
