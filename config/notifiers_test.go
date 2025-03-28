@@ -882,6 +882,100 @@ api_url: http://example.com
 	}
 }
 
+func TestCompassConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+
+		err bool
+	}{
+		{
+			name: "valid configuration",
+			in: `api_key: xyz
+api_user: abc
+responders:
+- id: foo
+  type: schedule
+api_url: http://example.com
+`,
+		},
+		{
+			name: "api_user is missing",
+			in: `api_key: xyz
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "api_key and api_key_file both defined",
+			in: `api_key: xyz
+api_key_file: xyz
+api_user: abc
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "invalid responder type",
+			in: `api_key: xyz
+api_user: abc			
+responders:
+- id: foo
+  type: wrong
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "missing responder field",
+			in: `api_key: xyz
+api_user: abc			
+responders:
+- type: schedule
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "valid responder type template",
+			in: `api_key: xyz
+api_user: abc			
+responders:
+- id: foo
+  type: "{{/* valid comment */}}team"
+api_url: http://example.com
+`,
+		},
+		{
+			name: "invalid responder type template",
+			in: `api_key: xyz
+api_user: abc			
+responders:
+- id: foo
+  type: "{{/* invalid comment }}team"
+api_url: http://example.com
+`,
+			err: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg CompassConfig
+
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if tc.err {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestSNS(t *testing.T) {
 	for _, tc := range []struct {
 		in  string
