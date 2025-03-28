@@ -782,16 +782,31 @@ actions:
 	}
 }
 
-func TestOpsgenieTypeMatcher(t *testing.T) {
-	good := []string{"team", "user", "escalation", "schedule"}
+func TestOpsgenieResponderTypeMatcher(t *testing.T) {
+	good := []string{"team", "user", "teams", "escalation", "schedule"}
 	for _, g := range good {
-		if !opsgenieTypeMatcher.MatchString(g) {
+		if !opsgenieResponderTypeMatcher.MatchString(g) {
 			t.Fatalf("failed to match with %s", g)
 		}
 	}
 	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
 	for _, b := range bad {
-		if opsgenieTypeMatcher.MatchString(b) {
+		if opsgenieResponderTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
+		}
+	}
+}
+
+func TestOpsgenieVisibleToTypeMatcher(t *testing.T) {
+	good := []string{"team", "user", "teams"}
+	for _, g := range good {
+		if !opsgenieVisibleToTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM", "escalation", "schedule"}
+	for _, b := range bad {
+		if opsgenieVisibleToTypeMatcher.MatchString(b) {
 			t.Errorf("mistakenly match with %s", b)
 		}
 	}
