@@ -61,24 +61,23 @@ func New(c *config.CompassConfig, t *template.Template, l *slog.Logger, httpOpts
 }
 
 type compassCreateMessage struct {
-	Alias       string                          `json:"alias"`
-	Message     string                          `json:"message"`
-	Description string                          `json:"description,omitempty"`
-	Details     map[string]string               `json:"details"`
-	Source      string                          `json:"source"`
-	Responders  []compassCreateMessageResponder `json:"responders,omitempty"`
-	Tags        []string                        `json:"tags,omitempty"`
-	Note        string                          `json:"note,omitempty"`
-	Priority    string                          `json:"priority,omitempty"`
-	Entity      string                          `json:"entity,omitempty"`
-	Actions     []string                        `json:"actions,omitempty"`
+	Alias           string                          `json:"alias"`
+	Message         string                          `json:"message"`
+	Description     string                          `json:"description,omitempty"`
+	Source          string                          `json:"source"`
+	Responders      []compassCreateMessageResponder `json:"responders,omitempty"`
+	VisibleTo       []compassCreateMessageResponder `json:"visibleTo,omitempty"`
+	Tags            []string                        `json:"tags,omitempty"`
+	Note            string                          `json:"note,omitempty"`
+	Priority        string                          `json:"priority,omitempty"`
+	Entity          string                          `json:"entity,omitempty"`
+	Actions         []string                        `json:"actions,omitempty"`
+	ExtraProperties map[string]string               `json:"extraProperties,omitempty"`
 }
 
 type compassCreateMessageResponder struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Username string `json:"username,omitempty"`
-	Type     string `json:"type"` // team, user, escalation, schedule etc.
+	ID   string `json:"id,omitempty"`
+	Type string `json:"type"` // team, user, escalation, schedule etc.
 }
 
 type compassCloseMessage struct {
@@ -89,7 +88,7 @@ type compassUpdateMessageMessage struct {
 	Message string `json:"message,omitempty"`
 }
 
-type opsGenieUpdateDescriptionMessage struct {
+type compassUpdateDescriptionMessage struct {
 	Description string `json:"description,omitempty"`
 }
 
@@ -139,14 +138,14 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
-	details := make(map[string]string)
+	extraProperties := make(map[string]string)
 
 	for k, v := range data.CommonLabels {
-		details[k] = v
+		extraProperties[k] = v
 	}
 
-	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
+	for k, v := range n.conf.ExtraProperties {
+		extraProperties[k] = tmpl(v)
 	}
 
 	requests := []*http.Request{}
@@ -158,7 +157,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	switch alerts.Status() {
 	case model.AlertResolved:
 		resolvedEndpointURL := n.conf.APIURL.Copy()
-		resolvedEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/close", alias)
+		resolvedEndpointURL.Path += fmt.Sprintf("v1/alerts/%s/close", alias)
 		q := resolvedEndpointURL.Query()
 		q.Set("identifierType", "alias")
 		resolvedEndpointURL.RawQuery = q.Encode()
@@ -179,15 +178,13 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()
-		createEndpointURL.Path += "v2/alerts"
+		createEndpointURL.Path += "v1/alerts"
 
 		var responders []compassCreateMessageResponder
 		for _, r := range n.conf.Responders {
 			responder := compassCreateMessageResponder{
-				ID:       tmpl(r.ID),
-				Name:     tmpl(r.Name),
-				Username: tmpl(r.Username),
-				Type:     tmpl(r.Type),
+				ID:   tmpl(r.ID),
+				Type: tmpl(r.Type),
 			}
 
 			if responder == (compassCreateMessageResponder{}) {
@@ -196,33 +193,38 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 				continue
 			}
 
-			if responder.Type == "teams" {
-				teams := safeSplit(responder.Name, ",")
-				for _, team := range teams {
-					newResponder := compassCreateMessageResponder{
-						Name: tmpl(team),
-						Type: tmpl("team"),
-					}
-					responders = append(responders, newResponder)
-				}
-				continue
-			}
-
 			responders = append(responders, responder)
 		}
 
+		var visibleTo []compassCreateMessageResponder
+		for _, r := range n.conf.VisibleTo {
+			responder := compassCreateMessageResponder{
+				ID:   tmpl(r.ID),
+				Type: tmpl(r.Type),
+			}
+
+			if responder == (compassCreateMessageResponder{}) {
+				// Filter out empty responders. This is useful if you want to fill
+				// responders dynamically from alert's common labels.
+				continue
+			}
+
+			visibleTo = append(visibleTo, responder)
+		}
+
 		msg := &compassCreateMessage{
-			Alias:       alias,
-			Message:     message,
-			Description: tmpl(n.conf.Description),
-			Details:     details,
-			Source:      tmpl(n.conf.Source),
-			Responders:  responders,
-			Tags:        safeSplit(tmpl(n.conf.Tags), ","),
-			Note:        tmpl(n.conf.Note),
-			Priority:    tmpl(n.conf.Priority),
-			Entity:      tmpl(n.conf.Entity),
-			Actions:     safeSplit(tmpl(n.conf.Actions), ","),
+			Alias:           alias,
+			Message:         message,
+			Description:     tmpl(n.conf.Description),
+			Source:          tmpl(n.conf.Source),
+			Responders:      responders,
+			VisibleTo:       visibleTo,
+			Tags:            safeSplit(tmpl(n.conf.Tags), ","),
+			Note:            tmpl(n.conf.Note),
+			Priority:        tmpl(n.conf.Priority),
+			Entity:          tmpl(n.conf.Entity),
+			Actions:         safeSplit(tmpl(n.conf.Actions), ","),
+			ExtraProperties: extraProperties,
 		}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
@@ -236,7 +238,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 		if n.conf.UpdateAlerts {
 			updateMessageEndpointURL := n.conf.APIURL.Copy()
-			updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
+			updateMessageEndpointURL.Path += fmt.Sprintf("v1/alerts/%s/message", alias)
 			q := updateMessageEndpointURL.Query()
 			q.Set("identifierType", "alias")
 			updateMessageEndpointURL.RawQuery = q.Encode()
@@ -247,18 +249,18 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
 				return nil, false, err
 			}
-			req, err := http.NewRequest("PUT", updateMessageEndpointURL.String(), &updateMessageBuf)
+			req, err := http.NewRequest("PATCH", updateMessageEndpointURL.String(), &updateMessageBuf)
 			if err != nil {
 				return nil, true, err
 			}
 			requests = append(requests, req)
 
 			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
-			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
+			updateDescriptionEndpointURL.Path += fmt.Sprintf("v1/alerts/%s/description", alias)
 			q = updateDescriptionEndpointURL.Query()
 			q.Set("identifierType", "alias")
 			updateDescriptionEndpointURL.RawQuery = q.Encode()
-			updateDescMsg := &opsGenieUpdateDescriptionMessage{
+			updateDescMsg := &compassUpdateDescriptionMessage{
 				Description: msg.Description,
 			}
 
@@ -266,7 +268,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			if err := json.NewEncoder(&updateDescriptionBuf).Encode(updateDescMsg); err != nil {
 				return nil, false, err
 			}
-			req, err = http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
+			req, err = http.NewRequest("PATCH", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
 			if err != nil {
 				return nil, true, err
 			}
