@@ -872,6 +872,7 @@ type MSTeamsV2Config struct {
 
 	Title string `yaml:"title,omitempty" json:"title,omitempty"`
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
+	Card  string `yaml:"card,omitempty" json:"card,omitempty"`
 }
 
 func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
