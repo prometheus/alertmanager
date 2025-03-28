@@ -55,10 +55,12 @@ func TestCompassRedactedURL(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
+	user := "user"
 	key := "key"
 	notifier, err := New(
 		&config.CompassConfig{
 			APIURL:     &config.URL{URL: u},
+			APIUser:    user,
 			APIKey:     config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -74,6 +76,7 @@ func TestGettingCompassApikeyFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
+	user := "user"
 	key := "key"
 
 	f, err := os.CreateTemp("", "compass_test")
@@ -84,6 +87,7 @@ func TestGettingCompassApikeyFromFile(t *testing.T) {
 	notifier, err := New(
 		&config.CompassConfig{
 			APIURL:     &config.URL{URL: u},
+			APIUser:    user,
 			APIKeyFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -96,7 +100,7 @@ func TestGettingCompassApikeyFromFile(t *testing.T) {
 }
 
 func TestCompass(t *testing.T) {
-	u, err := url.Parse("https://compass/api")
+	u, err := url.Parse("https://compass/api/")
 	if err != nil {
 		t.Fatalf("failed to parse URL: %v", err)
 	}
@@ -121,11 +125,11 @@ func TestCompass(t *testing.T) {
 				Source:      `{{ .CommonLabels.Source }}`,
 				Responders: []config.CompassConfigConfigResponder{
 					{
-						Name: `{{ .CommonLabels.ResponderName1 }}`,
+						ID:   `{{ .CommonLabels.ResponderID1 }}`,
 						Type: `{{ .CommonLabels.ResponderType1 }}`,
 					},
 					{
-						Name: `{{ .CommonLabels.ResponderName2 }}`,
+						ID:   `{{ .CommonLabels.ResponderID2 }}`,
 						Type: `{{ .CommonLabels.ResponderType2 }}`,
 					},
 				},
@@ -139,9 +143,9 @@ func TestCompass(t *testing.T) {
 				APIURL:     &config.URL{URL: u},
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 			},
-			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","source":""}
 `,
-			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Actions":"doThis,doThat","Description":"description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1","entity":"test-domain","actions":["doThis","doThat"]}
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","source":"http://prometheus","responders":[{"id":"Schedule1","type":"schedule"},{"id":"Escalation2","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1","entity":"test-domain","actions":["doThis","doThat"],"extraProperties":{"Actions":"doThis,doThat","Description":"description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderID1":"Schedule1","ResponderID2":"Escalation2","ResponderID3":"Team3","ResponderType1":"schedule","ResponderType2":"escalation","ResponderType3":"team","Source":"http://prometheus","Tags":"tag1,tag2"}}
 `,
 		},
 		{
@@ -153,32 +157,32 @@ func TestCompass(t *testing.T) {
 				Message:     `{{ .CommonLabels.Message }}`,
 				Description: `{{ .CommonLabels.Description }}`,
 				Source:      `{{ .CommonLabels.Source }}`,
-				Details: map[string]string{
-					"Description": `adjusted {{ .CommonLabels.Description }}`,
-				},
 				Responders: []config.CompassConfigConfigResponder{
 					{
-						Name: `{{ .CommonLabels.ResponderName1 }}`,
+						ID:   `{{ .CommonLabels.ResponderID1 }}`,
 						Type: `{{ .CommonLabels.ResponderType1 }}`,
 					},
 					{
-						Name: `{{ .CommonLabels.ResponderName2 }}`,
+						ID:   `{{ .CommonLabels.ResponderID2 }}`,
 						Type: `{{ .CommonLabels.ResponderType2 }}`,
 					},
 				},
-				Tags:       `{{ .CommonLabels.Tags }}`,
-				Note:       `{{ .CommonLabels.Note }}`,
-				Priority:   `{{ .CommonLabels.Priority }}`,
-				Entity:     `{{ .CommonLabels.Entity }}`,
-				Actions:    `{{ .CommonLabels.Actions }}`,
+				Tags:     `{{ .CommonLabels.Tags }}`,
+				Note:     `{{ .CommonLabels.Note }}`,
+				Priority: `{{ .CommonLabels.Priority }}`,
+				Entity:   `{{ .CommonLabels.Entity }}`,
+				Actions:  `{{ .CommonLabels.Actions }}`,
+				ExtraProperties: map[string]string{
+					"Description": `adjusted {{ .CommonLabels.Description }}`,
+				},
 				APIUser:    `{{ .ExternalURL }}`,
 				APIKey:     `{{ .ExternalURL }}`,
 				APIURL:     &config.URL{URL: u},
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 			},
-			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{"Description":"adjusted "},"source":""}
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","source":"","extraProperties":{"Description":"adjusted "}}
 `,
-			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Actions":"doThis,doThat","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1","entity":"test-domain","actions":["doThis","doThat"]}
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","source":"http://prometheus","responders":[{"id":"Schedule1","type":"schedule"},{"id":"Escalation2","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1","entity":"test-domain","actions":["doThis","doThat"],"extraProperties":{"Actions":"doThis,doThat","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderID1":"Schedule1","ResponderID2":"Escalation2","ResponderID3":"Team3","ResponderType1":"schedule","ResponderType2":"escalation","ResponderType3":"team","Source":"http://prometheus","Tags":"tag1,tag2"}}
 `,
 		},
 		{
@@ -190,26 +194,26 @@ func TestCompass(t *testing.T) {
 				Message:     `{{ .CommonLabels.Message }}`,
 				Description: `{{ .CommonLabels.Description }}`,
 				Source:      `{{ .CommonLabels.Source }}`,
-				Details: map[string]string{
-					"Description": `adjusted {{ .CommonLabels.Description }}`,
-				},
 				Responders: []config.CompassConfigConfigResponder{
 					{
-						Name: `{{ .CommonLabels.ResponderName3 }}`,
+						ID:   `{{ .CommonLabels.ResponderID3 }}`,
 						Type: `{{ .CommonLabels.ResponderType3 }}`,
 					},
 				},
-				Tags:       `{{ .CommonLabels.Tags }}`,
-				Note:       `{{ .CommonLabels.Note }}`,
-				Priority:   `{{ .CommonLabels.Priority }}`,
+				Tags:     `{{ .CommonLabels.Tags }}`,
+				Note:     `{{ .CommonLabels.Note }}`,
+				Priority: `{{ .CommonLabels.Priority }}`,
+				ExtraProperties: map[string]string{
+					"Description": `adjusted {{ .CommonLabels.Description }}`,
+				},
 				APIUser:    `{{ .ExternalURL }}`,
 				APIKey:     `{{ .ExternalURL }}`,
 				APIURL:     &config.URL{URL: u},
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 			},
-			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{"Description":"adjusted "},"source":""}
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","source":"","extraProperties":{"Description":"adjusted "}}
 `,
-			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Actions":"doThis,doThat","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"TeamB","type":"team"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","source":"http://prometheus","responders":[{"id":"Team3","type":"team"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1","extraProperties":{"Actions":"doThis,doThat","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderID1":"Schedule1","ResponderID2":"Escalation2","ResponderID3":"Team3","ResponderType1":"schedule","ResponderType2":"escalation","ResponderType3":"team","Source":"http://prometheus","Tags":"tag1,tag2"}}
 `,
 		},
 	} {
@@ -220,7 +224,7 @@ func TestCompass(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			expectedURL, _ := url.Parse("https://compass/apiv2/alerts")
+			expectedURL, _ := url.Parse("https://compass/api/v1/alerts")
 
 			// Empty alert.
 			alert1 := &types.Alert{
@@ -245,12 +249,12 @@ func TestCompass(t *testing.T) {
 						"Message":        "message",
 						"Description":    "description",
 						"Source":         "http://prometheus",
-						"ResponderName1": "TeamA",
-						"ResponderType1": "team",
-						"ResponderName2": "EscalationA",
+						"ResponderID1":   "Schedule1",
+						"ResponderType1": "schedule",
+						"ResponderID2":   "Escalation2",
 						"ResponderType2": "escalation",
-						"ResponderName3": "TeamA,TeamB",
-						"ResponderType3": "teams",
+						"ResponderID3":   "Team3",
+						"ResponderType3": "team",
 						"Tags":           "tag1,tag2",
 						"Note":           "this is a note",
 						"Priority":       "P1",
@@ -286,6 +290,7 @@ func TestCompassWithUpdate(t *testing.T) {
 		Message:      `{{ .CommonLabels.Message }}`,
 		Description:  `{{ .CommonLabels.Description }}`,
 		UpdateAlerts: true,
+		APIUser:      "test-api-user",
 		APIKey:       "test-api-key",
 		APIURL:       &config.URL{URL: u},
 		HTTPConfig:   &commoncfg.HTTPClientConfig{},
@@ -313,13 +318,13 @@ func TestCompassWithUpdate(t *testing.T) {
 	key, _ := notify.ExtractGroupKey(ctx)
 	alias := key.Hash()
 
-	require.Equal(t, "https://test-compass-url/v2/alerts", requests[0].URL.String())
+	require.Equal(t, "https://test-compass-url/v1/alerts", requests[0].URL.String())
 	require.NotEmpty(t, body0)
 
-	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-compass-url/v2/alerts/%s/message?identifierType=alias", alias))
+	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-compass-url/v1/alerts/%s/message?identifierType=alias", alias))
 	require.Equal(t, `{"message":"new message"}
 `, body1)
-	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-compass-url/v2/alerts/%s/description?identifierType=alias", alias))
+	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-compass-url/v1/alerts/%s/description?identifierType=alias", alias))
 	require.Equal(t, `{"description":"new description"}
 `, body2)
 }
@@ -331,6 +336,7 @@ func TestCompassApiKeyFile(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 	compassConfigWithUpdate := config.CompassConfig{
+		APIUser:    "test-api-user",
 		APIKeyFile: `./api_key_file`,
 		APIURL:     &config.URL{URL: u},
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -340,7 +346,7 @@ func TestCompassApiKeyFile(t *testing.T) {
 	require.NoError(t, err)
 	requests, _, err := notifierWithUpdate.createRequests(ctx)
 	require.NoError(t, err)
-	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
+	require.Equal(t, "Basic dGVzdC1hcGktdXNlcjpteV9zZWNyZXRfYXBpX2tleQ==", requests[0].Header.Get("Authorization"))
 }
 
 func readBody(t *testing.T, r *http.Request) string {

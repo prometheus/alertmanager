@@ -683,26 +683,29 @@ type CompassConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIUser      string                         `yaml:"api_user,omitempty" json:"api_user,omitempty"`
-	APIKey       Secret                         `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIKeyFile   string                         `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
-	APIURL       *URL                           `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Message      string                         `yaml:"message,omitempty" json:"message,omitempty"`
-	Description  string                         `yaml:"description,omitempty" json:"description,omitempty"`
-	Source       string                         `yaml:"source,omitempty" json:"source,omitempty"`
-	Details      map[string]string              `yaml:"details,omitempty" json:"details,omitempty"`
-	Entity       string                         `yaml:"entity,omitempty" json:"entity,omitempty"`
-	Responders   []CompassConfigConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
-	Actions      string                         `yaml:"actions,omitempty" json:"actions,omitempty"`
-	Tags         string                         `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Note         string                         `yaml:"note,omitempty" json:"note,omitempty"`
-	Priority     string                         `yaml:"priority,omitempty" json:"priority,omitempty"`
-	UpdateAlerts bool                           `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
+	APIUser         string                         `yaml:"api_user,omitempty" json:"api_user,omitempty"`
+	APIKey          Secret                         `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKeyFile      string                         `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
+	APIURL          *URL                           `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message         string                         `yaml:"message,omitempty" json:"message,omitempty"`
+	Description     string                         `yaml:"description,omitempty" json:"description,omitempty"`
+	Source          string                         `yaml:"source,omitempty" json:"source,omitempty"`
+	Entity          string                         `yaml:"entity,omitempty" json:"entity,omitempty"`
+	Responders      []CompassConfigConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	VisibleTo       []CompassConfigConfigVisibleTo `yaml:"visible_to,omitempty" json:"visible_to,omitempty"`
+	Actions         string                         `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Tags            string                         `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note            string                         `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority        string                         `yaml:"priority,omitempty" json:"priority,omitempty"`
+	ExtraProperties map[string]string              `yaml:"extra_properties,omitempty" json:"extra_properties,omitempty"`
+	UpdateAlerts    bool                           `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
 }
 
-const compassValidTypesRe = `^(team|teams|user|escalation|schedule)$`
+const compassValidResponderTypesRe = `^(team|user|escalation|schedule)$`
+const compassValidVisibleToTypesRe = `^(team|user)$`
 
-var compassTypeMatcher = regexp.MustCompile(compassValidTypesRe)
+var compassResponderTypeMatcher = regexp.MustCompile(compassValidResponderTypesRe)
+var compassVisibleToTypeMatcher = regexp.MustCompile(compassValidVisibleToTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *CompassConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -720,20 +723,38 @@ func (c *CompassConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("at most one of api_key & api_key_file must be configured")
 	}
 
-	for _, r := range c.Responders {
-		if r.ID == "" && r.Username == "" && r.Name == "" {
-			return fmt.Errorf("compassConfig responder %v has to have at least one of id, username or name specified", r)
+	for _, responder := range c.Responders {
+		if responder.ID == "" {
+			return fmt.Errorf("compassConfig responder id must be configured")
 		}
 
-		if strings.Contains(r.Type, "{{") {
-			_, err := template.New("").Parse(r.Type)
+		if strings.Contains(responder.Type, "{{") {
+			_, err := template.New("").Parse(responder.Type)
 			if err != nil {
-				return fmt.Errorf("compassConfig responder %v type is not a valid template: %w", r, err)
+				return fmt.Errorf("compassConfig responder %v type is not a valid template: %w", responder, err)
 			}
 		} else {
-			r.Type = strings.ToLower(r.Type)
-			if !compassTypeMatcher.MatchString(r.Type) {
-				return fmt.Errorf("compassConfig responder %v type does not match valid options %s", r, compassValidTypesRe)
+			responder.Type = strings.ToLower(responder.Type)
+			if !compassResponderTypeMatcher.MatchString(responder.Type) {
+				return fmt.Errorf("compassConfig responder %v type does not match valid options %s", responder, compassValidResponderTypesRe)
+			}
+		}
+	}
+
+	for _, visibleTo := range c.VisibleTo {
+		if visibleTo.ID == "" {
+			return fmt.Errorf("compassConfig visibleTo id must be configured")
+		}
+
+		if strings.Contains(visibleTo.Type, "{{") {
+			_, err := template.New("").Parse(visibleTo.Type)
+			if err != nil {
+				return fmt.Errorf("compassConfig visibleTo %v type is not a valid template: %w", visibleTo, err)
+			}
+		} else {
+			visibleTo.Type = strings.ToLower(visibleTo.Type)
+			if !compassVisibleToTypeMatcher.MatchString(visibleTo.Type) {
+				return fmt.Errorf("compassConfig visibleTo %v type does not match valid options %s", visibleTo, compassValidResponderTypesRe)
 			}
 		}
 	}
@@ -742,11 +763,13 @@ func (c *CompassConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type CompassConfigConfigResponder struct {
-	// One of those 3 should be filled.
-	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
-	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
-	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+	ID string `yaml:"id,omitempty" json:"id,omitempty"`
+	// team, user, escalation, schedule etc.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+}
 
+type CompassConfigConfigVisibleTo struct {
+	ID string `yaml:"id,omitempty" json:"id,omitempty"`
 	// team, user, escalation, schedule etc.
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
