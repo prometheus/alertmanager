@@ -214,7 +214,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 
 	equal := map[model.LabelName]struct{}{}
 	for _, ln := range cr.Equal {
-		equal[ln] = struct{}{}
+		equal[model.LabelName(ln)] = struct{}{}
 	}
 
 	return &InhibitRule{
@@ -230,10 +230,11 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 // is returned. If excludeTwoSidedMatch is true, alerts that match both the
 // source and the target side of the rule are disregarded.
 func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
+	now := time.Now()
 Outer:
 	for _, a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
-		if a.Resolved() {
+		if a.ResolvedAt(now) {
 			continue
 		}
 		for n := range r.Equal {

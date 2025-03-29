@@ -1,3 +1,19 @@
+## 0.28.1 / 2025-03-07
+
+* [ENHANCEMENT] Improved performance of inhibition rules when using Equal labels. #4119
+* [ENHANCEMENT] Improve the documentation on escaping in UTF-8 matchers. #4157
+* [ENHANCEMENT] Update alertmanager_config_hash metric help to document the hash is not cryptographically strong. #4210
+* [BUGFIX] Fix panic in amtool when using `--verbose`. #4218
+* [BUGFIX] Fix templating of channel field for Rocket.Chat. #4220
+* [BUGFIX] Fix `rocketchat_configs` written as `rocket_configs` in docs. #4217
+* [BUGFIX] Fix usage for `--enable-feature` flag. #4214
+* [BUGFIX] Trim whitespace from OpsGenie API Key. #4195
+* [BUGFIX] Fix Jira project template not rendered when searching for existing issues. #4291
+* [BUGFIX] Fix subtle bug in JSON/YAML encoding of inhibition rules that would cause Equal labels to be omitted. #4292
+* [BUGFIX] Fix header for `slack_configs` in docs. #4247
+* [BUGFIX] Fix weight and wrap of Microsoft Teams notifications. #4222
+* [BUGFIX] Fix format of YAML examples in configuration.md. #4207
+
 ## 0.28.0 / 2025-01-15
 
 * [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
