@@ -1330,6 +1330,9 @@ token_file: <filepath>
 # Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
+# Optional boolean to enable cancellation of emergency priority notifications upon resolution.
+[ cancel_on_resolve: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
