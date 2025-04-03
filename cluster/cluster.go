@@ -60,7 +60,8 @@ type Peer struct {
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
-	resolvedPeers []string
+	resolvedPeers       []string
+	resolvePeersTimeout time.Duration
 
 	mtx    sync.RWMutex
 	states map[string]State
@@ -117,15 +118,16 @@ func (s PeerStatus) String() string {
 }
 
 const (
-	DefaultPushPullInterval  = 60 * time.Second
-	DefaultGossipInterval    = 200 * time.Millisecond
-	DefaultTCPTimeout        = 10 * time.Second
-	DefaultProbeTimeout      = 500 * time.Millisecond
-	DefaultProbeInterval     = 1 * time.Second
-	DefaultReconnectInterval = 10 * time.Second
-	DefaultReconnectTimeout  = 6 * time.Hour
-	DefaultRefreshInterval   = 15 * time.Second
-	MaxGossipPacketSize      = 1400
+	DefaultPushPullInterval    = 60 * time.Second
+	DefaultGossipInterval      = 200 * time.Millisecond
+	DefaultTCPTimeout          = 10 * time.Second
+	DefaultProbeTimeout        = 500 * time.Millisecond
+	DefaultProbeInterval       = 1 * time.Second
+	DefaultReconnectInterval   = 10 * time.Second
+	DefaultReconnectTimeout    = 6 * time.Hour
+	DefaultRefreshInterval     = 15 * time.Second
+	DefaultResolvePeersTimeout = 15 * time.Second
+	MaxGossipPacketSize        = 1400
 )
 
 func Create(
@@ -138,6 +140,7 @@ func Create(
 	pushPullInterval time.Duration,
 	gossipInterval time.Duration,
 	tcpTimeout time.Duration,
+	resolveTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
@@ -168,7 +171,9 @@ func Create(
 		}
 	}
 
-	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
+	ctx, cancel := context.WithTimeout(context.Background(), resolveTimeout)
+	defer cancel()
+	resolvedPeers, err := resolvePeers(ctx, knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, fmt.Errorf("resolve peers: %w", err)
 	}
@@ -199,13 +204,14 @@ func Create(
 	}
 
 	p := &Peer{
-		states:        map[string]State{},
-		stopc:         make(chan struct{}),
-		readyc:        make(chan struct{}),
-		logger:        l,
-		peers:         map[string]peer{},
-		resolvedPeers: resolvedPeers,
-		knownPeers:    knownPeers,
+		states:              map[string]State{},
+		stopc:               make(chan struct{}),
+		readyc:              make(chan struct{}),
+		logger:              l,
+		peers:               map[string]peer{},
+		resolvedPeers:       resolvedPeers,
+		resolvePeersTimeout: resolveTimeout,
+		knownPeers:          knownPeers,
 	}
 
 	p.register(reg, name)
@@ -445,7 +451,9 @@ func (p *Peer) reconnect() {
 func (p *Peer) refresh() {
 	logger := p.logger.With("msg", "refresh")
 
-	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
+	ctx, cancel := context.WithTimeout(context.Background(), p.resolvePeersTimeout)
+	defer cancel()
+	resolvedPeers, err := resolvePeers(ctx, p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("%v", p.knownPeers), "err", err)
 		return
