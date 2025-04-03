@@ -20,6 +20,7 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -102,11 +103,11 @@ func (o *PostAlertsOK) Code() int {
 }
 
 func (o *PostAlertsOK) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK", 200)
 }
 
 func (o *PostAlertsOK) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK", 200)
 }
 
 func (o *PostAlertsOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -159,11 +160,13 @@ func (o *PostAlertsBadRequest) Code() int {
 }
 
 func (o *PostAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest %s", 400, payload)
 }
 
 func (o *PostAlertsBadRequest) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest %s", 400, payload)
 }
 
 func (o *PostAlertsBadRequest) GetPayload() string {
@@ -225,11 +228,13 @@ func (o *PostAlertsInternalServerError) Code() int {
 }
 
 func (o *PostAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *PostAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *PostAlertsInternalServerError) GetPayload() string {

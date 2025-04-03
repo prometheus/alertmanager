@@ -47,7 +47,7 @@ func TestOpsGenieRetry(t *testing.T) {
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -314,11 +314,28 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	require.NotEmpty(t, body0)
 
 	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/message?identifierType=alias", alias))
-	require.Equal(t, `{"message":"new message"}
-`, body1)
+	require.JSONEq(t, `{"message":"new message"}`, body1)
 	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
-	require.Equal(t, `{"description":"new description"}
-`, body2)
+	require.JSONEq(t, `{"description":"new description"}`, body2)
+}
+
+func TestOpsGenieApiKeyFile(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+		APIKeyFile: `./api_key_file`,
+		APIURL:     &config.URL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
+
+	require.NoError(t, err)
+	requests, _, err := notifierWithUpdate.createRequests(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
 }
 
 func readBody(t *testing.T, r *http.Request) string {

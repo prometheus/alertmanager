@@ -16,7 +16,6 @@ package victorops
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -97,7 +96,7 @@ func TestVictorOpsRetry(t *testing.T) {
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 

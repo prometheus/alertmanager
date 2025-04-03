@@ -21,6 +21,7 @@ package silence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -105,11 +106,13 @@ func (o *PostSilencesOK) Code() int {
 }
 
 func (o *PostSilencesOK) Error() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesOK %s", 200, payload)
 }
 
 func (o *PostSilencesOK) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesOK %s", 200, payload)
 }
 
 func (o *PostSilencesOK) GetPayload() *PostSilencesOKBody {
@@ -173,11 +176,13 @@ func (o *PostSilencesBadRequest) Code() int {
 }
 
 func (o *PostSilencesBadRequest) Error() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest %s", 400, payload)
 }
 
 func (o *PostSilencesBadRequest) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest %s", 400, payload)
 }
 
 func (o *PostSilencesBadRequest) GetPayload() string {
@@ -239,11 +244,13 @@ func (o *PostSilencesNotFound) Code() int {
 }
 
 func (o *PostSilencesNotFound) Error() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound %s", 404, payload)
 }
 
 func (o *PostSilencesNotFound) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound %s", 404, payload)
 }
 
 func (o *PostSilencesNotFound) GetPayload() string {

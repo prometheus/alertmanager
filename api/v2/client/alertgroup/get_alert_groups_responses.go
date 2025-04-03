@@ -20,6 +20,7 @@ package alertgroup
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -105,11 +106,13 @@ func (o *GetAlertGroupsOK) Code() int {
 }
 
 func (o *GetAlertGroupsOK) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK %s", 200, payload)
 }
 
 func (o *GetAlertGroupsOK) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK %s", 200, payload)
 }
 
 func (o *GetAlertGroupsOK) GetPayload() models.AlertGroups {
@@ -171,11 +174,13 @@ func (o *GetAlertGroupsBadRequest) Code() int {
 }
 
 func (o *GetAlertGroupsBadRequest) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertGroupsBadRequest) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertGroupsBadRequest) GetPayload() string {
@@ -237,11 +242,13 @@ func (o *GetAlertGroupsInternalServerError) Code() int {
 }
 
 func (o *GetAlertGroupsInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertGroupsInternalServerError) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertGroupsInternalServerError) GetPayload() string {

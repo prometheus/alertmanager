@@ -1,0 +1,10 @@
+route:
+  receiver: test
+receivers:
+  - name: test
+inhibit_rules:
+  - source_matchers:
+      - foo=bar
+    target_matchers:
+      - bar=baz
+    equal: ['qux🙂', 'corge']

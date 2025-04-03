@@ -20,6 +20,7 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -105,11 +106,13 @@ func (o *GetAlertsOK) Code() int {
 }
 
 func (o *GetAlertsOK) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK %s", 200, payload)
 }
 
 func (o *GetAlertsOK) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK %s", 200, payload)
 }
 
 func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
@@ -171,11 +174,13 @@ func (o *GetAlertsBadRequest) Code() int {
 }
 
 func (o *GetAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertsBadRequest) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertsBadRequest) GetPayload() string {
@@ -237,11 +242,13 @@ func (o *GetAlertsInternalServerError) Code() int {
 }
 
 func (o *GetAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertsInternalServerError) GetPayload() string {

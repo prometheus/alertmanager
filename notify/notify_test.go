@@ -499,6 +499,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 	counter := r.metrics.numTotalFailedNotifications
 
 	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
+	require.Contains(t, err.Error(), "notify retry canceled after 1 attempts: context canceled")
 
 	require.Error(t, err)
 	require.NotNil(t, resctx)

@@ -373,6 +373,32 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
+		name:  "quoted with regex digit character class",
+		input: "\"\\d+\"",
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"\\d+\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+	}, {
+		name:  "quoted with escaped regex digit character class",
+		input: "\"\\\\d+\"",
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"\\\\d+\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   6,
+				columnStart: 0,
+				columnEnd:   6,
+			},
+		}},
+	}, {
 		name:  "quoted with escaped quotes",
 		input: "\"hello \\\"world\\\"\"",
 		expected: []token{{

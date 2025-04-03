@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        thread: [ 0, 1, 2 ]
+        thread: [0, 1, 2]
     steps:
       - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
-      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
+      - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
       - uses: ./.github/promci/actions/build
         with:
           promu_opts: "-p linux/amd64 -p windows/amd64 -p linux/arm64 -p darwin/amd64 -p darwin/arm64 -p linux/386"
@@ -37,10 +37,10 @@ jobs:
     # Whenever the Go version is updated here, .promu.yml
     # should also be updated.
     container:
-      image: quay.io/prometheus/golang-builder:1.23-base
+      image: quay.io/prometheus/golang-builder:1.24-base
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: prometheus/promci@3cb0c3871f223bd5ce1226995bd52ffb314798b6 # v0.1.0
+      - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
       - uses: ./.github/promci/actions/setup_environment
       - run: make
       - run: git diff --exit-code

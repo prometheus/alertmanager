@@ -33,7 +33,7 @@ import (
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -116,7 +116,7 @@ func init() {
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
 	prometheus.MustRegister(configuredInhibitionRules)
-	prometheus.MustRegister(collectors.NewBuildInfoCollector())
+	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
 }
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
@@ -176,7 +176,7 @@ func run() int {
 		tlsConfigFile          = kingpin.Flag("cluster.tls-config", "[EXPERIMENTAL] Path to config yaml file that can enable mutual TLS within the gossip protocol.").Default("").String()
 		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
 		label                  = kingpin.Flag("cluster.label", "The cluster label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages.").Default("").String()
-		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
+		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Comma-separated experimental features to enable. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
 	)
 
 	promslogflag.AddFlags(kingpin.CommandLine, &promslogConfig)

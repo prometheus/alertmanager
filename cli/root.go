@@ -52,6 +52,7 @@ var (
 func initMatchersCompat(_ *kingpin.ParseContext) error {
 	promslogConfig := &promslog.Config{Writer: os.Stdout}
 	if verbose {
+		promslogConfig.Level = &promslog.AllowedLevel{}
 		_ = promslogConfig.Level.Set("debug")
 	}
 	logger := promslog.New(promslogConfig)
@@ -155,7 +156,7 @@ func Execute() {
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
 	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
-	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable. The flag can be repeated to enable multiple features. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
+	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable, comma separated. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')

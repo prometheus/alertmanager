@@ -133,7 +133,7 @@ func FallbackMatcherParser(l *slog.Logger) ParseMatcher {
 			// The input is valid in the pkg/labels parser, but not the matcher/parse
 			// parser. This means the input is not forwards compatible.
 			suggestion := cMatcher.String()
-			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
+			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatcher, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
@@ -173,7 +173,7 @@ func FallbackMatchersParser(l *slog.Logger) ParseMatchers {
 			suggestion := sb.String()
 			// The input is valid in the pkg/labels parser, but not the
 			// new matcher/parse parser.
-			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
+			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatchers, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
