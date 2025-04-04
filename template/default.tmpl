@@ -172,6 +172,18 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
+{{ define "googlechat.default.message" }}{{ template "__subject" . }}
+{{ .CommonAnnotations.SortedPairs.Values | join " " }}
+{{ if gt (len .Alerts.Firing) 0 -}}
+Alerts Firing:
+{{ template "__text_alert_list_markdown" .Alerts.Firing }}
+{{- end }}
+{{ if gt (len .Alerts.Resolved) 0 -}}
+Alerts Resolved:
+{{ template "__text_alert_list_markdown" .Alerts.Resolved }}
+{{- end }}
+{{- end }}
+
 {{ define "jira.default.summary" }}{{ template "__subject" . }}{{ end }}
 {{ define "jira.default.description" }}
 {{ if gt (len .Alerts.Firing) 0 }}
