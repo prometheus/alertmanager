@@ -93,19 +93,21 @@ func (ih *Inhibitor) Run() {
 	for _, r := range ih.rules {
 		go func(r *InhibitRule) {
 			ticker := time.NewTicker(15 * time.Minute)
+			defer ticker.Stop()
 			select {
 			case <-runCtx.Done():
 				return
 			case <-ticker.C:
+				now := time.Now()
 				r.mtx.Lock()
-				for icacheKey, cacheEntry := range r.icache {
-					for fp, cachedAlert := range cacheEntry {
-						if cachedAlert.alert.Resolved() {
-							delete(cacheEntry, fp)
+				for key, entry := range r.cache {
+					for fp, cachedAlert := range entry {
+						if cachedAlert.alert.ResolvedAt(now) {
+							delete(entry, fp)
 						}
 					}
-					if len(cacheEntry) == 0 {
-						delete(r.icache, icacheKey)
+					if len(entry) == 0 {
+						delete(r.cache, key)
 					}
 				}
 				r.mtx.Unlock()
@@ -174,7 +176,7 @@ func newCachedAlert(a *types.Alert, targetMatchers labels.Matchers) cachedAlert 
 	}
 }
 
-type iCacheEntry map[model.Fingerprint]cachedAlert
+type cacheEntry map[model.Fingerprint]cachedAlert
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
@@ -193,7 +195,7 @@ type InhibitRule struct {
 	Equal map[model.LabelName]struct{}
 
 	// Cache of alerts matching source labels.
-	icache map[model.Fingerprint]iCacheEntry
+	cache map[model.Fingerprint]cacheEntry
 
 	mtx *sync.RWMutex
 }
@@ -255,7 +257,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		icache:         make(map[model.Fingerprint]iCacheEntry),
+		cache:          make(map[model.Fingerprint]cacheEntry),
 		mtx:            &sync.RWMutex{},
 	}
 }
@@ -264,22 +266,22 @@ func (r *InhibitRule) set(a *types.Alert) {
 	// these two operations are by far the most expensive part of the method
 	// since they don't require hilding the mutex, call them here as a tiny
 	// optimization
-	icacheKey := r.icacheKey(a.Labels)
+	cacheKey := r.makeCacheKey(a.Labels)
 	fp := a.Fingerprint()
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	cacheEntry, ok := r.icache[icacheKey]
+	entry, ok := r.cache[cacheKey]
 	if !ok {
-		cacheEntry = make(iCacheEntry)
-		r.icache[icacheKey] = cacheEntry
+		entry = make(cacheEntry)
+		r.cache[cacheKey] = entry
 	}
 
-	cacheEntry[fp] = newCachedAlert(a, r.TargetMatchers)
+	entry[fp] = newCachedAlert(a, r.TargetMatchers)
 }
 
-func (r *InhibitRule) icacheKey(lset model.LabelSet) model.Fingerprint {
+func (r *InhibitRule) makeCacheKey(lset model.LabelSet) model.Fingerprint {
 	equalLabels := model.LabelSet{}
 	for label := range r.Equal {
 		equalLabels[label] = lset[label]
@@ -293,12 +295,12 @@ func (r *InhibitRule) findInhibitor(lset model.LabelSet, now time.Time) (model.F
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
-	if len(r.icache) == 0 {
+	if len(r.cache) == 0 {
 		return model.Fingerprint(0), false
 	}
 
 	var sourceMatchersEvaluated, lsetMatchesSource bool
-	if cacheEntry, ok := r.icache[r.icacheKey(lset)]; ok {
+	if cacheEntry, ok := r.cache[r.makeCacheKey(lset)]; ok {
 		for fp, cachedAlert := range cacheEntry {
 			if cachedAlert.alert.ResolvedAt(now) {
 				continue

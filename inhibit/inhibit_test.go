@@ -127,7 +127,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			mtx:            &sync.RWMutex{},
 			TargetMatchers: make(labels.Matchers, 0),
 			SourceMatchers: make(labels.Matchers, 0),
-			icache:         make(map[model.Fingerprint]iCacheEntry),
+			cache:          make(map[model.Fingerprint]cacheEntry),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
@@ -182,9 +182,9 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[0].cache = make(map[model.Fingerprint]cacheEntry)
 	ih.rules[0].set(sourceAlert1)
-	ih.rules[1].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[1].cache = make(map[model.Fingerprint]cacheEntry)
 	ih.rules[1].set(sourceAlert2)
 
 	cases := []struct {
@@ -278,9 +278,9 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[0].cache = make(map[model.Fingerprint]cacheEntry)
 	ih.rules[0].set(sourceAlert1)
-	ih.rules[1].icache = make(map[model.Fingerprint]iCacheEntry)
+	ih.rules[1].cache = make(map[model.Fingerprint]cacheEntry)
 	ih.rules[1].set(sourceAlert2)
 
 	cases := []struct {
