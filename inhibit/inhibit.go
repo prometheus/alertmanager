@@ -293,6 +293,10 @@ func (r *InhibitRule) findInhibitor(lset model.LabelSet, now time.Time) (model.F
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
+	if len(r.icache) == 0 {
+		return model.Fingerprint(0), false
+	}
+
 	var sourceMatchersEvaluated, lsetMatchesSource bool
 	if cacheEntry, ok := r.icache[r.icacheKey(lset)]; ok {
 		for fp, cachedAlert := range cacheEntry {
