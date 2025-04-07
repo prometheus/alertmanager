@@ -61,17 +61,17 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
 	})
-	b.Run("1 inhibition rule, 10 inhibiting alerts w/ random match", func(b *testing.B) {
+	b.Run("1 inhibition rule, 10 inhibiting alerts w/ last match", func(b *testing.B) {
 		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 10))
 	})
-	b.Run("1 inhibition rule, 100 inhibiting alerts w/ random match", func(b *testing.B) {
+	b.Run("1 inhibition rule, 100 inhibiting alerts w/ last match", func(b *testing.B) {
 		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 100))
 	})
-	b.Run("1 inhibition rule, 1000 inhibiting alerts w/ random match", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1000))
+	b.Run("1 inhibition rule, 1000 inhibiting alerts w/ last match", func(b *testing.B) {
+		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 1000))
 	})
-	b.Run("1 inhibition rule, 10000 inhibiting alerts w/ random match", func(b *testing.B) {
-		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
+	b.Run("1 inhibition rule, 10000 inhibiting alerts w/ last match", func(b *testing.B) {
+		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 10000))
 	})
 	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000))
@@ -183,7 +183,11 @@ func oneRuleLastInhibitorMatchesBenchmark(b *testing.B, numInhibitingAlerts int)
 			}
 			return alerts
 		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0", "idx": model.LabelValue(strconv.Itoa(numInhibitingAlerts - 1))}); !ok {
+			targetLabels := model.LabelSet{
+				"dst": "0",
+				"idx": model.LabelValue(strconv.Itoa(numInhibitingAlerts - 1)),
+			}
+			if ok := mutesFunc(targetLabels); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
