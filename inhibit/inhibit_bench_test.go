@@ -61,6 +61,18 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
 	})
+	b.Run("1 inhibition rule, 10 inhibiting alerts w/ random match", func(b *testing.B) {
+		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 10))
+	})
+	b.Run("1 inhibition rule, 100 inhibiting alerts w/ random match", func(b *testing.B) {
+		benchmarkMutes(b, oneRuleLastInhibitorMatchesBenchmark(b, 100))
+	})
+	b.Run("1 inhibition rule, 1000 inhibiting alerts w/ random match", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 1000))
+	})
+	b.Run("1 inhibition rule, 10000 inhibiting alerts w/ random match", func(b *testing.B) {
+		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
+	})
 	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000))
 	})
@@ -132,6 +144,46 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 			return alerts
 		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
 			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+				return errors.New("expected dst=0 to be muted")
+			}
+			return nil
+		},
+	}
+}
+
+// oneRuleLastInhibitorMatchesBenchmark is similar to allRulesMatchBenchmark except that
+// it only can generate a single inhibit rule, and that inhibit rule sets Equal to the 'idx'
+// label. The labelset past to Mutes has an idx label set to numInhibitingAlerts - 1. That means
+// that only the last added source alert's equal labels will match the target.
+func oneRuleLastInhibitorMatchesBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions {
+	return benchmarkOptions{
+		n: 1,
+		newRuleFunc: func(idx int) config.InhibitRule {
+			return config.InhibitRule{
+				SourceMatchers: config.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				},
+				TargetMatchers: config.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+				},
+				Equal: []string{"idx"},
+			}
+		},
+		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
+			var alerts []types.Alert
+			for i := 0; i < numInhibitingAlerts; i++ {
+				alerts = append(alerts, types.Alert{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"src": model.LabelValue(strconv.Itoa(idx)),
+							"idx": model.LabelValue(strconv.Itoa(i)),
+						},
+					},
+				})
+			}
+			return alerts
+		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+			if ok := mutesFunc(model.LabelSet{"dst": "0", "idx": model.LabelValue(strconv.Itoa(numInhibitingAlerts - 1))}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
