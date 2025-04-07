@@ -67,7 +67,7 @@ var (
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:                            "alertmanager_http_request_duration_seconds",
-			Help:                            "Histogram of latencies for HTTP requests.",
+			Help:                            "Histogram of latencies for web HTTP requests.",
 			Buckets:                         []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
@@ -78,7 +78,7 @@ var (
 	responseSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_response_size_bytes",
-			Help:    "Histogram of response size for HTTP requests.",
+			Help:    "Histogram of response size for web HTTP requests.",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 7),
 		},
 		[]string{"handler", "method"},
