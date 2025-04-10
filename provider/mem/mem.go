@@ -217,9 +217,6 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
@@ -249,12 +246,15 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 		a.callback.PostStore(alert, existing)
 
+		a.mtx.Lock()
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
 			case <-l.done:
 			}
 		}
+		a.mtx.Unlock()
+
 	}
 
 	return nil
@@ -262,9 +262,6 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 // count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
 func (a *Alerts) count(state types.AlertState) int {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	var count int
 	for _, alert := range a.alerts.List() {
 		if alert.Resolved() {
