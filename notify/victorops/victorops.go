@@ -141,7 +141,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 
 	stateMessage, truncated := notify.TruncateInRunes(stateMessage, maxMessageLenRunes)
 	if truncated {
-		n.logger.Warn("Truncated state_message", "incident", key, "max_runes", maxMessageLenRunes)
+		n.logger.Warn("Truncated state_message", "group_key", key, "max_runes", maxMessageLenRunes)
 	}
 
 	msg := map[string]string{
