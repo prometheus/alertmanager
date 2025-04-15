@@ -80,6 +80,9 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	}
 
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+	if err != nil {
+		return true, err
+	}
 	if truncated {
 		n.logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 	}
