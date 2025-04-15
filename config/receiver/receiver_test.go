@@ -68,21 +68,58 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			receiver: config.Receiver{
+				Name: "foo",
+				WebHookTemplateConfigs: []*config.WebhookTemplateConfig{
+					{
+						HTTPConfig: &commoncfg.HTTPClientConfig{},
+					},
+					{
+						HTTPConfig: &commoncfg.HTTPClientConfig{},
+						NotifierConfig: config.NotifierConfig{
+							VSendResolved: true,
+						},
+					},
+				},
+			},
+			exp: []notify.Integration{
+				notify.NewIntegration(nil, sendResolved(false), "webhook_template", 0, "foo"),
+				notify.NewIntegration(nil, sendResolved(true), "webhook_template", 1, "foo"),
+			},
+		},
+		{
+			receiver: config.Receiver{
+				Name: "foo",
+				WebHookTemplateConfigs: []*config.WebhookTemplateConfig{
+					{
+						HTTPConfig: &commoncfg.HTTPClientConfig{
+							TLSConfig: commoncfg.TLSConfig{
+								CAFile: "not_existing",
+							},
+						},
+					},
+				},
+			},
+			err: true,
+		},
 	} {
 		tc := tc
-		t.Run("", func(t *testing.T) {
-			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
-			if tc.err {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Len(t, integrations, len(tc.exp))
-			for i := range tc.exp {
-				require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())
-				require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
-				require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
-			}
-		})
+		t.Run(
+			"", func(t *testing.T) {
+				integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
+				if tc.err {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				require.Len(t, integrations, len(tc.exp))
+				for i := range tc.exp {
+					require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())
+					require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
+					require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
+				}
+			},
+		)
 	}
 }
