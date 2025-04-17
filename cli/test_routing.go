@@ -23,6 +23,7 @@ import (
 	"github.com/xlab/treeprint"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -79,6 +80,11 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 		return err
 	}
 
+	formatter, found := format.Formatters[output]
+	if !found {
+		return fmt.Errorf("unknown output formatter: %q", output)
+	}
+
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
 	// Parse labels to LabelSet.
@@ -99,9 +105,12 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	}
 
 	receivers, err := resolveAlertReceivers(mainRoute, &ls)
-	receiversSlug := strings.Join(receivers, ",")
-	fmt.Printf("%s\n", receiversSlug)
+	if err := formatter.FormatAlertReceivers(receivers); err != nil {
+		kingpin.Fatalf("failed to format receivers: %v", err)
+		return err
+	}
 
+	receiversSlug := strings.Join(receivers, ",")
 	if c.expectedReceivers != "" && c.expectedReceivers != receiversSlug {
 		fmt.Printf("WARNING: Expected receivers did not match resolved receivers.\n")
 		os.Exit(1)
