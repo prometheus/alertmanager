@@ -390,7 +390,7 @@ func (d *Dispatcher) processAlert(dispatchLink trace.Link, alert *types.Alert, r
 				// message should only be logged at the debug level.
 				lvl = level.Debug(l)
 			} else {
-				lvl = log.With(lvl, "alerts", fmt.Sprintf("%v", alerts))
+				lvl = log.With(lvl, "aggrGroup", ag, "alerts", fmt.Sprintf("%v", alerts))
 			}
 			lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
 
