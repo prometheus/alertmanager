@@ -44,9 +44,8 @@ var (
 	httpConfigFile  string
 	versionCheck    bool
 	featureFlags    string
-
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
-	legacyFlags = map[string]string{"comment_required": "require-comment"}
+	configFiles     = []string{os.Getenv("AMTOOL_CONFIG_FILE"), os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	legacyFlags     = map[string]string{"comment_required": "require-comment"}
 )
 
 func initMatchersCompat(_ *kingpin.ParseContext) error {
@@ -191,9 +190,10 @@ const (
 	helpRoot = `View and modify the current Alertmanager state.
 
 Config File:
-The alertmanager tool will read a config file in YAML format from one of two
-default config locations: $HOME/.config/amtool/config.yml or
-/etc/amtool/config.yml
+The alertmanager tool will read a config file in YAML format from one of the following locations, in order of precedence:
+	1. The environment variable AMTOOL_CONFIG_FILE, if set.
+	2. $HOME/.config/amtool/config.yml
+	3. /etc/amtool/config.yml
 
 All flags can be given in the config file, but the following are the suited for
 static configuration:
