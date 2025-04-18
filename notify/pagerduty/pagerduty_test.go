@@ -496,3 +496,65 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	}...)
 	require.NoError(t, err)
 }
+
+func TestPagerDutyTimeout(t *testing.T) {
+	type pagerDutyEvent struct {
+		RoutingKey  string           `json:"routing_key"`
+		EventAction string           `json:"event_action"`
+		DedupKey    string           `json:"dedup_key"`
+		Payload     pagerDutyPayload `json:"payload"`
+		Images      []pagerDutyImage
+		Links       []pagerDutyLink
+	}
+
+	latency := time.Millisecond * 50
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			decoder := json.NewDecoder(r.Body)
+			var event pagerDutyEvent
+			if err := decoder.Decode(&event); err != nil {
+				panic(err)
+			}
+
+			if event.RoutingKey == "" || event.EventAction == "" {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
+			time.Sleep(latency)
+		},
+	))
+	defer srv.Close()
+	url, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	f := func(ts time.Duration) error {
+		cfg := config.PagerdutyConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			RoutingKey: config.Secret("01234567890123456789012345678901"),
+			URL:        &config.URL{URL: url},
+			Timeout:    ts,
+		}
+
+		pd, err := New(&cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		ctx = notify.WithGroupKey(ctx, "1")
+
+		_, err = pd.Notify(ctx, &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}},
+		)
+		return err
+	}
+
+	err = f(latency - time.Millisecond*10)
+	require.Error(t, err)
+	err = f(latency + time.Millisecond*10)
+	require.NoError(t, err)
+}
