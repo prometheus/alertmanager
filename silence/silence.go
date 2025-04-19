@@ -223,29 +223,12 @@ type metrics struct {
 	queriesTotal            prometheus.Counter
 	queryErrorsTotal        prometheus.Counter
 	queryDuration           prometheus.Histogram
-	silencesActive          prometheus.GaugeFunc
-	silencesPending         prometheus.GaugeFunc
-	silencesExpired         prometheus.GaugeFunc
+	silencesActive          prometheus.Gauge
+	silencesPending         prometheus.Gauge
+	silencesExpired         prometheus.Gauge
 	propagatedMessagesTotal prometheus.Counter
 	maintenanceTotal        prometheus.Counter
 	maintenanceErrorsTotal  prometheus.Counter
-}
-
-func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
-	return prometheus.NewGaugeFunc(
-		prometheus.GaugeOpts{
-			Name:        "alertmanager_silences",
-			Help:        "How many silences by state.",
-			ConstLabels: prometheus.Labels{"state": string(st)},
-		},
-		func() float64 {
-			count, err := s.CountState(st)
-			if err != nil {
-				s.logger.Error("Counting silences failed", "err", err)
-			}
-			return float64(count)
-		},
-	)
 }
 
 func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
@@ -294,9 +277,21 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
 	if s != nil {
-		m.silencesActive = newSilenceMetricByState(s, types.SilenceStateActive)
-		m.silencesPending = newSilenceMetricByState(s, types.SilenceStatePending)
-		m.silencesExpired = newSilenceMetricByState(s, types.SilenceStateExpired)
+		m.silencesActive = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "alertmanager_silences",
+			Help:        "How many silences by state.",
+			ConstLabels: prometheus.Labels{"state": string(types.SilenceStateActive)},
+		})
+		m.silencesPending = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "alertmanager_silences",
+			Help:        "How many silences by state.",
+			ConstLabels: prometheus.Labels{"state": string(types.SilenceStatePending)},
+		})
+		m.silencesExpired = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "alertmanager_silences",
+			Help:        "How many silences by state.",
+			ConstLabels: prometheus.Labels{"state": string(types.SilenceStateExpired)},
+		})
 	}
 
 	if r != nil {
@@ -386,6 +381,30 @@ func New(o Options) (*Silences, error) {
 
 func (s *Silences) nowUTC() time.Time {
 	return s.clock.Now().UTC()
+}
+
+func (s *Silences) CountSilences(interval time.Duration, stopc <-chan struct{}) {
+	countFn := func(st types.SilenceState) float64 {
+		count, err := s.CountState(st)
+		if err != nil {
+			s.logger.Error("Counting silences failed", "err", err)
+		}
+		return float64(count)
+	}
+	t := s.clock.NewTicker(interval)
+	defer t.Stop()
+
+Loop:
+	for {
+		select {
+		case <-stopc:
+			break Loop
+		case <-t.C:
+			s.metrics.silencesActive.Set(countFn(types.SilenceStateActive))
+			s.metrics.silencesPending.Set(countFn(types.SilenceStatePending))
+			s.metrics.silencesExpired.Set(countFn(types.SilenceStateExpired))
+		}
+	}
 }
 
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
