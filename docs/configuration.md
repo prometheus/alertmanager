@@ -1330,6 +1330,11 @@ token_file: <filepath>
 # Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
+# Optional HTML/monospace formatting for the message, see https://pushover.net/api#html
+# html and monospace formatting are mutually exclusive.
+[ html: <boolean> | default = false ]
+[ monospace: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
