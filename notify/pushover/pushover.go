@@ -124,6 +124,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = tmpl(n.conf.Message)
 	}
 
+	if n.conf.Monospace {
+		parameters.Add("monospace", "1")
+	}
+
 	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
 		n.logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
