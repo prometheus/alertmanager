@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	alertChannelLength = 200
+
 	t0 = time.Now()
 	t1 = t0.Add(100 * time.Millisecond)
 
@@ -87,12 +89,12 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	iterator := alerts.Subscribe()
+	iterator := alerts.Subscribe("test")
 
 	alertsToInsert := []*types.Alert{}
 	// Exhaust alert channel
@@ -142,7 +144,7 @@ func TestDeadLock(t *testing.T) {
 
 	marker := types.NewMarker(prometheus.NewRegistry())
 	// Run gc every 5 milliseconds to increase the possibility of a deadlock with Subscribe()
-	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 5*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +178,7 @@ func TestDeadLock(t *testing.T) {
 		for {
 			select {
 			case <-tick.C:
-				alerts.Subscribe()
+				alerts.Subscribe("test")
 			case <-stopAfter:
 				done <- true
 				break
@@ -195,7 +197,7 @@ func TestDeadLock(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +225,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(ctx, marker, alertChannelLength, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +252,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			it := alerts.Subscribe()
+			it := alerts.Subscribe("test")
 			defer it.Close()
 
 			received := make(map[model.Fingerprint]struct{})
@@ -300,7 +302,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +345,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 200*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +382,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	cb := &limitCountCallback{limit: 3}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, cb, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 200*time.Millisecond, cb, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +445,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 
 func TestAlerts_Count(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, alertChannelLength, 200*time.Millisecond, nil, promslog.NewNopLogger(), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	states := []types.AlertState{types.AlertStateActive, types.AlertStateSuppressed, types.AlertStateUnprocessed}
@@ -565,7 +567,7 @@ func (l *limitCountCallback) PostDelete(_ *types.Alert) {
 
 func TestAlertsConcurrently(t *testing.T) {
 	callback := &limitCountCallback{limit: 100}
-	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, callback, promslog.NewNopLogger(), nil)
+	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), alertChannelLength, time.Millisecond, callback, promslog.NewNopLogger(), prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	stopc := make(chan struct{})

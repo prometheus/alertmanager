@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -27,8 +28,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const alertChannelLength = 200
-
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
 	cancel context.CancelFunc
@@ -38,8 +37,11 @@ type Alerts struct {
 	alerts *store.Alerts
 	marker types.AlertMarker
 
-	listeners map[int]listeningAlerts
-	next      int
+	channelCapacity       int
+	channelCapacityMetric *prometheus.GaugeVec
+	channelLengthMetric   *prometheus.GaugeVec
+	listeners             map[int]listeningAlerts
+	next                  int
 
 	callback AlertStoreCallback
 
@@ -61,6 +63,7 @@ type AlertStoreCallback interface {
 }
 
 type listeningAlerts struct {
+	name   string
 	alerts chan *types.Alert
 	done   chan struct{}
 }
@@ -82,23 +85,46 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 	r.MustRegister(newMemAlertByStatus(types.AlertStateActive))
 	r.MustRegister(newMemAlertByStatus(types.AlertStateSuppressed))
 	r.MustRegister(newMemAlertByStatus(types.AlertStateUnprocessed))
+
+	a.channelCapacityMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_alerts_provider_channel_capacity",
+			Help: "Length of alerts provider channel capacity",
+		},
+		[]string{"subscriber_name"},
+	)
+	r.MustRegister(a.channelCapacityMetric)
+
+	a.channelLengthMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_alerts_provider_channel_length",
+			Help: "Length of alerts provider channel length",
+		},
+		[]string{"subscriber_name"},
+	)
+	r.MustRegister(a.channelLengthMetric)
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.AlertMarker, channelCapacity int, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}
 
+	if channelCapacity < 1 {
+		return nil, fmt.Errorf("channel capacity has to be > zero, provided %d", channelCapacity)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:    m,
-		alerts:    store.NewAlerts(),
-		cancel:    cancel,
-		listeners: map[int]listeningAlerts{},
-		next:      0,
-		logger:    l.With("component", "provider"),
-		callback:  alertCallback,
+		marker:          m,
+		alerts:          store.NewAlerts(),
+		cancel:          cancel,
+		channelCapacity: channelCapacity,
+		listeners:       map[int]listeningAlerts{},
+		next:            0,
+		logger:          l.With("component", "provider"),
+		callback:        alertCallback,
 	}
 
 	if r != nil {
@@ -164,20 +190,22 @@ func max(a, b int) int {
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
-func (a *Alerts) Subscribe() provider.AlertIterator {
+func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
-		ch     = make(chan *types.Alert, max(len(alerts), alertChannelLength))
+		ch     = make(chan *types.Alert, max(len(alerts), a.channelCapacity))
 	)
 
 	for _, a := range alerts {
 		ch <- a
 	}
 
-	a.listeners[a.next] = listeningAlerts{alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.channelCapacityMetric.WithLabelValues(name).Set(float64(cap(ch)))
+	a.channelLengthMetric.WithLabelValues(name).Set(float64(len(ch)))
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
@@ -187,7 +215,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, alertChannelLength)
+		ch   = make(chan *types.Alert, a.channelCapacity)
 		done = make(chan struct{})
 	)
 	a.mtx.Lock()
@@ -252,6 +280,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
+				a.channelLengthMetric.WithLabelValues(l.name).Set(float64(len(l.alerts)))
 			case <-l.done:
 			}
 		}

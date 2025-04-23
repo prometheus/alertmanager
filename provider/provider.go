@@ -75,7 +75,7 @@ type Alerts interface {
 	// Subscribe returns an iterator over active alerts that have not been
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
-	Subscribe() AlertIterator
+	Subscribe(string) AlertIterator
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
 	GetPending() AlertIterator

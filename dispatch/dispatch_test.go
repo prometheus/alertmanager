@@ -35,6 +35,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+var alertsChannelCapacity = 200
+
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
 		"a": "v1",
@@ -391,7 +393,7 @@ route:
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, alertsChannelCapacity, time.Hour, nil, logger, prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,7 +543,7 @@ route:
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, alertsChannelCapacity, time.Hour, nil, logger, prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +664,7 @@ func newAlert(labels model.LabelSet) *types.Alert {
 func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, alertsChannelCapacity, time.Hour, nil, logger, prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -679,7 +681,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	logger := promslog.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, alertsChannelCapacity, time.Hour, nil, logger, prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +735,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, alertsChannelCapacity, time.Minute, nil, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
