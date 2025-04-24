@@ -300,7 +300,7 @@ receivers:
 `
 	_, err := Load(in)
 
-	expected := "cannot have wildcard group_by (`...`) and other other labels at the same time"
+	expected := "cannot have wildcard group_by (`...`) and other labels at the same time"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
