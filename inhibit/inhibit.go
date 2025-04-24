@@ -215,7 +215,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 
 	equal := map[model.LabelName]struct{}{}
 	for _, ln := range cr.Equal {
-		equal[ln] = struct{}{}
+		equal[model.LabelName(ln)] = struct{}{}
 	}
 
 	return &InhibitRule{
