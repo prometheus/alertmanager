@@ -1,0 +1,38 @@
+go:
+    # Whenever the Go version is updated here,
+    # .circle/config.yml should also be updated.
+    version: 1.23
+repository:
+    path: github.com/prometheus/alertmanager
+build:
+    static: false
+    binaries:
+        - name: alertmanager
+          path: ./cmd/alertmanager
+        - name: amtool
+          path: ./cmd/amtool
+    tags:
+        all:
+            - netgo
+        windows: []
+    ldflags: |
+        -X github.com/prometheus/common/version.Version={{.Version}}
+        -X github.com/prometheus/common/version.Revision={{.Revision}}
+        -X github.com/prometheus/common/version.Branch={{.Branch}}
+        -X github.com/prometheus/common/version.BuildUser={{user}}@{{host}}
+        -X github.com/prometheus/common/version.BuildDate={{date "20060102-15:04:05"}}
+tarball:
+    files:
+        - examples/ha/alertmanager.yml
+        - LICENSE
+        - NOTICE
+crossbuild:
+    platforms:
+        - darwin
+        - dragonfly
+        - freebsd
+        - illumos
+        - linux
+        - netbsd
+        - openbsd
+        - windows
