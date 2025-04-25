@@ -19,12 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
@@ -34,8 +33,8 @@ import (
 // truncationMarker is the character used to represent a truncation.
 const truncationMarker = "…"
 
-// UserAgentHeader is the default User-Agent for notification requests
-var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
+// UserAgentHeader is the default User-Agent for notification requests.
+var UserAgentHeader = version.ComponentUserAgent("Alertmanager")
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
@@ -47,7 +46,7 @@ func RedactURL(err error) error {
 	return e
 }
 
-// Get sends a GET request to the given URL
+// Get sends a GET request to the given URL.
 func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	return request(ctx, client, http.MethodGet, url, "", nil)
 }
@@ -180,14 +179,14 @@ func (k Key) String() string {
 }
 
 // GetTemplateData creates the template data from the context and the alerts.
-func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l log.Logger) *template.Data {
+func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l *slog.Logger) *template.Data {
 	recv, ok := ReceiverName(ctx)
 	if !ok {
-		level.Error(l).Log("msg", "Missing receiver")
+		l.Error("Missing receiver")
 	}
 	groupLabels, ok := GroupLabels(ctx)
 	if !ok {
-		level.Error(l).Log("msg", "Missing group labels")
+		l.Error("Missing group labels")
 	}
 	return tmpl.Data(recv, groupLabels, alerts...)
 }

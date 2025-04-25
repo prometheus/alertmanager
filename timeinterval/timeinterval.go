@@ -33,21 +33,23 @@ type Intervener struct {
 	intervals map[string][]TimeInterval
 }
 
-func (i *Intervener) Mutes(names []string, now time.Time) (bool, error) {
+// Mutes implements the TimeMuter interface.
+func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error) {
+	var in []string
 	for _, name := range names {
 		interval, ok := i.intervals[name]
 		if !ok {
-			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+			return false, nil, fmt.Errorf("time interval %s doesn't exist in config", name)
 		}
 
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
-				return true, nil
+				in = append(in, name)
 			}
 		}
 	}
 
-	return false, nil
+	return len(in) > 0, in, nil
 }
 
 func NewIntervener(ti map[string][]TimeInterval) *Intervener {
@@ -383,7 +385,7 @@ func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 
 // MarshalText implements the econding.TextMarshaler interface for WeekdayRange.
 // It converts the range into a colon-separated string, or a single weekday if possible.
-// e.g. "monday:friday" or "saturday".
+// E.g. "monday:friday" or "saturday".
 func (r WeekdayRange) MarshalText() ([]byte, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
@@ -450,7 +452,7 @@ func (tz Location) MarshalJSON() (out []byte, err error) {
 
 // MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
 // It converts the struct into a colon-separated string, or a single element if
-// appropriate. e.g. "monday:friday" or "monday"
+// appropriate. E.g. "monday:friday" or "monday".
 func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	if ir.Begin == ir.End {
 		return []byte(strconv.Itoa(ir.Begin)), nil

@@ -26,6 +26,7 @@ import (
 	tmpltext "text/template"
 	"time"
 
+	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -192,6 +193,20 @@ var DefaultFuncs = FuncMap{
 	"stringSlice": func(s ...string) []string {
 		return s
 	},
+	// date returns the text representation of the time in the specified format.
+	"date": func(fmt string, t time.Time) string {
+		return t.Format(fmt)
+	},
+	// tz returns the time in the timezone.
+	"tz": func(name string, t time.Time) (time.Time, error) {
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return t.In(loc), nil
+	},
+	"since":            time.Since,
+	"humanizeDuration": commonTemplates.HumanizeDuration,
 }
 
 // Pair is a key/value string pair.

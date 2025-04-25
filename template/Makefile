@@ -1,4 +1,4 @@
-DOCKER_IMG := altermanager-template
+DOCKER_IMG := alertmanager-template
 DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
 DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
 

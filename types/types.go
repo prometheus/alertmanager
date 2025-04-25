@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
@@ -52,9 +52,17 @@ type AlertStatus struct {
 	silencesVersion int
 }
 
-// Marker helps to mark alerts as silenced and/or inhibited.
+// groupStatus stores the state of the group, and, as applicable, the names
+// of all active and mute time intervals that are muting it.
+type groupStatus struct {
+	// mutedBy contains the names of all active and mute time intervals that
+	// are muting it.
+	mutedBy []string
+}
+
+// AlertMarker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
-type Marker interface {
+type AlertMarker interface {
 	// SetActiveOrSilenced replaces the previous SilencedBy by the provided IDs of
 	// active and pending silences, including the version number of the
 	// silences state. The set of provided IDs is supposed to represent the
@@ -92,24 +100,74 @@ type Marker interface {
 	Inhibited(model.Fingerprint) ([]string, bool)
 }
 
-// NewMarker returns an instance of a Marker implementation.
-func NewMarker(r prometheus.Registerer) Marker {
-	m := &memMarker{
-		m: map[model.Fingerprint]*AlertStatus{},
+// GroupMarker helps to mark groups as active or muted.
+// All methods are goroutine-safe.
+//
+// TODO(grobinson): routeID is used in Muted and SetMuted because groupKey
+// is not unique (see #3817). Once groupKey uniqueness is fixed routeID can
+// be removed from the GroupMarker interface.
+type GroupMarker interface {
+	// Muted returns true if the group is muted, otherwise false. If the group
+	// is muted then it also returns the names of the time intervals that muted
+	// it.
+	Muted(routeID, groupKey string) ([]string, bool)
+
+	// SetMuted marks the group as muted, and sets the names of the time
+	// intervals that mute it. If the list of names is nil or the empty slice
+	// then the muted marker is removed.
+	SetMuted(routeID, groupKey string, timeIntervalNames []string)
+
+	// DeleteByGroupKey removes all markers for the GroupKey.
+	DeleteByGroupKey(routeID, groupKey string)
+}
+
+// NewMarker returns an instance of a AlertMarker implementation.
+func NewMarker(r prometheus.Registerer) *MemMarker {
+	m := &MemMarker{
+		alerts: map[model.Fingerprint]*AlertStatus{},
+		groups: map[string]*groupStatus{},
 	}
-
 	m.registerMetrics(r)
-
 	return m
 }
 
-type memMarker struct {
-	m map[model.Fingerprint]*AlertStatus
+type MemMarker struct {
+	alerts map[model.Fingerprint]*AlertStatus
+	groups map[string]*groupStatus
 
 	mtx sync.RWMutex
 }
 
-func (m *memMarker) registerMetrics(r prometheus.Registerer) {
+// Muted implements GroupMarker.
+func (m *MemMarker) Muted(routeID, groupKey string) ([]string, bool) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	status, ok := m.groups[routeID+groupKey]
+	if !ok {
+		return nil, false
+	}
+	return status.mutedBy, len(status.mutedBy) > 0
+}
+
+// SetMuted implements GroupMarker.
+func (m *MemMarker) SetMuted(routeID, groupKey string, timeIntervalNames []string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	status, ok := m.groups[routeID+groupKey]
+	if !ok {
+		status = &groupStatus{}
+		m.groups[routeID+groupKey] = status
+	}
+	status.mutedBy = timeIntervalNames
+}
+
+func (m *MemMarker) DeleteByGroupKey(routeID, groupKey string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	delete(m.groups, routeID+groupKey)
+}
+
+func (m *MemMarker) registerMetrics(r prometheus.Registerer) {
 	newMarkedAlertMetricByState := func(st AlertState) prometheus.GaugeFunc {
 		return prometheus.NewGaugeFunc(
 			prometheus.GaugeOpts{
@@ -132,17 +190,17 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 	r.MustRegister(alertStateUnprocessed)
 }
 
-// Count implements Marker.
-func (m *memMarker) Count(states ...AlertState) int {
+// Count implements AlertMarker.
+func (m *MemMarker) Count(states ...AlertState) int {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if len(states) == 0 {
-		return len(m.m)
+		return len(m.alerts)
 	}
 
 	var count int
-	for _, status := range m.m {
+	for _, status := range m.alerts {
 		for _, state := range states {
 			if status.State == state {
 				count++
@@ -152,15 +210,15 @@ func (m *memMarker) Count(states ...AlertState) int {
 	return count
 }
 
-// SetActiveOrSilenced implements Marker.
-func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
+// SetActiveOrSilenced implements AlertMarker.
+func (m *MemMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	s, found := m.m[alert]
+	s, found := m.alerts[alert]
 	if !found {
 		s = &AlertStatus{}
-		m.m[alert] = s
+		m.alerts[alert] = s
 	}
 	s.SilencedBy = activeIDs
 	s.pendingSilences = pendingIDs
@@ -177,15 +235,15 @@ func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, ac
 	s.State = AlertStateSuppressed
 }
 
-// SetInhibited implements Marker.
-func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
+// SetInhibited implements AlertMarker.
+func (m *MemMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	s, found := m.m[alert]
+	s, found := m.alerts[alert]
 	if !found {
 		s = &AlertStatus{}
-		m.m[alert] = s
+		m.alerts[alert] = s
 	}
 	s.InhibitedBy = ids
 
@@ -200,12 +258,12 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	s.State = AlertStateSuppressed
 }
 
-// Status implements Marker.
-func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
+// Status implements AlertMarker.
+func (m *MemMarker) Status(alert model.Fingerprint) AlertStatus {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	if s, found := m.m[alert]; found {
+	if s, found := m.alerts[alert]; found {
 		return *s
 	}
 	return AlertStatus{
@@ -215,26 +273,26 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 	}
 }
 
-// Delete implements Marker.
-func (m *memMarker) Delete(alert model.Fingerprint) {
+// Delete implements AlertMarker.
+func (m *MemMarker) Delete(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	delete(m.m, alert)
+	delete(m.alerts, alert)
 }
 
-// Unprocessed implements Marker.
-func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
+// Unprocessed implements AlertMarker.
+func (m *MemMarker) Unprocessed(alert model.Fingerprint) bool {
 	return m.Status(alert).State == AlertStateUnprocessed
 }
 
-// Active implements Marker.
-func (m *memMarker) Active(alert model.Fingerprint) bool {
+// Active implements AlertMarker.
+func (m *MemMarker) Active(alert model.Fingerprint) bool {
 	return m.Status(alert).State == AlertStateActive
 }
 
-// Inhibited implements Marker.
-func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
+// Inhibited implements AlertMarker.
+func (m *MemMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
 	return s.InhibitedBy,
 		s.State == AlertStateSuppressed && len(s.InhibitedBy) > 0
@@ -243,7 +301,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 // Silenced returns whether the alert for the given Fingerprint is in the
 // Silenced state, any associated silence IDs, and the silences state version
 // the result is based on.
-func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool) {
+func (m *MemMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool) {
 	s := m.Status(alert)
 	return s.SilencedBy, s.pendingSilences, s.silencesVersion,
 		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
@@ -410,15 +468,17 @@ func (a *Alert) Merge(o *Alert) *Alert {
 }
 
 // A Muter determines whether a given label set is muted. Implementers that
-// maintain an underlying Marker are expected to update it during a call of
+// maintain an underlying AlertMarker are expected to update it during a call of
 // Mutes.
 type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
-// TimeMuter determines if alerts should be muted based on the specified current time and active time interval on the route.
+// A TimeMuter determines if the time is muted by one or more active or mute
+// time intervals. If the time is muted, it returns true and the names of the
+// time intervals that muted it. Otherwise, it returns false and a nil slice.
 type TimeMuter interface {
-	Mutes(timeIntervalName []string, now time.Time) (bool, error)
+	Mutes(timeIntervalNames []string, now time.Time) (bool, []string, error)
 }
 
 // A MuteFunc is a function that implements the Muter interface.
@@ -458,7 +518,7 @@ type Silence struct {
 }
 
 // Expired return if the silence is expired
-// meaning that both StartsAt and EndsAt are equal
+// meaning that both StartsAt and EndsAt are equal.
 func (s *Silence) Expired() bool {
 	return s.StartsAt.Equal(s.EndsAt)
 }

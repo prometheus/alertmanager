@@ -473,10 +473,11 @@ func TestTemplateFuncs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		title string
-		in    string
-		data  interface{}
-		exp   string
+		title  string
+		in     string
+		data   interface{}
+		exp    string
+		expErr string
 	}{{
 		title: "Template using toUpper",
 		in:    `{{ "abc" | toUpper }}`,
@@ -506,6 +507,60 @@ func TestTemplateFuncs(t *testing.T) {
 		title: "Template using reReplaceAll",
 		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
 		exp:   "ABc",
+	}, {
+		title: "Template using date",
+		in:    `{{ . | date "2006-01-02" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01",
+	}, {
+		title: "Template using tz",
+		in:    `{{ . | tz "Europe/Paris" }}`,
+		data:  time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		exp:   "2024-01-01 09:15:30 +0100 CET",
+	}, {
+		title:  "Template using invalid tz",
+		in:     `{{ . | tz "Invalid/Timezone" }}`,
+		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
+		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
+	}, {
+		title: "Template using HumanizeDuration - seconds - float64",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []float64{0, 1, 60, 3600, 86400, 86400 + 3600, -(86400*2 + 3600*3 + 60*4 + 5), 899.99},
+		exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:1d 1h 0m 0s:-2d 3h 4m 5s:14m 59s:",
+	}, {
+		title: "Template using HumanizeDuration - seconds - string.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []string{"0", "1", "60", "3600", "86400"},
+		exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:",
+	}, {
+		title: "Template using HumanizeDuration - subsecond and fractional seconds - float64.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []float64{.1, .0001, .12345, 60.1, 60.5, 1.2345, 12.345},
+		exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+	}, {
+		title: "Template using HumanizeDuration - subsecond and fractional seconds - string.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []string{".1", ".0001", ".12345", "60.1", "60.5", "1.2345", "12.345"},
+		exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+	}, {
+		title:  "Template using HumanizeDuration - string with error.",
+		in:     `{{ humanizeDuration "one" }}`,
+		expErr: "template: :1:3: executing \"\" at <humanizeDuration \"one\">: error calling humanizeDuration: strconv.ParseFloat: parsing \"one\": invalid syntax",
+	}, {
+		title: "Template using HumanizeDuration - int.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []int{0, -1, 1, 1234567},
+		exp:   "0s:-1s:1s:14d 6h 56m 7s:",
+	}, {
+		title: "Template using HumanizeDuration - uint.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []uint{0, 1, 1234567},
+		exp:   "0s:1s:14d 6h 56m 7s:",
+	}, {
+		title: "Template using since",
+		in:    "{{ . | since | humanizeDuration }}",
+		data:  time.Now().Add(-1 * time.Hour),
+		exp:   "1h 0m 0s",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
@@ -515,8 +570,13 @@ func TestTemplateFuncs(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					got, err := tmpl.ExecuteTextString(tc.in, tc.data)
-					require.NoError(t, err)
-					require.Equal(t, tc.exp, got)
+					if tc.expErr == "" {
+						require.NoError(t, err)
+						require.Equal(t, tc.exp, got)
+					} else {
+						require.EqualError(t, err, tc.expErr)
+						require.Empty(t, got)
+					}
 				}()
 			}
 			wg.Wait()

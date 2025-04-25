@@ -20,13 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/alecthomas/units"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -48,14 +47,14 @@ const (
 type Notifier struct {
 	conf    *config.PagerdutyConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	apiV1   string // for tests.
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new PagerDuty notifier.
-func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.PagerdutyConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pagerduty", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -133,7 +132,7 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 		}
 
 		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
-		level.Warn(n.logger).Log("msg", warningMsg)
+		n.logger.Warn(warningMsg)
 
 		buf.Reset()
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
@@ -157,7 +156,7 @@ func (n *Notifier) notifyV1(
 
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV1DescriptionLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
+		n.logger.Warn("Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
 	}
 
 	serviceKey := string(n.conf.ServiceKey)
@@ -222,7 +221,7 @@ func (n *Notifier) notifyV2(
 
 	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
+		n.logger.Warn("Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
 	}
 
 	routingKey := string(n.conf.RoutingKey)
@@ -319,7 +318,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		eventType = pagerDutyEventResolve
 	}
 
-	level.Debug(n.logger).Log("incident", key, "eventType", eventType)
+	n.logger.Debug("extracted group key", "key", key, "eventType", eventType)
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {

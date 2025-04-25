@@ -196,7 +196,7 @@ func (p *parser) parseEndOfMatcher(l *lexer) (parseFunc, error) {
 	if err != nil {
 		if errors.Is(err, errEOF) {
 			// If this is the end of input we still need to check if the optional
-			// open brace has a matching close brace
+			// open brace has a matching close brace.
 			return p.parseCloseBrace, nil
 		}
 		return nil, fmt.Errorf("%w: %w", err, errExpectedCommaOrCloseBrace)
@@ -220,7 +220,7 @@ func (p *parser) parseComma(l *lexer) (parseFunc, error) {
 	if err != nil {
 		if errors.Is(err, errEOF) {
 			// If this is the end of input we still need to check if the optional
-			// open brace has a matching close brace
+			// open brace has a matching close brace.
 			return p.parseCloseBrace, nil
 		}
 		return nil, fmt.Errorf("%w: %w", err, errExpectedMatcherOrCloseBrace)
@@ -242,6 +242,7 @@ func (p *parser) parseEOF(l *lexer) (parseFunc, error) {
 	return nil, nil
 }
 
+// nolint:godot
 // accept returns true if the next token is one of the specified kinds,
 // otherwise false. If the token is accepted it is consumed. tokenEOF is
 // not an accepted kind  and instead accept returns ErrEOF if there is no
@@ -256,6 +257,7 @@ func (p *parser) accept(l *lexer, kinds ...tokenKind) (ok bool, err error) {
 	return ok, err
 }
 
+// nolint:godot
 // acceptPeek returns true if the next token is one of the specified kinds,
 // otherwise false. However, unlike accept, acceptPeek does not consume accepted
 // tokens. tokenEOF is not an accepted kind and instead accept returns ErrEOF
@@ -271,6 +273,7 @@ func (p *parser) acceptPeek(l *lexer, kinds ...tokenKind) (bool, error) {
 	return t.isOneOf(kinds...), nil
 }
 
+// nolint:godot
 // expect returns the next token if it is one of the specified kinds, otherwise
 // it returns an error. If the token is expected it is consumed. tokenEOF is not
 // an accepted kind and instead expect returns ErrEOF if there is no more input.
@@ -285,6 +288,7 @@ func (p *parser) expect(l *lexer, kind ...tokenKind) (token, error) {
 	return t, nil
 }
 
+// nolint:godot
 // expect returns the next token if it is one of the specified kinds, otherwise
 // it returns an error. However, unlike expect, expectPeek does not consume tokens.
 // tokenEOF is not an accepted kind and instead expect returns ErrEOF if there is no

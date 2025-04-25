@@ -8,26 +8,24 @@
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific l
 
 package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/common/route"
 )
 
 // V1DeprecationRouter is the router to signal v1 users that the API v1 is now removed.
 type V1DeprecationRouter struct {
-	logger log.Logger
+	logger *slog.Logger
 }
 
 // NewV1DeprecationRouter returns a new V1DeprecationRouter.
-func NewV1DeprecationRouter(l log.Logger) *V1DeprecationRouter {
+func NewV1DeprecationRouter(l *slog.Logger) *V1DeprecationRouter {
 	return &V1DeprecationRouter{
 		logger: l,
 	}
@@ -48,20 +46,20 @@ func (dr *V1DeprecationRouter) Register(r *route.Router) {
 }
 
 func (dr *V1DeprecationRouter) deprecationHandler(w http.ResponseWriter, req *http.Request) {
-	level.Warn(dr.logger).Log("msg", "v1 API received a request on a removed endpoint", "path", req.URL.Path, "method", req.Method)
+	dr.logger.Warn("v1 API received a request on a removed endpoint", "path", req.URL.Path, "method", req.Method)
 
 	resp := struct {
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	}{
 		"deprecated",
-		"The Alertmanager v1 API was deprecated in version 0.16.0 and is removed as of version 0.28.0 - please use the equivalent route in the v2 API",
+		"The Alertmanager v1 API was deprecated in version 0.16.0 and is removed as of version 0.27.0 - please use the equivalent route in the v2 API",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(410)
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		level.Error(dr.logger).Log("msg", "failed to write response", "err", err)
+		dr.logger.Error("failed to write response", "err", err)
 	}
 }

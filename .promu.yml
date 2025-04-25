@@ -1,17 +1,15 @@
 go:
     # Whenever the Go version is updated here,
     # .circle/config.yml should also be updated.
-    version: 1.21
+    version: 1.23
 repository:
     path: github.com/prometheus/alertmanager
 build:
-    static: false
     binaries:
         - name: alertmanager
           path: ./cmd/alertmanager
         - name: amtool
           path: ./cmd/amtool
-    flags: -a
     tags:
         all:
             - netgo

@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"mime"
 	"mime/multipart"
@@ -29,10 +30,9 @@ import (
 	"net/textproto"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,12 +45,12 @@ import (
 type Email struct {
 	conf     *config.EmailConfig
 	tmpl     *template.Template
-	logger   log.Logger
+	logger   *slog.Logger
 	hostname string
 }
 
 // New returns a new Email notifier.
-func New(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
+func New(c *config.EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = config.DefaultEmailSubject
 	}
@@ -75,7 +75,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 	// If no username is set, keep going without authentication.
 	if n.conf.AuthUsername == "" {
-		level.Debug(n.logger).Log("msg", "smtp_auth_username is not configured. Attempting to send email without authenticating")
+		n.logger.Debug("smtp_auth_username is not configured. Attempting to send email without authenticating")
 		return nil, nil
 	}
 
@@ -131,7 +131,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		success = false
 	)
 	if n.conf.Smarthost.Port == "465" {
-		tlsConfig, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+		tlsConfig, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
@@ -161,7 +161,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	defer func() {
 		// Try to clean up after ourselves but don't log anything if something has failed.
 		if err := c.Quit(); success && err != nil {
-			level.Warn(n.logger).Log("msg", "failed to close SMTP connection", "err", err)
+			n.logger.Warn("failed to close SMTP connection", "err", err)
 		}
 	}()
 
@@ -178,7 +178,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
 
-		tlsConf, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+		tlsConf, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
@@ -242,7 +242,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("send DATA command: %w", err)
 	}
-	defer message.Close()
+	closeOnce := sync.OnceValue(func() error {
+		return message.Close()
+	})
+	// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
+	// further down, the method may exit before then.
+	defer func() {
+		// If we try close an already-closed writer, it'll send a subsequent request to the server which is invalid.
+		_ = closeOnce()
+	}()
 
 	buffer := &bytes.Buffer{}
 	for header, t := range n.conf.Headers {
@@ -331,6 +339,11 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, fmt.Errorf("write body buffer: %w", err)
 	}
 
+	// Complete the message and await response.
+	if err = closeOnce(); err != nil {
+		return true, fmt.Errorf("delivery failure: %w", err)
+	}
+
 	success = true
 	return false, nil
 }
@@ -347,7 +360,7 @@ func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", []byte{}, nil
 }
 
-// Used for AUTH LOGIN. (Maybe password should be encrypted)
+// Used for AUTH LOGIN. (Maybe password should be encrypted).
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
 		switch strings.ToLower(string(fromServer)) {
