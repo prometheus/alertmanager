@@ -924,7 +924,7 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(r.GroupBy) > 0 && r.GroupByAll {
-		return errors.New("cannot have wildcard group_by (`...`) and other other labels at the same time")
+		return errors.New("cannot have wildcard group_by (`...`) and other labels at the same time")
 	}
 
 	groupBy := map[model.LabelName]struct{}{}
