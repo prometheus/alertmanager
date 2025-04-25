@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -42,12 +43,13 @@ const (
 
 // Notifier implements a Notifier for Pushover notifications.
 type Notifier struct {
-	conf    *config.PushoverConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
-	apiURL  string // for tests.
+	conf           *config.PushoverConfig
+	tmpl           *template.Template
+	logger         *slog.Logger
+	client         *http.Client
+	retrier        *notify.Retrier
+	apiMessagesURL string // for tests.
+	apiReceiptsURL string // for tests.
 }
 
 // New returns a new Pushover notifier.
@@ -57,30 +59,28 @@ func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpt
 		return nil, err
 	}
 	return &Notifier{
-		conf:    c,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
-		apiURL:  "https://api.pushover.net/1/messages.json",
+		conf:           c,
+		tmpl:           t,
+		logger:         l,
+		client:         client,
+		retrier:        &notify.Retrier{},
+		apiMessagesURL: "https://api.pushover.net/1/messages.json",
+		apiReceiptsURL: "https://api.pushover.net/1/receipts/cancel_by_tag",
 	}, nil
 }
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	key, ok := notify.GroupKey(ctx)
-	if !ok {
-		return false, fmt.Errorf("group key missing")
+	var err error
+	key, err := notify.ExtractGroupKey(ctx)
+	if err != nil {
+		return false, err
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	// @tjhop: should this use `group` for the keyval like most other notify implementations?
-	n.logger.Debug("extracted group key", "incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 
-	var (
-		err     error
-		message string
-	)
+	var message string
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 
@@ -110,6 +110,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters := url.Values{}
 	parameters.Add("token", tmpl(token))
 	parameters.Add("user", tmpl(userKey))
+
+	var (
+		priority    = tmpl(n.conf.Priority)
+		alerts      = types.Alerts(as...)
+		groupKeyTag = fmt.Sprintf("promAlertGroupKey_%s", key.Hash())
+		u           *url.URL
+	)
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
@@ -142,25 +149,39 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))
 
-	parameters.Add("priority", tmpl(n.conf.Priority))
+	parameters.Add("priority", priority)
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
 	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
-
+	if n.conf.CancelOnResolve && priority == "2" {
+		parameters.Add("tags", groupKeyTag)
+	}
 	newttl := int64(time.Duration(n.conf.TTL).Seconds())
 	if newttl > 0 {
 		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
 	}
 
+	u, err = url.Parse(n.apiMessagesURL)
 	if err != nil {
 		return false, err
 	}
 
-	u, err := url.Parse(n.apiURL)
 	if err != nil {
 		return false, err
 	}
+	shouldRetry, err := n.sendMessage(ctx, key, u, parameters)
+	if err == nil && n.conf.CancelOnResolve && alerts.Status() == model.AlertResolved {
+		u, err = url.Parse(fmt.Sprintf("%s/%s.json", n.apiReceiptsURL, groupKeyTag))
+		if err != nil {
+			return false, err
+		}
+		shouldRetry, err = n.sendMessage(ctx, key, u, parameters)
+	}
+	return shouldRetry, err
+}
+
+func (n *Notifier) sendMessage(ctx context.Context, key notify.Key, u *url.URL, parameters url.Values) (bool, error) {
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
 	n.logger.Debug("Sending message", "incident", key)

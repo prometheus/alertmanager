@@ -55,7 +55,8 @@ func TestPushoverRedactedURL(t *testing.T) {
 		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
-	notifier.apiURL = u.String()
+	notifier.apiMessagesURL = u.String()
+	notifier.apiReceiptsURL = u.String()
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key, token)
 }
@@ -79,7 +80,8 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
 	)
-	notifier.apiURL = apiURL.String()
+	notifier.apiMessagesURL = apiURL.String()
+	notifier.apiReceiptsURL = apiURL.String()
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, userKey)
@@ -104,7 +106,8 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
 	)
-	notifier.apiURL = apiURL.String()
+	notifier.apiMessagesURL = apiURL.String()
+	notifier.apiReceiptsURL = apiURL.String()
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, token)
