@@ -746,6 +746,8 @@ opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
+incidentio_configs:
+  [ - <incidentio_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
 rocketchat_configs:
@@ -1691,6 +1693,40 @@ endpoint:
 There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
+
+### `<incidentio_config>`
+
+incident.io notifications are sent via the [incident.io Alert Sources API](https://incident.io/docs/api/alert-sources).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+
+# The URL to send the incident.io alert. This would typically be provided by the 
+# incident.io team when setting up an alert source.
+# URL and URL_file are mutually exclusive.
+url: <string>
+url_file: <filepath>
+
+# The alert source token is used to authenticate with incident.io.
+# alert_source_token and alert_source_token_file are mutually exclusive.
+[ alert_source_token: <secret> ]
+[ alert_source_token_file: <filepath> ]
+
+# The maximum number of alerts to be sent per incident.io message.
+# Alerts exceeding this threshold will be truncated. Setting this to 0
+# allows an unlimited number of alerts. Note that if the payload exceeds 
+# incident.io's size limits, you will receive a 429 response and alerts 
+# will not be ingested.
+[ max_alerts: <int> | default = 0 ]
+
+# Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
+# does not impose a timeout.
+[ timeout: <duration> | default = 0s ]
+```
 
 ### `<wechat_config>`
 
