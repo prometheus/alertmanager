@@ -23,7 +23,7 @@ type Alerts struct {
 }
 
 // NewAlerts returns an *Alerts struct for the given API version.
-// Since v1 was deprecated in 0.28, v2 is now hardcoded.
+// Since v1 was deprecated in 0.27, v2 is now hardcoded.
 func NewAlerts(r prometheus.Registerer) *Alerts {
 	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:        "alertmanager_alerts_received_total",

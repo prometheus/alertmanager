@@ -14,10 +14,9 @@
 package cluster
 
 import (
+	"log/slog"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,7 +36,7 @@ const (
 type delegate struct {
 	*Peer
 
-	logger log.Logger
+	logger *slog.Logger
 	bcast  *memberlist.TransmitLimitedQueue
 
 	messagesReceived     *prometheus.CounterVec
@@ -49,7 +48,7 @@ type delegate struct {
 	nodePingDuration     *prometheus.HistogramVec
 }
 
-func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
+func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
 	bcast := &memberlist.TransmitLimitedQueue{
 		NumNodes:       p.ClusterSize,
 		RetransmitMult: retransmit,
@@ -104,9 +103,12 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}, []string{"peer"},
 	)
 	nodePingDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "alertmanager_cluster_pings_seconds",
-		Help:    "Histogram of latencies for ping messages.",
-		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5},
+		Name:                            "alertmanager_cluster_pings_seconds",
+		Help:                            "Histogram of latencies for ping messages.",
+		Buckets:                         []float64{.005, .01, .025, .05, .1, .25, .5},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"peer"},
 	)
 
@@ -154,7 +156,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 
 	var p clusterpb.Part
 	if err := proto.Unmarshal(b, &p); err != nil {
-		level.Warn(d.logger).Log("msg", "decode broadcast", "err", err)
+		d.logger.Warn("decode broadcast", "err", err)
 		return
 	}
 
@@ -166,7 +168,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 		return
 	}
 	if err := s.Merge(p.Data); err != nil {
-		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err, "key", p.Key)
+		d.logger.Warn("merge broadcast", "err", err, "key", p.Key)
 		return
 	}
 }
@@ -192,14 +194,14 @@ func (d *delegate) LocalState(_ bool) []byte {
 	for key, s := range d.states {
 		b, err := s.MarshalBinary()
 		if err != nil {
-			level.Warn(d.logger).Log("msg", "encode local state", "err", err, "key", key)
+			d.logger.Warn("encode local state", "err", err, "key", key)
 			return nil
 		}
 		all.Parts = append(all.Parts, clusterpb.Part{Key: key, Data: b})
 	}
 	b, err := proto.Marshal(all)
 	if err != nil {
-		level.Warn(d.logger).Log("msg", "encode local state", "err", err)
+		d.logger.Warn("encode local state", "err", err)
 		return nil
 	}
 	d.messagesSent.WithLabelValues(fullState).Inc()
@@ -213,7 +215,7 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 
 	var fs clusterpb.FullState
 	if err := proto.Unmarshal(buf, &fs); err != nil {
-		level.Warn(d.logger).Log("msg", "merge remote state", "err", err)
+		d.logger.Warn("merge remote state", "err", err)
 		return
 	}
 	d.mtx.RLock()
@@ -221,11 +223,11 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 	for _, p := range fs.Parts {
 		s, ok := d.states[p.Key]
 		if !ok {
-			level.Warn(d.logger).Log("received", "unknown state key", "len", len(buf), "key", p.Key)
+			d.logger.Warn("unknown state key", "len", len(buf), "key", p.Key)
 			continue
 		}
 		if err := s.Merge(p.Data); err != nil {
-			level.Warn(d.logger).Log("msg", "merge remote state", "err", err, "key", p.Key)
+			d.logger.Warn("merge remote state", "err", err, "key", p.Key)
 			return
 		}
 	}
@@ -233,19 +235,19 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 
 // NotifyJoin is called if a peer joins the cluster.
 func (d *delegate) NotifyJoin(n *memberlist.Node) {
-	level.Debug(d.logger).Log("received", "NotifyJoin", "node", n.Name, "addr", n.Address())
+	d.logger.Debug("NotifyJoin", "node", n.Name, "addr", n.Address())
 	d.Peer.peerJoin(n)
 }
 
 // NotifyLeave is called if a peer leaves the cluster.
 func (d *delegate) NotifyLeave(n *memberlist.Node) {
-	level.Debug(d.logger).Log("received", "NotifyLeave", "node", n.Name, "addr", n.Address())
+	d.logger.Debug("NotifyLeave", "node", n.Name, "addr", n.Address())
 	d.Peer.peerLeave(n)
 }
 
 // NotifyUpdate is called if a cluster peer gets updated.
 func (d *delegate) NotifyUpdate(n *memberlist.Node) {
-	level.Debug(d.logger).Log("received", "NotifyUpdate", "node", n.Name, "addr", n.Address())
+	d.logger.Debug("NotifyUpdate", "node", n.Name, "addr", n.Address())
 	d.Peer.peerUpdate(n)
 }
 
@@ -275,7 +277,7 @@ func (d *delegate) handleQueueDepth() {
 		case <-time.After(15 * time.Minute):
 			n := d.bcast.NumQueued()
 			if n > maxQueueSize {
-				level.Warn(d.logger).Log("msg", "dropping messages because too many are queued", "current", n, "limit", maxQueueSize)
+				d.logger.Warn("dropping messages because too many are queued", "current", n, "limit", maxQueueSize)
 				d.bcast.Prune(maxQueueSize)
 				d.messagesPruned.Add(float64(n - maxQueueSize))
 			}

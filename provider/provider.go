@@ -47,7 +47,7 @@ type AlertIterator interface {
 	Next() <-chan *types.Alert
 }
 
-// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type
+// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type.
 func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
 	return &alertIterator{
 		ch:   ch,

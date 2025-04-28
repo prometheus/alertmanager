@@ -136,7 +136,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		return nil, fmt.Errorf("matcher value not valid UTF-8: %s", ms[3])
 	}
 
-	// Unescape the rawValue:
+	// Unescape the rawValue.
 	for i, r := range rawValue {
 		if escaped {
 			escaped = false

@@ -422,4 +422,3 @@ Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blo
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
 [quay]: https://quay.io/repository/prometheus/alertmanager
-

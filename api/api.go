@@ -16,13 +16,14 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
 
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
@@ -45,16 +46,20 @@ type API struct {
 	inFlightSem              chan struct{}
 }
 
-// Options for the creation of an API object. Alerts, Silences, and StatusFunc
-// are mandatory to set. The zero value for everything else is a safe default.
+// Options for the creation of an API object. Alerts, Silences, AlertStatusFunc
+// and GroupMutedFunc are mandatory. The zero value for everything else is a safe
+// default.
 type Options struct {
 	// Alerts to be used by the API. Mandatory.
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences
-	// StatusFunc is used be the API to retrieve the AlertStatus of an
+	// AlertStatusFunc is used be the API to retrieve the AlertStatus of an
 	// alert. Mandatory.
-	StatusFunc func(model.Fingerprint) types.AlertStatus
+	AlertStatusFunc func(model.Fingerprint) types.AlertStatus
+	// GroupMutedFunc is used be the API to know if an alert is muted.
+	// Mandatory.
+	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
 	// Timeout for all HTTP connections. The zero value (and negative
@@ -66,7 +71,7 @@ type Options struct {
 	// the concurrency limit.
 	Concurrency int
 	// Logger is used for logging, if nil, no logging will happen.
-	Logger log.Logger
+	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
 	Registry prometheus.Registerer
@@ -83,8 +88,11 @@ func (o Options) validate() error {
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
 	}
-	if o.StatusFunc == nil {
-		return errors.New("mandatory field StatusFunc not set")
+	if o.AlertStatusFunc == nil {
+		return errors.New("mandatory field AlertStatusFunc not set")
+	}
+	if o.GroupMutedFunc == nil {
+		return errors.New("mandatory field GroupMutedFunc not set")
 	}
 	if o.GroupFunc == nil {
 		return errors.New("mandatory field GroupFunc not set")
@@ -100,7 +108,7 @@ func New(opts Options) (*API, error) {
 	}
 	l := opts.Logger
 	if l == nil {
-		l = log.NewNopLogger()
+		l = promslog.NewNopLogger()
 	}
 	concurrency := opts.Concurrency
 	if concurrency < 1 {
@@ -113,10 +121,11 @@ func New(opts Options) (*API, error) {
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
-		opts.StatusFunc,
+		opts.AlertStatusFunc,
+		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
-		log.With(l, "version", "v2"),
+		l.With("version", "v2"),
 		opts.Registry,
 	)
 	if err != nil {
@@ -145,7 +154,7 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		deprecationRouter:        NewV1DeprecationRouter(log.With(l, "version", "v1")),
+		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -162,7 +171,7 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
-	// TODO(gotjosh) API V1 was removed as of version 0.28, when we reach 1.0.0 we should removed these deprecation warnings.
+	// TODO(gotjosh) API V1 was removed as of version 0.27, when we reach 1.0.0 we should removed these deprecation warnings.
 	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()
