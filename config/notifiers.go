@@ -65,10 +65,7 @@ var (
 
 	// DefaultPagerdutyDetails defines the default values for PagerDuty details.
 	DefaultPagerdutyDetails = map[string]string{
-		"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
-		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-		"num_firing":   `{{ .Alerts.Firing | len }}`,
-		"num_resolved": `{{ .Alerts.Resolved | len }}`,
+		"details": `{{ template "pagerduty.default.instances" . }}`,
 	}
 
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
