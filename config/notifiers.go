@@ -535,8 +535,8 @@ type IncidentioConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     *SecretURL `yaml:"url" json:"url"`
-	URLFile string     `yaml:"url_file" json:"url_file"`
+	URL     *URL   `yaml:"url" json:"url"`
+	URLFile string `yaml:"url_file" json:"url_file"`
 
 	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
 	AlertSourceToken     Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
@@ -544,7 +544,9 @@ type IncidentioConfig struct {
 
 	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
-	// allows an unlimited number of alerts.
+	// allows an unlimited number of alerts. Note that if the payload exceeds
+	// incident.io's size limits, you will receive a 429 response and alerts
+	// will not be ingested.
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 
 	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
@@ -567,6 +569,12 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	}
 	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
 		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
+	}
+	if c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
+		return errors.New("one of alert_source_token or alert_source_token_file must be configured")
+	}
+	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
+		return errors.New("cannot specify both alert_source_token/alert_source_token_file and http_config.authorization")
 	}
 	return nil
 }

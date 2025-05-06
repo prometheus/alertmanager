@@ -39,7 +39,7 @@ import (
 func TestIncidentIORetry(t *testing.T) {
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
+			URL:        &config.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -60,7 +60,7 @@ func TestIncidentIORedactedURL(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -134,7 +134,7 @@ func TestIncidentIONotify(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -214,7 +214,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 
 			notifier, err := New(
 				&config.IncidentioConfig{
-					URL:        &config.SecretURL{URL: u},
+					URL:        &config.URL{URL: u},
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 				},
 				test.CreateTmpl(t),
