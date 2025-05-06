@@ -975,6 +975,7 @@ type RocketchatConfig struct {
 	Title       string                        `yaml:"title,omitempty" json:"title,omitempty"`
 	TitleLink   string                        `yaml:"title_link,omitempty" json:"title_link,omitempty"`
 	Text        string                        `yaml:"text,omitempty" json:"text,omitempty"`
+	PlainText   string                        `yaml:"plain_text,omitempty" json:"plain_text,omitempty"`
 	Fields      []*RocketchatAttachmentField  `yaml:"fields,omitempty" json:"fields,omitempty"`
 	ShortFields bool                          `yaml:"short_fields" json:"short_fields,omitempty"`
 	Emoji       string                        `yaml:"emoji,omitempty" json:"emoji,omitempty"`

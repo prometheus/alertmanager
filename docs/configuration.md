@@ -1360,12 +1360,15 @@ token_id_file: <filepath>
 
 
 [ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
-[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
-[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
-[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
-[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
-[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ emoji: <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}' ]
+[ icon_url: <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}' ]
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}' ]
+[ title: <tmpl_string | default = '{{ template "rocketchat.default.title" . }}' ]
+[ titleLink: <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}' ]
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}' ]
+# rocketchat notifications do not contain attachment title, you could set this
+# to {{ template "rocketchat.default.title" . }} to include title in push
+[ plain_text: <tmpl_string> ]
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url <tmpl_string> ]
