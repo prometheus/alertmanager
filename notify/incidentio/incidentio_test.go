@@ -39,8 +39,9 @@ import (
 func TestIncidentIORetry(t *testing.T) {
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			URL:              &config.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -60,8 +61,9 @@ func TestIncidentIORedactedURL(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: u},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -82,8 +84,9 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URLFile:    f.Name(),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			URLFile:          f.Name(),
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -122,7 +125,7 @@ func TestIncidentIONotify(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&msg))
 
 			// Verify required fields
-			require.Equal(t, "4", msg.Version)
+			require.Equal(t, "1", msg.Version)
 			require.NotEmpty(t, msg.GroupKey)
 			w.WriteHeader(http.StatusOK)
 		},
@@ -134,8 +137,9 @@ func TestIncidentIONotify(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:        &config.SecretURL{URL: u},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -214,8 +218,9 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 
 			notifier, err := New(
 				&config.IncidentioConfig{
-					URL:        &config.SecretURL{URL: u},
-					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					URL:              &config.URL{URL: u},
+					HTTPConfig:       &commoncfg.HTTPClientConfig{},
+					AlertSourceToken: "test-token",
 				},
 				test.CreateTmpl(t),
 				promslog.NewNopLogger(),

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -43,17 +44,26 @@ type Notifier struct {
 
 // New returns a new incident.io notifier.
 func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	// If alert source token is specified, set authorization in HTTP config
+	// Handle authentication configuration
 	if conf.HTTPConfig == nil {
 		conf.HTTPConfig = &commoncfg.HTTPClientConfig{}
 	}
 
+	// Ensure one of AlertSourceToken or AlertSourceTokenFile is provided
+	if conf.AlertSourceToken == "" && conf.AlertSourceTokenFile == "" {
+		return nil, errors.New("one of alert_source_token or alert_source_token_file must be configured")
+	}
+
+	// Error if authorization is already set in HTTPConfig
+	if conf.HTTPConfig.Authorization != nil {
+		return nil, errors.New("cannot specify both alert_source_token/alert_source_token_file and http_config.authorization")
+	}
+
+	// Set authorization from token or token file
 	if conf.AlertSourceToken != "" {
-		if conf.HTTPConfig.Authorization == nil {
-			conf.HTTPConfig.Authorization = &commoncfg.Authorization{
-				Type:        "Bearer",
-				Credentials: commoncfg.Secret(conf.AlertSourceToken),
-			}
+		conf.HTTPConfig.Authorization = &commoncfg.Authorization{
+			Type:        "Bearer",
+			Credentials: commoncfg.Secret(conf.AlertSourceToken),
 		}
 	} else if conf.AlertSourceTokenFile != "" {
 		content, err := os.ReadFile(conf.AlertSourceTokenFile)
@@ -61,11 +71,9 @@ func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, ht
 			return nil, fmt.Errorf("failed to read alert_source_token_file: %w", err)
 		}
 
-		if conf.HTTPConfig.Authorization == nil {
-			conf.HTTPConfig.Authorization = &commoncfg.Authorization{
-				Type:        "Bearer",
-				Credentials: commoncfg.Secret(strings.TrimSpace(string(content))),
-			}
+		conf.HTTPConfig.Authorization = &commoncfg.Authorization{
+			Type:        "Bearer",
+			Credentials: commoncfg.Secret(strings.TrimSpace(string(content))),
 		}
 	}
 
@@ -83,10 +91,6 @@ func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, ht
 		retrier: &notify.Retrier{
 			RetryCodes: []int{
 				http.StatusTooManyRequests, // 429
-				http.StatusInternalServerError,
-				http.StatusBadGateway,
-				http.StatusServiceUnavailable,
-				http.StatusGatewayTimeout,
 			},
 			CustomDetailsFunc: errDetails,
 		},
@@ -124,7 +128,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	n.logger.Debug("incident.io notification", "groupKey", groupKey)
 
 	msg := &Message{
-		Version:         "4",
+		Version:         "1",
 		Data:            data,
 		GroupKey:        groupKey.String(),
 		TruncatedAlerts: numTruncated,
@@ -197,8 +201,5 @@ func errDetails(status int, body io.Reader) string {
 		parts = append(parts, strings.Join(errorResponse.Errors, ", "))
 	}
 
-	if len(parts) > 0 {
-		return strings.Join(parts, ": ")
-	}
-	return ""
+	return strings.Join(parts, ": ")
 }
