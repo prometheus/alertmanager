@@ -171,8 +171,11 @@ viewDay dateTimePicker justViewTime day =
 viewTimePicker : DateTimePicker -> StartOrEnd -> Html Msg
 viewTimePicker dateTimePicker startOrEnd =
     div
-        [ class "row align-items-center mb-2 gx-3" ] -- Grid row with spacing
-        [ div [ class "col-2 small fw-bold" ] -- Label column
+        [ class "row align-items-center mb-2 gx-3" ]
+        -- Grid row with spacing
+        [ div [ class "col-2 small fw-bold" ]
+            -- Label column
+            -- TODO - responsiveness not great, can't see the time input values on my phone...
             [ text
                 (case startOrEnd of
                     Start ->
@@ -259,7 +262,8 @@ viewTimePicker dateTimePicker startOrEnd =
                     [ i [ class "fa fa-angle-down" ] [] ]
                 ]
             ]
-        , div [ class "col-6" ] -- Resulting datetime column
+        , div [ class "col-6" ]
+            -- Resulting datetime column
             [ text
                 (let
                     toString_ : Maybe Posix -> Maybe Posix -> String
