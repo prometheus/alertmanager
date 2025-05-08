@@ -1,6 +1,6 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, i, input, small, span, text)
+import Html exposing (Html, a, button, div, i, input, small, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
 import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)

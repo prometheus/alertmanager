@@ -1,7 +1,7 @@
 module Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 
-import Html exposing (Html, br, button, div, i, input, p, strong, text)
-import Html.Attributes as Attr exposing (class, maxlength, type_, value)
+import Html exposing (Html, br, button, div, i, input, text)
+import Html.Attributes as Attr exposing (class, value)
 import Html.Events exposing (on, onClick, onMouseOut, onMouseOver)
 import Iso8601
 import Json.Decode as Decode
