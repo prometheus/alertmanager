@@ -52,7 +52,8 @@ view labels maybeActiveId alert =
             , linkButton alert
             ]
         , if maybeActiveId == Just alert.fingerprint then
-            table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
+            table [ class "table w-100 mb-1" ]
+                (List.map annotation <| Dict.toList alert.annotations)
 
           else
             text ""
@@ -63,25 +64,17 @@ view labels maybeActiveId alert =
 labelButton : ( String, String ) -> Html Msg
 labelButton ( key, val ) =
     div
-        [ class "btn-group mr-2 mb-2" ]
+        [ class "btn-group me-2 mb-2" ]
         [ span
-            [ class "btn btn-sm border-right-0 text-muted"
-
-            -- have to reset bootstrap button styles to make the text selectable
+            [ class "btn btn-sm text-muted"
             , style "user-select" "initial"
-
-            -- have to reset bootstrap button styles to make the text selectable
             , style "-moz-user-select" "initial"
-
-            -- have to reset bootstrap button styles to make the text selectable
             , style "-webkit-user-select" "initial"
-
-            -- have to reset bootstrap button styles to make the text selectable
             , style "border-color" "#ccc"
             ]
             [ text (key ++ "=\"" ++ val ++ "\"") ]
         , button
-            [ class "btn btn-sm bg-faded btn-outline-secondary"
+            [ class "btn btn-sm bg-light btn-outline-secondary text-black"
             , onClick (addLabelMsg ( key, val ))
             , title "Filter by this label"
             ]
@@ -115,7 +108,7 @@ linkButton alert =
         [ class "btn btn-outline-info border-0"
         , href link
         ]
-        [ i [ class "fa fa-link mr-2" ] []
+        [ i [ class "fa fa-link me-2" ] []
         , text "Link"
         ]
 
@@ -128,7 +121,7 @@ silenceButton alert =
                 [ class "btn btn-outline-danger border-0"
                 , href ("#/silences/" ++ sId)
                 ]
-                [ i [ class "fa fa-bell-slash mr-2" ] []
+                [ i [ class "fa fa-bell-slash me-2" ] []
                 , text "Silenced"
                 ]
 
@@ -137,7 +130,7 @@ silenceButton alert =
                 [ class "btn btn-outline-info border-0"
                 , href (newSilenceFromAlertLabels alert.labels)
                 ]
-                [ i [ class "fa fa-bell-slash-o mr-2" ] []
+                [ i [ class "fa fa-bell-slash-o me-2" ] []
                 , text "Silence"
                 ]
 
@@ -147,9 +140,8 @@ inhibitedIcon alert =
     case List.head alert.status.inhibitedBy of
         Just _ ->
             span
-                [ class "btn btn-outline-danger border-0"
-                ]
-                [ i [ class "fa fa-eye-slash mr-2" ] []
+                [ class "btn btn-outline-danger border-0" ]
+                [ i [ class "fa fa-eye-slash me-2" ] []
                 , text "Inhibited"
                 ]
 
@@ -162,9 +154,8 @@ mutedIcon alert =
     case List.head alert.status.mutedBy of
         Just _ ->
             span
-                [ class "btn btn-outline-danger border-0"
-                ]
-                [ i [ class "fa fa-bell-slash mr-2" ] []
+                [ class "btn btn-outline-danger border-0" ]
+                [ i [ class "fa fa-bell-slash me-2" ] []
                 , text "Muted"
                 ]
 
