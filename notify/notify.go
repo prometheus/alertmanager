@@ -365,6 +365,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"webex",
 		"msteams",
 		"msteamsv2",
+		"incidentio",
 		"jira",
 		"rocketchat",
 	} {
