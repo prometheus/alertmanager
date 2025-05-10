@@ -97,7 +97,7 @@ func (u *URL) Copy() *URL {
 // MarshalYAML implements the yaml.Marshaler interface for URL.
 func (u URL) MarshalYAML() (interface{}, error) {
 	if u.URL != nil {
-		return u.URL.String(), nil
+		return u.String(), nil
 	}
 	return nil, nil
 }
@@ -119,7 +119,7 @@ func (u *URL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // MarshalJSON implements the json.Marshaler interface for URL.
 func (u URL) MarshalJSON() ([]byte, error) {
 	if u.URL != nil {
-		return json.Marshal(u.URL.String())
+		return json.Marshal(u.String())
 	}
 	return []byte("null"), nil
 }
@@ -145,7 +145,7 @@ type SecretURL URL
 func (s SecretURL) MarshalYAML() (interface{}, error) {
 	if s.URL != nil {
 		if MarshalSecretValue {
-			return s.URL.String(), nil
+			return s.String(), nil
 		}
 		return secretToken, nil
 	}
@@ -174,7 +174,7 @@ func (s SecretURL) MarshalJSON() ([]byte, error) {
 		return json.Marshal("")
 	}
 	if MarshalSecretValue {
-		return json.Marshal(s.URL.String())
+		return json.Marshal(s.String())
 	}
 	return json.Marshal(secretToken)
 }

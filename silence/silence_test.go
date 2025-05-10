@@ -430,7 +430,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	versionBeforeOp := s.Version()
 	require.NoError(t, s.Set(sil1))
-	require.NotEqual(t, "", sil1.Id)
+	require.NotEmpty(t, sil1.Id)
 	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	want := state{
@@ -457,7 +457,7 @@ func TestSilenceSet(t *testing.T) {
 	}
 	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(sil2))
-	require.NotEqual(t, "", sil2.Id)
+	require.NotEmpty(t, sil2.Id)
 	require.NotEqual(t, versionBeforeOp, s.Version())
 
 	want = state{
@@ -740,7 +740,7 @@ func TestSilenceNoLimits(t *testing.T) {
 		Comment:  strings.Repeat("c", 2<<9),
 	}
 	require.NoError(t, s.Set(sil))
-	require.NotEqual(t, "", sil.Id)
+	require.NotEmpty(t, sil.Id)
 }
 
 func TestSetActiveSilence(t *testing.T) {
