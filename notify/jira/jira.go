@@ -87,7 +87,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		method = http.MethodPost
 	)
 
-	existingIssue, shouldRetry, err := n.searchExistingIssue(ctx, logger, key.Hash(), alerts.HasFiring())
+	existingIssue, shouldRetry, err := n.searchExistingIssue(ctx, logger, key.Hash(), alerts.HasFiring(), tmplTextFunc)
 	if err != nil {
 		return shouldRetry, fmt.Errorf("failed to look up existing issues: %w", err)
 	}
@@ -194,7 +194,7 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Log
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool, tmplTextFunc templateFunc) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -214,7 +214,11 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	}
 
 	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
-	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, n.conf.Project, alertLabel))
+	project, err := tmplTextFunc(n.conf.Project)
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid project template or value: %w", err)
+	}
+	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel))
 
 	requestBody := issueSearch{
 		JQL:        jql.String(),

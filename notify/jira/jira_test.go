@@ -16,7 +16,6 @@ package jira
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -58,7 +57,105 @@ func TestJiraRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
+	}
+}
+
+func TestSearchExistingIssue(t *testing.T) {
+	expectedJQL := ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Error reading request body", http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			// Unmarshal the JSON data into the struct
+			var data issueSearch
+			err = json.Unmarshal(body, &data)
+			if err != nil {
+				http.Error(w, "Error unmarshaling JSON", http.StatusBadRequest)
+				return
+			}
+			require.Equal(t, expectedJQL, data.JQL)
+			w.Write([]byte(`{"total": 0, "issues": []}`))
+			return
+		default:
+			dec := json.NewDecoder(r.Body)
+			out := make(map[string]any)
+			err := dec.Decode(&out)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}))
+
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	for _, tc := range []struct {
+		title         string
+		cfg           *config.JiraConfig
+		groupKey      string
+		expectedJQL   string
+		expectedIssue *issue
+		expectedErr   bool
+		expectedRetry bool
+	}{
+		{
+			title: "search existing issue with project template",
+			cfg: &config.JiraConfig{
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			expectedJQL = tc.expectedJQL
+			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			as := []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"project": "PROJ",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}
+
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+			logger := pd.logger.With("group_key", tc.groupKey)
+
+			ctx := notify.WithGroupKey(context.Background(), tc.groupKey)
+			data := notify.GetTemplateData(ctx, pd.tmpl, as, logger)
+
+			var tmplTextErr error
+			tmplText := notify.TmplText(pd.tmpl, data, &tmplTextErr)
+			tmplTextFunc := func(tmpl string) (string, error) {
+				return tmplText(tmpl), tmplTextErr
+			}
+
+			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, true, tmplTextFunc)
+			if tc.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.EqualValues(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedRetry, retry)
+		})
 	}
 }
 

@@ -282,6 +282,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			return nil, false, fmt.Errorf("read key_file error: %w", err)
 		}
 		apiKey = tmpl(string(content))
+		apiKey = strings.TrimSpace(string(apiKey))
 	}
 
 	if err != nil {

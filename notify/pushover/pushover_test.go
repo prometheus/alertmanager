@@ -14,7 +14,7 @@
 package pushover
 
 import (
-	"fmt"
+	"net/http"
 	"os"
 	"testing"
 
@@ -23,7 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPushoverRetry(t *testing.T) {
@@ -37,7 +39,7 @@ func TestPushoverRetry(t *testing.T) {
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -109,4 +111,28 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, token)
+}
+
+func TestPushoverMonospaceParameter(t *testing.T) {
+	ctx, apiURL, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "1", r.FormValue("monospace"), `expected monospace parameter to be set to "1"`)
+	})
+	defer fn()
+
+	notifier, err := New(
+		&config.PushoverConfig{
+			UserKey:    config.Secret("user_key"),
+			Token:      config.Secret("token"),
+			Monospace:  true,
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	notifier.apiURL = apiURL.String()
+	require.NoError(t, err)
+
+	_, err = notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.Alert{})
+	require.NoError(t, err)
 }
