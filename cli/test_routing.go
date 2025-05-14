@@ -90,24 +90,26 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 			continue
 		}
 
-		// Check if this receiver has explicit grouping
 		parts := strings.SplitN(r, "=", 2)
 		receiverName := strings.TrimSpace(parts[0])
 		var cleanGroups []string
 
 		if len(parts) == 1 {
-			// No explicit grouping specified - treat as [...].
+			// No explicit grouping specified - treat as "any grouping" ([...]).
 			cleanGroups = []string{"..."}
 		} else {
 			groupingPart := strings.TrimSpace(parts[1])
 			if !strings.HasPrefix(groupingPart, "[") || !strings.HasSuffix(groupingPart, "]") {
-				return nil, fmt.Errorf("invalid grouping format in %q, expected [group1,group2] or [...] after =", r)
+				return nil, fmt.Errorf("invalid grouping format in %q, expected [group1,group2], [], or [...] after =", r)
 			}
 
-			// Extract and clean up group names
 			grouping := strings.TrimSuffix(strings.TrimPrefix(groupingPart, "["), "]")
-			if grouping == "" || grouping == "..." {
+			if grouping == "..." {
+				// Explicit "any grouping"
 				cleanGroups = []string{"..."}
+			} else if grouping == "" {
+				// Explicit "no grouping"
+				cleanGroups = []string{}
 			} else {
 				groups := strings.Split(grouping, ",")
 				cleanGroups = make([]string, 0, len(groups))
@@ -116,6 +118,10 @@ func parseReceiversWithGrouping(input string) (map[string][]string, error) {
 					if g != "" {
 						cleanGroups = append(cleanGroups, g)
 					}
+				}
+				// If groups like [,] were specified, resulting in empty cleanGroups, treat as "no grouping".
+				if len(cleanGroups) == 0 {
+					cleanGroups = []string{}
 				}
 			}
 		}
@@ -250,7 +256,6 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 		return nil
 	}
 
-	// Build slice of actual receivers and their groupings to handle multiple occurrences
 	type receiverInfo struct {
 		name     string
 		grouping []string
@@ -265,52 +270,51 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 	}
 
 	// Check each expected receiver and its grouping
-	for expectedReceiver, expectedGroups := range receiversGrouping {
-		baseReceiver := strings.Split(expectedReceiver, "_")[0]
+	for expectedReceiverKey, expectedGroups := range receiversGrouping {
+		baseReceiver := strings.Split(expectedReceiverKey, "_")[0] // Handle suffixed duplicates like receiver_1
+		matchedThisExpectedReceiver := false
 
-		// Find a matching receiver that hasn't been matched yet
-		matched := false
 		for i := range actualReceivers {
 			if actualReceivers[i].matched || actualReceivers[i].name != baseReceiver {
 				continue
 			}
 
-			if expectedGroups == nil {
-				// For receivers where we expect no grouping
-				if len(actualReceivers[i].grouping) > 0 {
-					continue // Try next occurrence if this one has grouping
-				}
-			} else {
-				// Special case: if expectedGroups contains "..." it means group by all labels
-				if len(expectedGroups) == 1 && expectedGroups[0] == "..." {
-					// Any grouping is acceptable
-					actualReceivers[i].matched = true
-					matched = true
-					break
-				}
-
-				// For receivers where we expect specific grouping
-				sortedExpected := slices.Clone(expectedGroups)
-				sortedActual := slices.Clone(actualReceivers[i].grouping)
-				slices.Sort(sortedExpected)
-				slices.Sort(sortedActual)
-
-				if !slices.Equal(sortedExpected, sortedActual) {
-					continue // Try next occurrence if grouping doesn't match
-				}
+			// Case 1: Expect "any grouping" (represented by ["..."])
+			if len(expectedGroups) == 1 && expectedGroups[0] == "..." {
+				actualReceivers[i].matched = true
+				matchedThisExpectedReceiver = true
+				break
 			}
 
-			actualReceivers[i].matched = true
-			matched = true
-			break
+			// Case 2: Expect "no grouping" (represented by empty slice [])
+			if len(expectedGroups) == 0 {
+				if len(actualReceivers[i].grouping) == 0 {
+					actualReceivers[i].matched = true
+					matchedThisExpectedReceiver = true
+					break
+				}
+				// This actual receiver has grouping, but we expect none. Try next actual receiver if any.
+				continue
+			}
+
+			// Case 3: Expect specific grouping labels
+			// Clone and sort for consistent comparison
+			sortedExpected := slices.Clone(expectedGroups)
+			slices.Sort(sortedExpected)
+			// actualReceivers[i].grouping is already sorted by sortGroupLabels
+			if slices.Equal(sortedExpected, actualReceivers[i].grouping) {
+				actualReceivers[i].matched = true
+				matchedThisExpectedReceiver = true
+				break
+			}
+			// Grouping does not match. Try next actual receiver if any.
 		}
 
-		if !matched {
-			// If we couldn't find a matching receiver instance
-			if expectedGroups == nil {
-				return fmt.Errorf("expected receiver %q without grouping not found", baseReceiver)
-			} else if len(expectedGroups) == 1 && expectedGroups[0] == "..." {
+		if !matchedThisExpectedReceiver {
+			if len(expectedGroups) == 1 && expectedGroups[0] == "..." {
 				return fmt.Errorf("expected receiver %q with any grouping not found", baseReceiver)
+			} else if len(expectedGroups) == 0 {
+				return fmt.Errorf("expected receiver %q with no grouping not found", baseReceiver)
 			} else {
 				return fmt.Errorf("expected receiver %q with grouping [%s] not found",
 					baseReceiver, strings.Join(expectedGroups, ","))
@@ -318,12 +322,14 @@ func verifyReceiversGrouping(receiversGrouping map[string][]string, finalRoutes 
 		}
 	}
 
-	// Check for unexpected extra receivers
+	// Check for unexpected extra receivers that were not matched
 	for _, r := range actualReceivers {
 		if !r.matched {
 			groupingStr := ""
 			if len(r.grouping) > 0 {
 				groupingStr = fmt.Sprintf(" with grouping [%s]", strings.Join(r.grouping, ","))
+			} else {
+				groupingStr = " with no grouping"
 			}
 			return fmt.Errorf("found unexpected receiver %q%s", r.name, groupingStr)
 		}
