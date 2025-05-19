@@ -1,14 +1,17 @@
 ---
 name: CI
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   pull_request:
   workflow_call:
 jobs:
   test_frontend:
     name: Test alertmanager frontend
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
       - run: make clean
       - run: make all
         working-directory: ./ui/app
@@ -22,8 +25,11 @@ jobs:
     strategy:
       matrix:
         thread: [0, 1, 2]
+    permissions: {}
     steps:
       - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+        with:
+          persist-credentials: false
       - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
       - uses: ./.github/promci/actions/build
         with:
@@ -38,8 +44,11 @@ jobs:
     # should also be updated.
     container:
       image: quay.io/prometheus/golang-builder:1.21-base
+    permissions: {}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
       - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
       - uses: ./.github/promci/actions/setup_environment
       - run: make
