@@ -205,25 +205,56 @@ match_re:
 matchers:
   [ - <matcher> ... ]
 
-# How long to initially wait to send a notification for a group
-# of alerts. Allows to wait for an inhibiting alert to arrive or collect
-# more initial alerts for the same group. (Usually ~0s to few minutes.)
+# How long to wait before sending the first notification for a new group of
+# alerts. Allows to wait for alerts to arrive from other rule groups or
+# Prometheus servers, and for one or more inhibiting alerts to arrive and mute
+# any target alerts before the first notification.
+#
+# A short group_wait will reduce the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too short
+# then the first notification might not contain the complete set of expected
+# alerts, and alerts that should be inhibited might not be inhibited if the
+# inhibiting alerts have not arrived in time.
+#
+# A long group_wait will increase the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too long
+# then notifications for firing alerts might not be sent within a reasonable
+# time.
+#
+# If an alert is resolved before group_wait has elapsed, no notification will
+# be sent for that alert. This reduces noise of flapping alerts.
+
+# A notification for any alerts that missed the initial group_wait will be
+# sent at the next group_interval instead.
+#
 # If omitted, child routes inherit the group_wait of the parent route.
 [ group_wait: <duration> | default = 30s ]
 
-# How long to wait before sending a notification about new alerts that
-# are added to a group of alerts for which an initial notification has
-# already been sent. (Usually ~5m or more.) If omitted, child routes
-# inherit the group_interval of the parent route.
+# How long to wait before sending subsequent notifications for an existing
+# group of alerts after group_wait.
+#
+# The group_interval is a recurring timer that starts as soon as group_wait
+# has elapsed. At each group_interval, Alertmanager checks if any new alerts
+# have fired or any firing alerts have resolved since the last group_interval,
+# and if they have a notification is sent. If they haven't, Alertmanager checks
+# if the repeat_interval has elapsed instead.
+#
+# If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
-# How long to wait before sending a notification again if it has already
-# been sent successfully for an alert. (Usually ~3h or more). If omitted,
-# child routes inherit the repeat_interval of the parent route.
-# Note that this parameter is implicitly bound by Alertmanager's
-# `--data.retention` configuration flag. Notifications will be resent after either
-# repeat_interval or the data retention period have passed, whichever
-# occurs first. `repeat_interval` should be a multiple of `group_interval`.
+# How long to wait before repeating the last notification. Notifications are
+# not repeated if any new alerts have fired or any firing alerts have resolved
+# since the last group_interval.
+#
+# Since the repeat_interval is checked after each group_interval, it should
+# be a multiple of the group_interval. If it's not, the repeat_interval
+# is rounded up to the next multiple of the group_interval.
+#
+# In addition, if repeat_interval is longer then `--data.retention`, the
+# notification will be repeated at the end of the data retention period
+# instead.
+#
+# If omitted, child routes inherit the repeat_interval of the parent route.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
@@ -469,7 +500,7 @@ Alertmanager runs in a special mode called fallback mode as its default mode. As
 In fallback mode, configurations are first parsed as UTF-8 matchers, and if incompatible with the UTF-8 parser, are then parsed as classic matchers. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will parse them as classic matchers and log a warning. This warning also includes a suggestion on how to change the matchers from classic matchers to UTF-8 matchers. For example:
 
 ```
-ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 ```
 
 Here the matcher `foo=` can be made into a valid UTF-8 matcher by double quoting the right hand side of the expression to give `foo=""`. These two matchers are equivalent, however with UTF-8 matchers the right hand side of the matcher is a required field.
@@ -517,7 +548,7 @@ Just like Alertmanager server, `amtool` will log a warning if the configuration 
 ```
 amtool check-config config.yml
 Checking 'config.yml'
-level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
   SUCCESS
 Found:
@@ -575,9 +606,9 @@ A UTF-8 matcher consists of three tokens:
 - One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
-Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
-Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"` are valid double-quoted strings.
+Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
 
 #### Classic matchers
 
@@ -719,7 +750,7 @@ pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
-rocket_configs:
+rocketchat_configs:
   [ - <rocketchat_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
@@ -1299,6 +1330,11 @@ token_file: <filepath>
 # Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
+# Optional HTML/monospace formatting for the message, see https://pushover.net/api#html
+# html and monospace formatting are mutually exclusive.
+[ html: <boolean> | default = false ]
+[ monospace: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
@@ -1361,7 +1397,7 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ msg: <tmpl_string> ]
 ```
 
-### `<slack_config>`
+#### `<slack_config>`
 
 Slack notifications can be sent via [Incoming webhooks](https://api.slack.com/messaging/webhooks) or [Bot tokens](https://api.slack.com/authentication/token-types).
 

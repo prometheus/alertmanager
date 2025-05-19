@@ -20,6 +20,7 @@ package silence
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -105,11 +106,13 @@ func (o *GetSilencesOK) Code() int {
 }
 
 func (o *GetSilencesOK) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesOK %s", 200, payload)
 }
 
 func (o *GetSilencesOK) String() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesOK %s", 200, payload)
 }
 
 func (o *GetSilencesOK) GetPayload() models.GettableSilences {
@@ -171,11 +174,13 @@ func (o *GetSilencesBadRequest) Code() int {
 }
 
 func (o *GetSilencesBadRequest) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest %s", 400, payload)
 }
 
 func (o *GetSilencesBadRequest) String() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest %s", 400, payload)
 }
 
 func (o *GetSilencesBadRequest) GetPayload() string {
@@ -237,11 +242,13 @@ func (o *GetSilencesInternalServerError) Code() int {
 }
 
 func (o *GetSilencesInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilencesInternalServerError) String() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilencesInternalServerError) GetPayload() string {

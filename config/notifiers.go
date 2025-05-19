@@ -750,7 +750,8 @@ type PushoverConfig struct {
 	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
 	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
-	HTML        bool     `yaml:"html" json:"html,omitempty"`
+	HTML        bool     `yaml:"html,omitempty" json:"html,omitempty"`
+	Monospace   bool     `yaml:"monospace,omitempty" json:"monospace,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -771,6 +772,9 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.Token != "" && c.TokenFile != "" {
 		return errors.New("at most one of token & token_file must be configured")
+	}
+	if c.HTML && c.Monospace {
+		return errors.New("at most one of monospace & html must be configured")
 	}
 	return nil
 }
