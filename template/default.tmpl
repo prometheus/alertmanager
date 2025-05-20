@@ -211,6 +211,14 @@ Alerts Resolved:
 {{- $priority -}}
 {{- end -}}
 
+{{ define "jira.host" }}
+    {{- with index .Alerts 0 -}}
+        {{- if .Labels.hostname -}}
+            {{- .Labels.hostname -}}
+        {{- end -}}
+    {{- end -}}
+{{ end }}
+
 {{ define "rocketchat.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "rocketchat.default.alias" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "rocketchat.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
