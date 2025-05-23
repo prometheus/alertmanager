@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -27,8 +28,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const alertChannelLength = 200
-
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
 	cancel context.CancelFunc
@@ -38,8 +37,9 @@ type Alerts struct {
 	alerts *store.Alerts
 	marker types.AlertMarker
 
-	listeners map[int]listeningAlerts
-	next      int
+	channelLength int
+	listeners     map[int]listeningAlerts
+	next          int
 
 	callback AlertStoreCallback
 
@@ -85,20 +85,25 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.AlertMarker, channelLength int, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}
 
+	if channelLength < 1 {
+		return nil, fmt.Errorf("channel length has to be > zero, provided %d", channelLength)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:    m,
-		alerts:    store.NewAlerts(),
-		cancel:    cancel,
-		listeners: map[int]listeningAlerts{},
-		next:      0,
-		logger:    l.With("component", "provider"),
-		callback:  alertCallback,
+		marker:        m,
+		alerts:        store.NewAlerts(),
+		cancel:        cancel,
+		channelLength: channelLength,
+		listeners:     map[int]listeningAlerts{},
+		next:          0,
+		logger:        l.With("component", "provider"),
+		callback:      alertCallback,
 	}
 
 	if r != nil {
@@ -170,7 +175,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
-		ch     = make(chan *types.Alert, max(len(alerts), alertChannelLength))
+		ch     = make(chan *types.Alert, max(len(alerts), a.channelLength))
 	)
 
 	for _, a := range alerts {
@@ -187,7 +192,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, alertChannelLength)
+		ch   = make(chan *types.Alert, a.channelLength)
 		done = make(chan struct{})
 	)
 	a.mtx.Lock()
