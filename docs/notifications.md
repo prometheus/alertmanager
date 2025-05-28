@@ -2,7 +2,6 @@
 title: Notification template reference
 sort_rank: 7
 ---
-# Notification Template Reference
 
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.

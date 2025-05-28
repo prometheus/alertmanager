@@ -4,8 +4,6 @@ sort_rank: 2
 nav_icon: sliders
 ---
 
-# Alertmanager
-
 The [Alertmanager](https://github.com/prometheus/alertmanager) handles alerts
 sent by client applications such as the Prometheus server.
 It takes care of deduplicating, grouping, and routing
