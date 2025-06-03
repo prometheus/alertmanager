@@ -138,7 +138,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory)
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -192,7 +192,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory)
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -398,7 +398,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), standardTimerFactory)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -538,7 +538,7 @@ route:
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m, standardTimerFactory)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -656,7 +656,7 @@ func TestDispatcherRace(t *testing.T) {
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), standardTimerFactory)
 	go dispatcher.Run()
 	dispatcher.Stop()
 }
@@ -684,7 +684,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), standardTimerFactory)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 

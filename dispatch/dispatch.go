@@ -98,6 +98,8 @@ type Dispatcher struct {
 	cancel func()
 
 	logger log.Logger
+
+	timerFactory TimerFactory
 }
 
 // Limits describes limits used by Dispatcher.
@@ -118,19 +120,25 @@ func NewDispatcher(
 	lim Limits,
 	l log.Logger,
 	m *DispatcherMetrics,
+	timerFactory TimerFactory,
 ) *Dispatcher {
 	if lim == nil {
 		lim = nilLimits{}
 	}
 
+	if timerFactory == nil {
+		timerFactory = standardTimerFactory
+	}
+
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		timeout: to,
-		logger:  log.With(l, "component", "dispatcher"),
-		metrics: m,
-		limits:  lim,
+		alerts:       ap,
+		stage:        s,
+		route:        r,
+		timeout:      to,
+		logger:       log.With(l, "component", "dispatcher"),
+		metrics:      m,
+		limits:       lim,
+		timerFactory: timerFactory,
 	}
 	return disp
 }
@@ -360,7 +368,7 @@ func (d *Dispatcher) processAlert(dispatchLink trace.Link, alert *types.Alert, r
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger, d.timerFactory)
 	routeGroups[fp] = ag
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
@@ -425,7 +433,7 @@ type aggrGroup struct {
 	ctx     context.Context
 	cancel  func()
 	done    chan struct{}
-	next    *time.Timer
+	timer   Timer
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
@@ -433,7 +441,7 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger, timerFactory TimerFactory) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -451,7 +459,12 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
-	ag.next = time.NewTimer(ag.opts.GroupWait)
+	ag.timer = timerFactory(
+		ag.ctx,
+		ag.opts,
+		ag.logger,
+		uint64(ag.fingerprint()),
+	)
 
 	return ag
 }
@@ -470,11 +483,11 @@ func (ag *aggrGroup) String() string {
 
 func (ag *aggrGroup) run(nf notifyFunc) {
 	defer close(ag.done)
-	defer ag.next.Stop()
+	defer ag.timer.Stop()
 
 	for {
 		select {
-		case now := <-ag.next.C:
+		case now := <-ag.timer.C():
 			// Give the notifications time until the next flush to
 			// finish before terminating them.
 			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
@@ -495,7 +508,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
-			ag.next.Reset(ag.opts.GroupInterval)
+			ag.timer.Reset(now)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
@@ -527,7 +540,7 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
 	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
-		ag.next.Reset(0)
+		ag.timer.Flush()
 	}
 }
 

@@ -35,7 +35,7 @@ done
 GOGOPROTO_ROOT="$(go list -mod=readonly -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
 GOGOPROTO_PATH="${GOGOPROTO_ROOT}:${GOGOPROTO_ROOT}/protobuf"
 
-DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
+DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb flushlog/flushlogpb"
 
 echo "generating files"
 for dir in ${DIRS}; do
