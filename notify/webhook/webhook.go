@@ -131,7 +131,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	defer notify.Drain(resp)
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	n.logger.Debug("webhook response", 
+	n.logger.Debug("webhook response",
 		"status", resp.Status,
 		"status_code", resp.StatusCode,
 		"body", string(bodyBytes),
