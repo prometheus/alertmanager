@@ -538,7 +538,7 @@ type WebhookConfig struct {
 
 	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
 	// does not impose a timeout.
-	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+	Timeout model.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
