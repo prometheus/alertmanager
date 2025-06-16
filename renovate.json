@@ -5,6 +5,7 @@
   "baseBranches": ["main", "/^release-\\d+\\.\\d+/"],
   "autoApprove": true,
   "updatePinnedDependencies": false,
+  "lockFileMaintenance": false,
   "tekton": {
     "automerge": true,
     "automergeStrategy": "rebase",
