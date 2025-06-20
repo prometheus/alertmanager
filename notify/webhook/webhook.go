@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -125,7 +126,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	if n.conf.Timeout > 0 {
-		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
+		postCtx, cancel := context.WithTimeoutCause(ctx, time.Duration(n.conf.Timeout), fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
 		defer cancel()
 		ctx = postCtx
 	}
