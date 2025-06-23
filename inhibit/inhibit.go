@@ -139,7 +139,6 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 			return true
 		}
 	}
-	ih.marker.SetInhibited(fp)
 
 	return false
 }
