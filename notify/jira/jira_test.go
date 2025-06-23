@@ -189,6 +189,9 @@ func TestJiraTemplating(t *testing.T) {
 			cfg: &config.JiraConfig{
 				Summary:     `{{ template "jira.default.summary" . }}`,
 				Description: `{{ template "jira.default.description" . }}`,
+				Fields: map[string]any{
+					"customfield_14400": `{{ template "jira.host" . }}`,
+				},
 			},
 			retry: false,
 		},
@@ -387,6 +390,7 @@ func TestJiraNotify(t *testing.T) {
 					"customfield_10006": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
 					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
 					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
+					"customfield_14400": `{{ template "jira.host" . }}`,
 				},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
@@ -398,6 +402,7 @@ func TestJiraNotify(t *testing.T) {
 					Labels: model.LabelSet{
 						"alertname": "test",
 						"instance":  "vm1",
+						"hostname":  "host1.exmple.com",
 					},
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
@@ -411,7 +416,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     strings.Repeat("A", maxSummaryLenRunes-1) + "…",
-					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - hostname = host1.exmple.com\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -419,6 +424,7 @@ func TestJiraNotify(t *testing.T) {
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
 				require.Equal(t, "value", issue["customfield_10001"])
+				require.Equal(t, "host1.exmple.com", issue["customfield_14400"])
 				require.Equal(t, float64(0), issue["customfield_10002"])
 				require.Equal(t, []any{float64(0)}, issue["customfield_10003"])
 				require.Equal(t, map[string]any{"value": "red"}, issue["customfield_10004"])
