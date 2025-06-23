@@ -50,6 +50,7 @@ type AlertStatus struct {
 	// For internal tracking, not exposed in the API.
 	pendingSilences []string
 	silencesVersion int
+	updatedAt       time.Time
 }
 
 // groupStatus stores the state of the group, and, as applicable, the names
@@ -88,6 +89,9 @@ type AlertMarker interface {
 	Status(model.Fingerprint) AlertStatus
 	// Delete the given alert.
 	Delete(model.Fingerprint)
+
+	// GC garbage collects alerts.
+	GC()
 
 	// Various methods to inquire if the given alert is in a certain
 	// AlertState. Silenced also returns all the active and pending
@@ -233,6 +237,7 @@ func (m *MemMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, ac
 	}
 
 	s.State = AlertStateSuppressed
+	s.updatedAt = time.Now()
 }
 
 // SetInhibited implements AlertMarker.
@@ -256,6 +261,7 @@ func (m *MemMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	}
 
 	s.State = AlertStateSuppressed
+	s.updatedAt = time.Now()
 }
 
 // Status implements AlertMarker.
@@ -279,6 +285,20 @@ func (m *MemMarker) Delete(alert model.Fingerprint) {
 	defer m.mtx.Unlock()
 
 	delete(m.alerts, alert)
+}
+
+// GC implements AlertMarker.
+func (m *MemMarker) GC() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	// Expire states after 15 minutes.
+	expiry := time.Now().Add(time.Minute * -15)
+	for alert, state := range m.alerts {
+		if state.updatedAt.Before(expiry) {
+			delete(m.alerts, alert)
+		}
+	}
 }
 
 // Unprocessed implements AlertMarker.
