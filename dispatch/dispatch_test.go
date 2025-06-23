@@ -139,7 +139,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -193,7 +193,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -755,7 +755,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, promslog.NewNopLogger())
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
 	dispatcher.aggrGroupsPerRoute = aggrGroups
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().

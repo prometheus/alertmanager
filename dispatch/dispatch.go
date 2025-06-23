@@ -337,7 +337,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
 	routeGroups[fp] = ag
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
@@ -386,6 +386,7 @@ type aggrGroup struct {
 	routeKey string
 
 	alerts  *store.Alerts
+	marker  types.AlertMarker
 	ctx     context.Context
 	cancel  func()
 	done    chan struct{}
@@ -397,7 +398,7 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger *slog.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -408,6 +409,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),
+		marker:   marker,
 		done:     make(chan struct{}),
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
@@ -536,6 +538,10 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		// we would delete an active alert thinking it was resolved.
 		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
+		} else {
+			for _, alert := range resolvedSlice {
+				ag.marker.Delete(alert.Fingerprint())
+			}
 		}
 	}
 }
