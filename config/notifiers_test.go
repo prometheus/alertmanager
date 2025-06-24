@@ -15,11 +15,12 @@ package config
 
 import (
 	"errors"
+	"net/mail"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -57,6 +58,47 @@ headers:
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestEmailToAllowsMultipleAdresses(t *testing.T) {
+	in := `
+to: 'a@example.com, ,b@example.com,c@example.com'
+`
+	var cfg EmailConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []*mail.Address{
+		{Address: "a@example.com"},
+		{Address: "b@example.com"},
+		{Address: "c@example.com"},
+	}
+
+	res, err := mail.ParseAddressList(cfg.To)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(res, expected) {
+		t.Fatalf("expected %v, got %v", expected, res)
+	}
+}
+
+func TestEmailDisallowMalformed(t *testing.T) {
+	in := `
+to: 'a@'
+`
+	var cfg EmailConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = mail.ParseAddressList(cfg.To)
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", "mail: no angle-addr")
 	}
 }
 
@@ -465,6 +507,26 @@ user_key: 'user key'
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "at most one of token & token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverHTMLOrMonospace(t *testing.T) {
+	in := `
+token: 'pushover token'
+user_key: 'user key'
+html: true
+monospace: true
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of monospace & html must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -1003,6 +1065,14 @@ bot_token_file: ''
 			in: `
 bot_token: xyz
 chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token, chat_id and message_thread_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+message_thread_id: 456
 `,
 		},
 		{

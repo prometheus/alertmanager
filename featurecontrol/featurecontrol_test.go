@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +46,7 @@ func TestFlags(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			fc, err := NewFlags(log.NewNopLogger(), tt.featureFlags)
+			fc, err := NewFlags(promslog.NewNopLogger(), tt.featureFlags)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 			} else {

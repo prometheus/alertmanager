@@ -120,6 +120,11 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
             , Navigation.pushUrl model.key (filteredUrl { filter | showInhibited = Just showInhibited })
             )
 
+        ToggleMuted showMuted ->
+            ( model
+            , Navigation.pushUrl model.key (filteredUrl { filter | showMuted = Just showMuted })
+            )
+
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )
 

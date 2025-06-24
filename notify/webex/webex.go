@@ -17,10 +17,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -30,6 +29,7 @@ import (
 )
 
 const (
+	// nolint:godot
 	// maxMessageSize represents the maximum message length that Webex supports.
 	maxMessageSize = 7439
 )
@@ -37,13 +37,13 @@ const (
 type Notifier struct {
 	conf    *config.WebexConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new Webex notifier.
-func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
@@ -87,12 +87,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	message, truncated := notify.TruncateInBytes(message, maxMessageSize)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "message truncated due to exceeding maximum allowed length by webex", "truncated_message", message)
+		n.logger.Debug("message truncated due to exceeding maximum allowed length by webex", "truncated_message", message)
 	}
 
 	w := webhook{
 		Markdown: message,
-		RoomID:   n.conf.RoomID,
+		RoomID:   tmpl(n.conf.RoomID),
 	}
 
 	var payload bytes.Buffer

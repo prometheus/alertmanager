@@ -17,11 +17,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -40,7 +42,7 @@ const (
 type Notifier struct {
 	conf         *config.MSTeamsConfig
 	tmpl         *template.Template
-	logger       log.Logger
+	logger       *slog.Logger
 	client       *http.Client
 	retrier      *notify.Retrier
 	webhookURL   *config.SecretURL
@@ -58,7 +60,7 @@ type teamsMessage struct {
 }
 
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
-func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.MSTeamsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteams", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -83,7 +85,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
@@ -113,6 +115,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
+	var url string
+	if n.conf.WebhookURL != nil {
+		url = n.conf.WebhookURL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.WebhookURLFile)
+		if err != nil {
+			return false, fmt.Errorf("read webhook_url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(content))
+	}
+
 	t := teamsMessage{
 		Context:    "http://schema.org/extensions",
 		Type:       "MessageCard",
@@ -127,7 +140,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := n.postJSONFunc(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

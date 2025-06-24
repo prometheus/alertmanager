@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,14 +44,14 @@ func TestPagerDutyRetryV1(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusForbidden)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retryv1 - error on status %d", statusCode)
 	}
 }
 
@@ -63,14 +62,14 @@ func TestPagerDutyRetryV2(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retryv2 - error on status %d", statusCode)
 	}
 }
 
@@ -85,7 +84,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
@@ -105,7 +104,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -128,7 +127,7 @@ func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
@@ -153,7 +152,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -251,7 +250,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.URL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 			if pd.apiV1 != "" {
 				pd.apiV1 = u.String()
@@ -340,7 +339,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -363,7 +362,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -478,7 +477,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		Links:      links,
 	}
 
-	pagerDuty, err := New(&pagerDutyConfig, test.CreateTmpl(t), log.NewNopLogger())
+	pagerDuty, err := New(&pagerDutyConfig, test.CreateTmpl(t), promslog.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()

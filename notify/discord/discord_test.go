@@ -16,16 +16,17 @@ package discord
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -44,13 +45,13 @@ func TestDiscordRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
 
@@ -100,7 +101,7 @@ func TestDiscordTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.WebhookURL = &config.SecretURL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -126,4 +127,106 @@ func TestDiscordTemplating(t *testing.T) {
 			require.Equal(t, tc.retry, ok)
 		})
 	}
+}
+
+func TestDiscordRedactedURL(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	secret := "secret"
+	notifier, err := New(
+		&config.DiscordConfig{
+			WebhookURL: &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestDiscordReadingURLFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	f, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(u.String() + "\n")
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.DiscordConfig{
+			WebhookURLFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+func TestDiscord_Notify(t *testing.T) {
+	// Create a fake HTTP server to simulate the Discord webhook
+	var resp string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Read the request as a string
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err, "reading request body failed")
+		// Store the request body in the response
+		resp = string(body)
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Create a temporary file to simulate the WebhookURLFile
+	tempFile, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove(tempFile.Name()))
+	})
+
+	// Write the fake webhook URL to the temp file
+	_, err = tempFile.WriteString(srv.URL)
+	require.NoError(t, err)
+
+	// Create a DiscordConfig with the WebhookURLFile set
+	cfg := &config.DiscordConfig{
+		WebhookURLFile: tempFile.Name(),
+		HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		Title:          "Test Title",
+		Message:        "Test Message",
+		Content:        "Test Content",
+		Username:       "Test Username",
+		AvatarURL:      "http://example.com/avatar.png",
+	}
+
+	// Create a new Discord notifier
+	notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	// Create a context and alerts
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	// Call the Notify method
+	ok, err := notifier.Notify(ctx, alerts...)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.JSONEq(t, `{"content":"Test Content","embeds":[{"title":"Test Title","description":"Test Message","color":10038562}],"username":"Test Username","avatar_url":"http://example.com/avatar.png"}`, resp)
 }

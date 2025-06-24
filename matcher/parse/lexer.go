@@ -251,7 +251,7 @@ func (l *lexer) accept(valid string) bool {
 }
 
 // expect consumes the next rune if its one of the valid runes.
-// it returns nil if the next rune is valid, otherwise an expectedError
+// It returns nil if the next rune is valid, otherwise an expectedError
 // error.
 func (l *lexer) expect(valid string) error {
 	if strings.ContainsRune(valid, l.next()) {

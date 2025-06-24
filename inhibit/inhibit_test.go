@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -28,7 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var nopLogger = log.NewNopLogger()
+var nopLogger = promslog.NewNopLogger()
 
 func TestInhibitRuleHasEqual(t *testing.T) {
 	t.Parallel()
@@ -144,12 +144,12 @@ func TestInhibitRuleMatches(t *testing.T) {
 	rule1 := config.InhibitRule{
 		SourceMatch: map[string]string{"s1": "1"},
 		TargetMatch: map[string]string{"t1": "1"},
-		Equal:       model.LabelNames{"e"},
+		Equal:       []string{"e"},
 	}
 	rule2 := config.InhibitRule{
 		SourceMatch: map[string]string{"s2": "1"},
 		TargetMatch: map[string]string{"t2": "1"},
-		Equal:       model.LabelNames{"e"},
+		Equal:       []string{"e"},
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
@@ -240,12 +240,12 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	rule1 := config.InhibitRule{
 		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
-		Equal:          model.LabelNames{"e"},
+		Equal:          []string{"e"},
 	}
 	rule2 := config.InhibitRule{
 		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
-		Equal:          model.LabelNames{"e"},
+		Equal:          []string{"e"},
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
@@ -374,7 +374,7 @@ func TestInhibit(t *testing.T) {
 		return config.InhibitRule{
 			SourceMatch: map[string]string{"s": "1"},
 			TargetMatch: map[string]string{"t": "1"},
-			Equal:       model.LabelNames{"e"},
+			Equal:       []string{"e"},
 		}
 	}
 	// alertOne is muted by alertTwo when it is active.

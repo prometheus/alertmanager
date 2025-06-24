@@ -16,16 +16,17 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -138,7 +139,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -192,7 +193,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -236,9 +237,33 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	// Resolve all alerts, they should be removed after the next batch was sent.
-	a1r, a2r, a3r := *a1, *a2, *a3
-	resolved := types.AlertSlice{&a1r, &a2r, &a3r}
+	// Resolve an alert, and it should be removed after the next batch was sent.
+	a1r := *a1
+	a1r.EndsAt = time.Now()
+	ag.insert(&a1r)
+	exp := append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
+
+	select {
+	case <-time.After(2 * opts.GroupInterval):
+		t.Fatalf("expected new batch after group interval but received none")
+	case batch := <-alertsCh:
+		lastCurMtx.Lock()
+		s := time.Since(last)
+		lastCurMtx.Unlock()
+		if s < opts.GroupInterval {
+			t.Fatalf("received batch too early after %v", s)
+		}
+		sort.Sort(batch)
+
+		if !reflect.DeepEqual(batch, exp) {
+			t.Fatalf("expected alerts %v but got %v", exp, batch)
+		}
+	}
+
+	// Resolve all remaining alerts, they should be removed after the next batch was sent.
+	// Do not add a1r as it should have been deleted following the previous batch.
+	a2r, a3r := *a2, *a3
+	resolved := types.AlertSlice{&a2r, &a3r}
 	for _, a := range resolved {
 		a.EndsAt = time.Now()
 		ag.insert(a)
@@ -363,7 +388,7 @@ route:
 		t.Fatal(err)
 	}
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
@@ -415,6 +440,8 @@ route:
 				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
+			GroupKey: "{}:{alertname=\"OtherAlert\"}",
+			RouteID:  "{}",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[1]},
@@ -423,6 +450,8 @@ route:
 				"service":   "api",
 			},
 			Receiver: "testing",
+			GroupKey: "{}/{env=\"testing\"}:{alertname=\"TestingAlert\", service=\"api\"}",
+			RouteID:  "{}/{env=\"testing\"}/0",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
@@ -432,6 +461,8 @@ route:
 				"cluster":   "aa",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"aa\", service=\"api\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[4]},
@@ -441,6 +472,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"bb\", service=\"api\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
@@ -450,6 +483,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "kafka",
+			GroupKey: "{}/{kafka=\"yes\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
+			RouteID:  "{}/{kafka=\"yes\"}/2",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
@@ -459,6 +494,8 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "prod",
+			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
+			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]string{
@@ -501,7 +538,7 @@ route:
 		t.Fatal(err)
 	}
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
@@ -585,7 +622,7 @@ func (r *recordStage) Alerts() []*types.Alert {
 	return alerts
 }
 
-func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (r *recordStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	gk, ok := notify.GroupKey(ctx)
@@ -623,7 +660,7 @@ func newAlert(labels model.LabelSet) *types.Alert {
 }
 
 func TestDispatcherRace(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
 	if err != nil {
@@ -640,7 +677,7 @@ func TestDispatcherRace(t *testing.T) {
 func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
 	const numAlerts = 5000
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
 	if err != nil {
@@ -690,4 +727,49 @@ type limits struct {
 
 func (l limits) MaxNumberOfAggregationGroups() int {
 	return l.groups
+}
+
+func TestDispatcher_DoMaintenance(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := types.NewMarker(r)
+
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy:       map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:     0,
+			GroupInterval: 5 * time.Minute, // Should never hit in this test.
+		},
+	}
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+
+	ctx := context.Background()
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
+	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
+	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+
+	// Insert an aggregation group with no alerts.
+	labels := model.LabelSet{"alertname": "1"}
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, promslog.NewNopLogger())
+	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
+	dispatcher.aggrGroupsPerRoute = aggrGroups
+	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
+	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
+
+	// Insert a marker for the aggregation group's group key.
+	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
+	mutedBy, isMuted := marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, mutedBy)
+
+	// Run the maintenance and the marker should be removed.
+	dispatcher.doMaintenance()
+	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	require.False(t, isMuted)
+	require.Empty(t, mutedBy)
 }

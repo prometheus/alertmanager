@@ -14,19 +14,17 @@
 package v2
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 )
 
-func createSilence(t *testing.T, ID, creator string, start, ends time.Time) (open_api_models.PostableSilence, []byte) {
+func createSilence(t *testing.T, ID, creator string, start, ends time.Time) open_api_models.PostableSilence {
 	t.Helper()
 
 	comment := "test"
@@ -46,10 +44,7 @@ func createSilence(t *testing.T, ID, creator string, start, ends time.Time) (ope
 			Comment:   &comment,
 		},
 	}
-	b, err := json.Marshal(&sil)
-	require.NoError(t, err)
-
-	return sil, b
+	return sil
 }
 
 func createSilenceMatcher(t *testing.T, name, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
