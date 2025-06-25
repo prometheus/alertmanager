@@ -3,6 +3,7 @@
 /amtool
 *.yml
 *.yaml
+/.idea
 /.build
 /.release
 /.tarballs
