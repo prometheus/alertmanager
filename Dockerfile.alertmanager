@@ -1,0 +1,49 @@
+# Multi-stage Dockerfile for Alertmanager
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make bash nodejs npm
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the binaries (skip UI build for faster compilation)
+# Force native architecture build
+RUN CGO_ENABLED=0 GOOS=linux go build -o alertmanager ./cmd/alertmanager
+RUN CGO_ENABLED=0 GOOS=linux go build -o amtool ./cmd/amtool
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for TLS with retry logic
+RUN apk update && apk --no-cache add ca-certificates tzdata || \
+    (sleep 5 && apk update && apk --no-cache add ca-certificates tzdata)
+
+# Create alertmanager user
+RUN addgroup -S alertmanager && adduser -S alertmanager -G alertmanager
+
+# Copy binaries from builder stage
+COPY --from=builder /app/alertmanager /bin/alertmanager
+COPY --from=builder /app/amtool /bin/amtool
+
+# Copy default configuration
+COPY examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
+
+# Create directories and set permissions
+RUN mkdir -p /alertmanager && \
+    chown -R alertmanager:alertmanager /etc/alertmanager /alertmanager
+
+USER alertmanager
+EXPOSE 9093
+VOLUME ["/alertmanager"]
+WORKDIR /alertmanager
+ENTRYPOINT ["/bin/alertmanager"]
+CMD ["--config.file=/etc/alertmanager/alertmanager.yml", \
+     "--storage.path=/alertmanager"]

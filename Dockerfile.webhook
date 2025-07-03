@@ -1,0 +1,28 @@
+# Dockerfile for webhook echo server
+FROM golang:1.23-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy the echo.go file
+COPY examples/webhook/echo.go .
+
+# Build the binary
+RUN CGO_ENABLED=0 go build -o webhook-server echo.go
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for TLS with retry logic
+RUN apk update && apk --no-cache add ca-certificates || \
+    (sleep 5 && apk update && apk --no-cache add ca-certificates)
+
+# Create webhook user
+RUN addgroup -S webhook && adduser -S webhook -G webhook
+
+# Copy binary from builder stage
+COPY --from=builder /app/webhook-server /bin/webhook-server
+
+USER webhook
+EXPOSE 5001
+ENTRYPOINT ["/bin/webhook-server"]
