@@ -86,3 +86,12 @@ clean:
 test: $(GOTEST_DIR)
 	@echo ">> running all tests, except notify/email"
 	$(GOTEST) $(test-flags) $(GOOPTS) `go list ./... | grep -v notify/email`
+
+.PHONY: docker
+docker:
+	GOOS=linux GOARCH=arm64 $(MAKE) build
+	mkdir -p .build/linux-arm64
+	cp alertmanager amtool .build/linux-arm64/
+	docker build . -t alertmanager:snapshot \
+		--build-arg OS=linux \
+		--build-arg ARCH=arm64
