@@ -62,6 +62,6 @@ alerts1='[
      }
   }
 ]'
-curl -XPOST -d"$alerts1" http://localhost:9093/api/v1/alerts
-curl -XPOST -d"$alerts1" http://localhost:9094/api/v1/alerts
-curl -XPOST -d"$alerts1" http://localhost:9095/api/v1/alerts
+curl -XPOST -d"$alerts1" -H "Content-Type: application/json" http://localhost:9093/api/v2/alerts
+curl -XPOST -d"$alerts1" -H "Content-Type: application/json" http://localhost:9094/api/v2/alerts
+curl -XPOST -d"$alerts1" -H "Content-Type: application/json" http://localhost:9095/api/v2/alerts
