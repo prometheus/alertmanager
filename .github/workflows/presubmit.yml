@@ -1,0 +1,44 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: Presubmit
+on:
+  push:
+jobs:
+  go:
+    name: Go tests
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/prometheus/golang-builder:1.23-base
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
+    - uses: ./.github/promci/actions/setup_environment
+    - run: make build test # Only build and test; nothing fancy.
+    - run: git diff --exit-code
+  build-image-amd64:
+    name: Ensure Google image builds (amd64)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Ensure forked image is buildable
+      run: |
+        docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+        docker buildx create --name multi-arch-builder --use
+        docker buildx build -t ensure-it-builds:amd64 . --platform linux/amd64 --load
+        # TODO: One day we could enable this, but right now it's OOMing on free GH action.
+        # docker buildx build -t ensure-it-builds:arm64 . --platform linux/arm64 --load

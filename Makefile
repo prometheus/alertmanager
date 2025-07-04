@@ -76,7 +76,7 @@ api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 clean:
 	- @rm -rf asset/assets_vfsdata.go \
                   template/email.tmpl \
-                  api/v2/models api/v2/restapi api/v2/client
+                  api/v2/models api/v2/r:westapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
 
 # In github actions we skip the email test for now. Service containers in github
