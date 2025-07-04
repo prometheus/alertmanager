@@ -4,22 +4,21 @@ WORKDIR /app
 COPY . ./
 RUN mkdir /etc/alertmanager
 RUN mkdir /alertmanager
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build \
-    -tags boring \
+ENV GOEXPERIMENT=noboringcrypto
+ENV CGO_ENABLED=0
+ENV GOFIPS140=latest
+RUN go build \
     -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
     ./cmd/alertmanager
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build \
-    -tags boring \
+RUN go build \
     -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
     ./cmd/amtool
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240907.00_p0@sha256:2cdd63fbfb7bc7482f28328494c8cd6783eba0d4c1007c164a9deee3656b618b
+FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=gobase /app/alertmanager /bin/alertmanager
 COPY --from=gobase /app/amtool /bin/amtool
 COPY --from=gobase --chown=nobody:nobody /etc/alertmanager /etc/alertmanager
