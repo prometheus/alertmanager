@@ -136,6 +136,9 @@ func (a *Alerts) gc() {
 		a.callback.PostDelete(&alert)
 	}
 
+	// Garbage collect marked alerts.
+	a.marker.GC()
+
 	for i, l := range a.listeners {
 		select {
 		case <-l.done:
