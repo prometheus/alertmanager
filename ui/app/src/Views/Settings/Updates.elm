@@ -10,7 +10,7 @@ import Views.SilenceForm.Types
 update : SettingsMsg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Views.Settings.Types.UpdateFirstDayOfWeek firstDayOfWeekString ->
+        UpdateFirstDayOfWeek firstDayOfWeekString ->
             let
                 firstDayOfWeek =
                     case firstDayOfWeekString of
@@ -43,6 +43,28 @@ update msg model =
                     )
                 , persistFirstDayOfWeek firstDayOfWeekString2
                 ]
+            )
+
+        UpdateBootstrapTheme themeString ->
+            let
+                validTheme =
+                    case themeString of
+                        "auto" ->
+                            "auto"
+
+                        "light" ->
+                            "light"
+
+                        "dark" ->
+                            "dark"
+
+                        _ ->
+                            model.bootstrapTheme
+
+                -- Default to the current theme if invalid
+            in
+            ( { model | bootstrapTheme = validTheme }
+            , Task.perform identity (Task.succeed (SetAndPersistBootstrapTheme validTheme))
             )
 
 
