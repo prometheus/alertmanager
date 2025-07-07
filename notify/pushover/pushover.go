@@ -72,10 +72,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if !ok {
 		return false, fmt.Errorf("group key missing")
 	}
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
-	// @tjhop: should this use `group` for the keyval like most other notify implementations?
-	n.logger.Debug("extracted group key", "incident", key)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
 	var (
 		err     error
@@ -113,7 +113,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		n.logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
+		logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
 	}
 	parameters.Add("title", title)
 
@@ -130,7 +130,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
-		n.logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
+		logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -141,7 +141,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
 	if truncated {
-		n.logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
+		logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))
@@ -167,7 +167,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
-	n.logger.Debug("Sending message", "incident", key)
+	logger.Debug("Sending message", "incident", key)
 	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
 	if err != nil {
 		return true, notify.RedactURL(err)
