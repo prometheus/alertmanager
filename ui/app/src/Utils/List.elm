@@ -47,7 +47,7 @@ mstring m =
             else
                 "!~"
     in
-    String.join sep [ m.name, m.value ]
+    String.concat [ m.name, sep, "\"", m.value, "\"" ]
 
 
 {-| Takes a key-fn and a list.
