@@ -37,17 +37,18 @@ const maxTitleLenRunes = 1024
 
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
-	conf    *config.SlackConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf     *config.SlackConfig
+	tmpl     *template.Template
+	logger   *slog.Logger
+	client   *http.Client
+	retrier  *notify.Retrier
+	messages *SlackMessages
 
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, messages *SlackMessages, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -59,6 +60,7 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 		logger:       l,
 		client:       client,
 		retrier:      &notify.Retrier{},
+		messages:     messages,
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -71,6 +73,7 @@ type request struct {
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
 	Attachments []attachment `json:"attachments"`
+	Ts          string       `json:"ts,omitempty"`
 }
 
 // attachment is used to display a richly-formatted message block.
@@ -92,11 +95,30 @@ type attachment struct {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var ts string
 	var err error
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
+	
+	// Extract group key for message persistence
+	groupKey, err := notify.ExtractGroupKey(ctx)
+	if err != nil {
+		return false, err
+	}
+	
+	// Get channel name
+	channel := tmplText(n.conf.Channel)
+	
+	// Check if we have an existing message for this alert group
+	if n.messages != nil {
+		existingTs, err := n.messages.Get(groupKey, channel)
+		if err == nil {
+			ts = existingTs
+			n.logger.Debug("Found existing Slack message", "group_key", groupKey, "channel", channel, "ts", ts)
+		}
+	}
 	var markdownIn []string
 
 	if len(n.conf.MrkdwnIn) == 0 {
@@ -177,12 +199,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	req := &request{
-		Channel:     tmplText(n.conf.Channel),
+		Channel:     channel,
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
 		LinkNames:   n.conf.LinkNames,
 		Attachments: []attachment{*att},
+		Ts:          ts,
 	}
 	if err != nil {
 		return false, err
@@ -218,12 +241,42 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
+	// Read response body once for both error checking and ts extraction
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return true, fmt.Errorf("could not read response body: %w", err)
+	}
+
 	// Slack web API might return errors with a 200 response code.
 	// https://slack.dev/node-slack-sdk/web-api#handle-errors
-	retry, err = checkResponseError(resp)
-	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+	var responseTs string
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		retry, err = checkJSONResponseError(body)
+		if err != nil {
+			err = fmt.Errorf("channel %q: %w", req.Channel, err)
+			return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		}
+		// Extract ts from successful JSON response
+		if n.messages != nil {
+			if ts, err := extractTsFromResponse(body); err == nil && ts != "" {
+				responseTs = ts
+			}
+		}
+	} else {
+		retry, err = checkTextResponseError(body)
+		if err != nil {
+			err = fmt.Errorf("channel %q: %w", req.Channel, err)
+			return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		}
+	}
+
+	// Store the ts if we extracted it successfully
+	if n.messages != nil && responseTs != "" {
+		if err := n.messages.Set(groupKey, channel, responseTs); err != nil {
+			n.logger.Warn("Failed to store Slack message ts", "err", err, "group_key", groupKey, "channel", channel, "ts", responseTs)
+		} else {
+			n.logger.Debug("Stored Slack message ts", "group_key", groupKey, "channel", channel, "ts", responseTs)
+		}
 	}
 
 	return retry, nil
@@ -269,4 +322,21 @@ func checkJSONResponseError(body []byte) (bool, error) {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
 	return false, nil
+}
+
+// extractTsFromResponse extracts the ts field from a Slack JSON response.
+func extractTsFromResponse(body []byte) (string, error) {
+	type response struct {
+		OK bool   `json:"ok"`
+		Ts string `json:"ts"`
+	}
+
+	var data response
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
+	}
+	if !data.OK {
+		return "", fmt.Errorf("response not ok")
+	}
+	return data.Ts, nil
 }

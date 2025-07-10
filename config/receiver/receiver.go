@@ -43,7 +43,7 @@ import (
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
+func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger *slog.Logger, slackMessages *slack.SlackMessages, httpOpts ...commoncfg.HTTPClientOption) ([]notify.Integration, error) {
 	if logger == nil {
 		logger = promslog.NewNopLogger()
 	}
@@ -77,7 +77,7 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 		add("wechat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.SlackConfigs {
-		add("slack", i, c, func(l *slog.Logger) (notify.Notifier, error) { return slack.New(c, tmpl, l, httpOpts...) })
+		add("slack", i, c, func(l *slog.Logger) (notify.Notifier, error) { return slack.New(c, tmpl, l, slackMessages, httpOpts...) })
 	}
 	for i, c := range nc.VictorOpsConfigs {
 		add("victorops", i, c, func(l *slog.Logger) (notify.Notifier, error) { return victorops.New(c, tmpl, l, httpOpts...) })

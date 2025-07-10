@@ -166,6 +166,7 @@ func Create(
 		}
 	}
 
+	l.Debug("known peers", "peers", knownPeers)
 	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, fmt.Errorf("resolve peers: %w", err)

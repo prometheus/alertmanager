@@ -54,6 +54,7 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
@@ -306,15 +307,35 @@ func run() int {
 		logger.Error("error creating silence", "err", err)
 		return 1
 	}
+	logger.Info("silences object", "silences", silences)
 	if peer != nil {
 		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
 		silences.SetBroadcast(c.Broadcast)
+	}
+
+	// Initialize Slack message storage
+	slackMessages := slack.NewSlackMessages(slack.Options{
+		SnapshotFile: filepath.Join(*dataDir, "slack_messages"),
+		Retention:    *retention,
+		Logger:       logger.With("component", "slack_messages"),
+		Metrics:      prometheus.DefaultRegisterer,
+	})
+	if peer != nil {
+		c := peer.AddState("slm", slackMessages, prometheus.DefaultRegisterer)
+		slackMessages.SetBroadcast(c.Broadcast)
 	}
 
 	// Start providers before router potentially sends updates.
 	wg.Add(1)
 	go func() {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
+		wg.Done()
+	}()
+	
+	// Start slack message maintenance
+	wg.Add(1)
+	go func() {
+		slackMessages.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "slack_messages"), stopc, nil)
 		wg.Done()
 	}()
 
@@ -437,7 +458,7 @@ func run() int {
 				configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
 				continue
 			}
-			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger)
+			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger, slackMessages)
 			if err != nil {
 				return err
 			}
