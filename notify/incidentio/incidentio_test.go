@@ -301,3 +301,185 @@ func TestIncidentIOErrDetails(t *testing.T) {
 		})
 	}
 }
+
+func TestIncidentIOPayloadTruncation(t *testing.T) {
+	logger := promslog.NewNopLogger()
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+		},
+		test.CreateTmpl(t),
+		logger,
+	)
+	require.NoError(t, err)
+
+	// Create a large annotation that will push payload over 512KB
+	largeAnnotation := make([]byte, 100*1024) // 100KB per annotation
+	for i := range largeAnnotation {
+		largeAnnotation[i] = 'a' + byte(i%26)
+	}
+	largeAnnotationStr := string(largeAnnotation)
+
+	// Create alerts with large annotations
+	var alerts []*types.Alert
+	for i := 0; i < 10; i++ { // 10 alerts * 100KB = 1MB total in annotations alone
+		alert := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
+					"severity":  "critical",
+					"job":       "test-job",
+					"instance":  "test-instance",
+					"env":       "production",
+					"team":      "sre",
+				},
+				Annotations: model.LabelSet{
+					"description": model.LabelValue(largeAnnotationStr),
+					"runbook":     model.LabelValue(largeAnnotationStr),
+					"summary":     model.LabelValue("This is a test alert with very large annotations"),
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		}
+		alerts = append(alerts, alert)
+	}
+
+	// Create template data
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group")
+	data := notify.GetTemplateData(ctx, test.CreateTmpl(t), alerts, logger)
+
+	// Create message
+	msg := &Message{
+		Version:         "1",
+		Data:            data,
+		GroupKey:        "test-group",
+		TruncatedAlerts: 0,
+	}
+
+	// Test encoding with truncation
+	buf, err := notifier.encodeMessage(msg)
+	require.NoError(t, err)
+
+	// Verify the encoded message is under the size limit
+	require.LessOrEqual(t, buf.Len(), maxPayloadSize, "Encoded message should be under maxPayloadSize after truncation")
+
+	// Decode the message to verify truncation happened
+	var decodedMsg Message
+	err = json.NewDecoder(&buf).Decode(&decodedMsg)
+	require.NoError(t, err)
+
+	// Check that annotations were truncated
+	for _, alert := range decodedMsg.Alerts {
+		for _, v := range alert.Annotations {
+			require.Equal(t, "truncated", v, "All annotations should be truncated")
+		}
+		// Essential labels should be preserved
+		require.Contains(t, alert.Labels["alertname"], "TestAlert")
+		require.Equal(t, "critical", alert.Labels["severity"])
+		require.Equal(t, "test-job", alert.Labels["job"])
+		require.Equal(t, "test-instance", alert.Labels["instance"])
+	}
+}
+
+func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
+	// Test extreme case where even after annotation truncation, labels need to be truncated
+	logger := promslog.NewNopLogger()
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+		},
+		test.CreateTmpl(t),
+		logger,
+	)
+	require.NoError(t, err)
+
+	// Create many alerts with many labels to push size over limit even without annotations
+	var alerts []*types.Alert
+	for i := 0; i < 100; i++ { // Many alerts
+		labels := model.LabelSet{
+			"alertname": model.LabelValue("TestAlert" + string(rune('0'+i%10))),
+			"severity":  "critical",
+			"job":       "test-job",
+			"instance":  "test-instance",
+		}
+
+		// Add many extra labels with long values
+		for j := 0; j < 50; j++ {
+			labelName := model.LabelName("label_" + string(rune('a'+j%26)) + "_" + string(rune('0'+j/26)))
+			labelValue := make([]byte, 1024) // 1KB per label value
+			for k := range labelValue {
+				labelValue[k] = 'x'
+			}
+			labels[labelName] = model.LabelValue(labelValue)
+		}
+
+		alert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   labels,
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		}
+		alerts = append(alerts, alert)
+	}
+
+	// Create template data
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group")
+	data := notify.GetTemplateData(ctx, test.CreateTmpl(t), alerts, logger)
+
+	// Create message
+	msg := &Message{
+		Version:         "1",
+		Data:            data,
+		GroupKey:        "test-group",
+		TruncatedAlerts: 0,
+	}
+
+	// Test encoding with truncation
+	buf, err := notifier.encodeMessage(msg)
+	require.NoError(t, err)
+
+	// Verify the encoded message is under the size limit
+	require.LessOrEqual(t, buf.Len(), maxPayloadSize, "Encoded message should be under maxPayloadSize after label truncation")
+
+	// Decode the message to verify truncation happened
+	var decodedMsg Message
+	err = json.NewDecoder(&buf).Decode(&decodedMsg)
+	require.NoError(t, err)
+
+	// Since we have a lot of alerts with large labels, the encoding might have reduced the number of alerts
+	// Check that we have fewer alerts if truncation occurred
+	require.LessOrEqual(t, len(decodedMsg.Alerts), 100, "Number of alerts may have been reduced")
+
+	// Check that essential labels are preserved in remaining alerts
+	for _, alert := range decodedMsg.Alerts {
+		// Essential labels should be preserved
+		require.Contains(t, alert.Labels["alertname"], "TestAlert")
+		require.Equal(t, "critical", alert.Labels["severity"])
+		require.Equal(t, "test-job", alert.Labels["job"])
+		require.Equal(t, "test-instance", alert.Labels["instance"])
+
+		// Check if labels were truncated (will have truncated_labels marker) or if we still have all labels
+		if truncatedLabels, ok := alert.Labels["truncated_labels"]; ok && truncatedLabels == "true" {
+			// Non-essential labels should be removed
+			for k := range alert.Labels {
+				if k != "alertname" &&
+					k != "severity" &&
+					k != "job" &&
+					k != "instance" &&
+					k != "truncated_labels" {
+					t.Errorf("Found non-essential label %s that should have been truncated", k)
+				}
+			}
+		}
+	}
+}

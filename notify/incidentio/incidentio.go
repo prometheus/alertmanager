@@ -26,11 +26,17 @@ import (
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+)
+
+const (
+	// maxPayloadSize is the maximum size of the JSON payload incident.io accepts (512KB)
+	maxPayloadSize = 512 * 1024
 )
 
 // Notifier implements a Notifier for incident.io.
@@ -115,6 +121,101 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 	return alerts, 0
 }
 
+// encodeMessage encodes the message and truncates content if it exceeds maxPayloadSize.
+func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return buf, fmt.Errorf("failed to encode incident.io message: %w", err)
+	}
+
+	if buf.Len() > maxPayloadSize {
+		originalSize := buf.Len()
+
+		// First attempt: truncate all annotations
+		truncatedAnnotations := false
+		if msg.Alerts != nil {
+			for _, alert := range msg.Alerts {
+				if len(alert.Annotations) > 0 {
+					truncatedAnnotations = true
+					for k := range alert.Annotations {
+						alert.Annotations[k] = "truncated"
+					}
+				}
+			}
+		}
+
+		// Re-encode after annotation truncation
+		buf.Reset()
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+			return buf, fmt.Errorf("failed to encode incident.io message after annotation truncation: %w", err)
+		}
+
+		// If still too large, truncate non-essential labels
+		if buf.Len() > maxPayloadSize {
+			essentialLabels := map[string]bool{
+				model.AlertNameLabel: true,
+				"severity":           true,
+				"job":                true,
+				"instance":           true,
+			}
+
+			for _, alert := range msg.Alerts {
+				newLabels := template.KV{}
+				for k, v := range alert.Labels {
+					if essentialLabels[k] {
+						newLabels[k] = v
+					}
+				}
+				// Add a label to indicate truncation
+				newLabels["truncated_labels"] = "true"
+				alert.Labels = newLabels
+			}
+
+			// Also truncate common labels if present
+			if msg.CommonLabels != nil {
+				newCommonLabels := template.KV{}
+				for k, v := range msg.CommonLabels {
+					if essentialLabels[k] {
+						newCommonLabels[k] = v
+					}
+				}
+				msg.CommonLabels = newCommonLabels
+			}
+
+			// Re-encode after label truncation
+			buf.Reset()
+			if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+				return buf, fmt.Errorf("failed to encode incident.io message after label truncation: %w", err)
+			}
+
+			// If still too large, reduce number of alerts more aggressively
+			if buf.Len() > maxPayloadSize {
+				// Keep reducing alerts until we fit
+				alertCount := len(msg.Alerts)
+				for alertCount > 1 && buf.Len() > maxPayloadSize {
+					alertCount = alertCount / 2
+					msg.Alerts = msg.Alerts[:alertCount]
+					msg.TruncatedAlerts = msg.TruncatedAlerts + uint64(len(msg.Alerts)-alertCount)
+
+					buf.Reset()
+					if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+						return buf, fmt.Errorf("failed to encode incident.io message after alert reduction: %w", err)
+					}
+				}
+			}
+		}
+
+		// Log warning about truncation
+		n.logger.Warn("Truncated alert content due to incident.io payload size limit",
+			"original_size", originalSize,
+			"final_size", buf.Len(),
+			"max_size", maxPayloadSize,
+			"truncated_annotations", truncatedAnnotations)
+	}
+
+	return buf, nil
+}
+
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
@@ -134,8 +235,8 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		TruncatedAlerts: numTruncated,
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+	buf, err := n.encodeMessage(msg)
+	if err != nil {
 		return false, err
 	}
 
