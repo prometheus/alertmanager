@@ -58,8 +58,10 @@ listDaysOfMonth time firstDayOfWeek =
                             Saturday ->
                                 if wd == 6 then
                                     0
+
                                 else if wd == 7 then
                                     1
+
                                 else
                                     wd + 1
                    )
@@ -83,8 +85,10 @@ listDaysOfMonth time firstDayOfWeek =
                             Saturday ->
                                 if wd == 6 then
                                     7
+
                                 else if wd == 7 then
                                     1
+
                                 else
                                     wd + 1
                    )

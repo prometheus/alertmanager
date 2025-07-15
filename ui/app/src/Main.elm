@@ -96,8 +96,10 @@ init flags url key =
                         case d of
                             "Sunday" ->
                                 Sunday
+
                             "Saturday" ->
                                 Saturday
+
                             _ ->
                                 Monday
                    )
