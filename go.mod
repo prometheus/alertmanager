@@ -1,6 +1,6 @@
 module github.com/prometheus/alertmanager
 
-go 1.23.0
+go 1.23.8
 
 toolchain go1.24.1
 
@@ -45,7 +45,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/mod v0.24.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/text v0.23.0
 	golang.org/x/tools v0.31.0
 	gopkg.in/telebot.v3 v3.3.8
