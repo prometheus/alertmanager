@@ -4,8 +4,6 @@ sort_rank: 3
 nav_icon: sliders
 ---
 
-# Configuration
-
 [Alertmanager](https://github.com/prometheus/alertmanager) is configured via
 command-line flags and a configuration file.
 While the command-line flags configure immutable system parameters, the
