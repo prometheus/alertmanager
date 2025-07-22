@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	// maxPayloadSize is the maximum size of the JSON payload incident.io accepts (512KB)
+	// The maximum size of the JSON payload incident.io accepts (512KB).
 	maxPayloadSize = 512 * 1024
 )
 
