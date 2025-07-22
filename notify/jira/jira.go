@@ -21,6 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/trivago/tgo/tcontainer"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -138,6 +140,13 @@ func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Log
 	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
 	if err != nil {
 		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
+	}
+
+	for key, value := range fieldsWithStringKeys {
+		fieldsWithStringKeys[key], err = deepCopyWithTemplate(value, tmplTextFunc)
+		if err != nil {
+			return issue{}, fmt.Errorf("fields template: %w", err)
+		}
 	}
 
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
@@ -334,7 +343,6 @@ func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, reques
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Language", "en")
-
 	resp, err := n.client.Do(req)
 	if err != nil {
 		return nil, false, err
@@ -353,4 +361,68 @@ func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, reques
 	}
 
 	return responseBody, false, nil
+}
+
+// deepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
+// provided template (with the provided data) on all string keys or values. All maps are connverted to
+// map[string]interface{}, with all non-string keys discarded.
+// deepCopyWithTemplateFunc returns a deep copy of a map/slice/array/string/int/bool or combination thereof,
+// executing tmplTextFunc on all string keys or values. All maps are converted to map[string]interface{},
+// with all non-string keys discarded.
+func deepCopyWithTemplate(value interface{}, tmplTextFunc templateFunc) (interface{}, error) {
+	if value == nil {
+		return value, nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+
+	case reflect.String:
+		if parsed, ok := tmplTextFunc(value.(string)); ok == nil {
+			var inlineType interface{}
+			err := yaml.Unmarshal([]byte(parsed), &inlineType)
+			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			return deepCopyWithTemplate(inlineType, tmplTextFunc)
+		} else {
+			return parsed, ok
+		}
+
+	case reflect.Array, reflect.Slice:
+		arrayLen := valueMeta.Len()
+		converted := make([]interface{}, arrayLen)
+		for i := 0; i < arrayLen; i++ {
+			var err error
+			converted[i], err = deepCopyWithTemplate(valueMeta.Index(i).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+
+	case reflect.Map:
+		keys := valueMeta.MapKeys()
+		converted := make(map[string]interface{}, len(keys))
+
+		for _, keyMeta := range keys {
+			var err error
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			strKey, err = tmplTextFunc(strKey)
+			if err != nil {
+				return nil, err
+			}
+			converted[strKey], err = deepCopyWithTemplate(valueMeta.MapIndex(keyMeta).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+	default:
+		return value, nil
+	}
 }
