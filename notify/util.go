@@ -48,7 +48,7 @@ func RedactURL(err error) error {
 
 // Get sends a GET request to the given URL.
 func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
-	return request(ctx, client, http.MethodGet, url, "", nil)
+	return request(ctx, client, http.MethodGet, url, "", map[string]string{}, nil)
 }
 
 // PostJSON sends a POST request with JSON payload to the given URL.
@@ -61,11 +61,16 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "text/plain", body)
 }
 
-func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
-	return request(ctx, client, http.MethodPost, url, bodyType, body)
+// PostTextAddHeaders sends a POST request with text payload and header to the given URL
+func PostTextAddHeaders(ctx context.Context, client *http.Client, url string, headers map[string]string, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPost, url, "text/plain", headers, body)
 }
 
-func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
+func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPost, url, bodyType, map[string]string{}, body)
+}
+
+func request(ctx context.Context, client *http.Client, method, url, bodyType string, headers map[string]string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
@@ -73,6 +78,9 @@ func request(ctx context.Context, client *http.Client, method, url, bodyType str
 	req.Header.Set("User-Agent", UserAgentHeader)
 	if bodyType != "" {
 		req.Header.Set("Content-Type", bodyType)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	return client.Do(req.WithContext(ctx))
 }
