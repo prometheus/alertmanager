@@ -19,7 +19,7 @@ view : Model -> Html Msg
 view { filterBar, tab, silences, showConfirmationDialog } =
     div []
         [ div [ class "mb-4" ]
-            [ label [ class "mb-2", for "filter-bar-matcher" ] [ text "Filter" ]
+            [ label [ class "form-label mb-2", for "filter-bar-matcher" ] [ text "Filter" ]
             , Html.map (MsgForFilterBar >> MsgForSilenceList) (FilterBar.view { showSilenceButton = False } filterBar)
             ]
         , lazy2 tabsView tab silences
@@ -49,7 +49,7 @@ tabView currentTab count tab =
             n ->
                 [ text (StringUtils.capitalizeFirst (stateToString tab))
                 , span
-                    [ class "badge badge-pillow badge-default align-text-top ml-2" ]
+                    [ class "badge bg-secondary align-text-top ms-2" ]
                     [ text (String.fromInt n) ]
                 ]
 
