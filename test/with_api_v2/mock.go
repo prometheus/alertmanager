@@ -236,7 +236,7 @@ func equalAlerts(a, b *models.GettableAlert, opts *AcceptanceOpts) bool {
 	if (a.EndsAt == nil) != (b.EndsAt == nil) {
 		return false
 	}
-	if !(a.EndsAt == nil) && !(b.EndsAt == nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
+	if (a.EndsAt != nil) && (b.EndsAt != nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
 		return false
 	}
 	return true

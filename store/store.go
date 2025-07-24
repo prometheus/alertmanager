@@ -123,7 +123,7 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 	defer a.Unlock()
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
-		if other, ok := a.c[fp]; ok && alert.UpdatedAt == other.UpdatedAt {
+		if other, ok := a.c[fp]; ok && alert.UpdatedAt.Equal(other.UpdatedAt) {
 			delete(a.c, fp)
 		}
 	}
