@@ -101,19 +101,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
-	
+
 	// Extract group key for message persistence
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return false, err
 	}
-	
+
 	// Get channel name
 	channel := tmplText(n.conf.Channel)
-	
+
 	// Check if we have an existing message for this alert group
-	if n.messages != nil {
-		existingTs, err := n.messages.Get(groupKey, channel)
+	if n.conf.EditMessages && n.messages != nil {
+		existingTs, err := n.messages.Get(string(groupKey), channel)
 		if err == nil {
 			ts = existingTs
 			n.logger.Debug("Found existing Slack message", "group_key", groupKey, "channel", channel, "ts", ts)
@@ -257,7 +257,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 		}
 		// Extract ts from successful JSON response
-		if n.messages != nil {
+		if n.conf.EditMessages && n.messages != nil {
 			if ts, err := extractTsFromResponse(body); err == nil && ts != "" {
 				responseTs = ts
 			}
@@ -271,8 +271,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	// Store the ts if we extracted it successfully
-	if n.messages != nil && responseTs != "" {
-		if err := n.messages.Set(groupKey, channel, responseTs); err != nil {
+	if n.conf.EditMessages && n.messages != nil && responseTs != "" {
+		if err := n.messages.Set(string(groupKey), channel, responseTs); err != nil {
 			n.logger.Warn("Failed to store Slack message ts", "err", err, "group_key", groupKey, "channel", channel, "ts", responseTs)
 		} else {
 			n.logger.Debug("Stored Slack message ts", "group_key", groupKey, "channel", channel, "ts", responseTs)

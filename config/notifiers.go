@@ -504,6 +504,7 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+	EditMessages bool          `yaml:"edit_messages" json:"edit_messages,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

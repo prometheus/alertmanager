@@ -307,22 +307,10 @@ func run() int {
 		logger.Error("error creating silence", "err", err)
 		return 1
 	}
-	logger.Info("silences object", "silences", silences)
+
 	if peer != nil {
 		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
 		silences.SetBroadcast(c.Broadcast)
-	}
-
-	// Initialize Slack message storage
-	slackMessages := slack.NewSlackMessages(slack.Options{
-		SnapshotFile: filepath.Join(*dataDir, "slack_messages"),
-		Retention:    *retention,
-		Logger:       logger.With("component", "slack_messages"),
-		Metrics:      prometheus.DefaultRegisterer,
-	})
-	if peer != nil {
-		c := peer.AddState("slm", slackMessages, prometheus.DefaultRegisterer)
-		slackMessages.SetBroadcast(c.Broadcast)
 	}
 
 	// Start providers before router potentially sends updates.
@@ -331,13 +319,23 @@ func run() int {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
 		wg.Done()
 	}()
-	
-	// Start slack message maintenance
-	wg.Add(1)
-	go func() {
-		slackMessages.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "slack_messages"), stopc, nil)
-		wg.Done()
-	}()
+
+	var slackMessages *slack.SlackMessages
+
+	// Helper function to check if any Slack receiver has edit_messages enabled
+	hasSlackEditMessages := func(conf *config.Config) bool {
+		if conf == nil {
+			return false
+		}
+		for _, receiver := range conf.Receivers {
+			for _, slackConfig := range receiver.SlackConfigs {
+				if slackConfig.EditMessages {
+					return true
+				}
+			}
+		}
+		return false
+	}
 
 	defer func() {
 		close(stopc)
@@ -436,6 +434,28 @@ func run() int {
 		configLogger,
 	)
 	configCoordinator.Subscribe(func(conf *config.Config) error {
+		// Initialize SlackMessages only if edit_messages is enabled for any Slack receiver
+		if hasSlackEditMessages(conf) && slackMessages == nil {
+			logger.Info("editing slack messages")
+			slackMessages = slack.NewSlackMessages(slack.Options{
+				SnapshotFile: filepath.Join(*dataDir, "slack_messages"),
+				Retention:    *retention,
+				Logger:       logger.With("component", "slack_messages"),
+				Metrics:      prometheus.DefaultRegisterer,
+			})
+			if peer != nil {
+				c := peer.AddState("slm", slackMessages, prometheus.DefaultRegisterer)
+				slackMessages.SetBroadcast(c.Broadcast)
+			}
+
+			// Start slack message maintenance
+			wg.Add(1)
+			go func() {
+				slackMessages.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "slack_messages"), stopc, nil)
+				wg.Done()
+			}()
+		}
+
 		tmpl, err = template.FromGlobs(conf.Templates)
 		if err != nil {
 			return fmt.Errorf("failed to parse templates: %w", err)

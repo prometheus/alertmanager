@@ -5,9 +5,11 @@ package slackpb
 
 import (
 	fmt "fmt"
+
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
-	io "io"
+
+	// io "io"
 	math "math"
 	math_bits "math/bits"
 	time "time"
@@ -233,3 +235,4 @@ var fileDescriptor_slack_proto = []byte{
 	// Placeholder file descriptor
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
+

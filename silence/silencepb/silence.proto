@@ -3,12 +3,6 @@ syntax = "proto3";
 package silencepb;
 
 import "google/protobuf/timestamp.proto";
-import "gogoproto/gogo.proto";
-
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
 
 // Matcher specifies a rule, which can match or set of labels or not.
 message Matcher {
@@ -33,7 +27,7 @@ message Matcher {
 message Comment {
   string author = 1;
   string comment = 2;
-  google.protobuf.Timestamp timestamp = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp timestamp = 3;
 }
 
 // Silence specifies an object that ignores alerts based
@@ -47,11 +41,11 @@ message Silence {
   repeated Matcher matchers = 2;
 
   // The time range during which the silence is active.
-  google.protobuf.Timestamp starts_at = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-  google.protobuf.Timestamp ends_at = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp starts_at = 3;
+  google.protobuf.Timestamp ends_at = 4;
 
   // The last notification made to the silence.
-  google.protobuf.Timestamp updated_at = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp updated_at = 5;
 
   // DEPRECATED: A set of comments made on the silence.
   repeated Comment comments = 7;
@@ -64,5 +58,5 @@ message Silence {
 // after which the silence may be garbage collected.
 message MeshSilence {
   Silence silence = 1;
-  google.protobuf.Timestamp expires_at = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp expires_at = 2;
 }

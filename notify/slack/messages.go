@@ -31,7 +31,6 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/notify/slack/slackpb"
 )
 
@@ -276,14 +275,14 @@ func (s *SlackMessages) Version() int {
 // Set stores a slack message timestamp for a group key and channel.
 func (s *SlackMessages) Set(groupKey, channel, ts string) error {
 	now := s.nowUTC()
-	
+
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return err
 	}
-	
+
 	id := uid.String()
-	
+
 	msg := &pb.SlackMessage{
 		GroupKey:  groupKey,
 		Channel:   channel,
@@ -291,7 +290,7 @@ func (s *SlackMessages) Set(groupKey, channel, ts string) error {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	
+
 	meshMsg := &pb.MeshSlackMessage{
 		Message:   msg,
 		ExpiresAt: now.Add(s.retention),
@@ -301,13 +300,13 @@ func (s *SlackMessages) Set(groupKey, channel, ts string) error {
 	defer s.mtx.Unlock()
 
 	// Check if we already have a message for this group key and channel
-	for existingID, existingMsg := range s.st {
+	for _, existingMsg := range s.st {
 		if existingMsg.Message.GroupKey == groupKey && existingMsg.Message.Channel == channel {
 			// Update existing message
 			existingMsg.Message.Ts = ts
 			existingMsg.Message.UpdatedAt = now
 			existingMsg.ExpiresAt = now.Add(s.retention)
-			
+
 			b, err := existingMsg.Marshal()
 			if err != nil {
 				return err
@@ -316,17 +315,17 @@ func (s *SlackMessages) Set(groupKey, channel, ts string) error {
 			return nil
 		}
 	}
-	
+
 	// Create new message
 	s.st[id] = meshMsg
 	s.version++
-	
+
 	b, err := meshMsg.Marshal()
 	if err != nil {
 		return err
 	}
 	s.broadcast(b)
-	
+
 	return nil
 }
 
@@ -334,13 +333,13 @@ func (s *SlackMessages) Set(groupKey, channel, ts string) error {
 func (s *SlackMessages) Get(groupKey, channel string) (string, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-	
+
 	for _, msg := range s.st {
 		if msg.Message.GroupKey == groupKey && msg.Message.Channel == channel {
 			return msg.Message.Ts, nil
 		}
 	}
-	
+
 	return "", ErrNotFound
 }
 
@@ -370,7 +369,7 @@ func (s *SlackMessages) Snapshot(w io.Writer) (int64, error) {
 // LoadSnapshot loads state from a snapshot file.
 func (s *SlackMessages) LoadSnapshot(r io.Reader) error {
 	st := state{}
-	
+
 	for {
 		var msg pb.MeshSlackMessage
 		_, err := pbutil.ReadDelimited(r, &msg)
@@ -380,20 +379,20 @@ func (s *SlackMessages) LoadSnapshot(r io.Reader) error {
 			}
 			return err
 		}
-		
+
 		// Skip expired messages
 		if msg.ExpiresAt.Before(s.nowUTC()) {
 			continue
 		}
-		
+
 		id := fmt.Sprintf("%s:%s", msg.Message.GroupKey, msg.Message.Channel)
 		st[id] = &msg
 	}
-	
+
 	s.mtx.Lock()
 	s.st = st
 	s.mtx.Unlock()
-	
+
 	return nil
 }
 
@@ -416,10 +415,10 @@ func (s *SlackMessages) MarshalBinary() ([]byte, error) {
 func (s *SlackMessages) Merge(b []byte) error {
 	r := bytes.NewReader(b)
 	now := s.nowUTC()
-	
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	
+
 	for {
 		var msg pb.MeshSlackMessage
 		_, err := pbutil.ReadDelimited(r, &msg)
@@ -429,14 +428,14 @@ func (s *SlackMessages) Merge(b []byte) error {
 			}
 			return err
 		}
-		
+
 		// Skip expired messages
 		if msg.ExpiresAt.Before(now) {
 			continue
 		}
-		
+
 		id := fmt.Sprintf("%s:%s", msg.Message.GroupKey, msg.Message.Channel)
-		
+
 		// Use last-write-wins conflict resolution
 		if existing, ok := s.st[id]; ok {
 			if existing.Message.UpdatedAt.Before(msg.Message.UpdatedAt) {
@@ -446,7 +445,7 @@ func (s *SlackMessages) Merge(b []byte) error {
 			s.st[id] = &msg
 		}
 	}
-	
+
 	return nil
 }
 
@@ -482,3 +481,4 @@ func openReplace(filename string) (*replaceFile, error) {
 	}
 	return &replaceFile{f, filename}, nil
 }
+
