@@ -44,3 +44,47 @@ jobs:
       - uses: ./.github/promci/actions/setup_environment
       - run: make
       - run: git diff --exit-code
+
+  testMaildev:
+    name: Test with maildev
+    runs-on: ubuntu-latest
+    # Whenever the Go version is updated here, .promu.yml
+    # should also be updated.
+    container:
+      image: quay.io/prometheus/golang-builder:1.24-base
+    services:
+      maildev-noauth:
+        image: maildev/maildev:2.2.1
+        ports:
+          - 1025:1025
+          - 1080:1080
+      maildev-auth:
+        image: maildev/maildev:2.2.1
+        ports:
+          - 1026:1025
+          - 1081:1080
+        env:
+          MAILDEV_INCOMING_USER: user
+          MAILDEV_INCOMING_PASS: pass
+          MAILDEV_INCOMING_SECURE: true
+          MAILDEV_HIDE_STARTTLS: false
+    env:
+      EMAIL_NO_AUTH_CONFIG: /tmp/smtp_no_auth.yml
+      EMAIL_AUTH_CONFIG: /tmp/smtp_auth.yml
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
+      - uses: ./.github/promci/actions/setup_environment
+      - run: |
+          cat <<EOF > "$EMAIL_NO_AUTH_CONFIG"
+          smarthost: 127.0.0.1:1025
+          server: http://127.0.0.1:1080/
+          EOF
+          cat <<EOF > "$EMAIL_AUTH_CONFIG"
+          smarthost: 127.0.0.1:1026
+          server: http://127.0.0.1:1081/
+          username: user
+          password: pass
+          EOF
+      - run: make
+      - run: git diff --exit-code
