@@ -27,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
-	"github.com/aws/aws-sdk-go-v2/service/sns/types"
+	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -37,7 +37,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	amtypes "github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/types"
 )
 
 // Notifier implements a Notifier for SNS notifications.
@@ -64,7 +64,7 @@ func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*amtypes.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
@@ -225,7 +225,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	}
 	if isTrunc {
 		// If we truncated the message we need to add a message attribute showing that it was truncated.
-		messageAttributes["truncated"] = types.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
+		messageAttributes["truncated"] = snstypes.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
 	}
 
 	publishInput.Message = aws.String(messageToSend)
@@ -241,42 +241,24 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	return publishInput, nil
 }
 
-func validateAndTruncateMessage(message string, maxMessageSize int) (string, bool, error) {
+func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {
 	if !utf8.ValidString(message) {
 		return "", false, fmt.Errorf("non utf8 encoded message string")
 	}
-
-	// Check if truncation is needed based on the appropriate metric (bytes or runes).
-	isSMS := maxMessageSize == 1600
-	if (isSMS && utf8.RuneCountInString(message) <= maxMessageSize) || (!isSMS && len(message) <= maxMessageSize) {
+	if len(message) <= maxMessageSizeInBytes {
 		return message, false, nil
 	}
-
 	// If the message is larger than our specified size we have to truncate.
-	if isSMS {
-		// Truncate by rune count for SMS.
-		runes := []rune(message)
-		return string(runes[:maxMessageSize]), true, nil
-	}
-
-	// Truncate by byte count for standard SNS, ensuring we don't split a rune.
-	var sb strings.Builder
-	var size int
-	for _, r := range message {
-		if size+utf8.RuneLen(r) > maxMessageSize {
-			break
-		}
-		sb.WriteRune(r)
-		size += utf8.RuneLen(r)
-	}
-	return sb.String(), true, nil
+	truncated := make([]byte, maxMessageSizeInBytes)
+	copy(truncated, message)
+	return string(truncated), true, nil
 }
 
-func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]types.MessageAttributeValue {
+func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]snstypes.MessageAttributeValue {
 	// Convert the given attributes map into the AWS Message Attributes Format.
-	attributes := make(map[string]types.MessageAttributeValue, len(n.conf.Attributes))
+	attributes := make(map[string]snstypes.MessageAttributeValue, len(n.conf.Attributes))
 	for k, v := range n.conf.Attributes {
-		attributes[tmpl(k)] = types.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
+		attributes[tmpl(k)] = snstypes.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
 	}
 	return attributes
 }
