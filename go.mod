@@ -47,7 +47,7 @@ require (
 	golang.org/x/mod v0.26.0
 	golang.org/x/net v0.42.0
 	golang.org/x/text v0.27.0
-	golang.org/x/tools v0.34.0
+	golang.org/x/tools v0.35.0
 	gopkg.in/telebot.v3 v3.3.8
 	gopkg.in/yaml.v2 v2.4.0
 )
