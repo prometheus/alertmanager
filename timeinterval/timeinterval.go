@@ -436,7 +436,7 @@ func (tz Location) MarshalText() ([]byte, error) {
 	if tz.Location == nil {
 		return nil, fmt.Errorf("unable to convert nil location into string")
 	}
-	return []byte(tz.Location.String()), nil
+	return []byte(tz.String()), nil
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for Location.

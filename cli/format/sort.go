@@ -27,7 +27,7 @@ type ByEndAt []models.GettableSilence
 func (s ByEndAt) Len() int      { return len(s) }
 func (s ByEndAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s ByEndAt) Less(i, j int) bool {
-	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].Silence.EndsAt))
+	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].EndsAt))
 }
 
 type ByStartsAt []*models.GettableAlert
