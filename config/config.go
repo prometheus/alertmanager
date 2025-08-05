@@ -280,6 +280,12 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.TelegramConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.ZeusTelegramConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.ZeusEmailConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.DiscordConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -563,6 +569,22 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				telegram.APIUrl = c.Global.TelegramAPIUrl
 			}
 		}
+		for _, zeusTelegram := range rcv.ZeusTelegramConfigs {
+			if zeusTelegram.HTTPConfig == nil {
+				zeusTelegram.HTTPConfig = c.Global.HTTPConfig
+			}
+			if zeusTelegram.APIUrl == nil {
+				zeusTelegram.APIUrl = c.Global.ZeusTelegramAPIUrl
+			}
+		}
+		for _, zeusEmail := range rcv.ZeusEmailConfigs {
+			if zeusEmail.HTTPConfig == nil {
+				zeusEmail.HTTPConfig = c.Global.HTTPConfig
+			}
+			if zeusEmail.APIUrl == nil {
+				zeusEmail.APIUrl = c.Global.ZeusEmailAPIUrl
+			}
+		}
 		for _, discord := range rcv.DiscordConfigs {
 			if discord.HTTPConfig == nil {
 				discord.HTTPConfig = c.Global.HTTPConfig
@@ -724,18 +746,20 @@ func DefaultGlobalConfig() GlobalConfig {
 	defaultSMTPTLSConfig := commoncfg.TLSConfig{}
 
 	return GlobalConfig{
-		ResolveTimeout:   model.Duration(5 * time.Minute),
-		HTTPConfig:       &defaultHTTPConfig,
-		SMTPHello:        "localhost",
-		SMTPRequireTLS:   true,
-		SMTPTLSConfig:    &defaultSMTPTLSConfig,
-		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-		WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-		VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
-		WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
-		RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
+		ResolveTimeout:     model.Duration(5 * time.Minute),
+		HTTPConfig:         &defaultHTTPConfig,
+		SMTPHello:          "localhost",
+		SMTPRequireTLS:     true,
+		SMTPTLSConfig:      &defaultSMTPTLSConfig,
+		PagerdutyURL:       mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+		OpsGenieAPIURL:     mustParseURL("https://api.opsgenie.com/"),
+		WeChatAPIURL:       mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+		VictorOpsAPIURL:    mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		TelegramAPIUrl:     mustParseURL("https://api.telegram.org"),
+		ZeusTelegramAPIUrl: mustParseURL(getZeusApiUrl() + "/zeus/telegram/message/"),
+		ZeusEmailAPIUrl:    mustParseURL(getZeusApiUrl()  + "/zeus/mail/message/"),
+		WebexAPIURL:        mustParseURL("https://webexapis.com/v1/messages"),
+		RocketchatAPIURL:   mustParseURL("https://open.rocket.chat/"),
 	}
 }
 
@@ -828,6 +852,14 @@ func (hp HostPort) String() string {
 	return fmt.Sprintf("%s:%s", hp.Host, hp.Port)
 }
 
+func getZeusApiUrl() string {
+	if os.Getenv("ZEUS_API_URL") == "" {
+		return "http://localhost:8080"
+	} else {
+		return os.Getenv("ZEUS_API_URL")
+	}
+}
+
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
@@ -861,6 +893,8 @@ type GlobalConfig struct {
 	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile   string               `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl        *URL                 `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	ZeusTelegramAPIUrl    *URL                 `yaml:"zeus_telegram_api_url,omitempty" json:"zeus_telegram_api_url,omitempty"`
+	ZeusEmailAPIUrl       *URL                 `yaml:"zeus_email_api_url,omitempty" json:"zeus_email_api_url,omitempty"`
 	WebexAPIURL           *URL                 `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 	RocketchatAPIURL      *URL                 `yaml:"rocketchat_api_url,omitempty" json:"rocketchat_api_url,omitempty"`
 	RocketchatToken       *Secret              `yaml:"rocketchat_token,omitempty" json:"rocketchat_token,omitempty"`
@@ -1005,22 +1039,24 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs        []*SNSConfig        `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs   []*TelegramConfig   `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig      `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs    []*MSTeamsConfig    `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	DiscordConfigs      []*DiscordConfig      `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs        []*EmailConfig        `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs    []*PagerdutyConfig    `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs        []*SlackConfig        `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs      []*WebhookConfig      `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs     []*OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs       []*WechatConfig       `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs     []*PushoverConfig     `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs    []*VictorOpsConfig    `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs          []*SNSConfig          `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs     []*TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	ZeusTelegramConfigs []*ZeusTelegramConfig `yaml:"zeus_telegram_configs,omitempty" json:"zeus_telegram_configs,omitempty"`
+	ZeusEmailConfigs    []*ZeusEmailConfig    `yaml:"zeus_email_configs,omitempty" json:"zeus_email_configs,omitempty"`
+	WebexConfigs        []*WebexConfig        `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs      []*MSTeamsConfig      `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs    []*MSTeamsV2Config    `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	JiraConfigs         []*JiraConfig         `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	RocketchatConfigs   []*RocketchatConfig   `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

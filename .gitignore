@@ -4,9 +4,11 @@
 *.yml
 *.yaml
 /.build
-/.release
+/release
 /.tarballs
 /vendor
+/.idea
+
 
 !.golangci.yml
 !/cli/testdata/*.yml

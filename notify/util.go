@@ -140,6 +140,7 @@ func TmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 	}
 }
 
+
 // TmplHTML is using monadic error handling in order to make string templating
 // less verbose. Use with care as the final error checking is easily missed.
 func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
