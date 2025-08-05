@@ -178,6 +178,21 @@ var (
 		ParseMode:            "HTML",
 	}
 
+	DefaultZeusTelegramConfig = ZeusTelegramConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Text:                 `{{ template "telegram.default.message" . }}`,
+		ParseMode:            "HTML",
+	}
+
+	DefaultZeusEmailConfig = ZeusEmailConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message: `{{ template "email.default.html" . }}`,
+	}
+
 	DefaultMSTeamsConfig = MSTeamsConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
@@ -835,6 +850,84 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		c.ParseMode != "MarkdownV2" &&
 		c.ParseMode != "HTML" {
 		return errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+	}
+	return nil
+}
+
+type ZeusTelegramConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	SensitiveData             []string `yaml:"sensitive_data,omitempty" json:"sensitive_data,omitempty"`
+	SensitiveDataRegexPattern string   `yaml:"sensitive_data_regex_pattern" json:"sensitive_data_regex_pattern,omitempty"`
+	EventId					  string   `yaml:"event_id" json:"event_id,omitempty"`
+	EventStatus				  string   `yaml:"event_status" json:"event_status,omitempty"`
+	Severity			      string   `yaml:"severity" json:"severity,omitempty"`
+	Sender			          string   `yaml:"sender" json:"sender,omitempty"`
+	APIUrl                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
+	BotToken                  string   `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	ChatID                    int64    `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	Subject                   string   `yaml:"subject,omitempty" json:"subject,omitempty"`
+	Text                      string   `yaml:"text,omitempty" json:"text,omitempty"`
+	ParseMode                 string   `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+}
+
+func (c *ZeusTelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultZeusTelegramConfig
+	type plain ZeusTelegramConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.BotToken == "" {
+		return errors.New("missing bot_token on zeus_telegram_config")
+	}
+	if c.ChatID == 0 {
+		return errors.New("missing chat_id on zeus_telegram_config")
+	}
+	if c.Text == "" {
+		return errors.New("missing text on zeus_telegram_config")
+	}
+	if c.Sender == "" {
+		return errors.New("missing sender on zeus_telegram_config")
+	}
+	if c.ParseMode != "" &&
+		c.ParseMode != "Markdown" &&
+		c.ParseMode != "MarkdownV2" &&
+		c.ParseMode != "HTML" {
+		return errors.New("unknown parse_mode on zeus_telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+	}
+	return nil
+}
+
+type ZeusEmailConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	SensitiveData             []string `yaml:"sensitive_data,omitempty" json:"sensitive_data,omitempty"`
+	SensitiveDataRegexPattern string   `yaml:"sensitive_data_regex_pattern" json:"sensitive_data_regex_pattern,omitempty"`
+	EventId					  string   `yaml:"event_id" json:"event_id,omitempty"`
+	EventStatus				  string   `yaml:"event_status" json:"event_status,omitempty"`
+	Severity			      string   `yaml:"severity" json:"severity,omitempty"`
+	Sender			          string   `yaml:"sender" json:"sender,omitempty"`
+	APIUrl                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
+	Recipients                []string `yaml:"recipients" json:"recipients,omitempty"`
+	Subject                   string   `yaml:"subject,omitempty" json:"subject,omitempty"`
+	Message                   string   `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+func (c *ZeusEmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultZeusEmailConfig
+	type plain ZeusEmailConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Message == "" {
+		return errors.New("missing message on zeus_email_config")
+	}
+	if c.Sender == "" {
+		return errors.New("missing sender on zeus_email_config")
 	}
 	return nil
 }
