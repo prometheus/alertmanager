@@ -7,7 +7,6 @@
 /.release
 /.tarballs
 /vendor
-/release
 
 
 !.golangci.yml
