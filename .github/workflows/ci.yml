@@ -54,12 +54,12 @@ jobs:
       image: quay.io/prometheus/golang-builder:1.24-base
     services:
       maildev-noauth:
-        image: maildev/maildev:1.1.0
+        image: maildev/maildev:2.0.5
         ports:
           - 1025:1025
           - 1080:1080
       maildev-auth:
-        image: maildev/maildev:1.1.0
+        image: maildev/maildev:2.0.5
         ports:
           - 1026:1025
           - 1081:1080
