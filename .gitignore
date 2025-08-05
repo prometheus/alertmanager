@@ -4,7 +4,7 @@
 *.yml
 *.yaml
 /.build
-/.release
+/release
 /.tarballs
 /vendor
 /.idea
