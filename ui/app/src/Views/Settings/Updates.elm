@@ -20,6 +20,9 @@ update msg model =
                         "Sunday" ->
                             Sunday
 
+                        "Saturday" ->
+                            Saturday
+
                         _ ->
                             Monday
 
@@ -30,6 +33,9 @@ update msg model =
 
                         Sunday ->
                             "Sunday"
+
+                        Saturday ->
+                            "Saturday"
             in
             ( { model | firstDayOfWeek = firstDayOfWeek }
             , Cmd.batch
