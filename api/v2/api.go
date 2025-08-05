@@ -565,16 +565,16 @@ func SortSilences(sils open_api_models.GettableSilences) {
 		}
 		switch state1 {
 		case types.SilenceStateActive:
-			endsAt1 := time.Time(*sils[i].Silence.EndsAt)
-			endsAt2 := time.Time(*sils[j].Silence.EndsAt)
+			endsAt1 := time.Time(*sils[i].EndsAt)
+			endsAt2 := time.Time(*sils[j].EndsAt)
 			return endsAt1.Before(endsAt2)
 		case types.SilenceStatePending:
-			startsAt1 := time.Time(*sils[i].Silence.StartsAt)
-			startsAt2 := time.Time(*sils[j].Silence.StartsAt)
+			startsAt1 := time.Time(*sils[i].StartsAt)
+			startsAt2 := time.Time(*sils[j].StartsAt)
 			return startsAt1.Before(startsAt2)
 		case types.SilenceStateExpired:
-			endsAt1 := time.Time(*sils[i].Silence.EndsAt)
-			endsAt2 := time.Time(*sils[j].Silence.EndsAt)
+			endsAt1 := time.Time(*sils[i].EndsAt)
+			endsAt2 := time.Time(*sils[j].EndsAt)
 			return endsAt1.After(endsAt2)
 		}
 		return false

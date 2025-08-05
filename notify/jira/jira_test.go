@@ -179,7 +179,7 @@ func TestSearchExistingIssue(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.EqualValues(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedIssue, issue)
 			require.Equal(t, tc.expectedRetry, retry)
 		})
 	}

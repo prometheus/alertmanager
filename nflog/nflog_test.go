@@ -361,8 +361,8 @@ func TestQuery(t *testing.T) {
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
 	require.NoError(t, err, "querying nflog failed")
 	entry := entries[0]
-	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
-	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
+	require.Equal(t, firingAlerts, entry.FiringAlerts)
+	require.Equal(t, resolvedAlerts, entry.ResolvedAlerts)
 }
 
 func TestStateDecodingError(t *testing.T) {
