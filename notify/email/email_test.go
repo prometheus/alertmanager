@@ -408,6 +408,7 @@ func TestEmailNotifyWithoutAuthentication(t *testing.T) {
 // MailDev doesn't support STARTTLS and authentication at the same time so it
 // is the only way to test successful STARTTLS.
 func TestEmailNotifyWithSTARTTLS(t *testing.T) {
+	t.Skip("Skipping test as STARTTLS is funky with MailDev, see https://github.com/maildev/maildev/pull/469")
 	cfgFile := os.Getenv(emailNoAuthConfigVar)
 	if len(cfgFile) == 0 {
 		t.Skipf("%s not set", emailNoAuthConfigVar)
