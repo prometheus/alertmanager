@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -129,90 +128,39 @@ func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 		return buf, fmt.Errorf("failed to encode incident.io message: %w", err)
 	}
 
-	if buf.Len() > maxPayloadSize {
-		originalSize := buf.Len()
+	if buf.Len() <= maxPayloadSize {
+		return buf, nil
+	}
 
-		// First attempt: truncate all annotations
-		truncatedAnnotations := false
-		if msg.Alerts != nil {
-			for _, alert := range msg.Alerts {
-				if len(alert.Annotations) > 0 {
-					truncatedAnnotations = true
-					for k := range alert.Annotations {
-						alert.Annotations[k] = "truncated"
-					}
-				}
-			}
-		}
+	originalSize := buf.Len()
 
-		// Re-encode after annotation truncation
-		buf.Reset()
-		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-			return buf, fmt.Errorf("failed to encode incident.io message after annotation truncation: %w", err)
-		}
+	// Drop all but the first alert in the message. For most use cases, a single
+	// alert will be created in incident.io for the group, so including more than
+	// one alert in that group is useful but non-essential.
+	msg.Alerts = msg.Alerts[:1]
 
-		// If still too large, truncate non-essential labels
-		if buf.Len() > maxPayloadSize {
-			essentialLabels := map[string]bool{
-				model.AlertNameLabel: true,
-				"severity":           true,
-				"job":                true,
-				"instance":           true,
-			}
+	// Re-encode after annotation truncation
+	buf.Reset()
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return buf, fmt.Errorf("failed to encode incident.io message after annotation truncation: %w", err)
+	}
 
-			for i, alert := range msg.Alerts {
-				newLabels := template.KV{}
-				for k, v := range alert.Labels {
-					if essentialLabels[k] {
-						newLabels[k] = v
-					}
-				}
-				// Add a label to indicate truncation
-				newLabels["truncated_labels"] = "true"
-				msg.Alerts[i].Labels = newLabels
-			}
-
-			// Also truncate common labels if present
-			if msg.CommonLabels != nil {
-				newCommonLabels := template.KV{}
-				for k, v := range msg.CommonLabels {
-					if essentialLabels[k] {
-						newCommonLabels[k] = v
-					}
-				}
-				msg.CommonLabels = newCommonLabels
-			}
-
-			// Re-encode after label truncation
-			buf.Reset()
-			if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-				return buf, fmt.Errorf("failed to encode incident.io message after label truncation: %w", err)
-			}
-
-			// If still too large, reduce number of alerts more aggressively
-			if buf.Len() > maxPayloadSize {
-				// Keep reducing alerts until we fit
-				alertCount := len(msg.Alerts)
-				for alertCount > 1 && buf.Len() > maxPayloadSize {
-					alertCount = alertCount / 2
-					msg.Alerts = msg.Alerts[:alertCount]
-					msg.TruncatedAlerts = msg.TruncatedAlerts + uint64(len(msg.Alerts)-alertCount)
-
-					buf.Reset()
-					if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-						return buf, fmt.Errorf("failed to encode incident.io message after alert reduction: %w", err)
-					}
-				}
-			}
-		}
-
+	if buf.Len() <= maxPayloadSize {
 		// Log warning about truncation
 		n.logger.Warn("Truncated alert content due to incident.io payload size limit",
 			"original_size", originalSize,
 			"final_size", buf.Len(),
-			"max_size", maxPayloadSize,
-			"truncated_annotations", truncatedAnnotations)
+			"max_size", maxPayloadSize)
+
+		return buf, nil
 	}
+
+	// Still attempt to send the message even if it exceeds the limit, but log an
+	// error to explain why this is likely to fail.
+	n.logger.Error("Truncated alert content due to incident.io payload size limit, but still exceeds limit",
+		"original_size", originalSize,
+		"final_size", buf.Len(),
+		"max_size", maxPayloadSize)
 
 	return buf, nil
 }
