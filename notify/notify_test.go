@@ -103,6 +103,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		resolvedAlerts map[uint64]struct{}
 		repeat         time.Duration
 		resolve        bool
+		expectObserver bool
 
 		res bool
 	}{
@@ -135,9 +136,10 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 				FiringAlerts: []uint64{1, 2, 3},
 				Timestamp:    now.Add(-9 * time.Minute),
 			},
-			repeat:       10 * time.Minute,
-			firingAlerts: alertHashSet(1, 2, 3),
-			res:          false,
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(1, 2, 3),
+			expectObserver: true,
+			res:            false,
 		}, {
 			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
@@ -168,6 +170,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts:   alertHashSet(1),
 			resolvedAlerts: alertHashSet(2, 3),
 			resolve:        false,
+			expectObserver: true,
 			res:            false,
 		}, {
 			// Different sets of resolved alerts should update when resolve is true.
@@ -209,13 +212,22 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 	}
 	for i, c := range cases {
 		t.Log("case", i)
-
+		observer := alertobserver.NewFakeLifeCycleObserver()
 		s := &DedupStage{
-			now: func() time.Time { return now },
-			rs:  sendResolved(c.resolve),
+			now:             func() time.Time { return now },
+			rs:              sendResolved(c.resolve),
+			alertLCObserver: observer
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		ctx := context.Background()
+		alerts := []*types.Alert{{}, {}, {}}
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, ctx, alerts...)
 		require.Equal(t, c.res, res)
+
+		if c.expectObserver {
+			require.Equal(t, len(alerts), len(observer.AlertsPerEvent[alertobserver.EventAlertRepeatIntervalNotElapsed]))
+		} else {
+			require.Empty(t, observer.AlertsPerEvent[alertobserver.EventAlertRepeatIntervalNotElapsed])
+		}
 	}
 }
 
@@ -415,6 +427,11 @@ func TestRoutingStage(t *testing.T) {
 	_, ok := ReceiverName(metaCtx)
 	require.True(t, ok)
 
+	require.Equal(t, len(alerts2), len(observer.AlertsPerEvent[alertobserver.EventAlertPipelineEnd]))
+	endMetaCtx := observer.MetaPerEvent[alertobserver.EventAlertPipelineEnd][0]["ctx"].(context.Context)
+
+	_, ok = ReceiverName(endMetaCtx)
+	require.True(t, ok)
 }
 
 func TestRetryStageWithError(t *testing.T) {

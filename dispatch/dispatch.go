@@ -383,6 +383,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 			m := alertobserver.AlertEventMeta{
 				"groupKey": ag.GroupKey(),
 				"routeId":  ag.routeID,
+				"receiver": route.RouteOpts.Receiver,
 				"groupId":  ag.GroupID(),
 			}
 			d.alertLCObserver.Observe(alertobserver.EventAlertAddedToAggrGroup, []*types.Alert{alert}, m)
@@ -396,7 +397,13 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		errMsg := "Too many aggregation groups, cannot create new group for alert"
 		d.logger.Error(errMsg, "groups", d.aggrGroupsNum, "limit", limit, "alert", alert.Name())
 		if d.alertLCObserver != nil {
-			d.alertLCObserver.Observe(alertobserver.EventAlertFailedAddToAggrGroup, []*types.Alert{alert}, alertobserver.AlertEventMeta{"msg": errMsg})
+			groupKey := fmt.Sprintf("%s:%s", route.Key(), groupLabels)
+			m := alertobserver.AlertEventMeta{
+				"msg": errMsg,
+				"groupKey": groupKey,
+				"receiver": route.RouteOpts.Receiver,
+			}
+			d.alertLCObserver.Observe(alertobserver.EventAlertFailedAddToAggrGroup, []*types.Alert{alert}, m)
 		}
 		return
 	}
@@ -409,6 +416,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		m := alertobserver.AlertEventMeta{
 			"groupKey": ag.GroupKey(),
 			"routeId":  ag.routeID,
+			"receiver": route.RouteOpts.Receiver,
 			"groupId":  ag.GroupID(),
 		}
 		d.alertLCObserver.Observe(alertobserver.EventAlertAddedToAggrGroup, []*types.Alert{alert}, m)

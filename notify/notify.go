@@ -460,7 +460,7 @@ func createReceiverStage(
 		}
 		var s []Stage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
+		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv, o))
 		s = append(s, NewRetryStage(integrations[i], name, metrics, o))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
@@ -492,7 +492,13 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*type
 		rs.alertLCObserver.Observe(alertobserver.EventAlertPipelineStart, alerts, alertobserver.AlertEventMeta{"ctx": ctx})
 	}
 
-	return s.Exec(ctx, l, alerts...)
+	ctx, alerts, err := s.Exec(ctx, l, alerts...)
+
+	if rs.alertLCObserver != nil {
+		rs.alertLCObserver.Observe(alertobserver.EventAlertPipelineEnd, alerts, alertobserver.AlertEventMeta{"ctx": ctx})
+	}
+
+	return ctx, alerts, err
 }
 
 // A MultiStage executes a series of stages sequentially.
@@ -656,16 +662,18 @@ type DedupStage struct {
 
 	now  func() time.Time
 	hash func(*types.Alert) uint64
+	alertLCObserver alertobserver.LifeCycleObserver
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver, o alertobserver.LifeCycleObserver) *DedupStage {
 	return &DedupStage{
 		rs:    rs,
 		nflog: l,
 		recv:  recv,
 		now:   utcNow,
 		hash:  hashAlert,
+		alertLCObserver: o,
 	}
 }
 
@@ -708,7 +716,7 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration, ctx context.Context, alerts ...*types.Alert) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
@@ -735,7 +743,11 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	repeatIntervalElapsed := entry.Timestamp.Before(n.now().Add(-repeat))
+	if !repeatIntervalElapsed && n.alertLCObserver != nil {
+		n.alertLCObserver.Observe(alertobserver.EventAlertRepeatIntervalNotElapsed, alerts, alertobserver.AlertEventMeta{"ctx": ctx})
+	}
+	return repeatIntervalElapsed
 }
 
 // Exec implements the Stage interface.
@@ -784,7 +796,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, ctx, alerts...) {
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil

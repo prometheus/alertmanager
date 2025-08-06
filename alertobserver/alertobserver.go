@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	EventAlertReceived             string = "received"
-	EventAlertRejected             string = "rejected"
-	EventAlertAddedToAggrGroup     string = "addedAggrGroup"
-	EventAlertFailedAddToAggrGroup string = "failedAddAggrGroup"
-	EventAlertPipelineStart        string = "pipelineStart"
-	EventAlertPipelinePassStage    string = "pipelinePassStage"
-	EventAlertMuted                string = "muted"
-	EventAlertSent                 string = "sent"
-	EventAlertSendFailed           string = "sendFailed"
+	EventAlertReceived                 string = "received"
+	EventAlertRejected                 string = "rejected"
+	EventAlertAddedToAggrGroup         string = "addedAggrGroup"
+	EventAlertFailedAddToAggrGroup     string = "failedAddAggrGroup"
+	EventAlertPipelineStart            string = "pipelineStart"
+	EventAlertPipelinePassStage        string = "pipelinePassStage"
+	EventAlertMuted                    string = "muted"
+	EventAlertSent                     string = "sent"
+	EventAlertSendFailed               string = "sendFailed"
+	EventAlertRepeatIntervalNotElapsed string = "repeatIntervalNotElapsed"
+	EventAlertPipelineEnd		       string = "pipelineEnd"
 )
 
 type AlertEventMeta map[string]interface{}

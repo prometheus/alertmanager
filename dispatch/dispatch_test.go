@@ -830,9 +830,12 @@ route:
 	require.Equal(t, groupKey, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["groupKey"].(string))
 	require.Equal(t, groupId, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["groupId"].(string))
 	require.Equal(t, routeId, observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["routeId"].(string))
+	require.Equal(t, "testing", observer.MetaPerEvent[alertobserver.EventAlertAddedToAggrGroup][0]["receiver"].(string))
 
 	require.Equal(t, 1, len(observer.AlertsPerEvent[alertobserver.EventAlertFailedAddToAggrGroup]))
 	require.Equal(t, alert2.Fingerprint(), observer.AlertsPerEvent[alertobserver.EventAlertFailedAddToAggrGroup][0].Fingerprint())
+	require.Equal(t, groupKey, observer.MetaPerEvent[alertobserver.EventAlertFailedAddToAggrGroup][0]["groupKey"].(string))
+	require.Equal(t, "testing", observer.MetaPerEvent[alertobserver.EventAlertFailedAddToAggrGroup][0]["receiver"].(string))
 }
 
 type recordStage struct {
