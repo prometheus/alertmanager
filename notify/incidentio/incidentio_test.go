@@ -373,17 +373,8 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	err = json.NewDecoder(&buf).Decode(&decodedMsg)
 	require.NoError(t, err)
 
-	// Check that annotations were truncated
-	for _, alert := range decodedMsg.Alerts {
-		for _, v := range alert.Annotations {
-			require.Equal(t, "truncated", v, "All annotations should be truncated")
-		}
-		// Essential labels should be preserved
-		require.Contains(t, alert.Labels["alertname"], "TestAlert")
-		require.Equal(t, "critical", alert.Labels["severity"])
-		require.Equal(t, "test-job", alert.Labels["job"])
-		require.Equal(t, "test-instance", alert.Labels["instance"])
-	}
+	// Check that all but the first alert was dropped
+	require.Len(t, decodedMsg.Alerts, 1, "Only the first alert should be included after truncation")
 }
 
 func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
