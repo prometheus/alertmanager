@@ -190,7 +190,7 @@ func FallbackMatchersParser(l *slog.Logger) ParseMatchers {
 // isValidClassicLabelName returns true if the string is a valid classic label name.
 func isValidClassicLabelName(_ *slog.Logger) func(model.LabelName) bool {
 	return func(name model.LabelName) bool {
-		return name.IsValid()
+		return name.IsValidLegacy()
 	}
 }
 
