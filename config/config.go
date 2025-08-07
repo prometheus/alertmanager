@@ -477,6 +477,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				pdc.URL = c.Global.PagerdutyURL
 			}
 		}
+		for _, iio := range rcv.IncidentioConfigs {
+			if iio.HTTPConfig == nil {
+				iio.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc.HTTPConfig == nil {
 				ogc.HTTPConfig = c.Global.HTTPConfig
@@ -1007,6 +1012,7 @@ type Receiver struct {
 
 	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	IncidentioConfigs []*IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
