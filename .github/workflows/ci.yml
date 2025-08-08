@@ -55,14 +55,14 @@ jobs:
     services:
       maildev-noauth:
         image: maildev/maildev:2.2.1
-        ports:
-          - 1025:1025
-          - 1080:1080
+        # ports:
+        #   - 1025:1025
+        #   - 1080:1080
       maildev-auth:
         image: maildev/maildev:2.2.1
-        ports:
-          - 1026:1025
-          - 1081:1080
+        # ports:
+        #   - 1026:1025
+        #   - 1081:1080
         env:
           MAILDEV_INCOMING_USER: user
           MAILDEV_INCOMING_PASS: pass
