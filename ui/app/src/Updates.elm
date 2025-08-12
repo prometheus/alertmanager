@@ -1,4 +1,4 @@
-module Updates exposing (update)
+port module Updates exposing (update)
 
 import Browser.Navigation as Navigation
 import Task
@@ -114,11 +114,14 @@ update msg ({ basePath, apiUrl } as model) =
         FontAwesomeCSSLoaded css ->
             ( { model | fontAwesomeCSS = css }, Cmd.none )
 
-        ElmDatepickerCSSLoaded css ->
-            ( { model | elmDatepickerCSS = css }, Cmd.none )
-
         SetDefaultCreator name ->
             ( { model | defaultCreator = name }, Cmd.none )
 
         SetGroupExpandAll expanded ->
             ( { model | expandAll = expanded }, Cmd.none )
+
+        SetAndPersistBootstrapTheme theme ->
+            ( model, setAndPersistBootstrapTheme theme )
+
+
+port setAndPersistBootstrapTheme : String -> Cmd msg

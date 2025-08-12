@@ -42,7 +42,7 @@ labelButton maybeMsg labelText =
     case maybeMsg of
         Nothing ->
             span
-                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
+                [ class "btn btn-sm bg-body-secondary text-start me-2 mb-2"
                 , style "user-select" "text"
                 , style "-moz-user-select" "text"
                 , style "-webkit-user-select" "text"
@@ -51,10 +51,10 @@ labelButton maybeMsg labelText =
 
         Just msg ->
             button
-                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
+                [ class "btn btn-sm bg-body-secondary text-start me-2 mb-2"
                 , onClick msg
                 ]
-                [ span [ class "text-muted" ] [ text labelText ] ]
+                [ span [] [ text labelText ] ]
 
 
 linkifyText : String -> List (Html msg)
@@ -73,9 +73,9 @@ linkifyText str =
 
 checkbox : String -> Bool -> (Bool -> msg) -> Html msg
 checkbox name status msg =
-    label [ class "f6 dib mb2 mr2 d-flex align-items-center" ]
+    label [ class "f6 dib mb2 me-2 d-flex align-items-center" ]
         [ input [ type_ "checkbox", checked status, onCheck msg ] []
-        , span [ class "pl-2" ] [ text <| " " ++ name ]
+        , span [ class "ps-2" ] [ text <| " " ++ name ]
         ]
 
 
@@ -83,13 +83,13 @@ validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String
 validatedField htmlField labelText classes inputMsg blurMsg field =
     case field.validationState of
         Valid ->
-            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , htmlField
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
-                    , class "form-control form-control-success"
+                    , class "form-control is-valid"
                     ]
                     []
                 ]
@@ -107,16 +107,16 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 ]
 
         Invalid error_ ->
-            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , htmlField
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
-                    , class "form-control form-control-danger"
+                    , class "form-control is-invalid"
                     ]
                     []
-                , div [ class "form-control-feedback" ] [ text error_ ]
+                , div [ class "invalid-feedback d-block" ] [ text error_ ]
                 ]
 
 
@@ -130,13 +130,13 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
     in
     case field.validationState of
         Valid ->
-            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , textarea
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
-                    , class "form-control form-control-success"
+                    , class "form-control is-valid"
                     , rows lineCount
                     , disableGrammarly
                     ]
@@ -158,18 +158,18 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
                 ]
 
         Invalid error_ ->
-            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , textarea
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
-                    , class "form-control form-control-danger"
+                    , class "form-control is-invalid"
                     , rows lineCount
                     , disableGrammarly
                     ]
                     []
-                , div [ class "form-control-feedback" ] [ text error_ ]
+                , div [ class "invalid-feedback d-block" ] [ text error_ ]
                 ]
 
 
