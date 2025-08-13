@@ -34,7 +34,7 @@ require (
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/kylelemons/godebug v1.1.0
 	github.com/matttproud/golang_protobuf_extensions v1.0.4
-	github.com/oklog/run v1.1.0
+	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid v1.3.1
 	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/common v0.65.0
