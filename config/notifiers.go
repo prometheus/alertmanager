@@ -195,6 +195,14 @@ var (
 		Text:  `{{ template "msteamsv2.default.text" . }}`,
 	}
 
+	DefaultGoogleChatConfig = GoogleChatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:   `{{ template "googlechat.default.message" . }}`,
+		Threading: true,
+	}
+
 	DefaultJiraConfig = JiraConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
@@ -894,6 +902,25 @@ func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 
 	return nil
+}
+
+// GoogleChatConfig configures notifications via Discord.
+type GoogleChatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	URL        *SecretURL                  `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile    string                      `yaml:"url_file" json:"url_file"`
+
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	Threading bool   `yaml:"threading,omitempty" json:"threading,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *GoogleChatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGoogleChatConfig
+	type plain GoogleChatConfig
+	return unmarshal((*plain)(c))
 }
 
 type JiraConfig struct {
