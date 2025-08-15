@@ -361,6 +361,8 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"victorops",
 		"sns",
 		"telegram",
+		"zeustelegram",
+		"zeusemail",
 		"discord",
 		"webex",
 		"msteams",
