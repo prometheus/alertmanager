@@ -17,7 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/prometheus/alertmanager/template"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -86,22 +87,22 @@ func TestZeusTelegramRetry(t *testing.T) {
 
 func TestZeusTelegramNotify(t *testing.T) {
 	tests := []struct {
-		name           string
-		cfg            config.ZeusTelegramConfig
-		statusCode     int
-		responseBody   string
-		expectedMsg    zeusTelegramMessage
-		expectError    bool
-		expectRetry    bool
-		mockPostJSON   func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
+		name         string
+		cfg          config.ZeusTelegramConfig
+		statusCode   int
+		responseBody string
+		expectedMsg  zeusTelegramMessage
+		expectError  bool
+		expectRetry  bool
+		mockPostJSON func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 	}{
 		{
 			name: "Successful notification",
 			cfg: config.ZeusTelegramConfig{
-				BotToken:   "secret",
-				ChatID:     1234,
-				APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
-				EventId:    "test-event",
+				BotToken:  "secret",
+				ChatID:    1234,
+				APIUrl:    &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				EventId:   "test-event",
 				Severity:  "critical",
 				Text:      "Test message",
 				ParseMode: "HTML",
@@ -149,11 +150,13 @@ func TestZeusTelegramNotify(t *testing.T) {
 			var receivedMsg zeusTelegramMessage
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer r.Body.Close()
 				err := json.NewDecoder(r.Body).Decode(&receivedMsg)
 				require.NoError(t, err)
 
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.responseBody))
+				_, err = w.Write([]byte(tt.responseBody))
+				require.NoError(t, err)
 			}))
 			defer server.Close()
 
@@ -212,9 +215,11 @@ func TestNotifyWithTemplate(t *testing.T) {
 
 	var receivedMsg zeusTelegramMessage
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		err := json.NewDecoder(r.Body).Decode(&receivedMsg)
 		require.NoError(t, err)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, err = w.Write([]byte(`{"status":"ok"}`))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
