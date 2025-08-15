@@ -60,11 +60,12 @@ receivers:
 	require.Len(t, c.Receivers[0].ZeusTelegramConfigs, 1)
 
 	cfg := c.Receivers[0].ZeusTelegramConfigs[0]
-	require.Equal(t, "https://zeus.example.com", cfg.APIUrl.String())
+	require.Equal(t, "https://zeus.example.com", cfg.APIURL.String())
 	require.Equal(t, config.Secret("secret"), cfg.BotToken)
 	require.Equal(t, int64(1234), cfg.ChatID)
+	require.Equal(t, "int64", cfg.Sender)
 	require.Equal(t, []string{"password", "token"}, cfg.SensitiveData)
-	require.Equal(t, "{{ .GroupLabels.alertname }}", cfg.EventId)
+	require.Equal(t, "{{ .GroupLabels.alertname }}", cfg.EventID)
 	require.Equal(t, "{{ .CommonLabels.severity }}", cfg.Severity)
 }
 
@@ -72,7 +73,7 @@ func TestZeusTelegramRetry(t *testing.T) {
 	notifier, err := New(
 		&config.ZeusTelegramConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "zeus.example.com"}},
+			APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "zeus.example.com"}},
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -101,11 +102,12 @@ func TestZeusTelegramNotify(t *testing.T) {
 			cfg: config.ZeusTelegramConfig{
 				BotToken:  "secret",
 				ChatID:    1234,
-				APIUrl:    &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
-				EventId:   "test-event",
+				APIURL:    &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				EventID:   "test-event",
 				Severity:  "critical",
 				Text:      "Test message",
 				ParseMode: "HTML",
+				Sender:    "1234",
 			},
 			statusCode:   http.StatusOK,
 			responseBody: `{"status":"ok"}`,
@@ -116,6 +118,7 @@ func TestZeusTelegramNotify(t *testing.T) {
 				Severity:  "critical",
 				Text:      "Test message",
 				ParseMode: "HTML",
+				Sender:    "1234",
 			},
 		},
 		{
@@ -123,7 +126,8 @@ func TestZeusTelegramNotify(t *testing.T) {
 			cfg: config.ZeusTelegramConfig{
 				BotToken: "secret",
 				ChatID:   1234,
-				APIUrl:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				APIURL:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				Sender:   "1234",
 			},
 			statusCode:   http.StatusInternalServerError,
 			responseBody: `{"error":"internal server error"}`,
@@ -135,7 +139,8 @@ func TestZeusTelegramNotify(t *testing.T) {
 			cfg: config.ZeusTelegramConfig{
 				BotToken: "secret",
 				ChatID:   1234,
-				APIUrl:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				APIURL:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				Sender:   "1234",
 			},
 			mockPostJSON: func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
 				return nil, errors.New("connection error")
@@ -160,9 +165,9 @@ func TestZeusTelegramNotify(t *testing.T) {
 			}))
 			defer server.Close()
 
-			if tt.cfg.APIUrl == nil {
+			if tt.cfg.APIURL == nil {
 				u, _ := url.Parse(server.URL)
-				tt.cfg.APIUrl = &config.URL{URL: u}
+				tt.cfg.APIURL = &config.URL{URL: u}
 			}
 
 			notifier, err := New(&tt.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -209,8 +214,9 @@ func TestNotifyWithTemplate(t *testing.T) {
 	cfg := config.ZeusTelegramConfig{
 		BotToken: "secret",
 		ChatID:   1234,
-		APIUrl:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+		APIURL:   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
 		Subject:  `{{ template "zeus.subject" . }}`,
+		Sender:   "1234",
 	}
 
 	var receivedMsg zeusTelegramMessage
@@ -224,7 +230,7 @@ func TestNotifyWithTemplate(t *testing.T) {
 	defer server.Close()
 
 	u, _ := url.Parse(server.URL)
-	cfg.APIUrl = &config.URL{URL: u}
+	cfg.APIURL = &config.URL{URL: u}
 
 	notifier, err := New(&cfg, templates, promslog.NewNopLogger())
 	require.NoError(t, err)

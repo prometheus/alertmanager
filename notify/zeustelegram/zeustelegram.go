@@ -86,10 +86,10 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 	}
 	var (
-		apiUrl = strings.TrimSpace(tmpl(n.conf.APIUrl.String()))
+		apiUrl = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
 		sensitiveData = n.conf.SensitiveData
 		sensitiveDataRegexPattern = tmpl(n.conf.SensitiveDataRegexPattern)
-		eventId	 = tmpl(n.conf.EventId)
+		eventId	 = tmpl(n.conf.EventID)
 		eventStatus	 = tmpl(n.conf.EventStatus)
 		severity = tmpl(n.conf.Severity)
 		sender = tmpl(n.conf.Sender)

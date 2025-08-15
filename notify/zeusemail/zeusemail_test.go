@@ -60,10 +60,10 @@ receivers:
 	require.Len(t, c.Receivers[0].ZeusEmailConfigs, 1)
 
 	cfg := c.Receivers[0].ZeusEmailConfigs[0]
-	require.Equal(t, "https://zeus.example.com/email", cfg.APIUrl.String())
+	require.Equal(t, "https://zeus.example.com/email", cfg.APIURL.String())
 	require.Equal(t, []string{"team@example.com"}, cfg.Recipients)
 	require.Equal(t, []string{"password", "token"}, cfg.SensitiveData)
-	require.Equal(t, "{{ .GroupLabels.alertname }}", cfg.EventId)
+	require.Equal(t, "{{ .GroupLabels.alertname }}", cfg.EventID)
 	require.Equal(t, "{{ .CommonLabels.severity }}", cfg.Severity)
 	require.Equal(t, "alertmanager@example.com", cfg.Sender)
 }
@@ -72,7 +72,7 @@ func TestZeusEmailRetry(t *testing.T) {
 	notifier, err := New(
 		&config.ZeusEmailConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "zeus.example.com"}},
+			APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "zeus.example.com"}},
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -100,8 +100,8 @@ func TestZeusEmailNotify(t *testing.T) {
 			name: "Successful notification",
 			cfg: config.ZeusEmailConfig{
 				Recipients: []string{"team@example.com"},
-				APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
-				EventId:    "test-event",
+				APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				EventID:    "test-event",
 				Severity:   "critical",
 				Sender:     "alerts@example.com",
 				Subject:    "Test Alert",
@@ -122,7 +122,8 @@ func TestZeusEmailNotify(t *testing.T) {
 			name: "Server error with retry",
 			cfg: config.ZeusEmailConfig{
 				Recipients: []string{"team@example.com"},
-				APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				Sender:     "1234",
 			},
 			statusCode:   http.StatusInternalServerError,
 			responseBody: `{"error":"internal server error"}`,
@@ -133,7 +134,8 @@ func TestZeusEmailNotify(t *testing.T) {
 			name: "HTTP request error",
 			cfg: config.ZeusEmailConfig{
 				Recipients: []string{"team@example.com"},
-				APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				Sender:     "1234",
 			},
 			mockPostJSON: func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
 				return nil, errors.New("connection error")
@@ -145,8 +147,9 @@ func TestZeusEmailNotify(t *testing.T) {
 			name: "With sensitive data",
 			cfg: config.ZeusEmailConfig{
 				Recipients:                []string{"team@example.com"},
-				APIUrl:                   &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
-				SensitiveData:            []string{"password", "token"},
+				APIURL:                    &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+				SensitiveData:             []string{"password", "token"},
+				Sender:                    "1234",
 				SensitiveDataRegexPattern: `\b\d{4}\b`, // 4-digit numbers
 			},
 			statusCode:   http.StatusOK,
@@ -174,9 +177,9 @@ func TestZeusEmailNotify(t *testing.T) {
 			}))
 			defer server.Close()
 
-			if tt.cfg.APIUrl == nil {
+			if tt.cfg.APIURL == nil {
 				u, _ := url.Parse(server.URL)
-				tt.cfg.APIUrl = &config.URL{URL: u}
+				tt.cfg.APIURL = &config.URL{URL: u}
 			}
 
 			notifier, err := New(&tt.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -222,8 +225,9 @@ func TestNotifyWithTemplate(t *testing.T) {
 
 	cfg := config.ZeusEmailConfig{
 		Recipients: []string{"team@example.com"},
-		APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+		APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
 		Subject:    `{{ template "zeus.subject" . }}`,
+		Sender:     "1234",
 	}
 
 	var receivedMsg zeusEmailMessage
@@ -237,7 +241,7 @@ func TestNotifyWithTemplate(t *testing.T) {
 	defer server.Close()
 
 	u, _ := url.Parse(server.URL)
-	cfg.APIUrl = &config.URL{URL: u}
+	cfg.APIURL = &config.URL{URL: u}
 
 	notifier, err := New(&cfg, templates, promslog.NewNopLogger())
 	require.NoError(t, err)
@@ -260,8 +264,9 @@ func TestNotifyWithTemplate(t *testing.T) {
 func TestNotifyWithInvalidTemplate(t *testing.T) {
 	cfg := config.ZeusEmailConfig{
 		Recipients: []string{"team@example.com"},
-		APIUrl:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
+		APIURL:     &config.URL{URL: &url.URL{Scheme: "https", Host: "api.zeus.com"}},
 		Subject:    `{{ invalid template }}`,
+		Sender:     "1234",
 	}
 
 	notifier, err := New(&cfg, test.CreateTmpl(t), promslog.NewNopLogger())
