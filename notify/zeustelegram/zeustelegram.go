@@ -18,28 +18,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-
 	commoncfg "github.com/prometheus/common/config"
-
-	"io"
-	"log/slog"
-	"net/http"
-	"strings"
 )
-
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
-	conf    *config.ZeusTelegramConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf        *config.ZeusTelegramConfig
+	tmpl        *template.Template
+	logger      *slog.Logger
+	client      *http.Client
+	retrier     *notify.Retrier
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
@@ -50,12 +47,12 @@ func New(conf *config.ZeusTelegramConfig, t *template.Template, l *slog.Logger, 
 		return nil, err
 	}
 
-	return &Notifier {
-		conf:    conf,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
+	return &Notifier{
+		conf:         conf,
+		tmpl:         t,
+		logger:       l,
+		client:       client,
+		retrier:      &notify.Retrier{},
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -63,10 +60,10 @@ func New(conf *config.ZeusTelegramConfig, t *template.Template, l *slog.Logger, 
 type zeusTelegramMessage struct {
 	SensitiveData             []string `json:"sensitive_data"`
 	SensitiveDataRegexPattern string   `json:"sensitive_data_regex_pattern"`
-	EventId					  string   `json:"event_id"`
-	EventStatus				  string   `json:"event_status"`
-	Severity			      string   `json:"severity"`
-	Sender			          string   `json:"sender"`
+	EventID                   string   `json:"event_id"`
+	EventStatus               string   `json:"event_status"`
+	Severity                  string   `json:"severity"`
+	Sender                    string   `json:"sender"`
 	BotToken                  string   `json:"bot_token"`
 	ChatID                    int64    `json:"chat_id"`
 	Subject                   string   `json:"subject"`
@@ -86,28 +83,28 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 	}
 	var (
-		apiUrl = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
-		sensitiveData = n.conf.SensitiveData
-		sensitiveDataRegexPattern = tmpl(n.conf.SensitiveDataRegexPattern)
-		eventId	 = tmpl(n.conf.EventID)
-		eventStatus	 = tmpl(n.conf.EventStatus)
-		severity = tmpl(n.conf.Severity)
-		sender = tmpl(n.conf.Sender)
-		botToken = tmpl(n.conf.BotToken)
-		chatId = n.conf.ChatID
-		subject = tmpl(n.conf.Subject)
-		text = tmpl(n.conf.Text)
-		parseMode = tmpl(n.conf.ParseMode)
+		apiURL                     = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
+		sensitiveData              = n.conf.SensitiveData
+		sensitiveDataRegexPattern  = tmpl(n.conf.SensitiveDataRegexPattern)
+		eventID                    = tmpl(n.conf.EventID)
+		eventStatus                = tmpl(n.conf.EventStatus)
+		severity                   = tmpl(n.conf.Severity)
+		sender                     = tmpl(n.conf.Sender)
+		botToken                   = tmpl(n.conf.BotToken)
+		chatID                     = n.conf.ChatID
+		subject                    = tmpl(n.conf.Subject)
+		text                       = tmpl(n.conf.Text)
+		parseMode                  = tmpl(n.conf.ParseMode)
 	)
-	zeusTelegramMessageBody := zeusTelegramMessage {
+	zeusTelegramMessageBody := zeusTelegramMessage{
 		SensitiveData:             sensitiveData,
 		SensitiveDataRegexPattern: sensitiveDataRegexPattern,
-		EventId:   				   eventId,
-		EventStatus:			   eventStatus,
-		Severity:			       severity,
-		Sender:  		           sender,
+		EventID:                   eventID,
+		EventStatus:               eventStatus,
+		Severity:                  severity,
+		Sender:                    sender,
 		BotToken:                  botToken,
-		ChatID:                    chatId,
+		ChatID:                    chatID,
 		Subject:                   subject,
 		Text:                      text,
 		ParseMode:                 parseMode,
@@ -116,7 +113,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err = json.NewEncoder(&bodyAsBuffers).Encode(zeusTelegramMessageBody); err != nil {
 		return false, err
 	}
-	response, err := n.postJSONFunc(ctx, n.client, apiUrl, &bodyAsBuffers)
+	response, err := n.postJSONFunc(ctx, n.client, apiURL, &bodyAsBuffers)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

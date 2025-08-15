@@ -18,25 +18,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	commoncfg "github.com/prometheus/common/config"
-	"io"
-	"log/slog"
-	"net/http"
-	"strings"
 )
-
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
-	conf    *config.ZeusEmailConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf        *config.ZeusEmailConfig
+	tmpl        *template.Template
+	logger      *slog.Logger
+	client      *http.Client
+	retrier     *notify.Retrier
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
@@ -48,11 +48,11 @@ func New(conf *config.ZeusEmailConfig, t *template.Template, l *slog.Logger, htt
 	}
 
 	return &Notifier{
-		conf:    conf,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
+		conf:         conf,
+		tmpl:         t,
+		logger:       l,
+		client:       client,
+		retrier:      &notify.Retrier{},
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -60,10 +60,10 @@ func New(conf *config.ZeusEmailConfig, t *template.Template, l *slog.Logger, htt
 type zeusEmailMessage struct {
 	SensitiveData             []string `yaml:"sensitive_data,omitempty"`
 	SensitiveDataRegexPattern string   `yaml:"sensitive_data_regex_pattern"`
-	EventId					  string   `yaml:"event_id"`
-	EventStatus				  string   `yaml:"event_status"`
-	Severity			      string   `yaml:"severity"`
-	Sender			          string   `yaml:"sender"`
+	EventID                   string   `yaml:"event_id"`
+	EventStatus               string   `yaml:"event_status"`
+	Severity                  string   `yaml:"severity"`
+	Sender                    string   `yaml:"sender"`
 	Recipients                []string `yaml:"recipients"`
 	Subject                   string   `yaml:"subject,omitempty"`
 	Message                   string   `yaml:"message,omitempty"`
@@ -78,24 +78,24 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	data := notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
 	tmpl := notify.TmplHTML(n.tmpl, data, &err)
 	var (
-		apiUrl = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
-		sensitiveData = n.conf.SensitiveData
-		sensitiveDataRegexPattern = tmpl(n.conf.SensitiveDataRegexPattern)
-		eventId	 = tmpl(n.conf.EventID)
-		eventStatus	 = tmpl(n.conf.EventStatus)
-		severity = tmpl(n.conf.Severity)
-		sender = tmpl(n.conf.Sender)
-		recipients = n.conf.Recipients
-		subject = tmpl(n.conf.Subject)
-		message = tmpl(n.conf.Message)
+		apiURL                     = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
+		sensitiveData              = n.conf.SensitiveData
+		sensitiveDataRegexPattern  = tmpl(n.conf.SensitiveDataRegexPattern)
+		eventID                    = tmpl(n.conf.EventID)
+		eventStatus                = tmpl(n.conf.EventStatus)
+		severity                   = tmpl(n.conf.Severity)
+		sender                     = tmpl(n.conf.Sender)
+		recipients                 = n.conf.Recipients
+		subject                    = tmpl(n.conf.Subject)
+		message                    = tmpl(n.conf.Message)
 	)
-	zeusEmailMessageBody := zeusEmailMessage {
+	zeusEmailMessageBody := zeusEmailMessage{
 		SensitiveData:             sensitiveData,
 		SensitiveDataRegexPattern: sensitiveDataRegexPattern,
-		EventId:   				   eventId,
-		EventStatus:			   eventStatus,
-		Severity:			       severity,
-		Sender:  		           sender,
+		EventID:                   eventID,
+		EventStatus:               eventStatus,
+		Severity:                  severity,
+		Sender:                    sender,
 		Recipients:                recipients,
 		Subject:                   subject,
 		Message:                   message,
@@ -104,7 +104,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err = json.NewEncoder(&bodyAsBuffers).Encode(zeusEmailMessageBody); err != nil {
 		return false, err
 	}
-	response, err := n.postJSONFunc(ctx, n.client, apiUrl, &bodyAsBuffers)
+	response, err := n.postJSONFunc(ctx, n.client, apiURL, &bodyAsBuffers)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
