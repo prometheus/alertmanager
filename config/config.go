@@ -573,16 +573,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if zeusTelegram.HTTPConfig == nil {
 				zeusTelegram.HTTPConfig = c.Global.HTTPConfig
 			}
-			if zeusTelegram.APIUrl == nil {
-				zeusTelegram.APIUrl = c.Global.ZeusTelegramAPIUrl
+			if zeusTelegram.APIURL == nil {
+				zeusTelegram.APIURL = c.Global.ZeusTelegramAPIUrl
 			}
 		}
 		for _, zeusEmail := range rcv.ZeusEmailConfigs {
 			if zeusEmail.HTTPConfig == nil {
 				zeusEmail.HTTPConfig = c.Global.HTTPConfig
 			}
-			if zeusEmail.APIUrl == nil {
-				zeusEmail.APIUrl = c.Global.ZeusEmailAPIUrl
+			if zeusEmail.APIURL == nil {
+				zeusEmail.APIURL = c.Global.ZeusEmailAPIUrl
 			}
 		}
 		for _, discord := range rcv.DiscordConfigs {
