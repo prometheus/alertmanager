@@ -8,6 +8,8 @@
 /.tarballs
 /vendor
 /.idea
+/release
+/.idea
 
 
 !.golangci.yml

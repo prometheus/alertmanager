@@ -17,11 +17,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+
 	commoncfg "github.com/prometheus/common/config"
+
 	"io"
 	"log/slog"
 	"net/http"
@@ -119,6 +123,13 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	responseBody, err := getResponseBodyAsString(response)
 	if err != nil {
 		return true, notify.RedactURL(err)
+	}
+	if response.StatusCode/100 != 2 {
+		shouldRetry, err := n.retrier.Check(response.StatusCode, nil)
+		if err != nil {
+			return true, err
+		}
+		return shouldRetry, fmt.Errorf("unexpected status code %d: %s", response.StatusCode, responseBody)
 	}
 	n.logger.Debug("ZeusTelegram response: " + responseBody)
 	defer notify.Drain(response)
