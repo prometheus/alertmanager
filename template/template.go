@@ -207,6 +207,10 @@ var DefaultFuncs = FuncMap{
 	},
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
+	// parseDuration returns the time.Duration representation of a passed string
+	"parseDuration": func(text string) (time.Duration, error) {
+		return time.ParseDuration(text)
+	},
 }
 
 // Pair is a key/value string pair.
