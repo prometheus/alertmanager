@@ -105,7 +105,7 @@ func testJoinLeave(t *testing.T) {
 	p2.Leave(0 * time.Second)
 	require.Equal(t, 1, p.ClusterSize())
 	require.Len(t, p.failedPeers, 1)
-	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Node.Address())
+	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
 
@@ -341,6 +341,6 @@ func testTLSConnection(t *testing.T) {
 	p2.Leave(0 * time.Second)
 	require.Equal(t, 1, p1.ClusterSize())
 	require.Len(t, p1.failedPeers, 1)
-	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
+	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
 }

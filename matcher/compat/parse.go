@@ -138,7 +138,7 @@ func FallbackMatcherParser(l *slog.Logger) ParseMatcher {
 		}
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement.
-		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
+		if cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
 			l.Warn("Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatcher, nil
 		}
@@ -179,7 +179,7 @@ func FallbackMatchersParser(l *slog.Logger) ParseMatchers {
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement. We need to compare to labels.Matchers(cMatchers)
 		// as cMatchers is a []*labels.Matcher not labels.Matchers.
-		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
+		if cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
 			l.Warn("Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatchers, nil
 		}
