@@ -32,11 +32,11 @@ import (
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
-	conf        *config.ZeusTelegramConfig
-	tmpl        *template.Template
-	logger      *slog.Logger
-	client      *http.Client
-	retrier     *notify.Retrier
+	conf         *config.ZeusTelegramConfig
+	tmpl         *template.Template
+	logger       *slog.Logger
+	client       *http.Client
+	retrier      *notify.Retrier
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
@@ -83,18 +83,18 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 	}
 	var (
-		apiURL                     = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
-		sensitiveData              = n.conf.SensitiveData
-		sensitiveDataRegexPattern  = tmpl(n.conf.SensitiveDataRegexPattern)
-		eventID                    = tmpl(n.conf.EventID)
-		eventStatus                = tmpl(n.conf.EventStatus)
-		severity                   = tmpl(n.conf.Severity)
-		sender                     = tmpl(n.conf.Sender)
-		botToken                   = tmpl(n.conf.BotToken)
-		chatID                     = n.conf.ChatID
-		subject                    = tmpl(n.conf.Subject)
-		text                       = tmpl(n.conf.Text)
-		parseMode                  = tmpl(n.conf.ParseMode)
+		apiURL                    = strings.TrimSpace(tmpl(n.conf.APIURL.String()))
+		sensitiveData             = n.conf.SensitiveData
+		sensitiveDataRegexPattern = tmpl(n.conf.SensitiveDataRegexPattern)
+		eventID                   = tmpl(n.conf.EventID)
+		eventStatus               = tmpl(n.conf.EventStatus)
+		severity                  = tmpl(n.conf.Severity)
+		sender                    = tmpl(n.conf.Sender)
+		botToken                  = tmpl(n.conf.BotToken)
+		chatID                    = n.conf.ChatID
+		subject                   = tmpl(n.conf.Subject)
+		text                      = tmpl(n.conf.Text)
+		parseMode                 = tmpl(n.conf.ParseMode)
 	)
 	zeusTelegramMessageBody := zeusTelegramMessage{
 		SensitiveData:             sensitiveData,
