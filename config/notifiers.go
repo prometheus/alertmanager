@@ -182,8 +182,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Text:                 `{{ template "telegram.default.message" . }}`,
-		ParseMode:            "HTML",
+		Text:      `{{ template "telegram.default.message" . }}`,
+		ParseMode: "HTML",
 	}
 
 	DefaultZeusEmailConfig = ZeusEmailConfig{
@@ -861,11 +861,11 @@ type ZeusTelegramConfig struct {
 
 	SensitiveData             []string `yaml:"sensitive_data,omitempty" json:"sensitive_data,omitempty"`
 	SensitiveDataRegexPattern string   `yaml:"sensitive_data_regex_pattern" json:"sensitive_data_regex_pattern,omitempty"`
-	EventId					  string   `yaml:"event_id" json:"event_id,omitempty"`
-	EventStatus				  string   `yaml:"event_status" json:"event_status,omitempty"`
-	Severity			      string   `yaml:"severity" json:"severity,omitempty"`
-	Sender			          string   `yaml:"sender" json:"sender,omitempty"`
-	APIUrl                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
+	EventID                   string   `yaml:"event_id" json:"event_id,omitempty"`
+	EventStatus               string   `yaml:"event_status" json:"event_status,omitempty"`
+	Severity                  string   `yaml:"severity" json:"severity,omitempty"`
+	Sender                    string   `yaml:"sender" json:"sender,omitempty"`
+	APIURL                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
 	BotToken                  string   `yaml:"bot_token,omitempty" json:"token,omitempty"`
 	ChatID                    int64    `yaml:"chat_id,omitempty" json:"chat,omitempty"`
 	Subject                   string   `yaml:"subject,omitempty" json:"subject,omitempty"`
@@ -907,11 +907,11 @@ type ZeusEmailConfig struct {
 
 	SensitiveData             []string `yaml:"sensitive_data,omitempty" json:"sensitive_data,omitempty"`
 	SensitiveDataRegexPattern string   `yaml:"sensitive_data_regex_pattern" json:"sensitive_data_regex_pattern,omitempty"`
-	EventId					  string   `yaml:"event_id" json:"event_id,omitempty"`
-	EventStatus				  string   `yaml:"event_status" json:"event_status,omitempty"`
-	Severity			      string   `yaml:"severity" json:"severity,omitempty"`
-	Sender			          string   `yaml:"sender" json:"sender,omitempty"`
-	APIUrl                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
+	EventID                   string   `yaml:"event_id" json:"event_id,omitempty"`
+	EventStatus               string   `yaml:"event_status" json:"event_status,omitempty"`
+	Severity                  string   `yaml:"severity" json:"severity,omitempty"`
+	Sender                    string   `yaml:"sender" json:"sender,omitempty"`
+	APIURL                    *URL     `yaml:"api_url" json:"api_url,omitempty"`
 	Recipients                []string `yaml:"recipients" json:"recipients,omitempty"`
 	Subject                   string   `yaml:"subject,omitempty" json:"subject,omitempty"`
 	Message                   string   `yaml:"message,omitempty" json:"message,omitempty"`
