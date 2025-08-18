@@ -35,10 +35,11 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	now := time.Now()
 	cases := []struct {
-		initial map[model.Fingerprint]*types.Alert
-		equal   model.LabelNames
-		input   model.LabelSet
-		result  bool
+		initial    map[model.Fingerprint]*types.Alert
+		equal      model.LabelNames
+		equalPairs LabelPairs
+		input      model.LabelSet
+		result     bool
 	}{
 		{
 			// No source alerts at all.
@@ -118,16 +119,62 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			input:  model.LabelSet{"a": "b"},
 			result: false,
 		},
+		{
+			// Equal label pair does match
+			initial: map[model.Fingerprint]*types.Alert{
+				1: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "b"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+			},
+			equalPairs: LabelPairs{
+				{
+					SourceLabel: "a",
+					TargetLabel: "x",
+				},
+			},
+			input:  model.LabelSet{"x": "b"},
+			result: true,
+		},
+		{
+			// Equal label pair does not match
+			initial: map[model.Fingerprint]*types.Alert{
+				1: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "b"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+			},
+			equalPairs: LabelPairs{
+				{
+					SourceLabel: "a",
+					TargetLabel: "x",
+				},
+			},
+			input:  model.LabelSet{"x": "c"},
+			result: false,
+		},
 	}
 
 	for _, c := range cases {
 		r := &InhibitRule{
-			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(),
+			EqualPairs: LabelPairs{},
+			scache:     store.NewAlerts(),
 		}
 		for _, ln := range c.equal {
-			r.Equal[ln] = struct{}{}
+			pair := LabelPair{
+				SourceLabel: ln,
+				TargetLabel: ln,
+			}
+			r.EqualPairs = append(r.EqualPairs, pair)
 		}
+		r.EqualPairs = append(r.EqualPairs, c.equalPairs...)
+
 		for _, v := range c.initial {
 			r.scache.Set(v)
 		}
