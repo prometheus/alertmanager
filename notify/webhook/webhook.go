@@ -87,7 +87,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		n.logger.Error("error extracting group key", "err", err)
 	}
 
-	// @tjhop: should we debug log the key here like most other Notify() implementations?
+	n.logger.Debug("extracted group key", "key", groupKey.String())
 
 	msg := &Message{
 		Version:         "4",
