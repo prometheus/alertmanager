@@ -46,7 +46,7 @@ func TestEmailHeadersCollision(t *testing.T) {
 to: 'to@email.com'
 headers:
   Subject: 'Alert'
-  subject: 'New Alert'
+  sUbject: 'New Alert'
 `
 	var cfg EmailConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
