@@ -854,9 +854,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		for _, f := range q.filters {
 			ok, err := f(sil, s, now)
 			if err != nil {
-				return nil, s.version, err
+				level.Debug(s.logger).Log("msg", "filtering silence rule got error", err)
 			}
-			if !ok {
+			if !ok || err != nil {
 				remove = true
 				break
 			}
