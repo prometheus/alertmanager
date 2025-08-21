@@ -55,15 +55,12 @@ type issueStatus struct {
 }
 
 type issueSearch struct {
-	Expand     []string `json:"expand"`
 	Fields     []string `json:"fields"`
 	JQL        string   `json:"jql"`
 	MaxResults int      `json:"maxResults"`
-	StartAt    int      `json:"startAt"`
 }
 
 type issueSearchResult struct {
-	Total  int     `json:"total"`
 	Issues []issue `json:"issues"`
 }
 

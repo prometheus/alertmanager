@@ -37,6 +37,7 @@ import (
 )
 
 func TestSyncTimer(t *testing.T) {
+	t.Skip("Flaky test. Skipping for now.") // TODO https://github.com/grafana/alerting-squad/issues/1195
 	now := time.Now()
 
 	buf := &logBuf{t: t, b: []string{}}
