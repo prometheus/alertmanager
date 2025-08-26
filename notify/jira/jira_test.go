@@ -65,7 +65,7 @@ func TestSearchExistingIssue(t *testing.T) {
 	expectedJQL := ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/search/jql":
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "Error reading request body", http.StatusBadRequest)
@@ -188,7 +188,7 @@ func TestSearchExistingIssue(t *testing.T) {
 func TestJiraTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/search/jql":
 			w.Write([]byte(`{"total": 0, "issues": []}`))
 			return
 		default:
@@ -627,7 +627,7 @@ func TestJiraNotify(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
-				case "/search":
+				case "/search/jql":
 					enc := json.NewEncoder(w)
 					if err := enc.Encode(tc.searchResponse); err != nil {
 						panic(err)
