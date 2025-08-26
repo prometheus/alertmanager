@@ -241,12 +241,13 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 		return nil, false, err
 	}
 
-	if issueSearchResult.Total == 0 {
+	issuesCount := len(issueSearchResult.Issues)
+	if issuesCount == 0 {
 		logger.Debug("found no existing issue")
 		return nil, false, nil
 	}
 
-	if issueSearchResult.Total > 1 {
+	if issuesCount > 1 {
 		logger.Warn("more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 
