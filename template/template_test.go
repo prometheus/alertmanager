@@ -293,7 +293,7 @@ func TestTemplateExpansion(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 		in    string
-		data  interface{}
+		data  any
 		html  bool
 
 		exp  string
@@ -414,7 +414,7 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 		options []Option
 		title   string
 		in      string
-		data    interface{}
+		data    any
 		html    bool
 
 		exp  string
@@ -475,7 +475,7 @@ func TestTemplateFuncs(t *testing.T) {
 	for _, tc := range []struct {
 		title  string
 		in     string
-		data   interface{}
+		data   any
 		exp    string
 		expErr string
 	}{{
