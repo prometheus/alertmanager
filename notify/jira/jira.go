@@ -225,12 +225,12 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 		JQL:        jql.String(),
 		MaxResults: 2,
 		Fields:     []string{"status"},
-		Expand:     []string{},
+		Expand:     "",
 	}
 
 	logger.Debug("search for recent issues", "jql", requestBody.JQL)
 
-	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search", requestBody)
+	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search/jql", requestBody)
 	if err != nil {
 		return nil, shouldRetry, fmt.Errorf("HTTP request to JIRA API: %w", err)
 	}
@@ -241,12 +241,13 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 		return nil, false, err
 	}
 
-	if issueSearchResult.Total == 0 {
+	issuesCount := len(issueSearchResult.Issues)
+	if issuesCount == 0 {
 		logger.Debug("found no existing issue")
 		return nil, false, nil
 	}
 
-	if issueSearchResult.Total > 1 {
+	if issuesCount > 1 {
 		logger.Warn("more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 
