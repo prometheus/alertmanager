@@ -637,7 +637,7 @@ type hashBuffer struct {
 }
 
 var hashBuffers = sync.Pool{
-	New: func() interface{} { return &hashBuffer{buf: make([]byte, 0, 1024)} },
+	New: func() any { return &hashBuffer{buf: make([]byte, 0, 1024)} },
 }
 
 func hashAlert(a *types.Alert) uint64 {

@@ -148,7 +148,7 @@ type TestAlert struct {
 
 // Alert creates a new alert declaration with the given key/value pairs
 // as identifying labels.
-func Alert(keyval ...interface{}) *TestAlert {
+func Alert(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -192,7 +192,7 @@ func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.GettableAlert {
 }
 
 // Annotate the alert with the given key/value pairs.
-func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
+func (a *TestAlert) Annotate(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}

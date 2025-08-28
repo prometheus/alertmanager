@@ -131,7 +131,7 @@ func (t *Template) FromGlob(path string) error {
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
+func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
 		return "", nil
 	}
@@ -149,7 +149,7 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 }
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
+func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if html == "" {
 		return "", nil
 	}
@@ -166,7 +166,7 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 	return buf.String(), err
 }
 
-type FuncMap map[string]interface{}
+type FuncMap map[string]any
 
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,

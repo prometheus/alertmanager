@@ -218,7 +218,7 @@ func run() int {
 	}
 
 	if ff.EnableAutoGOMAXPROCS() {
-		l := func(format string, a ...interface{}) {
+		l := func(format string, a ...any) {
 			logger.Info("automaxprocs", "msg", fmt.Sprintf(strings.TrimPrefix(format, "maxprocs: "), a...))
 		}
 		if _, err := maxprocs.Set(maxprocs.Logger(l)); err != nil {
