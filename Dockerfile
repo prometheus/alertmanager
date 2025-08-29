@@ -4,21 +4,29 @@ WORKDIR /app
 COPY . ./
 RUN mkdir /etc/alertmanager
 RUN mkdir /alertmanager
-ENV GOEXPERIMENT=noboringcrypto
-ENV CGO_ENABLED=0
-ENV GOFIPS140=latest
-RUN go build \
+ENV GOEXPERIMENT=boringcrypto
+ENV CGO_ENABLED=1
+ENV GOFIPS140=off
+ENV GOTOOLCHAIN=local
+ENV GOARCH=${TARGETARCH}
+ENV GOOS=${TARGETOS}
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    go build \
     -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
-    ./cmd/alertmanager
-RUN go build \
+    ./cmd/alertmanager && \
+    go build \
     -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
     ./cmd/amtool
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20250807.00_p0
 COPY --from=gobase /app/alertmanager /bin/alertmanager
 COPY --from=gobase /app/amtool /bin/amtool
 COPY --from=gobase --chown=nobody:nobody /etc/alertmanager /etc/alertmanager
