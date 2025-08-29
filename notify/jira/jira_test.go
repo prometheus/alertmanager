@@ -81,6 +81,19 @@ func TestSearchExistingIssue(t *testing.T) {
 				return
 			}
 			require.Equal(t, expectedJQL, data.JQL)
+
+			// Return different responses based on the request
+			if strings.Contains(data.JQL, `ALERT{2}`) {
+				// Unresolved issue exists (resolution is EMPTY)
+				w.Write([]byte(`{"total": 1, "issues": [{"key": "CRM-999", "fields": {"status": {"name": "To Do"}}}]}`))
+				return
+			}
+			if strings.Contains(data.JQL, `ALERT{3}`) {
+				// Resolved issue exists (resolution is Done)
+				w.Write([]byte(`{"total": 1, "issues": [{"key": "CRM-998", "fields": {"status": {"name": "Done"}}}]}`))
+				return
+			}
+			// Default: No matching issues found().Add(time.Hour),
 			w.Write([]byte(`{"total": 0, "issues": []}`))
 			return
 		default:
@@ -140,6 +153,50 @@ func TestSearchExistingIssue(t *testing.T) {
 			groupKey:    "1",
 			firing:      false,
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "existing unresolved issue (resolution is EMPTY)",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				Project:           `{{ .CommonLabels.project }}`,
+				WontFixResolution: "Won't Fix",
+			},
+			groupKey:    "2",
+			expectedJQL: `(resolution is EMPTY or resolution != "Won't Fix") and statusCategory != Done and project="PROJ" and labels="ALERT{2}" order by status ASC,resolutiondate DESC`,
+			expectedIssue: &issue{
+				Key: "CRM-999",
+				Fields: &issueFields{
+					Status: &issueStatus{
+						Name: "To Do",
+						StatusCategory: struct {
+							Key string `json:"key"`
+						}{Key: ""},
+					},
+				},
+			},
+		},
+		{
+			title: "existing resolved issue (resolution Done)",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				Project:           `{{ .CommonLabels.project }}`,
+				WontFixResolution: "Won't Fix",
+			},
+			groupKey:    "3",
+			expectedJQL: `(resolution is EMPTY or resolution != "Won't Fix") and statusCategory != Done and project="PROJ" and labels="ALERT{3}" order by status ASC,resolutiondate DESC`,
+			expectedIssue: &issue{
+				Key: "CRM-998",
+				Fields: &issueFields{
+					Status: &issueStatus{
+						Name: "Done",
+						StatusCategory: struct {
+							Key string `json:"key"`
+						}{Key: ""},
+					},
+				},
+			},
 		},
 	} {
 		tc := tc
