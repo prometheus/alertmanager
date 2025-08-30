@@ -561,7 +561,18 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    "{{ . | since | humanizeDuration }}",
 		data:  time.Now().Add(-1 * time.Hour),
 		exp:   "1h 0m 0s",
-	}} {
+	},
+		{
+			title: "Template using parseJSON - valid JSON",
+			in:    `{{ $json := . | parseJSON }}{{ $json.key }}`,
+			data:  `{"key": "value"}`,
+			exp:   "value",
+		}, {
+			title:  "Template using parseJSON - invalid JSON",
+			in:     `{{ . | parseJSON }}`,
+			data:   `{"key": "value"`,
+			expErr: "template: :1:7: executing \"\" at <parseJSON>: error calling parseJSON: unexpected end of JSON input",
+		}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
