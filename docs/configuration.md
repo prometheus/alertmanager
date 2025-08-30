@@ -1242,8 +1242,8 @@ service_key_file: <filepath>
 # Unique location of the affected system.
 [ source: <tmpl_string> | default = client ]
 
-# A set of arbitrary key/value pairs that provide further detail
-# about the incident.
+# A set of arbitrary key/value pairs that provide further detail about the incident.
+# Nested key/value pairs are accepted when using PagerDuty integration type `Events API v2`.
 [ details: { <string>: <tmpl_string>, ... } | default = {
   firing:       '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
   resolved:     '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
