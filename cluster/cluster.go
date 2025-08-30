@@ -39,6 +39,8 @@ type ClusterPeer interface {
 	Status() string
 	// Peers returns the peer nodes in the cluster.
 	Peers() []ClusterMember
+	// GetStates returns the States associated with the given keys and a slice of keys not found.
+	GetStates(...string) (map[string]State, []string)
 }
 
 // ClusterMember interface that represents node peers in a cluster.
@@ -534,6 +536,24 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 
 	p.peerUpdateCounter.Inc()
 	p.logger.Debug("peer updated", "peer", pr.Node)
+}
+
+// GetStates returns the States associated with the given keys and a slice of keys not found.
+func (p *Peer) GetStates(keys ...string) (map[string]State, []string) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	result := make(map[string]State, len(keys))
+	notFound := make([]string, 0)
+	for _, key := range keys {
+		if v, ok := p.states[key]; ok {
+			result[key] = v
+		} else {
+			notFound = append(notFound, key)
+		}
+	}
+
+	return result, notFound
 }
 
 // AddState adds a new state that will be gossiped. It returns a channel to which
