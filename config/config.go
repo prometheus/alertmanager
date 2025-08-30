@@ -1011,6 +1011,7 @@ type Receiver struct {
 	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	CompassConfig     []*CompassConfig    `yaml:"compass_configs,omitempty" json:"compass_configs,omitempty"`
 	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
