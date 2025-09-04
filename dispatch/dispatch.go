@@ -87,9 +87,10 @@ type Dispatcher struct {
 	aggrGroupsPerRoute map[*Route]map[model.Fingerprint]*aggrGroup
 	aggrGroupsNum      int
 
-	done   chan struct{}
-	ctx    context.Context
-	cancel func()
+	maintenanceInterval time.Duration
+	done                chan struct{}
+	ctx                 context.Context
+	cancel              func()
 
 	logger *slog.Logger
 }
@@ -109,6 +110,7 @@ func NewDispatcher(
 	s notify.Stage,
 	mk types.GroupMarker,
 	to func(time.Duration) time.Duration,
+	mi time.Duration,
 	lim Limits,
 	l *slog.Logger,
 	m *DispatcherMetrics,
@@ -118,14 +120,15 @@ func NewDispatcher(
 	}
 
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		marker:  mk,
-		timeout: to,
-		logger:  l.With("component", "dispatcher"),
-		metrics: m,
-		limits:  lim,
+		alerts:              ap,
+		stage:               s,
+		route:               r,
+		marker:              mk,
+		timeout:             to,
+		maintenanceInterval: mi,
+		logger:              l.With("component", "dispatcher"),
+		metrics:             m,
+		limits:              lim,
 	}
 	return disp
 }
@@ -146,7 +149,7 @@ func (d *Dispatcher) Run() {
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
-	maintenance := time.NewTicker(30 * time.Second)
+	maintenance := time.NewTicker(d.maintenanceInterval)
 	defer maintenance.Stop()
 
 	defer it.Close()
