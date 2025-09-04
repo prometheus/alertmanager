@@ -100,19 +100,45 @@ func TestSearchExistingIssue(t *testing.T) {
 		title         string
 		cfg           *config.JiraConfig
 		groupKey      string
+		firing        bool
 		expectedJQL   string
 		expectedIssue *issue
 		expectedErr   bool
 		expectedRetry bool
 	}{
 		{
-			title: "search existing issue with project template",
+			title: "search existing issue with project template for firing alert",
 			cfg: &config.JiraConfig{
 				Summary:     `{{ template "jira.default.summary" . }}`,
 				Description: `{{ template "jira.default.description" . }}`,
 				Project:     `{{ .CommonLabels.project }}`,
 			},
 			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue with reopen duration for firing alert",
+			cfg: &config.JiraConfig{
+				Summary:          `{{ template "jira.default.summary" . }}`,
+				Description:      `{{ template "jira.default.description" . }}`,
+				Project:          `{{ .CommonLabels.project }}`,
+				ReopenDuration:   model.Duration(60 * time.Minute),
+				ReopenTransition: "REOPEN",
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `(resolutiondate is EMPTY OR resolutiondate >= -60m) and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue for resolved alert",
+			cfg: &config.JiraConfig{
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			firing:      false,
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
 		},
 	} {
@@ -147,13 +173,13 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, true, tmplTextFunc)
+			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.EqualValues(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedIssue, issue)
 			require.Equal(t, tc.expectedRetry, retry)
 		})
 	}

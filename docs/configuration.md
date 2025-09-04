@@ -4,8 +4,6 @@ sort_rank: 3
 nav_icon: sliders
 ---
 
-# Configuration
-
 [Alertmanager](https://github.com/prometheus/alertmanager) is configured via
 command-line flags and a configuration file.
 While the command-line flags configure immutable system parameters, the
@@ -822,6 +820,18 @@ oauth2:
 # Configures the TLS settings.
 tls_config:
   [ <tls_config> ]
+
+# Custom HTTP headers to be sent along with each request.
+# Headers that are set by Prometheus itself can't be overwritten.
+http_headers:
+  # Header name.
+  [ <string>:
+    # Header values.
+    [ values: [<string>, ...] ]
+    # Headers values. Hidden in configuration page.
+    [ secrets: [<secret>, ...] ]
+    # Files to read header values from.
+    [ files: [<string>, ...] ] ]
 ```
 
 #### `<oauth2>`
@@ -1332,6 +1342,11 @@ token_file: <filepath>
 # Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
+# Optional HTML/monospace formatting for the message, see https://pushover.net/api#html
+# html and monospace formatting are mutually exclusive.
+[ html: <boolean> | default = false ]
+[ monospace: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
@@ -1394,7 +1409,7 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ msg: <tmpl_string> ]
 ```
 
-#### `<slack_config>`
+### `<slack_config>`
 
 Slack notifications can be sent via [Incoming webhooks](https://api.slack.com/messaging/webhooks) or [Bot tokens](https://api.slack.com/authentication/token-types).
 

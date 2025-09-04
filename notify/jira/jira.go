@@ -119,7 +119,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
-func (n *Notifier) prepareIssueRequestBody(ctx context.Context, logger *slog.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
 		return issue{}, fmt.Errorf("summary template: %w", err)
@@ -201,16 +201,17 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
 	}
 
-	// If the group is firing, do not search for closed issues unless a reopen transition is defined.
+	// If the group is firing, search for open issues. If a reopen transition is
+	// defined, also search for issues that were closed within the reopen duration.
 	if firing {
-		if n.conf.ReopenTransition == "" {
+		reopenDuration := int64(time.Duration(n.conf.ReopenDuration).Minutes())
+		if n.conf.ReopenTransition != "" && reopenDuration > 0 {
+			jql.WriteString(fmt.Sprintf(`(resolutiondate is EMPTY OR resolutiondate >= -%dm) and `, reopenDuration))
+		} else {
 			jql.WriteString(`statusCategory != Done and `)
 		}
 	} else {
-		reopenDuration := int64(time.Duration(n.conf.ReopenDuration).Minutes())
-		if reopenDuration != 0 {
-			jql.WriteString(fmt.Sprintf(`(resolutiondate is EMPTY OR resolutiondate >= -%dm) and `, reopenDuration))
-		}
+		jql.WriteString(`statusCategory != Done and `)
 	}
 
 	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
