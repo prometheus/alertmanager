@@ -74,7 +74,7 @@ func TestSearchExistingIssue(t *testing.T) {
 			defer r.Body.Close()
 
 			// Unmarshal the JSON data into the struct
-			var data issueSearch
+			var data issueSearchDatacenter
 			err = json.Unmarshal(body, &data)
 			if err != nil {
 				http.Error(w, "Error unmarshaling JSON", http.StatusBadRequest)
@@ -181,6 +181,143 @@ func TestSearchExistingIssue(t *testing.T) {
 			}
 			require.Equal(t, tc.expectedIssue, issue)
 			require.Equal(t, tc.expectedRetry, retry)
+		})
+	}
+}
+
+func TestPrepareSearchRequest(t *testing.T) {
+	for _, tc := range []struct {
+		title           string
+		cfg             *config.JiraConfig
+		jql             string
+		expectedBody    any
+		expectedURL     string
+		expectedURLPath string
+	}{
+		{
+			title: "cloud API type",
+			cfg: &config.JiraConfig{
+				APITYPE: "cloud",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearchCloud{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+				Expand:     "",
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type",
+			cfg: &config.JiraConfig{
+				APITYPE: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearchCloud{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+				Expand:     "",
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix",
+			cfg: &config.JiraConfig{
+				APITYPE: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearchDatacenter{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+				Expand:     []string{},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "datacenter API type",
+			cfg: &config.JiraConfig{
+				APITYPE: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearchDatacenter{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+				Expand:     []string{},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "empty API type defaults to datacenter",
+			cfg: &config.JiraConfig{
+				APITYPE: "",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearchDatacenter{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+				Expand:     []string{},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			requestBody, searchURL := notifier.prepareSearchRequest(tc.jql)
+
+			require.Equal(t, tc.expectedURL, searchURL)
+			require.Equal(t, tc.expectedBody, requestBody)
+			// Verify that the original APIURL.Path is not modified
+			require.Equal(t, tc.expectedURLPath, notifier.conf.APIURL.Path)
 		})
 	}
 }
