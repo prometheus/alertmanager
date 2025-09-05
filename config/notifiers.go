@@ -900,7 +900,8 @@ type JiraConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APITYPE string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
 	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
 	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
