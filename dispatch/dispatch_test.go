@@ -724,10 +724,10 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 }
 
 type limits struct {
-	groups int
+	groups int64
 }
 
-func (l limits) MaxNumberOfAggregationGroups() int {
+func (l limits) MaxNumberOfAggregationGroups() int64 {
 	return l.groups
 }
 
@@ -752,14 +752,16 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
-	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
-	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+
+	// Initialize the sync.Map structure
+	dispatcher.aggrGroupsPerRoute = &sync.Map{}
+	routeGroups := &sync.Map{}
+	dispatcher.aggrGroupsPerRoute.Store(route, routeGroups)
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
 	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, promslog.NewNopLogger())
-	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
-	dispatcher.aggrGroupsPerRoute = aggrGroups
+	routeGroups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
