@@ -74,7 +74,7 @@ func TestSearchExistingIssue(t *testing.T) {
 			defer r.Body.Close()
 
 			// Unmarshal the JSON data into the struct
-			var data issueSearchDatacenter
+			var data issueSearch
 			err = json.Unmarshal(body, &data)
 			if err != nil {
 				http.Error(w, "Error unmarshaling JSON", http.StatusBadRequest)
@@ -197,7 +197,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		{
 			title: "cloud API type",
 			cfg: &config.JiraConfig{
-				APITYPE: "cloud",
+				APIType: "cloud",
 				APIURL: &config.URL{
 					URL: &url.URL{
 						Scheme: "https",
@@ -207,11 +207,10 @@ func TestPrepareSearchRequest(t *testing.T) {
 				},
 			},
 			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearchCloud{
+			expectedBody: issueSearch{
 				JQL:        "project=TEST and labels=\"ALERT{123}\"",
 				MaxResults: 2,
 				Fields:     []string{"status"},
-				Expand:     "",
 			},
 			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
 			expectedURLPath: "/rest/api/2",
@@ -219,7 +218,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		{
 			title: "auto API type",
 			cfg: &config.JiraConfig{
-				APITYPE: "auto",
+				APIType: "auto",
 				APIURL: &config.URL{
 					URL: &url.URL{
 						Scheme: "https",
@@ -229,11 +228,10 @@ func TestPrepareSearchRequest(t *testing.T) {
 				},
 			},
 			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearchCloud{
+			expectedBody: issueSearch{
 				JQL:        "project=TEST and labels=\"ALERT{123}\"",
 				MaxResults: 2,
 				Fields:     []string{"status"},
-				Expand:     "",
 			},
 			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
 			expectedURLPath: "/rest/api/2",
@@ -241,7 +239,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		{
 			title: "atlassian.net URL suffix",
 			cfg: &config.JiraConfig{
-				APITYPE: "datacenter",
+				APIType: "datacenter",
 				APIURL: &config.URL{
 					URL: &url.URL{
 						Scheme: "https",
@@ -251,11 +249,10 @@ func TestPrepareSearchRequest(t *testing.T) {
 				},
 			},
 			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearchDatacenter{
+			expectedBody: issueSearch{
 				JQL:        "project=TEST and labels=\"ALERT{123}\"",
 				MaxResults: 2,
 				Fields:     []string{"status"},
-				Expand:     []string{},
 			},
 			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
 			expectedURLPath: "/rest/api/2",
@@ -263,7 +260,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		{
 			title: "datacenter API type",
 			cfg: &config.JiraConfig{
-				APITYPE: "datacenter",
+				APIType: "datacenter",
 				APIURL: &config.URL{
 					URL: &url.URL{
 						Scheme: "https",
@@ -273,19 +270,18 @@ func TestPrepareSearchRequest(t *testing.T) {
 				},
 			},
 			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearchDatacenter{
+			expectedBody: issueSearch{
 				JQL:        "project=TEST and labels=\"ALERT{123}\"",
 				MaxResults: 2,
 				Fields:     []string{"status"},
-				Expand:     []string{},
 			},
 			expectedURL:     "https://jira.example.com/rest/api/2/search",
 			expectedURLPath: "/rest/api/2",
 		},
 		{
-			title: "empty API type defaults to datacenter",
+			title: "empty API type defaults to auto",
 			cfg: &config.JiraConfig{
-				APITYPE: "",
+				APIType: "",
 				APIURL: &config.URL{
 					URL: &url.URL{
 						Scheme: "https",
@@ -295,13 +291,33 @@ func TestPrepareSearchRequest(t *testing.T) {
 				},
 			},
 			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearchDatacenter{
+			expectedBody: issueSearch{
 				JQL:        "project=TEST and labels=\"ALERT{123}\"",
 				MaxResults: 2,
 				Fields:     []string{"status"},
-				Expand:     []string{},
 			},
 			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "empty API type defaults to auto, having a atlassian.net URL suffix",
+			cfg: &config.JiraConfig{
+				APIType: "",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
 			expectedURLPath: "/rest/api/2",
 		},
 	} {
