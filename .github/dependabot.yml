@@ -5,6 +5,10 @@ updates:
     open-pull-requests-limit: 20
     schedule:
       interval: "monthly"
+    groups:
+      aws:
+        patterns:
+          - "github.com/aws/*"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
