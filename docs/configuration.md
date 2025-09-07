@@ -97,6 +97,7 @@ global:
 
   # Default settings for the JIRA integration.
   [ jira_api_url: <string> ]
+  [ jira_api_type: <string> ]
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
@@ -1057,6 +1058,10 @@ The default `jira.default.description` template only works with V2.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
 
+# The API Type to use for search requests, can be either auto, cloud or datacenter. Empty string falls back to auto 
+# Example: cloud
+[ api_type: <string> | default = global.jira_api_type ]
+   
 # The project key where issues are created.
 project: <string>
 

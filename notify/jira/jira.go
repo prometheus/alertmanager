@@ -249,34 +249,26 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 }
 
 func (n *Notifier) prepareSearchRequest(jql string) (any, string) {
-	if n.conf.APITYPE == "datacenter" {
-		requestBody := issueSearchDatacenter{
-			JQL:        jql,
-			MaxResults: 2,
-			Fields:     []string{"status"},
-			Expand:     []string{},
-		}
+	requestBody := issueSearch{
+		JQL:        jql,
+		MaxResults: 2,
+		Fields:     []string{"status"},
+	}
+
+	// if the API type is datacenter always go for v2
+	if n.conf.APIType == "datacenter" {
 		searchPath := n.conf.APIURL.JoinPath("/search").String()
 		return requestBody, searchPath
 	}
 
-	if n.conf.APITYPE == "cloud" || n.conf.APITYPE == "auto" && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
-		requestBody := issueSearchCloud{
-			JQL:        jql,
-			MaxResults: 2,
-			Fields:     []string{"status"},
-			Expand:     "",
-		}
+	// if the API type is cloud always go for v3
+	// if the API type is auto or empty and the URL has an atlassian.net suffix, go for v3
+	if n.conf.APIType == "cloud" || (n.conf.APIType == "auto" || n.conf.APIType == "") && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
 		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/2", "/3", 1)
 		return requestBody, searchPath
 	}
 
-	requestBody := issueSearchDatacenter{
-		JQL:        jql,
-		MaxResults: 2,
-		Fields:     []string{"status"},
-		Expand:     []string{},
-	}
+	// if the API type is auto or empty and the URL does not have an atlassian.net suffix, go for v2
 	searchPath := n.conf.APIURL.JoinPath("/search").String()
 	return requestBody, searchPath
 }

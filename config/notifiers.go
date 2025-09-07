@@ -901,7 +901,7 @@ type JiraConfig struct {
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APITYPE string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
+	APIType string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
 	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
 	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -930,6 +930,12 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if c.IssueType == "" {
 		return errors.New("missing issue_type in jira_config")
+	}
+	if c.APIType != "" &&
+		c.APIType != "auto" &&
+		c.APIType != "cloud" &&
+		c.APIType != "datacenter" {
+		return errors.New("unknown api_type on jira_config, must be auto, cloud, datacenter or empty string")
 	}
 	return nil
 }
