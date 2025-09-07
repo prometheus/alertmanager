@@ -14,6 +14,7 @@
 package receiver
 
 import (
+	"github.com/prometheus/alertmanager/notify/zeusemail"
 	"log/slog"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -37,6 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/notify/zeustelegram"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -90,6 +92,12 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.TelegramConfigs {
 		add("telegram", i, c, func(l *slog.Logger) (notify.Notifier, error) { return telegram.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.ZeusTelegramConfigs {
+		add("zeustelegram", i, c, func(l *slog.Logger) (notify.Notifier, error) { return zeustelegram.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.ZeusEmailConfigs {
+		add("zeusemail", i, c, func(l *slog.Logger) (notify.Notifier, error) { return zeusemail.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.DiscordConfigs {
 		add("discord", i, c, func(l *slog.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l, httpOpts...) })
