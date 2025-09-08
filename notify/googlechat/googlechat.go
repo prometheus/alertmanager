@@ -50,7 +50,7 @@ func New(conf *config.GoogleChatConfig, t *template.Template, l log.Logger, http
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{},
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 	}, nil
 }
 
