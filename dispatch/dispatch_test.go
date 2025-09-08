@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
@@ -425,14 +427,18 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
-	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
-	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+
+	// Initialize the dispatcher's aggrGroupsPerRoute directly (avoid copying the struct)
+	dispatcher.aggrGroupsPerRoute = routeGroups{
+		groupsNum: &atomic.Int64{},
+		limits:    nilLimits{},
+	}
+	groupsMap := dispatcher.aggrGroupsPerRoute.AddRoute(route)
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
 	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, promslog.NewNopLogger())
-	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
-	dispatcher.aggrGroupsPerRoute = aggrGroups
+	groupsMap.AddGroup(aggrGroup1.fingerprint(), aggrGroup1)
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
