@@ -97,6 +97,9 @@ init flags url key =
                             "Sunday" ->
                                 Sunday
 
+                            "Saturday" ->
+                                Saturday
+
                             _ ->
                                 Monday
                    )
