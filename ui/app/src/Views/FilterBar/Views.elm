@@ -166,4 +166,4 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
 
 exampleMatcher : String
 exampleMatcher =
-    "env=\"production\""
+    "env=\"staging\""
