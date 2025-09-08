@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -97,7 +98,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
-		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+		parameters.Add("corpsecret", tmpl(strings.TrimSpace(string(n.conf.APISecret))))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
 			return false, fmt.Errorf("templating error: %w", err)
