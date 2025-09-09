@@ -21,6 +21,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/compass"
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/jira"
@@ -72,6 +73,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.OpsGenieConfigs {
 		add("opsgenie", i, c, func(l *slog.Logger) (notify.Notifier, error) { return opsgenie.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.CompassConfig {
+		add("compass", i, c, func(l *slog.Logger) (notify.Notifier, error) { return compass.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.WechatConfigs {
 		add("wechat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l, httpOpts...) })
