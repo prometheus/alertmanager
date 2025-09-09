@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/prometheus/common/model"
@@ -55,7 +56,8 @@ type Matcher struct {
 	Name  string
 	Value string
 
-	re *regexp.Regexp
+	re    *regexp.Regexp
+	cache *sync.Map
 }
 
 // NewMatcher returns a matcher object.
@@ -64,6 +66,7 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 		Type:  t,
 		Name:  n,
 		Value: v,
+		cache: new(sync.Map),
 	}
 	if t == MatchRegexp || t == MatchNotRegexp {
 		re, err := regexp.Compile("^(?:" + v + ")$")
@@ -90,11 +93,21 @@ func (m *Matcher) Matches(s string) bool {
 	case MatchNotEqual:
 		return s != m.Value
 	case MatchRegexp:
-		return m.re.MatchString(s)
+		return m.matchString(s)
 	case MatchNotRegexp:
-		return !m.re.MatchString(s)
+		return !m.matchString(s)
 	}
 	panic("labels.Matcher.Matches: invalid match type")
+}
+
+func (m *Matcher) matchString(s string) bool {
+	if matched, ok := m.cache.Load(s); ok {
+		return matched.(bool)
+	}
+
+	match := m.re.MatchString(s)
+	m.cache.Store(s, match)
+	return match
 }
 
 type apiV1Matcher struct {
