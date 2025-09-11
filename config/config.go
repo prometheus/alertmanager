@@ -609,12 +609,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				}
 				jira.APIURL = c.Global.JiraAPIURL
 			}
-			if jira.APIType == "" {
-				if c.Global.JiraAPIType == "" {
-					jira.APIType = "auto"
-				}
-				jira.APIType = c.Global.JiraAPIType
-			}
 		}
 		for _, rocketchat := range rcv.RocketchatConfigs {
 			if rocketchat.HTTPConfig == nil {
@@ -844,7 +838,6 @@ type GlobalConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	JiraAPIURL            *URL                 `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
-	JiraAPIType           string               `yaml:"jira_api_type,omitempty" json:"jira_api_type,omitempty"`
 	SMTPFrom              string               `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello             string               `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost         HostPort             `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`

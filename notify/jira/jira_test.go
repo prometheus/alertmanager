@@ -216,7 +216,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			expectedURLPath: "/rest/api/2",
 		},
 		{
-			title: "auto API type",
+			title: "auto API type with atlassian.net url",
 			cfg: &config.JiraConfig{
 				APIType: "auto",
 				APIURL: &config.URL{
@@ -237,7 +237,28 @@ func TestPrepareSearchRequest(t *testing.T) {
 			expectedURLPath: "/rest/api/2",
 		},
 		{
-			title: "atlassian.net URL suffix",
+			title: "auto API type without atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix but datacenter api type",
 			cfg: &config.JiraConfig{
 				APIType: "datacenter",
 				APIURL: &config.URL{
@@ -276,48 +297,6 @@ func TestPrepareSearchRequest(t *testing.T) {
 				Fields:     []string{"status"},
 			},
 			expectedURL:     "https://jira.example.com/rest/api/2/search",
-			expectedURLPath: "/rest/api/2",
-		},
-		{
-			title: "empty API type defaults to auto",
-			cfg: &config.JiraConfig{
-				APIType: "",
-				APIURL: &config.URL{
-					URL: &url.URL{
-						Scheme: "https",
-						Host:   "jira.example.com",
-						Path:   "/rest/api/2",
-					},
-				},
-			},
-			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearch{
-				JQL:        "project=TEST and labels=\"ALERT{123}\"",
-				MaxResults: 2,
-				Fields:     []string{"status"},
-			},
-			expectedURL:     "https://jira.example.com/rest/api/2/search",
-			expectedURLPath: "/rest/api/2",
-		},
-		{
-			title: "empty API type defaults to auto, having a atlassian.net URL suffix",
-			cfg: &config.JiraConfig{
-				APIType: "",
-				APIURL: &config.URL{
-					URL: &url.URL{
-						Scheme: "https",
-						Host:   "example.atlassian.net",
-						Path:   "/rest/api/2",
-					},
-				},
-			},
-			jql: "project=TEST and labels=\"ALERT{123}\"",
-			expectedBody: issueSearch{
-				JQL:        "project=TEST and labels=\"ALERT{123}\"",
-				MaxResults: 2,
-				Fields:     []string{"status"},
-			},
-			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
 			expectedURLPath: "/rest/api/2",
 		},
 	} {
