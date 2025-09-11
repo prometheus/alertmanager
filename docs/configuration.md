@@ -698,6 +698,8 @@ email_configs:
   [ - <email_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
+msteamsv2_configs:
+  [ - <msteamsv2_config>, ... ]
 jira_configs:
   [ - <jira_config>, ... ]
 opsgenie_configs:
@@ -925,6 +927,8 @@ tls_config:
 
 Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors) API endpoint.
 
+DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsoft 365 connectors via Microsoft Teams](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). Consider migrating to using [Workflows](https://learn.microsoft.com/en-us/power-automate/teams/send-a-message-in-teams) with the msteamsv2 config.
+
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
@@ -942,6 +946,29 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<msteamsv2_config>`
+
+Microsoft Teams v2 notifications using the new message format with adaptive cards as required by [flows](https://learn.microsoft.com/en-us/power-automate/teams/overview). Please follow [the documentation](https://support.microsoft.com/en-gb/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498) for more information on how to set up this integration.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The incoming webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
+[ webhook_url: <secret> ]
+[ webhook_url_file: <filepath> ]
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "msteamsv2.default.title" . }}' ]
+
+# Message body template.
+[ text: <tmpl_string> | default = '{{ template "msteamsv2.default.text" . }}' ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
