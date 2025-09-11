@@ -262,8 +262,8 @@ func (n *Notifier) prepareSearchRequest(jql string) (any, string) {
 	}
 
 	// if the API type is cloud always go for v3
-	// if the API type is auto or empty and the URL has an atlassian.net suffix, go for v3
-	if n.conf.APIType == "cloud" || (n.conf.APIType == "auto" || n.conf.APIType == "") && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
+	// if the API type is auto and the URL has an atlassian.net suffix, go for v3
+	if n.conf.APIType == "cloud" || n.conf.APIType == "auto" && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
 		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/2", "/3", 1)
 		return requestBody, searchPath
 	}
