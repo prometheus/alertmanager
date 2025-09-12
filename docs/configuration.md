@@ -1407,7 +1407,7 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ msg: <tmpl_string> ]
 ```
 
-### `<slack_config>`
+#### `<slack_config>`
 
 Slack notifications can be sent via [Incoming webhooks](https://api.slack.com/messaging/webhooks) or [Bot tokens](https://api.slack.com/authentication/token-types).
 
