@@ -99,10 +99,10 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 	silencec := make(chan *models.PostableSilence, 100)
 	defer close(silencec)
-	
+
 	errc := make(chan error, 100)
 	defer close(errc)
-	
+
 	var wg sync.WaitGroup
 	for w := 0; w < c.workers; w++ {
 		wg.Add(1)
