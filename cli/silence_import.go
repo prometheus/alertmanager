@@ -137,7 +137,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		silencec <- &s
 		count++
 	}
-	
+
 	wg.Wait()
 
 	if errCount > 0 {
