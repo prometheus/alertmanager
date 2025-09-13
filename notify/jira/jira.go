@@ -221,16 +221,11 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	}
 	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel))
 
-	requestBody := issueSearch{
-		JQL:        jql.String(),
-		MaxResults: 2,
-		Fields:     []string{"status"},
-		Expand:     []string{},
-	}
+	requestBody, searchPath := n.prepareSearchRequest(jql.String())
 
-	logger.Debug("search for recent issues", "jql", requestBody.JQL)
+	logger.Debug("search for recent issues", "jql", jql.String())
 
-	responseBody, shouldRetry, err := n.doAPIRequest(ctx, http.MethodPost, "search", requestBody)
+	responseBody, shouldRetry, err := n.doAPIRequestFullPath(ctx, http.MethodPost, searchPath, requestBody)
 	if err != nil {
 		return nil, shouldRetry, fmt.Errorf("HTTP request to JIRA API: %w", err)
 	}
@@ -251,6 +246,31 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	}
 
 	return &issueSearchResult.Issues[0], false, nil
+}
+
+func (n *Notifier) prepareSearchRequest(jql string) (any, string) {
+	requestBody := issueSearch{
+		JQL:        jql,
+		MaxResults: 2,
+		Fields:     []string{"status"},
+	}
+
+	// if the API type is datacenter always go for v2
+	if n.conf.APIType == "datacenter" {
+		searchPath := n.conf.APIURL.JoinPath("/search").String()
+		return requestBody, searchPath
+	}
+
+	// if the API type is cloud always go for v3
+	// if the API type is auto and the URL has an atlassian.net suffix, go for v3
+	if n.conf.APIType == "cloud" || n.conf.APIType == "auto" && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
+		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/2", "/3", 1)
+		return requestBody, searchPath
+	}
+
+	// if the API type is auto or empty and the URL does not have an atlassian.net suffix, go for v2
+	searchPath := n.conf.APIURL.JoinPath("/search").String()
+	return requestBody, searchPath
 }
 
 func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, transitionName string) (string, bool, error) {
@@ -316,6 +336,11 @@ func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *
 }
 
 func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, requestBody any) ([]byte, bool, error) {
+	url := n.conf.APIURL.JoinPath(path)
+	return n.doAPIRequestFullPath(ctx, method, url.String(), requestBody)
+}
+
+func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string, requestBody any) ([]byte, bool, error) {
 	var body io.Reader
 	if requestBody != nil {
 		var buf bytes.Buffer
@@ -326,8 +351,7 @@ func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, reques
 		body = &buf
 	}
 
-	url := n.conf.APIURL.JoinPath(path)
-	req, err := http.NewRequestWithContext(ctx, method, url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, method, path, body)
 	if err != nil {
 		return nil, false, err
 	}
