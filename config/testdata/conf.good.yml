@@ -115,3 +115,11 @@ receivers:
     slack_configs:
       - channel: '#my-channel'
         image_url: 'http://some.img.com/img.png'
+  - name: exec-receiver
+    exec_configs:
+      - exec_file: /bin/cat
+        working_dir: /tmp
+        arguments: [ "-A" ]
+        environment:
+          LANG: C
+        timeout: 5s

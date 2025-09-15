@@ -35,6 +35,13 @@ var (
 		},
 	}
 
+	// DefaultExecConfig defines default values for Exec configurations.
+	DefaultExecConfig = ExecConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
 		NotifierConfig: NotifierConfig{
@@ -553,6 +560,51 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if c.URL != nil && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
+	}
+	return nil
+}
+
+// ExecConfig configures notifications via a generic exec.
+type ExecConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// WorkingDir specifies the working directory of the command.
+	// If Dir is the empty string, the command is run in
+	// the current directory of Alertmanager.
+	WorkingDir string `yaml:"working_dir" json:"working_dir"`
+	// ExecFile is the path of the command to run. Relative values
+	// will be resolved against WorkingDir prior to execution.
+	ExecFile string `yaml:"exec_file" json:"exec_file"`
+	// Arguments is the list of additional command line arguments
+	// to pass to the executable.
+	Arguments []string `yaml:"arguments,omitempty" json:"arguments,omitempty"`
+	// Environment specifies the environment of the process.
+	Environment map[string]string `yaml:"environment,omitempty" json:"environment,omitempty"`
+	// Environment specifies environment variables with values read from files.
+	EnvironmentFiles map[string]string `yaml:"environment_files,omitempty" json:"environment_files,omitempty"`
+
+	// Timeout is the maximum time allowed to invoke the command. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// SetDirectory uses [config.JoinDir] to resolver internal
+// path properties to absolute values.
+func (c *ExecConfig) SetDirectory(s string) {
+	c.WorkingDir = commoncfg.JoinDir(s, c.WorkingDir)
+	c.ExecFile = commoncfg.JoinDir(s, c.ExecFile)
+
+	for k, f := range c.EnvironmentFiles {
+		c.EnvironmentFiles[k] = commoncfg.JoinDir(s, f)
+	}
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *ExecConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultExecConfig
+	type plain ExecConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
 	return nil
 }

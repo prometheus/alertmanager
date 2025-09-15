@@ -736,6 +736,8 @@ discord_configs:
   [ - <discord_config>, ... ]
 email_configs:
   [ - <email_config>, ... ]
+exec_configs:
+  [ - <exec_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
 msteamsv2_configs:
@@ -985,6 +987,51 @@ tls_config:
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
 ```
+
+### `<exec_config>`
+
+The exec receiver allows configuring a generic receiver
+using executables for processing.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# Directory to change into before running the executable.
+[ working_dir: <filepath> ]
+
+# Script/Binary to invoke for data processing.
+exec_file: <filepath>
+
+# Commandline arguments to pass to the executable.
+arguments:
+  [ - <string> ... ]
+
+# Environment variables to expose to the process in addition to
+# the variables the Alertmanager process already inherited.
+environment:
+  [ <string>: <string> ... ]
+
+# Environment variables to expose to the process in addition to
+# the variables the Alertmanager process already inherited.
+# The actual values are read from the specified files.
+environment_files:
+  [ <string>: <filepath> ... ]
+
+# The maximum time to wait for the call to complete, before interrupting the
+# process and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
+```
+
+The executable will receive data via STDIN formatted in a similar fashion as the
+[webhook](#webhook_config`. The exit code is used to determine the result of the
+processing:
+
+* Success (0)
+* Error but retryable (3)
+* Unrecoverable error (all other status codes)
 
 ### `<msteams_config>`
 
