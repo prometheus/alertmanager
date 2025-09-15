@@ -248,7 +248,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	return &issueSearchResult.Issues[0], false, nil
 }
 
-func (n *Notifier) prepareSearchRequest(jql string) (any, string) {
+func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 	requestBody := issueSearch{
 		JQL:        jql,
 		MaxResults: 2,
