@@ -248,6 +248,18 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	return &issueSearchResult.Issues[0], false, nil
 }
 
+// prepareSearchRequest builds the request body and search path for Jira issue search.
+//
+// Atlassian announced (see https://developer.atlassian.com/changelog/#CHANGE-2046) that
+// the legacy /search endpoint is no longer available on Jira Cloud. The replacement
+// endpoint (/rest/api/3/search/jql) is currently not available in Jira Data Center.
+//
+// Selection logic:
+//   - If APIType is "datacenter", always use the v2 /search endpoint.
+//   - If APIType is "cloud", or if APIType is "auto" and the host ends with
+//     "atlassian.net", use the v3 /search/jql endpoint.
+//   - Otherwise (APIType is "auto" without an atlassian.net host),
+//     use the v2 /search endpoint.
 func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 	requestBody := issueSearch{
 		JQL:        jql,
@@ -255,20 +267,16 @@ func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 		Fields:     []string{"status"},
 	}
 
-	// if the API type is datacenter always go for v2
 	if n.conf.APIType == "datacenter" {
 		searchPath := n.conf.APIURL.JoinPath("/search").String()
 		return requestBody, searchPath
 	}
 
-	// if the API type is cloud always go for v3
-	// if the API type is auto and the URL has an atlassian.net suffix, go for v3
 	if n.conf.APIType == "cloud" || n.conf.APIType == "auto" && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
 		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/2", "/3", 1)
 		return requestBody, searchPath
 	}
 
-	// if the API type is auto or empty and the URL does not have an atlassian.net suffix, go for v2
 	searchPath := n.conf.APIURL.JoinPath("/search").String()
 	return requestBody, searchPath
 }
