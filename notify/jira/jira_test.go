@@ -185,6 +185,138 @@ func TestSearchExistingIssue(t *testing.T) {
 	}
 }
 
+func TestPrepareSearchRequest(t *testing.T) {
+	for _, tc := range []struct {
+		title           string
+		cfg             *config.JiraConfig
+		jql             string
+		expectedBody    any
+		expectedURL     string
+		expectedURLPath string
+	}{
+		{
+			title: "cloud API type",
+			cfg: &config.JiraConfig{
+				APIType: "cloud",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type with atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type without atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix but datacenter api type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "datacenter API type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			requestBody, searchURL := notifier.prepareSearchRequest(tc.jql)
+
+			require.Equal(t, tc.expectedURL, searchURL)
+			require.Equal(t, tc.expectedBody, requestBody)
+			// Verify that the original APIURL.Path is not modified
+			require.Equal(t, tc.expectedURLPath, notifier.conf.APIURL.Path)
+		})
+	}
+}
+
 func TestJiraTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
