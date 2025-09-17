@@ -1,0 +1,1 @@
+{"receiver":"","status":"firing","alerts":[{"status":"firing","labels":{"Message":"message"},"annotations":{},"startsAt":"1970-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":"4ea129fd903f0e45"}],"groupLabels":{},"commonLabels":{"Message":"message"},"commonAnnotations":{},"externalURL":"http://am","version":"1","groupKey":"1"}

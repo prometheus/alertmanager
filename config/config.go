@@ -298,6 +298,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.RocketchatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.ExecConfigs {
+			cfg.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -410,6 +413,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		for _, wh := range rcv.WebhookConfigs {
 			if wh.HTTPConfig == nil {
 				wh.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
+		for _, ec := range rcv.ExecConfigs {
+			if ec.ExecFile == "" {
+				if c.Global.ExecFile == "" {
+					return errors.New("no global executable file set")
+				}
+				ec.ExecFile = c.Global.ExecFile
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
@@ -867,6 +878,7 @@ type GlobalConfig struct {
 	RocketchatTokenFile   string               `yaml:"rocketchat_token_file,omitempty" json:"rocketchat_token_file,omitempty"`
 	RocketchatTokenID     *Secret              `yaml:"rocketchat_token_id,omitempty" json:"rocketchat_token_id,omitempty"`
 	RocketchatTokenIDFile string               `yaml:"rocketchat_token_id_file,omitempty" json:"rocketchat_token_id_file,omitempty"`
+	ExecFile              string               `yaml:"exec_file,omitempty" json:"exec_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -1010,6 +1022,7 @@ type Receiver struct {
 	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	ExecConfigs       []*ExecConfig       `yaml:"exec_configs,omitempty" json:"exec_configs,omitempty"`
 	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
