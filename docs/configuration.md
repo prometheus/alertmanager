@@ -1059,6 +1059,10 @@ The default `jira.default.description` template only works with V2.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
 
+# The API Type to use for search requests, can be either auto, cloud or datacenter
+# Example: cloud
+[ api_type: <string> | default = auto ]
+   
 # The project key where issues are created.
 project: <string>
 
