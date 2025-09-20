@@ -94,6 +94,9 @@ viewMonth dateTimePicker justViewTime =
 
                 Monday ->
                     List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
+
+                Saturday ->
+                    List.map viewWeekHeader [ "Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri" ]
             )
         , div
             [ class "date-container"
