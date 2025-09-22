@@ -28,6 +28,13 @@ import (
 )
 
 var (
+	// DefaultIncidentioConfig defines default values for Incident.io configurations.
+	DefaultIncidentioConfig = IncidentioConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultWebhookConfig defines default values for Webhook configurations.
 	DefaultWebhookConfig = WebhookConfig{
 		NotifierConfig: NotifierConfig{
@@ -519,6 +526,58 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of api_url & api_url_file must be configured")
 	}
 
+	return nil
+}
+
+// IncidentioConfig configures notifications via incident.io.
+type IncidentioConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     *URL   `yaml:"url" json:"url"`
+	URLFile string `yaml:"url_file" json:"url_file"`
+
+	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
+	AlertSourceToken     Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
+	AlertSourceTokenFile string `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts. Note that if the payload exceeds
+	// incident.io's size limits, you will receive a 429 response and alerts
+	// will not be ingested.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultIncidentioConfig
+	type plain IncidentioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
+		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
+	}
+	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
+		return errors.New("cannot specify alert_source_token or alert_source_token_file when using http_config.authorization")
+	}
+
+	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
+		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
+	}
 	return nil
 }
 
