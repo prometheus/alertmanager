@@ -294,7 +294,7 @@ func TestIncidentIOErrDetails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := errDetails(tc.status, tc.body)
 			if tc.expect == "" {
-				require.Equal(t, "", result)
+				require.Empty(t, result)
 			} else {
 				require.Contains(t, result, tc.expect)
 			}
