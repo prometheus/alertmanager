@@ -19,7 +19,7 @@ require (
 	github.com/coder/quartz v0.2.1
 	github.com/emersion/go-smtp v0.21.3
 	github.com/go-openapi/analysis v0.23.0
-	github.com/go-openapi/errors v0.22.0
+	github.com/go-openapi/errors v0.22.2
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/runtime v0.28.0
 	github.com/go-openapi/spec v0.21.0
