@@ -18,7 +18,7 @@ Labels:
 Annotations:
 {{ range .Annotations.SortedPairs }}  - {{ .Name }} = {{ .Value }}
 {{ end }}
-Source: {{ .GeneratorURL }}
+[Source]({{ .GeneratorURL }})
 {{ end }}
 {{ end }}
 
