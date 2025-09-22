@@ -571,11 +571,12 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
 		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
 	}
-	if c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
-		return errors.New("one of alert_source_token or alert_source_token_file must be configured")
-	}
 	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
-		return errors.New("cannot specify both alert_source_token/alert_source_token_file and http_config.authorization")
+		return errors.New("cannot specify alert_source_token or alert_source_token_file when using http_config.authorization")
+	}
+
+	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
+		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
 	}
 	return nil
 }

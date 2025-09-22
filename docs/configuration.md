@@ -1696,7 +1696,11 @@ this feature.
 
 ### `<incidentio_config>`
 
-incident.io notifications are sent via the [incident.io Alert Sources API](https://incident.io/docs/api/alert-sources).
+incident.io notifications are sent via the [incident.io Alert Sources API](https://api-docs.incident.io/tag/Alert-Sources-V2#operation/Alert%20Sources%20V2_Create).
+
+When configuring this integration, you can do so via the `http_config` by setting the `authorization` directly or using one of `alert_source_token` or `alert_source_token_file`. The configuration of `alert_source_token` or `alert_source_token_file` takes precedence over `http_config`.
+
+Please be aware that if the payload exceeds incident.io's API limits (512KB), the integration will automatically truncate all alerts except the first one.
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1718,8 +1722,10 @@ url_file: <filepath>
 
 # The maximum number of alerts to be sent per incident.io message.
 # Alerts exceeding this threshold will be truncated. Setting this to 0
-# allows an unlimited number of alerts. Note that if the payload exceeds 
-# incident.io's size limits, you will receive a 429 response and alerts 
+# allows an unlimited number of alerts. Note that if the payload exceeds
+# incident.io's size limits (512KB), the notifier will automatically drop
+# all alerts except the first one. If the payload is still too
+# large after this truncation, you will receive a 429 response and alerts
 # will not be ingested.
 [ max_alerts: <int> | default = 0 ]
 
