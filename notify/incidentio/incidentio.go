@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -34,7 +33,7 @@ import (
 )
 
 const (
-	// The maximum size of the JSON payload incident.io accepts (512KB).
+	// maxPayloadSize is the maximum size of the JSON payload incident.io accepts (512KB).
 	maxPayloadSize = 512 * 1024
 )
 
@@ -49,37 +48,28 @@ type Notifier struct {
 
 // New returns a new incident.io notifier.
 func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	// Handle authentication configuration
-
-	// Ensure one of AlertSourceToken or AlertSourceTokenFile is provided
-	if conf.AlertSourceToken == "" && conf.AlertSourceTokenFile == "" {
-		return nil, errors.New("one of alert_source_token or alert_source_token_file must be configured")
-	}
-
 	// conf.HTTPConfig is likely to be the global shared HTTPConfig, so we take a
 	// copy to avoid modifying it.
 	httpConfig := *conf.HTTPConfig
 
-	// Error if authorization is already set in HTTPConfig
-	if httpConfig.Authorization != nil {
-		return nil, errors.New("cannot specify both alert_source_token/alert_source_token_file and http_config.authorization")
+	// If an alert source token is provided, we use that one instead of whatever configuration is included in `http_config`.
+	var token string
+	if conf.AlertSourceToken != "" {
+		token = string(conf.AlertSourceToken)
 	}
 
-	// Set authorization from token or token file
-	if conf.AlertSourceToken != "" {
-		httpConfig.Authorization = &commoncfg.Authorization{
-			Type:        "Bearer",
-			Credentials: commoncfg.Secret(conf.AlertSourceToken),
-		}
-	} else if conf.AlertSourceTokenFile != "" {
+	if conf.AlertSourceTokenFile != "" {
 		content, err := os.ReadFile(conf.AlertSourceTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read alert_source_token_file: %w", err)
 		}
+		token = strings.TrimSpace(string(content))
+	}
 
+	if token != "" {
 		httpConfig.Authorization = &commoncfg.Authorization{
 			Type:        "Bearer",
-			Credentials: commoncfg.Secret(strings.TrimSpace(string(content))),
+			Credentials: commoncfg.Secret(token),
 		}
 	}
 
@@ -95,9 +85,7 @@ func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, ht
 		client: client,
 		// Always retry on 429 (rate limiting) and 5xx response codes.
 		retrier: &notify.Retrier{
-			RetryCodes: []int{
-				http.StatusTooManyRequests, // 429
-			},
+			RetryCodes:        []int{http.StatusTooManyRequests},
 			CustomDetailsFunc: errDetails,
 		},
 	}, nil
@@ -121,7 +109,7 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 	return alerts, 0
 }
 
-// encodeMessage encodes the message and truncates content if it exceeds maxPayloadSize.
+// encodeMessage encodes the message and drops all alerts except the first one if it exceeds maxPayloadSize.
 func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
@@ -146,7 +134,6 @@ func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 	}
 
 	if buf.Len() <= maxPayloadSize {
-		// Log warning about truncation
 		n.logger.Warn("Truncated alert content due to incident.io payload size limit",
 			"original_size", originalSize,
 			"final_size", buf.Len(),
@@ -201,9 +188,9 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	if n.conf.Timeout > 0 {
-		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured incident.io timeout reached (%s)", n.conf.Timeout))
+		ctxWithTimeout, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured incident.io timeout reached (%s)", n.conf.Timeout))
 		defer cancel()
-		ctx = postCtx
+		ctx = ctxWithTimeout
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
@@ -223,7 +210,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 }
 
 // errDetails extracts error details from the response for better error messages.
-func errDetails(status int, body io.Reader) string {
+func errDetails(_ int, body io.Reader) string {
 	if body == nil {
 		return ""
 	}
@@ -239,7 +226,6 @@ func errDetails(status int, body io.Reader) string {
 		return ""
 	}
 
-	// Format the error message
 	var parts []string
 	if errorResponse.Message != "" {
 		parts = append(parts, errorResponse.Message)
