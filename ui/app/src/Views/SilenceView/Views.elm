@@ -50,7 +50,7 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         [ h1 []
             [ text "Silence"
             , span
-                [ class "ml-3" ]
+                [ class "ms-3" ]
                 [ editButton silence
                 , expireButton silence
                 ]
@@ -92,7 +92,7 @@ confirmSilenceDeleteView silence refresh =
 
 formGroup : String -> Html Msg -> Html Msg
 formGroup key content =
-    div [ class "form-group row" ]
+    div [ class "mb-3 row" ]
         [ label [ class "col-2 col-form-label" ] [ b [] [ text key ] ]
         , div [ class "col-10 d-flex align-items-center" ]
             [ content
@@ -108,7 +108,7 @@ expireButton silence =
 
         Data.SilenceStatus.Active ->
             button
-                [ class "btn btn-outline-danger border-0"
+                [ class "btn btn-outline-danger"
                 , onClick (MsgForSilenceView SilenceViewTypes.ConfirmDestroySilence)
                 ]
                 [ text "Expire"
@@ -116,7 +116,7 @@ expireButton silence =
 
         Data.SilenceStatus.Pending ->
             button
-                [ class "btn btn-outline-danger border-0"
+                [ class "btn btn-outline-danger"
                 , onClick (MsgForSilenceView SilenceViewTypes.ConfirmDestroySilence)
                 ]
                 [ text "Delete"

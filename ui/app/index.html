@@ -10,10 +10,32 @@
         <script>
             // If there is no trailing slash at the end of the path in the url,
             // add one. This ensures assets like script.js are loaded properly
-            if (location.pathname.substr(-1) != '/') {
+            if (location.pathname.slice(-1) !== '/') {
                 location.pathname = location.pathname + '/';
                 console.log('added slash');
             }
+
+            function setAndPersistTheme(requestedBootstrapTheme) {
+                let themeToSet = requestedBootstrapTheme;
+
+                // Handle "auto" by detecting system preference
+                if (requestedBootstrapTheme === 'auto') {
+                    themeToSet = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                }
+
+                // Apply the theme to the body
+                document.documentElement.setAttribute('data-bs-theme', themeToSet);
+
+                // Persist the requested theme back to localStorage
+                localStorage.setItem('bootstrapTheme', requestedBootstrapTheme);
+            }
+
+            // Initialize theme on app launch
+            window.addEventListener("DOMContentLoaded", function () {
+                let persistedBootstrapTheme = localStorage.getItem('bootstrapTheme');
+                if (persistedBootstrapTheme === null) { persistedBootstrapTheme = "auto"; }
+                setAndPersistTheme(persistedBootstrapTheme);
+            });
         </script>
         <script src="script.js"></script>
         <script>
@@ -21,6 +43,7 @@
                 flags: {
                     production: true,
                     firstDayOfWeek: JSON.parse(localStorage.getItem('firstDayOfWeek')),
+                    bootstrapTheme: localStorage.getItem('bootstrapTheme'),
                     defaultCreator: localStorage.getItem('defaultCreator'),
                     groupExpandAll: JSON.parse(localStorage.getItem('groupExpandAll'))
                 }
@@ -33,6 +56,9 @@
             });
             app.ports.persistFirstDayOfWeek.subscribe(function(firstDayOfWeek) {
                 localStorage.setItem('firstDayOfWeek', JSON.stringify(firstDayOfWeek));
+            });
+            app.ports.setAndPersistBootstrapTheme.subscribe(function(bootstrapTheme) {
+                setAndPersistTheme(bootstrapTheme);
             });
         </script>
     </body>
