@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -195,7 +197,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 						Text: "{{ .Status }}",
 					},
 				},
-				Details: map[string]string{
+				Details: map[string]interface{}{
 					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
 					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
@@ -204,10 +206,60 @@ func TestPagerDutyTemplating(t *testing.T) {
 			},
 		},
 		{
+			title: "nested details",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": map[string]interface{}{
+								"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+								"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+								"num_firing":   `{{ .Alerts.Firing | len }}`,
+								"num_resolved": `{{ .Alerts.Resolved | len }}`,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			title: "nested details with template error",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": map[string]interface{}{
+								"firing": `{{ template "pagerduty.default.instances" .Alerts.Firing`,
+							},
+						},
+					},
+				},
+			},
+			errMsg: "failed to template",
+		},
+		{
+			title: "nested details with type error",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": map[string]interface{}{
+								"firing": 5,
+							},
+						},
+					},
+				},
+			},
+			errMsg: "failed to template",
+		},
+		{
 			title: "details with templating errors",
 			cfg: &config.PagerdutyConfig{
 				RoutingKey: config.Secret("01234567890123456789012345678901"),
-				Details: map[string]string{
+				Details: map[string]interface{}{
 					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing`,
 					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
@@ -322,7 +374,10 @@ func TestErrDetails(t *testing.T) {
 }
 
 func TestEventSizeEnforcement(t *testing.T) {
-	bigDetails := map[string]string{
+	bigDetailsV1 := map[string]string{
+		"firing": strings.Repeat("a", 513000),
+	}
+	bigDetailsV2 := map[string]interface{}{
 		"firing": strings.Repeat("a", 513000),
 	}
 
@@ -330,7 +385,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 	msgV1 := &pagerDutyMessage{
 		ServiceKey: "01234567890123456789012345678901",
 		EventType:  "trigger",
-		Details:    bigDetails,
+		Details:    bigDetailsV1,
 	}
 
 	notifierV1, err := New(
@@ -352,7 +407,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 		RoutingKey:  "01234567890123456789012345678901",
 		EventAction: "trigger",
 		Payload: &pagerDutyPayload{
-			CustomDetails: bigDetails,
+			CustomDetails: bigDetailsV2,
 		},
 	}
 
@@ -495,4 +550,123 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		},
 	}...)
 	require.NoError(t, err)
+}
+
+func TestRenderDetails(t *testing.T) {
+	type args struct {
+		details map[string]interface{}
+		data    *template.Data
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    map[string]interface{}
+		wantErr bool
+	}{
+		{
+			name: "flat",
+			args: args{
+				details: map[string]interface{}{
+					"a": "{{ .Status }}",
+					"b": "String",
+				},
+				data: &template.Data{
+					Status: "Flat",
+				},
+			},
+			want: map[string]interface{}{
+				"a": "Flat",
+				"b": "String",
+			},
+			wantErr: false,
+		},
+		{
+			name: "flat error",
+			args: args{
+				details: map[string]interface{}{
+					"a": "{{ .Status",
+				},
+				data: &template.Data{
+					Status: "Error",
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "nested",
+			args: args{
+				details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": "{{ .Status }}",
+							"d": "String",
+						},
+					},
+				},
+				data: &template.Data{
+					Status: "Nested",
+				},
+			},
+			want: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": map[string]interface{}{
+						"c": "Nested",
+						"d": "String",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "nested error",
+			args: args{
+				details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": "{{ .Status",
+						},
+					},
+				},
+				data: &template.Data{
+					Status: "Error",
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "type error",
+			args: args{
+				details: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
+							"c": 11111,
+						},
+					},
+				},
+				data: &template.Data{
+					Status: "Type Error",
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tpl, err := template.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := renderDetails(tt.args.details, tt.args.data, tpl.ExecuteTextString)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("renderDetails() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("renderDetails() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
