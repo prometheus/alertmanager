@@ -464,3 +464,52 @@ receivers:
 
 	t.Log(co.Check())
 }
+
+func TestWebhookTimeout(t *testing.T) {
+	t.Parallel()
+
+	// This integration test uses an extended group_interval to check that
+	// the webhook level timeout has the desired effect, and that notification
+	// sending is retried in this case.
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  1m
+  repeat_interval: 1m
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    timeout: 500ms
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	wh.Func = func(ts float64) bool {
+		// Make some webhook requests slow enough to hit the webhook
+		// timeout, but not so slow as to hit the dispatcher timeout.
+		if ts < 3 {
+			time.Sleep(time.Second)
+			return true
+		}
+		return false
+	}
+
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+	am.Push(At(1), Alert("alertname", "test1"))
+
+	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1))
+
+	at.Run()
+
+	t.Log(co.Check())
+}

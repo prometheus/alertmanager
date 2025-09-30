@@ -16,7 +16,6 @@ package jira
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,9 +26,8 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-
-	"github.com/go-kit/log"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -51,7 +49,7 @@ func TestJiraRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -59,7 +57,263 @@ func TestJiraRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
+	}
+}
+
+func TestSearchExistingIssue(t *testing.T) {
+	expectedJQL := ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Error reading request body", http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			// Unmarshal the JSON data into the struct
+			var data issueSearch
+			err = json.Unmarshal(body, &data)
+			if err != nil {
+				http.Error(w, "Error unmarshaling JSON", http.StatusBadRequest)
+				return
+			}
+			require.Equal(t, expectedJQL, data.JQL)
+			w.Write([]byte(`{"total": 0, "issues": []}`))
+			return
+		default:
+			dec := json.NewDecoder(r.Body)
+			out := make(map[string]any)
+			err := dec.Decode(&out)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}))
+
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	for _, tc := range []struct {
+		title         string
+		cfg           *config.JiraConfig
+		groupKey      string
+		firing        bool
+		expectedJQL   string
+		expectedIssue *issue
+		expectedErr   bool
+		expectedRetry bool
+	}{
+		{
+			title: "search existing issue with project template for firing alert",
+			cfg: &config.JiraConfig{
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue with reopen duration for firing alert",
+			cfg: &config.JiraConfig{
+				Summary:          `{{ template "jira.default.summary" . }}`,
+				Description:      `{{ template "jira.default.description" . }}`,
+				Project:          `{{ .CommonLabels.project }}`,
+				ReopenDuration:   model.Duration(60 * time.Minute),
+				ReopenTransition: "REOPEN",
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `(resolutiondate is EMPTY OR resolutiondate >= -60m) and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue for resolved alert",
+			cfg: &config.JiraConfig{
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			firing:      false,
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			expectedJQL = tc.expectedJQL
+			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			as := []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"project": "PROJ",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}
+
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+			logger := pd.logger.With("group_key", tc.groupKey)
+
+			ctx := notify.WithGroupKey(context.Background(), tc.groupKey)
+			data := notify.GetTemplateData(ctx, pd.tmpl, as, logger)
+
+			var tmplTextErr error
+			tmplText := notify.TmplText(pd.tmpl, data, &tmplTextErr)
+			tmplTextFunc := func(tmpl string) (string, error) {
+				return tmplText(tmpl), tmplTextErr
+			}
+
+			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
+			if tc.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedRetry, retry)
+		})
+	}
+}
+
+func TestPrepareSearchRequest(t *testing.T) {
+	for _, tc := range []struct {
+		title           string
+		cfg             *config.JiraConfig
+		jql             string
+		expectedBody    any
+		expectedURL     string
+		expectedURLPath string
+	}{
+		{
+			title: "cloud API type",
+			cfg: &config.JiraConfig{
+				APIType: "cloud",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type with atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type without atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix but datacenter api type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "datacenter API type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			requestBody, searchURL := notifier.prepareSearchRequest(tc.jql)
+
+			require.Equal(t, tc.expectedURL, searchURL)
+			require.Equal(t, tc.expectedBody, requestBody)
+			// Verify that the original APIURL.Path is not modified
+			require.Equal(t, tc.expectedURLPath, notifier.conf.APIURL.Path)
+		})
 	}
 }
 
@@ -97,6 +351,24 @@ func TestJiraTemplating(t *testing.T) {
 			retry: false,
 		},
 		{
+			title: "template project",
+			cfg: &config.JiraConfig{
+				Project:     `{{ .CommonLabels.lbl1 }}`,
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+			},
+			retry: false,
+		},
+		{
+			title: "template issue type",
+			cfg: &config.JiraConfig{
+				IssueType:   `{{ .CommonLabels.lbl1 }}`,
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+			},
+			retry: false,
+		},
+		{
 			title: "summary with templating errors",
 			cfg: &config.JiraConfig{
 				Summary: "{{ ",
@@ -126,7 +398,7 @@ func TestJiraTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -203,6 +475,51 @@ func TestJiraNotify(t *testing.T) {
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "",
+		},
+		{
+			title: "create new issue with template project and issue type",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "{{ .CommonLabels.issue_type }}",
+				Project:           "{{ .CommonLabels.project }}",
+				Priority:          `{{ template "jira.default.priority" . }}`,
+				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Total:  0,
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "[FIRING:1] test (vm1 MINOR MONITORING critical)",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Issuetype:   &idNameValue{Name: "MINOR"},
+					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
+					Project:     &issueProject{Key: "MONITORING"},
 					Priority:    &idNameValue{Name: "High"},
 				},
 			},
@@ -576,7 +893,7 @@ func TestJiraNotify(t *testing.T) {
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
-			notifier, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()

@@ -4,8 +4,6 @@ sort_rank: 3
 nav_icon: sliders
 ---
 
-# Configuration
-
 [Alertmanager](https://github.com/prometheus/alertmanager) is configured via
 command-line flags and a configuration file.
 While the command-line flags configure immutable system parameters, the
@@ -97,7 +95,7 @@ global:
   # The default TLS configuration for SMTP receivers
   [ smtp_tls_config: <tls_config> ]
 
-  # Default settings for the JIRA integration. 
+  # Default settings for the JIRA integration.
   [ jira_api_url: <string> ]
 
   # The API URL to use for Slack notifications.
@@ -110,6 +108,11 @@ global:
   [ opsgenie_api_key: <secret> ]
   [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
+  [ rocketchat_api_url: <string> | default = "https://open.rocket.chat/" ]
+  [ rocketchat_token: <secret> ]
+  [ rocketchat_token_file: <filepath> ]
+  [ rocketchat_token_id: <secret> ]
+  [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
@@ -200,29 +203,60 @@ match_re:
 matchers:
   [ - <matcher> ... ]
 
-# How long to initially wait to send a notification for a group
-# of alerts. Allows to wait for an inhibiting alert to arrive or collect
-# more initial alerts for the same group. (Usually ~0s to few minutes.)
+# How long to wait before sending the first notification for a new group of
+# alerts. Allows to wait for alerts to arrive from other rule groups or
+# Prometheus servers, and for one or more inhibiting alerts to arrive and mute
+# any target alerts before the first notification.
+#
+# A short group_wait will reduce the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too short
+# then the first notification might not contain the complete set of expected
+# alerts, and alerts that should be inhibited might not be inhibited if the
+# inhibiting alerts have not arrived in time.
+#
+# A long group_wait will increase the time to wait before sending the first
+# notification for a new group of alerts. However, if group_wait is too long
+# then notifications for firing alerts might not be sent within a reasonable
+# time.
+#
+# If an alert is resolved before group_wait has elapsed, no notification will
+# be sent for that alert. This reduces noise of flapping alerts.
+
+# A notification for any alerts that missed the initial group_wait will be
+# sent at the next group_interval instead.
+#
 # If omitted, child routes inherit the group_wait of the parent route.
 [ group_wait: <duration> | default = 30s ]
 
-# How long to wait before sending a notification about new alerts that
-# are added to a group of alerts for which an initial notification has
-# already been sent. (Usually ~5m or more.) If omitted, child routes
-# inherit the group_interval of the parent route.
+# How long to wait before sending subsequent notifications for an existing
+# group of alerts after group_wait.
+#
+# The group_interval is a recurring timer that starts as soon as group_wait
+# has elapsed. At each group_interval, Alertmanager checks if any new alerts
+# have fired or any firing alerts have resolved since the last group_interval,
+# and if they have a notification is sent. If they haven't, Alertmanager checks
+# if the repeat_interval has elapsed instead.
+#
+# If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
-# How long to wait before sending a notification again if it has already
-# been sent successfully for an alert. (Usually ~3h or more). If omitted,
-# child routes inherit the repeat_interval of the parent route.
-# Note that this parameter is implicitly bound by Alertmanager's
-# `--data.retention` configuration flag. Notifications will be resent after either
-# repeat_interval or the data retention period have passed, whichever
-# occurs first. `repeat_interval` should be a multiple of `group_interval`.
+# How long to wait before repeating the last notification. Notifications are
+# not repeated if any new alerts have fired or any firing alerts have resolved
+# since the last group_interval.
+#
+# Since the repeat_interval is checked after each group_interval, it should
+# be a multiple of the group_interval. If it's not, the repeat_interval
+# is rounded up to the next multiple of the group_interval.
+#
+# In addition, if repeat_interval is longer then `--data.retention`, the
+# notification will be repeated at the end of the data retention period
+# instead.
+#
+# If omitted, child routes inherit the repeat_interval of the parent route.
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
-# mute time interval defined in the mute_time_intervals section.
+# time interval defined in the time_intervals section.
 # Additionally, the root node cannot have any mute times.
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
@@ -304,6 +338,7 @@ name: <string>
 time_intervals:
   [ - <time_interval_spec> ... ]
 ```
+
 #### `<time_interval_spec>`
 
 A `time_interval_spec` contains the actual definition for an interval of time. The syntax
@@ -334,9 +369,11 @@ make it easy to represent times that start/end on hour boundaries.
 For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
 
-        times:
-        - start_time: HH:MM
-          end_time: HH:MM
+```yaml
+times:
+- start_time: HH:MM
+  end_time: HH:MM
+```
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
@@ -362,10 +399,12 @@ example, `'Australia/Sydney'`. The location provides the time zone for the time
 interval. For example, a time interval with a location of `'Australia/Sydney'` that
 contained something like:
 
-        times:
-        - start_time: 09:00
-          end_time: 17:00
-        weekdays: ['monday:friday']
+```yaml
+times:
+- start_time: 09:00
+  end_time: 17:00
+weekdays: ['monday:friday']
+```
 
 would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
 and Friday, using the local time in Sydney, Australia.
@@ -432,7 +471,6 @@ source_matchers:
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
 [ equal: '[' <labelname>, ... ']' ]
-
 ```
 
 ## Label matchers
@@ -460,7 +498,7 @@ Alertmanager runs in a special mode called fallback mode as its default mode. As
 In fallback mode, configurations are first parsed as UTF-8 matchers, and if incompatible with the UTF-8 parser, are then parsed as classic matchers. If your Alertmanager configuration contains matchers that are incompatible with the UTF-8 parser, Alertmanager will parse them as classic matchers and log a warning. This warning also includes a suggestion on how to change the matchers from classic matchers to UTF-8 matchers. For example:
 
 ```
-ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+ts=2024-02-11T10:00:00Z caller=parse.go:176 level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 ```
 
 Here the matcher `foo=` can be made into a valid UTF-8 matcher by double quoting the right hand side of the expression to give `foo=""`. These two matchers are equivalent, however with UTF-8 matchers the right hand side of the matcher is a required field.
@@ -477,7 +515,7 @@ Any occurrences of disagreement should be looked at on a case by case basis as d
 
 In UTF-8 strict mode, Alertmanager disables support for classic matchers:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"
 ```
 
@@ -493,7 +531,7 @@ UTF-8 strict mode will be the default mode of Alertmanager at the end of the tra
 
 Classic mode is equivalent to Alertmanager versions 0.26.0 and older:
 
-```
+```bash
 alertmanager --config.file=config.yml --enable-feature="classic-mode"
 ```
 
@@ -508,7 +546,7 @@ Just like Alertmanager server, `amtool` will log a warning if the configuration 
 ```
 amtool check-config config.yml
 Checking 'config.yml'
-level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
+level=warn msg="Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue." input="foo=" origin=config err="end of input: expected label value" suggestion="foo=\"\""
 level=warn msg="Matchers input has disagreement" input="qux=\"\\xf0\\x9f\\x99\\x82\"\n" origin=config
   SUCCESS
 Found:
@@ -566,9 +604,9 @@ A UTF-8 matcher consists of three tokens:
 - One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
-Unquoted literals can contain all UTF-8 characters other than the reserved characters. These are whitespace, and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
-Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. You can even use UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"` are valid double-quoted strings.
+Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
 
 #### Classic matchers
 
@@ -700,14 +738,20 @@ email_configs:
   [ - <email_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
+msteamsv2_configs:
+  [ - <msteamsv2_config>, ... ]
 jira_configs:
   [ - <jira_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
+incidentio_configs:
+  [ - <incidentio_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
+rocketchat_configs:
+  [ - <rocketchat_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
@@ -776,6 +820,18 @@ oauth2:
 # Configures the TLS settings.
 tls_config:
   [ <tls_config> ]
+
+# Custom HTTP headers to be sent along with each request.
+# Headers that are set by Prometheus itself can't be overwritten.
+http_headers:
+  # Header name.
+  [ <string>:
+    # Header values.
+    [ values: [<string>, ...] ]
+    # Headers values. Hidden in configuration page.
+    [ secrets: [<secret>, ...] ]
+    # Files to read header values from.
+    [ files: [<string>, ...] ] ]
 ```
 
 #### `<oauth2>`
@@ -874,6 +930,15 @@ webhook_url_file: <filepath>
 # Message body template.
 [ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
 
+# Message content template. Limited to 2000 characters.
+[ content: <tmpl_string> | default = '{{ template "discord.default.content" . }}' ]
+
+# Message username.
+[ username: <string> | default = '' ]
+
+# Message avatar URL.
+[ avatar_url: <string> | default = '' ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
@@ -927,6 +992,8 @@ tls_config:
 
 Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors) API endpoint.
 
+DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsoft 365 connectors via Microsoft Teams](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/). Consider migrating to using [Workflows](https://learn.microsoft.com/en-us/power-automate/teams/send-a-message-in-teams) with the msteamsv2 config.
+
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
@@ -949,12 +1016,35 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
+### `<msteamsv2_config>`
+
+Microsoft Teams v2 notifications using the new message format with adaptive cards as required by [flows](https://learn.microsoft.com/en-us/power-automate/teams/overview). Please follow [the documentation](https://support.microsoft.com/en-gb/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498) for more information on how to set up this integration.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The incoming webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
+[ webhook_url: <secret> ]
+[ webhook_url_file: <filepath> ]
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "msteamsv2.default.title" . }}' ]
+
+# Message body template.
+[ text: <tmpl_string> | default = '{{ template "msteamsv2.default.text" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
 ### `<jira_config>`
 
 JIRA notifications are sent via [JIRA Rest API v2](https://developer.atlassian.com/cloud/jira/platform/rest/v2/intro/)
 or [JIRA REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#version).
 
-Note: This integration is only tested against a Jira Cloud instance. 
+Note: This integration is only tested against a Jira Cloud instance.
 Jira Data Center (on premise instance) can work, but it's not guaranteed.
 
 Both APIs have the same feature set. The difference is that V2 supports [Wiki Markup](https://jira.atlassian.com/secure/WikiRendererHelpAction.jspa?section=all)
@@ -969,6 +1059,10 @@ The default `jira.default.description` template only works with V2.
 # Example: https://company.atlassian.net/rest/api/2/
 [ api_url: <string> | default = global.jira_api_url ]
 
+# The API Type to use for search requests, can be either auto, cloud or datacenter
+# Example: cloud
+[ api_type: <string> | default = auto ]
+   
 # The project key where issues are created.
 project: <string>
 
@@ -979,7 +1073,7 @@ project: <string>
 [ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
 
 # Labels to be added to the issue.
-labels: 
+labels:
   [ - <tmpl_string> ... ]
 
 # Priority of the issue.
@@ -1252,8 +1346,71 @@ token_file: <filepath>
 # Optional time to live (TTL) to use for notification, see https://pushover.net/api#ttl
 [ ttl: <duration> ]
 
+# Optional HTML/monospace formatting for the message, see https://pushover.net/api#html
+# html and monospace formatting are mutually exclusive.
+[ html: <boolean> | default = false ]
+[ monospace: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<rocketchat_config>`
+
+Rocketchat notifications are sent via the [Rocketchat REST API](https://developer.rocket.chat/reference/api/rest-api/endpoints/messaging/chat-endpoints/postmessage).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+[ api_url: <string> | default = global.rocketchat_api_url ]
+[ channel: <tmpl_string> | default = global.rocketchat_api_url ]
+
+# The sender token and token_id
+# See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
+# token and token_file are mutually exclusive.
+# token_id and token_id_file are mutually exclusive.
+token: <secret>
+token_file: <filepath>
+token_id: <secret>
+token_id_file: <filepath>
+
+
+[ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
+[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
+[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
+[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
+[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+fields:
+  [ <rocketchat_field_config> ... ]
+[ image_url <tmpl_string> ]
+[ thumb_url <tmpl_string> ]
+[ link_names <tmpl_string> ]
+[ short_fields: <boolean> | default = false ]
+actions:
+  [ <rocketchat_action_config> ... ]
+```
+
+#### `<rocketchat_field_config>`
+
+The fields are documented in the [Rocketchat API documentation](https://developer.rocket.chat/reference/api/rest-api/endpoints/messaging/chat-endpoints/postmessage#attachment-field-objects).
+
+```yaml
+[ title: <tmpl_string> ]
+[ value: <tmpl_string> ]
+[ short: <boolean> | default = rocketchat_config.short_fields ]
+```
+
+#### `<rocketchat_action_config>`
+
+The fields are documented in the [Rocketchat API api models](https://github.com/RocketChat/Rocket.Chat.Go.SDK/blob/master/models/message.go).
+
+```yaml
+[ type: <tmpl_string> | ignored, only "button" is supported ]
+[ text: <tmpl_string> ]
+[ url: <tmpl_string> ]
+[ msg: <tmpl_string> ]
 ```
 
 ### `<slack_config>`
@@ -1495,6 +1652,12 @@ url_file: <filepath>
 # above this threshold are truncated. When leaving this at its default value of
 # 0, all alerts are included.
 [ max_alerts: <int> | default = 0 ]
+
+# The maximum time to wait for a webhook request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 The Alertmanager
@@ -1531,10 +1694,50 @@ There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
 
+### `<incidentio_config>`
+
+incident.io notifications are sent via the [incident.io Alert Sources API](https://api-docs.incident.io/tag/Alert-Sources-V2#operation/Alert%20Sources%20V2_Create).
+
+When configuring this integration, you can do so via the `http_config` by setting the `authorization` directly or using one of `alert_source_token` or `alert_source_token_file`. The configuration of `alert_source_token` or `alert_source_token_file` takes precedence over `http_config`.
+
+Please be aware that if the payload exceeds incident.io's API limits (512KB), the integration will automatically truncate all alerts except the first one.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+
+# The URL to send the incident.io alert. This would typically be provided by the 
+# incident.io team when setting up an alert source.
+# URL and URL_file are mutually exclusive.
+url: <string>
+url_file: <filepath>
+
+# The alert source token is used to authenticate with incident.io.
+# alert_source_token and alert_source_token_file are mutually exclusive.
+[ alert_source_token: <secret> ]
+[ alert_source_token_file: <filepath> ]
+
+# The maximum number of alerts to be sent per incident.io message.
+# Alerts exceeding this threshold will be truncated. Setting this to 0
+# allows an unlimited number of alerts. Note that if the payload exceeds
+# incident.io's size limits (512KB), the notifier will automatically drop
+# all alerts except the first one. If the payload is still too
+# large after this truncation, you will receive a 429 response and alerts
+# will not be ingested.
+[ max_alerts: <int> | default = 0 ]
+
+# Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
+# does not impose a timeout.
+[ timeout: <duration> | default = 0s ]
+```
+
 ### `<wechat_config>`
 
 WeChat notifications are sent via the [WeChat
-API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
+API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html).
 
 ```yaml
 # Whether to notify about resolved alerts.

@@ -16,8 +16,8 @@ package compat
 import (
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -56,13 +56,13 @@ func TestFallbackMatcherParser(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			f := FallbackMatcherParser(log.NewNopLogger())
+			f := FallbackMatcherParser(promslog.NewNopLogger())
 			matcher, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matcher)
+				require.Equal(t, test.expected, matcher)
 			}
 		})
 	}
@@ -112,13 +112,13 @@ func TestFallbackMatchersParser(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			f := FallbackMatchersParser(log.NewNopLogger())
+			f := FallbackMatchersParser(promslog.NewNopLogger())
 			matchers, err := f(test.input, "test")
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matchers)
+				require.Equal(t, test.expected, matchers)
 			}
 		})
 	}
@@ -158,7 +158,7 @@ func TestIsValidClassicLabelName(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		fn := isValidClassicLabelName(log.NewNopLogger())
+		fn := isValidClassicLabelName(promslog.NewNopLogger())
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, fn(test.input))
 		})
@@ -193,7 +193,7 @@ func TestIsValidUTF8LabelName(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		fn := isValidUTF8LabelName(log.NewNopLogger())
+		fn := isValidUTF8LabelName(promslog.NewNopLogger())
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, fn(test.input))
 		})

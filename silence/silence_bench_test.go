@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
-	"github.com/go-kit/log"
+	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -52,7 +52,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	silences, err := New(Options{})
 	require.NoError(b, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(b)
 	silences.clock = clock
 	now := clock.Now()
 
@@ -74,7 +74,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	require.Len(b, silenceIDs, n)
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(silences, m, log.NewNopLogger())
+	s := NewSilencer(silences, m, promslog.NewNopLogger())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -108,7 +108,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	s, err := New(Options{})
 	require.NoError(b, err)
 
-	clock := clock.NewMock()
+	clock := quartz.NewMock(b)
 	s.clock = clock
 	now := clock.Now()
 

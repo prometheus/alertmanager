@@ -100,6 +100,10 @@ func TestMatchers(t *testing.T) {
 		input:    "{\"foo\"=~\"[a-z]+\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchRegexp, "foo", "[a-z]+")},
 	}, {
+		name:     "match regex digit in quotes",
+		input:    "{\"foo\"=~\"\\\\d+\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchRegexp, "foo", "\\d+")},
+	}, {
 		name:     "doesn't match regex in quotes",
 		input:    "{\"foo\"!~\"[a-z]+\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+")},
@@ -204,6 +208,10 @@ func TestMatchers(t *testing.T) {
 		input: "{foo=\"bar\\w\"}",
 		error: "5:12: \"bar\\w\": invalid input",
 	}, {
+		name:  "invalid escape sequence regex digits",
+		input: "{\"foo\"=~\"\\d+\"}",
+		error: "8:13: \"\\d+\": invalid input",
+	}, {
 		name:  "no unquoted escape sequences",
 		input: "{foo=bar\\n}",
 		error: "8:9: \\: invalid input: expected a comma or close brace",
@@ -220,7 +228,7 @@ func TestMatchers(t *testing.T) {
 				require.EqualError(t, err, test.error)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matchers)
+				require.Equal(t, test.expected, matchers)
 			}
 		})
 	}
@@ -364,7 +372,7 @@ func TestMatcher(t *testing.T) {
 				require.EqualError(t, err, test.error)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matcher)
+				require.Equal(t, test.expected, matcher)
 			}
 		})
 	}
