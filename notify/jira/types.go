@@ -55,11 +55,9 @@ type issueStatus struct {
 }
 
 type issueSearch struct {
-	Expand     []string `json:"expand"`
 	Fields     []string `json:"fields"`
 	JQL        string   `json:"jql"`
 	MaxResults int      `json:"maxResults"`
-	StartAt    int      `json:"startAt"`
 }
 
 type issueSearchResult struct {
@@ -73,7 +71,7 @@ type issueTransitions struct {
 
 // MarshalJSON merges the struct issueFields and issueFields.CustomField together.
 func (i issueFields) MarshalJSON() ([]byte, error) {
-	jsonFields := map[string]interface{}{
+	jsonFields := map[string]any{
 		"description": i.Description,
 		"summary":     i.Summary,
 	}

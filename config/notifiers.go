@@ -28,6 +28,13 @@ import (
 )
 
 var (
+	// DefaultIncidentioConfig defines default values for Incident.io configurations.
+	DefaultIncidentioConfig = IncidentioConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultWebhookConfig defines default values for Webhook configurations.
 	DefaultWebhookConfig = WebhookConfig{
 		NotifierConfig: NotifierConfig{
@@ -199,6 +206,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
+		APIType:     "auto",
 		Summary:     `{{ template "jira.default.summary" . }}`,
 		Description: `{{ template "jira.default.description" . }}`,
 		Priority:    `{{ template "jira.default.priority" . }}`,
@@ -225,7 +233,7 @@ type WebexConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWebexConfig
 	type plain WebexConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -259,7 +267,7 @@ type DiscordConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultDiscordConfig
 	type plain DiscordConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -299,7 +307,7 @@ type EmailConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultEmailConfig
 	type plain EmailConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -360,7 +368,7 @@ type PagerdutyImage struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPagerdutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -403,7 +411,7 @@ type SlackAction struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
-func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackAction
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -438,7 +446,7 @@ type SlackConfirmationField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField.
-func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackConfirmationField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -460,7 +468,7 @@ type SlackField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackField.
-func (c *SlackField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -510,7 +518,7 @@ type SlackConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -527,6 +535,58 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
+	return nil
+}
+
+// IncidentioConfig configures notifications via incident.io.
+type IncidentioConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     *URL   `yaml:"url" json:"url"`
+	URLFile string `yaml:"url_file" json:"url_file"`
+
+	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
+	AlertSourceToken     Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
+	AlertSourceTokenFile string `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts. Note that if the payload exceeds
+	// incident.io's size limits, you will receive a 429 response and alerts
+	// will not be ingested.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultIncidentioConfig
+	type plain IncidentioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
+		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
+	}
+	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
+		return errors.New("cannot specify alert_source_token or alert_source_token_file when using http_config.authorization")
+	}
+
+	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
+		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
+	}
 	return nil
 }
 
@@ -551,7 +611,7 @@ type WebhookConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWebhookConfig
 	type plain WebhookConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -588,7 +648,7 @@ const wechatValidTypesRe = `^(text|markdown)$`
 var wechatTypeMatcher = regexp.MustCompile(wechatValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -633,7 +693,7 @@ const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
 var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultOpsGenieConfig
 	type plain OpsGenieConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -693,7 +753,7 @@ type VictorOpsConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultVictorOpsConfig
 	type plain VictorOpsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -755,7 +815,7 @@ type PushoverConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPushoverConfig
 	type plain PushoverConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -795,7 +855,7 @@ type SNSConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSNSConfig
 	type plain SNSConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -824,7 +884,7 @@ type TelegramConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultTelegramConfig
 	type plain TelegramConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -859,7 +919,7 @@ type MSTeamsConfig struct {
 	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -887,7 +947,7 @@ type MSTeamsV2Config struct {
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsV2Config
 	type plain MSTeamsV2Config
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -909,7 +969,8 @@ type JiraConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIType string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
 	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
 	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -926,7 +987,7 @@ type JiraConfig struct {
 	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
 }
 
-func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *JiraConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultJiraConfig
 	type plain JiraConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -938,6 +999,11 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.IssueType == "" {
 		return errors.New("missing issue_type in jira_config")
+	}
+	if c.APIType != "auto" &&
+		c.APIType != "cloud" &&
+		c.APIType != "datacenter" {
+		return errors.New("unknown api_type on jira_config, must be auto, cloud or datacenter")
 	}
 	return nil
 }
@@ -995,7 +1061,7 @@ type RocketchatConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultRocketchatConfig
 	type plain RocketchatConfig
 	if err := unmarshal((*plain)(c)); err != nil {

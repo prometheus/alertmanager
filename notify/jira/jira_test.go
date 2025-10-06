@@ -100,19 +100,45 @@ func TestSearchExistingIssue(t *testing.T) {
 		title         string
 		cfg           *config.JiraConfig
 		groupKey      string
+		firing        bool
 		expectedJQL   string
 		expectedIssue *issue
 		expectedErr   bool
 		expectedRetry bool
 	}{
 		{
-			title: "search existing issue with project template",
+			title: "search existing issue with project template for firing alert",
 			cfg: &config.JiraConfig{
 				Summary:     `{{ template "jira.default.summary" . }}`,
 				Description: `{{ template "jira.default.description" . }}`,
 				Project:     `{{ .CommonLabels.project }}`,
 			},
 			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue with reopen duration for firing alert",
+			cfg: &config.JiraConfig{
+				Summary:          `{{ template "jira.default.summary" . }}`,
+				Description:      `{{ template "jira.default.description" . }}`,
+				Project:          `{{ .CommonLabels.project }}`,
+				ReopenDuration:   model.Duration(60 * time.Minute),
+				ReopenTransition: "REOPEN",
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `(resolutiondate is EMPTY OR resolutiondate >= -60m) and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue for resolved alert",
+			cfg: &config.JiraConfig{
+				Summary:     `{{ template "jira.default.summary" . }}`,
+				Description: `{{ template "jira.default.description" . }}`,
+				Project:     `{{ .CommonLabels.project }}`,
+			},
+			groupKey:    "1",
+			firing:      false,
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
 		},
 	} {
@@ -147,14 +173,146 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, true, tmplTextFunc)
+			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.EqualValues(t, tc.expectedIssue, issue)
+			require.Equal(t, tc.expectedIssue, issue)
 			require.Equal(t, tc.expectedRetry, retry)
+		})
+	}
+}
+
+func TestPrepareSearchRequest(t *testing.T) {
+	for _, tc := range []struct {
+		title           string
+		cfg             *config.JiraConfig
+		jql             string
+		expectedBody    any
+		expectedURL     string
+		expectedURLPath string
+	}{
+		{
+			title: "cloud API type",
+			cfg: &config.JiraConfig{
+				APIType: "cloud",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type with atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/3/search/jql",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "auto API type without atlassian.net url",
+			cfg: &config.JiraConfig{
+				APIType: "auto",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "atlassian.net URL suffix but datacenter api type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://example.atlassian.net/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+		{
+			title: "datacenter API type",
+			cfg: &config.JiraConfig{
+				APIType: "datacenter",
+				APIURL: &config.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "jira.example.com",
+						Path:   "/rest/api/2",
+					},
+				},
+			},
+			jql: "project=TEST and labels=\"ALERT{123}\"",
+			expectedBody: issueSearch{
+				JQL:        "project=TEST and labels=\"ALERT{123}\"",
+				MaxResults: 2,
+				Fields:     []string{"status"},
+			},
+			expectedURL:     "https://jira.example.com/rest/api/2/search",
+			expectedURLPath: "/rest/api/2",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			requestBody, searchURL := notifier.prepareSearchRequest(tc.jql)
+
+			require.Equal(t, tc.expectedURL, searchURL)
+			require.Equal(t, tc.expectedBody, requestBody)
+			// Verify that the original APIURL.Path is not modified
+			require.Equal(t, tc.expectedURLPath, notifier.conf.APIURL.Path)
 		})
 	}
 }

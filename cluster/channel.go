@@ -50,7 +50,7 @@ func NewChannel(
 	peers func() []*memberlist.Node,
 	sendOversize func(*memberlist.Node, []byte) error,
 	logger *slog.Logger,
-	stopc chan struct{},
+	stopc <-chan struct{},
 	reg prometheus.Registerer,
 ) *Channel {
 	oversizeGossipMessageFailureTotal := prometheus.NewCounter(prometheus.CounterOpts{
@@ -100,7 +100,7 @@ func NewChannel(
 
 // handleOverSizedMessages prevents memberlist from opening too many parallel
 // TCP connections to its peers.
-func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
+func (c *Channel) handleOverSizedMessages(stopc <-chan struct{}) {
 	var wg sync.WaitGroup
 	for {
 		select {

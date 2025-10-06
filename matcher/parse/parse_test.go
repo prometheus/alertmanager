@@ -228,7 +228,7 @@ func TestMatchers(t *testing.T) {
 				require.EqualError(t, err, test.error)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matchers)
+				require.Equal(t, test.expected, matchers)
 			}
 		})
 	}
@@ -372,7 +372,7 @@ func TestMatcher(t *testing.T) {
 				require.EqualError(t, err, test.error)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, test.expected, matcher)
+				require.Equal(t, test.expected, matcher)
 			}
 		})
 	}

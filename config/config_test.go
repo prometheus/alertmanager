@@ -818,7 +818,7 @@ func TestUnmarshalEmptyRegexp(t *testing.T) {
 		err := json.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 
 	{
@@ -826,7 +826,7 @@ func TestUnmarshalEmptyRegexp(t *testing.T) {
 		err := yaml.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 }
 
@@ -837,7 +837,7 @@ func TestUnmarshalNullRegexp(t *testing.T) {
 		var re Regexp
 		err := json.Unmarshal(input, &re)
 		require.NoError(t, err)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 
 	{
@@ -845,7 +845,7 @@ func TestUnmarshalNullRegexp(t *testing.T) {
 		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
 		require.NoError(t, err)
 		require.Nil(t, re.Regexp)
-		require.Equal(t, "", re.original)
+		require.Empty(t, re.original)
 	}
 }
 

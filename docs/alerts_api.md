@@ -10,8 +10,6 @@ series data instead of sending alerts to the Alerts API, as Prometheus supports
 a number of special cases to make sure alerts are delivered even if Alertmanager
 crashes or restarts.
 
-# Alerts API
-
 You send alerts to Alertmanager via APIv2. The APIv2 is specified as an
 OpenAPI specification that can be found [here](https://github.com/prometheus/alertmanager/blob/master/api/v2/openapi.yaml).
 
