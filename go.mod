@@ -48,7 +48,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/mod v0.28.0
-	golang.org/x/net v0.44.0
+	golang.org/x/net v0.45.0
 	golang.org/x/text v0.29.0
 	golang.org/x/tools v0.37.0
 	gopkg.in/telebot.v3 v3.3.8
