@@ -60,6 +60,7 @@ linters:
         - name: unexported-return
         - name: var-declaration
         - name: var-naming
+          disabled: true
     testifylint:
       disable:
         - float-compare
