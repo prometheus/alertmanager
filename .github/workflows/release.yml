@@ -18,7 +18,7 @@ jobs:
     needs: ci
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
+      - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
       - uses: ./.github/promci/actions/build
         with:
           parallelism: 12
@@ -29,7 +29,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: prometheus/promci@c3c93a50d581b928af720f0134b2b2dad32a6c41 # v0.4.6
+      - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
       - uses: ./.github/promci/actions/publish_release
         with:
           docker_hub_login: ${{ secrets.docker_hub_login }}
