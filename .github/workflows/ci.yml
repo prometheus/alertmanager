@@ -8,7 +8,7 @@ jobs:
     name: Test alertmanager frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - run: make clean
       - run: make all
         working-directory: ./ui/app
@@ -23,7 +23,7 @@ jobs:
       matrix:
         thread: [0, 1, 2]
     steps:
-      - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4.0.0
       - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
       - uses: ./.github/promci/actions/build
         with:
@@ -39,7 +39,7 @@ jobs:
     container:
       image: quay.io/prometheus/golang-builder:1.25-base
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
       - uses: ./.github/promci/actions/setup_environment
       - run: make
