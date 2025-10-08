@@ -133,7 +133,7 @@ func TruncateInBytes(s string, n int) (string, bool) {
 func TmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
-			return
+			return s
 		}
 		s, *err = tmpl.ExecuteTextString(name, data)
 		return s
@@ -145,7 +145,7 @@ func TmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
-			return
+			return s
 		}
 		s, *err = tmpl.ExecuteHTMLString(name, data)
 		return s
