@@ -1,3 +1,24 @@
+## main / (unreleased)
+
+* [CHANGE] ...
+* [FEATURE] ...
+* [ENHANCEMENT] ...
+* [BUGFIX] ...
+
+## 0.29.0-rc.0 / 2025-10-09
+
+* [FEATURE] Add incident.io notifier. #4372
+* [FEATURE] Add monospace message formatting. #4362
+* [FEATURE] Add ability to customize interval for maintenance to run. #4541
+* [ENHANCEMENT] Update Jira notifier to support both Jira cloud API v3 and Jira datacenter API v2. #4542
+* [ENHANCEMENT] Increase mixin rate intervals for alert `FailedToSendAlerts`. #4206
+* [ENHANCEMENT] Make /alertmanager group writable in docker image. #4469
+* [BUGFIX] Fix logged notification count on error in notify. #4323
+* [BUGFIX] Fix docker image permissions path. #4288
+* [BUGFIX] Fix error handling in template rendering for Telegram. #4353
+* [BUGFIX] Fix duplicate `other` in error messages for config. #4366
+* [BUGFIX] Fix logic that considers an alert reopened in Jira. #4478
+
 ## 0.28.1 / 2025-03-07
 
 * [ENHANCEMENT] Improved performance of inhibition rules when using Equal labels. #4119
@@ -114,10 +135,10 @@ Should you encounter any problems, you can run the Alertmanager with just the cl
 * [ENHANCEMENT] Templating: Better default text when using `{{ .Annotations }}` and `{{ .Labels }}`. #3256
 * [ENHANCEMENT] Templating: Introduced a new function `trimSpace` which removes leading and trailing white spaces. #3223
 * [ENHANCEMENT] CLI: `amtool silence query` now supports the `--id` flag to query an individual silence. #3241
-* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286 
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286
 * [ENHANCEMENT] Metrics: Introduced `alertmanager_silences_maintenance_total` and `alertmanager_silences_maintenance_errors_total` to monitor maintenance of silences. #3285
 * [ENHANCEMENT] Logging: Log GroupKey and alerts on alert delivery when using debug mode. #3438
-* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209 
+* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209
 * [BUGFIX] Templating: Fixed a race condition when using the `title` function. It is now race-safe. #3278
 * [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
 * [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352
