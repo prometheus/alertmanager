@@ -789,6 +789,18 @@ oauth2:
 # Configures the TLS settings.
 tls_config:
   [ <tls_config> ]
+
+# Custom HTTP headers to be sent along with each request.
+# Headers that are set by Prometheus itself can't be overwritten.
+http_headers:
+  # Header name.
+  [ <string>:
+    # Header values.
+    [ values: [<string>, ...] ]
+    # Headers values. Hidden in configuration page.
+    [ secrets: [<secret>, ...] ]
+    # Files to read header values from.
+    [ files: [<string>, ...] ] ]
 ```
 
 #### `<oauth2>`
