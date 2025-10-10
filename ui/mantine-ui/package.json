@@ -1,0 +1,56 @@
+{
+  "name": "alertmanager",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run eslint && npm run stylelint",
+    "eslint": "eslint . --cache",
+    "stylelint": "stylelint '**/*.css' --cache",
+    "prettier": "prettier --check \"**/*.{ts,tsx}\"",
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "vitest": "vitest run",
+    "vitest:watch": "vitest",
+    "test": "npm run typecheck && npm run prettier && npm run lint && npm run vitest && npm run build"
+
+  },
+  "dependencies": {
+    "@mantine/core": "8.2.4",
+    "@mantine/hooks": "8.2.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@ianvs/prettier-plugin-sort-imports": "^4.4.2",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.15.11",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "eslint": "^9.29.0",
+    "eslint-config-mantine": "^4.0.3",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.5.5",
+    "postcss-preset-mantine": "1.17.0",
+    "postcss-simple-vars": "^7.0.1",
+    "prettier": "^3.5.3",
+    "prop-types": "^15.8.1",
+    "stylelint": "^16.20.0",
+    "stylelint-config-standard-scss": "^15.0.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.0",
+    "vite": "^6.3.5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.3"
+  }
+}
