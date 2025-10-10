@@ -368,6 +368,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"incidentio",
 		"jira",
 		"rocketchat",
+		"mattermost",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
