@@ -217,3 +217,11 @@ Alerts Resolved:
 {{ define "rocketchat.default.emoji" }}{{ end }}
 {{ define "rocketchat.default.iconurl" }}{{ end }}
 {{ define "rocketchat.default.text" }}{{ end }}
+
+{{ define "jira.host" }}
+{{- with index .Alerts 0 -}}
+    {{- if .Labels.hostname -}}
+    {{- .Labels.hostname -}}
+    {{- end -}}
+    {{- end -}}
+{{ end }}
