@@ -5,6 +5,8 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
+## 0.29.0-rc.1 / 2025-10-122
+
 ## 0.29.0-rc.0 / 2025-10-09
 
 * [FEATURE] Add incident.io notifier. #4372
