@@ -100,6 +100,16 @@ init flags url key =
                             _ ->
                                 Monday
                    )
+
+        bootstrapTheme =
+            flags
+                |> Json.decodeValue (Json.field "bootstrapTheme" Json.string)
+                |> Result.withDefault "auto"
+
+        settings =
+            { firstDayOfWeek = firstDayOfWeek
+            , bootstrapTheme = bootstrapTheme
+            }
     in
     update (urlUpdate url)
         (Model
@@ -115,12 +125,10 @@ init flags url key =
             libUrl
             Loading
             Loading
-            Loading
             defaultCreator
             groupExpandAll
             key
-            { firstDayOfWeek = firstDayOfWeek
-            }
+            settings
         )
 
 

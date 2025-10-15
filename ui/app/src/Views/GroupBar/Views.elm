@@ -1,6 +1,6 @@
 module Views.GroupBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, input, small, span, text)
+import Html exposing (Html, a, button, div, input, small, text)
 import Html.Attributes exposing (class, disabled, id, style, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput, onMouseEnter, onMouseLeave)
 import Set
@@ -13,18 +13,9 @@ import Views.GroupBar.Types exposing (Model, Msg(..))
 view : Model -> Bool -> Html Msg
 view ({ list, fieldText, fields } as model) customGrouping =
     let
+        -- Determines whether the user can add this field
         isDisabled =
             not (Set.member fieldText list) || List.member fieldText fields
-
-        className =
-            if String.isEmpty fieldText then
-                ""
-
-            else if isDisabled then
-                "has-danger"
-
-            else
-                "has-success"
 
         checkbox =
             div [ class "mb-3" ]
@@ -34,10 +25,10 @@ view ({ list, fieldText, fields } as model) customGrouping =
         div []
             [ checkbox
             , div
-                [ class "row no-gutters align-items-start" ]
+                [ class "row g-0 align-items-start" ]
                 (List.map viewField fields
                     ++ [ div
-                            [ class ("col " ++ className)
+                            [ class "col"
                             , style "min-width" "200px"
                             ]
                             [ textInputField isDisabled model
@@ -56,8 +47,7 @@ exampleField : List String -> Html Msg
 exampleField fields =
     if List.member "alertname" fields then
         small [ class "form-text text-muted" ]
-            [ text "Label key for grouping alerts"
-            ]
+            [ text "Label key for grouping alerts" ]
 
     else
         small [ class "form-text text-muted" ]
@@ -73,6 +63,17 @@ exampleField fields =
 textInputField : Bool -> Model -> Html Msg
 textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, backspacePressed } =
     let
+        -- Decide whether to apply .is-valid or .is-invalid on the input
+        inputValidationClass =
+            if String.isEmpty fieldText then
+                ""
+
+            else if isDisabled then
+                " is-invalid"
+
+            else
+                " is-valid"
+
         onClickMsg =
             if isDisabled then
                 Noop
@@ -80,9 +81,10 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
             else
                 AddField True fieldText
 
+        -- For arrow key cycling in the autocomplete
         nextMatch =
             maybeSelectedMatch
-                |> Maybe.map ((\b a -> Utils.List.nextElem a b) <| matches)
+                |> Maybe.map ((\b a -> Utils.List.nextElem a b) matches)
                 |> Maybe.withDefault (List.head matches)
 
         prevMatch =
@@ -131,7 +133,7 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
     div [ class "input-group" ]
         [ input
             [ id "group-by-field"
-            , class "form-control"
+            , class ("form-control" ++ inputValidationClass)
             , value fieldText
             , onKeyDown keyDown
             , onKeyUp keyUp
@@ -140,30 +142,40 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
             , onBlur (Focus False)
             ]
             []
-        , span
-            [ class "input-group-btn" ]
-            [ button [ class "btn btn-primary", disabled isDisabled, onClick onClickMsg ] [ text "+" ] ]
+        , button
+            [ class "btn btn-primary"
+            , disabled isDisabled
+            , onClick onClickMsg
+            ]
+            [ text "+" ]
         ]
 
 
 autoCompleteResults : Model -> Html Msg
 autoCompleteResults { maybeSelectedMatch, focused, resultsHovered, matches } =
     let
-        autoCompleteClass =
-            if (focused || resultsHovered) && not (List.isEmpty matches) then
-                "show"
+        showMenu =
+            (focused || resultsHovered) && not (List.isEmpty matches)
 
-            else
-                ""
+        dropdownClasses =
+            "dropdown-menu"
+                ++ (if showMenu then
+                        " show"
+
+                    else
+                        ""
+                   )
     in
     div
-        [ class ("autocomplete-menu " ++ autoCompleteClass)
+        [ class "position-relative"
         , onMouseEnter (ResultsHovered True)
         , onMouseLeave (ResultsHovered False)
         ]
-        [ matches
-            |> List.map (matchedField maybeSelectedMatch)
-            |> div [ class "dropdown-menu" ]
+        [ div
+            [ class dropdownClasses ]
+            (matches
+                |> List.map (matchedField maybeSelectedMatch)
+            )
         ]
 
 
@@ -187,13 +199,12 @@ matchedField maybeSelectedMatch field =
 viewField : String -> Html Msg
 viewField field =
     div [ class "col col-auto" ]
-        [ div [ class "btn-group mr-2 mb-2" ]
+        [ div [ class "btn-group me-2 mb-2" ]
             [ button
                 [ class "btn btn-outline-info"
                 , onClick (DeleteField True field)
                 ]
-                [ text field
-                ]
+                [ text field ]
             , button
                 [ class "btn btn-outline-danger"
                 , onClick (DeleteField False field)

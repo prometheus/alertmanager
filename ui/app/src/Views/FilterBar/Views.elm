@@ -1,6 +1,6 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, i, input, small, span, text)
+import Html exposing (Html, a, button, div, i, input, small, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
 import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)
@@ -23,7 +23,7 @@ keys =
 viewMatcher : Matcher -> Html Msg
 viewMatcher matcher =
     div [ class "col col-auto" ]
-        [ div [ class "btn-group mr-2 mb-2" ]
+        [ div [ class "btn-group me-2 mb-2" ]
             [ button
                 [ class "btn btn-outline-info"
                 , onClick (DeleteFilterMatcher True matcher)
@@ -54,17 +54,19 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
         maybeLastMatcher =
             Utils.List.lastElem matchers
 
-        className =
+        -- Decide how to style the input based on whether the user typed
+        -- something valid, invalid, or blank
+        inputValidationClass =
             if matcherText == "" then
                 ""
 
             else
                 case maybeMatcher of
                     Just _ ->
-                        "has-success"
+                        " is-valid"
 
                     Nothing ->
-                        "has-danger"
+                        " is-invalid"
 
         keyDown key =
             if key == keys.enter then
@@ -108,10 +110,10 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                 |> List.map convertFilterMatcher
     in
     div
-        [ class "row no-gutters align-items-start" ]
+        [ class "row g-0 align-items-start" ]
         (viewMatchers matchers
             ++ [ div
-                    [ class ("col " ++ className)
+                    [ class "col"
                     , style "min-width"
                         (if showSilenceButton then
                             "300px"
@@ -120,31 +122,32 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                             "200px"
                         )
                     ]
-                    [ div [ class "row no-gutters align-content-stretch" ]
+                    [ div [ class "row g-0 align-content-stretch" ]
                         [ div [ class "col input-group" ]
                             [ input
                                 [ id "filter-bar-matcher"
-                                , class "form-control"
+                                , class ("form-control" ++ inputValidationClass)
                                 , value matcherText
                                 , onKeyDown keyDown
                                 , onKeyUp keyUp
                                 , onInput UpdateMatcherText
                                 ]
                                 []
-                            , span
-                                [ class "input-group-btn" ]
-                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
+                            , button
+                                [ class "btn btn-primary"
+                                , disabled isDisabled
+                                , onClickAttr
+                                ]
+                                [ text "+" ]
                             ]
                         , if showSilenceButton then
-                            div [ class "col col-auto input-group-btn ml-2" ]
-                                [ div [ class "input-group" ]
-                                    [ a
-                                        [ class "btn btn-outline-info"
-                                        , href (newSilenceFromMatchers dataMatchers)
-                                        ]
-                                        [ i [ class "fa fa-bell-slash-o mr-2" ] []
-                                        , text "Silence"
-                                        ]
+                            div [ class "col col-auto ms-2" ]
+                                [ a
+                                    [ class "btn btn-outline-info"
+                                    , href (newSilenceFromMatchers dataMatchers)
+                                    ]
+                                    [ i [ class "fa fa-bell-slash-o me-2" ] []
+                                    , text "Silence"
                                     ]
                                 ]
 

@@ -59,21 +59,22 @@ dateTimePickerDialog form =
                     [ div [ class "modal-content" ]
                         [ div [ class "modal-header" ]
                             [ button
-                                [ class "close ml-auto"
+                                [ class "btn-close ms-auto"
                                 , onClick (CloseDateTimePicker |> UpdateField)
+                                , Html.Attributes.attribute "aria-label" "Close"
                                 ]
-                                [ text "x" ]
+                                []
                             ]
                         , div [ class "modal-body" ]
                             [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
                         , div [ class "modal-footer" ]
                             [ button
-                                [ class "ml-2 btn btn-outline-success mr-auto"
+                                [ class "ms-2 btn btn-outline-success me-auto"
                                 , onClick (CloseDateTimePicker |> UpdateField)
                                 ]
                                 [ text "Cancel" ]
                             , button
-                                [ class "ml-2 btn btn-primary"
+                                [ class "ms-2 btn btn-primary"
                                 , onClick (UpdateTimesFromPicker |> UpdateField)
                                 ]
                                 [ text "Set Date/Time" ]
@@ -98,14 +99,15 @@ inputSectionPadding =
 
 timeInput : ValidatedField -> ValidatedField -> ValidatedField -> Html SilenceFormMsg
 timeInput startsAt endsAt duration =
-    div [ class <| "row " ++ inputSectionPadding ]
+    div [ class ("row " ++ inputSectionPadding) ]
         [ validatedField input
             "Start"
             "col-lg-4 col-6"
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
-        , validatedField input
+        , validatedField
+            input
             "Duration"
             "col-lg-3 col-6"
             (UpdateDuration >> UpdateField)
@@ -137,16 +139,7 @@ timeInput startsAt endsAt duration =
 
 matchersInput : Utils.FormValidation.ValidationState -> FilterBar.Model -> Html SilenceFormMsg
 matchersInput filterBarValid filterBar =
-    let
-        errorClass =
-            case filterBarValid of
-                Invalid _ ->
-                    " has-danger"
-
-                _ ->
-                    ""
-    in
-    div [ class (inputSectionPadding ++ errorClass) ]
+    div [ class inputSectionPadding ]
         [ label [ Html.Attributes.for "filter-bar-matcher" ]
             [ strong [] [ text "Matchers " ]
             , text "Alerts affected by this silence"
@@ -154,7 +147,8 @@ matchersInput filterBarValid filterBar =
         , FilterBar.view { showSilenceButton = False } filterBar |> Html.map MsgForFilterBar
         , case filterBarValid of
             Invalid error ->
-                div [ class "form-control-feedback" ] [ text error ]
+                div [ class "invalid-feedback d-block" ]
+                    [ text error ]
 
             _ ->
                 text ""
@@ -184,7 +178,7 @@ silenceActionButtons maybeId resetClick =
         [ previewSilenceBtn
         , createSilenceBtn maybeId
         , button
-            [ class "ml-2 btn btn-danger", onClick resetClick ]
+            [ class "ms-2 btn btn-danger", onClick resetClick ]
             [ text "Reset" ]
         ]
 
@@ -201,7 +195,7 @@ createSilenceBtn maybeId =
                     "Create"
     in
     button
-        [ class "ml-2 btn btn-primary"
+        [ class "ms-2 btn btn-primary"
         , onClick CreateSilence
         ]
         [ text btnTxt ]

@@ -21,17 +21,25 @@ import Views.ReceiverBar.Views as ReceiverBar
 
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
 renderCheckbox textLabel maybeChecked toggleMsg =
+    let
+        checkboxId =
+            "checkbox-" ++ textLabel
+    in
     li [ class "nav-item" ]
-        [ label [ class "mt-1 ml-1 custom-control custom-checkbox" ]
+        [ div [ class "form-check mt-1 ms-1" ]
             [ input
                 [ type_ "checkbox"
-                , class "custom-control-input"
+                , class "form-check-input"
+                , id checkboxId
                 , checked (Maybe.withDefault False maybeChecked)
                 , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
-            , span [ class "custom-control-indicator" ] []
-            , span [ class "custom-control-description" ] [ text textLabel ]
+            , label
+                [ class "form-check-label ms-1"
+                , for checkboxId
+                ]
+                [ text textLabel ]
             ]
         ]
 
@@ -62,7 +70,7 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
                     , renderCheckbox "Muted" filter.showMuted ToggleMuted
                     ]
                 ]
-            , div [ class "card-block" ]
+            , div [ class "card-body" ]
                 [ case tab of
                     FilterTab ->
                         Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view { showSilenceButton = True } filterBar)
@@ -73,14 +81,18 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
             ]
         , div []
             [ button
-                [ class "btn btn-outline-secondary border-0 mr-1 mb-3"
+                [ class "btn btn-outline-secondary border-0 me-1 mb-3"
                 , onClick (MsgForAlertList (ToggleExpandAll (not expandAll)))
                 ]
                 (if expandAll then
-                    [ i [ class "fa fa-minus mr-3" ] [], text "Collapse all groups" ]
+                    [ i [ class "fa fa-minus me-3" ] []
+                    , text "Collapse all groups"
+                    ]
 
                  else
-                    [ i [ class "fa fa-plus mr-3" ] [], text "Expand all groups" ]
+                    [ i [ class "fa fa-plus me-3" ] []
+                    , text "Expand all groups"
+                    ]
                 )
             ]
         , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
@@ -101,7 +113,7 @@ defaultAlertGroups activeId activeGroups expandAll groups =
             alertGroup activeId (Set.singleton 0) receiver labels_ alerts 0 expandAll
 
         _ ->
-            div [ class "pl-5" ]
+            div [ class "ps-5" ]
                 (List.indexedMap
                     (\index group ->
                         alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) group.alerts index expandAll
@@ -119,12 +131,12 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
         labels_ =
             case labels of
                 [] ->
-                    [ span [ class "btn btn-secondary mr-1 mb-1" ] [ text "Not grouped" ] ]
+                    [ span [ class "btn btn-outline-secondary me-1 mb-1" ] [ text "Not grouped" ] ]
 
                 _ ->
                     List.map
                         (\( key, value ) ->
-                            div [ class "btn-group mr-1 mb-1" ]
+                            div [ class "btn-group me-1 mb-1" ]
                                 [ span
                                     [ class "btn text-muted"
                                     , style "user-select" "initial"
@@ -158,7 +170,7 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
                 String.fromInt alertCount ++ " alerts"
 
         alertEl =
-            [ span [ class "ml-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
+            [ span [ class "ms-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
     in
     div []
         [ div [ class "mb-3" ] (expandButton :: labels_ ++ alertEl)
@@ -182,13 +194,9 @@ expandAlertGroup expanded groupId receiver =
     in
     button
         [ onClick groupId
-        , class "btn btn-outline-info border-0 mr-1 mb-1"
+        , class "btn btn-outline-info border-0 me-1 mb-1"
         , style "margin-left" "-3rem"
         ]
-        [ i
-            [ class ("fa " ++ icon)
-            , class "mr-2"
-            ]
-            []
+        [ i [ class ("fa " ++ icon ++ " me-2") ] []
         , text receiver.name
         ]

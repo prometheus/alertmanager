@@ -30,10 +30,11 @@ view maybeConfig =
                             [ div [ class "modal-header" ]
                                 [ h5 [ class "modal-title" ] [ text title ]
                                 , button
-                                    [ class "close"
+                                    [ class "btn-close"
                                     , onClick onClose
+                                    , Html.Attributes.attribute "aria-label" "Close"
                                     ]
-                                    [ text "×" ]
+                                    []
                                 ]
                             , div [ class "modal-body" ] [ body ]
                             , div [ class "modal-footer" ] [ footer ]

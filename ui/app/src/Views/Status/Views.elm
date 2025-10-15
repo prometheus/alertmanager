@@ -4,7 +4,7 @@ import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
 import Data.ClusterStatus exposing (ClusterStatus, Status(..))
 import Data.PeerStatus exposing (PeerStatus)
 import Data.VersionInfo exposing (VersionInfo)
-import Html exposing (..)
+import Html exposing (Html, b, code, div, h1, h2, li, pre, span, text, ul)
 import Html.Attributes exposing (class, classList, style)
 import Status.Api exposing (clusterStatusToString)
 import Status.Types exposing (VersionInfo)
@@ -24,8 +24,8 @@ viewStatusInfo : AlertmanagerStatus -> Html Types.Msg
 viewStatusInfo status =
     div []
         [ h1 [] [ text "Status" ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Uptime:" ]
+        , div [ class "row mb-3" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "Uptime:" ]
             , div [ class "col-sm-10" ] [ text <| timeToString status.uptime ]
             ]
         , viewClusterStatus status.cluster
@@ -37,43 +37,40 @@ viewStatusInfo status =
 viewConfig : String -> Html Types.Msg
 viewConfig config =
     div []
-        [ h2 [] [ text "Config" ]
-        , pre [ class "p-4", style "background" "#f7f7f9", style "font-family" "monospace" ]
-            [ code []
-                [ text config
-                ]
-            ]
+        [ h2 [ class "mb-3" ] [ text "Config" ]
+        , pre [ class "p-4 bg-body-secondary rounded", style "font-family" "monospace" ]
+            [ code [] [ text config ] ]
         ]
 
 
 viewClusterStatus : ClusterStatus -> Html Types.Msg
 viewClusterStatus { name, status, peers } =
-    span []
+    div []
         [ h2 [] [ text "Cluster Status" ]
         , case name of
             Just n ->
-                div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Name:" ]
+                div [ class "row mb-3" ]
+                    [ b [ class "col-sm-2 form-label" ] [ text "Name:" ]
                     , div [ class "col-sm-10" ] [ text n ]
                     ]
 
             Nothing ->
                 text ""
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Status:" ]
+        , div [ class "row mb-3" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "Status:" ]
             , div [ class "col-sm-10" ]
                 [ span
                     [ classList
                         [ ( "badge", True )
                         , case status of
                             Ready ->
-                                ( "badge-success", True )
+                                ( "bg-success", True )
 
                             Settling ->
-                                ( "badge-warning", True )
+                                ( "bg-warning", True )
 
                             Disabled ->
-                                ( "badge-danger", True )
+                                ( "bg-danger", True )
                         ]
                     ]
                     [ text <| clusterStatusToString status ]
@@ -81,10 +78,10 @@ viewClusterStatus { name, status, peers } =
             ]
         , case peers of
             Just p ->
-                div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Peers:" ]
-                    , ul [ class "col-sm-10" ] <|
-                        List.map viewClusterPeer p
+                div [ class "row mb-3" ]
+                    [ b [ class "col-sm-2 form-label" ] [ text "Peers:" ]
+                    , ul [ class "col-sm-10 list-group" ]
+                        (List.map viewClusterPeer p)
                     ]
 
             Nothing ->
@@ -95,12 +92,12 @@ viewClusterStatus { name, status, peers } =
 viewClusterPeer : PeerStatus -> Html Types.Msg
 viewClusterPeer peer =
     li []
-        [ div [ class "" ]
-            [ b [ class "" ] [ text "Name: " ]
+        [ div [ class "mb-2" ]
+            [ b [ class "me-2" ] [ text "Name:" ]
             , text peer.name
             ]
-        , div [ class "" ]
-            [ b [ class "" ] [ text "Address: " ]
+        , div []
+            [ b [ class "me-2" ] [ text "Address:" ]
             , text peer.address
             ]
         ]
@@ -108,18 +105,30 @@ viewClusterPeer peer =
 
 viewVersionInformation : VersionInfo -> Html Types.Msg
 viewVersionInformation versionInfo =
-    span []
-        [ h2 [] [ text "Version Information" ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Branch:" ], div [ class "col-sm-10" ] [ text versionInfo.branch ] ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "BuildDate:" ], div [ class "col-sm-10" ] [ text versionInfo.buildDate ] ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "BuildUser:" ], div [ class "col-sm-10" ] [ text versionInfo.buildUser ] ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "GoVersion:" ], div [ class "col-sm-10" ] [ text versionInfo.goVersion ] ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Revision:" ], div [ class "col-sm-10" ] [ text versionInfo.revision ] ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Version:" ], div [ class "col-sm-10" ] [ text versionInfo.version ] ]
+    div []
+        [ h2 [ class "mb-3" ] [ text "Version Information" ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "Branch:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.branch ]
+            ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "BuildDate:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.buildDate ]
+            ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "BuildUser:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.buildUser ]
+            ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "GoVersion:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.goVersion ]
+            ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "Revision:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.revision ]
+            ]
+        , div [ class "row mb-2" ]
+            [ b [ class "col-sm-2 form-label" ] [ text "Version:" ]
+            , div [ class "col-sm-10" ] [ text versionInfo.version ]
+            ]
         ]
