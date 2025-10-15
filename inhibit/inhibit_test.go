@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -28,7 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var nopLogger = log.NewNopLogger()
+var nopLogger = promslog.NewNopLogger()
 
 func TestInhibitRuleHasEqual(t *testing.T) {
 	t.Parallel()

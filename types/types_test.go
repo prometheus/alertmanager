@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package types //nolint:revive
 
 import (
 	"reflect"
@@ -20,14 +20,71 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matchers/compat"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
+
+func TestMemMarker_Muted(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// No groups should be muted.
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Mark the group as muted because it's the weekend.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Other groups should not be marked as muted.
+	timeIntervalNames, isMuted = marker.Muted("route1", "group2")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Other routes should not be marked as muted either.
+	timeIntervalNames, isMuted = marker.Muted("route2", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// The group is no longer muted.
+	marker.SetMuted("route1", "group1", nil)
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
+func TestMemMarker_DeleteByGroupKey(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// Mark the group and check that it is muted.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for a different group key. The group should
+	// still be muted.
+	marker.DeleteByGroupKey("route1", "group2")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for the correct group key. The group should
+	// no longer be muted.
+	marker.DeleteByGroupKey("route1", "group1")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
 
 func TestMemMarker_Count(t *testing.T) {
 	r := prometheus.NewRegistry()
@@ -70,14 +127,19 @@ func TestMemMarker_Count(t *testing.T) {
 	require.Equal(t, 1, countByState(AlertStateActive))
 	require.Equal(t, 1, countTotal())
 
-	// Insert a suppressed alert.
+	// Insert a silenced alert.
 	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
 	require.Equal(t, 1, countByState(AlertStateSuppressed))
 	require.Equal(t, 2, countTotal())
 
-	// Insert a resolved alert - it'll count as active.
+	// Insert a resolved silenced alert - it'll count as suppressed.
 	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, []string{"1"}, nil)
-	require.Equal(t, 1, countByState(AlertStateActive))
+	require.Equal(t, 2, countByState(AlertStateSuppressed))
+	require.Equal(t, 3, countTotal())
+
+	// Remove the silence from a3 - it'll count as active.
+	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, nil, nil)
+	require.Equal(t, 2, countByState(AlertStateActive))
 	require.Equal(t, 3, countTotal())
 }
 
@@ -339,14 +401,14 @@ func TestValidateUTF8Ls(t *testing.T) {
 	}}
 
 	// Change the mode to UTF-8 mode.
-	ff, err := featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
 	require.NoError(t, err)
-	compat.InitFromFlags(log.NewNopLogger(), ff)
+	compat.InitFromFlags(promslog.NewNopLogger(), ff)
 
 	// Restore the mode to classic at the end of the test.
-	ff, err = featurecontrol.NewFlags(log.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
 	require.NoError(t, err)
-	defer compat.InitFromFlags(log.NewNopLogger(), ff)
+	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

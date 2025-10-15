@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -35,7 +35,7 @@ import (
 )
 
 func TestVictorOpsCustomFields(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	tmpl := test.CreateTmpl(t)
 
 	url, err := url.Parse("http://nowhere.com")
@@ -91,7 +91,7 @@ func TestVictorOpsRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
@@ -112,7 +112,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -136,7 +136,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -146,7 +146,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 func TestVictorOpsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -206,7 +206,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.APIKey = "test"
-			vo, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			vo, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")

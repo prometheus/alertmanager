@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -508,6 +507,26 @@ user_key: 'user key'
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "at most one of token & token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverHTMLOrMonospace(t *testing.T) {
+	in := `
+token: 'pushover token'
+user_key: 'user key'
+html: true
+monospace: true
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of monospace & html must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -1046,6 +1065,14 @@ bot_token_file: ''
 			in: `
 bot_token: xyz
 chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token, chat_id and message_thread_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+message_thread_id: 456
 `,
 		},
 		{

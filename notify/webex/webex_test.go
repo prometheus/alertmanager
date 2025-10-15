@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -43,7 +43,7 @@ func TestWebexRetry(t *testing.T) {
 			APIURL:     &config.URL{URL: testWebhookURL},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -80,12 +80,30 @@ func TestWebexTemplating(t *testing.T) {
 			expHeader: "Bearer anewsecret",
 		},
 		{
-			name: "with templating errors, it fails.",
+			name: "with message templating errors, it fails.",
 			cfg: &config.WebexConfig{
 				Message: "{{ ",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
 			errMsg:    "template: :1: unclosed action",
+		},
+		{
+			name: "with a valid roomID set, the roomID is used accordingly.",
+			cfg: &config.WebexConfig{
+				RoomID: "my-room-id",
+			},
+			commonCfg: &commoncfg.HTTPClientConfig{},
+			expJSON:   `{"markdown":"", "roomId":"my-room-id"}`,
+			retry:     false,
+		},
+		{
+			name: "with a valid roomID template, the roomID is used accordingly.",
+			cfg: &config.WebexConfig{
+				RoomID: "{{.GroupLabels.webex_room_id}}",
+			},
+			commonCfg: &commoncfg.HTTPClientConfig{},
+			expJSON:   `{"markdown":"", "roomId":"group-label-room-id"}`,
+			retry:     false,
 		},
 	}
 
@@ -104,12 +122,13 @@ func TestWebexTemplating(t *testing.T) {
 
 			tt.cfg.APIURL = &config.URL{URL: u}
 			tt.cfg.HTTPConfig = tt.commonCfg
-			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
 			ok, err := notifierWebex.Notify(ctx, []*types.Alert{
 				{

@@ -212,6 +212,93 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
+		name:  "newline before unquoted is skipped",
+		input: "\nhello",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   6,
+				columnStart: 1,
+				columnEnd:   6,
+			},
+		}},
+	}, {
+		name:  "newline after unquoted is skipped",
+		input: "hello\n",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+	}, {
+		name:  "carriage return before unquoted is skipped",
+		input: "\rhello",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   6,
+				columnStart: 1,
+				columnEnd:   6,
+			},
+		}},
+	}, {
+		name:  "space before unquoted is skipped",
+		input: " hello",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 1,
+				offsetEnd:   6,
+				columnStart: 1,
+				columnEnd:   6,
+			},
+		}},
+	}, {
+		name:  "space after unquoted is skipped",
+		input: "hello ",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+	}, {
+		name:  "newline between two unquoted is skipped",
+		input: "hello\nworld",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}, {
+			kind:  tokenUnquoted,
+			value: "world",
+			position: position{
+				offsetStart: 6,
+				offsetEnd:   11,
+				columnStart: 6,
+				columnEnd:   11,
+			},
+		}},
+	}, {
 		name:  "unquoted $",
 		input: "$",
 		expected: []token{{
@@ -373,6 +460,32 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 	}, {
+		name:  "quoted with regex digit character class",
+		input: "\"\\d+\"",
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"\\d+\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+	}, {
+		name:  "quoted with escaped regex digit character class",
+		input: "\"\\\\d+\"",
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"\\\\d+\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   6,
+				columnStart: 0,
+				columnEnd:   6,
+			},
+		}},
+	}, {
 		name:  "quoted with escaped quotes",
 		input: "\"hello \\\"world\\\"\"",
 		expected: []token{{
@@ -396,6 +509,19 @@ func TestLexer_Scan(t *testing.T) {
 				offsetEnd:   15,
 				columnStart: 0,
 				columnEnd:   15,
+			},
+		}},
+	}, {
+		name:  "quoted escape sequence",
+		input: "\"\\n\"",
+		expected: []token{{
+			kind:  tokenQuoted,
+			value: "\"\\n\"",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   4,
+				columnStart: 0,
+				columnEnd:   4,
 			},
 		}},
 	}, {
@@ -459,20 +585,6 @@ func TestLexer_Scan(t *testing.T) {
 		input: "~",
 		err:   "0:1: ~: invalid input",
 	}, {
-		name:  "unexpected ! after unquoted",
-		input: "hello!",
-		expected: []token{{
-			kind:  tokenUnquoted,
-			value: "hello",
-			position: position{
-				offsetStart: 0,
-				offsetEnd:   5,
-				columnStart: 0,
-				columnEnd:   5,
-			},
-		}},
-		err: "5:6: unexpected end of input, expected one of '=~'",
-	}, {
 		name:  "unexpected ! after operator",
 		input: "=!",
 		expected: []token{{
@@ -500,6 +612,56 @@ func TestLexer_Scan(t *testing.T) {
 			},
 		}},
 		err: "2:3: !: expected one of '=~'",
+	}, {
+		name:  "unexpected ! after unquoted",
+		input: "hello!",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+		err: "5:6: unexpected end of input, expected one of '=~'",
+	}, {
+		name:  "invalid escape sequence",
+		input: "\\n",
+		err:   "0:1: \\: invalid input",
+	}, {
+		name:  "invalid escape sequence before unquoted",
+		input: "\\nhello",
+		err:   "0:1: \\: invalid input",
+	}, {
+		name:  "invalid escape sequence after unquoted",
+		input: "hello\\n",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+		err: "5:6: \\: invalid input",
+	}, {
+		name:  "another invalid escape sequence after unquoted",
+		input: "hello\\r",
+		expected: []token{{
+			kind:  tokenUnquoted,
+			value: "hello",
+			position: position{
+				offsetStart: 0,
+				offsetEnd:   5,
+				columnStart: 0,
+				columnEnd:   5,
+			},
+		}},
+		err: "5:6: \\: invalid input",
 	}, {
 		name:  "unterminated quoted",
 		input: "\"hello",

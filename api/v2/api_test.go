@@ -27,6 +27,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
@@ -38,8 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	"github.com/go-kit/log"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -191,7 +190,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		api := API{
 			uptime:   time.Now(),
 			silences: silences,
-			logger:   log.NewNopLogger(),
+			logger:   promslog.NewNopLogger(),
 		}
 
 		r, err := http.NewRequest("DELETE", "/api/v2/silence/${tc.sid}", nil)
@@ -273,7 +272,7 @@ func TestPostSilencesHandler(t *testing.T) {
 				api := API{
 					uptime:   time.Now(),
 					silences: silences,
-					logger:   log.NewNopLogger(),
+					logger:   promslog.NewNopLogger(),
 				}
 
 				sil := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
@@ -292,7 +291,7 @@ func TestPostSilencesHandlerMissingIdCreatesSilence(t *testing.T) {
 	api := API{
 		uptime:   time.Now(),
 		silences: silences,
-		logger:   log.NewNopLogger(),
+		logger:   promslog.NewNopLogger(),
 	}
 
 	// Create a new silence. It should be assigned a random UUID.
@@ -483,16 +482,11 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
 			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
-		},
-		Status: &open_api_models.AlertStatus{
-			State:       &active,
-			InhibitedBy: []string{},
-			SilencedBy:  []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),
@@ -501,6 +495,12 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		Receivers: []*open_api_models.Receiver{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 	}, openAPIAlert)
 }
@@ -555,7 +555,7 @@ receivers:
 	cfg, _ := config.Load(in)
 	api := API{
 		uptime:             time.Now(),
-		logger:             log.NewNopLogger(),
+		logger:             promslog.NewNopLogger(),
 		alertmanagerConfig: cfg,
 	}
 

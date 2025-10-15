@@ -14,11 +14,10 @@
 package cluster
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,7 +34,7 @@ type Channel struct {
 	sendOversize func(*memberlist.Node, []byte) error
 
 	msgc   chan []byte
-	logger log.Logger
+	logger *slog.Logger
 
 	oversizeGossipMessageFailureTotal prometheus.Counter
 	oversizeGossipMessageDroppedTotal prometheus.Counter
@@ -50,8 +49,8 @@ func NewChannel(
 	send func([]byte),
 	peers func() []*memberlist.Node,
 	sendOversize func(*memberlist.Node, []byte) error,
-	logger log.Logger,
-	stopc chan struct{},
+	logger *slog.Logger,
+	stopc <-chan struct{},
 	reg prometheus.Registerer,
 ) *Channel {
 	oversizeGossipMessageFailureTotal := prometheus.NewCounter(prometheus.CounterOpts{
@@ -101,7 +100,7 @@ func NewChannel(
 
 // handleOverSizedMessages prevents memberlist from opening too many parallel
 // TCP connections to its peers.
-func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
+func (c *Channel) handleOverSizedMessages(stopc <-chan struct{}) {
 	var wg sync.WaitGroup
 	for {
 		select {
@@ -113,7 +112,7 @@ func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
 					c.oversizeGossipMessageSentTotal.Inc()
 					start := time.Now()
 					if err := c.sendOversize(n, b); err != nil {
-						level.Debug(c.logger).Log("msg", "failed to send reliable", "key", c.key, "node", n, "err", err)
+						c.logger.Debug("failed to send reliable", "key", c.key, "node", n, "err", err)
 						c.oversizeGossipMessageFailureTotal.Inc()
 						return
 					}
@@ -139,7 +138,7 @@ func (c *Channel) Broadcast(b []byte) {
 		select {
 		case c.msgc <- b:
 		default:
-			level.Debug(c.logger).Log("msg", "oversized gossip channel full")
+			c.logger.Debug("oversized gossip channel full")
 			c.oversizeGossipMessageDroppedTotal.Inc()
 		}
 	} else {

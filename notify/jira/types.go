@@ -61,6 +61,7 @@ type issueSearch struct {
 }
 
 type issueSearchResult struct {
+	Total  int     `json:"total"`
 	Issues []issue `json:"issues"`
 }
 
@@ -70,7 +71,7 @@ type issueTransitions struct {
 
 // MarshalJSON merges the struct issueFields and issueFields.CustomField together.
 func (i issueFields) MarshalJSON() ([]byte, error) {
-	jsonFields := map[string]interface{}{
+	jsonFields := map[string]any{
 		"description": i.Description,
 		"summary":     i.Summary,
 	}

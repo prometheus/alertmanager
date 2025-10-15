@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -43,7 +44,7 @@ const (
 type Notifier struct {
 	conf         *config.MSTeamsV2Config
 	tmpl         *template.Template
-	logger       log.Logger
+	logger       *slog.Logger
 	client       *http.Client
 	retrier      *notify.Retrier
 	webhookURL   *config.SecretURL
@@ -62,7 +63,7 @@ type Content struct {
 type Body struct {
 	Type   string `json:"type"`
 	Text   string `json:"text"`
-	Weight string `json:"weigth,omitempty"`
+	Weight string `json:"weight,omitempty"`
 	Size   string `json:"size,omitempty"`
 	Wrap   bool   `json:"wrap,omitempty"`
 	Style  string `json:"style,omitempty"`
@@ -85,7 +86,7 @@ type teamsMessage struct {
 }
 
 // New returns a new notifier that uses the Microsoft Teams Power Platform connector.
-func New(c *config.MSTeamsV2Config, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteamsv2", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -110,7 +111,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
@@ -171,6 +172,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 						{
 							Type: "TextBlock",
 							Text: text,
+							Wrap: true,
 						},
 					},
 					Msteams: Msteams{

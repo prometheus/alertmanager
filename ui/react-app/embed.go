@@ -17,5 +17,5 @@ package reactapp
 
 import "embed"
 
-//go:embed dist/26.js.gz dist/26.js.map.gz dist/732.js.gz dist/732.js.map.gz dist/index.html.gz dist/main.js.gz dist/main.js.map.gz
+//go:embed dist/959.js.gz dist/959.js.map.gz dist/97.js.gz dist/97.js.map.gz dist/index.html.gz dist/main.js.gz dist/main.js.map.gz
 var embedFS embed.FS

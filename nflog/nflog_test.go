@@ -24,7 +24,7 @@ import (
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 
-	"github.com/benbjohnson/clock"
+	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ import (
 )
 
 func TestLogGC(t *testing.T) {
-	mockClock := clock.NewMock()
+	mockClock := quartz.NewMock(t)
 	now := mockClock.Now()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
@@ -62,7 +62,7 @@ func TestLogGC(t *testing.T) {
 
 func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	mockClock := clock.NewMock()
+	mockClock := quartz.NewMock(t)
 	now := mockClock.Now().UTC()
 
 	cases := []struct {
@@ -142,7 +142,7 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	}
 
 	l, err := New(opts)
-	clock := clock.NewMock()
+	clock := quartz.NewMock(t)
 	l.clock = clock
 	require.NoError(t, err)
 
@@ -160,12 +160,12 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	gosched()
 
 	// Before the first tick, no maintenance executed.
-	clock.Add(99 * time.Millisecond)
+	clock.Advance(99 * time.Millisecond)
 	require.EqualValues(t, 0, calls.Load())
 
 	// Tick once.
-	clock.Add(1 * time.Millisecond)
-	require.EqualValues(t, 1, calls.Load())
+	clock.Advance(1 * time.Millisecond)
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 5*time.Second, time.Second)
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
@@ -212,7 +212,7 @@ func TestReplaceFile(t *testing.T) {
 }
 
 func TestStateMerge(t *testing.T) {
-	mockClock := clock.NewMock()
+	mockClock := quartz.NewMock(t)
 	now := mockClock.Now()
 
 	// We only care about key names and timestamps for the
@@ -274,7 +274,7 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	mockClock := clock.NewMock()
+	mockClock := quartz.NewMock(t)
 	now := mockClock.Now().UTC()
 
 	cases := []struct {
@@ -361,8 +361,8 @@ func TestQuery(t *testing.T) {
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
 	require.NoError(t, err, "querying nflog failed")
 	entry := entries[0]
-	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
-	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
+	require.Equal(t, firingAlerts, entry.FiringAlerts)
+	require.Equal(t, resolvedAlerts, entry.ResolvedAlerts)
 }
 
 func TestStateDecodingError(t *testing.T) {

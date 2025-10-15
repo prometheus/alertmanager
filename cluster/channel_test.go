@@ -20,9 +20,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 )
 
 func TestNormalMessagesGossiped(t *testing.T) {
@@ -82,7 +82,7 @@ func newChannel(
 		send,
 		peers,
 		sendOversize,
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 		make(chan struct{}),
 		prometheus.NewRegistry(),
 	)

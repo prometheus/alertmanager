@@ -36,7 +36,7 @@ func TestPairNames(t *testing.T) {
 	}
 
 	expected := []string{"name1", "name2", "name3"}
-	require.EqualValues(t, expected, pairs.Names())
+	require.Equal(t, expected, pairs.Names())
 }
 
 func TestPairValues(t *testing.T) {
@@ -47,7 +47,7 @@ func TestPairValues(t *testing.T) {
 	}
 
 	expected := []string{"value1", "value2", "value3"}
-	require.EqualValues(t, expected, pairs.Values())
+	require.Equal(t, expected, pairs.Values())
 }
 
 func TestPairsString(t *testing.T) {
@@ -67,8 +67,8 @@ func TestKVSortedPairs(t *testing.T) {
 	}
 
 	for i, p := range kv.SortedPairs() {
-		require.EqualValues(t, p.Name, expectedPairs[i].Name)
-		require.EqualValues(t, p.Value, expectedPairs[i].Value)
+		require.Equal(t, p.Name, expectedPairs[i].Name)
+		require.Equal(t, p.Value, expectedPairs[i].Value)
 	}
 
 	// validates alertname always comes first
@@ -83,8 +83,8 @@ func TestKVSortedPairs(t *testing.T) {
 	}
 
 	for i, p := range kv.SortedPairs() {
-		require.EqualValues(t, p.Name, expectedPairs[i].Name)
-		require.EqualValues(t, p.Value, expectedPairs[i].Value)
+		require.Equal(t, p.Name, expectedPairs[i].Name)
+		require.Equal(t, p.Value, expectedPairs[i].Value)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestKVRemove(t *testing.T) {
 	kv = kv.Remove([]string{"key2", "key4"})
 
 	expected := []string{"key1", "key3"}
-	require.EqualValues(t, expected, kv.Names())
+	require.Equal(t, expected, kv.Names())
 }
 
 func TestAlertsFiring(t *testing.T) {
@@ -294,7 +294,7 @@ func TestTemplateExpansion(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 		in    string
-		data  interface{}
+		data  any
 		html  bool
 
 		exp  string
@@ -415,7 +415,7 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 		options []Option
 		title   string
 		in      string
-		data    interface{}
+		data    any
 		html    bool
 
 		exp  string
@@ -476,7 +476,7 @@ func TestTemplateFuncs(t *testing.T) {
 	for _, tc := range []struct {
 		title  string
 		in     string
-		data   interface{}
+		data   any
 		exp    string
 		expErr string
 	}{{
@@ -523,6 +523,45 @@ func TestTemplateFuncs(t *testing.T) {
 		in:     `{{ . | tz "Invalid/Timezone" }}`,
 		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
 		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
+	}, {
+		title: "Template using HumanizeDuration - seconds - float64",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []float64{0, 1, 60, 3600, 86400, 86400 + 3600, -(86400*2 + 3600*3 + 60*4 + 5), 899.99},
+		exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:1d 1h 0m 0s:-2d 3h 4m 5s:14m 59s:",
+	}, {
+		title: "Template using HumanizeDuration - seconds - string.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []string{"0", "1", "60", "3600", "86400"},
+		exp:   "0s:1s:1m 0s:1h 0m 0s:1d 0h 0m 0s:",
+	}, {
+		title: "Template using HumanizeDuration - subsecond and fractional seconds - float64.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []float64{.1, .0001, .12345, 60.1, 60.5, 1.2345, 12.345},
+		exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+	}, {
+		title: "Template using HumanizeDuration - subsecond and fractional seconds - string.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []string{".1", ".0001", ".12345", "60.1", "60.5", "1.2345", "12.345"},
+		exp:   "100ms:100us:123.5ms:1m 0s:1m 0s:1.234s:12.35s:",
+	}, {
+		title:  "Template using HumanizeDuration - string with error.",
+		in:     `{{ humanizeDuration "one" }}`,
+		expErr: "template: :1:3: executing \"\" at <humanizeDuration \"one\">: error calling humanizeDuration: strconv.ParseFloat: parsing \"one\": invalid syntax",
+	}, {
+		title: "Template using HumanizeDuration - int.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []int{0, -1, 1, 1234567},
+		exp:   "0s:-1s:1s:14d 6h 56m 7s:",
+	}, {
+		title: "Template using HumanizeDuration - uint.",
+		in:    "{{ range . }}{{ humanizeDuration . }}:{{ end }}",
+		data:  []uint{0, 1, 1234567},
+		exp:   "0s:1s:14d 6h 56m 7s:",
+	}, {
+		title: "Template using since",
+		in:    "{{ . | since | humanizeDuration }}",
+		data:  time.Now().Add(-1 * time.Hour),
+		exp:   "1h 0m 0s",
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {

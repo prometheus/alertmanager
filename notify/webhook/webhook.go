@@ -18,13 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,13 +42,13 @@ var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify/webhook")
 type Notifier struct {
 	conf    *config.WebhookConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new Webhook.
-func New(conf *config.WebhookConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(conf *config.WebhookConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -99,8 +98,12 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		level.Error(n.logger).Log("err", err)
+		// @tjhop: should we `return false, err` here as we do in most
+		// other Notify() implementations?
+		n.logger.Error("error extracting group key", "err", err)
 	}
+
+	// @tjhop: should we debug log the key here like most other Notify() implementations?
 
 	msg := &Message{
 		Version:         "4",
