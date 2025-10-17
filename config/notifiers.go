@@ -129,7 +129,15 @@ var (
 		Source:      `{{ template "opsgenie.default.source" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
-
+	// DefaultOnebotConfig defines default values for onebot configurations.
+	DefaultOnebotConfig = OnebotConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message: `{{ template "onebot.default.message" . }}`,
+		ToUser:  `{{ template "onebot.default.to_user" . }}`,
+		ToParty: `{{ template "onebot.default.to_party" . }}`,
+	}
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
 		NotifierConfig: NotifierConfig{
@@ -327,6 +335,43 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	c.Headers = normalizedHeaders
 
+	return nil
+}
+
+type OnebotConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+}
+
+const onebotValidTypesRe = `^(text|raw)$`
+
+var onebotTypeMatcher = regexp.MustCompile(wechatValidTypesRe)
+
+func (c *OnebotConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultOnebotConfig
+	type plain OnebotConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APIURL == nil || c.APIURL.String() == "" {
+		return errors.New("`api_url` must be configured")
+	}
+	if c.ToUser == "" && c.ToParty == "" {
+		return errors.New("`to_user` or `to_party` must be configured")
+	}
+	if c.MessageType == "" {
+		c.MessageType = "text"
+	}
+	if !onebotTypeMatcher.MatchString(c.MessageType) {
+		return fmt.Errorf("onebot message type %q does not match valid options %s", c.MessageType, onebotValidTypesRe)
+	}
 	return nil
 }
 
