@@ -16,6 +16,7 @@ package receiver
 import (
 	"log/slog"
 
+	"github.com/prometheus/alertmanager/notify/onebot"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
 
@@ -73,6 +74,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.OpsGenieConfigs {
 		add("opsgenie", i, c, func(l *slog.Logger) (notify.Notifier, error) { return opsgenie.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.OnebotConfigs {
+		add("onebot", i, c, func(l *slog.Logger) (notify.Notifier, error) { return onebot.New(c, tmpl, l, httpOpts...) })
 	}
 	for i, c := range nc.WechatConfigs {
 		add("wechat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l, httpOpts...) })
