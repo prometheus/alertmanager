@@ -751,7 +751,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPTLSConfig:    &defaultSMTPTLSConfig,
 		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-		OnebotAPIURL:     mustParseURL("https://127.0.0.1:3000"),
+		OnebotAPIURL:     mustParseURL("http://127.0.0.1:3000"),
 		WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
