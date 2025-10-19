@@ -397,6 +397,9 @@ type PagerdutyConfig struct {
 	Class          string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component      string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group          string            `yaml:"group,omitempty" json:"group,omitempty"`
+	// Timeout is the maximum time allowed to invoke the pagerduty. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // PagerdutyLink is a link.
@@ -557,6 +560,9 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
