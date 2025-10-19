@@ -352,6 +352,9 @@ type PagerdutyConfig struct {
 	Class          string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component      string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group          string            `yaml:"group,omitempty" json:"group,omitempty"`
+	// Timeout is the maximum time allowed to invoke the pagerduty. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // PagerdutyLink is a link.
