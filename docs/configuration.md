@@ -1460,6 +1460,12 @@ fields:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# The maximum time to wait for a slack request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 #### `<action_config>`
