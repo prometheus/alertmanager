@@ -17,6 +17,7 @@ view model =
             , fieldset [ id "fieldset" ]
                 [ radio "Monday" (model.firstDayOfWeek == Monday) UpdateFirstDayOfWeek
                 , radio "Sunday" (model.firstDayOfWeek == Sunday) UpdateFirstDayOfWeek
+                , radio "Saturday" (model.firstDayOfWeek == Saturday) UpdateFirstDayOfWeek
                 ]
             , small [ class "form-text text-muted" ]
                 [ text "Note: This setting is saved in local storage of your browser"
