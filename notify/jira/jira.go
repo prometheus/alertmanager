@@ -198,7 +198,9 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
+		// Ensure unresolved issues are included by adding `resolution is EMPTY` condition.
+		// This avoids excluding issues without a resolution when using `resolution != <value>`.
+		jql.WriteString(fmt.Sprintf(`(resolution is EMPTY or resolution != %q) and `, n.conf.WontFixResolution))
 	}
 
 	// If the group is firing, search for open issues. If a reopen transition is
