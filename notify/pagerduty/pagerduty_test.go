@@ -518,7 +518,6 @@ func TestPagerDutyTimeout(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			srv := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
 					decoder := json.NewDecoder(r.Body)
