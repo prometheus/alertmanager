@@ -1436,15 +1436,15 @@ The notification contains an [attachment](https://api.slack.com/messaging/compos
 channel: <tmpl_string>
 
 # API request data as defined by the Slack webhook API.
-[ icon_emoji: <tmpl_string> ]
-[ icon_url: <tmpl_string> ]
+[ icon_emoji: <tmpl_string> | default = '{{ template "slack.default.iconemoji" . }}' ]
+[ icon_url: <tmpl_string> | default = '{{ template "slack.default.iconurl" . }}' ]
 [ link_names: <boolean> | default = false ]
 [ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
 # The following parameters define the attachment.
 actions:
   [ <action_config> ... ]
 [ callback_id: <tmpl_string> | default = '{{ template "slack.default.callbackid" . }}' ]
-[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ color: <tmpl_string> | default = '{{ template "slack.default.color" . }}' ]
 [ fallback: <tmpl_string> | default = '{{ template "slack.default.fallback" . }}' ]
 fields:
   [ <field_config> ... ]
