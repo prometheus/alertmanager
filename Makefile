@@ -27,19 +27,10 @@ STATICCHECK_IGNORE =
 build-all: assets apiv2 build
 
 .PHONY: build
-build: build-react-app assets-compress common-build
+build: common-build
 
 .PHONY: lint
-lint: assets-compress common-lint
-
-.PHONY: build-react-app
-build-react-app:
-	cd ui/react-app && npm install && npm run build
-
-.PHONY: assets-compress
-assets-compress: build-react-app
-	@echo '>> compressing assets'
-	scripts/compress_assets.sh
+lint: common-lint
 
 .PHONY: assets
 assets: asset/assets_vfsdata.go

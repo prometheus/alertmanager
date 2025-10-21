@@ -18,8 +18,3 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-  - package-ecosystem: "npm"
-    directory: "/ui/react-app"
-    open-pull-requests-limit: 20
-    schedule:
-      interval: "monthly"

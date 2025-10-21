@@ -60,7 +60,6 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
-	reactapp "github.com/prometheus/alertmanager/ui/react-app"
 )
 
 var (
@@ -549,7 +548,6 @@ func run() int {
 	webReload := make(chan chan error)
 
 	ui.Register(router, webReload, logger)
-	reactapp.Register(router, logger)
 
 	mux := api.Register(router, *routePrefix)
 
