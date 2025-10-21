@@ -61,7 +61,6 @@ type issueSearch struct {
 }
 
 type issueSearchResult struct {
-	Total  int     `json:"total"`
 	Issues []issue `json:"issues"`
 }
 
