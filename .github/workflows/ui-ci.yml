@@ -1,0 +1,33 @@
+name: UI CI
+
+on:
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'ui/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_mantine_ui:
+    name: Test mantine-ui
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ui/mantine-ui
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: './ui/mantine-ui/.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+      - name: Install dependencies
+        run: npm install
+      - name: Run build
+        run: npm run build
+      - name: Run tests
+        run: npm test
