@@ -60,7 +60,6 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
-	reactapp "github.com/prometheus/alertmanager/ui/react-app"
 )
 
 var (
@@ -68,12 +67,12 @@ var (
 		prometheus.HistogramOpts{
 			Name:                            "alertmanager_http_request_duration_seconds",
 			Help:                            "Histogram of latencies for HTTP requests.",
-			Buckets:                         []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
+			Buckets:                         prometheus.DefBuckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
-		[]string{"handler", "method"},
+		[]string{"handler", "method", "code"},
 	)
 	responseSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -377,6 +376,7 @@ func run() int {
 		Concurrency:     *getConcurrency,
 		Logger:          logger.With("component", "api"),
 		Registry:        prometheus.DefaultRegisterer,
+		RequestDuration: requestDuration,
 		GroupFunc:       groupFn,
 	})
 	if err != nil {
@@ -548,7 +548,6 @@ func run() int {
 	webReload := make(chan chan error)
 
 	ui.Register(router, webReload, logger)
-	reactapp.Register(router, logger)
 
 	mux := api.Register(router, *routePrefix)
 
