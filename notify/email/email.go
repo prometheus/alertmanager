@@ -265,6 +265,19 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		fmt.Fprintf(buffer, "Message-Id: %s\r\n", fmt.Sprintf("<%d.%d@%s>", time.Now().UnixNano(), rand.Uint64(), n.hostname))
 	}
 
+	if n.conf.PhantomThreading && len(as) > 0 {
+		// Add threading headers. All notifications for the same alert
+		// (identified by fingerprint) on the same day are threaded together.
+		// The thread root ID is a phantom Message-ID that doesn't correspond to
+		// any actual email. Email clients following the (commonly used) JWZ
+		// algorithm will create a dummy container to group these messages.
+		threadRootID := generateThreadRootID(as, n.hostname)
+		if threadRootID != "" {
+			fmt.Fprintf(buffer, "References: %s\r\n", threadRootID)
+			fmt.Fprintf(buffer, "In-Reply-To: %s\r\n", threadRootID)
+		}
+	}
+
 	multipartBuffer := &bytes.Buffer{}
 	multipartWriter := multipart.NewWriter(multipartBuffer)
 
@@ -384,4 +397,19 @@ func (n *Email) getPassword() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
+}
+
+func generateThreadRootID(alerts []*types.Alert, hostname string) string {
+	if len(alerts) == 0 {
+		return ""
+	}
+
+	// Use first alert as representative of the alert group.
+	alert := alerts[0]
+	fingerprint := alert.Fingerprint().String()
+
+	// Use current date so all mails for this alert today thread together.
+	date := time.Now().Format("2006-01-02")
+
+	return fmt.Sprintf("<alert-%s-%s@%s>", fingerprint, date, hostname)
 }
