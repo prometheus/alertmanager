@@ -6,6 +6,11 @@
 
 version: 2.1
 
+executors:
+  golang:
+    docker:
+      - image: busybox
+
 jobs:
   noopjob:
     executor: golang
