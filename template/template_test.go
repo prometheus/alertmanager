@@ -385,6 +385,11 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "ABcdABcda",
 		},
 		{
+			title: "Template using urlUnescape",
+			in:    `{{ "search?q=test%20foo" | urlUnescape }}`,
+			exp:   "search?q=test foo",
+		},
+		{
 			title: "Template using stringSlice",
 			in:    `{{ with .GroupLabels }}{{ with .Remove (stringSlice "key1" "key3") }}{{ .SortedPairs.Values }}{{ end }}{{ end }}`,
 			data: Data{
