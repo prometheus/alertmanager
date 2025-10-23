@@ -153,6 +153,8 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 // from sending notifications if their meaning is logically a subset of a
 // higher-level alert.
 type InhibitRule struct {
+	// Name is an optional name for the inhibition rule.
+	Name string
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
 	SourceMatchers labels.Matchers
@@ -227,12 +229,14 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	}
 
 	rule := &InhibitRule{
+		Name:           cr.Name,
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
 		scache:         store.NewAlerts(),
 		sindex:         newIndex(),
 	}
+
 	rule.scache.SetGCCallback(rule.gcCallback)
 
 	return rule
