@@ -358,6 +358,7 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.advertise-address` string: cluster advertise address
 - `--cluster.peer` value: initial peers (repeat flag for each additional peer)
 - `--cluster.peer-timeout` value: peer timeout period (default "15s")
+- `--cluster.peers-resolve-timeout` value: peers resolve timeout period (default "15s")
 - `--cluster.gossip-interval` value: cluster message propagation speed
   (default "200ms")
 - `--cluster.pushpull-interval` value: lower values will increase
