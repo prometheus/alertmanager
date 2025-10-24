@@ -442,6 +442,7 @@ to reason about and does not trigger this special case.
 
 ```yaml
 # Optional name of the inhibition rule.
+# Duplicate names are allowed but will affect the per-rule metrics.
 name: <string>
 
 # DEPRECATED: Use target_matchers below.

@@ -150,3 +150,11 @@ func (a *Alerts) Empty() bool {
 
 	return len(a.c) == 0
 }
+
+// Len returns the number of alerts in the store.
+func (a *Alerts) Len() int {
+	a.Lock()
+	defer a.Unlock()
+
+	return len(a.c)
+}

@@ -104,7 +104,9 @@ var (
 		prometheus.GaugeOpts{
 			Name: "alertmanager_inhibition_rules",
 			Help: "Number of configured inhibition rules.",
-		})
+		},
+	)
+
 	promslogConfig = promslog.Config{}
 )
 
@@ -408,6 +410,7 @@ func run() int {
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
+	inhibitMetrics := inhibit.NewInhibitorMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
@@ -462,7 +465,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger, inhibitMetrics)
 		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
