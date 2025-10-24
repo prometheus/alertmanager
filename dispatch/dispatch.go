@@ -144,7 +144,7 @@ func (d *Dispatcher) Run() {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	d.mtx.Unlock()
 
-	d.run(d.alerts.Subscribe())
+	d.run(d.alerts.Subscribe("dispatcher"))
 	close(d.done)
 }
 
