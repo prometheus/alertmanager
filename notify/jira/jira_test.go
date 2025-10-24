@@ -747,6 +747,66 @@ func TestJiraNotify(t *testing.T) {
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
+		{
+			title: "update existing issue when setting disableupdatedescription to true",
+			cfg: &config.JiraConfig{
+				Summary:                  `{{ template "jira.default.summary" . }}`,
+				Description:              `{{ template "jira.default.description" . }}`,
+				IssueType:                "Incident",
+				Project:                  "OPS",
+				Priority:                 `{{ template "jira.default.priority" . }}`,
+				Labels:                   []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				DisableUpdateDescription: true,
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{
+					{
+						Key: "OPS-4",
+						Fields: &issueFields{
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "[FIRING:1] test (vm1 critical)",
+					Description: nil,
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Labels: []string{
+						"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}",
+						"alertmanager",
+						"test",
+					},
+					Project:  &issueProject{Key: "OPS"},
+					Priority: &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, fields map[string]any) {
+				_, has := fields["description"]
+				require.False(t, has, "description field must be omitted on update when UpdateDescription=false")
+			},
+			errMsg: "",
+		},
 	} {
 		tc := tc
 
@@ -841,6 +901,7 @@ func TestJiraNotify(t *testing.T) {
 				case "/issue/OPS-1":
 				case "/issue/OPS-2":
 				case "/issue/OPS-3":
+				case "/issue/OPS-4":
 					fallthrough
 				case "/issue":
 					body, err := io.ReadAll(r.Body)
