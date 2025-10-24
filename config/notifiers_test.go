@@ -606,6 +606,53 @@ mrkdwn_in:
 	}
 }
 
+func TestSlackAuthMethodConfigValidation(t *testing.T) {
+	tests := []struct {
+		in          string
+		expectedErr string
+	}{
+		{
+			in: `
+api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+api_url_file: /slack_url
+`,
+			expectedErr: "at most one of api_url & api_url_file must be configured",
+		},
+		{
+			in: `
+app_token: 'xoxb-1234-abcdefgh'
+app_token_file: /slack_app_token
+`,
+			expectedErr: "at most one of app_token & app_token_file must be configured",
+		},
+		{
+			in: `
+app_token: 'xoxb-1234-abcdefgh'
+api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+`,
+			expectedErr: "at most one of api_url/api_url_file & app_token/app_token_file must be configured",
+		},
+	}
+
+	for _, rt := range tests {
+		var cfg SlackConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+
+		// Check if an error occurred when it was NOT expected to.
+		if rt.expectedErr == "" && err != nil {
+			t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+		}
+		// Check that an error occurred if one was expected to.
+		if rt.expectedErr != "" && err == nil {
+			t.Fatalf("\nno error returned, expected:\n%v", rt.expectedErr)
+		}
+		// Check that the error that occurred was what was expected.
+		if err != nil && err.Error() != rt.expectedErr {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expectedErr, err.Error())
+		}
+	}
+}
+
 func TestSlackFieldConfigValidation(t *testing.T) {
 	tests := []struct {
 		in       string
