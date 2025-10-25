@@ -77,17 +77,15 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	n.logger.Debug("starting webhook notification", "alert_count", len(alerts))
+
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		// @tjhop: should we `return false, err` here as we do in most
-		// other Notify() implementations?
-		n.logger.Error("error extracting group key", "err", err)
+		n.logger.Error("failed to extract group key", "err", err)
 	}
-
-	// @tjhop: should we debug log the key here like most other Notify() implementations?
 
 	msg := &Message{
 		Version:         "4",
@@ -98,8 +96,10 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		n.logger.Error("failed to encode message", "err", err)
 		return false, err
 	}
+	n.logger.Debug("encoded webhook message", "byte_size", buf.Len())
 
 	var url string
 	if n.conf.URL != nil {
@@ -107,10 +107,12 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	} else {
 		content, err := os.ReadFile(n.conf.URLFile)
 		if err != nil {
+			n.logger.Error("failed to read URL file", "path", n.conf.URLFile, "err", err)
 			return false, fmt.Errorf("read url_file: %w", err)
 		}
 		url = strings.TrimSpace(string(content))
 	}
+	n.logger.Debug("using webhook URL", "url", notify.RedactURL(url))
 
 	if n.conf.Timeout > 0 {
 		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
@@ -120,6 +122,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
 	if err != nil {
+		n.logger.Error("webhook POST failed", "url", notify.RedactURL(url), "err", err)
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 		}
@@ -127,9 +130,19 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 	defer notify.Drain(resp)
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	n.logger.Debug("webhook response", 
+		"status", resp.Status,
+		"status_code", resp.StatusCode,
+		"body", string(bodyBytes),
+	)
+
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
+		n.logger.Error("webhook retry check failed", "status_code", resp.StatusCode, "err", err)
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
+
+	n.logger.Debug("webhook notification completed", "success", shouldRetry)
 	return shouldRetry, err
 }
