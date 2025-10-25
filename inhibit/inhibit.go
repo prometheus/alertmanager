@@ -71,7 +71,7 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 }
 
 func (ih *Inhibitor) run(ctx context.Context) {
-	it := ih.alerts.Subscribe()
+	it := ih.alerts.Subscribe("inhibitor")
 	defer it.Close()
 
 	for {

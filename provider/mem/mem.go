@@ -44,6 +44,8 @@ type Alerts struct {
 	callback AlertStoreCallback
 
 	logger *slog.Logger
+
+	subscriberChannelWrites *prometheus.CounterVec
 }
 
 type AlertStoreCallback interface {
@@ -61,6 +63,7 @@ type AlertStoreCallback interface {
 }
 
 type listeningAlerts struct {
+	name   string
 	alerts chan *types.Alert
 	done   chan struct{}
 }
@@ -82,6 +85,15 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 	r.MustRegister(newMemAlertByStatus(types.AlertStateActive))
 	r.MustRegister(newMemAlertByStatus(types.AlertStateSuppressed))
 	r.MustRegister(newMemAlertByStatus(types.AlertStateUnprocessed))
+
+	a.subscriberChannelWrites = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_alerts_subscriber_channel_writes_total",
+			Help: "Number of times alerts were written to subscriber channels",
+		},
+		[]string{"subscriber"},
+	)
+	r.MustRegister(a.subscriberChannelWrites)
 }
 
 // NewAlerts returns a new alert provider.
@@ -164,7 +176,7 @@ func max(a, b int) int {
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
-func (a *Alerts) Subscribe() provider.AlertIterator {
+func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	var (
@@ -177,7 +189,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 		ch <- a
 	}
 
-	a.listeners[a.next] = listeningAlerts{alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
@@ -252,6 +264,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
+				a.subscriberChannelWrites.WithLabelValues(l.name).Inc()
 			case <-l.done:
 			}
 		}
