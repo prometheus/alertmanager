@@ -304,6 +304,7 @@ type EmailConfig struct {
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	PhantomThreading bool                 `yaml:"phantom_threading,omitempty" json:"phantom_threading,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
