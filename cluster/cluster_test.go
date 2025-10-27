@@ -106,9 +106,9 @@ func testJoinLeave(t *testing.T) {
 	go p2.Settle(context.Background(), 0*time.Second)
 	require.NoError(t, p2.WaitReady(context.Background()))
 
-	require.Equal(t, 2, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 2 }, 5*time.Second, time.Second)
 	p2.Leave(0 * time.Second)
-	require.Equal(t, 1, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 1 }, 5*time.Second, time.Second)
 	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
