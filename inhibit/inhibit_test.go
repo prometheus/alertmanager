@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -124,9 +125,10 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Equal:   map[model.LabelName]struct{}{},
+				scache:  store.NewAlerts(),
+				sindex:  newIndex(),
+				metrics: NewRuleMetrics("test", NewInhibitorMetrics(prometheus.NewRegistry())),
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
@@ -158,7 +160,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -259,7 +261,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -343,6 +345,36 @@ func TestInhibitRuleMatchers(t *testing.T) {
 			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 		}
 	}
+}
+
+func TestInhibitRuleName(t *testing.T) {
+	t.Parallel()
+
+	config1 := config.InhibitRule{
+		Name: "test-rule",
+		SourceMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		},
+		TargetMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+		},
+		Equal: []string{"instance"},
+	}
+	config2 := config.InhibitRule{
+		SourceMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		},
+		TargetMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+		},
+		Equal: []string{"instance"},
+	}
+
+	rule1 := NewInhibitRule(config1, nil)
+	rule2 := NewInhibitRule(config2, nil)
+
+	require.Equal(t, "test-rule", rule1.Name, "Expected named rule to have adopt name from config")
+	require.Empty(t, rule2.Name, "Expected unnamed rule to have empty name")
 }
 
 type fakeAlerts struct {
@@ -467,7 +499,7 @@ func TestInhibit(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger)
+		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 
 		go func() {
 			for ap.finished != nil {

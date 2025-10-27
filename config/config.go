@@ -972,6 +972,8 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
 type InhibitRule struct {
+	// Name is an optional name for the inhibition rule.
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 	// SourceMatch defines a set of labels that have to equal the given
 	// value for source alerts. Deprecated. Remove before v1.0 release.
 	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
