@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
 )
@@ -56,6 +57,10 @@ func testJoinLeave(t *testing.T) {
 		false,
 		"",
 	)
+	chJoin := make(chan string)
+	p.notifyJoinTest = func(n *memberlist.Node) { chJoin <- n.String() }
+	chLeave := make(chan string)
+	p.notifyLeaveTest = func(n *memberlist.Node) { chLeave <- n.String() }
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	err = p.Join(
@@ -100,9 +105,11 @@ func testJoinLeave(t *testing.T) {
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
 	require.NoError(t, p2.WaitReady(context.Background()))
+	require.Equal(t, p2.Self().Name, <-chJoin)
 
 	require.Equal(t, 2, p.ClusterSize())
 	p2.Leave(0 * time.Second)
+	require.Equal(t, p2.Self().Name, <-chLeave)
 	require.Equal(t, 1, p.ClusterSize())
 	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Address())
