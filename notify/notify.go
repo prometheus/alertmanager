@@ -394,6 +394,7 @@ func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger) *Pip
 
 // New returns a map of receivers to Stages.
 func (pb *PipelineBuilder) New(
+	ctx context.Context,
 	receivers map[string][]Integration,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
@@ -402,6 +403,7 @@ func (pb *PipelineBuilder) New(
 	marker types.GroupMarker,
 	notificationLog NotificationLog,
 	peer Peer,
+	logger *slog.Logger,
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
@@ -412,7 +414,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(ctx, name, receivers[name], wait, notificationLog, pb.metrics, logger)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -422,34 +424,69 @@ func (pb *PipelineBuilder) New(
 }
 
 // createReceiverStage creates a pipeline of stages for a receiver.
+// When ctx and logger are provided, it creates persistent workers for each integration.
 func createReceiverStage(
+	ctx context.Context,
 	name string,
 	integrations []Integration,
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	logger *slog.Logger,
 ) Stage {
-	var fs FanoutStage
+	var workers []*IntegrationWorker
+
+	// Buffer size should accommodate many concurrent alert group flushes.
+	// During high load, hundreds of alert groups may flush simultaneously.
+	// A larger buffer reduces temporary goroutine blocking during enqueue.
+	// Each queued item is just a pointer to a request struct (~hundreds of bytes).
+	queueSize := 1000
+
 	for i := range integrations {
 		recv := &nflogpb.Receiver{
 			GroupName:   name,
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		var s MultiStage
-		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
-		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
-		fs = append(fs, s)
+		// Create stages for this integration (excluding wait stage - handled by worker)
+		var workerStages []Stage
+		workerStages = append(workerStages, NewDedupStage(&integrations[i], notificationLog, recv))
+		workerStages = append(workerStages, NewRetryStage(integrations[i], name, metrics))
+		workerStages = append(workerStages, NewSetNotifiesStage(notificationLog, recv))
+
+		// Create worker for this integration
+		worker := NewIntegrationWorker(ctx, wait, workerStages, queueSize, logger.With(
+			"receiver", name,
+			"integration", integrations[i].String(),
+		))
+		workers = append(workers, worker)
 	}
-	return fs
+
+	logger.Debug("Created integration workers for receiver", "receiver", name, "num_workers", len(workers))
+	return &FanoutStage{workers: workers}
 }
 
 // RoutingStage executes the inner stages based on the receiver specified in
 // the context.
 type RoutingStage map[string]Stage
+
+// Stop gracefully stops all workers in all receiver stages.
+// This should be called before discarding the RoutingStage (e.g., on config reload).
+func (rs RoutingStage) Stop() {
+	for _, stage := range rs {
+		// Walk through the pipeline to find FanoutStages with workers
+		if ms, ok := stage.(MultiStage); ok {
+			for _, s := range ms {
+				if fs, ok := s.(*FanoutStage); ok {
+					fs.Stop()
+				}
+			}
+		} else if fs, ok := stage.(*FanoutStage); ok {
+			fs.Stop()
+		}
+	}
+}
 
 // Exec implements the Stage interface.
 func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
@@ -486,31 +523,42 @@ func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.
 }
 
 // FanoutStage executes its stages concurrently.
-type FanoutStage []Stage
+type FanoutStage struct {
+	workers []*IntegrationWorker
+}
 
 // Exec attempts to execute all stages concurrently and discards the results.
 // It returns its input alerts and a types.MultiError if one or more stages fail.
-func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var (
-		wg sync.WaitGroup
-		me types.MultiError
-	)
-	wg.Add(len(fs))
+func (fs *FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	l.Debug("Executing with workers", "num_workers", len(fs.workers), "num_alerts", len(alerts))
+	var me types.MultiError
+	resultChannels := make([]<-chan NotificationResult, 0, len(fs.workers))
 
-	for _, s := range fs {
-		go func(s Stage) {
-			if _, _, err := s.Exec(ctx, l, alerts...); err != nil {
-				me.Add(err)
-			}
-			wg.Done()
-		}(s)
+	// Enqueue to all workers
+	for _, worker := range fs.workers {
+		resultC := worker.Enqueue(ctx, l, alerts...)
+		resultChannels = append(resultChannels, resultC)
 	}
-	wg.Wait()
+
+	// Wait for all results
+	for _, resultC := range resultChannels {
+		result := <-resultC
+		if result.err != nil {
+			me.Add(result.err)
+		}
+	}
 
 	if me.Len() > 0 {
 		return ctx, alerts, &me
 	}
 	return ctx, alerts, nil
+}
+
+// Stop gracefully stops all workers in the fanout stage.
+func (fs *FanoutStage) Stop() {
+	for _, worker := range fs.workers {
+		worker.Stop()
+	}
 }
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
@@ -812,11 +860,17 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 		sent = alerts
 	}
 
+	// Manual exponential backoff configuration
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 0 // Always retry.
 
-	tick := backoff.NewTicker(b)
-	defer tick.Stop()
+	// Use a reusable timer to avoid goroutine allocation per retry
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 
 	var (
 		i    = 0
@@ -828,8 +882,10 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 		l = l.With("aggrGroup", groupKey)
 	}
 
-	for {
+	// Initial attempt is immediate
+	nextBackoff := b.NextBackOff()
 
+	for {
 		// Always check the context first to not notify again.
 		select {
 		case <-ctx.Done():
@@ -849,52 +905,66 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 		default:
 		}
 
-		select {
-		case <-tick.C:
-			now := time.Now()
-			retry, err := r.integration.Notify(ctx, sent...)
-			i++
-			dur := time.Since(now)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
-			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
-			if err != nil {
-				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
-				if !retry {
-					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
-				}
-				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
-						// Log the error if the context isn't done and the error isn't the same as before.
-						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
-					}
-					// Save this error to be able to return the last seen error by an
-					// integration upon context timeout.
-					iErr = err
-				}
+		// Wait for backoff duration or context cancellation
+		if i > 0 {
+			if timer == nil {
+				timer = time.NewTimer(nextBackoff)
 			} else {
-				l := l.With("attempts", i, "duration", dur)
-				if i <= 1 {
-					l = l.With("alerts", fmt.Sprintf("%v", alerts))
-					l.Debug("Notify success")
-				} else {
-					l.Info("Notify success")
-				}
+				timer.Reset(nextBackoff)
+			}
 
-				return ctx, alerts, nil
-			}
-		case <-ctx.Done():
-			if iErr == nil {
-				iErr = ctx.Err()
-				if errors.Is(iErr, context.Canceled) {
-					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
-				} else if errors.Is(iErr, context.DeadlineExceeded) {
-					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+			select {
+			case <-timer.C:
+				// Continue to attempt
+			case <-ctx.Done():
+				if iErr == nil {
+					iErr = ctx.Err()
+					if errors.Is(iErr, context.Canceled) {
+						iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+					} else if errors.Is(iErr, context.DeadlineExceeded) {
+						iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+					}
 				}
+				if iErr != nil {
+					return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+				}
+				return ctx, nil, nil
 			}
-			if iErr != nil {
-				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+		}
+
+		// Attempt notification
+		now := time.Now()
+		retry, err := r.integration.Notify(ctx, sent...)
+		i++
+		dur := time.Since(now)
+		r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
+		r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
+		if err != nil {
+			r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
+			if !retry {
+				return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 			}
-			return ctx, nil, nil
+			if ctx.Err() == nil {
+				if iErr == nil || err.Error() != iErr.Error() {
+					// Log the error if the context isn't done and the error isn't the same as before.
+					l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
+				}
+				// Save this error to be able to return the last seen error by an
+				// integration upon context timeout.
+				iErr = err
+			}
+			// Calculate next backoff
+			nextBackoff = b.NextBackOff()
+		} else {
+			l := l.With("attempts", i, "duration", dur)
+			if i <= 1 {
+				l = l.With("alerts", fmt.Sprintf("%v", alerts))
+				l.Debug("Notify success")
+			} else {
+				l.Info("Notify success")
+			}
+
+			return ctx, alerts, nil
 		}
 	}
 }
