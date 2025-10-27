@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
@@ -33,26 +34,39 @@ import (
 // currently active alerts and a set of inhibition rules. It implements the
 // Muter interface.
 type Inhibitor struct {
-	alerts provider.Alerts
-	rules  []*InhibitRule
-	marker types.AlertMarker
-	logger *slog.Logger
+	alerts  provider.Alerts
+	rules   []*InhibitRule
+	marker  types.AlertMarker
+	logger  *slog.Logger
+	metrics *InhibitorMetrics
 
 	mtx    sync.RWMutex
 	cancel func()
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger, metrics *InhibitorMetrics) *Inhibitor {
 	ih := &Inhibitor{
-		alerts: ap,
-		marker: mk,
-		logger: logger,
+		alerts:  ap,
+		marker:  mk,
+		logger:  logger,
+		metrics: metrics,
 	}
-	for _, cr := range rs {
-		r := NewInhibitRule(cr)
+
+	ruleNames := make(map[string]struct{})
+	for i, cr := range rs {
+		if _, ok := ruleNames[cr.Name]; ok {
+			ih.logger.Debug("duplicate inhibition rule name", "index", i, "name", cr.Name)
+		}
+
+		r := NewInhibitRule(cr, NewRuleMetrics(cr.Name, metrics))
 		ih.rules = append(ih.rules, r)
+
+		if cr.Name != "" {
+			ruleNames[cr.Name] = struct{}{}
+		}
 	}
+
 	return ih
 }
 
@@ -70,16 +84,30 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				continue
 			}
 			// Update the inhibition rules' cache.
+			cachedSum := 0
+			indexedSum := 0
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Matches(a.Labels) {
 					if err := r.scache.Set(a); err != nil {
 						ih.logger.Error("error on set alert", "err", err)
 						continue
 					}
-
 					r.updateIndex(a)
+
+					cached := r.scache.Len()
+					indexed := r.sindex.Len()
+
+					if r.Name != "" {
+						r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
+						r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
+					}
+
+					cachedSum += cached
+					indexedSum += indexed
 				}
 			}
+			ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
+			ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
 		}
 	}
 }
@@ -128,21 +156,29 @@ func (ih *Inhibitor) Stop() {
 // Mutes returns true iff the given label set is muted. It implements the Muter
 // interface.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
+	start := time.Now()
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
+		ruleStart := time.Now()
 		if !r.TargetMatchers.Matches(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.
+			r.metrics.matchesDuration.With(prometheus.Labels{"rule": r.Name, "matched": "false"}).Observe(time.Since(ruleStart).Seconds())
 			continue
 		}
+		r.metrics.matchesDuration.With(prometheus.Labels{"rule": r.Name, "matched": "true"}).Observe(time.Since(ruleStart).Seconds())
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
+			ih.metrics.mutesDuration.With(prometheus.Labels{"muted": "true"}).Observe(time.Since(start).Seconds())
+			r.metrics.mutesDuration.With(prometheus.Labels{"rule": r.Name, "muted": "true"}).Observe(time.Since(ruleStart).Seconds())
 			return true
 		}
+		r.metrics.mutesDuration.With(prometheus.Labels{"rule": r.Name, "muted": "false"}).Observe(time.Since(ruleStart).Seconds())
 	}
 	ih.marker.SetInhibited(fp)
+	ih.metrics.mutesDuration.With(prometheus.Labels{"muted": "false"}).Observe(time.Since(start).Seconds())
 
 	return false
 }
@@ -173,14 +209,17 @@ type InhibitRule struct {
 	// The index items might overwrite eachother if multiple source alerts have exact equal labels.
 	// Overwrites only happen if the new source alert has bigger EndsAt value.
 	sindex *index
+
+	metrics *RuleMetrics
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
-func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
+func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 	var (
 		sourcem labels.Matchers
 		targetm labels.Matchers
 	)
+
 	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatch {
 		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
@@ -235,6 +274,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 		Equal:          equal,
 		scache:         store.NewAlerts(),
 		sindex:         newIndex(),
+		metrics:        metrics,
 	}
 
 	rule.scache.SetGCCallback(rule.gcCallback)
@@ -309,6 +349,10 @@ func (r *InhibitRule) gcCallback(alerts []types.Alert) {
 	for _, a := range alerts {
 		fp := r.fingerprintEquals(a.Labels)
 		r.sindex.Delete(fp)
+	}
+	if r.Name != "" {
+		r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(r.scache.Len()))
+		r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(r.sindex.Len()))
 	}
 }
 

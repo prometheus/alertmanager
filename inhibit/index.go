@@ -55,3 +55,10 @@ func (c *index) Delete(key model.Fingerprint) {
 
 	delete(c.items, key)
 }
+
+func (c *index) Len() int {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	return len(c.items)
+}

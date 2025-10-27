@@ -125,9 +125,10 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Equal:   map[model.LabelName]struct{}{},
+				scache:  store.NewAlerts(),
+				sindex:  newIndex(),
+				metrics: NewRuleMetrics("test", NewInhibitorMetrics(prometheus.NewRegistry())),
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
@@ -159,7 +160,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -260,7 +261,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -369,8 +370,8 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 
-	rule1 := NewInhibitRule(config1)
-	rule2 := NewInhibitRule(config2)
+	rule1 := NewInhibitRule(config1, nil)
+	rule2 := NewInhibitRule(config2, nil)
 
 	require.Equal(t, "test-rule", rule1.Name, "Expected named rule to have adopt name from config")
 	require.Empty(t, rule2.Name, "Expected unnamed rule to have empty name")
@@ -498,7 +499,7 @@ func TestInhibit(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger)
+		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 
 		go func() {
 			for ap.finished != nil {
