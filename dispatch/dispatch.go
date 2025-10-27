@@ -340,17 +340,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
-	routeGroups[fp] = ag
-	d.aggrGroupsNum++
-	d.metrics.aggrGroups.Inc()
-
-	// Insert the 1st alert in the group before starting the group's run()
-	// function, to make sure that when the run() will be executed the 1st
-	// alert is already there.
-	ag.insert(alert)
-
-	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+	notifyFunc := func(ctx context.Context, alerts ...*types.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
 			logger := d.logger.With("num_alerts", len(alerts), "err", err)
@@ -364,7 +354,24 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 			}
 		}
 		return err == nil
-	})
+	}
+
+	ag = newAggrGroup(
+		d.ctx,
+		groupLabels,
+		route,
+		notifyFunc,
+		d.timeout,
+		d.marker.(types.AlertMarker),
+		d.logger,
+	)
+
+	routeGroups[fp] = ag
+	d.aggrGroupsNum++
+	d.metrics.aggrGroups.Inc()
+
+	// Insert the 1st alert, which will start the timer.
+	ag.insert(alert)
 }
 
 func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
@@ -392,36 +399,40 @@ type aggrGroup struct {
 	marker  types.AlertMarker
 	ctx     context.Context
 	cancel  func()
-	done    chan struct{}
 	next    *time.Timer
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
 	hasFlushed bool
+	notifyFunc notifyFunc
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
+func newAggrGroup(
+	ctx context.Context,
+	labels model.LabelSet,
+	r *Route,
+	nf notifyFunc,
+	to func(time.Duration) time.Duration,
+	marker types.AlertMarker,
+	logger *slog.Logger,
+) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
 	ag := &aggrGroup{
-		labels:   labels,
-		routeID:  r.ID(),
-		routeKey: r.Key(),
-		opts:     &r.RouteOpts,
-		timeout:  to,
-		alerts:   store.NewAlerts(),
-		marker:   marker,
-		done:     make(chan struct{}),
+		labels:     labels,
+		routeID:    r.ID(),
+		routeKey:   r.Key(),
+		opts:       &r.RouteOpts,
+		notifyFunc: nf,
+		timeout:    to,
+		alerts:     store.NewAlerts(),
+		marker:     marker,
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
 	ag.logger = logger.With("aggrGroup", ag)
-
-	// Set an initial one-time wait before flushing
-	// the first batch of notifications.
-	ag.next = time.NewTimer(ag.opts.GroupWait)
 
 	return ag
 }
@@ -438,55 +449,56 @@ func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
-func (ag *aggrGroup) run(nf notifyFunc) {
-	defer close(ag.done)
-	defer ag.next.Stop()
+func (ag *aggrGroup) onTimer() {
+	// Check if context is done before processing
+	select {
+	case <-ag.ctx.Done():
+		return
+	default:
+	}
 
-	for {
-		select {
-		case now := <-ag.next.C:
-			// Give the notifications time until the next flush to
-			// finish before terminating them.
-			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
+	now := time.Now()
 
-			// The now time we retrieve from the ticker is the only reliable
-			// point of time reference for the subsequent notification pipeline.
-			// Calculating the current time directly is prone to flaky behavior,
-			// which usually only becomes apparent in tests.
-			ctx = notify.WithNow(ctx, now)
+	// Give the notifications time until the next flush to
+	// finish before terminating them.
+	ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
+	defer cancel()
+	// The now time is the point of time reference for the subsequent notification pipeline.
+	ctx = notify.WithNow(ctx, now)
+	// Populate context with information needed along the pipeline.
+	ctx = notify.WithGroupKey(ctx, ag.GroupKey())
+	ctx = notify.WithGroupLabels(ctx, ag.labels)
+	ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
+	ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
+	ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
+	ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
+	ctx = notify.WithRouteID(ctx, ag.routeID)
+	// Flush before resetting timer to maintain backpressure.
+	ag.flush(func(alerts ...*types.Alert) bool {
+		return ag.notifyFunc(ctx, alerts...)
+	})
 
-			// Populate context with information needed along the pipeline.
-			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
-			ctx = notify.WithGroupLabels(ctx, ag.labels)
-			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
-			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
-			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
-			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
-			ctx = notify.WithRouteID(ctx, ag.routeID)
-
-			// Wait the configured interval before calling flush again.
-			ag.mtx.Lock()
-			ag.next.Reset(ag.opts.GroupInterval)
-			ag.hasFlushed = true
-			ag.mtx.Unlock()
-
-			ag.flush(func(alerts ...*types.Alert) bool {
-				return nf(ctx, alerts...)
-			})
-
-			cancel()
-
-		case <-ag.ctx.Done():
-			return
-		}
+	// Wait the configured interval before calling flush again.
+	ag.mtx.Lock()
+	ag.hasFlushed = true
+	// Reset the timer for the next flush, but only if context is not done
+	select {
+	case <-ag.ctx.Done():
+		ag.mtx.Unlock()
+		return
+	default:
+		ag.setTimer(ag.opts.GroupInterval)
+		ag.mtx.Unlock()
 	}
 }
 
 func (ag *aggrGroup) stop() {
+	// Stop the timer first to prevent any new callbacks
+	if ag.next != nil {
+		ag.next.Stop()
+	}
 	// Calling cancel will terminate all in-process notifications
-	// and the run() loop.
 	ag.cancel()
-	<-ag.done
 }
 
 // insert inserts the alert into the aggregation group.
@@ -495,12 +507,23 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 		ag.logger.Error("error on set alert", "err", err)
 	}
 
-	// Immediately trigger a flush if the wait duration for this
-	// alert is already over.
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
-	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
-		ag.next.Reset(0)
+
+	// if already flushed before, no need to schedule a new timer.
+	if ag.hasFlushed {
+		return
+	}
+
+	// if the alert is old enough, flush immediately.
+	if alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
+		ag.setTimer(0)
+		return
+	}
+
+	// set the timer to group wait time, but only if timer not already set.
+	if ag.next == nil {
+		ag.setTimer(ag.opts.GroupWait)
 	}
 }
 
@@ -550,6 +573,14 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				}
 			}
 		}
+	}
+}
+
+func (ag *aggrGroup) setTimer(d time.Duration) {
+	if ag.next != nil {
+		ag.next.Reset(d)
+	} else {
+		ag.next = time.AfterFunc(d, ag.onTimer)
 	}
 }
 

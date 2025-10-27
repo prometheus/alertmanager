@@ -37,6 +37,8 @@ import (
 
 const testMaintenanceInterval = 30 * time.Second
 
+var noopNotifyFunc = func(context.Context, ...*types.Alert) bool { return true }
+
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
 		"a": "v1",
@@ -141,8 +143,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
-	go ag.run(ntfy)
+	ag := newAggrGroup(context.Background(), lset, route, ntfy, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 
 	ag.insert(a1)
 
@@ -195,8 +196,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
-	go ag.run(ntfy)
+	ag = newAggrGroup(context.Background(), lset, route, ntfy, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 
 	ag.insert(a1)
 	ag.insert(a2)
@@ -757,11 +757,9 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
+	aggrGroup1 := newAggrGroup(ctx, labels, route, noopNotifyFunc, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
 	dispatcher.aggrGroupsPerRoute = aggrGroups
-	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
-	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
 	// Insert a marker for the aggregation group's group key.
 	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
@@ -794,7 +792,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, noopNotifyFunc, timeout, marker, logger)
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
@@ -833,13 +831,10 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		require.True(t, marker.Active(activeAlert.Fingerprint()))
 		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
 
-		// Create a notify function that succeeds
-		notifyFunc := func(alerts ...*types.Alert) bool {
-			return true
-		}
-
 		// Flush the alerts
-		ag.flush(notifyFunc)
+		ag.flush(func(alerts ...*types.Alert) bool {
+			return noopNotifyFunc(ctx, alerts...)
+		})
 
 		// Verify that the resolved alert's marker was deleted
 		require.True(t, marker.Active(activeAlert.Fingerprint()), "active alert marker should still exist")
@@ -863,7 +858,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, noopNotifyFunc, timeout, marker, logger)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -917,7 +912,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, noopNotifyFunc, timeout, marker, logger)
 
 		// Create a resolved alert
 		now := time.Now()
