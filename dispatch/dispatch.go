@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -40,32 +41,28 @@ type DispatcherMetrics struct {
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
 func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *DispatcherMetrics {
+	if r == nil {
+		return nil
+	}
 	m := DispatcherMetrics{
-		aggrGroups: prometheus.NewGauge(
+		aggrGroups: promauto.With(r).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_dispatcher_aggregation_groups",
 				Help: "Number of active aggregation groups",
 			},
 		),
-		processingDuration: prometheus.NewSummary(
+		processingDuration: promauto.With(r).NewSummary(
 			prometheus.SummaryOpts{
 				Name: "alertmanager_dispatcher_alert_processing_duration_seconds",
 				Help: "Summary of latencies for the processing of alerts.",
 			},
 		),
-		aggrGroupLimitReached: prometheus.NewCounter(
+		aggrGroupLimitReached: promauto.With(r).NewCounter(
 			prometheus.CounterOpts{
 				Name: "alertmanager_dispatcher_aggregation_group_limit_reached_total",
 				Help: "Number of times when dispatcher failed to create new aggregation group due to limit.",
 			},
 		),
-	}
-
-	if r != nil {
-		r.MustRegister(m.aggrGroups, m.processingDuration)
-		if registerLimitMetrics {
-			r.MustRegister(m.aggrGroupLimitReached)
-		}
 	}
 
 	return &m

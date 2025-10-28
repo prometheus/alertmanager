@@ -30,6 +30,7 @@ import (
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
 )
@@ -76,6 +77,10 @@ func NewTLSTransport(
 	bindPort int,
 	cfg *TLSTransportConfig,
 ) (*TLSTransport, error) {
+	if reg == nil {
+		return nil, errors.New("missing Prometheus registry")
+	}
+
 	if cfg == nil {
 		return nil, errors.New("must specify TLSTransportConfig")
 	}
@@ -289,7 +294,7 @@ func (t *TLSTransport) handle(conn net.Conn) {
 }
 
 func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
-	t.packetsSent = prometheus.NewCounter(
+	t.packetsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -297,7 +302,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes sent to outgoing connections (excluding internal metadata).",
 		},
 	)
-	t.packetsRcvd = prometheus.NewCounter(
+	t.packetsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -305,7 +310,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes received from incoming connections (excluding internal metadata).",
 		},
 	)
-	t.streamsSent = prometheus.NewCounter(
+	t.streamsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -314,7 +319,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 	)
 
-	t.streamsRcvd = prometheus.NewCounter(
+	t.streamsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -322,7 +327,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of stream connections received.",
 		},
 	)
-	t.readErrs = prometheus.NewCounter(
+	t.readErrs = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -330,7 +335,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of errors encountered while reading from incoming connections.",
 		},
 	)
-	t.writeErrs = prometheus.NewCounterVec(
+	t.writeErrs = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -339,13 +344,4 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"connection_type"},
 	)
-
-	if reg != nil {
-		reg.MustRegister(t.packetsSent)
-		reg.MustRegister(t.packetsRcvd)
-		reg.MustRegister(t.streamsSent)
-		reg.MustRegister(t.streamsRcvd)
-		reg.MustRegister(t.readErrs)
-		reg.MustRegister(t.writeErrs)
-	}
 }
