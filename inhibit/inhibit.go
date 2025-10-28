@@ -94,17 +94,17 @@ func (ih *Inhibitor) run(ctx context.Context) {
 					}
 					r.updateIndex(a)
 
-					cached := r.scache.Len()
-					indexed := r.sindex.Len()
-
-					if r.Name != "" {
-						r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
-						r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
-					}
-
-					cachedSum += cached
-					indexedSum += indexed
 				}
+				cached := r.scache.Len()
+				indexed := r.sindex.Len()
+
+				if r.Name != "" {
+					r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
+					r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
+				}
+
+				cachedSum += cached
+				indexedSum += indexed
 			}
 			ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
 			ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
