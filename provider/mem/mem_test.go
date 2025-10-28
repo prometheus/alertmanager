@@ -87,12 +87,12 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	iterator := alerts.Subscribe()
+	iterator := alerts.Subscribe("test")
 
 	alertsToInsert := []*types.Alert{}
 	// Exhaust alert channel
@@ -142,7 +142,7 @@ func TestDeadLock(t *testing.T) {
 
 	marker := types.NewMarker(prometheus.NewRegistry())
 	// Run gc every 5 milliseconds to increase the possibility of a deadlock with Subscribe()
-	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestDeadLock(t *testing.T) {
 		for {
 			select {
 			case <-tick.C:
-				alerts.Subscribe()
+				alerts.Subscribe("test")
 			case <-stopAfter:
 				done <- true
 				break
@@ -195,7 +195,7 @@ func TestDeadLock(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			it := alerts.Subscribe()
+			it := alerts.Subscribe("test")
 			defer it.Close()
 
 			received := make(map[model.Fingerprint]struct{})
@@ -620,4 +620,93 @@ func TestAlertsConcurrently(t *testing.T) {
 		return a.count(types.AlertStateActive) == 0
 	}, 2*expire, expire)
 	require.Equal(t, int32(0), callback.alerts.Load())
+}
+
+func TestSubscriberChannelMetrics(t *testing.T) {
+	marker := types.NewMarker(prometheus.NewRegistry())
+	reg := prometheus.NewRegistry()
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), reg)
+	require.NoError(t, err)
+
+	subscriberName := "test_subscriber"
+
+	// Subscribe to alerts
+	iterator := alerts.Subscribe(subscriberName)
+	defer iterator.Close()
+
+	// Consume alerts in the background
+	go func() {
+		for range iterator.Next() {
+			// Just drain the channel
+		}
+	}()
+
+	// Helper function to get counter value
+	getCounterValue := func(name, labelName, labelValue string) float64 {
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+		for _, mf := range metrics {
+			if mf.GetName() == name {
+				for _, m := range mf.GetMetric() {
+					for _, label := range m.GetLabel() {
+						if label.GetName() == labelName && label.GetValue() == labelValue {
+							return m.GetCounter().GetValue()
+						}
+					}
+				}
+			}
+		}
+		return 0
+	}
+
+	// Initially, the counter should be 0
+	writeCount := getCounterValue("alertmanager_alerts_subscriber_channel_writes_total", "subscriber", subscriberName)
+	require.Equal(t, 0.0, writeCount, "subscriberChannelWrites should start at 0")
+
+	// Put some alerts
+	now := time.Now()
+	alertsToSend := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"test": "1"},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     now,
+				EndsAt:       now.Add(1 * time.Hour),
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		},
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"test": "2"},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     now,
+				EndsAt:       now.Add(1 * time.Hour),
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		},
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"test": "3"},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     now,
+				EndsAt:       now.Add(1 * time.Hour),
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		},
+	}
+
+	err = alerts.Put(alertsToSend...)
+	require.NoError(t, err)
+
+	// Verify the counter incremented for each successful write
+	require.Eventually(t, func() bool {
+		writeCount := getCounterValue("alertmanager_alerts_subscriber_channel_writes_total", "subscriber", subscriberName)
+		return writeCount == float64(len(alertsToSend))
+	}, 1*time.Second, 10*time.Millisecond, "subscriberChannelWrites should equal the number of alerts sent")
 }
