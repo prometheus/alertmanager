@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/prometheus/common/version"
@@ -222,15 +223,7 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	}
 
 	// 5xx responses are considered to be always retried.
-	retry := statusCode/100 == 5
-	if !retry {
-		for _, code := range r.RetryCodes {
-			if code == statusCode {
-				retry = true
-				break
-			}
-		}
-	}
+	retry := statusCode/100 == 5 || slices.Contains(r.RetryCodes, statusCode)
 
 	s := fmt.Sprintf("unexpected status code %v", statusCode)
 	var details string
