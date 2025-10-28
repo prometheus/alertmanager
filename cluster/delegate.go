@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -46,6 +46,7 @@ type delegate struct {
 	messagesPruned       prometheus.Counter
 	nodeAlive            *prometheus.CounterVec
 	nodePingDuration     *prometheus.HistogramVec
+	conflictsCount       prometheus.Counter
 }
 
 func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
@@ -111,6 +112,10 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"peer"},
 	)
+	conflictsCount := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_peer_name_conflicts_total",
+		Help: "Total number of times memberlist has noticed conflicting peer names",
+	})
 
 	messagesReceived.WithLabelValues(fullState)
 	messagesReceivedSize.WithLabelValues(fullState)
@@ -123,7 +128,7 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 
 	reg.MustRegister(messagesReceived, messagesReceivedSize, messagesSent, messagesSentSize,
 		gossipClusterMembers, peerPosition, healthScore, messagesQueued, messagesPruned,
-		nodeAlive, nodePingDuration,
+		nodeAlive, nodePingDuration, conflictsCount,
 	)
 
 	d := &delegate{
@@ -137,6 +142,7 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 		messagesPruned:       messagesPruned,
 		nodeAlive:            nodeAlive,
 		nodePingDuration:     nodePingDuration,
+		conflictsCount:       conflictsCount,
 	}
 
 	go d.handleQueueDepth()
@@ -171,6 +177,12 @@ func (d *delegate) NotifyMsg(b []byte) {
 		d.logger.Warn("merge broadcast", "err", err, "key", p.Key)
 		return
 	}
+}
+
+// NotifyConflict is the callback when memberlist encounters two nodes with the same ID.
+func (d *delegate) NotifyConflict(existing, other *memberlist.Node) {
+	d.logger.Warn("Found conflicting peer IDs", "peer", existing.Name)
+	d.conflictsCount.Inc()
 }
 
 // GetBroadcasts is called when user data messages can be broadcasted.
