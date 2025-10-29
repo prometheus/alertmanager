@@ -33,7 +33,7 @@ Alertmanager will now be reachable at http://localhost:9093/.
 You can either `go install` it:
 
 ```
-$ go install github.com/prometheus/alertmanager/cmd/amtool@latest
+$ go install github.com/prometheus/alertmanager/cmd/...@latest
 # cd $GOPATH/src/github.com/prometheus/alertmanager
 $ alertmanager --config.file=<your_file>
 ```
