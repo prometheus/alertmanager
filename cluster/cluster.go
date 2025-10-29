@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -142,6 +142,7 @@ func Create(
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
 	label string,
+	name string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -187,10 +188,13 @@ func Create(
 		advertisePort = bindPort
 	}
 
-	// TODO(fabxc): generate human-readable but random names?
-	name, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
-	if err != nil {
-		return nil, err
+	// Generate a random name if none is provided.
+	if name == "" {
+		id, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
+		if err != nil {
+			return nil, err
+		}
+		name = id.String()
 	}
 
 	p := &Peer{
@@ -203,7 +207,7 @@ func Create(
 		knownPeers:    knownPeers,
 	}
 
-	p.register(reg, name.String())
+	p.register(reg, name)
 
 	retransmit := len(knownPeers) / 2
 	if retransmit < 3 {
@@ -212,13 +216,14 @@ func Create(
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
-	cfg.Name = name.String()
+	cfg.Name = name
 	cfg.BindAddr = bindHost
 	cfg.BindPort = bindPort
 	cfg.Delegate = p.delegate
 	cfg.Ping = p.delegate
 	cfg.Alive = p.delegate
 	cfg.Events = p.delegate
+	cfg.Conflict = p.delegate
 	cfg.GossipInterval = gossipInterval
 	cfg.PushPullInterval = pushPullInterval
 	cfg.TCPTimeout = tcpTimeout
