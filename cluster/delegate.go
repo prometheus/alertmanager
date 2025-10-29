@@ -20,6 +20,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 )
@@ -54,56 +55,56 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 		NumNodes:       p.ClusterSize,
 		RetransmitMult: retransmit,
 	}
-	messagesReceived := prometheus.NewCounterVec(prometheus.CounterOpts{
+	messagesReceived := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_total",
 		Help: "Total number of cluster messages received.",
 	}, []string{"msg_type"})
-	messagesReceivedSize := prometheus.NewCounterVec(prometheus.CounterOpts{
+	messagesReceivedSize := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_size_total",
 		Help: "Total size of cluster messages received.",
 	}, []string{"msg_type"})
-	messagesSent := prometheus.NewCounterVec(prometheus.CounterOpts{
+	messagesSent := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_sent_total",
 		Help: "Total number of cluster messages sent.",
 	}, []string{"msg_type"})
-	messagesSentSize := prometheus.NewCounterVec(prometheus.CounterOpts{
+	messagesSentSize := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_sent_size_total",
 		Help: "Total size of cluster messages sent.",
 	}, []string{"msg_type"})
-	messagesPruned := prometheus.NewCounter(prometheus.CounterOpts{
+	messagesPruned := promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_pruned_total",
 		Help: "Total number of cluster messages pruned.",
 	})
-	gossipClusterMembers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	promauto.With(reg).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_members",
 		Help: "Number indicating current number of members in cluster.",
 	}, func() float64 {
 		return float64(p.ClusterSize())
 	})
-	peerPosition := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	promauto.With(reg).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_peer_position",
 		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
 	}, func() float64 {
 		return float64(p.Position())
 	})
-	healthScore := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	promauto.With(reg).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_health_score",
 		Help: "Health score of the cluster. Lower values are better and zero means 'totally healthy'.",
 	}, func() float64 {
 		return float64(p.mlist.GetHealthScore())
 	})
-	messagesQueued := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	promauto.With(reg).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_messages_queued",
 		Help: "Number of cluster messages which are queued.",
 	}, func() float64 {
 		return float64(bcast.NumQueued())
 	})
-	nodeAlive := prometheus.NewCounterVec(prometheus.CounterOpts{
+	nodeAlive := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_alive_messages_total",
 		Help: "Total number of received alive messages.",
 	}, []string{"peer"},
 	)
-	nodePingDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	nodePingDuration := promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 		Name:                            "alertmanager_cluster_pings_seconds",
 		Help:                            "Histogram of latencies for ping messages.",
 		Buckets:                         []float64{.005, .01, .025, .05, .1, .25, .5},
@@ -112,7 +113,7 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"peer"},
 	)
-	conflictsCount := prometheus.NewCounter(prometheus.CounterOpts{
+	conflictsCount := promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_peer_name_conflicts_total",
 		Help: "Total number of times memberlist has noticed conflicting peer names",
 	})
@@ -125,11 +126,6 @@ func newDelegate(l *slog.Logger, reg prometheus.Registerer, p *Peer, retransmit 
 	messagesSentSize.WithLabelValues(fullState)
 	messagesSent.WithLabelValues(update)
 	messagesSentSize.WithLabelValues(update)
-
-	reg.MustRegister(messagesReceived, messagesReceivedSize, messagesSent, messagesSentSize,
-		gossipClusterMembers, peerPosition, healthScore, messagesQueued, messagesPruned,
-		nodeAlive, nodePingDuration, conflictsCount,
-	)
 
 	d := &delegate{
 		logger:               l,
