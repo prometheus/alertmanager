@@ -138,7 +138,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 				r.updateIndex(v)
 			}
 
-			if _, have := r.hasEqual(c.input, false); have != c.result {
+			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
