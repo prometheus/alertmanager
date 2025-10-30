@@ -228,7 +228,15 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	aggrGroupsPerRoute := map[*Route]map[model.Fingerprint]*aggrGroup{}
+	for route, ags := range d.aggrGroupsPerRoute {
+		copiedMap := map[model.Fingerprint]*aggrGroup{}
+		for fp, ag := range ags {
+			copiedMap[fp] = ag
+		}
+		aggrGroupsPerRoute[route] = copiedMap
+	}
+	d.mtx.RUnlock()
 
 	// Keep a list of receivers for an alert to prevent checking each alert
 	// again against all routes. The alert has already matched against this
@@ -236,7 +244,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	receivers := map[model.Fingerprint][]string{}
 
 	now := time.Now()
-	for route, ags := range d.aggrGroupsPerRoute {
+	for route, ags := range aggrGroupsPerRoute {
 		if !routeFilter(route) {
 			continue
 		}
