@@ -172,7 +172,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), ruleStart); eq {
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			now := time.Now()
-			sinceStart := now.Sub(now)
+			sinceStart := now.Sub(start)
 			sinceRuleStart := now.Sub(ruleStart)
 			ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
 			r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
