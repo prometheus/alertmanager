@@ -76,8 +76,7 @@ func benchmarkMutes(b *testing.B, n int) {
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(silences, m, promslog.NewNopLogger())
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		s.Mutes(model.LabelSet{"foo": "bar"})
 	}
 	b.StopTimer()
@@ -145,8 +144,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	require.NoError(b, err)
 	require.Len(b, sils, numSilences/10)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		sils, _, err := s.Query(
 			QState(types.SilenceStateActive),
 			QMatches(lset),
