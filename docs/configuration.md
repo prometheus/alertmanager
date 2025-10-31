@@ -990,6 +990,10 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+
+# Whether to use Phantom Threading, which results in one thread per day
+# instead of one thread per alert.
+[ phantom_threading: <boolean> | default = false ]
 ```
 
 ### `<msteams_config>`
