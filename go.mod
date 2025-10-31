@@ -37,7 +37,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.1
-	github.com/prometheus/exporter-toolkit v0.14.1
+	github.com/prometheus/exporter-toolkit v0.15.0
 	github.com/prometheus/sigv4 v0.2.1
 	github.com/rs/cors v1.11.1
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c
@@ -120,6 +120,7 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
+	golang.org/x/time v0.13.0 // indirect
 	golang.org/x/tools/godoc v0.1.0-deprecated // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
