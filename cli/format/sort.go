@@ -27,7 +27,7 @@ type ByEndAt []models.GettableSilence
 func (s ByEndAt) Len() int      { return len(s) }
 func (s ByEndAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s ByEndAt) Less(i, j int) bool {
-	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].Silence.EndsAt))
+	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].EndsAt))
 }
 
 type ByStartsAt []*models.GettableAlert
@@ -49,7 +49,6 @@ func (s ByAddress) Less(i, j int) bool {
 		p1, _ := strconv.Atoi(port1)
 		p2, _ := strconv.Atoi(port2)
 		return p1 < p2
-	} else {
-		return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
 	}
+	return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
 }

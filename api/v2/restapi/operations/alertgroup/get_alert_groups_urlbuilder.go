@@ -32,6 +32,7 @@ type GetAlertGroupsURL struct {
 	Active    *bool
 	Filter    []string
 	Inhibited *bool
+	Muted     *bool
 	Receiver  *string
 	Silenced  *bool
 
@@ -97,6 +98,14 @@ func (o *GetAlertGroupsURL) Build() (*url.URL, error) {
 	}
 	if inhibitedQ != "" {
 		qs.Set("inhibited", inhibitedQ)
+	}
+
+	var mutedQ string
+	if o.Muted != nil {
+		mutedQ = swag.FormatBool(*o.Muted)
+	}
+	if mutedQ != "" {
+		qs.Set("muted", mutedQ)
 	}
 
 	var receiverQ string

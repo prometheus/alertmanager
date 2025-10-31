@@ -14,10 +14,10 @@
 package config
 
 import (
-	"io/ioutil"
+	"io"
 	"testing"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 var (
@@ -30,8 +30,8 @@ func newApp() *kingpin.Application {
 	id = new(string)
 
 	app := kingpin.New("app", "")
-	app.UsageWriter(ioutil.Discard)
-	app.ErrorWriter(ioutil.Discard)
+	app.UsageWriter(io.Discard)
+	app.ErrorWriter(io.Discard)
 	app.Terminate(nil)
 
 	app.Flag("url", "").StringVar(url)

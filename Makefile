@@ -26,8 +26,18 @@ STATICCHECK_IGNORE =
 # Will build both the front-end as well as the back-end
 build-all: assets apiv2 build
 
+.PHONY: build
+build: common-build
+
+.PHONY: lint
+lint: common-lint
+
 .PHONY: assets
 assets: asset/assets_vfsdata.go
+
+.PHONY: assets-tarball
+assets-tarball: ui/app/script.js ui/app/index.html
+	scripts/package_assets.sh
 
 asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
 	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
@@ -46,7 +56,7 @@ SWAGGER = docker run \
 	--user=$(shell id -u $(USER)):$(shell id -g $(USER)) \
 	--rm \
 	-v $(shell pwd):/go/src/github.com/prometheus/alertmanager \
-	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:v0.24.0
+	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:v0.31.0
 
 api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 	-rm -r api/v2/{client,models,restapi}
@@ -56,5 +66,6 @@ api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 .PHONY: clean
 clean:
 	- @rm -rf asset/assets_vfsdata.go \
+                  template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean

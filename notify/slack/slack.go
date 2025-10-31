@@ -18,13 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-kit/log/level"
-	"io/ioutil"
+	"io"
+	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 
-	"github.com/pkg/errors"
-
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -33,28 +32,34 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
+const maxTitleLenRunes = 1024
+
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
 	conf    *config.SlackConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
+
+	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Notifier{
-		conf:    c,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
+		conf:         c,
+		tmpl:         t,
+		logger:       l,
+		client:       client,
+		retrier:      &notify.Retrier{},
+		postJSONFunc: notify.PostJSON,
 	}, nil
 }
 
@@ -99,13 +104,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
-	title, truncated := notify.Truncate(tmplText(n.conf.Title), 1024)
+
+	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
 	if truncated {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
 			return false, err
 		}
-		level.Debug(n.logger).Log("msg", "Truncated title", "text", title, "key", key)
+		n.logger.Warn("Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	att := &attachment{
 		Title:      title,
@@ -121,9 +127,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		MrkdwnIn:   markdownIn,
 	}
 
-	var numFields = len(n.conf.Fields)
+	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		var fields = make([]config.SlackField, numFields)
+		fields := make([]config.SlackField, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -143,9 +149,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Fields = fields
 	}
 
-	var numActions = len(n.conf.Actions)
+	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		var actions = make([]config.SlackAction, numActions)
+		actions := make([]config.SlackAction, numActions)
 		for index, action := range n.conf.Actions {
 			slackAction := config.SlackAction{
 				Type:  tmplText(action.Type),
@@ -191,23 +197,85 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if n.conf.APIURL != nil {
 		u = n.conf.APIURL.String()
 	} else {
-		content, err := ioutil.ReadFile(n.conf.APIURLFile)
+		content, err := os.ReadFile(n.conf.APIURLFile)
 		if err != nil {
 			return false, err
 		}
-		u = string(content)
+		u = strings.TrimSpace(string(content))
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
+	if n.conf.Timeout > 0 {
+		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = postCtx
+	}
+
+	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
 		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
-	// Only 5xx response codes are recoverable and 2xx codes are successful.
-	// https://api.slack.com/incoming-webhooks#handling_errors
-	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	// Use a retrier to generate an error message for non-200 responses and
+	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-	return retry, err
+	if err != nil {
+		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+
+	// Slack web API might return errors with a 200 response code.
+	// https://slack.dev/node-slack-sdk/web-api#handle-errors
+	retry, err = checkResponseError(resp)
+	if err != nil {
+		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+	}
+
+	return retry, nil
+}
+
+// checkResponseError parses out the error message from Slack API response.
+func checkResponseError(resp *http.Response) (bool, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return true, fmt.Errorf("could not read response body: %w", err)
+	}
+
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		return checkJSONResponseError(body)
+	}
+	return checkTextResponseError(body)
+}
+
+// checkTextResponseError classifies plaintext responses from Slack.
+// A plaintext (non-JSON) response is successful if it's a string "ok".
+// This is typically a response for an Incoming Webhook
+// (https://api.slack.com/messaging/webhooks#handling_errors)
+func checkTextResponseError(body []byte) (bool, error) {
+	if !bytes.Equal(body, []byte("ok")) {
+		return false, fmt.Errorf("received an error response from Slack: %s", string(body))
+	}
+	return false, nil
+}
+
+// checkJSONResponseError classifies JSON responses from Slack.
+func checkJSONResponseError(body []byte) (bool, error) {
+	// response is for parsing out errors from the JSON response.
+	type response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+
+	var data response
+	if err := json.Unmarshal(body, &data); err != nil {
+		return true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
+	}
+	if !data.OK {
+		return false, fmt.Errorf("error response from Slack: %s", data.Error)
+	}
+	return false, nil
 }

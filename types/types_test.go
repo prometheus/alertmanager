@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package types //nolint:revive
 
 import (
 	"reflect"
@@ -22,8 +22,126 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
+
+func TestMemMarker_Muted(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// No groups should be muted.
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Mark the group as muted because it's the weekend.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Other groups should not be marked as muted.
+	timeIntervalNames, isMuted = marker.Muted("route1", "group2")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// Other routes should not be marked as muted either.
+	timeIntervalNames, isMuted = marker.Muted("route2", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+
+	// The group is no longer muted.
+	marker.SetMuted("route1", "group1", nil)
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
+func TestMemMarker_DeleteByGroupKey(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+
+	// Mark the group and check that it is muted.
+	marker.SetMuted("route1", "group1", []string{"weekends"})
+	timeIntervalNames, isMuted := marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for a different group key. The group should
+	// still be muted.
+	marker.DeleteByGroupKey("route1", "group2")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.True(t, isMuted)
+	require.Equal(t, []string{"weekends"}, timeIntervalNames)
+
+	// Delete the markers for the correct group key. The group should
+	// no longer be muted.
+	marker.DeleteByGroupKey("route1", "group1")
+	timeIntervalNames, isMuted = marker.Muted("route1", "group1")
+	require.False(t, isMuted)
+	require.Empty(t, timeIntervalNames)
+}
+
+func TestMemMarker_Count(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+	now := time.Now()
+
+	states := []AlertState{AlertStateSuppressed, AlertStateActive, AlertStateUnprocessed}
+	countByState := func(state AlertState) int {
+		return marker.Count(state)
+	}
+
+	countTotal := func() int {
+		var count int
+		for _, s := range states {
+			count += countByState(s)
+		}
+		return count
+	}
+
+	require.Equal(t, 0, countTotal())
+
+	a1 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(2 * time.Minute),
+		Labels:   model.LabelSet{"test": "active"},
+	}
+	a2 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(2 * time.Minute),
+		Labels:   model.LabelSet{"test": "suppressed"},
+	}
+	a3 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(-1 * time.Minute),
+		Labels:   model.LabelSet{"test": "resolved"},
+	}
+
+	// Insert an active alert.
+	marker.SetActiveOrSilenced(a1.Fingerprint(), 1, nil, nil)
+	require.Equal(t, 1, countByState(AlertStateActive))
+	require.Equal(t, 1, countTotal())
+
+	// Insert a silenced alert.
+	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	require.Equal(t, 1, countByState(AlertStateSuppressed))
+	require.Equal(t, 2, countTotal())
+
+	// Insert a resolved silenced alert - it'll count as suppressed.
+	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, []string{"1"}, nil)
+	require.Equal(t, 2, countByState(AlertStateSuppressed))
+	require.Equal(t, 3, countTotal())
+
+	// Remove the silence from a3 - it'll count as active.
+	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, nil, nil)
+	require.Equal(t, 2, countByState(AlertStateActive))
+	require.Equal(t, 3, countTotal())
+}
 
 func TestAlertMerge(t *testing.T) {
 	now := time.Now()
@@ -261,8 +379,50 @@ func TestAlertMerge(t *testing.T) {
 	}
 }
 
-func TestCalcSilenceState(t *testing.T) {
+func TestValidateUTF8Ls(t *testing.T) {
+	tests := []struct {
+		name string
+		ls   model.LabelSet
+		err  string
+	}{{
+		name: "valid UTF-8 label set",
+		ls: model.LabelSet{
+			"a":                "a",
+			"00":               "b",
+			"Σ":                "c",
+			"\xf0\x9f\x99\x82": "dΘ",
+		},
+	}, {
+		name: "invalid UTF-8 label set",
+		ls: model.LabelSet{
+			"\xff": "a",
+		},
+		err: "invalid name \"\\xff\"",
+	}}
 
+	// Change the mode to UTF-8 mode.
+	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
+	require.NoError(t, err)
+	compat.InitFromFlags(promslog.NewNopLogger(), ff)
+
+	// Restore the mode to classic at the end of the test.
+	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
+	require.NoError(t, err)
+	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateLs(test.ls)
+			if err != nil && err.Error() != test.err {
+				t.Errorf("unexpected err for %s: %s", test.ls, err)
+			} else if err == nil && test.err != "" {
+				t.Error("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestCalcSilenceState(t *testing.T) {
 	var (
 		pastStartTime = time.Now()
 		pastEndTime   = time.Now()

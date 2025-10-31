@@ -1,5 +1,6 @@
 module Utils.DateTimePicker.Utils exposing
-    ( addHour
+    ( FirstDayOfWeek(..)
+    , addHour
     , addMinute
     , firstDayOfNextMonth
     , firstDayOfPrevMonth
@@ -21,8 +22,14 @@ import Time exposing (Month(..), Posix, Weekday(..), utc)
 import Time.Extra as Time exposing (Interval(..))
 
 
-listDaysOfMonth : Posix -> List Posix
-listDaysOfMonth time =
+type FirstDayOfWeek
+    = Monday
+    | Sunday
+    | Saturday
+
+
+listDaysOfMonth : Posix -> FirstDayOfWeek -> List Posix
+listDaysOfMonth time firstDayOfWeek =
     let
         firstOfMonth =
             Time.floor Time.Month utc time
@@ -33,17 +40,58 @@ listDaysOfMonth time =
         padFront =
             weekToInt (Time.toWeekday utc firstOfMonth)
                 |> (\wd ->
-                        if wd == 7 then
-                            0
+                        case firstDayOfWeek of
+                            Sunday ->
+                                if wd == 7 then
+                                    0
 
-                        else
-                            wd
+                                else
+                                    wd
+
+                            Monday ->
+                                if wd == 1 then
+                                    0
+
+                                else
+                                    wd - 1
+
+                            Saturday ->
+                                if wd == 6 then
+                                    0
+
+                                else if wd == 7 then
+                                    1
+
+                                else
+                                    wd + 1
                    )
                 |> (\w -> Time.add Time.Day -w utc firstOfMonth)
                 |> (\d -> Time.range Time.Day 1 utc d firstOfMonth)
 
         padBack =
             weekToInt (Time.toWeekday utc firstOfNextMonth)
+                |> (\wd ->
+                        case firstDayOfWeek of
+                            Sunday ->
+                                wd
+
+                            Monday ->
+                                if wd == 1 then
+                                    7
+
+                                else
+                                    wd - 1
+
+                            Saturday ->
+                                if wd == 6 then
+                                    7
+
+                                else if wd == 7 then
+                                    1
+
+                                else
+                                    wd + 1
+                   )
                 |> (\w -> Time.add Time.Day (7 - w) utc firstOfNextMonth)
                 |> Time.range Time.Day 1 utc firstOfNextMonth
     in

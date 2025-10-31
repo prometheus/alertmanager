@@ -76,13 +76,23 @@ func (s *TestSilence) Match(v ...string) *TestSilence {
 	return s
 }
 
-// MatchRE adds a new regex matcher to the silence
+// GetMatches returns the plain matchers for the silence.
+func (s TestSilence) GetMatches() []string {
+	return s.match
+}
+
+// MatchRE adds a new regex matcher to the silence.
 func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 	if len(v)%2 == 1 {
 		panic("bad key/values")
 	}
 	s.matchRE = append(s.matchRE, v...)
 	return s
+}
+
+// GetMatchREs returns the regex matchers for the silence.
+func (s *TestSilence) GetMatchREs() []string {
+	return s.matchRE
 }
 
 // Comment sets the comment to the silence.
@@ -111,7 +121,7 @@ type TestAlert struct {
 
 // Alert creates a new alert declaration with the given key/value pairs
 // as identifying labels.
-func Alert(keyval ...interface{}) *TestAlert {
+func Alert(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -155,7 +165,7 @@ func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.GettableAlert {
 }
 
 // Annotate the alert with the given key/value pairs.
-func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
+func (a *TestAlert) Annotate(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -174,7 +184,6 @@ func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
 // must be a single starting value or two values where the second value
 // declares the resolved time.
 func (a *TestAlert) Active(tss ...float64) *TestAlert {
-
 	if len(tss) > 2 || len(tss) == 0 {
 		panic("only one or two timestamps allowed")
 	}
@@ -184,6 +193,11 @@ func (a *TestAlert) Active(tss ...float64) *TestAlert {
 	a.startsAt = tss[0]
 
 	return a
+}
+
+// HasLabels returns true if the two label sets are equivalent, otherwise false.
+func (a *TestAlert) HasLabels(labels models.LabelSet) bool {
+	return reflect.DeepEqual(a.labels, labels)
 }
 
 func equalAlerts(a, b *models.GettableAlert, opts *AcceptanceOpts) bool {
@@ -200,7 +214,7 @@ func equalAlerts(a, b *models.GettableAlert, opts *AcceptanceOpts) bool {
 	if (a.EndsAt == nil) != (b.EndsAt == nil) {
 		return false
 	}
-	if !(a.EndsAt == nil) && !(b.EndsAt == nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
+	if (a.EndsAt != nil) && (b.EndsAt != nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
 		return false
 	}
 	return true

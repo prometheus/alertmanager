@@ -37,7 +37,7 @@ func (formatter *ExtendedFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-// FormatSilences formats the silences into a readable string
+// FormatSilences formats the silences into a readable string.
 func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSilence) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByEndAt(silences))
@@ -48,8 +48,8 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSil
 			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			*silence.ID,
 			extendedFormatMatchers(silence.Matchers),
-			FormatDate(*silence.Silence.StartsAt),
-			FormatDate(*silence.Silence.EndsAt),
+			FormatDate(*silence.StartsAt),
+			FormatDate(*silence.EndsAt),
 			FormatDate(*silence.UpdatedAt),
 			*silence.CreatedBy,
 			*silence.Comment,
@@ -58,7 +58,7 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSil
 	return w.Flush()
 }
 
-// FormatAlerts formats the alerts into a readable string
+// FormatAlerts formats the alerts into a readable string.
 func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
@@ -78,7 +78,7 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert)
 	return w.Flush()
 }
 
-// FormatConfig formats the alertmanager status information into a readable string
+// FormatConfig formats the alertmanager status information into a readable string.
 func (formatter *ExtendedFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
 	fmt.Fprintln(formatter.writer, status.Config.Original)
 	fmt.Fprintln(formatter.writer, "buildUser", status.VersionInfo.BuildUser)

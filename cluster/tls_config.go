@@ -14,7 +14,8 @@
 package cluster
 
 import (
-	"io/ioutil"
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/prometheus/common/config"
@@ -23,7 +24,7 @@ import (
 )
 
 type TLSTransportConfig struct {
-	TLSServerConfig *web.TLSStruct    `yaml:"tls_server_config"`
+	TLSServerConfig *web.TLSConfig    `yaml:"tls_server_config"`
 	TLSClientConfig *config.TLSConfig `yaml:"tls_client_config"`
 }
 
@@ -31,15 +32,25 @@ func GetTLSTransportConfig(configPath string) (*TLSTransportConfig, error) {
 	if configPath == "" {
 		return nil, nil
 	}
-	bytes, err := ioutil.ReadFile(configPath)
+
+	bytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	cfg := &TLSTransportConfig{}
+
+	cfg := &TLSTransportConfig{
+		TLSClientConfig: &config.TLSConfig{},
+	}
 	if err := yaml.UnmarshalStrict(bytes, cfg); err != nil {
 		return nil, err
 	}
+
+	if cfg.TLSServerConfig == nil {
+		return nil, fmt.Errorf("missing 'tls_server_config' entry in the TLS configuration")
+	}
+
 	cfg.TLSServerConfig.SetDirectory(filepath.Dir(configPath))
 	cfg.TLSClientConfig.SetDirectory(filepath.Dir(configPath))
+
 	return cfg, nil
 }

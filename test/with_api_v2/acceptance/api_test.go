@@ -19,13 +19,64 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/require"
 )
+
+func TestAddAlerts(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  10m
+  repeat_interval: 1h
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
+		Tolerance:    1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := a.NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	now := time.Now()
+	pa := &models.PostableAlert{
+		StartsAt: strfmt.DateTime(now),
+		EndsAt:   strfmt.DateTime(now.Add(5 * time.Minute)),
+		Alert: models.Alert{
+			Labels: models.LabelSet{
+				"a": "b",
+				"b": "Σ",
+				"c": "\xf0\x9f\x99\x82",
+				"d": "eΘ",
+			},
+		},
+	}
+	alertParams := alert.NewPostAlertsParams()
+	alertParams.Alerts = models.PostableAlerts{pa}
+
+	_, err := am.Client().Alert.PostAlerts(alertParams)
+	require.NoError(t, err)
+}
 
 // TestAlertGetReturnsCurrentStatus checks that querying the API returns the
 // current status of each alert, i.e. if it is silenced or inhibited.
@@ -57,7 +108,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := a.NewWebhook(co)
+	wh := a.NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -88,8 +139,8 @@ receivers:
 	require.NoError(t, err)
 	// No silence has been created or inhibiting alert sent, alert should
 	// be active.
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}
 
 	// Wait for group_wait, so that we are in the group_interval period,
@@ -120,11 +171,11 @@ receivers:
 
 	resp, err = am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
-		require.Equal(t, fp.String(), *alert.Fingerprint)
-		require.Equal(t, 1, len(alert.Status.SilencedBy))
-		require.Equal(t, silenceID, alert.Status.SilencedBy[0])
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
+		require.Equal(t, fp.String(), *al.Fingerprint)
+		require.Len(t, al.Status.SilencedBy, 1)
+		require.Equal(t, silenceID, al.Status.SilencedBy[0])
 	}
 
 	// Create inhibiting alert and verify that original alert is
@@ -137,14 +188,14 @@ receivers:
 
 	resp, err = am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
-	for _, alert := range resp.Payload {
-		require.Equal(t, 1, len(alert.Status.SilencedBy))
-		require.Equal(t, silenceID, alert.Status.SilencedBy[0])
-		if fp.String() == *alert.Fingerprint {
-			require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
-			require.Equal(t, fp.String(), *alert.Fingerprint)
-			require.Equal(t, 1, len(alert.Status.InhibitedBy))
-			require.Equal(t, inhibitingFP.String(), alert.Status.InhibitedBy[0])
+	for _, al := range resp.Payload {
+		require.Len(t, al.Status.SilencedBy, 1)
+		require.Equal(t, silenceID, al.Status.SilencedBy[0])
+		if fp.String() == *al.Fingerprint {
+			require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
+			require.Equal(t, fp.String(), *al.Fingerprint)
+			require.Len(t, al.Status.InhibitedBy, 1)
+			require.Equal(t, inhibitingFP.String(), al.Status.InhibitedBy[0])
 		}
 	}
 
@@ -156,12 +207,12 @@ receivers:
 	require.NoError(t, err)
 	// Silence has been deleted, inhibiting alert should be active.
 	// Original alert should still be inhibited.
-	for _, alert := range resp.Payload {
-		require.Equal(t, 0, len(alert.Status.SilencedBy))
-		if inhibitingFP.String() == *alert.Fingerprint {
-			require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	for _, al := range resp.Payload {
+		require.Empty(t, al.Status.SilencedBy)
+		if inhibitingFP.String() == *al.Fingerprint {
+			require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 		} else {
-			require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
+			require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
 		}
 	}
 }
@@ -194,7 +245,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := a.NewWebhook(co)
+	wh := a.NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -226,8 +277,8 @@ receivers:
 	filter := []string{"alertname=test1", "severity=warning"}
 	resp, err := am.Client().Alert.GetAlerts(alert.NewGetAlertsParams().WithFilter(filter))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Payload))
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	require.Len(t, resp.Payload, 1)
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}
 }

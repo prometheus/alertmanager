@@ -3,8 +3,6 @@ title: HTTPS and authentication
 sort_rank: 11
 ---
 
-# HTTPS and authentication
-
 Alertmanager supports basic authentication and TLS.
 This is **experimental** and might change in the future.
 
@@ -56,6 +54,9 @@ tls_server_config:
   # Go default cipher suites are used. Available cipher suites are documented
   # in the go documentation:
   # https://golang.org/pkg/crypto/tls/#pkg-constants
+  #
+  # Note that only the cipher returned by the following function are supported:
+  # https://pkg.go.dev/crypto/tls#CipherSuites
   [ cipher_suites:
     [ - <string> ] ]
 
@@ -89,7 +90,7 @@ http_server_config:
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options
     [ X-Content-Type-Options: <string> ]
     # Set the X-XSS-Protection header to all responses.
-    # Unset if blank. Accepted value is nosniff.
+    # Unset if blank.
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection
     [ X-XSS-Protection: <string> ]
     # Set the Strict-Transport-Security header to HTTP responses.
@@ -155,15 +156,15 @@ tls_server_config:
 tls_client_config:
   # Path to the CA certificate with which to validate the server certificate.
   [ ca_file: <filepath> ]
-    
+
   # Certificate and key files for client cert authentication to the server.
   [ cert_file: <filepath> ]
   [ key_file: <filepath> ]
-  
+
   # Server name extension to indicate the name of the server.
   # http://tools.ietf.org/html/rfc4366#section-3.1
   [ server_name: <string> ]
-  
+
   # Disable validation of the server certificate.
   [ insecure_skip_verify: <boolean> | default = false]
 ```

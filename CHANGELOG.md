@@ -1,4 +1,186 @@
-## 0.24.0-rc.0 / 2022-03-10
+## main / (unreleased)
+
+* [CHANGE] ...
+* [FEATURE] ...
+* [ENHANCEMENT] ...
+* [BUGFIX] ...
+
+## 0.29.0-rc.0 / 2025-10-09
+
+* [FEATURE] Add incident.io notifier. #4372
+* [FEATURE] Add monospace message formatting. #4362
+* [FEATURE] Add ability to customize interval for maintenance to run. #4541
+* [ENHANCEMENT] Update Jira notifier to support both Jira cloud API v3 and Jira datacenter API v2. #4542
+* [ENHANCEMENT] Increase mixin rate intervals for alert `FailedToSendAlerts`. #4206
+* [ENHANCEMENT] Make /alertmanager group writable in docker image. #4469
+* [BUGFIX] Fix logged notification count on error in notify. #4323
+* [BUGFIX] Fix docker image permissions path. #4288
+* [BUGFIX] Fix error handling in template rendering for Telegram. #4353
+* [BUGFIX] Fix duplicate `other` in error messages for config. #4366
+* [BUGFIX] Fix logic that considers an alert reopened in Jira. #4478
+
+## 0.28.1 / 2025-03-07
+
+* [ENHANCEMENT] Improved performance of inhibition rules when using Equal labels. #4119
+* [ENHANCEMENT] Improve the documentation on escaping in UTF-8 matchers. #4157
+* [ENHANCEMENT] Update alertmanager_config_hash metric help to document the hash is not cryptographically strong. #4210
+* [BUGFIX] Fix panic in amtool when using `--verbose`. #4218
+* [BUGFIX] Fix templating of channel field for Rocket.Chat. #4220
+* [BUGFIX] Fix `rocketchat_configs` written as `rocket_configs` in docs. #4217
+* [BUGFIX] Fix usage for `--enable-feature` flag. #4214
+* [BUGFIX] Trim whitespace from OpsGenie API Key. #4195
+* [BUGFIX] Fix Jira project template not rendered when searching for existing issues. #4291
+* [BUGFIX] Fix subtle bug in JSON/YAML encoding of inhibition rules that would cause Equal labels to be omitted. #4292
+* [BUGFIX] Fix header for `slack_configs` in docs. #4247
+* [BUGFIX] Fix weight and wrap of Microsoft Teams notifications. #4222
+* [BUGFIX] Fix format of YAML examples in configuration.md. #4207
+
+## 0.28.0 / 2025-01-15
+
+* [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
+* [CHANGE] Adopt log/slog, drop go-kit/log #4089
+* [FEATURE] Add a new Microsoft Teams integration based on Flows #4024
+* [FEATURE] Add a new Rocket.Chat integration #3600
+* [FEATURE] Add a new Jira integration #3590 #3931
+* [FEATURE] Add support for `GOMEMLIMIT`, enable it via the feature flag `--enable-feature=auto-gomemlimit`. #3895
+* [FEATURE] Add support for `GOMAXPROCS`, enable it via the feature flag `--enable-feature=auto-gomaxprocs`. #3837
+* [FEATURE] Add support for limits of silences including the maximum number of active and pending silences, and the maximum size per silence (in bytes). You can use the flags `--silences.max-silences` and `--silences.max-silence-size-bytes` to set them accordingly #3852 #3862 #3866 #3885 #3886 #3877
+* [FEATURE] Muted alerts now show whether they are suppressed or not in both the `/api/v2/alerts` endpoint and the Alertmanager UI. #3793 #3797 #3792
+* [ENHANCEMENT] Add support for `content`, `username` and `avatar_url` in the Discord integration. `content` and `username` also support templating. #4007
+* [ENHANCEMENT] Only invalidate the silences cache if a new silence is created or an existing silence replaced - should improve latency on both `GET api/v2/alerts` and `POST api/v2/alerts` API endpoint. #3961
+* [ENHANCEMENT] Add image source label to Dockerfile. To get changelogs shown when using Renovate #4062
+* [ENHANCEMENT] Build using go 1.23 #4071
+* [ENHANCEMENT] Support setting a global SMTP TLS configuration. #3732
+* [ENHANCEMENT] The setting `room_id` in the WebEx integration can now be templated to allow for dynamic room IDs. #3801
+* [ENHANCEMENT] Enable setting `message_thread_id` for the Telegram integration. #3638
+* [ENHANCEMENT] Support the `since` and `humanizeDuration` functions to templates. This means users can now format time to more human-readable text. #3863
+* [ENHANCEMENT] Support the `date` and `tz` functions to templates. This means users can now format time in a specified format and also change the timezone to their specific locale. #3812
+* [ENHANCEMENT] Latency metrics now support native histograms. #3737
+* [ENHANCEMENT] Add full width to adaptive card for msteamsv2 #4135
+* [ENHANCEMENT] Add timeout option for webhook notifier. #4137
+* [ENHANCEMENT] Update config to allow showing secret values when marshaled #4158
+* [ENHANCEMENT] Enable templating for Jira project and issue_type #4159
+* [BUGFIX] Fix the SMTP integration not correctly closing an SMTP submission, which may lead to unsuccessful dispatches being marked as successful. #4006
+* [BUGFIX]  The `ParseMode` option is now set explicitly in the Telegram integration. If we don't HTML tags had not been parsed by default. #4027
+* [BUGFIX] Fix a memory leak that was caused by updates silences continuously. #3930
+* [BUGFIX] Fix hiding secret URLs when the URL is incorrect. #3887
+* [BUGFIX] Fix a race condition in the alerts - it was more of a hypothetical race condition that could have occurred in the alert reception pipeline. #3648
+* [BUGFIX] Fix a race condition in the alert delivery pipeline that would cause a firing alert that was delivered earlier to be deleted from the aggregation group when instead it should have been delivered again. #3826
+* [BUGFIX] Fix version in APIv1 deprecation notice. #3815
+* [BUGFIX] Fix crash errors when using `url_file` in the Webhook integration. #3800
+* [BUGFIX] fix `Route.ID()` returns conflicting IDs. #3803
+* [BUGFIX] Fix deadlock on the alerts memory store. #3715
+* [BUGFIX] Fix `amtool template render` when using the default values. #3725
+* [BUGFIX] Fix `webhook_url_file` for both the Discord and Microsoft Teams integrations. #3728 #3745
+* [BUGFIX] Fix wechat api link #4084
+* [BUGFIX] Fix build info metric #4166
+* [BUGFIX] Fix UTF-8 not allowed in Equal field for inhibition rules #4177
+
+## 0.27.0 / 2024-02-28
+
+* [CHANGE] Discord Integration: Enforce max length in `message`. #3597
+* [CHANGE] API: Removal of all `api/v1/` endpoints. These endpoints now log and return a deprecation message and respond with a status code of `410`. #2970
+* [FEATURE] UTF-8 Support: Introduction of support for any UTF-8 character as part of label names and matchers. Please read more below. #3453, #3483, #3567, #3570
+* [FEATURE] Metrics: Introduced the experimental feature flag `--enable-feature=receiver-name-in-metrics` to include the receiver name in the following metrics: #3045
+  * `alertmanager_notifications_total`
+  * `alertmanager_notifications_failed_totall`
+  * `alertmanager_notification_requests_total`
+  * `alertmanager_notification_requests_failed_total`
+  * `alertmanager_notification_latency_seconds`
+* [FEATURE] Metrics: Introduced a new gauge named `alertmanager_inhibition_rules` that counts the number of configured inhibition rules. #3681
+* [FEATURE] Metrics: Introduced a new counter named `alertmanager_alerts_supressed_total` that tracks muted alerts, it contains a `reason` label to indicate the source of the mute. #3565
+* [ENHANCEMENT] Discord Integration: Introduced support for `webhook_url_file`. #3555
+* [ENHANCEMENT] Microsoft Teams Integration: Introduced support for `webhook_url_file`. #3555
+* [ENHANCEMENT] Microsoft Teams Integration: Add support for `summary`. #3616
+* [ENHANCEMENT] Metrics: Notification metrics now support two new values for the label `reason`, `contextCanceled` and `contextDeadlineExceeded`. #3631
+* [ENHANCEMENT] Email Integration: Contents of `auth_password_file` are now trimmed of prefixed and suffixed whitespace. #3680
+* [BUGFIX] amtool: Fixes the error `scheme required for webhook url` when using amtool with `--alertmanager.url`. #3509
+* [BUGFIX] Mixin: Fix `AlertmanagerFailedToSendAlerts`, `AlertmanagerClusterFailedToSendAlerts`, and `AlertmanagerClusterFailedToSendAlerts` to make sure they ignore the `reason` label. #3599
+
+### Removal of API v1
+
+The Alertmanager `v1` API has been deprecated since January 2019 with the release of Alertmanager `v0.16.0`. With the release of version `0.27.0` it is now removed.
+A successful HTTP request to any of the `v1` endpoints will log and return a deprecation message while responding with a status code of `410`.
+Please ensure you switch to the `v2` equivalent endpoint in your integrations before upgrading.
+
+### Alertmanager support for all UTF-8 characters in matchers and label names
+
+Starting with Alertmanager `v0.27.0`, we have a new parser for matchers that has a number of backwards incompatible changes. While most matchers will be forward-compatible, some will not. Alertmanager is operating a transition period where it supports both UTF-8 and classic matchers, so **it's entirely safe to upgrade without any additional configuration**. With that said, we recommend the following:
+
+- If this is a new Alertmanager installation, we recommend enabling UTF-8 strict mode before creating an Alertmanager configuration file. You can enable strict mode with `alertmanager --config.file=config.yml --enable-feature="utf8-strict-mode"`.
+
+- If this is an existing Alertmanager installation, we recommend running the Alertmanager in the default mode called fallback mode before enabling UTF-8 strict mode. In this mode, Alertmanager will log a warning if you need to make any changes to your configuration file before UTF-8 strict mode can be enabled. **Alertmanager will make UTF-8 strict mode the default in the next two versions**, so it's important to transition as soon as possible.
+
+Irrespective of whether an Alertmanager installation is a new or existing installation, you can also use `amtool` to validate that an Alertmanager configuration file is compatible with UTF-8 strict mode before enabling it in Alertmanager server by running `amtool check-config config.yml` and inspecting the log messages.
+
+Should you encounter any problems, you can run the Alertmanager with just the classic parser enabled by running `alertmanager --config.file=config.yml --enable-feature="classic-mode"`. If so, please submit a bug report via GitHub issues.
+
+## 0.26.0 / 2023-08-23
+
+* [SECURITY] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI. CVE-2023-40577
+* [CHANGE] Telegram Integration: `api_url` is now optional. #2981
+* [CHANGE] Telegram Integration: `ParseMode` default is now `HTML` instead of `MarkdownV2`. #2981
+* [CHANGE] Webhook Integration: `url` is now marked as a secret. It will no longer show up in the logs as clear-text. #3228
+* [CHANGE] Metrics: New label `reason` for `alertmanager_notifications_failed_total` metric to indicate the type of error of the alert delivery. #3094 #3307
+* [FEATURE] Clustering: New flag `--cluster.label`, to help to block any traffic that is not meant for the cluster. #3354
+* [FEATURE] Integrations: Add Microsoft Teams as a supported integration. #3324
+* [ENHANCEMENT] Telegram Integration: Support `bot_token_file` for loading this secret from a file. #3226
+* [ENHANCEMENT] Webhook Integration: Support `url_file` for loading this secret from a file. #3223
+* [ENHANCEMENT] Webhook Integration: Leading and trailing white space is now removed for the contents of `url_file`. #3363
+* [ENHANCEMENT] Pushover Integration: Support options `device` and `sound` (sound was previously supported but undocumented). #3318
+* [ENHANCEMENT] Pushover Integration: Support `user_key_file` and `token_file` for loading this secret from a file. #3200
+* [ENHANCEMENT] Slack Integration: Support errors wrapped in successful (HTTP status code 200) responses. #3121
+* [ENHANCEMENT] API: Add `CORS` and `Cache-Control` HTTP headers to all version 2 API routes. #3195
+* [ENHANCEMENT] UI: Receiver name is now visible as part of the alerts page. #3289
+* [ENHANCEMENT] Templating: Better default text when using `{{ .Annotations }}` and `{{ .Labels }}`. #3256
+* [ENHANCEMENT] Templating: Introduced a new function `trimSpace` which removes leading and trailing white spaces. #3223
+* [ENHANCEMENT] CLI: `amtool silence query` now supports the `--id` flag to query an individual silence. #3241
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_silences_maintenance_total` and `alertmanager_silences_maintenance_errors_total` to monitor maintenance of silences. #3285
+* [ENHANCEMENT] Logging: Log GroupKey and alerts on alert delivery when using debug mode. #3438
+* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209
+* [BUGFIX] Templating: Fixed a race condition when using the `title` function. It is now race-safe. #3278
+* [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
+* [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352
+* [BUGFIX] Clustering: Fixes a panic when `tls_client_config` is empty. #3443
+* [BUGFIX] Fix stored XSS via the /api/v1/alerts endpoint in the Alertmanager UI.
+
+## 0.25.0 / 2022-12-22
+
+* [CHANGE] Change the default `parse_mode` value from `MarkdownV2` to `HTML` for Telegram. #2981
+* [CHANGE] Make `api_url` field optional for Telegram. #2981
+* [CHANGE] Use CanonicalMIMEHeaderKey instead of TitleCasing for email headers. #3080
+* [CHANGE] Reduce the number of notification logs broadcasted between peers by expiring them after (2 * repeat interval). #2982
+* [FEATURE] Add `proxy_url` support for OAuth2 in HTTP client configuration. #3010
+* [FEATURE] Reload TLS certificate and key from disk when updated. #3168
+* [FEATURE] Add Discord integration. #2948
+* [FEATURE] Add Webex integration. #3132
+* [ENHANCEMENT] Add `--web.systemd-socket` flag to systemd socket activation listeners instead of port listeners (Linux only). #3140
+* [ENHANCEMENT] Add `enable_http2` support in HTTP client configuration. #3010
+* [ENHANCEMENT] Add `min_version` support to select the minimum TLS version in HTTP client configuration. #3010
+* [ENHANCEMENT] Add `max_version` support to select the maximum TLS version in HTTP client configuration. #3168
+* [ENHANCEMENT] Emit warning logs when truncating messages in notifications. #3145
+* [ENHANCEMENT] Add `--data.maintenance-interval` flag to define the interval between the garbage collection and snapshotting to disk of the silences and the notification logs. #2849
+* [ENHANCEMENT] Support HEAD method for the `/-/healty` and `/-/ready` endpoints. #3039
+* [ENHANCEMENT] Truncate messages with the `…` ellipsis character instead of the 3-dots string `...`. #3072
+* [ENHANCEMENT] Add support for reading global and local SMTP passwords from files. #3038
+* [ENHANCEMENT] Add Location support to time intervals. #2782
+* [ENHANCEMENT] UI: Add 'Link' button to alerts in list. #2880
+* [ENHANCEMENT] Add the `source` field to the PagerDuty configuration. #3106
+* [ENHANCEMENT] Add support for reading PagerDuty routing and service keys from files. #3107
+* [ENHANCEMENT] Log response details when notifications fail for Webhooks, Pushover and VictorOps. #3103
+* [ENHANCEMENT] UI: Allow to choose the first day of the week as Sunday or Monday. #3093
+* [ENHANCEMENT] Add support for reading VictorOps API key from file. #3111
+* [ENHANCEMENT] Support templating for Opsgenie's responder type. #3060
+* [BUGFIX] Fail configuration loading if `api_key` and `api_key_file` are defined at the same time. #2910
+* [BUGFIX] Fix the `alertmanager_alerts` metric to avoid counting resolved alerts as active. Also added a new `alertmanager_marked_alerts` metric that retain the old behavior. #2943
+* [BUGFIX] Trim contents of Slack API URLs when reading from files. #2929
+* [BUGFIX] amtool: Avoid panic when the label value matcher is empty. #2968
+* [BUGFIX] Fail configuration loading if `api_url` is empty for OpsGenie. #2910
+* [BUGFIX] Fix email template for resolved notifications. #3166
+* [BUGFIX] Use the HTML template engine when the parse mode is HTML for Telegram. #3183
+
+## 0.24.0 / 2022-03-24
 
 * [CHANGE] Add the `/api/v2` prefix to all endpoints in the OpenAPI specification and generated client code. #2696
 * [CHANGE] Remove the `github.com/prometheus/alertmanager/client` Go package. #2763

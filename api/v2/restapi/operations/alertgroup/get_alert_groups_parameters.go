@@ -39,6 +39,7 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 		activeDefault = bool(true)
 
 		inhibitedDefault = bool(true)
+		mutedDefault     = bool(true)
 
 		silencedDefault = bool(true)
 	)
@@ -47,6 +48,8 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 		Active: &activeDefault,
 
 		Inhibited: &inhibitedDefault,
+
+		Muted: &mutedDefault,
 
 		Silenced: &silencedDefault,
 	}
@@ -76,6 +79,11 @@ type GetAlertGroupsParams struct {
 	  Default: true
 	*/
 	Inhibited *bool
+	/*Show muted alerts
+	  In: query
+	  Default: true
+	*/
+	Muted *bool
 	/*A regex matching receivers to filter alerts by
 	  In: query
 	*/
@@ -113,6 +121,11 @@ func (o *GetAlertGroupsParams) BindRequest(r *http.Request, route *middleware.Ma
 		res = append(res, err)
 	}
 
+	qMuted, qhkMuted, _ := qs.GetOK("muted")
+	if err := o.bindMuted(qMuted, qhkMuted, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
 	qReceiver, qhkReceiver, _ := qs.GetOK("receiver")
 	if err := o.bindReceiver(qReceiver, qhkReceiver, route.Formats); err != nil {
 		res = append(res, err)
@@ -122,7 +135,6 @@ func (o *GetAlertGroupsParams) BindRequest(r *http.Request, route *middleware.Ma
 	if err := o.bindSilenced(qSilenced, qhkSilenced, route.Formats); err != nil {
 		res = append(res, err)
 	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
@@ -138,6 +150,7 @@ func (o *GetAlertGroupsParams) bindActive(rawData []string, hasKey bool, formats
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertGroupsParams()
 		return nil
@@ -156,10 +169,8 @@ func (o *GetAlertGroupsParams) bindActive(rawData []string, hasKey bool, formats
 //
 // Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
 func (o *GetAlertGroupsParams) bindFilter(rawData []string, hasKey bool, formats strfmt.Registry) error {
-
 	// CollectionFormat: multi
 	filterIC := rawData
-
 	if len(filterIC) == 0 {
 		return nil
 	}
@@ -185,6 +196,7 @@ func (o *GetAlertGroupsParams) bindInhibited(rawData []string, hasKey bool, form
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertGroupsParams()
 		return nil
@@ -199,6 +211,30 @@ func (o *GetAlertGroupsParams) bindInhibited(rawData []string, hasKey bool, form
 	return nil
 }
 
+// bindMuted binds and validates parameter Muted from query.
+func (o *GetAlertGroupsParams) bindMuted(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetAlertGroupsParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("muted", "query", "bool", raw)
+	}
+	o.Muted = &value
+
+	return nil
+}
+
 // bindReceiver binds and validates parameter Receiver from query.
 func (o *GetAlertGroupsParams) bindReceiver(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
@@ -208,10 +244,10 @@ func (o *GetAlertGroupsParams) bindReceiver(rawData []string, hasKey bool, forma
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		return nil
 	}
-
 	o.Receiver = &raw
 
 	return nil
@@ -226,6 +262,7 @@ func (o *GetAlertGroupsParams) bindSilenced(rawData []string, hasKey bool, forma
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertGroupsParams()
 		return nil
