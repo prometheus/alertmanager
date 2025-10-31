@@ -81,7 +81,7 @@ func TestSearchExistingIssue(t *testing.T) {
 				return
 			}
 			require.Equal(t, expectedJQL, data.JQL)
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
@@ -321,7 +321,7 @@ func TestJiraTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/search":
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
@@ -464,7 +464,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -509,7 +508,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -562,7 +560,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -612,7 +609,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-1",
@@ -668,7 +664,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",
@@ -723,7 +718,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",
