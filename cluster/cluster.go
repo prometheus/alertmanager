@@ -83,6 +83,10 @@ type Peer struct {
 	peerJoinCounter            prometheus.Counter
 
 	logger *slog.Logger
+
+	// This allows inspecting leave and join events in a unit testing context.
+	notifyJoinTest  func(n *memberlist.Node)
+	notifyLeaveTest func(n *memberlist.Node)
 }
 
 // peer is an internal type used for bookkeeping. It holds the state of peers
@@ -199,13 +203,15 @@ func Create(
 	}
 
 	p := &Peer{
-		states:        map[string]State{},
-		stopc:         make(chan struct{}),
-		readyc:        make(chan struct{}),
-		logger:        l,
-		peers:         map[string]peer{},
-		resolvedPeers: resolvedPeers,
-		knownPeers:    knownPeers,
+		states:          map[string]State{},
+		stopc:           make(chan struct{}),
+		readyc:          make(chan struct{}),
+		logger:          l,
+		peers:           map[string]peer{},
+		resolvedPeers:   resolvedPeers,
+		knownPeers:      knownPeers,
+		notifyJoinTest:  func(_ *memberlist.Node) {},
+		notifyLeaveTest: func(_ *memberlist.Node) {},
 	}
 
 	p.register(reg, name)

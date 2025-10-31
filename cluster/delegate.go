@@ -245,12 +245,14 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 func (d *delegate) NotifyJoin(n *memberlist.Node) {
 	d.logger.Debug("NotifyJoin", "node", n.Name, "addr", n.Address())
 	d.peerJoin(n)
+	d.notifyJoinTest(n)
 }
 
 // NotifyLeave is called if a peer leaves the cluster.
 func (d *delegate) NotifyLeave(n *memberlist.Node) {
 	d.logger.Debug("NotifyLeave", "node", n.Name, "addr", n.Address())
 	d.peerLeave(n)
+	d.notifyLeaveTest(n)
 }
 
 // NotifyUpdate is called if a cluster peer gets updated.
