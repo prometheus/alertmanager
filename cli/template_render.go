@@ -17,12 +17,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/template"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 var defaultData = template.Data{
@@ -30,7 +32,7 @@ var defaultData = template.Data{
 	Status:   "alertstatus",
 	Alerts: template.Alerts{
 		template.Alert{
-			Status: "alertstatus",
+			Status: string(model.AlertFiring),
 			Labels: template.KV{
 				"label1":          "value1",
 				"label2":          "value2",
@@ -50,7 +52,7 @@ var defaultData = template.Data{
 			Fingerprint:  "fingerprint1",
 		},
 		template.Alert{
-			Status: "alertstatus",
+			Status: string(model.AlertResolved),
 			Labels: template.KV{
 				"foo":             "bar",
 				"baz":             "qux",
@@ -106,7 +108,7 @@ func configureTemplateRenderCmd(cc *kingpin.CmdClause) {
 }
 
 func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext) error {
-	tmpl, err := template.FromGlobs(c.templateFilesGlobs...)
+	tmpl, err := template.FromGlobs(c.templateFilesGlobs)
 	if err != nil {
 		return err
 	}
@@ -120,7 +122,7 @@ func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext)
 	if c.templateData == nil {
 		data = defaultData
 	} else {
-		content, err := ioutil.ReadAll(c.templateData)
+		content, err := io.ReadAll(c.templateData)
 		if err != nil {
 			return err
 		}

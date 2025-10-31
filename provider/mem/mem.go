@@ -15,11 +15,12 @@ package mem
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -33,14 +34,19 @@ const alertChannelLength = 200
 type Alerts struct {
 	cancel context.CancelFunc
 
-	mtx       sync.Mutex
-	alerts    *store.Alerts
+	mtx sync.Mutex
+
+	alerts *store.Alerts
+	marker types.AlertMarker
+
 	listeners map[int]listeningAlerts
 	next      int
 
 	callback AlertStoreCallback
 
-	logger log.Logger
+	logger *slog.Logger
+
+	subscriberChannelWrites *prometheus.CounterVec
 }
 
 type AlertStoreCallback interface {
@@ -58,49 +64,99 @@ type AlertStoreCallback interface {
 }
 
 type listeningAlerts struct {
+	name   string
 	alerts chan *types.Alert
 	done   chan struct{}
 }
 
+func (a *Alerts) registerMetrics(r prometheus.Registerer) {
+	newMemAlertByStatus := func(s types.AlertState) prometheus.GaugeFunc {
+		return promauto.With(r).NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "alertmanager_alerts",
+				Help:        "How many alerts by state.",
+				ConstLabels: prometheus.Labels{"state": string(s)},
+			},
+			func() float64 {
+				return float64(a.count(s))
+			},
+		)
+	}
+
+	newMemAlertByStatus(types.AlertStateActive)
+	newMemAlertByStatus(types.AlertStateSuppressed)
+	newMemAlertByStatus(types.AlertStateUnprocessed)
+
+	a.subscriberChannelWrites = promauto.With(r).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_alerts_subscriber_channel_writes_total",
+			Help: "Number of times alerts were written to subscriber channels",
+		},
+		[]string{"subscriber"},
+	)
+}
+
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
+		marker:    m,
 		alerts:    store.NewAlerts(),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
 		next:      0,
-		logger:    log.With(l, "component", "provider"),
+		logger:    l.With("component", "provider"),
 		callback:  alertCallback,
 	}
-	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
-		for _, alert := range alerts {
-			// As we don't persist alerts, we no longer consider them after
-			// they are resolved. Alerts waiting for resolved notifications are
-			// held in memory in aggregation groups redundantly.
-			m.Delete(alert.Fingerprint())
-			a.callback.PostDelete(alert)
-		}
 
-		a.mtx.Lock()
-		for i, l := range a.listeners {
-			select {
-			case <-l.done:
-				delete(a.listeners, i)
-				close(l.alerts)
-			default:
-				// listener is not closed yet, hence proceed.
-			}
-		}
-		a.mtx.Unlock()
-	})
-	go a.alerts.Run(ctx, intervalGC)
+	if r != nil {
+		a.registerMetrics(r)
+	}
+
+	go a.gcLoop(ctx, intervalGC)
 
 	return a, nil
+}
+
+func (a *Alerts) gcLoop(ctx context.Context, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.gc()
+		}
+	}
+}
+
+func (a *Alerts) gc() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	deleted := a.alerts.GC()
+	for _, alert := range deleted {
+		// As we don't persist alerts, we no longer consider them after
+		// they are resolved. Alerts waiting for resolved notifications are
+		// held in memory in aggregation groups redundantly.
+		a.marker.Delete(alert.Fingerprint())
+		a.callback.PostDelete(&alert)
+	}
+
+	for i, l := range a.listeners {
+		select {
+		case <-l.done:
+			delete(a.listeners, i)
+			close(l.alerts)
+		default:
+			// listener is not closed yet, hence proceed.
+		}
+	}
 }
 
 // Close the alert provider.
@@ -120,10 +176,9 @@ func max(a, b int) int {
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
-func (a *Alerts) Subscribe() provider.AlertIterator {
+func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
@@ -134,7 +189,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 		ch <- a
 	}
 
-	a.listeners[a.next] = listeningAlerts{alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
@@ -147,11 +202,13 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	alerts := a.alerts.List()
 
 	go func() {
 		defer close(ch)
-
-		for _, a := range a.alerts.List() {
+		for _, a := range alerts {
 			select {
 			case ch <- a:
 			case <-done:
@@ -165,11 +222,16 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 
 // Get returns the alert for a given fingerprint.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	return a.alerts.Get(fp)
 }
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
@@ -188,28 +250,49 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		}
 
 		if err := a.callback.PreStore(alert, existing); err != nil {
-			level.Error(a.logger).Log("msg", "pre-store callback returned error on set alert", "err", err)
+			a.logger.Error("pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
-			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
+			a.logger.Error("error on set alert", "err", err)
 			continue
 		}
 
 		a.callback.PostStore(alert, existing)
 
-		a.mtx.Lock()
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
+				a.subscriberChannelWrites.WithLabelValues(l.name).Inc()
 			case <-l.done:
 			}
 		}
-		a.mtx.Unlock()
 	}
 
 	return nil
+}
+
+// count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
+func (a *Alerts) count(state types.AlertState) int {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	var count int
+	for _, alert := range a.alerts.List() {
+		if alert.Resolved() {
+			continue
+		}
+
+		status := a.marker.Status(alert.Fingerprint())
+		if status.State != state {
+			continue
+		}
+
+		count++
+	}
+
+	return count
 }
 
 type noopCallback struct{}

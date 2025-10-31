@@ -17,18 +17,16 @@ import (
 	"io"
 	"time"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
 
-var (
-	dateFormat *string
-)
+var dateFormat *string
 
 func InitFormatFlags(app *kingpin.Application) {
 	dateFormat = app.Flag("date.format", "Format of date output").Default(DefaultDateFormat).String()

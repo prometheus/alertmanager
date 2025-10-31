@@ -43,10 +43,10 @@ func checkResolvedReceivers(mainRoute *dispatch.Route, ls models.LabelSet, expec
 
 func TestRoutingTest(t *testing.T) {
 	tests := []*routingTestDefinition{
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "1"}, expectedReceivers: []string{"test1"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test1", "test2"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing-reverted.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test2", "test1"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "volovina"}, expectedReceivers: []string{"default"}},
+		{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "1"}, expectedReceivers: []string{"test1"}},
+		{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test1", "test2"}},
+		{configFile: "testdata/conf.routing-reverted.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test2", "test1"}},
+		{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "volovina"}, expectedReceivers: []string{"default"}},
 	}
 
 	for _, test := range tests {

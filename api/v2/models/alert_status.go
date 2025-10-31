@@ -20,6 +20,7 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/go-openapi/errors"
@@ -37,13 +38,17 @@ type AlertStatus struct {
 	// Required: true
 	InhibitedBy []string `json:"inhibitedBy"`
 
+	// muted by
+	// Required: true
+	MutedBy []string `json:"mutedBy"`
+
 	// silenced by
 	// Required: true
 	SilencedBy []string `json:"silencedBy"`
 
 	// state
 	// Required: true
-	// Enum: [unprocessed active suppressed]
+	// Enum: ["unprocessed","active","suppressed"]
 	State *string `json:"state"`
 }
 
@@ -52,6 +57,10 @@ func (m *AlertStatus) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateInhibitedBy(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateMutedBy(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -72,6 +81,15 @@ func (m *AlertStatus) Validate(formats strfmt.Registry) error {
 func (m *AlertStatus) validateInhibitedBy(formats strfmt.Registry) error {
 
 	if err := validate.Required("inhibitedBy", "body", m.InhibitedBy); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *AlertStatus) validateMutedBy(formats strfmt.Registry) error {
+
+	if err := validate.Required("mutedBy", "body", m.MutedBy); err != nil {
 		return err
 	}
 
@@ -130,6 +148,11 @@ func (m *AlertStatus) validateState(formats strfmt.Registry) error {
 		return err
 	}
 
+	return nil
+}
+
+// ContextValidate validates this alert status based on context it is used
+func (m *AlertStatus) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 

@@ -20,9 +20,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 )
 
 func TestNormalMessagesGossiped(t *testing.T) {
@@ -45,7 +45,7 @@ func TestOversizedMessagesGossiped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := newChannel(
 		func(_ []byte) {},
-		func() []*memberlist.Node { return []*memberlist.Node{&memberlist.Node{}} },
+		func() []*memberlist.Node { return []*memberlist.Node{{}} },
 		func(_ *memberlist.Node, _ []byte) error { sent = true; cancel(); return nil },
 	)
 
@@ -82,7 +82,7 @@ func newChannel(
 		send,
 		peers,
 		sendOversize,
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 		make(chan struct{}),
 		prometheus.NewRegistry(),
 	)

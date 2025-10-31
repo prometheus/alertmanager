@@ -19,10 +19,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/xlab/treeprint"
+
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/xlab/treeprint"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const routingTestHelp = `Test alert routing
@@ -40,7 +43,7 @@ Example:
 `
 
 func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
-	var routingTestCmd = cc.Command("test", routingTestHelp)
+	routingTestCmd := cc.Command("test", routingTestHelp)
 
 	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers. The command fails if the labelset does not route to the specified receivers.").StringVar(&c.expectedReceivers)
 	routingTestCmd.Flag("tree", "Prints out matching routes tree.").BoolVar(&c.debugTree)
@@ -79,9 +82,16 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
 	// Parse labels to LabelSet.
-	ls, err := parseLabels(c.labels)
-	if err != nil {
-		kingpin.Fatalf("Failed to parse labels: %v\n", err)
+	ls := make(models.LabelSet, len(c.labels))
+	for _, l := range c.labels {
+		matcher, err := compat.Matcher(l, "cli")
+		if err != nil {
+			kingpin.Fatalf("Failed to parse labels: %v\n", err)
+		}
+		if matcher.Type != labels.MatchEqual {
+			kingpin.Fatalf("%s\n", "Labels must be specified as key=value pairs")
+		}
+		ls[matcher.Name] = matcher.Value
 	}
 
 	if c.debugTree {

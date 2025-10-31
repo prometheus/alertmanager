@@ -25,10 +25,62 @@ func TestMatchers(t *testing.T) {
 		err   string
 	}{
 		{
+			input: `{}`,
+			want:  make([]*Matcher, 0),
+		},
+		{
+			input: `,`,
+			err:   "bad matcher format: ",
+		},
+		{
+			input: `{,}`,
+			err:   "bad matcher format: ",
+		},
+		{
+			input: `{foo='}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "'")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: "{foo=`}",
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "`")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: "{foo=\\\"}",
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "\"")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{foo="bar"}`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
 				m, _ := NewMatcher(MatchEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=~bar.*}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
@@ -41,10 +93,26 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{foo!=bar}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchNotEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{foo!="bar"}`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
 				m, _ := NewMatcher(MatchNotEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo!~bar.*}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchNotRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
@@ -190,6 +258,78 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{foo=bar}}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar}")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar}},}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar}}")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=,bar=}}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m1, _ := NewMatcher(MatchEqual, "foo", "")
+				m2, _ := NewMatcher(MatchEqual, "bar", "}")
+				return append(ms, m1, m2)
+			}(),
+		},
+		{
+			input: `{foo=bar\t}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\\t")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\n}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\n")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\\}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\\")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar\"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar\"")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `job=`,
+			want: func() []*Matcher {
+				m, _ := NewMatcher(MatchEqual, "job", "")
+				return []*Matcher{m}
+			}(),
+		},
+		{
 			input: `job="value`,
 			err:   `matcher value contains unescaped double quote: "value`,
 		},
@@ -238,6 +378,26 @@ func TestMatchers(t *testing.T) {
 			input: `"foo="bar""`,
 			err:   `bad matcher format: "foo="bar""`,
 		},
+		{
+			input: `{{foo=`,
+			err:   `bad matcher format: {foo=`,
+		},
+		{
+			input: `{foo=`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=}b`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "}b")
+				return append(ms, m)
+			}(),
+		},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			got, err := ParseMatchers(tc.input)
@@ -255,5 +415,4 @@ func TestMatchers(t *testing.T) {
 			}
 		})
 	}
-
 }

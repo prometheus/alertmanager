@@ -45,8 +45,12 @@ titleView alert =
 
 generatorUrlButton : String -> Html msg
 generatorUrlButton url =
-    a
-        [ class "btn btn-outline-info border-0", href url ]
-        [ i [ class "fa fa-line-chart mr-2" ] []
-        , text "Source"
-        ]
+    if String.startsWith "http://" url || String.startsWith "https://" url then
+        a
+            [ class "btn btn-outline-info border-0", href url ]
+            [ i [ class "fa fa-line-chart mr-2" ] []
+            , text "Source"
+            ]
+
+    else
+        text ""

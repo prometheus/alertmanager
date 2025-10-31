@@ -14,11 +14,10 @@
 package labels
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -45,11 +44,12 @@ var (
 // this comma and whitespace will be trimmed.
 //
 // Examples for valid input strings:
-//   {foo = "bar", dings != "bums", }
-//   foo=bar,dings!=bums
-//   foo=bar, dings!=bums
-//   {quote="She said: \"Hi, ladies! That's gender-neutral…\""}
-//   statuscode=~"5.."
+//
+//	{foo = "bar", dings != "bums", }
+//	foo=bar,dings!=bums
+//	foo=bar, dings!=bums
+//	{quote="She said: \"Hi, ladies! That's gender-neutral…\""}
+//	statuscode=~"5.."
 //
 // See ParseMatcher for details on how an individual Matcher is parsed.
 func ParseMatchers(s string) ([]*Matcher, error) {
@@ -117,7 +117,7 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 func ParseMatcher(s string) (_ *Matcher, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) == 0 {
-		return nil, errors.Errorf("bad matcher format: %s", s)
+		return nil, fmt.Errorf("bad matcher format: %s", s)
 	}
 
 	var (
@@ -127,16 +127,16 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		expectTrailingQuote bool
 	)
 
-	if rawValue[0] == '"' {
+	if strings.HasPrefix(rawValue, "\"") {
 		rawValue = strings.TrimPrefix(rawValue, "\"")
 		expectTrailingQuote = true
 	}
 
 	if !utf8.ValidString(rawValue) {
-		return nil, errors.Errorf("matcher value not valid UTF-8: %s", ms[3])
+		return nil, fmt.Errorf("matcher value not valid UTF-8: %s", ms[3])
 	}
 
-	// Unescape the rawValue:
+	// Unescape the rawValue.
 	for i, r := range rawValue {
 		if escaped {
 			escaped = false
@@ -162,7 +162,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 			value.WriteByte('\\')
 		case '"':
 			if !expectTrailingQuote || i < len(rawValue)-1 {
-				return nil, errors.Errorf("matcher value contains unescaped double quote: %s", ms[3])
+				return nil, fmt.Errorf("matcher value contains unescaped double quote: %s", ms[3])
 			}
 			expectTrailingQuote = false
 		default:
@@ -171,7 +171,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 	}
 
 	if expectTrailingQuote {
-		return nil, errors.Errorf("matcher value contains unescaped double quote: %s", ms[3])
+		return nil, fmt.Errorf("matcher value contains unescaped double quote: %s", ms[3])
 	}
 
 	return NewMatcher(typeMap[ms[2]], ms[1], value.String())

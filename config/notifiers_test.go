@@ -14,9 +14,13 @@
 package config
 
 import (
+	"errors"
+	"net/mail"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -57,43 +61,123 @@ headers:
 	}
 }
 
-func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
+func TestEmailToAllowsMultipleAdresses(t *testing.T) {
 	in := `
-routing_key: ''
+to: 'a@example.com, ,b@example.com,c@example.com'
 `
-	var cfg PagerdutyConfig
+	var cfg EmailConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "missing service or routing key in PagerDuty config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+
+	expected := []*mail.Address{
+		{Address: "a@example.com"},
+		{Address: "b@example.com"},
+		{Address: "c@example.com"},
+	}
+
+	res, err := mail.ParseAddressList(cfg.To)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(res, expected) {
+		t.Fatalf("expected %v, got %v", expected, res)
 	}
 }
 
-func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
+func TestEmailDisallowMalformed(t *testing.T) {
 	in := `
+to: 'a@'
+`
+	var cfg EmailConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = mail.ParseAddressList(cfg.To)
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", "mail: no angle-addr")
+	}
+}
+
+func TestPagerdutyTestRoutingKey(t *testing.T) {
+	t.Run("error if no routing key or key file", func(t *testing.T) {
+		in := `
+routing_key: ''
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "missing service or routing key in PagerDuty config"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both routing key and key file", func(t *testing.T) {
+		in := `
+routing_key: 'xyz'
+routing_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of routing_key & routing_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+}
+
+func TestPagerdutyServiceKey(t *testing.T) {
+	t.Run("error if no service key or key file", func(t *testing.T) {
+		in := `
 service_key: ''
 `
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing service or routing key in PagerDuty config"
+		expected := "missing service or routing key in PagerDuty config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both service key and key file", func(t *testing.T) {
+		in := `
+service_key: 'xyz'
+service_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of service_key & service_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestPagerdutyDetails(t *testing.T) {
-
-	var tests = []struct {
+	tests := []struct {
 		in      string
 		checkFn func(map[string]string)
 	}{
@@ -137,7 +221,6 @@ details:
 	for _, tc := range tests {
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
-
 		if err != nil {
 			t.Errorf("expected no error, got:%v", err)
 		}
@@ -148,12 +231,64 @@ details:
 	}
 }
 
+func TestPagerDutySource(t *testing.T) {
+	for _, tc := range []struct {
+		title string
+		in    string
+
+		expectedSource string
+	}{
+		{
+			title: "check source field is backward compatible",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+`,
+			expectedSource: "alert-manager-client",
+		},
+		{
+			title: "check source field is set",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+source: 'alert-manager-source'
+`,
+			expectedSource: "alert-manager-source",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			var cfg PagerdutyConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedSource, cfg.Source)
+		})
+	}
+}
+
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing URL in webhook config"
+	expected := "one of url or url_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestWebhookURLOrURLFile(t *testing.T) {
+	in := `
+url: 'http://example.com'
+url_file: 'http://example.com'
+`
+	var cfg WebhookConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of url & url_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -189,7 +324,6 @@ url: 'http://example.com'
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -205,7 +339,6 @@ http_config:
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -219,21 +352,54 @@ http_config:
 	}
 }
 
-func TestVictorOpsRoutingKeyIsPresent(t *testing.T) {
-	in := `
+func TestVictorOpsConfiguration(t *testing.T) {
+	t.Run("valid configuration", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err != nil {
+			t.Fatalf("no error was expected:\n%v", err)
+		}
+	})
+
+	t.Run("routing key is missing", func(t *testing.T) {
+		in := `
 routing_key: ''
 `
-	var cfg VictorOpsConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing Routing key in VictorOps config"
+		expected := "missing Routing key in VictorOps config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("api_key and api_key_file both defined", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key: xyz
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of api_key & api_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestVictorOpsCustomFieldsValidation(t *testing.T) {
@@ -245,7 +411,7 @@ custom_fields:
 	var cfg VictorOpsConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "VictorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
+	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -276,7 +442,6 @@ custom_fields:
 	if val != expected {
 		t.Errorf("\nexpected custom field my_special_field value:\n%v\ngot:\n%v", expected, val)
 	}
-
 }
 
 func TestPushoverUserKeyIsPresent(t *testing.T) {
@@ -286,7 +451,25 @@ user_key: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing user key in Pushover config"
+	expected := "one of user_key or user_key_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverUserKeyOrUserKeyFile(t *testing.T) {
+	in := `
+user_key: 'user key'
+user_key_file: /pushover/user_key
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of user_key & user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -304,7 +487,46 @@ token: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing token in Pushover config"
+	expected := "one of token or token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverTokenOrTokenFile(t *testing.T) {
+	in := `
+token: 'pushover token'
+token_file: /pushover/token
+user_key: 'user key'
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of token & token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverHTMLOrMonospace(t *testing.T) {
+	in := `
+token: 'pushover token'
+user_key: 'user key'
+html: true
+monospace: true
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of monospace & html must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -315,7 +537,7 @@ token: ''
 }
 
 func TestLoadSlackConfiguration(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		in       string
 		expected SlackConfig
 	}{
@@ -327,9 +549,11 @@ channel: engineering
 title_link: http://example.com/
 image_url: https://example.com/logo.png
 `,
-			expected: SlackConfig{Color: "green", Username: "mark", Channel: "engineering",
+			expected: SlackConfig{
+				Color: "green", Username: "mark", Channel: "engineering",
 				TitleLink: "http://example.com/",
-				ImageURL:  "https://example.com/logo.png"},
+				ImageURL:  "https://example.com/logo.png",
+			},
 		},
 		{
 			in: `
@@ -341,9 +565,12 @@ mrkdwn_in:
 - pretext
 - text
 `,
-			expected: SlackConfig{Color: "green", Username: "mark", Channel: "alerts",
-				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1"},
-		}}
+			expected: SlackConfig{
+				Color: "green", Username: "mark", Channel: "alerts",
+				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1",
+			},
+		},
+	}
 	for _, rt := range tests {
 		var cfg SlackConfig
 		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
@@ -380,7 +607,7 @@ mrkdwn_in:
 }
 
 func TestSlackFieldConfigValidation(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		in       string
 		expected string
 	}{
@@ -449,17 +676,17 @@ fields:
   short: false
 `
 	expected := []*SlackField{
-		&SlackField{
+		{
 			Title: "first",
 			Value: "hello",
 			Short: newBoolPointer(true),
 		},
-		&SlackField{
+		{
 			Title: "second",
 			Value: "world",
 			Short: nil,
 		},
-		&SlackField{
+		{
 			Title: "third",
 			Value: "slack field test",
 			Short: newBoolPointer(false),
@@ -590,6 +817,177 @@ func TestOpsgenieTypeMatcher(t *testing.T) {
 	}
 }
 
+func TestOpsGenieConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+
+		err bool
+	}{
+		{
+			name: "valid configuration",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: scheDule
+- name: bar
+  type: teams
+- username: fred
+  type: USER
+api_url: http://example.com
+`,
+		},
+		{
+			name: "api_key and api_key_file both defined",
+			in: `api_key: xyz
+api_key_file: xyz
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "invalid responder type",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: wrong
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "missing responder field",
+			in: `api_key: xyz
+responders:
+- type: schedule
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "valid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* valid comment */}}team"
+api_url: http://example.com
+`,
+		},
+		{
+			name: "invalid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* invalid comment }}team"
+api_url: http://example.com
+`,
+			err: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg OpsGenieConfig
+
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if tc.err {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestSNS(t *testing.T) {
+	for _, tc := range []struct {
+		in  string
+		err bool
+	}{
+		{
+			// Valid configuration without sigv4.
+			in:  `target_arn: target`,
+			err: false,
+		},
+		{
+			// Valid configuration without sigv4.
+			in:  `topic_arn: topic`,
+			err: false,
+		},
+		{
+			// Valid configuration with sigv4.
+			in: `phone_number: phone
+sigv4:
+    access_key: abc
+    secret_key: abc
+`,
+			err: false,
+		},
+		{
+			// at most one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
+			in: `topic_arn: topic
+target_arn: target
+`,
+			err: true,
+		},
+		{
+			// at most one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
+			in: `topic_arn: topic
+phone_number: phone
+`,
+			err: true,
+		},
+		{
+			// one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
+			in:  "{}",
+			err: true,
+		},
+		{
+			// one of 'target_arn', 'topic_arn' or 'phone_number' must be provided with sigv4.
+			in: `sigv4:
+    access_key: abc
+    secret_key: abc
+`,
+			err: true,
+		},
+		{
+			// 'secret_key' must be provided with 'access_key'.
+			in: `topic_arn: topic
+sigv4:
+    access_key: abc
+`,
+			err: true,
+		},
+		{
+			// 'access_key' must be provided with 'secret_key'.
+			in: `topic_arn: topic
+sigv4:
+    secret_key: abc
+`,
+			err: true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			var cfg SNSConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if err != nil {
+				if !tc.err {
+					t.Errorf("expecting no error, got %q", err)
+				}
+				return
+			}
+
+			if tc.err {
+				t.Logf("%#v", cfg)
+				t.Error("expecting error, got none")
+			}
+		})
+	}
+}
+
 func TestWeChatTypeMatcher(t *testing.T) {
 	good := []string{"text", "markdown"}
 	for _, g := range good {
@@ -602,6 +1000,113 @@ func TestWeChatTypeMatcher(t *testing.T) {
 		if wechatTypeMatcher.MatchString(b) {
 			t.Errorf("mistakenly match with %s", b)
 		}
+	}
+}
+
+func TestWebexConfiguration(t *testing.T) {
+	tc := []struct {
+		name string
+
+		in       string
+		expected error
+	}{
+		{
+			name: "with no room_id - it fails",
+			in: `
+message: xyz123
+`,
+			expected: errors.New("missing room_id on webex_config"),
+		},
+		{
+			name: "with room_id and http_config.authorization set - it succeeds",
+			in: `
+room_id: 2
+http_config:
+  authorization:
+    credentials: "xxxyyyzz"
+`,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg WebexConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
+	}
+}
+
+func TestTelegramConfiguration(t *testing.T) {
+	tc := []struct {
+		name     string
+		in       string
+		expected error
+	}{
+		{
+			name: "with both bot_token & bot_token_file - it fails",
+			in: `
+bot_token: xyz
+bot_token_file: /file
+`,
+			expected: errors.New("at most one of bot_token & bot_token_file must be configured"),
+		},
+		{
+			name: "with no bot_token & bot_token_file - it fails",
+			in: `
+bot_token: ''
+bot_token_file: ''
+`,
+			expected: errors.New("missing bot_token or bot_token_file on telegram_config"),
+		},
+		{
+			name: "with bot_token and chat_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token, chat_id and message_thread_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+message_thread_id: 456
+`,
+		},
+		{
+			name: "with bot_token_file and chat_id set - it succeeds",
+			in: `
+bot_token_file: /file
+chat_id: 123
+`,
+		},
+		{
+			name: "with no chat_id set - it fails",
+			in: `
+bot_token: xyz
+`,
+			expected: errors.New("missing chat_id on telegram_config"),
+		},
+		{
+			name: "with unknown parse_mode - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+parse_mode: invalid
+`,
+			expected: errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string"),
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg TelegramConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
 	}
 }
 

@@ -16,8 +16,9 @@ package template
 import (
 	"bytes"
 	tmplhtml "html/template"
-	"io/ioutil"
+	"io"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -25,7 +26,10 @@ import (
 	tmpltext "text/template"
 	"time"
 
+	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -39,55 +43,95 @@ type Template struct {
 	ExternalURL *url.URL
 }
 
-// FromGlobs calls ParseGlob on all path globs provided and returns the
-// resulting Template.
-func FromGlobs(paths ...string) (*Template, error) {
+// Option is generic modifier of the text and html templates used by a Template.
+type Option func(text *tmpltext.Template, html *tmplhtml.Template)
+
+// New returns a new Template with the DefaultFuncs added. The DefaultFuncs
+// have precedence over any added custom functions. Options allow customization
+// of the text and html templates in given order.
+func New(options ...Option) (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
 	}
-	var err error
 
-	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
-	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+	for _, o := range options {
+		o(t.text, t.html)
+	}
 
-	f, err := asset.Assets.Open("/templates/default.tmpl")
+	t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
+	t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+
+	return t, nil
+}
+
+// FromGlobs calls ParseGlob on all path globs provided and returns the
+// resulting Template.
+func FromGlobs(paths []string, options ...Option) (*Template, error) {
+	t, err := New(options...)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	b, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	if t.text, err = t.text.Parse(string(b)); err != nil {
-		return nil, err
-	}
-	if t.html, err = t.html.Parse(string(b)); err != nil {
-		return nil, err
-	}
 
-	for _, tp := range paths {
-		// ParseGlob in the template packages errors if not at least one file is
-		// matched. We want to allow empty matches that may be populated later on.
-		p, err := filepath.Glob(tp)
+	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
+
+	for _, file := range defaultTemplates {
+		f, err := asset.Assets.Open(path.Join("/templates", file))
 		if err != nil {
 			return nil, err
 		}
-		if len(p) > 0 {
-			if t.text, err = t.text.ParseGlob(tp); err != nil {
-				return nil, err
-			}
-			if t.html, err = t.html.ParseGlob(tp); err != nil {
-				return nil, err
-			}
+		if err := t.Parse(f); err != nil {
+			f.Close()
+			return nil, err
+		}
+		f.Close()
+	}
+
+	for _, tp := range paths {
+		if err := t.FromGlob(tp); err != nil {
+			return nil, err
 		}
 	}
 	return t, nil
 }
 
+// Parse parses the given text into the template.
+func (t *Template) Parse(r io.Reader) error {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	if t.text, err = t.text.Parse(string(b)); err != nil {
+		return err
+	}
+	if t.html, err = t.html.Parse(string(b)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FromGlob calls ParseGlob on given path glob provided and parses into the
+// template.
+func (t *Template) FromGlob(path string) error {
+	// ParseGlob in the template packages errors if not at least one file is
+	// matched. We want to allow empty matches that may be populated later on.
+	p, err := filepath.Glob(path)
+	if err != nil {
+		return err
+	}
+	if len(p) > 0 {
+		if t.text, err = t.text.ParseGlob(path); err != nil {
+			return err
+		}
+		if t.html, err = t.html.ParseGlob(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
+func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
 		return "", nil
 	}
@@ -105,7 +149,7 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 }
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
+func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if html == "" {
 		return "", nil
 	}
@@ -122,12 +166,17 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 	return buf.String(), err
 }
 
-type FuncMap map[string]interface{}
+type FuncMap map[string]any
 
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
-	"title":   strings.Title,
+	"title": func(text string) string {
+		// Casers should not be shared between goroutines, instead
+		// create a new caser each time this function is called.
+		return cases.Title(language.AmericanEnglish).String(text)
+	},
+	"trimSpace": strings.TrimSpace,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {
@@ -144,6 +193,20 @@ var DefaultFuncs = FuncMap{
 	"stringSlice": func(s ...string) []string {
 		return s
 	},
+	// date returns the text representation of the time in the specified format.
+	"date": func(fmt string, t time.Time) string {
+		return t.Format(fmt)
+	},
+	// tz returns the time in the timezone.
+	"tz": func(name string, t time.Time) (time.Time, error) {
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return t.In(loc), nil
+	},
+	"since":            time.Since,
+	"humanizeDuration": commonTemplates.HumanizeDuration,
 }
 
 // Pair is a key/value string pair.
@@ -170,6 +233,19 @@ func (ps Pairs) Values() []string {
 		vs = append(vs, p.Value)
 	}
 	return vs
+}
+
+func (ps Pairs) String() string {
+	b := strings.Builder{}
+	for i, p := range ps {
+		b.WriteString(p.Name)
+		b.WriteRune('=')
+		b.WriteString(p.Value)
+		if i < len(ps)-1 {
+			b.WriteString(", ")
+		}
+	}
+	return b.String()
 }
 
 // KV is a set of key/value string pairs.
@@ -222,6 +298,10 @@ func (kv KV) Names() []string {
 // Values returns a list of the values in the LabelSet.
 func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
+}
+
+func (kv KV) String() string {
+	return kv.SortedPairs().String()
 }
 
 // Data is the data passed to notification templates and webhook pushes.

@@ -3,8 +3,6 @@ title: Management API
 sort_rank: 9
 ---
 
-# Management API
-
 Alertmanager provides a set of management API to ease automation and integrations.
 
 
@@ -12,6 +10,7 @@ Alertmanager provides a set of management API to ease automation and integration
 
 ```
 GET /-/healthy
+HEAD /-/healthy
 ```
 
 This endpoint always returns 200 and should be used to check Alertmanager health.
@@ -21,6 +20,7 @@ This endpoint always returns 200 and should be used to check Alertmanager health
 
 ```
 GET /-/ready
+HEAD /-/ready
 ```
 
 This endpoint returns 200 when Alertmanager is ready to serve traffic (i.e. respond to queries).

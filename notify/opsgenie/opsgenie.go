@@ -18,13 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -34,17 +32,20 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// https://docs.opsgenie.com/docs/alert-api - 130 characters meaning runes.
+const maxMessageLenRunes = 130
+
 // Notifier implements a Notifier for OpsGenie notifications.
 type Notifier struct {
 	conf    *config.OpsGenieConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new OpsGenie notifier.
-func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -107,14 +108,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 		notify.Drain(resp)
 		if err != nil {
-			return shouldRetry, err
+			return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 		}
 	}
 	return true, nil
 }
 
 // Like Split but filter out empty strings.
-func safeSplit(s string, sep string) []string {
+func safeSplit(s, sep string) []string {
 	a := strings.Split(strings.TrimSpace(s), sep)
 	b := a[:0]
 	for _, x := range a {
@@ -133,7 +134,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	level.Debug(n.logger).Log("alert", key)
+	n.logger.Debug("extracted group key", "key", key)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
@@ -160,7 +161,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		q := resolvedEndpointURL.Query()
 		q.Set("identifierType", "alias")
 		resolvedEndpointURL.RawQuery = q.Encode()
-		var msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
+		msg := &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 			return nil, false, err
@@ -171,9 +172,9 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 		requests = append(requests, req.WithContext(ctx))
 	default:
-		message, truncated := notify.Truncate(tmpl(n.conf.Message), 130)
+		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
-			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "alert", key)
+			n.logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()
@@ -209,7 +210,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			responders = append(responders, responder)
 		}
 
-		var msg = &opsGenieCreateMessage{
+		msg := &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
 			Description: tmpl(n.conf.Description),
@@ -233,11 +234,11 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		requests = append(requests, req.WithContext(ctx))
 
 		if n.conf.UpdateAlerts {
-			updateMessageEndpointUrl := n.conf.APIURL.Copy()
-			updateMessageEndpointUrl.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
-			q := updateMessageEndpointUrl.Query()
+			updateMessageEndpointURL := n.conf.APIURL.Copy()
+			updateMessageEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
+			q := updateMessageEndpointURL.Query()
 			q.Set("identifierType", "alias")
-			updateMessageEndpointUrl.RawQuery = q.Encode()
+			updateMessageEndpointURL.RawQuery = q.Encode()
 			updateMsgMsg := &opsGenieUpdateMessageMessage{
 				Message: msg.Message,
 			}
@@ -245,7 +246,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
 				return nil, false, err
 			}
-			req, err := http.NewRequest("PUT", updateMessageEndpointUrl.String(), &updateMessageBuf)
+			req, err := http.NewRequest("PUT", updateMessageEndpointURL.String(), &updateMessageBuf)
 			if err != nil {
 				return nil, true, err
 			}
@@ -276,15 +277,16 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	if n.conf.APIKey != "" {
 		apiKey = tmpl(string(n.conf.APIKey))
 	} else {
-		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
+		content, err := os.ReadFile(n.conf.APIKeyFile)
 		if err != nil {
-			return nil, false, errors.Wrap(err, "read key_file error")
+			return nil, false, fmt.Errorf("read key_file error: %w", err)
 		}
 		apiKey = tmpl(string(content))
+		apiKey = strings.TrimSpace(string(apiKey))
 	}
 
 	if err != nil {
-		return nil, false, errors.Wrap(err, "templating error")
+		return nil, false, fmt.Errorf("templating error: %w", err)
 	}
 
 	for _, req := range requests {

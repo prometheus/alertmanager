@@ -43,10 +43,10 @@ func NewGetSilence(ctx *middleware.Context, handler GetSilenceHandler) *GetSilen
 	return &GetSilence{Context: ctx, Handler: handler}
 }
 
-/*GetSilence swagger:route GET /silence/{silenceID} silence getSilence
+/*
+	GetSilence swagger:route GET /silence/{silenceID} silence getSilence
 
 Get a silence by its ID
-
 */
 type GetSilence struct {
 	Context *middleware.Context
@@ -56,17 +56,15 @@ type GetSilence struct {
 func (o *GetSilence) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewGetSilenceParams()
-
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
-
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }

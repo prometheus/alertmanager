@@ -29,7 +29,8 @@ import (
 )
 
 // NewGetSilenceParams creates a new GetSilenceParams object
-// no default values defined in spec.
+//
+// There are no default values defined in the spec.
 func NewGetSilenceParams() GetSilenceParams {
 
 	return GetSilenceParams{}
@@ -64,7 +65,6 @@ func (o *GetSilenceParams) BindRequest(r *http.Request, route *middleware.Matche
 	if err := o.bindSilenceID(rSilenceID, rhkSilenceID, route.Formats); err != nil {
 		res = append(res, err)
 	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}

@@ -161,7 +161,7 @@ updateForm msg form =
             in
             { form
                 | viewDateTimePicker = True
-                , dateTimePicker = initFromStartAndEndTime startsAtTime endsAtTime
+                , dateTimePicker = initFromStartAndEndTime startsAtTime endsAtTime form.dateTimePicker.firstDayOfWeek
             }
 
         CloseDateTimePicker ->
@@ -209,13 +209,14 @@ update msg model basePath apiUrl =
             ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
         NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
-            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time
+            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time model.firstDayOfWeek
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
               , filterBar = FilterBar.initFilterBar matchers
               , filterBarValid = Utils.FormValidation.Initial
               , key = model.key
+              , firstDayOfWeek = model.firstDayOfWeek
               }
             , Cmd.none
             )
@@ -224,13 +225,14 @@ update msg model basePath apiUrl =
             ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
-            ( { form = fromSilence silence
+            ( { form = fromSilence silence model.firstDayOfWeek
               , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
               , filterBarValid = Utils.FormValidation.Initial
               , silenceId = model.silenceId
               , alerts = Initial
               , activeAlertId = Nothing
               , key = model.key
+              , firstDayOfWeek = model.firstDayOfWeek
               }
             , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
@@ -294,6 +296,13 @@ update msg model basePath apiUrl =
             in
             ( { model | filterBar = newFilterBar, filterBarValid = Utils.FormValidation.Initial }
             , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
+            )
+
+        UpdateFirstDayOfWeek firstDayOfWeek ->
+            ( { model
+                | firstDayOfWeek = firstDayOfWeek
+              }
+            , Cmd.none
             )
 
 

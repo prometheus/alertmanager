@@ -18,10 +18,11 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	prometheus_model "github.com/prometheus/common/model"
+
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-	prometheus_model "github.com/prometheus/common/model"
 )
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
@@ -116,7 +117,7 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
+func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
@@ -127,7 +128,13 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	}
 
 	fp := alert.Fingerprint().String()
+
 	state := string(status.State)
+	if len(mutedBy) > 0 {
+		// If the alert is muted, change the state to suppressed.
+		state = open_api_models.AlertStatusStateSuppressed
+	}
+
 	aa := &open_api_models.GettableAlert{
 		Alert: open_api_models.Alert{
 			GeneratorURL: strfmt.URI(alert.GeneratorURL),
@@ -143,6 +150,7 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 			State:       &state,
 			SilencedBy:  status.SilencedBy,
 			InhibitedBy: status.InhibitedBy,
+			MutedBy:     mutedBy,
 		},
 	}
 
@@ -152,6 +160,10 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 
 	if aa.Status.InhibitedBy == nil {
 		aa.Status.InhibitedBy = []string{}
+	}
+
+	if aa.Status.MutedBy == nil {
+		aa.Status.MutedBy = []string{}
 	}
 
 	return aa

@@ -14,25 +14,26 @@
 package cli
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
+	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	promconfig "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
-
-	clientruntime "github.com/go-openapi/runtime/client"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
 var (
@@ -40,12 +41,28 @@ var (
 	alertmanagerURL *url.URL
 	output          string
 	timeout         time.Duration
-	tlsConfig       *tls.Config
+	httpConfigFile  string
 	versionCheck    bool
+	featureFlags    string
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
+
+func initMatchersCompat(_ *kingpin.ParseContext) error {
+	promslogConfig := &promslog.Config{Writer: os.Stdout}
+	if verbose {
+		promslogConfig.Level = promslog.NewLevel()
+		_ = promslogConfig.Level.Set("debug")
+	}
+	logger := promslog.New(promslogConfig)
+	featureConfig, err := featurecontrol.NewFlags(logger, featureFlags)
+	if err != nil {
+		kingpin.Fatalf("error parsing the feature flag list: %v\n", err)
+	}
+	compat.InitFromFlags(logger, featureConfig)
+	return nil
+}
 
 func requireAlertManagerURL(pc *kingpin.ParseContext) error {
 	// Return without error if any help flag is set.
@@ -71,8 +88,8 @@ const (
 	defaultAmApiv2path = "/api/v2"
 )
 
-// NewAlertmanagerClient initializes an alertmanager client with the given URL
-func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+// NewAlertmanagerClient initializes an alertmanager client with the given URL.
+func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	address := defaultAmHost + ":" + defaultAmPort
 	schemes := []string{"http"}
 
@@ -85,13 +102,27 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
-	cr.Transport = &http.Transport{
-		TLSClientConfig: tlsConfig,
+	if amURL.User != nil && httpConfigFile != "" {
+		kingpin.Fatalf("basic authentication and http.config.file are mutually exclusive")
 	}
 
 	if amURL.User != nil {
 		password, _ := amURL.User.Password()
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
+	}
+
+	if httpConfigFile != "" {
+		var err error
+		httpConfig, _, err := promconfig.LoadHTTPConfigFile(httpConfigFile)
+		if err != nil {
+			kingpin.Fatalf("failed to load HTTP config file: %v", err)
+		}
+
+		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
+		if err != nil {
+			kingpin.Fatalf("failed to create a new HTTP client: %v", err)
+		}
+		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
 	}
 
 	c := client.New(cr, strfmt.Default)
@@ -113,12 +144,9 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 	return c
 }
 
-// Execute is the main function for the amtool command
+// Execute is the main function for the amtool command.
 func Execute() {
-	var (
-		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
-		tls = promconfig.TLSConfig{}
-	)
+	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
 
@@ -126,20 +154,13 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("tls.certfile", "TLS client certificate file").PlaceHolder("<filename>").ExistingFileVar(&tls.CertFile)
-	app.Flag("tls.keyfile", "TLS client private key file").PlaceHolder("<filename>").ExistingFileVar(&tls.KeyFile)
-	app.Flag("tls.cafile", "TLS trusted certificate authorities file").PlaceHolder("<filename>").ExistingFileVar(&tls.CAFile)
-	app.Flag("tls.servername", "ServerName to verify hostname of alertmanager").PlaceHolder("<string>").StringVar(&tls.ServerName)
-	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").Default("false").BoolVar(&tls.InsecureSkipVerify)
+	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
+	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable, comma separated. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
-	app.PreAction(func(pc *kingpin.ParseContext) (err error) {
-		tlsConfig, err = promconfig.NewTLSConfig(&tls)
-		return err
-	})
 
 	resolver, err := config.NewResolver(configFiles, legacyFlags)
 	if err != nil {
@@ -152,6 +173,8 @@ func Execute() {
 	configureClusterCmd(app)
 	configureConfigCmd(app)
 	configureTemplateCmd(app)
+
+	app.Action(initMatchersCompat)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
@@ -191,22 +214,8 @@ static configuration:
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 
-	tls.certfile
-		TLS client certificate file for mutual-TLS authentication.
-		Requires tls.keyfile to be useful.
-
-	tls.keyfile
-		TLS client private key file for mutual-TLS authentication.
-		Requires tls.certfile to be useful.
-
-	tls.cafile
-		TLS trusted certificate authorities file.
-
-	tls.servername
-		ServerName to verify hostname of alertmanager.
-
-	tls.insecure.skip.verify
-		Skips TLS certificate verification for all HTTPS requests.
-		Defaults to false.
+	http.config.file
+		HTTP client configuration file for amtool to connect to Alertmanager.
+		The format is https://prometheus.io/docs/alerting/latest/configuration/#http_config.
 `
 )

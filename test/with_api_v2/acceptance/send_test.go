@@ -56,7 +56,7 @@ receivers:
 	})
 
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -136,7 +136,7 @@ receivers:
 	co := at.Collector("webhook")
 	// Run something that satisfies the webhook interface to which the
 	// Alertmanager pushes as defined by its configuration.
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	// Create a new Alertmanager process listening to a random port
 	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
@@ -191,10 +191,10 @@ receivers:
 	})
 
 	co1 := at.Collector("webhook")
-	wh1 := NewWebhook(co1)
+	wh1 := NewWebhook(t, co1)
 
 	co2 := at.Collector("webhook_failing")
-	wh2 := NewWebhook(co2)
+	wh2 := NewWebhook(t, co2)
 
 	wh2.Func = func(ts float64) bool {
 		// Fail the first interval period but eventually succeed in the third
@@ -241,7 +241,7 @@ receivers:
 	})
 
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -308,7 +308,7 @@ receivers:
 		})
 
 		co := at.Collector("webhook")
-		wh := NewWebhook(co)
+		wh := NewWebhook(t, co)
 
 		am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -367,10 +367,10 @@ receivers:
 	})
 
 	co1 := at.Collector("webhook1")
-	wh1 := NewWebhook(co1)
+	wh1 := NewWebhook(t, co1)
 
 	co2 := at.Collector("webhook2")
-	wh2 := NewWebhook(co2)
+	wh2 := NewWebhook(t, co2)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh1.Address(), wh2.Address()), 1)
 
@@ -444,7 +444,7 @@ receivers:
 	})
 
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -459,6 +459,55 @@ receivers:
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test2").Active(4),
 	)
+
+	at.Run()
+
+	t.Log(co.Check())
+}
+
+func TestWebhookTimeout(t *testing.T) {
+	t.Parallel()
+
+	// This integration test uses an extended group_interval to check that
+	// the webhook level timeout has the desired effect, and that notification
+	// sending is retried in this case.
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  1m
+  repeat_interval: 1m
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    timeout: 500ms
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	wh.Func = func(ts float64) bool {
+		// Make some webhook requests slow enough to hit the webhook
+		// timeout, but not so slow as to hit the dispatcher timeout.
+		if ts < 3 {
+			time.Sleep(time.Second)
+			return true
+		}
+		return false
+	}
+
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+	am.Push(At(1), Alert("alertname", "test1"))
+
+	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1))
 
 	at.Run()
 
