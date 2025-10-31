@@ -16,9 +16,10 @@ package receiver
 import (
 	"log/slog"
 
-	"github.com/prometheus/alertmanager/notify/onebot"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
+
+	"github.com/prometheus/alertmanager/notify/onebot"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"

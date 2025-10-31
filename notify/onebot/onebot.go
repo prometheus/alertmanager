@@ -24,11 +24,12 @@ import (
 	"net/http"
 	"strings"
 
+	commoncfg "github.com/prometheus/common/config"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	commoncfg "github.com/prometheus/common/config"
 )
 
 // Notifier implements a Notifier for wechat notifications.
@@ -135,5 +136,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if onebotResp["status"] == "ok" {
 		return false, nil
 	}
-	return false, errors.New(fmt.Sprintf("%v", onebotResp["message"]))
+	return false, fmt.Errorf("notify error: %v", onebotResp["message"])
 }
