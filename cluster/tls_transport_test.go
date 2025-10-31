@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func newTLSTransport(file, address string, port int) (*TLSTransport, error) {
 		return nil, err
 	}
 
-	return NewTLSTransport(context2.Background(), promslog.NewNopLogger(), nil, address, port, cfg)
+	return NewTLSTransport(context2.Background(), promslog.NewNopLogger(), prometheus.NewRegistry(), address, port, cfg)
 }
 
 func TestNewTLSTransport(t *testing.T) {
@@ -128,7 +129,7 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		tlsConf := loadTLSTransportConfig(t, "testdata/tls_config_node1.yml")
-		transport, err := NewTLSTransport(context2.Background(), logger, nil, tc.bindAddr, tc.bindPort, tlsConf)
+		transport, err := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), tc.bindAddr, tc.bindPort, tlsConf)
 		require.NoError(t, err)
 		ip, port, err := transport.FinalAdvertiseAddr(tc.inputIP, tc.inputPort)
 		if len(tc.expectedError) > 0 {
@@ -152,11 +153,11 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 
 func TestWriteTo(t *testing.T) {
 	tlsConf1 := loadTLSTransportConfig(t, "testdata/tls_config_node1.yml")
-	t1, _ := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf1)
+	t1, _ := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf1)
 	defer t1.Shutdown()
 
 	tlsConf2 := loadTLSTransportConfig(t, "testdata/tls_config_node2.yml")
-	t2, _ := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf2)
+	t2, _ := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf2)
 	defer t2.Shutdown()
 
 	from := fmt.Sprintf("%s:%d", t1.bindAddr, t1.GetAutoBindPort())
@@ -171,11 +172,11 @@ func TestWriteTo(t *testing.T) {
 
 func BenchmarkWriteTo(b *testing.B) {
 	tlsConf1 := loadTLSTransportConfig(b, "testdata/tls_config_node1.yml")
-	t1, _ := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf1)
+	t1, _ := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf1)
 	defer t1.Shutdown()
 
 	tlsConf2 := loadTLSTransportConfig(b, "testdata/tls_config_node2.yml")
-	t2, _ := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf2)
+	t2, _ := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf2)
 	defer t2.Shutdown()
 
 	b.ResetTimer()
@@ -193,12 +194,12 @@ func BenchmarkWriteTo(b *testing.B) {
 
 func TestDialTimeout(t *testing.T) {
 	tlsConf1 := loadTLSTransportConfig(t, "testdata/tls_config_node1.yml")
-	t1, err := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf1)
+	t1, err := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf1)
 	require.NoError(t, err)
 	defer t1.Shutdown()
 
 	tlsConf2 := loadTLSTransportConfig(t, "testdata/tls_config_node2.yml")
-	t2, err := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf2)
+	t2, err := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf2)
 	require.NoError(t, err)
 	defer t2.Shutdown()
 
@@ -238,7 +239,7 @@ func TestShutdown(t *testing.T) {
 	_ = promslogConfig.Level.Set("debug")
 
 	tlsConf1 := loadTLSTransportConfig(t, "testdata/tls_config_node1.yml")
-	t1, _ := NewTLSTransport(context2.Background(), logger, nil, "127.0.0.1", 0, tlsConf1)
+	t1, _ := NewTLSTransport(context2.Background(), logger, prometheus.NewRegistry(), "127.0.0.1", 0, tlsConf1)
 	// Sleeping to make sure listeners have started and can subsequently be shut down gracefully.
 	time.Sleep(500 * time.Millisecond)
 	err := t1.Shutdown()

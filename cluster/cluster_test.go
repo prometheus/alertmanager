@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -36,6 +36,9 @@ func TestClusterJoinAndReconnect(t *testing.T) {
 	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
 	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
 	t.Run("TestTLSConnection", testTLSConnection)
+	t.Run("TestRandomPeerNames", func(t *testing.T) { testPeerNames(t, "", "") })
+	t.Run("TestSetPeerNames", func(t *testing.T) { testPeerNames(t, "peer1", "peer2") })
+	t.Run("TestDuplicatePeerNames", func(t *testing.T) { testPeerNames(t, "peer", "peer") })
 }
 
 func testJoinLeave(t *testing.T) {
@@ -54,6 +57,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 		"",
 	)
 	require.NoError(t, err)
@@ -89,6 +93,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 		"",
 	)
 	require.NoError(t, err)
@@ -126,6 +131,7 @@ func testReconnect(t *testing.T) {
 		nil,
 		false,
 		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -151,6 +157,7 @@ func testReconnect(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 		"",
 	)
 	require.NoError(t, err)
@@ -192,6 +199,7 @@ func testRemoveFailedPeers(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 		"",
 	)
 	require.NoError(t, err)
@@ -245,6 +253,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 		nil,
 		false,
 		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -293,6 +302,7 @@ func testTLSConnection(t *testing.T) {
 		tlsTransportConfig1,
 		false,
 		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p1)
@@ -325,6 +335,7 @@ func testTLSConnection(t *testing.T) {
 		tlsTransportConfig2,
 		false,
 		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -343,4 +354,77 @@ func testTLSConnection(t *testing.T) {
 	require.Len(t, p1.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
+}
+
+func testPeerNames(t *testing.T, name1, name2 string) {
+	t.Helper()
+	logger := promslog.NewNopLogger()
+	p1, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		name1,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p1)
+	err = p1.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.False(t, p1.Ready())
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		require.Equal(t, context.Canceled, p1.WaitReady(ctx))
+	}
+	require.Equal(t, "settling", p1.Status())
+	go p1.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p1.WaitReady(context.Background()))
+	require.Equal(t, "ready", p1.Status())
+
+	// Create the peer who joins the first.
+	p2, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		name2,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	go p2.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p2.WaitReady(context.Background()))
+
+	if name1 != name2 {
+		require.Equal(t, 2, p1.ClusterSize())
+		require.Equal(t, 2, p2.ClusterSize())
+		require.NotEqual(t, p1.Name(), p2.Name(), "peers should have different names")
+	}
 }

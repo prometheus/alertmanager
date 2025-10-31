@@ -31,6 +31,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/promslog"
 
 	"github.com/prometheus/alertmanager/cluster"
@@ -108,37 +109,37 @@ type metrics struct {
 func newMetrics(r prometheus.Registerer) *metrics {
 	m := &metrics{}
 
-	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+	m.gcDuration = promauto.With(r).NewSummary(prometheus.SummaryOpts{
 		Name:       "alertmanager_nflog_gc_duration_seconds",
 		Help:       "Duration of the last notification log garbage collection cycle.",
 		Objectives: map[float64]float64{},
 	})
-	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+	m.snapshotDuration = promauto.With(r).NewSummary(prometheus.SummaryOpts{
 		Name:       "alertmanager_nflog_snapshot_duration_seconds",
 		Help:       "Duration of the last notification log snapshot.",
 		Objectives: map[float64]float64{},
 	})
-	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
+	m.snapshotSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_nflog_snapshot_size_bytes",
 		Help: "Size of the last notification log snapshot in bytes.",
 	})
-	m.maintenanceTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.maintenanceTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_maintenance_total",
 		Help: "How many maintenances were executed for the notification log.",
 	})
-	m.maintenanceErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.maintenanceErrorsTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_maintenance_errors_total",
 		Help: "How many maintenances were executed for the notification log that failed.",
 	})
-	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.queriesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_queries_total",
 		Help: "Number of notification log queries were received.",
 	})
-	m.queryErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.queryErrorsTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_query_errors_total",
 		Help: "Number notification log received queries that failed.",
 	})
-	m.queryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	m.queryDuration = promauto.With(r).NewHistogram(prometheus.HistogramOpts{
 		Name:                            "alertmanager_nflog_query_duration_seconds",
 		Help:                            "Duration of notification log query evaluation.",
 		Buckets:                         prometheus.DefBuckets,
@@ -146,24 +147,11 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
-	m.propagatedMessagesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.propagatedMessagesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_gossip_messages_propagated_total",
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
 
-	if r != nil {
-		r.MustRegister(
-			m.gcDuration,
-			m.snapshotDuration,
-			m.snapshotSize,
-			m.queriesTotal,
-			m.queryErrorsTotal,
-			m.queryDuration,
-			m.propagatedMessagesTotal,
-			m.maintenanceTotal,
-			m.maintenanceErrorsTotal,
-		)
-	}
 	return m
 }
 
@@ -246,6 +234,10 @@ type Options struct {
 func (o *Options) validate() error {
 	if o.SnapshotFile != "" && o.SnapshotReader != nil {
 		return errors.New("only one of SnapshotFile and SnapshotReader must be set")
+	}
+
+	if o.Metrics == nil {
+		return errors.New("missing prometheus.Registerer")
 	}
 
 	return nil

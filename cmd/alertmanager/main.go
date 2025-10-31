@@ -34,6 +34,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -63,7 +64,7 @@ import (
 )
 
 var (
-	requestDuration = prometheus.NewHistogramVec(
+	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:                            "alertmanager_http_request_duration_seconds",
 			Help:                            "Histogram of latencies for HTTP requests.",
@@ -74,7 +75,7 @@ var (
 		},
 		[]string{"handler", "method", "code"},
 	)
-	responseSize = prometheus.NewHistogramVec(
+	responseSize = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_response_size_bytes",
 			Help:    "Histogram of response size for HTTP requests.",
@@ -82,41 +83,33 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
-	clusterEnabled = prometheus.NewGauge(
+	clusterEnabled = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_cluster_enabled",
 			Help: "Indicates whether the clustering is enabled or not.",
 		},
 	)
-	configuredReceivers = prometheus.NewGauge(
+	configuredReceivers = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_receivers",
 			Help: "Number of configured receivers.",
 		},
 	)
-	configuredIntegrations = prometheus.NewGauge(
+	configuredIntegrations = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_integrations",
 			Help: "Number of configured integrations.",
 		},
 	)
-	configuredInhibitionRules = prometheus.NewGauge(
+	configuredInhibitionRules = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_inhibition_rules",
 			Help: "Number of configured inhibition rules.",
-		})
+		},
+	)
+
 	promslogConfig = promslog.Config{}
 )
-
-func init() {
-	prometheus.MustRegister(requestDuration)
-	prometheus.MustRegister(responseSize)
-	prometheus.MustRegister(clusterEnabled)
-	prometheus.MustRegister(configuredReceivers)
-	prometheus.MustRegister(configuredIntegrations)
-	prometheus.MustRegister(configuredInhibitionRules)
-	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
-}
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
 	handlerLabel := prometheus.Labels{"handler": handlerName}
@@ -163,6 +156,7 @@ func run() int {
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
+		clusterPeerName        = kingpin.Flag("cluster.peer-name", "Explicit name of the peer, rather than generating a random one").Default("").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout            = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
 		gossipInterval         = kingpin.Flag("cluster.gossip-interval", "Interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").Default(cluster.DefaultGossipInterval.String()).Duration()
@@ -178,6 +172,8 @@ func run() int {
 		label                  = kingpin.Flag("cluster.label", "The cluster label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages.").Default("").String()
 		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Comma-separated experimental features to enable. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
 	)
+
+	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
 
 	promslogflag.AddFlags(kingpin.CommandLine, &promslogConfig)
 	kingpin.CommandLine.UsageWriter(os.Stdout)
@@ -254,6 +250,7 @@ func run() int {
 			tlsTransportConfig,
 			*allowInsecureAdvertise,
 			*label,
+			*clusterPeerName,
 		)
 		if err != nil {
 			logger.Error("unable to initialize gossip mesh", "err", err)
@@ -408,6 +405,7 @@ func run() int {
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
+	inhibitMetrics := inhibit.NewInhibitorMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
@@ -462,7 +460,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger, inhibitMetrics)
 		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
