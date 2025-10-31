@@ -19,13 +19,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -41,7 +39,7 @@ const maxTitleLenRunes = 1024
 type Notifier struct {
 	conf    *config.SlackConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 
@@ -49,7 +47,7 @@ type Notifier struct {
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -113,7 +111,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+		n.logger.Warn("Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	att := &attachment{
 		Title:      title,
@@ -206,8 +204,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u = strings.TrimSpace(string(content))
 	}
 
+	if n.conf.Timeout > 0 {
+		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = postCtx
+	}
+
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
 		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
@@ -216,7 +223,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
@@ -224,7 +231,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://slack.dev/node-slack-sdk/web-api#handle-errors
 	retry, err = checkResponseError(resp)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 	}
 
@@ -235,7 +242,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 func checkResponseError(resp *http.Response) (bool, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return true, errors.Wrap(err, "could not read response body")
+		return true, fmt.Errorf("could not read response body: %w", err)
 	}
 
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
@@ -265,7 +272,7 @@ func checkJSONResponseError(body []byte) (bool, error) {
 
 	var data response
 	if err := json.Unmarshal(body, &data); err != nil {
-		return true, errors.Wrapf(err, "could not unmarshal JSON response %q", string(body))
+		return true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
 	}
 	if !data.OK {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)

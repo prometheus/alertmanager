@@ -1,4 +1,4 @@
-// Copyright 2016 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,9 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -28,32 +29,33 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var nopLogger = log.NewNopLogger()
+var nopLogger = promslog.NewNopLogger()
 
 func TestInhibitRuleHasEqual(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 	cases := []struct {
+		name    string
 		initial map[model.Fingerprint]*types.Alert
 		equal   model.LabelNames
 		input   model.LabelSet
 		result  bool
 	}{
 		{
-			// No source alerts at all.
+			name:    "no source alerts",
 			initial: map[model.Fingerprint]*types.Alert{},
 			input:   model.LabelSet{"a": "b"},
 			result:  false,
 		},
 		{
-			// No equal labels, any source alerts satisfies the requirement.
+			name:    "no equal labels, any source alerts satisfies the requirement",
 			initial: map[model.Fingerprint]*types.Alert{1: {}},
 			input:   model.LabelSet{"a": "b"},
 			result:  true,
 		},
 		{
-			// Matching but already resolved.
+			name: "matching but already resolved",
 			initial: map[model.Fingerprint]*types.Alert{
 				1: {
 					Alert: model.Alert{
@@ -75,7 +77,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			result: false,
 		},
 		{
-			// Matching and unresolved.
+			name: "matching and unresolved",
 			initial: map[model.Fingerprint]*types.Alert{
 				1: {
 					Alert: model.Alert{
@@ -97,7 +99,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			result: true,
 		},
 		{
-			// Equal label does not match.
+			name: "equal label does not match",
 			initial: map[model.Fingerprint]*types.Alert{
 				1: {
 					Alert: model.Alert{
@@ -121,20 +123,25 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		r := &InhibitRule{
-			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(),
-		}
-		for _, ln := range c.equal {
-			r.Equal[ln] = struct{}{}
-		}
-		for _, v := range c.initial {
-			r.scache.Set(v)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			r := &InhibitRule{
+				Equal:   map[model.LabelName]struct{}{},
+				scache:  store.NewAlerts(),
+				sindex:  newIndex(),
+				metrics: NewRuleMetrics("test", NewInhibitorMetrics(prometheus.NewRegistry())),
+			}
+			for _, ln := range c.equal {
+				r.Equal[ln] = struct{}{}
+			}
+			for _, v := range c.initial {
+				r.scache.Set(v)
+				r.updateIndex(v)
+			}
 
-		if _, have := r.hasEqual(c.input, false); have != c.result {
-			t.Errorf("Unexpected result %t, expected %t", have, c.result)
-		}
+			if _, have := r.hasEqual(c.input, false); have != c.result {
+				t.Errorf("Unexpected result %t, expected %t", have, c.result)
+			}
+		})
 	}
 }
 
@@ -144,16 +151,16 @@ func TestInhibitRuleMatches(t *testing.T) {
 	rule1 := config.InhibitRule{
 		SourceMatch: map[string]string{"s1": "1"},
 		TargetMatch: map[string]string{"t1": "1"},
-		Equal:       model.LabelNames{"e"},
+		Equal:       []string{"e"},
 	}
 	rule2 := config.InhibitRule{
 		SourceMatch: map[string]string{"s2": "1"},
 		TargetMatch: map[string]string{"t2": "1"},
-		Equal:       model.LabelNames{"e"},
+		Equal:       []string{"e"},
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -174,8 +181,13 @@ func TestInhibitRuleMatches(t *testing.T) {
 
 	ih.rules[0].scache = store.NewAlerts()
 	ih.rules[0].scache.Set(sourceAlert1)
+	ih.rules[0].sindex = newIndex()
+	ih.rules[0].updateIndex(sourceAlert1)
+
 	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
+	ih.rules[1].sindex = newIndex()
+	ih.rules[1].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -240,16 +252,16 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	rule1 := config.InhibitRule{
 		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
-		Equal:          model.LabelNames{"e"},
+		Equal:          []string{"e"},
 	}
 	rule2 := config.InhibitRule{
 		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
-		Equal:          model.LabelNames{"e"},
+		Equal:          []string{"e"},
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -270,8 +282,13 @@ func TestInhibitRuleMatchers(t *testing.T) {
 
 	ih.rules[0].scache = store.NewAlerts()
 	ih.rules[0].scache.Set(sourceAlert1)
+	ih.rules[0].sindex = newIndex()
+	ih.rules[0].updateIndex(sourceAlert1)
+
 	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
+	ih.rules[1].sindex = newIndex()
+	ih.rules[1].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -330,6 +347,36 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	}
 }
 
+func TestInhibitRuleName(t *testing.T) {
+	t.Parallel()
+
+	config1 := config.InhibitRule{
+		Name: "test-rule",
+		SourceMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		},
+		TargetMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+		},
+		Equal: []string{"instance"},
+	}
+	config2 := config.InhibitRule{
+		SourceMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		},
+		TargetMatchers: []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+		},
+		Equal: []string{"instance"},
+	}
+
+	rule1 := NewInhibitRule(config1, nil)
+	rule2 := NewInhibitRule(config2, nil)
+
+	require.Equal(t, "test-rule", rule1.Name, "Expected named rule to have adopt name from config")
+	require.Empty(t, rule2.Name, "Expected unnamed rule to have empty name")
+}
+
 type fakeAlerts struct {
 	alerts   []*types.Alert
 	finished chan struct{}
@@ -345,7 +392,7 @@ func newFakeAlerts(alerts []*types.Alert) *fakeAlerts {
 func (f *fakeAlerts) GetPending() provider.AlertIterator          { return nil }
 func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
 func (f *fakeAlerts) Put(...*types.Alert) error                   { return nil }
-func (f *fakeAlerts) Subscribe() provider.AlertIterator {
+func (f *fakeAlerts) Subscribe(name string) provider.AlertIterator {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})
 	go func() {
@@ -374,7 +421,7 @@ func TestInhibit(t *testing.T) {
 		return config.InhibitRule{
 			SourceMatch: map[string]string{"s": "1"},
 			TargetMatch: map[string]string{"t": "1"},
-			Equal:       model.LabelNames{"e"},
+			Equal:       []string{"e"},
 		}
 	}
 	// alertOne is muted by alertTwo when it is active.
@@ -452,7 +499,7 @@ func TestInhibit(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger)
+		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 
 		go func() {
 			for ap.finished != nil {

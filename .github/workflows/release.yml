@@ -9,13 +9,27 @@ jobs:
     name: Run ci
     uses: ./.github/workflows/ci.yml
 
-  publish_release:
-    name: Publish release arfefacts
+  build:
+    name: Build Alertmanager for all architectures
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        thread: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     needs: ci
     steps:
-      - uses: actions/checkout@v3
-      - uses: prometheus/promci@v0.0.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
+      - uses: ./.github/promci/actions/build
+        with:
+          parallelism: 12
+          thread: ${{ matrix.thread }}
+  publish_release:
+    name: Publish release artefacts
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: prometheus/promci@443c7fc2397e946bc9f5029e313a9c3441b9b86d # v0.4.7
       - uses: ./.github/promci/actions/publish_release
         with:
           docker_hub_login: ${{ secrets.docker_hub_login }}

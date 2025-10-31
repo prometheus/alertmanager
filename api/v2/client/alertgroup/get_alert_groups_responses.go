@@ -20,6 +20,7 @@ package alertgroup
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -56,7 +57,7 @@ func (o *GetAlertGroupsReader) ReadResponse(response runtime.ClientResponse, con
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /alerts/groups] getAlertGroups", response, response.Code())
 	}
 }
 
@@ -99,12 +100,19 @@ func (o *GetAlertGroupsOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get alert groups o k response
+func (o *GetAlertGroupsOK) Code() int {
+	return 200
+}
+
 func (o *GetAlertGroupsOK) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK %s", 200, payload)
 }
 
 func (o *GetAlertGroupsOK) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsOK %s", 200, payload)
 }
 
 func (o *GetAlertGroupsOK) GetPayload() models.AlertGroups {
@@ -160,12 +168,19 @@ func (o *GetAlertGroupsBadRequest) IsCode(code int) bool {
 	return code == 400
 }
 
+// Code gets the status code for the get alert groups bad request response
+func (o *GetAlertGroupsBadRequest) Code() int {
+	return 400
+}
+
 func (o *GetAlertGroupsBadRequest) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertGroupsBadRequest) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertGroupsBadRequest) GetPayload() string {
@@ -221,12 +236,19 @@ func (o *GetAlertGroupsInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the get alert groups internal server error response
+func (o *GetAlertGroupsInternalServerError) Code() int {
+	return 500
+}
+
 func (o *GetAlertGroupsInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertGroupsInternalServerError) String() string {
-	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts/groups][%d] getAlertGroupsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertGroupsInternalServerError) GetPayload() string {

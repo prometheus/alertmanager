@@ -16,9 +16,11 @@ package timeinterval
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -560,7 +562,7 @@ func TestYamlMarshal(t *testing.T) {
 }
 
 // Test JSON marshalling by marshalling a time interval
-// and then unmarshalling to ensure they're identical
+// and then unmarshalling to ensure they're identical.
 func TestJsonMarshal(t *testing.T) {
 	for _, tc := range yamlUnmarshalTestCases {
 		if tc.expectError {
@@ -623,7 +625,7 @@ months: ['february']
 	},
 }
 
-// Tests the entire flow from unmarshalling to containing a time
+// Tests the entire flow from unmarshalling to containing a time.
 func TestTimeIntervalComplete(t *testing.T) {
 	for _, tc := range completeTestCases {
 		var ti TimeInterval
@@ -658,4 +660,93 @@ func mustLoadLocation(name string) *time.Location {
 		panic(err)
 	}
 	return loc
+}
+
+func TestIntervener_Mutes(t *testing.T) {
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
+	}
+	eveningsAndWeekends := map[string][]TimeInterval{
+		"evenings": {{
+			Times: []TimeRange{{
+				StartMinute: 0,   // 00:00
+				EndMinute:   540, // 09:00
+			}, {
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []WeekdayRange{{
+				InclusiveRange: InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &Location{Location: sydney},
+		}},
+	}
+
+	tests := []struct {
+		name      string
+		intervals map[string][]TimeInterval
+		now       time.Time
+		mutedBy   []string
+	}{{
+		name:      "Should be muted outside working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should not be muted during working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
+		mutedBy:   nil,
+	}, {
+		name:      "Should be muted during weekends",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
+		mutedBy:   []string{"weekends"},
+	}, {
+		name:      "Should be muted during weekend evenings",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 17, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings", "weekends"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekday",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekend",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings", "weekends"},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intervener := NewIntervener(test.intervals)
+
+			// Get the names of all time intervals for the context.
+			timeIntervalNames := make([]string, 0, len(test.intervals))
+			for name := range test.intervals {
+				timeIntervalNames = append(timeIntervalNames, name)
+			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(timeIntervalNames)
+
+			isMuted, mutedBy, err := intervener.Mutes(timeIntervalNames, test.now)
+			require.NoError(t, err)
+
+			if len(test.mutedBy) == 0 {
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
+			} else {
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
+			}
+		})
+	}
 }

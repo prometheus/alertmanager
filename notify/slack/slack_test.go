@@ -15,7 +15,6 @@ package slack
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -42,13 +41,13 @@ func TestSlackRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -62,7 +61,7 @@ func TestSlackRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -84,7 +83,7 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -106,7 +105,7 @@ func TestTrimmingSlackURLFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -199,7 +198,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					Channel:        "channelname",
 				},
 				test.CreateTmpl(t),
-				log.NewNopLogger(),
+				promslog.NewNopLogger(),
 			)
 			require.NoError(t, err)
 
@@ -226,12 +225,65 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			if tt.noError {
 				require.NoError(t, err)
 			} else {
-				reasonError, ok := err.(*notify.ErrorWithReason)
-				require.True(t, ok)
+				var reasonError *notify.ErrorWithReason
+				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
 				require.Contains(t, err.Error(), tt.expectedErr)
 				require.Contains(t, err.Error(), "channelname")
 			}
+		})
+	}
+}
+
+func TestSlackTimeout(t *testing.T) {
+	tests := map[string]struct {
+		latency time.Duration
+		timeout time.Duration
+		wantErr bool
+	}{
+		"success": {latency: 100 * time.Millisecond, timeout: 120 * time.Millisecond, wantErr: false},
+		"error":   {latency: 100 * time.Millisecond, timeout: 80 * time.Millisecond, wantErr: true},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			u, _ := url.Parse("https://slack.com/post.Message")
+			notifier, err := New(
+				&config.SlackConfig{
+					NotifierConfig: config.NotifierConfig{},
+					HTTPConfig:     &commoncfg.HTTPClientConfig{},
+					APIURL:         &config.SecretURL{URL: u},
+					Channel:        "channelname",
+					Timeout:        tt.timeout,
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(tt.latency):
+					resp := httptest.NewRecorder()
+					resp.Header().Set("Content-Type", "application/json; charset=utf-8")
+					resp.WriteHeader(http.StatusOK)
+					resp.WriteString(`{"ok":true}`)
+
+					return resp.Result(), nil
+				}
+			}
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			alert := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			_, err = notifier.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, err != nil)
 		})
 	}
 }

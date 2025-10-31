@@ -15,7 +15,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -23,6 +25,8 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 type alertAddCmd struct {
@@ -64,7 +68,7 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 	addCmd.Arg("labels", "List of labels to be included with the alert").StringsVar(&a.labels)
 	addCmd.Flag("generator-url", "Set the URL of the source that generated the alert").StringVar(&a.generatorURL)
 	addCmd.Flag("start", "Set when the alert should start. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.start)
-	addCmd.Flag("end", "Set when the alert should should end. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.end)
+	addCmd.Flag("end", "Set when the alert should end. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.end)
 	addCmd.Flag("annotation", "Set an annotation to be included with the alert").StringsVar(&a.annotations)
 	addCmd.Action(execWithTimeout(a.addAlert))
 }
@@ -73,29 +77,45 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.
-		if _, err := parseLabels([]string{a.labels[0]}); err != nil {
-			a.labels[0] = fmt.Sprintf("alertname=%s", a.labels[0])
+		if _, err := compat.Matcher(a.labels[0], "cli"); err != nil {
+			a.labels[0] = fmt.Sprintf("alertname=%s", strconv.Quote(a.labels[0]))
 		}
 	}
 
-	labels, err := parseLabels(a.labels)
-	if err != nil {
-		return err
+	ls := make(models.LabelSet, len(a.labels))
+	for _, l := range a.labels {
+		matcher, err := compat.Matcher(l, "cli")
+		if err != nil {
+			return err
+		}
+		if matcher.Type != labels.MatchEqual {
+			return errors.New("labels must be specified as key=value pairs")
+		}
+		ls[matcher.Name] = matcher.Value
 	}
 
-	annotations, err := parseLabels(a.annotations)
-	if err != nil {
-		return err
+	annotations := make(models.LabelSet, len(a.annotations))
+	for _, a := range a.annotations {
+		matcher, err := compat.Matcher(a, "cli")
+		if err != nil {
+			return err
+		}
+		if matcher.Type != labels.MatchEqual {
+			return errors.New("annotations must be specified as key=value pairs")
+		}
+		annotations[matcher.Name] = matcher.Value
 	}
 
 	var startsAt, endsAt time.Time
 	if a.start != "" {
+		var err error
 		startsAt, err = time.Parse(time.RFC3339, a.start)
 		if err != nil {
 			return err
 		}
 	}
 	if a.end != "" {
+		var err error
 		endsAt, err = time.Parse(time.RFC3339, a.end)
 		if err != nil {
 			return err
@@ -105,7 +125,7 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 	pa := &models.PostableAlert{
 		Alert: models.Alert{
 			GeneratorURL: strfmt.URI(a.generatorURL),
-			Labels:       labels,
+			Labels:       ls,
 		},
 		Annotations: annotations,
 		StartsAt:    strfmt.DateTime(startsAt),
@@ -116,6 +136,6 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 
-	_, err = amclient.Alert.PostAlerts(alertParams)
+	_, err := amclient.Alert.PostAlerts(alertParams)
 	return err
 }

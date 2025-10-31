@@ -47,7 +47,7 @@ type AlertIterator interface {
 	Next() <-chan *types.Alert
 }
 
-// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type
+// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type.
 func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
 	return &alertIterator{
 		ch:   ch,
@@ -75,7 +75,7 @@ type Alerts interface {
 	// Subscribe returns an iterator over active alerts that have not been
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
-	Subscribe() AlertIterator
+	Subscribe(name string) AlertIterator
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
 	GetPending() AlertIterator

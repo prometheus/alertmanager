@@ -20,6 +20,7 @@ package silence
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -56,7 +57,7 @@ func (o *GetSilenceReader) ReadResponse(response runtime.ClientResponse, consume
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /silence/{silenceID}] getSilence", response, response.Code())
 	}
 }
 
@@ -99,12 +100,19 @@ func (o *GetSilenceOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get silence o k response
+func (o *GetSilenceOK) Code() int {
+	return 200
+}
+
 func (o *GetSilenceOK) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK %s", 200, payload)
 }
 
 func (o *GetSilenceOK) String() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK %s", 200, payload)
 }
 
 func (o *GetSilenceOK) GetPayload() *models.GettableSilence {
@@ -161,12 +169,17 @@ func (o *GetSilenceNotFound) IsCode(code int) bool {
 	return code == 404
 }
 
+// Code gets the status code for the get silence not found response
+func (o *GetSilenceNotFound) Code() int {
+	return 404
+}
+
 func (o *GetSilenceNotFound) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound ", 404)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound", 404)
 }
 
 func (o *GetSilenceNotFound) String() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound ", 404)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound", 404)
 }
 
 func (o *GetSilenceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -213,12 +226,19 @@ func (o *GetSilenceInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the get silence internal server error response
+func (o *GetSilenceInternalServerError) Code() int {
+	return 500
+}
+
 func (o *GetSilenceInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilenceInternalServerError) String() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilenceInternalServerError) GetPayload() string {

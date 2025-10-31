@@ -17,16 +17,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/alecthomas/units"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -48,14 +47,14 @@ const (
 type Notifier struct {
 	conf    *config.PagerdutyConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	apiV1   string // for tests.
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new PagerDuty notifier.
-func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.PagerdutyConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pagerduty", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -120,7 +119,7 @@ type pagerDutyPayload struct {
 func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return buf, errors.Wrap(err, "failed to encode PagerDuty message")
+		return buf, fmt.Errorf("failed to encode PagerDuty message: %w", err)
 	}
 
 	if buf.Len() > maxEventSize {
@@ -133,11 +132,11 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 		}
 
 		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
-		level.Warn(n.logger).Log("msg", warningMsg)
+		n.logger.Warn(warningMsg)
 
 		buf.Reset()
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-			return buf, errors.Wrap(err, "failed to encode PagerDuty message")
+			return buf, fmt.Errorf("failed to encode PagerDuty message: %w", err)
 		}
 	}
 
@@ -157,14 +156,14 @@ func (n *Notifier) notifyV1(
 
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV1DescriptionLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
+		n.logger.Warn("Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
 	}
 
 	serviceKey := string(n.conf.ServiceKey)
 	if serviceKey == "" {
 		content, fileErr := os.ReadFile(n.conf.ServiceKeyFile)
 		if fileErr != nil {
-			return false, errors.Wrap(fileErr, "failed to read service key from file")
+			return false, fmt.Errorf("failed to read service key from file: %w", fileErr)
 		}
 		serviceKey = strings.TrimSpace(string(content))
 	}
@@ -183,7 +182,7 @@ func (n *Notifier) notifyV1(
 	}
 
 	if tmplErr != nil {
-		return false, errors.Wrap(tmplErr, "failed to template PagerDuty v1 message")
+		return false, fmt.Errorf("failed to template PagerDuty v1 message: %w", tmplErr)
 	}
 
 	// Ensure that the service key isn't empty after templating.
@@ -198,7 +197,7 @@ func (n *Notifier) notifyV1(
 
 	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encodedMsg)
 	if err != nil {
-		return true, errors.Wrap(err, "failed to post message to PagerDuty v1")
+		return true, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
 	}
 	defer notify.Drain(resp)
 
@@ -222,14 +221,14 @@ func (n *Notifier) notifyV2(
 
 	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
+		n.logger.Warn("Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
 	}
 
 	routingKey := string(n.conf.RoutingKey)
 	if routingKey == "" {
 		content, fileErr := os.ReadFile(n.conf.RoutingKeyFile)
 		if fileErr != nil {
-			return false, errors.Wrap(fileErr, "failed to read routing key from file")
+			return false, fmt.Errorf("failed to read routing key from file: %w", fileErr)
 		}
 		routingKey = strings.TrimSpace(string(content))
 	}
@@ -277,7 +276,7 @@ func (n *Notifier) notifyV2(
 	}
 
 	if tmplErr != nil {
-		return false, errors.Wrap(tmplErr, "failed to template PagerDuty v2 message")
+		return false, fmt.Errorf("failed to template PagerDuty v2 message: %w", tmplErr)
 	}
 
 	// Ensure that the routing key isn't empty after templating.
@@ -292,7 +291,7 @@ func (n *Notifier) notifyV2(
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encodedMsg)
 	if err != nil {
-		return true, errors.Wrap(err, "failed to post message to PagerDuty")
+		return true, fmt.Errorf("failed to post message to PagerDuty: %w", err)
 	}
 	defer notify.Drain(resp)
 
@@ -319,21 +318,35 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		eventType = pagerDutyEventResolve
 	}
 
-	level.Debug(n.logger).Log("incident", key, "eventType", eventType)
+	n.logger.Debug("extracted group key", "key", key, "eventType", eventType)
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
 		detail, err := n.tmpl.ExecuteTextString(v, data)
 		if err != nil {
-			return false, errors.Wrapf(err, "%q: failed to template %q", k, v)
+			return false, fmt.Errorf("%q: failed to template %q: %w", k, v, err)
 		}
 		details[k] = detail
 	}
 
-	if n.apiV1 != "" {
-		return n.notifyV1(ctx, eventType, key, data, details, as...)
+	if n.conf.Timeout > 0 {
+		nfCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured pagerduty timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = nfCtx
 	}
-	return n.notifyV2(ctx, eventType, key, data, details, as...)
+
+	nf := n.notifyV2
+	if n.apiV1 != "" {
+		nf = n.notifyV1
+	}
+	retry, err := nf(ctx, eventType, key, data, details, as...)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
+		return retry, err
+	}
+	return retry, nil
 }
 
 func errDetails(status int, body io.Reader) string {

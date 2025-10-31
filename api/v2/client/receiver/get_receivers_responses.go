@@ -20,6 +20,7 @@ package receiver
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -44,7 +45,7 @@ func (o *GetReceiversReader) ReadResponse(response runtime.ClientResponse, consu
 		}
 		return result, nil
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /receivers] getReceivers", response, response.Code())
 	}
 }
 
@@ -87,12 +88,19 @@ func (o *GetReceiversOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get receivers o k response
+func (o *GetReceiversOK) Code() int {
+	return 200
+}
+
 func (o *GetReceiversOK) Error() string {
-	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK %s", 200, payload)
 }
 
 func (o *GetReceiversOK) String() string {
-	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK %s", 200, payload)
 }
 
 func (o *GetReceiversOK) GetPayload() []*models.Receiver {

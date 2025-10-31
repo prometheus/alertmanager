@@ -16,17 +16,17 @@ package msteams
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,20 +45,20 @@ func TestMSTeamsRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
 
 func TestMSTeamsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -77,8 +77,9 @@ func TestMSTeamsTemplating(t *testing.T) {
 		{
 			title: "full-blown message",
 			cfg: &config.MSTeamsConfig{
-				Title: `{{ template "msteams.default.title" . }}`,
-				Text:  `{{ template "msteams.default.text" . }}`,
+				Title:   `{{ template "msteams.default.title" . }}`,
+				Summary: `{{ template "msteams.default.summary" . }}`,
+				Text:    `{{ template "msteams.default.text" . }}`,
 			},
 			retry: false,
 		},
@@ -90,10 +91,19 @@ func TestMSTeamsTemplating(t *testing.T) {
 			errMsg: "template: :1: unclosed action",
 		},
 		{
+			title: "summary with templating errors",
+			cfg: &config.MSTeamsConfig{
+				Title:   `{{ template "msteams.default.title" . }}`,
+				Summary: "{{ ",
+			},
+			errMsg: "template: :1: unclosed action",
+		},
+		{
 			title: "message with templating errors",
 			cfg: &config.MSTeamsConfig{
-				Title: `{{ template "msteams.default.title" . }}`,
-				Text:  "{{ ",
+				Title:   `{{ template "msteams.default.title" . }}`,
+				Summary: `{{ template "msteams.default.summary" . }}`,
+				Text:    "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
 		},
@@ -101,7 +111,7 @@ func TestMSTeamsTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.WebhookURL = &config.SecretURL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -152,7 +162,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 				},
 				test.CreateTmpl(t),
-				log.NewNopLogger(),
+				promslog.NewNopLogger(),
 			)
 			require.NoError(t, err)
 
@@ -175,10 +185,50 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			if tt.noError {
 				require.NoError(t, err)
 			} else {
-				reasonError, ok := err.(*notify.ErrorWithReason)
-				require.True(t, ok)
+				var reasonError *notify.ErrorWithReason
+				require.ErrorAs(t, err, &reasonError)
 				require.Equal(t, tt.expectedReason, reasonError.Reason)
 			}
 		})
 	}
+}
+
+func TestMSTeamsRedactedURL(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	secret := "secret"
+	notifier, err := New(
+		&config.MSTeamsConfig{
+			WebhookURL: &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestMSTeamsReadingURLFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	f, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(u.String() + "\n")
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.MSTeamsConfig{
+			WebhookURLFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }

@@ -17,77 +17,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-kit/log"
-	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/notify"
 )
-
-type sendResolved bool
-
-func (s sendResolved) SendResolved() bool { return bool(s) }
-
-func TestBuildReceiverIntegrations(t *testing.T) {
-	for _, tc := range []struct {
-		receiver config.Receiver
-		err      bool
-		exp      []notify.Integration
-	}{
-		{
-			receiver: config.Receiver{
-				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
-					{
-						HTTPConfig: &commoncfg.HTTPClientConfig{},
-					},
-					{
-						HTTPConfig: &commoncfg.HTTPClientConfig{},
-						NotifierConfig: config.NotifierConfig{
-							VSendResolved: true,
-						},
-					},
-				},
-			},
-			exp: []notify.Integration{
-				notify.NewIntegration(nil, sendResolved(false), "webhook", 0, "foo"),
-				notify.NewIntegration(nil, sendResolved(true), "webhook", 1, "foo"),
-			},
-		},
-		{
-			receiver: config.Receiver{
-				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
-					{
-						HTTPConfig: &commoncfg.HTTPClientConfig{
-							TLSConfig: commoncfg.TLSConfig{
-								CAFile: "not_existing",
-							},
-						},
-					},
-				},
-			},
-			err: true,
-		},
-	} {
-		tc := tc
-		t.Run("", func(t *testing.T) {
-			integrations, err := buildReceiverIntegrations(tc.receiver, nil, nil)
-			if tc.err {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Len(t, integrations, len(tc.exp))
-			for i := range tc.exp {
-				require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())
-				require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
-				require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
-			}
-		})
-	}
-}
 
 func TestExternalURL(t *testing.T) {
 	hostname := "foo"
@@ -154,7 +86,7 @@ func TestExternalURL(t *testing.T) {
 			}
 		}
 		t.Run(fmt.Sprintf("external=%q,listen=%q", tc.external, tc.listen), func(t *testing.T) {
-			u, err := extURL(log.NewNopLogger(), tc.hostnameResolver, tc.listen, tc.external)
+			u, err := extURL(promslog.NewNopLogger(), tc.hostnameResolver, tc.listen, tc.external)
 			if tc.err {
 				require.Error(t, err)
 				return

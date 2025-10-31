@@ -178,6 +178,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -317,6 +324,9 @@ func init() {
               "$ref": "#/definitions/gettableSilences"
             }
           },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
           "500": {
             "$ref": "#/responses/InternalServerError"
           }
@@ -430,10 +440,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
@@ -977,6 +994,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -1128,6 +1152,12 @@ func init() {
               "$ref": "#/definitions/gettableSilences"
             }
           },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
+            }
+          },
           "500": {
             "description": "Internal server error",
             "schema": {
@@ -1247,10 +1277,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"

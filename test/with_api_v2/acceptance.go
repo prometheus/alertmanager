@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -51,9 +52,10 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
+	FeatureFlags []string
+	RoutePrefix  string
+	Tolerance    time.Duration
+	baseTime     time.Time
 }
 
 func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
@@ -167,17 +169,15 @@ func (t *AcceptanceTest) Run() {
 
 	for _, am := range t.amc.ams {
 		am.errc = errc
-		defer func(am *Alertmanager) {
-			am.Terminate()
-			am.cleanup()
-			t.Logf("stdout:\n%v", am.cmd.Stdout)
-			t.Logf("stderr:\n%v", am.cmd.Stderr)
-		}(am)
+		t.Cleanup(am.Terminate)
+		t.Cleanup(am.cleanup)
 	}
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Fatal(err)
+		t.Log(err)
+		t.Fail()
+		return
 	}
 
 	// Set the reference time right before running the test actions to avoid
@@ -249,10 +249,10 @@ type Alertmanager struct {
 	apiAddr     string
 	clusterAddr string
 	clientV2    *apiclient.AlertmanagerAPI
-	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
 
+	cmd  *exec.Cmd
 	errc chan<- error
 }
 
@@ -272,14 +272,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("failed to start alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to start alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %v", am.clusterAddr, err.Error())
+			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %w", am.clusterAddr, err)
 		}
 	}
 
@@ -301,6 +301,9 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
+	}
+	if len(am.opts.FeatureFlags) > 0 {
+		args = append(args, "--enable-feature", strings.Join(am.opts.FeatureFlags, ","))
 	}
 	if am.opts.RoutePrefix != "" {
 		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
@@ -338,7 +341,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("unable to get a successful response from the Alertmanager: %v", lastErr)
+	return fmt.Errorf("unable to get a successful response from the Alertmanager: %w", lastErr)
 }
 
 // WaitForCluster waits for the Alertmanager instance to join a cluster with the
@@ -381,8 +384,12 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if am.cmd.Process != nil {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
+			am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+		}
+		am.t.Logf("stdout:\n%v", am.cmd.Stdout)
+		am.t.Logf("stderr:\n%v", am.cmd.Stderr)
 	}
 }
 
@@ -396,8 +403,10 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if am.cmd.Process != nil {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
+			am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+		}
 	}
 }
 

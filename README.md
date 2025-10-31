@@ -102,45 +102,45 @@ route:
 
   # The child route trees.
   routes:
-  # This routes performs a regular expression match on alert labels to
+  # This route performs a regular expression match on alert labels to
   # catch alerts that are related to a list of services.
-  - match_re:
-      service: ^(foo1|foo2|baz)$
+  - matchers:
+    - service=~"^(foo1|foo2|baz)$"
     receiver: team-X-mails
 
     # The service has a sub-route for critical alerts, any alerts
     # that do not match, i.e. severity != critical, fall-back to the
     # parent node and are sent to 'team-X-mails'
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-X-pager
 
-  - match:
-      service: files
+  - matchers:
+    - service="files"
     receiver: team-Y-mails
 
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
   # no team to handle it, it defaults to the DB team.
-  - match:
-      service: database
+  - matchers:
+    - service="database"
 
     receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
 
     routes:
-    - match:
-        owner: team-X
+    - matchers:
+      - owner="team-X"
       receiver: team-X-pager
 
-    - match:
-        owner: team-Y
+    - matchers:
+      - owner="team-Y"
       receiver: team-Y-pager
 
 
@@ -195,12 +195,10 @@ of the HTTP handlers themselves. The API specification can be found in
 accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major languages.
 
-With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
+APIv2 is accessed via the `/api/v2` prefix. APIv1 was deprecated in `0.16.0` and is removed as of version `0.27.0`.
 The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is set then API routes are
 prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
 relate to `/alertmanager/api/v2/status`.
-
-_API v2 is still under heavy development and thereby subject to change._
 
 ## amtool
 

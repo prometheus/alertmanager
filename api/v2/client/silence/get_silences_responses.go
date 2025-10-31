@@ -20,6 +20,7 @@ package silence
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -43,6 +44,12 @@ func (o *GetSilencesReader) ReadResponse(response runtime.ClientResponse, consum
 			return nil, err
 		}
 		return result, nil
+	case 400:
+		result := NewGetSilencesBadRequest()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewGetSilencesInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -50,7 +57,7 @@ func (o *GetSilencesReader) ReadResponse(response runtime.ClientResponse, consum
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /silences] getSilences", response, response.Code())
 	}
 }
 
@@ -93,12 +100,19 @@ func (o *GetSilencesOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get silences o k response
+func (o *GetSilencesOK) Code() int {
+	return 200
+}
+
 func (o *GetSilencesOK) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesOK %s", 200, payload)
 }
 
 func (o *GetSilencesOK) String() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesOK %s", 200, payload)
 }
 
 func (o *GetSilencesOK) GetPayload() models.GettableSilences {
@@ -106,6 +120,74 @@ func (o *GetSilencesOK) GetPayload() models.GettableSilences {
 }
 
 func (o *GetSilencesOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	// response payload
+	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+// NewGetSilencesBadRequest creates a GetSilencesBadRequest with default headers values
+func NewGetSilencesBadRequest() *GetSilencesBadRequest {
+	return &GetSilencesBadRequest{}
+}
+
+/*
+GetSilencesBadRequest describes a response with status code 400, with default header values.
+
+Bad request
+*/
+type GetSilencesBadRequest struct {
+	Payload string
+}
+
+// IsSuccess returns true when this get silences bad request response has a 2xx status code
+func (o *GetSilencesBadRequest) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get silences bad request response has a 3xx status code
+func (o *GetSilencesBadRequest) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get silences bad request response has a 4xx status code
+func (o *GetSilencesBadRequest) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this get silences bad request response has a 5xx status code
+func (o *GetSilencesBadRequest) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this get silences bad request response a status code equal to that given
+func (o *GetSilencesBadRequest) IsCode(code int) bool {
+	return code == 400
+}
+
+// Code gets the status code for the get silences bad request response
+func (o *GetSilencesBadRequest) Code() int {
+	return 400
+}
+
+func (o *GetSilencesBadRequest) Error() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest %s", 400, payload)
+}
+
+func (o *GetSilencesBadRequest) String() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesBadRequest %s", 400, payload)
+}
+
+func (o *GetSilencesBadRequest) GetPayload() string {
+	return o.Payload
+}
+
+func (o *GetSilencesBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	// response payload
 	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
@@ -154,12 +236,19 @@ func (o *GetSilencesInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the get silences internal server error response
+func (o *GetSilencesInternalServerError) Code() int {
+	return 500
+}
+
 func (o *GetSilencesInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilencesInternalServerError) String() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError %s", 500, payload)
 }
 
 func (o *GetSilencesInternalServerError) GetPayload() string {

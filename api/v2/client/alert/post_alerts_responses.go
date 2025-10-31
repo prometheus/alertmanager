@@ -20,6 +20,7 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -54,7 +55,7 @@ func (o *PostAlertsReader) ReadResponse(response runtime.ClientResponse, consume
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[POST /alerts] postAlerts", response, response.Code())
 	}
 }
 
@@ -96,12 +97,17 @@ func (o *PostAlertsOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the post alerts o k response
+func (o *PostAlertsOK) Code() int {
+	return 200
+}
+
 func (o *PostAlertsOK) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK", 200)
 }
 
 func (o *PostAlertsOK) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK", 200)
 }
 
 func (o *PostAlertsOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -148,12 +154,19 @@ func (o *PostAlertsBadRequest) IsCode(code int) bool {
 	return code == 400
 }
 
+// Code gets the status code for the post alerts bad request response
+func (o *PostAlertsBadRequest) Code() int {
+	return 400
+}
+
 func (o *PostAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest %s", 400, payload)
 }
 
 func (o *PostAlertsBadRequest) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest %s", 400, payload)
 }
 
 func (o *PostAlertsBadRequest) GetPayload() string {
@@ -209,12 +222,19 @@ func (o *PostAlertsInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the post alerts internal server error response
+func (o *PostAlertsInternalServerError) Code() int {
+	return 500
+}
+
 func (o *PostAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *PostAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *PostAlertsInternalServerError) GetPayload() string {

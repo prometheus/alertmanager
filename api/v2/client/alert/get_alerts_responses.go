@@ -20,6 +20,7 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -56,7 +57,7 @@ func (o *GetAlertsReader) ReadResponse(response runtime.ClientResponse, consumer
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /alerts] getAlerts", response, response.Code())
 	}
 }
 
@@ -99,12 +100,19 @@ func (o *GetAlertsOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get alerts o k response
+func (o *GetAlertsOK) Code() int {
+	return 200
+}
+
 func (o *GetAlertsOK) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK %s", 200, payload)
 }
 
 func (o *GetAlertsOK) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK %s", 200, payload)
 }
 
 func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
@@ -160,12 +168,19 @@ func (o *GetAlertsBadRequest) IsCode(code int) bool {
 	return code == 400
 }
 
+// Code gets the status code for the get alerts bad request response
+func (o *GetAlertsBadRequest) Code() int {
+	return 400
+}
+
 func (o *GetAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertsBadRequest) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest %s", 400, payload)
 }
 
 func (o *GetAlertsBadRequest) GetPayload() string {
@@ -221,12 +236,19 @@ func (o *GetAlertsInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the get alerts internal server error response
+func (o *GetAlertsInternalServerError) Code() int {
+	return 500
+}
+
 func (o *GetAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError %s", 500, payload)
 }
 
 func (o *GetAlertsInternalServerError) GetPayload() string {

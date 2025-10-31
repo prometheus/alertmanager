@@ -15,7 +15,7 @@ package v2
 
 import (
 	"bytes"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/go-openapi/runtime"
+	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
@@ -37,8 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	"github.com/go-kit/log"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -159,8 +159,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	unexpiredSid, err := silences.Set(unexpiredSil)
-	require.NoError(t, err)
+	require.NoError(t, silences.Set(unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -168,9 +167,8 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	expiredSid, err := silences.Set(expiredSil)
-	require.NoError(t, err)
-	require.NoError(t, silences.Expire(expiredSid))
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
 
 	for i, tc := range []struct {
 		sid          string
@@ -181,18 +179,18 @@ func TestDeleteSilenceHandler(t *testing.T) {
 			404,
 		},
 		{
-			unexpiredSid,
+			unexpiredSil.Id,
 			200,
 		},
 		{
-			expiredSid,
+			expiredSil.Id,
 			200,
 		},
 	} {
 		api := API{
 			uptime:   time.Now(),
 			silences: silences,
-			logger:   log.NewNopLogger(),
+			logger:   promslog.NewNopLogger(),
 		}
 
 		r, err := http.NewRequest("DELETE", "/api/v2/silence/${tc.sid}", nil)
@@ -207,7 +205,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		responder.WriteResponse(w, p)
 		body, _ := io.ReadAll(w.Result().Body)
 
-		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+		require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
 	}
 }
 
@@ -223,8 +221,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	unexpiredSid, err := silences.Set(unexpiredSil)
-	require.NoError(t, err)
+	require.NoError(t, silences.Set(unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -232,9 +229,8 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	expiredSid, err := silences.Set(expiredSil)
-	require.NoError(t, err)
-	require.NoError(t, silences.Expire(expiredSid))
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
 
 	t.Run("Silences CRUD", func(t *testing.T) {
 		for i, tc := range []struct {
@@ -259,44 +255,120 @@ func TestPostSilencesHandler(t *testing.T) {
 			},
 			{
 				"with an active silence ID - it extends the silence",
-				unexpiredSid,
+				unexpiredSil.Id,
 				now.Add(time.Hour),
 				now.Add(time.Hour * 2),
 				200,
 			},
 			{
 				"with an expired silence ID - it re-creates the silence",
-				expiredSid,
+				expiredSil.Id,
 				now.Add(time.Hour),
 				now.Add(time.Hour * 2),
 				200,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				silence, silenceBytes := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
-
 				api := API{
 					uptime:   time.Now(),
 					silences: silences,
-					logger:   log.NewNopLogger(),
+					logger:   promslog.NewNopLogger(),
 				}
 
-				r, err := http.NewRequest("POST", "/api/v2/silence/${tc.sid}", bytes.NewReader(silenceBytes))
-				require.NoError(t, err)
-
+				sil := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
 				w := httptest.NewRecorder()
-				p := runtime.TextProducer()
-				responder := api.postSilencesHandler(silence_ops.PostSilencesParams{
-					HTTPRequest: r,
-					Silence:     &silence,
-				})
-				responder.WriteResponse(w, p)
+				postSilences(t, w, api.postSilencesHandler, sil)
 				body, _ := io.ReadAll(w.Result().Body)
-
-				require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+				require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
 			})
 		}
 	})
+}
+
+func TestPostSilencesHandlerMissingIdCreatesSilence(t *testing.T) {
+	now := time.Now()
+	silences := newSilences(t)
+	api := API{
+		uptime:   time.Now(),
+		silences: silences,
+		logger:   promslog.NewNopLogger(),
+	}
+
+	// Create a new silence. It should be assigned a random UUID.
+	sil := createSilence(t, "", "silenceCreator", now.Add(time.Hour), now.Add(time.Hour*2))
+	w := httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Get the silences from the API.
+	w = httptest.NewRecorder()
+	getSilences(t, w, api.getSilencesHandler)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp []open_api_models.GettableSilence
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp, 1)
+
+	// Change the ID. It should return 404 Not Found.
+	sil = open_api_models.PostableSilence{
+		ID:      "unknownID",
+		Silence: resp[0].Silence,
+	}
+	w = httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	// Remove the ID. It should duplicate the silence with a different UUID.
+	sil = open_api_models.PostableSilence{
+		ID:      "",
+		Silence: resp[0].Silence,
+	}
+	w = httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Get the silences from the API. There should now be 2 silences.
+	w = httptest.NewRecorder()
+	getSilences(t, w, api.getSilencesHandler)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp, 2)
+	require.NotEqual(t, resp[0].ID, resp[1].ID)
+}
+
+func getSilences(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	handlerFunc func(params silence_ops.GetSilencesParams) middleware.Responder,
+) {
+	r, err := http.NewRequest("GET", "/api/v2/silences", nil)
+	require.NoError(t, err)
+
+	p := runtime.TextProducer()
+	responder := handlerFunc(silence_ops.GetSilencesParams{
+		HTTPRequest: r,
+		Filter:      nil,
+	})
+	responder.WriteResponse(w, p)
+}
+
+func postSilences(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	handlerFunc func(params silence_ops.PostSilencesParams) middleware.Responder,
+	sil open_api_models.PostableSilence,
+) {
+	b, err := json.Marshal(sil)
+	require.NoError(t, err)
+
+	r, err := http.NewRequest("POST", "/api/v2/silences", bytes.NewReader(b))
+	require.NoError(t, err)
+
+	p := runtime.TextProducer()
+	responder := handlerFunc(silence_ops.PostSilencesParams{
+		HTTPRequest: r,
+		Silence:     &sil,
+	})
+	responder.WriteResponse(w, p)
 }
 
 func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
@@ -410,16 +482,11 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
 			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
-		},
-		Status: &open_api_models.AlertStatus{
-			State:       &active,
-			InhibitedBy: []string{},
-			SilencedBy:  []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),
@@ -428,6 +495,12 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		Receivers: []*open_api_models.Receiver{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 	}, openAPIAlert)
 }
@@ -482,7 +555,7 @@ receivers:
 	cfg, _ := config.Load(in)
 	api := API{
 		uptime:             time.Now(),
-		logger:             log.NewNopLogger(),
+		logger:             promslog.NewNopLogger(),
 		alertmanagerConfig: cfg,
 	}
 

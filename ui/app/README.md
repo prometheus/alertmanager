@@ -13,7 +13,7 @@ query string containing the following will additionally show silenced alerts.
 http://alertmanager/#/alerts?silenced=true
 ```
 
-In order to to show _only_ silenced alerts, update the query string to hide active alerts.
+In order to show _only_ silenced alerts, update the query string to hide active alerts.
 ```
 http://alertmanager/#/alerts?silenced=true&active=false
 ```

@@ -2,7 +2,6 @@
 title: Notification template reference
 sort_rank: 7
 ---
-# Notification Template Reference
 
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.
@@ -96,3 +95,7 @@ templating.
 | safeHtml | text string | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl | text string | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
 | stringSlice | ...string | Returns the passed strings as a slice of strings. |
+| date | string, time.Time | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
+| tz | string, time.Time | Returns the time in the timezone. For example, Europe/Paris. |
+| since | time.Time | [time.Duration](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
+| humanizeDuration | number or string | Returns a human-readable string representing the duration, and the error if it happened. |

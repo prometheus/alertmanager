@@ -16,16 +16,18 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
 
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -37,24 +39,30 @@ import (
 
 // API represents all APIs of Alertmanager.
 type API struct {
-	v1                       *apiv1.API
-	v2                       *apiv2.API
+	v2                *apiv2.API
+	deprecationRouter *V1DeprecationRouter
+
+	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
 	concurrencyLimitExceeded prometheus.Counter
 	timeout                  time.Duration
 	inFlightSem              chan struct{}
 }
 
-// Options for the creation of an API object. Alerts, Silences, and StatusFunc
-// are mandatory to set. The zero value for everything else is a safe default.
+// Options for the creation of an API object. Alerts, Silences, AlertStatusFunc
+// and GroupMutedFunc are mandatory. The zero value for everything else is a safe
+// default.
 type Options struct {
 	// Alerts to be used by the API. Mandatory.
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences
-	// StatusFunc is used be the API to retrieve the AlertStatus of an
+	// AlertStatusFunc is used be the API to retrieve the AlertStatus of an
 	// alert. Mandatory.
-	StatusFunc func(model.Fingerprint) types.AlertStatus
+	AlertStatusFunc func(model.Fingerprint) types.AlertStatus
+	// GroupMutedFunc is used be the API to know if an alert is muted.
+	// Mandatory.
+	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
 	// Timeout for all HTTP connections. The zero value (and negative
@@ -66,10 +74,12 @@ type Options struct {
 	// the concurrency limit.
 	Concurrency int
 	// Logger is used for logging, if nil, no logging will happen.
-	Logger log.Logger
+	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
 	Registry prometheus.Registerer
+	// RequestDuration is used to measure the duration of HTTP requests.
+	RequestDuration *prometheus.HistogramVec
 	// GroupFunc returns a list of alert groups. The alerts are grouped
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
@@ -83,8 +93,11 @@ func (o Options) validate() error {
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
 	}
-	if o.StatusFunc == nil {
-		return errors.New("mandatory field StatusFunc not set")
+	if o.AlertStatusFunc == nil {
+		return errors.New("mandatory field AlertStatusFunc not set")
+	}
+	if o.GroupMutedFunc == nil {
+		return errors.New("mandatory field GroupMutedFunc not set")
 	}
 	if o.GroupFunc == nil {
 		return errors.New("mandatory field GroupFunc not set")
@@ -96,11 +109,11 @@ func (o Options) validate() error {
 // call is also needed to get the APIs into an operational state.
 func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
-		return nil, fmt.Errorf("invalid API options: %s", err)
+		return nil, fmt.Errorf("invalid API options: %w", err)
 	}
 	l := opts.Logger
 	if l == nil {
-		l = log.NewNopLogger()
+		l = promslog.NewNopLogger()
 	}
 	concurrency := opts.Concurrency
 	if concurrency < 1 {
@@ -110,30 +123,20 @@ func New(opts Options) (*API, error) {
 		}
 	}
 
-	v1 := apiv1.New(
-		opts.Alerts,
-		opts.Silences,
-		opts.StatusFunc,
-		opts.Peer,
-		log.With(l, "version", "v1"),
-		opts.Registry,
-	)
-
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
-		opts.StatusFunc,
+		opts.AlertStatusFunc,
+		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
-		log.With(l, "version", "v2"),
+		l.With("version", "v2"),
 		opts.Registry,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO(beorn7): For now, this hardcodes the method="get" label. Other
-	// methods should get the same instrumentation.
 	requestsInFlight := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:        "alertmanager_http_requests_in_flight",
 		Help:        "Current number of HTTP requests being processed.",
@@ -154,8 +157,9 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		v1:                       v1,
+		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
+		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
 		timeout:                  opts.Timeout,
@@ -163,8 +167,7 @@ func New(opts Options) (*API, error) {
 	}, nil
 }
 
-// Register all APIs. It registers APIv1 with the provided router directly. As
-// APIv2 works on the http.Handler level, this method also creates a new
+// Register API. As APIv2 works on the http.Handler level, this method also creates a new
 // http.ServeMux and then uses it to register both the provided router (to
 // handle "/") and APIv2 (to handle "<routePrefix>/api/v2"). The method returns
 // the newly created http.ServeMux. If a timeout has been set on construction of
@@ -172,7 +175,8 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
-	api.v1.Register(r.WithPrefix("/api/v1"))
+	// TODO(gotjosh) API V1 was removed as of version 0.27, when we reach 1.0.0 we should removed these deprecation warnings.
+	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()
 	mux.Handle("/", api.limitHandler(r))
@@ -181,13 +185,17 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
-	// TODO(beorn7): HTTP instrumentation is only in place for Router. Since
-	// /api/v2 works on the Handler level, it is currently not instrumented
-	// at all (with the exception of requestsInFlight, which is handled in
-	// limitHandler below).
 	mux.Handle(
 		apiPrefix+"/api/v2/",
-		api.limitHandler(http.StripPrefix(apiPrefix, api.v2.Handler)),
+		api.instrumentHandler(
+			apiPrefix,
+			api.limitHandler(
+				http.StripPrefix(
+					apiPrefix,
+					api.v2.Handler,
+				),
+			),
+		),
 	)
 
 	return mux
@@ -196,7 +204,6 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
 func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
-	api.v1.Update(cfg)
 	api.v2.Update(cfg, setAlertStatus)
 }
 
@@ -226,4 +233,18 @@ func (api *API) limitHandler(h http.Handler) http.Handler {
 	return http.TimeoutHandler(concLimiter, api.timeout, fmt.Sprintf(
 		"Exceeded configured timeout of %v.\n", api.timeout,
 	))
+}
+
+func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, _ := strings.CutPrefix(r.URL.Path, prefix)
+		// avoid high cardinality label values by replacing the actual silence IDs with a placeholder
+		if strings.HasPrefix(path, "/api/v2/silence/") {
+			path = "/api/v2/silence/{silenceID}"
+		}
+		promhttp.InstrumentHandlerDuration(
+			api.requestDuration.MustCurryWith(prometheus.Labels{"handler": path}),
+			h,
+		).ServeHTTP(w, r)
+	})
 }

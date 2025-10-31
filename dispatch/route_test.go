@@ -378,9 +378,9 @@ routes:
 	parent := tree.Routes[0]
 	child1 := parent.Routes[0]
 	child2 := parent.Routes[1]
-	require.Equal(t, parent.RouteOpts.GroupByAll, true)
-	require.Equal(t, child1.RouteOpts.GroupByAll, true)
-	require.Equal(t, child2.RouteOpts.GroupByAll, false)
+	require.True(t, parent.RouteOpts.GroupByAll)
+	require.True(t, child1.RouteOpts.GroupByAll)
+	require.False(t, child2.RouteOpts.GroupByAll)
 }
 
 func TestRouteMatchers(t *testing.T) {
@@ -856,68 +856,67 @@ routes:
 
 func TestRouteID(t *testing.T) {
 	in := `
-receiver: 'notify-def'
-
+receiver: default
 routes:
-- matchers: ['{owner="team-A"}', '{level!="critical"}']
-  receiver: 'notify-D'
-  group_by: [...]
-  continue: true
-- matchers: ['{owner="team-A"}', '{level!="critical"}']
-  receiver: 'notify-A'
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test1
   routes:
-  - matchers: ['{env="testing"}', '{baz!~".*quux"}']
-    receiver: 'notify-testing'
-    group_by: [...]
-  - match:
-      env: "production"
-    receiver: 'notify-productionA'
-    group_wait: 1m
-    continue: true
-  - matchers: [ env=~"produ.*", job=~".*"]
-    receiver: 'notify-productionB'
-    group_wait: 30s
-    group_interval: 5m
-    repeat_interval: 1h
-    group_by: ['job']
-- match_re:
-    owner: 'team-(B|C)'
-  group_by: ['foo', 'bar']
-  group_wait: 2m
-  receiver: 'notify-BC'
-- matchers: [group_by="role"]
-  group_by: ['role']
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test1
   routes:
-  - matchers: ['{env="testing"}']
-    receiver: 'notify-testing'
-    routes:
-    - matchers: [wait="long"]
-      group_wait: 2m
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - foo=bar
+  receiver: test2
+  routes:
+  - matchers:
+    - bar=baz
+- continue: true
+  matchers:
+  - bar=baz
+  receiver: test3
+  routes:
+  - matchers:
+    - baz=qux
+  - matchers:
+    - qux=corge
+- continue: true
+  matchers:
+  - qux=~"[a-zA-Z0-9]+"
+- continue: true
+  matchers:
+  - corge!~"[0-9]+"
 `
-
-	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
-		t.Fatal(err)
-	}
-	tree := NewRoute(&ctree, nil)
+	cr := config.Route{}
+	require.NoError(t, yaml.Unmarshal([]byte(in), &cr))
+	r := NewRoute(&cr, nil)
 
 	expected := []string{
 		"{}",
-		"{}/{level!=\"critical\",owner=\"team-A\"}/0",
-		"{}/{level!=\"critical\",owner=\"team-A\"}/1",
-		"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}/0",
-		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}/1",
-		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}/2",
-		"{}/{owner=~\"^(?:team-(B|C))$\"}/2",
-		"{}/{group_by=\"role\"}/3",
-		"{}/{group_by=\"role\"}/{env=\"testing\"}/0",
-		"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}/0",
+		"{}/{foo=\"bar\"}/0",
+		"{}/{foo=\"bar\"}/0/{bar=\"baz\"}/0",
+		"{}/{foo=\"bar\"}/1",
+		"{}/{foo=\"bar\"}/1/{bar=\"baz\"}/0",
+		"{}/{foo=\"bar\"}/2",
+		"{}/{foo=\"bar\"}/2/{bar=\"baz\"}/0",
+		"{}/{bar=\"baz\"}/3",
+		"{}/{bar=\"baz\"}/3/{baz=\"qux\"}/0",
+		"{}/{bar=\"baz\"}/3/{qux=\"corge\"}/1",
+		"{}/{qux=~\"[a-zA-Z0-9]+\"}/4",
+		"{}/{corge!~\"[0-9]+\"}/5",
 	}
 
-	var got []string
-	tree.Walk(func(r *Route) {
-		got = append(got, r.ID())
+	var actual []string
+	r.Walk(func(r *Route) {
+		actual = append(actual, r.ID())
 	})
-
-	require.ElementsMatch(t, got, expected)
+	require.ElementsMatch(t, actual, expected)
 }

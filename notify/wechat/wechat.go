@@ -17,15 +17,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -38,7 +37,7 @@ import (
 type Notifier struct {
 	conf   *config.WechatConfig
 	tmpl   *template.Template
-	logger log.Logger
+	logger *slog.Logger
 	client *http.Client
 
 	accessToken   string
@@ -71,7 +70,7 @@ type weChatResponse struct {
 }
 
 // New returns a new Wechat notifier.
-func New(c *config.WechatConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.WechatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "wechat", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -87,7 +86,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("incident", key)
+	n.logger.Debug("extracted group key", "key", key)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
@@ -101,7 +100,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
-			return false, fmt.Errorf("templating error: %s", err)
+			return false, fmt.Errorf("templating error: %w", err)
 		}
 
 		u := n.conf.APIURL.Copy()
@@ -147,7 +146,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 	if err != nil {
-		return false, fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %w", err)
 	}
 
 	var buf bytes.Buffer
@@ -175,7 +174,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return true, err
 	}
-	level.Debug(n.logger).Log("response", string(body), "incident", key)
+	n.logger.Debug(string(body), "incident", key)
 
 	var weResp weChatResponse
 	if err := json.Unmarshal(body, &weResp); err != nil {

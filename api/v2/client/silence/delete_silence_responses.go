@@ -20,6 +20,7 @@ package silence
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -54,7 +55,7 @@ func (o *DeleteSilenceReader) ReadResponse(response runtime.ClientResponse, cons
 		}
 		return nil, result
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[DELETE /silence/{silenceID}] deleteSilence", response, response.Code())
 	}
 }
 
@@ -96,12 +97,17 @@ func (o *DeleteSilenceOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the delete silence o k response
+func (o *DeleteSilenceOK) Code() int {
+	return 200
+}
+
 func (o *DeleteSilenceOK) Error() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceOK ", 200)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceOK", 200)
 }
 
 func (o *DeleteSilenceOK) String() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceOK ", 200)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceOK", 200)
 }
 
 func (o *DeleteSilenceOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -147,12 +153,17 @@ func (o *DeleteSilenceNotFound) IsCode(code int) bool {
 	return code == 404
 }
 
+// Code gets the status code for the delete silence not found response
+func (o *DeleteSilenceNotFound) Code() int {
+	return 404
+}
+
 func (o *DeleteSilenceNotFound) Error() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound ", 404)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound", 404)
 }
 
 func (o *DeleteSilenceNotFound) String() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound ", 404)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound", 404)
 }
 
 func (o *DeleteSilenceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -199,12 +210,19 @@ func (o *DeleteSilenceInternalServerError) IsCode(code int) bool {
 	return code == 500
 }
 
+// Code gets the status code for the delete silence internal server error response
+func (o *DeleteSilenceInternalServerError) Code() int {
+	return 500
+}
+
 func (o *DeleteSilenceInternalServerError) Error() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError %s", 500, payload)
 }
 
 func (o *DeleteSilenceInternalServerError) String() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError %s", 500, payload)
 }
 
 func (o *DeleteSilenceInternalServerError) GetPayload() string {

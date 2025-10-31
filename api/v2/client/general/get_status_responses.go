@@ -20,6 +20,7 @@ package general
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -44,7 +45,7 @@ func (o *GetStatusReader) ReadResponse(response runtime.ClientResponse, consumer
 		}
 		return result, nil
 	default:
-		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
+		return nil, runtime.NewAPIError("[GET /status] getStatus", response, response.Code())
 	}
 }
 
@@ -87,12 +88,19 @@ func (o *GetStatusOK) IsCode(code int) bool {
 	return code == 200
 }
 
+// Code gets the status code for the get status o k response
+func (o *GetStatusOK) Code() int {
+	return 200
+}
+
 func (o *GetStatusOK) Error() string {
-	return fmt.Sprintf("[GET /status][%d] getStatusOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /status][%d] getStatusOK %s", 200, payload)
 }
 
 func (o *GetStatusOK) String() string {
-	return fmt.Sprintf("[GET /status][%d] getStatusOK  %+v", 200, o.Payload)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /status][%d] getStatusOK %s", 200, payload)
 }
 
 func (o *GetStatusOK) GetPayload() *models.AlertmanagerStatus {

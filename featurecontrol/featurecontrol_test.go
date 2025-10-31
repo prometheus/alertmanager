@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,23 +30,23 @@ func TestFlags(t *testing.T) {
 	}{
 		{
 			name:         "with only valid feature flags",
-			featureFlags: fcReceiverNameInMetrics,
+			featureFlags: FeatureReceiverNameInMetrics,
 		},
 		{
 			name:         "with only invalid feature flags",
 			featureFlags: "somethingsomething",
-			err:          errors.New("Unknown option 'somethingsomething' for --enable-feature"),
+			err:          errors.New("unknown option 'somethingsomething' for --enable-feature"),
 		},
 		{
 			name:         "with both, valid and invalid feature flags",
-			featureFlags: strings.Join([]string{fcReceiverNameInMetrics, "somethingbad"}, ","),
-			err:          errors.New("Unknown option 'somethingbad' for --enable-feature"),
+			featureFlags: strings.Join([]string{FeatureReceiverNameInMetrics, "somethingbad"}, ","),
+			err:          errors.New("unknown option 'somethingbad' for --enable-feature"),
 		},
 	}
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			fc, err := NewFlags(log.NewNopLogger(), tt.featureFlags)
+			fc, err := NewFlags(promslog.NewNopLogger(), tt.featureFlags)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 			} else {

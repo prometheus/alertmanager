@@ -18,13 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -41,13 +39,13 @@ const maxMessageLenRunes = 20480
 type Notifier struct {
 	conf    *config.VictorOpsConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new VictorOps notifier.
-func New(c *config.VictorOpsConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -83,14 +81,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, fileErr := os.ReadFile(n.conf.APIKeyFile)
 		if fileErr != nil {
-			return false, errors.Wrap(fileErr, "failed to read API key from file")
+			return false, fmt.Errorf("failed to read API key from file: %w", fileErr)
 		}
 		apiKey = strings.TrimSpace(string(content))
 	}
 
 	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
-		return false, fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %w", err)
 	}
 
 	buf, err := n.createVictorOpsPayload(ctx, as...)
@@ -143,7 +141,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 
 	stateMessage, truncated := notify.TruncateInRunes(stateMessage, maxMessageLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated state_message", "incident", key, "max_runes", maxMessageLenRunes)
+		n.logger.Warn("Truncated state_message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 
 	msg := map[string]string{
@@ -155,14 +153,14 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("templating error: %s", err)
+		return nil, fmt.Errorf("templating error: %w", err)
 	}
 
 	// Add custom fields to the payload.
 	for k, v := range n.conf.CustomFields {
 		msg[k] = tmpl(v)
 		if err != nil {
-			return nil, fmt.Errorf("templating error: %s", err)
+			return nil, fmt.Errorf("templating error: %w", err)
 		}
 	}
 

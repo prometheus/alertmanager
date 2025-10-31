@@ -41,6 +41,7 @@ import (
 )
 
 const (
+	// nolint:godot
 	// amtool is the relative path to local amtool binary.
 	amtool = "../../../amtool"
 )
@@ -199,7 +200,7 @@ func (t *AcceptanceTest) Run() {
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Fatal(err)
+		t.Fatal(err)
 	}
 
 	// Set the reference time right before running the test actions to avoid
@@ -294,14 +295,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("starting alertmanager cluster: %w", err)
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("waiting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("waiting alertmanager cluster: %w", err)
 		}
 	}
 
@@ -342,7 +343,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	am.cmd = cmd
 
 	if err := am.cmd.Start(); err != nil {
-		return fmt.Errorf("starting alertmanager failed: %s", err)
+		return fmt.Errorf("starting alertmanager failed: %w", err)
 	}
 
 	go func() {
@@ -364,7 +365,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		}
 		_, err = io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager failed: %s", err)
+			return fmt.Errorf("starting alertmanager failed: %w", err)
 		}
 		return nil
 	}
@@ -561,7 +562,7 @@ func (amc *AlertmanagerCluster) SetSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	out, err := am.addSilenceCommand(sil)
 	if err != nil {
-		am.t.T.Errorf("Unable to set silence %v %v", err, string(out))
+		am.t.Errorf("Unable to set silence %v %v", err, string(out))
 	}
 }
 
@@ -584,7 +585,7 @@ func (am *Alertmanager) QuerySilence(match ...string) ([]TestSilence, error) {
 	cmd := exec.Command(amtool, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		am.t.T.Error("Silence query command failed: ", err)
+		am.t.Error("Silence query command failed: ", err)
 	}
 	return parseSilenceQueryResponse(out)
 }
