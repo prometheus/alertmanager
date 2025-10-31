@@ -400,8 +400,11 @@ func run() int {
 	}
 
 	var (
-		inhibitor *inhibit.Inhibitor
-		tmpl      *template.Template
+		inhibitor      *inhibit.Inhibitor
+		tmpl           *template.Template
+		pipeline       notify.RoutingStage
+		pipelineCtx    context.Context
+		pipelineCancel context.CancelFunc
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
@@ -471,7 +474,19 @@ func run() int {
 			pipelinePeer = peer
 		}
 
-		pipeline := pipelineBuilder.New(
+		// Stop old pipeline workers before creating new ones
+		if pipeline != nil {
+			pipeline.Stop()
+		}
+		if pipelineCancel != nil {
+			pipelineCancel()
+		}
+
+		// Create new context for pipeline lifecycle
+		pipelineCtx, pipelineCancel = context.WithCancel(context.Background())
+
+		pipeline = pipelineBuilder.New(
+			pipelineCtx,
 			receivers,
 			waitFunc,
 			inhibitor,
@@ -480,6 +495,7 @@ func run() int {
 			marker,
 			notificationLog,
 			pipelinePeer,
+			logger,
 		)
 
 		configuredReceivers.Set(float64(len(activeReceivers)))
