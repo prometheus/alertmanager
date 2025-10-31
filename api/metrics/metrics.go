@@ -13,9 +13,12 @@
 
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
 
-// Alerts stores metrics for alerts which are common across all API versions.
+// Alerts stores metrics for alerts.
 type Alerts struct {
 	firing   prometheus.Counter
 	resolved prometheus.Counter
@@ -23,20 +26,21 @@ type Alerts struct {
 }
 
 // NewAlerts returns an *Alerts struct for the given API version.
-func NewAlerts(version string, r prometheus.Registerer) *Alerts {
-	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
+// Since v1 was deprecated in 0.27, v2 is now hardcoded.
+func NewAlerts(r prometheus.Registerer) *Alerts {
+	if r == nil {
+		return nil
+	}
+	numReceivedAlerts := promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 		Name:        "alertmanager_alerts_received_total",
 		Help:        "The total number of received alerts.",
-		ConstLabels: prometheus.Labels{"version": version},
+		ConstLabels: prometheus.Labels{"version": "v2"},
 	}, []string{"status"})
-	numInvalidAlerts := prometheus.NewCounter(prometheus.CounterOpts{
+	numInvalidAlerts := promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_alerts_invalid_total",
 		Help:        "The total number of received alerts that were invalid.",
-		ConstLabels: prometheus.Labels{"version": version},
+		ConstLabels: prometheus.Labels{"version": "v2"},
 	})
-	if r != nil {
-		r.MustRegister(numReceivedAlerts, numInvalidAlerts)
-	}
 	return &Alerts{
 		firing:   numReceivedAlerts.WithLabelValues("firing"),
 		resolved: numReceivedAlerts.WithLabelValues("resolved"),

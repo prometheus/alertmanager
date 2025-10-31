@@ -16,15 +16,16 @@ package opsgenie
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -39,14 +40,14 @@ func TestOpsGenieRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -62,11 +63,11 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
@@ -75,7 +76,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 
 	key := "key"
 
-	f, err := ioutil.TempFile("", "opsgenie_test")
+	f, err := os.CreateTemp("", "opsgenie_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -87,11 +88,11 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestOpsGenie(t *testing.T) {
@@ -99,7 +100,7 @@ func TestOpsGenie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse URL: %v", err)
 	}
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	tmpl := test.CreateTmpl(t)
 
 	for _, tc := range []struct {
@@ -229,7 +230,7 @@ func TestOpsGenie(t *testing.T) {
 			req, retry, err := notifier.createRequests(ctx, alert1)
 			require.NoError(t, err)
 			require.Len(t, req, 1)
-			require.Equal(t, true, retry)
+			require.True(t, retry)
 			require.Equal(t, expectedURL, req[0].URL)
 			require.Equal(t, "GenieKey http://am", req[0].Header.Get("Authorization"))
 			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req[0]))
@@ -259,7 +260,7 @@ func TestOpsGenie(t *testing.T) {
 			}
 			req, retry, err = notifier.createRequests(ctx, alert2)
 			require.NoError(t, err)
-			require.Equal(t, true, retry)
+			require.True(t, retry)
 			require.Len(t, req, 1)
 			require.Equal(t, tc.expectedBody, readBody(t, req[0]))
 
@@ -267,7 +268,7 @@ func TestOpsGenie(t *testing.T) {
 			tc.cfg.APIKey = "{{ kaput "
 			_, _, err = notifier.createRequests(ctx, alert2)
 			require.Error(t, err)
-			require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
+			require.Equal(t, "templating error: template: :1: function \"kaput\" not defined", err.Error())
 		})
 	}
 }
@@ -286,7 +287,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 		APIURL:       &config.URL{URL: u},
 		HTTPConfig:   &commoncfg.HTTPClientConfig{},
 	}
-	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, log.NewNopLogger())
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
 	alert := &types.Alert{
 		Alert: model.Alert{
 			StartsAt: time.Now(),
@@ -309,20 +310,37 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	key, _ := notify.ExtractGroupKey(ctx)
 	alias := key.Hash()
 
-	require.Equal(t, requests[0].URL.String(), "https://test-opsgenie-url/v2/alerts")
+	require.Equal(t, "https://test-opsgenie-url/v2/alerts", requests[0].URL.String())
 	require.NotEmpty(t, body0)
 
 	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/message?identifierType=alias", alias))
-	require.Equal(t, body1, `{"message":"new message"}
-`)
+	require.JSONEq(t, `{"message":"new message"}`, body1)
 	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
-	require.Equal(t, body2, `{"description":"new description"}
-`)
+	require.JSONEq(t, `{"description":"new description"}`, body2)
+}
+
+func TestOpsGenieApiKeyFile(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+		APIKeyFile: `./api_key_file`,
+		APIURL:     &config.URL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
+
+	require.NoError(t, err)
+	requests, _, err := notifierWithUpdate.createRequests(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
 }
 
 func readBody(t *testing.T, r *http.Request) string {
 	t.Helper()
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	require.NoError(t, err)
 	return string(body)
 }

@@ -15,33 +15,30 @@ package cluster
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
-	"github.com/pkg/errors"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const capacity = 1024
 
 type connectionPool struct {
 	mtx       sync.Mutex
-	cache     *lru.Cache
+	cache     *lru.Cache[string, *tlsConn]
 	tlsConfig *tls.Config
 }
 
 func newConnectionPool(tlsClientCfg *tls.Config) (*connectionPool, error) {
 	cache, err := lru.NewWithEvict(
-		capacity, func(_ interface{}, value interface{}) {
-			conn, ok := value.(*tlsConn)
-			if ok {
-				_ = conn.Close()
-			}
+		capacity, func(_ string, conn *tlsConn) {
+			conn.Close()
 		},
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new LRU")
+		return nil, fmt.Errorf("failed to create new LRU: %w", err)
 	}
 	return &connectionPool{
 		cache:     cache,
@@ -58,12 +55,9 @@ func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration)
 		return nil, errors.New("connection pool closed")
 	}
 	key := fmt.Sprintf("%s/%d", addr, int64(timeout))
-	value, exists := pool.cache.Get(key)
-	if exists {
-		conn, ok := value.(*tlsConn)
-		if ok && conn.alive() {
-			return conn, nil
-		}
+	conn, exists := pool.cache.Get(key)
+	if exists && conn.alive() {
+		return conn, nil
 	}
 	conn, err := dialTLSConn(addr, timeout, pool.tlsConfig)
 	if err != nil {

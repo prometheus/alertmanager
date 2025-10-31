@@ -16,9 +16,11 @@ package timeinterval
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -30,9 +32,9 @@ var timeIntervalTestCases = []struct {
 	{
 		timeInterval: TimeInterval{},
 		validTimeStrings: []string{
-			"02 Jan 06 15:04 MST",
-			"03 Jan 07 10:04 MST",
-			"04 Jan 06 09:04 MST",
+			"02 Jan 06 15:04 +0000",
+			"03 Jan 07 10:04 +0000",
+			"04 Jan 06 09:04 +0000",
 		},
 		invalidTimeStrings: []string{},
 	},
@@ -43,14 +45,14 @@ var timeIntervalTestCases = []struct {
 			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
 		},
 		validTimeStrings: []string{
-			"04 May 20 15:04 MST",
-			"05 May 20 10:04 MST",
-			"09 Jun 20 09:04 MST",
+			"04 May 20 15:04 +0000",
+			"05 May 20 10:04 +0000",
+			"09 Jun 20 09:04 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 20 15:04 MST",
-			"04 May 20 08:59 MST",
-			"05 May 20 05:00 MST",
+			"03 May 20 15:04 +0000",
+			"04 May 20 08:59 +0000",
+			"05 May 20 05:00 +0000",
 		},
 	},
 	{
@@ -61,16 +63,16 @@ var timeIntervalTestCases = []struct {
 			Years:       []YearRange{{InclusiveRange{Begin: 2020, End: 2020}}},
 		},
 		validTimeStrings: []string{
-			"04 Apr 20 15:04 MST",
-			"05 Apr 20 00:00 MST",
-			"06 Apr 20 23:05 MST",
+			"04 Apr 20 15:04 +0000",
+			"05 Apr 20 00:00 +0000",
+			"06 Apr 20 23:05 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 MST",
-			"03 Apr 20 23:59 MST",
-			"04 Jun 20 23:59 MST",
-			"06 Apr 19 23:59 MST",
-			"07 Apr 20 00:00 MST",
+			"03 May 18 15:04 +0000",
+			"03 Apr 20 23:59 +0000",
+			"04 Jun 20 23:59 +0000",
+			"06 Apr 19 23:59 +0000",
+			"07 Apr 20 00:00 +0000",
 		},
 	},
 	{
@@ -79,20 +81,20 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -3, End: -1}}},
 		},
 		validTimeStrings: []string{
-			"31 Jan 20 15:04 MST",
-			"30 Jan 20 15:04 MST",
-			"29 Jan 20 15:04 MST",
-			"30 Jun 20 00:00 MST",
-			"29 Feb 20 23:05 MST",
+			"31 Jan 20 15:04 +0000",
+			"30 Jan 20 15:04 +0000",
+			"29 Jan 20 15:04 +0000",
+			"30 Jun 20 00:00 +0000",
+			"29 Feb 20 23:05 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 MST",
-			"27 Jan 20 15:04 MST",
-			"03 Apr 20 23:59 MST",
-			"04 Jun 20 23:59 MST",
-			"06 Apr 19 23:59 MST",
-			"07 Apr 20 00:00 MST",
-			"01 Mar 20 00:00 MST",
+			"03 May 18 15:04 +0000",
+			"27 Jan 20 15:04 +0000",
+			"03 Apr 20 23:59 +0000",
+			"04 Jun 20 23:59 +0000",
+			"06 Apr 19 23:59 +0000",
+			"07 Apr 20 00:00 +0000",
+			"01 Mar 20 00:00 +0000",
 		},
 	},
 	{
@@ -102,12 +104,43 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -31, End: 31}}},
 		},
 		validTimeStrings: []string{
-			"30 Jun 20 00:00 MST",
-			"01 Jun 20 00:00 MST",
+			"30 Jun 20 00:00 +0000",
+			"01 Jun 20 00:00 +0000",
 		},
 		invalidTimeStrings: []string{
-			"31 May 20 00:00 MST",
-			"1 Jul 20 00:00 MST",
+			"31 May 20 00:00 +0000",
+			"1 Jul 20 00:00 +0000",
+		},
+	},
+	{
+		// Check alternative timezones can be used to compare times.
+		// AEST 9AM to 5PM, Monday to Friday.
+		timeInterval: TimeInterval{
+			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
+			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
+			Location: &Location{mustLoadLocation("Australia/Sydney")},
+		},
+		validTimeStrings: []string{
+			"06 Apr 21 13:00 +1000",
+		},
+		invalidTimeStrings: []string{
+			"06 Apr 21 13:00 +0000",
+		},
+	},
+	{
+		// Check an alternative timezone during daylight savings time.
+		timeInterval: TimeInterval{
+			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
+			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
+			Months:   []MonthRange{{InclusiveRange{Begin: 11, End: 11}}},
+			Location: &Location{mustLoadLocation("Australia/Sydney")},
+		},
+		validTimeStrings: []string{
+			"01 Nov 21 09:00 +1100",
+			"31 Oct 21 22:00 +0000",
+		},
+		invalidTimeStrings: []string{
+			"31 Oct 21 21:00 +0000",
 		},
 	},
 }
@@ -188,12 +221,12 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"08 Jul 20 09:00 MST",
-			"08 Jul 20 16:59 MST",
+			"08 Jul 20 09:00 +0000",
+			"08 Jul 20 16:59 +0000",
 		},
 		excludes: []string{
-			"08 Jul 20 05:00 MST",
-			"08 Jul 20 08:59 MST",
+			"08 Jul 20 05:00 +0000",
+			"08 Jul 20 08:59 +0000",
 		},
 		expectError: false,
 	},
@@ -220,18 +253,18 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"27 Jan 21 09:00 MST",
-			"28 Jan 21 16:59 MST",
-			"29 Jan 21 13:00 MST",
-			"31 Mar 25 13:00 MST",
-			"31 Mar 25 13:00 MST",
-			"31 Jan 35 13:00 MST",
+			"27 Jan 21 09:00 +0000",
+			"28 Jan 21 16:59 +0000",
+			"29 Jan 21 13:00 +0000",
+			"31 Mar 25 13:00 +0000",
+			"31 Mar 25 13:00 +0000",
+			"31 Jan 35 13:00 +0000",
 		},
 		excludes: []string{
-			"30 Jan 21 13:00 MST", // Saturday
-			"01 Apr 21 13:00 MST", // 4th month
-			"30 Jan 26 13:00 MST", // 2026
-			"31 Jan 35 17:01 MST", // After 5pm
+			"30 Jan 21 13:00 +0000", // Saturday
+			"01 Apr 21 13:00 +0000", // 4th month
+			"30 Jan 26 13:00 +0000", // 2026
+			"31 Jan 35 17:01 +0000", // After 5pm
 		},
 		expectError: false,
 	},
@@ -249,7 +282,7 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"01 Apr 21 13:00 GMT",
+			"01 Apr 21 13:00 +0000",
 		},
 	},
 	{
@@ -357,7 +390,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end day must be negative if start day is negative",
 	},
 	{
-		// Negative end date before positive postive start date.
+		// Negative end date before positive positive start date.
 		in: `
 ---
 - days_of_month: ['10:-25']
@@ -375,6 +408,21 @@ var yamlUnmarshalTestCases = []struct {
 		intervals: []TimeInterval{
 			{
 				Months: []MonthRange{{InclusiveRange{1, 12}}},
+			},
+		},
+	},
+	{
+		// Time zones may be specified by location.
+		in: `
+---
+- years: ['2020:2022']
+  location: 'Australia/Sydney'
+`,
+		expectError: false,
+		intervals: []TimeInterval{
+			{
+				Years:    []YearRange{{InclusiveRange{2020, 2022}}},
+				Location: &Location{mustLoadLocation("Australia/Sydney")},
 			},
 		},
 	},
@@ -434,7 +482,7 @@ func TestYamlUnmarshal(t *testing.T) {
 			t.Errorf("Error unmarshalling %s: Want %+v, got %+v", tc.in, tc.intervals, ti)
 		}
 		for _, ts := range tc.contains {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			isContained := false
 			for _, interval := range ti {
 				if interval.ContainsTime(_t) {
@@ -446,7 +494,7 @@ func TestYamlUnmarshal(t *testing.T) {
 			}
 		}
 		for _, ts := range tc.excludes {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			isContained := false
 			for _, interval := range ti {
 				if interval.ContainsTime(_t) {
@@ -463,13 +511,13 @@ func TestYamlUnmarshal(t *testing.T) {
 func TestContainsTime(t *testing.T) {
 	for _, tc := range timeIntervalTestCases {
 		for _, ts := range tc.validTimeStrings {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			if !tc.timeInterval.ContainsTime(_t) {
 				t.Errorf("Expected period %+v to contain %+v", tc.timeInterval, _t)
 			}
 		}
 		for _, ts := range tc.invalidTimeStrings {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			if tc.timeInterval.ContainsTime(_t) {
 				t.Errorf("Period %+v not expected to contain %+v", tc.timeInterval, _t)
 			}
@@ -514,7 +562,7 @@ func TestYamlMarshal(t *testing.T) {
 }
 
 // Test JSON marshalling by marshalling a time interval
-// and then unmarshalling to ensure they're identical
+// and then unmarshalling to ensure they're identical.
 func TestJsonMarshal(t *testing.T) {
 	for _, tc := range yamlUnmarshalTestCases {
 		if tc.expectError {
@@ -554,13 +602,13 @@ years: ['2020:2023']
 months: ['january:march']
 `,
 		contains: []string{
-			"10 Jan 21 13:00 GMT",
-			"30 Jan 21 14:24 GMT",
+			"10 Jan 21 13:00 +0000",
+			"30 Jan 21 14:24 +0000",
 		},
 		excludes: []string{
-			"09 Jan 21 13:00 GMT",
-			"20 Jan 21 12:59 GMT",
-			"02 Feb 21 13:00 GMT",
+			"09 Jan 21 13:00 +0000",
+			"20 Jan 21 12:59 +0000",
+			"02 Feb 21 13:00 +0000",
 		},
 	},
 	{
@@ -572,12 +620,12 @@ years: ['2020:2023']
 months: ['february']
 `,
 		excludes: []string{
-			"28 Feb 21 13:00 GMT",
+			"28 Feb 21 13:00 +0000",
 		},
 	},
 }
 
-// Tests the entire flow from unmarshalling to containing a time
+// Tests the entire flow from unmarshalling to containing a time.
 func TestTimeIntervalComplete(t *testing.T) {
 	for _, tc := range completeTestCases {
 		var ti TimeInterval
@@ -585,7 +633,7 @@ func TestTimeIntervalComplete(t *testing.T) {
 			t.Error(err)
 		}
 		for _, ts := range tc.contains {
-			tt, err := time.Parse(time.RFC822, ts)
+			tt, err := time.Parse(time.RFC822Z, ts)
 			if err != nil {
 				t.Error(err)
 			}
@@ -594,7 +642,7 @@ func TestTimeIntervalComplete(t *testing.T) {
 			}
 		}
 		for _, ts := range tc.excludes {
-			tt, err := time.Parse(time.RFC822, ts)
+			tt, err := time.Parse(time.RFC822Z, ts)
 			if err != nil {
 				t.Error(err)
 			}
@@ -602,5 +650,103 @@ func TestTimeIntervalComplete(t *testing.T) {
 				t.Errorf("Expected %s to exclude %s", tc.in, ts)
 			}
 		}
+	}
+}
+
+// Utility function for declaring time locations in test cases. Panic if the location can't be loaded.
+func mustLoadLocation(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}
+
+func TestIntervener_Mutes(t *testing.T) {
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
+	}
+	eveningsAndWeekends := map[string][]TimeInterval{
+		"evenings": {{
+			Times: []TimeRange{{
+				StartMinute: 0,   // 00:00
+				EndMinute:   540, // 09:00
+			}, {
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []WeekdayRange{{
+				InclusiveRange: InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &Location{Location: sydney},
+		}},
+	}
+
+	tests := []struct {
+		name      string
+		intervals map[string][]TimeInterval
+		now       time.Time
+		mutedBy   []string
+	}{{
+		name:      "Should be muted outside working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should not be muted during working hours",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
+		mutedBy:   nil,
+	}, {
+		name:      "Should be muted during weekends",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
+		mutedBy:   []string{"weekends"},
+	}, {
+		name:      "Should be muted during weekend evenings",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 17, 0, 0, 0, sydney),
+		mutedBy:   []string{"evenings", "weekends"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekday",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings"},
+	}, {
+		name:      "Should be muted at 12pm UTC on a weekend",
+		intervals: eveningsAndWeekends,
+		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
+		mutedBy:   []string{"evenings", "weekends"},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intervener := NewIntervener(test.intervals)
+
+			// Get the names of all time intervals for the context.
+			timeIntervalNames := make([]string, 0, len(test.intervals))
+			for name := range test.intervals {
+				timeIntervalNames = append(timeIntervalNames, name)
+			}
+			// Sort the names so we can compare mutedBy with test.mutedBy.
+			sort.Strings(timeIntervalNames)
+
+			isMuted, mutedBy, err := intervener.Mutes(timeIntervalNames, test.now)
+			require.NoError(t, err)
+
+			if len(test.mutedBy) == 0 {
+				require.False(t, isMuted)
+				require.Empty(t, mutedBy)
+			} else {
+				require.True(t, isMuted)
+				require.Equal(t, test.mutedBy, mutedBy)
+			}
+		})
 	}
 }

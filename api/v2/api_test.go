@@ -14,18 +14,29 @@
 package v2
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/go-openapi/runtime"
+	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
+	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
+	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -61,7 +72,7 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 }
 
-func assertEqualStrings(t *testing.T, expected string, actual string) {
+func assertEqualStrings(t *testing.T, expected, actual string) {
 	if expected != actual {
 		t.Fatal("expected: ", expected, ", actual: ", actual)
 	}
@@ -72,10 +83,16 @@ var (
 	createdBy   = "test"
 )
 
-func gettableSilence(id string, state string,
-	updatedAt string, start string, end string,
-) *open_api_models.GettableSilence {
+func newSilences(t *testing.T) *silence.Silences {
+	silences, err := silence.New(silence.Options{})
+	require.NoError(t, err)
 
+	return silences
+}
+
+func gettableSilence(id, state string,
+	updatedAt, start, end string,
+) *open_api_models.GettableSilence {
 	updAt, err := strfmt.ParseDateTime(updatedAt)
 	if err != nil {
 		panic(err)
@@ -104,7 +121,6 @@ func gettableSilence(id string, state string,
 }
 
 func TestGetSilencesHandler(t *testing.T) {
-
 	updateTime := "2019-01-01T12:00:00+00:00"
 	silences := []*open_api_models.GettableSilence{
 		gettableSilence("silence-6-expired", "expired", updateTime,
@@ -131,17 +147,228 @@ func TestGetSilencesHandler(t *testing.T) {
 	}
 }
 
-func createSilenceMatcher(name string, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
-	return &silencepb.Matcher{
-		Name:    name,
-		Pattern: pattern,
-		Type:    matcherType,
+func TestDeleteSilenceHandler(t *testing.T) {
+	now := time.Now()
+	silences := newSilences(t)
+
+	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+
+	unexpiredSil := &silencepb.Silence{
+		Matchers:  []*silencepb.Matcher{m},
+		StartsAt:  now,
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now,
+	}
+	require.NoError(t, silences.Set(unexpiredSil))
+
+	expiredSil := &silencepb.Silence{
+		Matchers:  []*silencepb.Matcher{m},
+		StartsAt:  now.Add(-time.Hour),
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now,
+	}
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
+
+	for i, tc := range []struct {
+		sid          string
+		expectedCode int
+	}{
+		{
+			"unknownSid",
+			404,
+		},
+		{
+			unexpiredSil.Id,
+			200,
+		},
+		{
+			expiredSil.Id,
+			200,
+		},
+	} {
+		api := API{
+			uptime:   time.Now(),
+			silences: silences,
+			logger:   promslog.NewNopLogger(),
+		}
+
+		r, err := http.NewRequest("DELETE", "/api/v2/silence/${tc.sid}", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.deleteSilenceHandler(silence_ops.DeleteSilenceParams{
+			SilenceID:   strfmt.UUID(tc.sid),
+			HTTPRequest: r,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
 	}
 }
 
-func createLabelMatcher(name string, value string, matchType labels.MatchType) *labels.Matcher {
-	matcher, _ := labels.NewMatcher(matchType, name, value)
-	return matcher
+func TestPostSilencesHandler(t *testing.T) {
+	now := time.Now()
+	silences := newSilences(t)
+
+	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+
+	unexpiredSil := &silencepb.Silence{
+		Matchers:  []*silencepb.Matcher{m},
+		StartsAt:  now,
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now,
+	}
+	require.NoError(t, silences.Set(unexpiredSil))
+
+	expiredSil := &silencepb.Silence{
+		Matchers:  []*silencepb.Matcher{m},
+		StartsAt:  now.Add(-time.Hour),
+		EndsAt:    now.Add(time.Hour),
+		UpdatedAt: now,
+	}
+	require.NoError(t, silences.Set(expiredSil))
+	require.NoError(t, silences.Expire(expiredSil.Id))
+
+	t.Run("Silences CRUD", func(t *testing.T) {
+		for i, tc := range []struct {
+			name         string
+			sid          string
+			start, end   time.Time
+			expectedCode int
+		}{
+			{
+				"with an non-existent silence ID - it returns 404",
+				"unknownSid",
+				now.Add(time.Hour),
+				now.Add(time.Hour * 2),
+				404,
+			},
+			{
+				"with no silence ID - it creates the silence",
+				"",
+				now.Add(time.Hour),
+				now.Add(time.Hour * 2),
+				200,
+			},
+			{
+				"with an active silence ID - it extends the silence",
+				unexpiredSil.Id,
+				now.Add(time.Hour),
+				now.Add(time.Hour * 2),
+				200,
+			},
+			{
+				"with an expired silence ID - it re-creates the silence",
+				expiredSil.Id,
+				now.Add(time.Hour),
+				now.Add(time.Hour * 2),
+				200,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				api := API{
+					uptime:   time.Now(),
+					silences: silences,
+					logger:   promslog.NewNopLogger(),
+				}
+
+				sil := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
+				w := httptest.NewRecorder()
+				postSilences(t, w, api.postSilencesHandler, sil)
+				body, _ := io.ReadAll(w.Result().Body)
+				require.Equal(t, tc.expectedCode, w.Code, "test case: %d, response: %s", i, string(body))
+			})
+		}
+	})
+}
+
+func TestPostSilencesHandlerMissingIdCreatesSilence(t *testing.T) {
+	now := time.Now()
+	silences := newSilences(t)
+	api := API{
+		uptime:   time.Now(),
+		silences: silences,
+		logger:   promslog.NewNopLogger(),
+	}
+
+	// Create a new silence. It should be assigned a random UUID.
+	sil := createSilence(t, "", "silenceCreator", now.Add(time.Hour), now.Add(time.Hour*2))
+	w := httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Get the silences from the API.
+	w = httptest.NewRecorder()
+	getSilences(t, w, api.getSilencesHandler)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp []open_api_models.GettableSilence
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp, 1)
+
+	// Change the ID. It should return 404 Not Found.
+	sil = open_api_models.PostableSilence{
+		ID:      "unknownID",
+		Silence: resp[0].Silence,
+	}
+	w = httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	// Remove the ID. It should duplicate the silence with a different UUID.
+	sil = open_api_models.PostableSilence{
+		ID:      "",
+		Silence: resp[0].Silence,
+	}
+	w = httptest.NewRecorder()
+	postSilences(t, w, api.postSilencesHandler, sil)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Get the silences from the API. There should now be 2 silences.
+	w = httptest.NewRecorder()
+	getSilences(t, w, api.getSilencesHandler)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp, 2)
+	require.NotEqual(t, resp[0].ID, resp[1].ID)
+}
+
+func getSilences(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	handlerFunc func(params silence_ops.GetSilencesParams) middleware.Responder,
+) {
+	r, err := http.NewRequest("GET", "/api/v2/silences", nil)
+	require.NoError(t, err)
+
+	p := runtime.TextProducer()
+	responder := handlerFunc(silence_ops.GetSilencesParams{
+		HTTPRequest: r,
+		Filter:      nil,
+	})
+	responder.WriteResponse(w, p)
+}
+
+func postSilences(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	handlerFunc func(params silence_ops.PostSilencesParams) middleware.Responder,
+	sil open_api_models.PostableSilence,
+) {
+	b, err := json.Marshal(sil)
+	require.NoError(t, err)
+
+	r, err := http.NewRequest("POST", "/api/v2/silences", bytes.NewReader(b))
+	require.NoError(t, err)
+
+	p := runtime.TextProducer()
+	responder := handlerFunc(silence_ops.PostSilencesParams{
+		HTTPRequest: r,
+		Silence:     &sil,
+	})
+	responder.WriteResponse(w, p)
 }
 
 func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
@@ -153,72 +380,72 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 
 	tests := []test{
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchEqual)},
 			true,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "novalue", labels.MatchEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "novalue", labels.MatchEqual)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "(foo|bar)", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
 			true,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "foo", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "foo", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
 			false,
 		},
 
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchRegexp)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchEqual)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
 			true,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
 			true,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotRegexp)},
 			false,
 		},
 		{
-			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
-			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "value", labels.MatchNotEqual)},
 			false,
 		},
 		{
 			[]*silencepb.Matcher{
-				createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP),
-				createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL),
+				createSilenceMatcher(t, "label", "(foo|bar)", silencepb.Matcher_REGEXP),
+				createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL),
 			},
-			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
 			true,
 		},
 	}
@@ -255,24 +482,25 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
 			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
-		},
-		Status: &open_api_models.AlertStatus{
-			State:       &active,
-			InhibitedBy: []string{},
-			SilencedBy:  []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),
 		UpdatedAt:   convertDateTime(updated),
 		Fingerprint: &fp,
 		Receivers: []*open_api_models.Receiver{
-			&open_api_models.Receiver{Name: &receivers[0]},
-			&open_api_models.Receiver{Name: &receivers[1]},
+			{Name: &receivers[0]},
+			{Name: &receivers[1]},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 	}, openAPIAlert)
 }
@@ -312,5 +540,46 @@ func TestMatchFilterLabels(t *testing.T) {
 
 		ms := []*labels.Matcher{m}
 		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
+	}
+}
+
+func TestGetReceiversHandler(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+- name: 'team-Y'
+`
+	cfg, _ := config.Load(in)
+	api := API{
+		uptime:             time.Now(),
+		logger:             promslog.NewNopLogger(),
+		alertmanagerConfig: cfg,
+	}
+
+	for _, tc := range []struct {
+		body         string
+		expectedCode int
+	}{
+		{
+			`[{"name":"team-X"},{"name":"team-Y"}]`,
+			200,
+		},
+	} {
+		r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+			HTTPRequest: r,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		require.Equal(t, tc.body, string(body))
 	}
 }

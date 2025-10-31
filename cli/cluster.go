@@ -17,14 +17,14 @@ import (
 	"context"
 	"errors"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 )
 
 const clusterHelp = `View cluster status and peers.`
 
-// clusterCmd represents the cluster command
+// configureClusterCmd represents the cluster command.
 func configureClusterCmd(app *kingpin.Application) {
 	clusterCmd := app.Command("cluster", clusterHelp)
 	clusterCmd.Command("show", clusterHelp).Default().Action(execWithTimeout(showStatus)).PreAction(requireAlertManagerURL)

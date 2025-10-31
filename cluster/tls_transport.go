@@ -20,17 +20,17 @@ package cluster
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
 )
@@ -46,7 +46,7 @@ const (
 type TLSTransport struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
-	logger       log.Logger
+	logger       *slog.Logger
 	bindAddr     string
 	bindPort     int
 	done         chan struct{}
@@ -71,36 +71,46 @@ type TLSTransport struct {
 // a free port automatically.
 func NewTLSTransport(
 	ctx context.Context,
-	logger log.Logger,
+	logger *slog.Logger,
 	reg prometheus.Registerer,
 	bindAddr string,
 	bindPort int,
 	cfg *TLSTransportConfig,
 ) (*TLSTransport, error) {
+	if reg == nil {
+		return nil, errors.New("missing Prometheus registry")
+	}
+
 	if cfg == nil {
 		return nil, errors.New("must specify TLSTransportConfig")
 	}
+
 	tlsServerCfg, err := web.ConfigToTLSConfig(cfg.TLSServerConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid TLS server config")
+		return nil, fmt.Errorf("invalid TLS server config: %w", err)
 	}
+
 	tlsClientCfg, err := common.NewTLSConfig(cfg.TLSClientConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid TLS client config")
+		return nil, fmt.Errorf("invalid TLS client config: %w", err)
 	}
+
 	ip := net.ParseIP(bindAddr)
 	if ip == nil {
 		return nil, fmt.Errorf("invalid bind address \"%s\"", bindAddr)
 	}
+
 	addr := &net.TCPAddr{IP: ip, Port: bindPort}
 	listener, err := tls.Listen(network, addr.String(), tlsServerCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to start TLS listener on %q port %d", bindAddr, bindPort))
+		return nil, fmt.Errorf("failed to start TLS listener on %q port %d: %w", bindAddr, bindPort, err)
 	}
+
 	connPool, err := newConnectionPool(tlsClientCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize tls transport connection pool")
+		return nil, fmt.Errorf("failed to initialize tls transport connection pool: %w", err)
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	t := &TLSTransport{
 		ctx:          ctx,
@@ -149,7 +159,7 @@ func (t *TLSTransport) FinalAdvertiseAddr(ip string, port int) (net.IP, int, err
 			var err error
 			ip, err = sockaddr.GetPrivateIP()
 			if err != nil {
-				return nil, 0, fmt.Errorf("failed to get interface addresses: %v", err)
+				return nil, 0, fmt.Errorf("failed to get interface addresses: %w", err)
 			}
 			if ip == "" {
 				return nil, 0, fmt.Errorf("no private IP address found, and explicit IP not provided")
@@ -182,7 +192,7 @@ func (t *TLSTransport) StreamCh() <-chan net.Conn {
 // Shutdown is called when memberlist is shutting down; this gives the
 // TLS Transport a chance to clean up the listener and other goroutines.
 func (t *TLSTransport) Shutdown() error {
-	level.Debug(t.logger).Log("msg", "shutting down tls transport")
+	t.logger.Debug("shutting down tls transport")
 	t.cancel()
 	err := t.listener.Close()
 	t.connPool.shutdown()
@@ -194,16 +204,16 @@ func (t *TLSTransport) Shutdown() error {
 // from the pool, and writes to it. It also returns a timestamp of when
 // the packet was written.
 func (t *TLSTransport) WriteTo(b []byte, addr string) (time.Time, error) {
-	conn, err := t.connPool.borrowConnection(addr, DefaultTcpTimeout)
+	conn, err := t.connPool.borrowConnection(addr, DefaultTCPTimeout)
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
-		return time.Now(), errors.Wrap(err, "failed to dial")
+		return time.Now(), fmt.Errorf("failed to dial: %w", err)
 	}
 	fromAddr := t.listener.Addr().String()
 	err = conn.writePacket(fromAddr, b)
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
-		return time.Now(), errors.Wrap(err, "failed to write packet")
+		return time.Now(), fmt.Errorf("failed to write packet: %w", err)
 	}
 	t.packetsSent.Add(float64(len(b)))
 	return time.Now(), nil
@@ -215,13 +225,13 @@ func (t *TLSTransport) DialTimeout(addr string, timeout time.Duration) (net.Conn
 	conn, err := dialTLSConn(addr, timeout, t.tlsClientCfg)
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
-		return nil, errors.Wrap(err, "failed to dial")
+		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 	err = conn.writeStream()
 	netConn := conn.getRawConn()
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
-		return netConn, errors.Wrap(err, "failed to create stream connection")
+		return netConn, fmt.Errorf("failed to create stream connection: %w", err)
 	}
 	t.streamsSent.Inc()
 	return netConn, nil
@@ -249,7 +259,7 @@ func (t *TLSTransport) listen() {
 					return
 				}
 				t.readErrs.Inc()
-				level.Debug(t.logger).Log("msg", "error accepting connection", "err", err)
+				t.logger.Debug("error accepting connection", "err", err)
 
 			} else {
 				go t.handle(conn)
@@ -262,7 +272,7 @@ func (t *TLSTransport) handle(conn net.Conn) {
 	for {
 		packet, err := rcvTLSConn(conn).read()
 		if err != nil {
-			level.Debug(t.logger).Log("msg", "error reading from connection", "err", err)
+			t.logger.Debug("error reading from connection", "err", err)
 			t.readErrs.Inc()
 			return
 		}
@@ -284,7 +294,7 @@ func (t *TLSTransport) handle(conn net.Conn) {
 }
 
 func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
-	t.packetsSent = prometheus.NewCounter(
+	t.packetsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -292,7 +302,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes sent to outgoing connections (excluding internal metadata).",
 		},
 	)
-	t.packetsRcvd = prometheus.NewCounter(
+	t.packetsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -300,7 +310,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes received from incoming connections (excluding internal metadata).",
 		},
 	)
-	t.streamsSent = prometheus.NewCounter(
+	t.streamsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -309,7 +319,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 	)
 
-	t.streamsRcvd = prometheus.NewCounter(
+	t.streamsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -317,7 +327,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of stream connections received.",
 		},
 	)
-	t.readErrs = prometheus.NewCounter(
+	t.readErrs = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -325,7 +335,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of errors encountered while reading from incoming connections.",
 		},
 	)
-	t.writeErrs = prometheus.NewCounterVec(
+	t.writeErrs = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -334,13 +344,4 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"connection_type"},
 	)
-
-	if reg != nil {
-		reg.MustRegister(t.packetsSent)
-		reg.MustRegister(t.packetsRcvd)
-		reg.MustRegister(t.streamsSent)
-		reg.MustRegister(t.streamsRcvd)
-		reg.MustRegister(t.readErrs)
-		reg.MustRegister(t.writeErrs)
-	}
 }

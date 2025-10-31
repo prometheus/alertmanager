@@ -5,6 +5,7 @@ import Types exposing (Route(..))
 import Url exposing (Url)
 import Url.Parser exposing (Parser, map, oneOf, parse, top)
 import Views.AlertList.Parsing exposing (alertsParser)
+import Views.Settings.Parsing exposing (settingsViewParser)
 import Views.SilenceForm.Parsing exposing (silenceFormEditParser, silenceFormNewParser)
 import Views.SilenceList.Parsing exposing (silenceListParser)
 import Views.SilenceView.Parsing exposing (silenceViewParser)
@@ -46,6 +47,7 @@ routeParser =
     oneOf
         [ map SilenceListRoute silenceListParser
         , map StatusRoute statusParser
+        , map SettingsRoute settingsViewParser
         , map SilenceFormNewRoute silenceFormNewParser
         , map SilenceViewRoute silenceViewParser
         , map SilenceFormEditRoute silenceFormEditParser

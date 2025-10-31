@@ -18,8 +18,67 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
+	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
+
+func TestAddSilence(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1ms
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		FeatureFlags: []string{featurecontrol.FeatureClassicMode},
+		Tolerance:    150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	now := time.Now()
+	ps := models.PostableSilence{
+		Silence: models.Silence{
+			Comment:   stringPtr("test"),
+			CreatedBy: stringPtr("test"),
+			Matchers: models.Matchers{{
+				Name:    stringPtr("foo"),
+				IsEqual: boolPtr(true),
+				IsRegex: boolPtr(false),
+				Value:   stringPtr("bar"),
+			}},
+			StartsAt: dateTimePtr(strfmt.DateTime(now)),
+			EndsAt:   dateTimePtr(strfmt.DateTime(now.Add(24 * time.Hour))),
+		},
+	}
+	silenceParams := silence.NewPostSilencesParams()
+	silenceParams.Silence = &ps
+
+	_, err := am.Client().Silence.PostSilences(silenceParams)
+	require.NoError(t, err)
+}
 
 func TestSilencing(t *testing.T) {
 	t.Parallel()
@@ -43,7 +102,7 @@ receivers:
 	})
 
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -97,7 +156,7 @@ receivers:
 	})
 
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -121,4 +180,16 @@ receivers:
 	at.Run()
 
 	t.Log(co.Check())
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func dateTimePtr(t strfmt.DateTime) *strfmt.DateTime {
+	return &t
 }

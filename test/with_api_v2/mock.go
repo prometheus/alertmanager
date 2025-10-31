@@ -16,10 +16,11 @@ package test
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -77,7 +78,7 @@ func (s *TestSilence) Match(v ...string) *TestSilence {
 	return s
 }
 
-// MatchRE adds a new regex matcher to the silence
+// MatchRE adds a new regex matcher to the silence.
 func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 	if len(v)%2 == 1 {
 		panic("bad key/values")
@@ -147,7 +148,7 @@ type TestAlert struct {
 
 // Alert creates a new alert declaration with the given key/value pairs
 // as identifying labels.
-func Alert(keyval ...interface{}) *TestAlert {
+func Alert(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -191,7 +192,7 @@ func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.GettableAlert {
 }
 
 // Annotate the alert with the given key/value pairs.
-func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
+func (a *TestAlert) Annotate(keyval ...any) *TestAlert {
 	if len(keyval)%2 == 1 {
 		panic("bad key/values")
 	}
@@ -210,7 +211,6 @@ func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
 // must be a single starting value or two values where the second value
 // declares the resolved time.
 func (a *TestAlert) Active(tss ...float64) *TestAlert {
-
 	if len(tss) > 2 || len(tss) == 0 {
 		panic("only one or two timestamps allowed")
 	}
@@ -236,7 +236,7 @@ func equalAlerts(a, b *models.GettableAlert, opts *AcceptanceOpts) bool {
 	if (a.EndsAt == nil) != (b.EndsAt == nil) {
 		return false
 	}
-	if !(a.EndsAt == nil) && !(b.EndsAt == nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
+	if (a.EndsAt != nil) && (b.EndsAt != nil) && !equalTime(time.Time(*a.EndsAt), time.Time(*b.EndsAt), opts) {
 		return false
 	}
 	return true
@@ -257,7 +257,7 @@ func equalTime(a, b time.Time, opts *AcceptanceOpts) bool {
 type MockWebhook struct {
 	opts      *AcceptanceOpts
 	collector *Collector
-	listener  net.Listener
+	addr      string
 
 	// Func is called early on when retrieving a notification by an
 	// Alertmanager. If Func returns true, the given notification is dropped.
@@ -265,24 +265,20 @@ type MockWebhook struct {
 	Func func(timestamp float64) bool
 }
 
-func NewWebhook(c *Collector) *MockWebhook {
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
-		// we want to shut them down after test completion. Then we might want to
-		// log the error properly, too.
-		panic(err)
-	}
+func NewWebhook(t *testing.T, c *Collector) *MockWebhook {
+	t.Helper()
+
 	wh := &MockWebhook{
-		listener:  l,
 		collector: c,
 		opts:      c.opts,
 	}
-	go func() {
-		if err := http.Serve(l, wh); err != nil {
-			panic(err)
-		}
-	}()
+
+	server := httptest.NewServer(wh)
+	wh.addr = server.Listener.Addr().String()
+
+	t.Cleanup(func() {
+		server.Close()
+	})
 
 	return wh
 }
@@ -335,5 +331,5 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (ws *MockWebhook) Address() string {
-	return ws.listener.Addr().String()
+	return ws.addr
 }

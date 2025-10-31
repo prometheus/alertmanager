@@ -4,6 +4,7 @@ import Browser.Navigation exposing (Key)
 import Utils.Filter exposing (Filter, SilenceFormGetParams)
 import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
+import Views.Settings.Types as SettingsView exposing (SettingsMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
 import Views.SilenceView.Types as SilenceView exposing (SilenceViewMsg)
@@ -27,6 +28,7 @@ type alias Model =
     , defaultCreator : String
     , expandAll : Bool
     , key : Key
+    , settings : SettingsView.Model
     }
 
 
@@ -36,6 +38,7 @@ type Msg
     | MsgForSilenceForm SilenceFormMsg
     | MsgForSilenceList SilenceListMsg
     | MsgForStatus StatusMsg
+    | MsgForSettings SettingsMsg
     | NavigateToAlerts Filter
     | NavigateToNotFound
     | NavigateToSilenceView String
@@ -43,6 +46,7 @@ type Msg
     | NavigateToSilenceFormNew SilenceFormGetParams
     | NavigateToSilenceList Filter
     | NavigateToStatus
+    | NavigateToSettings
     | NavigateToInternalUrl String
     | NavigateToExternalUrl String
     | RedirectAlerts
@@ -62,3 +66,4 @@ type Route
     | SilenceViewRoute String
     | StatusRoute
     | TopLevelRoute
+    | SettingsRoute

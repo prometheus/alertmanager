@@ -14,16 +14,16 @@
 package config
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	promconfig "github.com/prometheus/common/config"
 	"gopkg.in/yaml.v2"
 )
 
-// LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file
+// LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file.
 func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
-	b, err := ioutil.ReadFile(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

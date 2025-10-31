@@ -9,7 +9,8 @@ import Time exposing (Posix, utc)
 import Utils.DateTimePicker.Types exposing (DateTimePicker, InputHourOrMinute(..), Msg(..), StartOrEnd(..))
 import Utils.DateTimePicker.Utils
     exposing
-        ( floorDate
+        ( FirstDayOfWeek(..)
+        , floorDate
         , floorMonth
         , listDaysOfMonth
         , monthToString
@@ -80,14 +81,23 @@ viewMonth : DateTimePicker -> Posix -> Html Msg
 viewMonth dateTimePicker justViewTime =
     let
         days =
-            listDaysOfMonth justViewTime
+            listDaysOfMonth justViewTime dateTimePicker.firstDayOfWeek
 
         weeks =
             splitWeek days []
     in
     div [ class "row justify-content-center" ]
         [ div [ class "weekheader" ]
-            (List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ])
+            (case dateTimePicker.firstDayOfWeek of
+                Sunday ->
+                    List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
+
+                Monday ->
+                    List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
+
+                Saturday ->
+                    List.map viewWeekHeader [ "Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri" ]
+            )
         , div
             [ class "date-container"
             , onMouseOut ClearMouseOverDay
