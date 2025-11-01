@@ -583,3 +583,67 @@ func TestTemplateFuncs(t *testing.T) {
 		})
 	}
 }
+
+func TestDeepCopyWithTemplate(t *testing.T) {
+	identity := TemplateFunc(func(s string) (string, error) { return s, nil })
+	withSuffix := TemplateFunc(func(s string) (string, error) { return s + "-templated", nil })
+
+	for _, tc := range []struct {
+		title   string
+		input   any
+		fn      TemplateFunc
+		want    any
+		wantErr string
+	}{
+		{
+			title: "string keeps templated value",
+			input: "hello",
+			fn:    withSuffix,
+			want:  "hello-templated",
+		},
+		{
+			title: "string parsed as YAML map",
+			input: "foo: bar",
+			fn:    identity,
+			want:  map[string]any{"foo": "bar"},
+		},
+		{
+			title: "slice templating applied recursively",
+			input: []any{"foo", 42},
+			fn:    withSuffix,
+			want:  []any{"foo-templated", 42},
+		},
+		{
+			title: "map converts keys and drops non-string",
+			input: map[any]any{
+				"foo":    "bar",
+				42:       "ignore",
+				"nested": []any{"baz"},
+			},
+			fn: withSuffix,
+			want: map[string]any{
+				"foo-templated":    "bar-templated",
+				"nested-templated": []any{"baz-templated"},
+			},
+		},
+		{
+			title: "non string value returned as-is",
+			input: 123,
+			fn:    identity,
+			want:  123,
+		},
+		{
+			title: "nil input",
+			input: nil,
+			fn:    identity,
+			want:  nil,
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			got, err := DeepCopyWithTemplate(tc.input, tc.fn)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}

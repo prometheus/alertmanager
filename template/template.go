@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -422,4 +424,67 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 	}
 
 	return data
+}
+
+type TemplateFunc func(string) (string, error)
+
+// deepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
+// provided template (with the provided data) on all string keys or values. All maps are connverted to
+// map[string]interface{}, with all non-string keys discarded.
+func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interface{}, error) {
+	if value == nil {
+		return value, nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+
+	case reflect.String:
+		parsed, ok := tmplTextFunc(value.(string))
+		if ok == nil {
+			var inlineType interface{}
+			err := yaml.Unmarshal([]byte(parsed), &inlineType)
+			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			return DeepCopyWithTemplate(inlineType, tmplTextFunc)
+		}
+		return parsed, ok
+
+	case reflect.Array, reflect.Slice:
+		arrayLen := valueMeta.Len()
+		converted := make([]interface{}, arrayLen)
+		for i := 0; i < arrayLen; i++ {
+			var err error
+			converted[i], err = DeepCopyWithTemplate(valueMeta.Index(i).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+
+	case reflect.Map:
+		keys := valueMeta.MapKeys()
+		converted := make(map[string]interface{}, len(keys))
+
+		for _, keyMeta := range keys {
+			var err error
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			strKey, err = tmplTextFunc(strKey)
+			if err != nil {
+				return nil, err
+			}
+			converted[strKey], err = DeepCopyWithTemplate(valueMeta.MapIndex(keyMeta).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+	default:
+		return value, nil
+	}
 }
