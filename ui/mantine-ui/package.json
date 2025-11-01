@@ -18,7 +18,7 @@
 
   },
   "dependencies": {
-    "@mantine/core": "8.2.4",
+    "@mantine/core": "8.3.6",
     "@mantine/hooks": "8.2.4",
     "react": "^19.1.0",
     "react-dom": "^19.2.0",
