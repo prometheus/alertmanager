@@ -22,7 +22,7 @@
     "@mantine/hooks": "8.2.4",
     "react": "^19.1.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
