@@ -23,7 +23,7 @@ const (
 )
 
 func BenchmarkParseSimple(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := Matchers(simpleExample); err != nil {
 			b.Fatal(err)
 		}
@@ -31,7 +31,7 @@ func BenchmarkParseSimple(b *testing.B) {
 }
 
 func BenchmarkParseComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := Matchers(complexExample); err != nil {
 			b.Fatal(err)
 		}
