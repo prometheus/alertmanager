@@ -23,6 +23,8 @@ type InhibitorMetrics struct {
 	sourceAlertsCacheItems prometheus.Gauge
 	sourceAlertsIndexItems prometheus.Gauge
 	mutesDuration          *prometheus.SummaryVec
+	mutesDurationMuted     prometheus.Observer
+	mutesDurationNotMuted  prometheus.Observer
 
 	// Rule metrics
 	ruleSourceAlertsCacheItems *prometheus.GaugeVec
@@ -53,6 +55,7 @@ func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
 			},
 			[]string{"muted"},
 		),
+
 		ruleSourceAlertsCacheItems: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_inhibit_rule_source_alerts_cache_items",
@@ -82,6 +85,10 @@ func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
 			[]string{"rule", "muted"},
 		),
 	}
+
+	metrics.mutesDurationMuted = metrics.mutesDuration.With(prometheus.Labels{"muted": "true"})
+	metrics.mutesDurationNotMuted = metrics.mutesDuration.With(prometheus.Labels{"muted": "false"})
+
 	if reg != nil {
 		reg.MustRegister(
 			metrics.sourceAlertsCacheItems,
@@ -101,20 +108,26 @@ func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
 }
 
 type RuleMetrics struct {
-	ruleName               string
-	matchesDuration        *prometheus.SummaryVec
-	mutesDuration          *prometheus.SummaryVec
+	ruleName                  string
+	matchesDurationMatched    prometheus.Observer
+	matchesDurationNotMatched prometheus.Observer
+
+	mutesDurationMuted    prometheus.Observer
+	mutesDurationNotMuted prometheus.Observer
+
 	sourceAlertsCacheItems *prometheus.GaugeVec
 	sourceAlertsIndexItems *prometheus.GaugeVec
 }
 
 func NewRuleMetrics(name string, metrics *InhibitorMetrics) *RuleMetrics {
 	rm := &RuleMetrics{
-		ruleName:               name,
-		matchesDuration:        metrics.ruleMatchesDuration,
-		mutesDuration:          metrics.ruleMutesDuration,
-		sourceAlertsCacheItems: metrics.ruleSourceAlertsCacheItems,
-		sourceAlertsIndexItems: metrics.ruleSourceAlertsIndexItems,
+		ruleName:                  name,
+		matchesDurationMatched:    metrics.ruleMatchesDuration.With(prometheus.Labels{"rule": name, "matched": "true"}),
+		matchesDurationNotMatched: metrics.ruleMatchesDuration.With(prometheus.Labels{"rule": name, "matched": "false"}),
+		mutesDurationMuted:        metrics.ruleMutesDuration.With(prometheus.Labels{"rule": name, "muted": "true"}),
+		mutesDurationNotMuted:     metrics.ruleMutesDuration.With(prometheus.Labels{"rule": name, "muted": "false"}),
+		sourceAlertsCacheItems:    metrics.ruleSourceAlertsCacheItems,
+		sourceAlertsIndexItems:    metrics.ruleSourceAlertsIndexItems,
 	}
 
 	rm.sourceAlertsCacheItems.With(prometheus.Labels{"rule": rm.ruleName}).Set(0)

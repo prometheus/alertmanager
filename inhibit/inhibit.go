@@ -163,22 +163,25 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		ruleStart := time.Now()
 		if !r.TargetMatchers.Matches(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.
-			r.metrics.matchesDuration.With(prometheus.Labels{"rule": r.Name, "matched": "false"}).Observe(time.Since(ruleStart).Seconds())
+			r.metrics.matchesDurationNotMatched.Observe(time.Since(ruleStart).Seconds())
 			continue
 		}
-		r.metrics.matchesDuration.With(prometheus.Labels{"rule": r.Name, "matched": "true"}).Observe(time.Since(ruleStart).Seconds())
+		r.metrics.matchesDurationMatched.Observe(time.Since(ruleStart).Seconds())
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset)); eq {
+		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), ruleStart); eq {
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			ih.metrics.mutesDuration.With(prometheus.Labels{"muted": "true"}).Observe(time.Since(start).Seconds())
-			r.metrics.mutesDuration.With(prometheus.Labels{"rule": r.Name, "muted": "true"}).Observe(time.Since(ruleStart).Seconds())
+			now := time.Now()
+			sinceStart := now.Sub(start)
+			sinceRuleStart := now.Sub(ruleStart)
+			ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
+			r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
 			return true
 		}
-		r.metrics.mutesDuration.With(prometheus.Labels{"rule": r.Name, "muted": "false"}).Observe(time.Since(ruleStart).Seconds())
+		r.metrics.mutesDurationNotMuted.Observe(time.Since(ruleStart).Seconds())
 	}
 	ih.marker.SetInhibited(fp)
-	ih.metrics.mutesDuration.With(prometheus.Labels{"muted": "false"}).Observe(time.Since(start).Seconds())
+	ih.metrics.mutesDurationNotMuted.Observe(time.Since(start).Seconds())
 
 	return false
 }
@@ -360,8 +363,7 @@ func (r *InhibitRule) gcCallback(alerts []types.Alert) {
 // labels for the given label set. If so, the fingerprint of one of those alerts
 // is returned. If excludeTwoSidedMatch is true, alerts that match both the
 // source and the target side of the rule are disregarded.
-func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
-	now := time.Now()
+func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time) (model.Fingerprint, bool) {
 	equal, found := r.findEqualSourceAlert(lset, now)
 	if found {
 		if excludeTwoSidedMatch && r.TargetMatchers.Matches(equal.Labels) {
