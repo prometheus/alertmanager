@@ -111,6 +111,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	if method == http.MethodPut && requestBody.Fields != nil && n.conf.DisableUpdateDescription {
+		requestBody.Fields.Description = nil
+	}
+
 	_, shouldRetry, err = n.doAPIRequest(ctx, method, path, requestBody)
 	if err != nil {
 		return shouldRetry, fmt.Errorf("failed to %s request to %q: %w", method, path, err)
