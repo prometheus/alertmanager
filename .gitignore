@@ -7,6 +7,8 @@
 /.release
 /.tarballs
 /vendor
+/.idea
+*.iml
 
 !.golangci.yml
 !/cli/testdata/*.yml
