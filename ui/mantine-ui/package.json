@@ -21,7 +21,7 @@
     "@mantine/core": "8.2.4",
     "@mantine/hooks": "8.2.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
@@ -33,7 +33,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.9.2",
     "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
+    "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
     "eslint": "^9.39.0",
     "eslint-config-mantine": "^4.0.3",
