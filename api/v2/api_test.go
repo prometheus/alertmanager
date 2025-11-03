@@ -31,10 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -582,4 +584,327 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func TestGetAlertGroupsHandler(t *testing.T) {
+	now := time.Now()
+
+	// Create test alerts
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert1",
+				"severity":  "critical",
+				"env":       "prod",
+			},
+			Annotations: model.LabelSet{},
+			StartsAt:    now.Add(-10 * time.Minute),
+		},
+		UpdatedAt: now,
+	}
+
+	alert2 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert2",
+				"severity":  "warning",
+				"env":       "staging",
+			},
+			Annotations: model.LabelSet{},
+			StartsAt:    now.Add(-5 * time.Minute),
+		},
+		UpdatedAt: now,
+	}
+
+	alert3 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert3",
+				"severity":  "info",
+				"env":       "prod",
+			},
+			Annotations: model.LabelSet{},
+			StartsAt:    now.Add(-2 * time.Minute),
+			EndsAt:      now.Add(-1 * time.Minute), // Resolved
+		},
+		UpdatedAt: now,
+	}
+
+	// Mock route interface
+	mockRoute := &mockRouteImpl{
+		receiver: "team-X",
+		groupKey: "{}:{alertname=\"TestAlert1\"}",
+		routeID:  "{}",
+	}
+
+	mockRoute2 := &mockRouteImpl{
+		receiver: "team-Y",
+		groupKey: "{}:{alertname=\"TestAlert2\"}",
+		routeID:  "{}1",
+	}
+
+	// Mock aggregation group
+	mockAggGroup1 := &mockAggGroup{
+		alerts:   []*types.Alert{alert1},
+		labels:   model.LabelSet{"alertname": "TestAlert1"},
+		groupKey: "{}:{alertname=\"TestAlert1\"}",
+		routeID:  "{}",
+	}
+
+	mockAggGroup2 := &mockAggGroup{
+		alerts:   []*types.Alert{alert2},
+		labels:   model.LabelSet{"alertname": "TestAlert2"},
+		groupKey: "{}:{alertname=\"TestAlert2\"}",
+		routeID:  "{}1",
+	}
+
+	mockAggGroup3 := &mockAggGroup{
+		alerts:   []*types.Alert{alert3},
+		labels:   model.LabelSet{"alertname": "TestAlert3"},
+		groupKey: "{}:{alertname=\"TestAlert3\"}",
+		routeID:  "{}",
+	}
+
+	// Create test cases
+	tests := []struct {
+		name           string
+		filter         []string
+		receiver       *string
+		active         *bool
+		silenced       *bool
+		inhibited      *bool
+		muted          *bool
+		dispatchGroups map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup
+		expectedCount  int
+		expectedCode   int
+	}{
+		{
+			name:      "get all alert groups",
+			filter:    nil,
+			receiver:  nil,
+			active:    ptrBool(true),
+			silenced:  ptrBool(true),
+			inhibited: ptrBool(true),
+			muted:     ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{
+				mockRoute: {
+					alert1.Fingerprint(): mockAggGroup1,
+				},
+				mockRoute2: {
+					alert2.Fingerprint(): mockAggGroup2,
+				},
+			},
+			expectedCount: 2,
+			expectedCode:  200,
+		},
+		{
+			name:      "filter by receiver",
+			filter:    nil,
+			receiver:  ptrString("team-X"),
+			active:    ptrBool(true),
+			silenced:  ptrBool(true),
+			inhibited: ptrBool(true),
+			muted:     ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{
+				mockRoute: {
+					alert1.Fingerprint(): mockAggGroup1,
+				},
+				mockRoute2: {
+					alert2.Fingerprint(): mockAggGroup2,
+				},
+			},
+			expectedCount: 1,
+			expectedCode:  200,
+		},
+		{
+			name:      "filter by label matcher",
+			filter:    []string{"env=prod"},
+			receiver:  nil,
+			active:    ptrBool(true),
+			silenced:  ptrBool(true),
+			inhibited: ptrBool(true),
+			muted:     ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{
+				mockRoute: {
+					alert1.Fingerprint(): mockAggGroup1,
+				},
+				mockRoute2: {
+					alert2.Fingerprint(): mockAggGroup2,
+				},
+			},
+			expectedCount: 1,
+			expectedCode:  200,
+		},
+		{
+			name:      "filter out resolved alerts when active=false",
+			filter:    nil,
+			receiver:  nil,
+			active:    ptrBool(false),
+			silenced:  ptrBool(true),
+			inhibited: ptrBool(true),
+			muted:     ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{
+				mockRoute: {
+					alert3.Fingerprint(): mockAggGroup3,
+				},
+			},
+			expectedCount: 0,
+			expectedCode:  200,
+		},
+		{
+			name:           "invalid filter",
+			filter:         []string{"invalid{filter"},
+			receiver:       nil,
+			active:         ptrBool(true),
+			silenced:       ptrBool(true),
+			inhibited:      ptrBool(true),
+			muted:          ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{},
+			expectedCount:  0,
+			expectedCode:   400,
+		},
+		{
+			name:           "invalid receiver regex",
+			filter:         nil,
+			receiver:       ptrString("[invalid"),
+			active:         ptrBool(true),
+			silenced:       ptrBool(true),
+			inhibited:      ptrBool(true),
+			muted:          ptrBool(true),
+			dispatchGroups: map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup{},
+			expectedCount:  0,
+			expectedCode:   400,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup API with mock dependencies
+			api := API{
+				uptime: now,
+				logger: promslog.NewNopLogger(),
+				dispatchGroups: func(routeFilter func(dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup {
+					return tc.dispatchGroups
+				},
+				getAlertStatus: func(fp model.Fingerprint) types.AlertStatus {
+					return types.AlertStatus{State: types.AlertStateActive}
+				},
+				setAlertStatus: func(model.LabelSet) {
+					// No-op for testing
+				},
+				groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
+					return nil, false
+				},
+			}
+
+			// Create HTTP request
+			r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
+			require.NoError(t, err)
+
+			// Setup parameters
+			params := alertgroup_ops.GetAlertGroupsParams{
+				HTTPRequest: r,
+				Filter:      tc.filter,
+				Receiver:    tc.receiver,
+				Active:      tc.active,
+				Silenced:    tc.silenced,
+				Inhibited:   tc.inhibited,
+				Muted:       tc.muted,
+			}
+
+			// Execute handler
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			responder := api.getAlertGroupsHandler(params)
+			responder.WriteResponse(w, p)
+
+			body, _ := io.ReadAll(w.Result().Body)
+
+			// Verify response code
+			require.Equal(t, tc.expectedCode, w.Code, "response: %s", string(body))
+
+			// If success, verify response body
+			if tc.expectedCode == 200 {
+				var resp open_api_models.AlertGroups
+				err := json.Unmarshal(body, &resp)
+				require.NoError(t, err)
+				require.Len(t, resp, tc.expectedCount)
+			}
+		})
+	}
+}
+
+// Helper types for mocking.
+type mockRouteImpl struct {
+	receiver string
+	groupKey string
+	routeID  string
+}
+
+func (m *mockRouteImpl) Key() string {
+	return m.groupKey
+}
+
+func (m *mockRouteImpl) ID() string {
+	return m.routeID
+}
+
+func (m *mockRouteImpl) Options() dispatch.RouteOpts {
+	return dispatch.RouteOpts{
+		Receiver: m.receiver,
+	}
+}
+
+func (m *mockRouteImpl) Match(model.LabelSet) []dispatch.Route {
+	return nil
+}
+
+func (m *mockRouteImpl) Matchers() labels.Matchers {
+	return nil
+}
+
+func (m *mockRouteImpl) Continues() bool {
+	return false
+}
+
+func (m *mockRouteImpl) Routes() []dispatch.Route {
+	return nil
+}
+
+func (m *mockRouteImpl) Walk(func(dispatch.Route)) {}
+
+type mockAggGroup struct {
+	alerts   []*types.Alert
+	labels   model.LabelSet
+	groupKey string
+	routeID  string
+}
+
+func (m *mockAggGroup) Alerts() []*types.Alert {
+	return m.alerts
+}
+
+func (m *mockAggGroup) Labels() model.LabelSet {
+	return m.labels
+}
+
+func (m *mockAggGroup) GroupKey() string {
+	return m.groupKey
+}
+
+func (m *mockAggGroup) RouteID() string {
+	return m.routeID
+}
+
+func (m *mockAggGroup) Receiver() string {
+	return ""
+}
+
+// Helper functions.
+func ptrBool(b bool) *bool {
+	return &b
+}
+
+func ptrString(s string) *string {
+	return &s
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -24,12 +24,10 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
@@ -52,7 +50,7 @@ func TestAggrGroup(t *testing.T) {
 		GroupInterval:  300 * time.Millisecond,
 		RepeatInterval: 1 * time.Hour,
 	}
-	route := &Route{
+	route := &route{
 		RouteOpts: *opts,
 	}
 
@@ -307,7 +305,7 @@ func TestGroupLabels(t *testing.T) {
 		},
 	}
 
-	route := &Route{
+	route := &route{
 		RouteOpts: RouteOpts{
 			GroupBy: map[model.LabelName]struct{}{
 				"a": {},
@@ -340,7 +338,7 @@ func TestGroupByAllLabels(t *testing.T) {
 		},
 	}
 
-	route := &Route{
+	route := &route{
 		RouteOpts: RouteOpts{
 			GroupBy:    map[model.LabelName]struct{}{},
 			GroupByAll: true,
@@ -358,255 +356,6 @@ func TestGroupByAllLabels(t *testing.T) {
 	if !reflect.DeepEqual(ls, expLs) {
 		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
 	}
-}
-
-func TestGroups(t *testing.T) {
-	confData := `receivers:
-- name: 'kafka'
-- name: 'prod'
-- name: 'testing'
-
-route:
-  group_by: ['alertname']
-  group_wait: 10ms
-  group_interval: 10ms
-  receiver: 'prod'
-  routes:
-  - match:
-      env: 'testing'
-    receiver: 'testing'
-    group_by: ['alertname', 'service']
-  - match:
-      env: 'prod'
-    receiver: 'prod'
-    group_by: ['alertname', 'service', 'cluster']
-    continue: true
-  - match:
-      kafka: 'yes'
-    receiver: 'kafka'
-    group_by: ['alertname', 'service', 'cluster']`
-	conf, err := config.Load(confData)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	logger := promslog.NewNopLogger()
-	route := NewRoute(conf.Route, nil)
-	reg := prometheus.NewRegistry()
-	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer alerts.Close()
-
-	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
-	go dispatcher.Run()
-	defer dispatcher.Stop()
-
-	// Create alerts. the dispatcher will automatically create the groups.
-	inputAlerts := []*types.Alert{
-		// Matches the parent route.
-		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
-		// Matches the first sub-route.
-		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
-		// Matches the second sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
-		// Matches the second sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api", "instance": "inst1"}),
-		// Matches the second and third sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
-	}
-	alerts.Put(inputAlerts...)
-
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
-	require.Len(t, recorder.Alerts(), 7)
-
-	alertGroups, receivers := dispatcher.Groups(
-		func(*Route) bool {
-			return true
-		}, func(*types.Alert, time.Time) bool {
-			return true
-		},
-	)
-
-	require.Equal(t, AlertGroups{
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[0]},
-			Labels: model.LabelSet{
-				"alertname": "OtherAlert",
-			},
-			Receiver: "prod",
-			GroupKey: "{}:{alertname=\"OtherAlert\"}",
-			RouteID:  "{}",
-		},
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[1]},
-			Labels: model.LabelSet{
-				"alertname": "TestingAlert",
-				"service":   "api",
-			},
-			Receiver: "testing",
-			GroupKey: "{}/{env=\"testing\"}:{alertname=\"TestingAlert\", service=\"api\"}",
-			RouteID:  "{}/{env=\"testing\"}/0",
-		},
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
-			Labels: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "aa",
-			},
-			Receiver: "prod",
-			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"aa\", service=\"api\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
-		},
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[4]},
-			Labels: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "bb",
-			},
-			Receiver: "prod",
-			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"bb\", service=\"api\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
-		},
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
-			Labels: model.LabelSet{
-				"alertname": "HighLatency",
-				"service":   "db",
-				"cluster":   "bb",
-			},
-			Receiver: "kafka",
-			GroupKey: "{}/{kafka=\"yes\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
-			RouteID:  "{}/{kafka=\"yes\"}/2",
-		},
-		&AlertGroup{
-			Alerts: []*types.Alert{inputAlerts[5]},
-			Labels: model.LabelSet{
-				"alertname": "HighLatency",
-				"service":   "db",
-				"cluster":   "bb",
-			},
-			Receiver: "prod",
-			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
-		},
-	}, alertGroups)
-	require.Equal(t, map[model.Fingerprint][]string{
-		inputAlerts[0].Fingerprint(): {"prod"},
-		inputAlerts[1].Fingerprint(): {"testing"},
-		inputAlerts[2].Fingerprint(): {"prod"},
-		inputAlerts[3].Fingerprint(): {"prod"},
-		inputAlerts[4].Fingerprint(): {"prod"},
-		inputAlerts[5].Fingerprint(): {"kafka", "prod"},
-	}, receivers)
-}
-
-func TestGroupsWithLimits(t *testing.T) {
-	confData := `receivers:
-- name: 'kafka'
-- name: 'prod'
-- name: 'testing'
-
-route:
-  group_by: ['alertname']
-  group_wait: 10ms
-  group_interval: 10ms
-  receiver: 'prod'
-  routes:
-  - match:
-      env: 'testing'
-    receiver: 'testing'
-    group_by: ['alertname', 'service']
-  - match:
-      env: 'prod'
-    receiver: 'prod'
-    group_by: ['alertname', 'service', 'cluster']
-    continue: true
-  - match:
-      kafka: 'yes'
-    receiver: 'kafka'
-    group_by: ['alertname', 'service', 'cluster']`
-	conf, err := config.Load(confData)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	logger := promslog.NewNopLogger()
-	route := NewRoute(conf.Route, nil)
-	reg := prometheus.NewRegistry()
-	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer alerts.Close()
-
-	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	lim := limits{groups: 6}
-	m := NewDispatcherMetrics(true, reg)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, m)
-	go dispatcher.Run()
-	defer dispatcher.Stop()
-
-	// Create alerts. the dispatcher will automatically create the groups.
-	inputAlerts := []*types.Alert{
-		// Matches the parent route.
-		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
-		// Matches the first sub-route.
-		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
-		// Matches the second sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
-		// Matches the second sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api", "instance": "inst1"}),
-		// Matches the second and third sub-route.
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
-	}
-	err = alerts.Put(inputAlerts...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
-	require.Len(t, recorder.Alerts(), 7)
-
-	routeFilter := func(*Route) bool { return true }
-	alertFilter := func(*types.Alert, time.Time) bool { return true }
-
-	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
-	require.Len(t, alertGroups, 6)
-
-	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
-
-	// Try to store new alert. This time, we will hit limit for number of groups.
-	err = alerts.Put(newAlert(model.LabelSet{"env": "prod", "alertname": "NewAlert", "cluster": "new-cluster", "service": "db"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Let alert get processed.
-	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
-	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
-
-	// Verify there are still only 6 groups.
-	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
-	require.Len(t, alertGroups, 6)
 }
 
 type recordStage struct {
@@ -691,7 +440,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	}
 	defer alerts.Close()
 
-	route := &Route{
+	route := &route{
 		RouteOpts: RouteOpts{
 			Receiver:       "default",
 			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
@@ -727,14 +476,6 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	require.Len(t, recorder.Alerts(), numAlerts)
 }
 
-type limits struct {
-	groups int
-}
-
-func (l limits) MaxNumberOfAggregationGroups() int {
-	return l.groups
-}
-
 func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
@@ -744,7 +485,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	route := &Route{
+	route := &route{
 		RouteOpts: RouteOpts{
 			GroupBy:       map[model.LabelName]struct{}{"alertname": {}},
 			GroupWait:     0,
@@ -756,7 +497,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
-	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
+	aggrGroups := make(map[Route]map[model.Fingerprint]*aggrGroup)
 	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
 
 	// Insert an aggregation group with no alerts.
@@ -785,7 +526,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ctx := context.Background()
 		marker := types.NewMarker(prometheus.NewRegistry())
 		labels := model.LabelSet{"alertname": "TestAlert"}
-		route := &Route{
+		route := &route{
 			RouteOpts: RouteOpts{
 				Receiver:       "test",
 				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
@@ -854,7 +595,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ctx := context.Background()
 		marker := types.NewMarker(prometheus.NewRegistry())
 		labels := model.LabelSet{"alertname": "TestAlert"}
-		route := &Route{
+		route := &route{
 			RouteOpts: RouteOpts{
 				Receiver:       "test",
 				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
@@ -908,7 +649,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ctx := context.Background()
 		marker := types.NewMarker(prometheus.NewRegistry())
 		labels := model.LabelSet{"alertname": "TestAlert"}
-		route := &Route{
+		route := &route{
 			RouteOpts: RouteOpts{
 				Receiver:       "test",
 				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},

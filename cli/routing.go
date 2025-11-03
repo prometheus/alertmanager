@@ -75,40 +75,40 @@ func (c *routingShow) routingShowAction(ctx context.Context, _ *kingpin.ParseCon
 	return nil
 }
 
-func getRouteTreeSlug(route *dispatch.Route, showContinue, showReceiver bool) string {
+func getRouteTreeSlug(route dispatch.Route, showContinue, showReceiver bool) string {
 	var branchSlug bytes.Buffer
-	if route.Matchers.Len() == 0 {
+	if route.Matchers().Len() == 0 {
 		branchSlug.WriteString("default-route")
 	} else {
-		branchSlug.WriteString(route.Matchers.String())
+		branchSlug.WriteString(route.Matchers().String())
 	}
-	if route.Continue && showContinue {
+	if route.Continues() && showContinue {
 		branchSlug.WriteString(branchSlugSeparator)
 		branchSlug.WriteString("continue: true")
 	}
 	if showReceiver {
 		branchSlug.WriteString(branchSlugSeparator)
 		branchSlug.WriteString("receiver: ")
-		branchSlug.WriteString(route.RouteOpts.Receiver)
+		branchSlug.WriteString(route.Options().Receiver)
 	}
 	return branchSlug.String()
 }
 
-func convertRouteToTree(route *dispatch.Route, tree treeprint.Tree) {
+func convertRouteToTree(route dispatch.Route, tree treeprint.Tree) {
 	branch := tree.AddBranch(getRouteTreeSlug(route, true, true))
-	for _, r := range route.Routes {
+	for _, r := range route.Routes() {
 		convertRouteToTree(r, branch)
 	}
 }
 
-func getMatchingTree(route *dispatch.Route, tree treeprint.Tree, lset models.LabelSet) {
+func getMatchingTree(route dispatch.Route, tree treeprint.Tree, lset models.LabelSet) {
 	final := true
 	branch := tree.AddBranch(getRouteTreeSlug(route, false, false))
-	for _, r := range route.Routes {
-		if r.Matchers.Matches(convertClientToCommonLabelSet(lset)) {
+	for _, r := range route.Routes() {
+		if r.Matchers().Matches(convertClientToCommonLabelSet(lset)) {
 			getMatchingTree(r, branch, lset)
 			final = false
-			if !r.Continue {
+			if !r.Continues() {
 				break
 			}
 		}

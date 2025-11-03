@@ -74,7 +74,7 @@ func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *D
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route   *Route
+	route   Route
 	alerts  provider.Alerts
 	stage   notify.Stage
 	marker  types.GroupMarker
@@ -84,7 +84,7 @@ type Dispatcher struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx                sync.RWMutex
-	aggrGroupsPerRoute map[*Route]map[model.Fingerprint]*aggrGroup
+	aggrGroupsPerRoute map[Route]map[model.Fingerprint]*aggrGroup
 	aggrGroupsNum      int
 
 	maintenanceInterval time.Duration
@@ -106,7 +106,7 @@ type Limits interface {
 // NewDispatcher returns a new Dispatcher.
 func NewDispatcher(
 	ap provider.Alerts,
-	r *Route,
+	r Route,
 	s notify.Stage,
 	mk types.GroupMarker,
 	to func(time.Duration) time.Duration,
@@ -138,7 +138,7 @@ func (d *Dispatcher) Run() {
 	d.done = make(chan struct{})
 
 	d.mtx.Lock()
-	d.aggrGroupsPerRoute = map[*Route]map[model.Fingerprint]*aggrGroup{}
+	d.aggrGroupsPerRoute = map[Route]map[model.Fingerprint]*aggrGroup{}
 	d.aggrGroupsNum = 0
 	d.metrics.aggrGroups.Set(0)
 	d.ctx, d.cancel = context.WithCancel(context.Background())
@@ -223,88 +223,31 @@ func (ag AlertGroups) Less(i, j int) bool {
 }
 func (ag AlertGroups) Len() int { return len(ag) }
 
-// Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
-	groups := AlertGroups{}
+// Groups returns a snapshot of the dispatcher's internal state.
+func (d *Dispatcher) Groups(routeFilter func(Route) bool, alertFilter func(*types.Alert, time.Time) bool) map[Route]map[model.Fingerprint]AggregationGroup {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 
 	// Make a snapshot of the aggrGroupsPerRoute map to use for this function.
 	// This ensures that we hold the Dispatcher.mtx for as little time as
 	// possible.
 	// It also prevents us from holding the any locks in alertFilter or routeFilter
 	// while we hold the dispatcher lock
-	d.mtx.RLock()
-	aggrGroupsPerRoute := map[*Route]map[model.Fingerprint]*aggrGroup{}
+	aggrGroupsPerRoute := map[Route]map[model.Fingerprint]AggregationGroup{}
 	for route, ags := range d.aggrGroupsPerRoute {
 		// Since other goroutines could modify d.aggrGroupsPerRoute, we need to
 		// copy it. We DON'T need to copy the aggrGroup objects because they each
 		// have a mutex protecting their internal state.
 		// The aggrGroup methods use the internal lock. It is important to avoid
 		// accessing internal fields on the aggrGroup objects.
-		copiedMap := map[model.Fingerprint]*aggrGroup{}
+		copiedMap := map[model.Fingerprint]AggregationGroup{}
 		for fp, ag := range ags {
 			copiedMap[fp] = ag
 		}
 		aggrGroupsPerRoute[route] = copiedMap
 	}
-	d.mtx.RUnlock()
 
-	// Keep a list of receivers for an alert to prevent checking each alert
-	// again against all routes. The alert has already matched against this
-	// route on ingestion.
-	receivers := map[model.Fingerprint][]string{}
-
-	now := time.Now()
-	for route, ags := range aggrGroupsPerRoute {
-		if !routeFilter(route) {
-			continue
-		}
-
-		for _, ag := range ags {
-			receiver := route.RouteOpts.Receiver
-			alertGroup := &AlertGroup{
-				Labels:   ag.labels,
-				Receiver: receiver,
-				GroupKey: ag.GroupKey(),
-				RouteID:  ag.routeID,
-			}
-
-			alerts := ag.alerts.List()
-			filteredAlerts := make([]*types.Alert, 0, len(alerts))
-			for _, a := range alerts {
-				if !alertFilter(a, now) {
-					continue
-				}
-
-				fp := a.Fingerprint()
-				if r, ok := receivers[fp]; ok {
-					// Receivers slice already exists. Add
-					// the current receiver to the slice.
-					receivers[fp] = append(r, receiver)
-				} else {
-					// First time we've seen this alert fingerprint.
-					// Initialize a new receivers slice.
-					receivers[fp] = []string{receiver}
-				}
-
-				filteredAlerts = append(filteredAlerts, a)
-			}
-			if len(filteredAlerts) == 0 {
-				continue
-			}
-			alertGroup.Alerts = filteredAlerts
-
-			groups = append(groups, alertGroup)
-		}
-	}
-	sort.Sort(groups)
-	for i := range groups {
-		sort.Sort(groups[i].Alerts)
-	}
-	for i := range receivers {
-		sort.Strings(receivers[i])
-	}
-
-	return groups, receivers
+	return aggrGroupsPerRoute
 }
 
 // Stop the dispatcher.
@@ -331,7 +274,7 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
-func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+func (d *Dispatcher) processAlert(alert *types.Alert, route Route) {
 	groupLabels := getGroupLabels(alert, route)
 
 	fp := groupLabels.Fingerprint()
@@ -385,10 +328,11 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	})
 }
 
-func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
+func getGroupLabels(alert *types.Alert, route Route) model.LabelSet {
 	groupLabels := model.LabelSet{}
+	options := route.Options()
 	for ln, lv := range alert.Labels {
-		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
+		if _, ok := options.GroupBy[ln]; ok || options.GroupByAll {
 			groupLabels[ln] = lv
 		}
 	}
@@ -401,7 +345,7 @@ func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
 // It emits notifications in the specified intervals.
 type aggrGroup struct {
 	labels   model.LabelSet
-	opts     *RouteOpts
+	opts     RouteOpts
 	logger   *slog.Logger
 	routeID  string
 	routeKey string
@@ -419,7 +363,7 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -427,7 +371,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		labels:   labels,
 		routeID:  r.ID(),
 		routeKey: r.Key(),
-		opts:     &r.RouteOpts,
+		opts:     r.Options(),
 		timeout:  to,
 		alerts:   store.NewAlerts(),
 		marker:   marker,
@@ -448,8 +392,22 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
+func (ag *aggrGroup) Alerts() []*types.Alert {
+	ag.mtx.RLock()
+	defer ag.mtx.RUnlock()
+	return ag.alerts.List()
+}
+
 func (ag *aggrGroup) GroupKey() string {
 	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
+}
+
+func (ag *aggrGroup) Labels() model.LabelSet {
+	return ag.labels.Clone()
+}
+
+func (ag *aggrGroup) RouteID() string {
+	return ag.routeID
 }
 
 func (ag *aggrGroup) String() string {

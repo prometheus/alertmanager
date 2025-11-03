@@ -52,19 +52,19 @@ func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
 }
 
 // resolveAlertReceivers returns list of receiver names which given LabelSet resolves to.
-func resolveAlertReceivers(mainRoute *dispatch.Route, labels *models.LabelSet) ([]string, error) {
+func resolveAlertReceivers(mainRoute dispatch.Route, labels *models.LabelSet) ([]string, error) {
 	var (
-		finalRoutes []*dispatch.Route
+		finalRoutes []dispatch.Route
 		receivers   []string
 	)
 	finalRoutes = mainRoute.Match(convertClientToCommonLabelSet(*labels))
 	for _, r := range finalRoutes {
-		receivers = append(receivers, r.RouteOpts.Receiver)
+		receivers = append(receivers, r.Options().Receiver)
 	}
 	return receivers, nil
 }
 
-func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
+func printMatchingTree(mainRoute dispatch.Route, ls models.LabelSet) {
 	tree := treeprint.New()
 	getMatchingTree(mainRoute, tree, ls)
 	fmt.Println("Matching routes:")
