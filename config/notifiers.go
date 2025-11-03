@@ -94,7 +94,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Color:      `{{ template "slack.default.color" . }}`,
 		Username:   `{{ template "slack.default.username" . }}`,
 		Title:      `{{ template "slack.default.title" . }}`,
 		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
