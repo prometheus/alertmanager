@@ -16,7 +16,6 @@ package discord
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,14 +51,14 @@ func TestDiscordRetry(t *testing.T) {
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retry - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
 
 func TestDiscordTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -229,5 +228,5 @@ func TestDiscord_Notify(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.Equal(t, "{\"content\":\"Test Content\",\"embeds\":[{\"title\":\"Test Title\",\"description\":\"Test Message\",\"color\":10038562}],\"username\":\"Test Username\",\"avatar_url\":\"http://example.com/avatar.png\"}\n", resp)
+	require.JSONEq(t, `{"content":"Test Content","embeds":[{"title":"Test Title","description":"Test Message","color":10038562}],"username":"Test Username","avatar_url":"http://example.com/avatar.png"}`, resp)
 }

@@ -3,8 +3,6 @@ title: Management API
 sort_rank: 9
 ---
 
-# Management API
-
 Alertmanager provides a set of management API to ease automation and integrations.
 
 

@@ -35,6 +35,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const testMaintenanceInterval = 30 * time.Second
+
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
 		"a": "v1",
@@ -139,7 +141,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -193,7 +195,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, promslog.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -390,8 +392,9 @@ route:
 
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
-	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +402,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -540,8 +543,9 @@ route:
 
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
-	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,8 +554,8 @@ route:
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	lim := limits{groups: 6}
-	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
+	m := NewDispatcherMetrics(true, reg)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, m)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -661,15 +665,16 @@ func newAlert(labels model.LabelSet) *types.Alert {
 
 func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
-	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	go dispatcher.Run()
 	dispatcher.Stop()
 }
@@ -678,8 +683,9 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	const numAlerts = 5000
 
 	logger := promslog.NewNopLogger()
-	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,7 +703,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -733,7 +739,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -749,13 +755,13 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 
 	ctx := context.Background()
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
 	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
 	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, promslog.NewNopLogger())
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
 	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
 	dispatcher.aggrGroupsPerRoute = aggrGroups
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
@@ -772,4 +778,198 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
 	require.False(t, isMuted)
 	require.Empty(t, mutedBy)
+}
+
+func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
+	t.Run("successful flush deletes markers for resolved alerts", func(t *testing.T) {
+		ctx := context.Background()
+		marker := types.NewMarker(prometheus.NewRegistry())
+		labels := model.LabelSet{"alertname": "TestAlert"}
+		route := &Route{
+			RouteOpts: RouteOpts{
+				Receiver:       "test",
+				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+				GroupWait:      0,
+				GroupInterval:  time.Minute,
+				RepeatInterval: time.Hour,
+			},
+		}
+		timeout := func(d time.Duration) time.Duration { return d }
+		logger := promslog.NewNopLogger()
+
+		// Create an aggregation group
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+
+		// Create test alerts: one active and one resolved
+		now := time.Now()
+		activeAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"instance":  "1",
+				},
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   now.Add(time.Hour), // Active alert
+			},
+			UpdatedAt: now,
+		}
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"instance":  "2",
+				},
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   now.Add(-time.Minute), // Resolved alert
+			},
+			UpdatedAt: now,
+		}
+
+		// Insert alerts into the aggregation group
+		ag.insert(activeAlert)
+		ag.insert(resolvedAlert)
+
+		// Set markers for both alerts
+		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+
+		// Verify markers exist before flush
+		require.True(t, marker.Active(activeAlert.Fingerprint()))
+		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
+
+		// Create a notify function that succeeds
+		notifyFunc := func(alerts ...*types.Alert) bool {
+			return true
+		}
+
+		// Flush the alerts
+		ag.flush(notifyFunc)
+
+		// Verify that the resolved alert's marker was deleted
+		require.True(t, marker.Active(activeAlert.Fingerprint()), "active alert marker should still exist")
+		require.False(t, marker.Active(resolvedAlert.Fingerprint()), "resolved alert marker should be deleted")
+	})
+
+	t.Run("failed flush does not delete markers", func(t *testing.T) {
+		ctx := context.Background()
+		marker := types.NewMarker(prometheus.NewRegistry())
+		labels := model.LabelSet{"alertname": "TestAlert"}
+		route := &Route{
+			RouteOpts: RouteOpts{
+				Receiver:       "test",
+				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+				GroupWait:      0,
+				GroupInterval:  time.Minute,
+				RepeatInterval: time.Hour,
+			},
+		}
+		timeout := func(d time.Duration) time.Duration { return d }
+		logger := promslog.NewNopLogger()
+
+		// Create an aggregation group
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+
+		// Create a resolved alert
+		now := time.Now()
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"instance":  "1",
+				},
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   now.Add(-time.Minute), // Resolved alert
+			},
+			UpdatedAt: now,
+		}
+
+		// Insert alert into the aggregation group
+		ag.insert(resolvedAlert)
+
+		// Set marker for the alert
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+
+		// Verify marker exists before flush
+		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
+
+		// Create a notify function that fails
+		notifyFunc := func(alerts ...*types.Alert) bool {
+			return false
+		}
+
+		// Flush the alerts (notify will fail)
+		ag.flush(notifyFunc)
+
+		// Verify that the marker was NOT deleted due to failed notification
+		require.True(t, marker.Active(resolvedAlert.Fingerprint()), "marker should not be deleted when notify fails")
+	})
+
+	t.Run("markers not deleted when alert is modified during flush", func(t *testing.T) {
+		ctx := context.Background()
+		marker := types.NewMarker(prometheus.NewRegistry())
+		labels := model.LabelSet{"alertname": "TestAlert"}
+		route := &Route{
+			RouteOpts: RouteOpts{
+				Receiver:       "test",
+				GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+				GroupWait:      0,
+				GroupInterval:  time.Minute,
+				RepeatInterval: time.Hour,
+			},
+		}
+		timeout := func(d time.Duration) time.Duration { return d }
+		logger := promslog.NewNopLogger()
+
+		// Create an aggregation group
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+
+		// Create a resolved alert
+		now := time.Now()
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"instance":  "1",
+				},
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   now.Add(-time.Minute), // Resolved alert
+			},
+			UpdatedAt: now,
+		}
+
+		// Insert alert into the aggregation group
+		ag.insert(resolvedAlert)
+
+		// Set marker for the alert
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+
+		// Verify marker exists before flush
+		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
+
+		// Create a notify function that modifies the alert before returning
+		notifyFunc := func(alerts ...*types.Alert) bool {
+			// Simulate the alert being modified (e.g., firing again) during flush
+			modifiedAlert := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "TestAlert",
+						"instance":  "1",
+					},
+					StartsAt: now.Add(-time.Hour),
+					EndsAt:   now.Add(time.Hour), // Active again
+				},
+				UpdatedAt: now.Add(time.Second), // More recent update
+			}
+			// Update the alert in the store
+			ag.alerts.Set(modifiedAlert)
+			return true
+		}
+
+		// Flush the alerts
+		ag.flush(notifyFunc)
+
+		// Verify that the marker was NOT deleted because the alert was modified
+		// during the flush (DeleteIfNotModified should have failed)
+		require.True(t, marker.Active(resolvedAlert.Fingerprint()), "marker should not be deleted when alert is modified during flush")
+	})
 }

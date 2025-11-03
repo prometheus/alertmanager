@@ -133,12 +133,12 @@ func FallbackMatcherParser(l *slog.Logger) ParseMatcher {
 			// The input is valid in the pkg/labels parser, but not the matcher/parse
 			// parser. This means the input is not forwards compatible.
 			suggestion := cMatcher.String()
-			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
+			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatcher, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement.
-		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
+		if cErr == nil && !reflect.DeepEqual(nMatcher, cMatcher) {
 			l.Warn("Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatcher, nil
 		}
@@ -173,13 +173,13 @@ func FallbackMatchersParser(l *slog.Logger) ParseMatchers {
 			suggestion := sb.String()
 			// The input is valid in the pkg/labels parser, but not the
 			// new matcher/parse parser.
-			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
+			l.Warn("Alertmanager is moving to a new parser for labels and matchers, and this input is incompatible. Alertmanager has instead parsed the input using the classic matchers parser as a fallback. To make this input compatible with the UTF-8 matchers parser please make sure all regular expressions and values are double-quoted and backslashes are escaped. If you are still seeing this message please open an issue.", "input", input, "origin", origin, "err", nErr, "suggestion", suggestion)
 			return cMatchers, nil
 		}
 		// If the input is valid in both parsers, but produces different results,
 		// then there is disagreement. We need to compare to labels.Matchers(cMatchers)
 		// as cMatchers is a []*labels.Matcher not labels.Matchers.
-		if nErr == nil && cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
+		if cErr == nil && !reflect.DeepEqual(nMatchers, labels.Matchers(cMatchers)) {
 			l.Warn("Matchers input has disagreement", "input", input, "origin", origin)
 			return cMatchers, nil
 		}
@@ -190,7 +190,7 @@ func FallbackMatchersParser(l *slog.Logger) ParseMatchers {
 // isValidClassicLabelName returns true if the string is a valid classic label name.
 func isValidClassicLabelName(_ *slog.Logger) func(model.LabelName) bool {
 	return func(name model.LabelName) bool {
-		return name.IsValid()
+		return model.LegacyValidation.IsValidLabelName(string(name))
 	}
 }
 

@@ -593,9 +593,6 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 // Set the specified silence. If a silence with the ID already exists and the modification
 // modifies history, the old silence gets expired and a new one is created.
 func (s *Silences) Set(sil *pb.Silence) error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	now := s.nowUTC()
 	if sil.StartsAt.IsZero() {
 		sil.StartsAt = now
@@ -604,6 +601,9 @@ func (s *Silences) Set(sil *pb.Silence) error {
 	if err := validateSilence(sil); err != nil {
 		return fmt.Errorf("invalid silence: %w", err)
 	}
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	prev, ok := s.getSilence(sil.Id)
 	if sil.Id != "" && !ok {
@@ -912,8 +912,8 @@ func (s *Silences) Snapshot(w io.Writer) (int64, error) {
 
 // MarshalBinary serializes all silences.
 func (s *Silences) MarshalBinary() ([]byte, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
 
 	return s.st.MarshalBinary()
 }
@@ -1029,13 +1029,13 @@ type replaceFile struct {
 }
 
 func (f *replaceFile) Close() error {
-	if err := f.File.Sync(); err != nil {
+	if err := f.Sync(); err != nil {
 		return err
 	}
 	if err := f.File.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.File.Name(), f.filename)
+	return os.Rename(f.Name(), f.filename)
 }
 
 // openReplace opens a new temporary file that is moved to filename on closing.

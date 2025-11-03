@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package types //nolint:revive
 
 import (
 	"reflect"
@@ -127,14 +127,19 @@ func TestMemMarker_Count(t *testing.T) {
 	require.Equal(t, 1, countByState(AlertStateActive))
 	require.Equal(t, 1, countTotal())
 
-	// Insert a suppressed alert.
+	// Insert a silenced alert.
 	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
 	require.Equal(t, 1, countByState(AlertStateSuppressed))
 	require.Equal(t, 2, countTotal())
 
-	// Insert a resolved alert - it'll count as active.
+	// Insert a resolved silenced alert - it'll count as suppressed.
 	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, []string{"1"}, nil)
-	require.Equal(t, 1, countByState(AlertStateActive))
+	require.Equal(t, 2, countByState(AlertStateSuppressed))
+	require.Equal(t, 3, countTotal())
+
+	// Remove the silence from a3 - it'll count as active.
+	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, nil, nil)
+	require.Equal(t, 2, countByState(AlertStateActive))
 	require.Equal(t, 3, countTotal())
 }
 

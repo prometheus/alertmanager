@@ -48,7 +48,7 @@ func TestLogGC(t *testing.T) {
 			"a3": newEntry(now.Add(-time.Second)),
 		},
 		clock:   mockClock,
-		metrics: newMetrics(nil),
+		metrics: newMetrics(prometheus.NewRegistry()),
 	}
 	n, err := l.GC()
 	require.NoError(t, err, "unexpected error in garbage collection")
@@ -331,7 +331,7 @@ func TestStateDataCoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	opts := Options{Retention: time.Second}
+	opts := Options{Metrics: prometheus.NewRegistry(), Retention: time.Second}
 	nl, err := New(opts)
 	if err != nil {
 		require.NoError(t, err, "constructing nflog failed")
@@ -361,8 +361,8 @@ func TestQuery(t *testing.T) {
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
 	require.NoError(t, err, "querying nflog failed")
 	entry := entries[0]
-	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
-	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
+	require.Equal(t, firingAlerts, entry.FiringAlerts)
+	require.Equal(t, resolvedAlerts, entry.ResolvedAlerts)
 }
 
 func TestStateDecodingError(t *testing.T) {

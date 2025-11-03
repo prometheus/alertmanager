@@ -329,10 +329,24 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		details[k] = detail
 	}
 
-	if n.apiV1 != "" {
-		return n.notifyV1(ctx, eventType, key, data, details, as...)
+	if n.conf.Timeout > 0 {
+		nfCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured pagerduty timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = nfCtx
 	}
-	return n.notifyV2(ctx, eventType, key, data, details, as...)
+
+	nf := n.notifyV2
+	if n.apiV1 != "" {
+		nf = n.notifyV1
+	}
+	retry, err := nf(ctx, eventType, key, data, details, as...)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
+		return retry, err
+	}
+	return retry, nil
 }
 
 func errDetails(status int, body io.Reader) string {

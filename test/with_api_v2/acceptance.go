@@ -169,14 +169,14 @@ func (t *AcceptanceTest) Run() {
 
 	for _, am := range t.amc.ams {
 		am.errc = errc
-		t.T.Cleanup(am.Terminate)
-		t.T.Cleanup(am.cleanup)
+		t.Cleanup(am.Terminate)
+		t.Cleanup(am.cleanup)
 	}
 
 	err := t.amc.Start()
 	if err != nil {
-		t.T.Log(err)
-		t.T.Fail()
+		t.Log(err)
+		t.Fail()
 		return
 	}
 

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -40,32 +41,28 @@ type DispatcherMetrics struct {
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
 func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *DispatcherMetrics {
+	if r == nil {
+		return nil
+	}
 	m := DispatcherMetrics{
-		aggrGroups: prometheus.NewGauge(
+		aggrGroups: promauto.With(r).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_dispatcher_aggregation_groups",
 				Help: "Number of active aggregation groups",
 			},
 		),
-		processingDuration: prometheus.NewSummary(
+		processingDuration: promauto.With(r).NewSummary(
 			prometheus.SummaryOpts{
 				Name: "alertmanager_dispatcher_alert_processing_duration_seconds",
 				Help: "Summary of latencies for the processing of alerts.",
 			},
 		),
-		aggrGroupLimitReached: prometheus.NewCounter(
+		aggrGroupLimitReached: promauto.With(r).NewCounter(
 			prometheus.CounterOpts{
 				Name: "alertmanager_dispatcher_aggregation_group_limit_reached_total",
 				Help: "Number of times when dispatcher failed to create new aggregation group due to limit.",
 			},
 		),
-	}
-
-	if r != nil {
-		r.MustRegister(m.aggrGroups, m.processingDuration)
-		if registerLimitMetrics {
-			r.MustRegister(m.aggrGroupLimitReached)
-		}
 	}
 
 	return &m
@@ -87,9 +84,10 @@ type Dispatcher struct {
 	aggrGroupsPerRoute map[*Route]map[model.Fingerprint]*aggrGroup
 	aggrGroupsNum      int
 
-	done   chan struct{}
-	ctx    context.Context
-	cancel func()
+	maintenanceInterval time.Duration
+	done                chan struct{}
+	ctx                 context.Context
+	cancel              func()
 
 	logger *slog.Logger
 }
@@ -109,6 +107,7 @@ func NewDispatcher(
 	s notify.Stage,
 	mk types.GroupMarker,
 	to func(time.Duration) time.Duration,
+	mi time.Duration,
 	lim Limits,
 	l *slog.Logger,
 	m *DispatcherMetrics,
@@ -118,14 +117,15 @@ func NewDispatcher(
 	}
 
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		marker:  mk,
-		timeout: to,
-		logger:  l.With("component", "dispatcher"),
-		metrics: m,
-		limits:  lim,
+		alerts:              ap,
+		stage:               s,
+		route:               r,
+		marker:              mk,
+		timeout:             to,
+		maintenanceInterval: mi,
+		logger:              l.With("component", "dispatcher"),
+		metrics:             m,
+		limits:              lim,
 	}
 	return disp
 }
@@ -141,12 +141,12 @@ func (d *Dispatcher) Run() {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	d.mtx.Unlock()
 
-	d.run(d.alerts.Subscribe())
+	d.run(d.alerts.Subscribe("dispatcher"))
 	close(d.done)
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
-	maintenance := time.NewTicker(30 * time.Second)
+	maintenance := time.NewTicker(d.maintenanceInterval)
 	defer maintenance.Stop()
 
 	defer it.Close()
@@ -337,7 +337,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
 	routeGroups[fp] = ag
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
@@ -386,6 +386,7 @@ type aggrGroup struct {
 	routeKey string
 
 	alerts  *store.Alerts
+	marker  types.AlertMarker
 	ctx     context.Context
 	cancel  func()
 	done    chan struct{}
@@ -397,7 +398,7 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger *slog.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -408,6 +409,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),
+		marker:   marker,
 		done:     make(chan struct{}),
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
@@ -536,6 +538,14 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		// we would delete an active alert thinking it was resolved.
 		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
+		} else {
+			// Delete markers for resolved alerts that are not in the store.
+			for _, alert := range resolvedSlice {
+				_, err := ag.alerts.Get(alert.Fingerprint())
+				if errors.Is(err, store.ErrNotFound) {
+					ag.marker.Delete(alert.Fingerprint())
+				}
+			}
 		}
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 )
@@ -50,25 +51,28 @@ func NewChannel(
 	peers func() []*memberlist.Node,
 	sendOversize func(*memberlist.Node, []byte) error,
 	logger *slog.Logger,
-	stopc chan struct{},
+	stopc <-chan struct{},
 	reg prometheus.Registerer,
 ) *Channel {
-	oversizeGossipMessageFailureTotal := prometheus.NewCounter(prometheus.CounterOpts{
+	if reg == nil {
+		return nil
+	}
+	oversizeGossipMessageFailureTotal := promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_oversized_gossip_message_failure_total",
 		Help:        "Number of oversized gossip message sends that failed.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
-	oversizeGossipMessageSentTotal := prometheus.NewCounter(prometheus.CounterOpts{
+	oversizeGossipMessageSentTotal := promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_oversized_gossip_message_sent_total",
 		Help:        "Number of oversized gossip message sent.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
-	oversizeGossipMessageDroppedTotal := prometheus.NewCounter(prometheus.CounterOpts{
+	oversizeGossipMessageDroppedTotal := promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_oversized_gossip_message_dropped_total",
 		Help:        "Number of oversized gossip messages that were dropped due to a full message queue.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
-	oversizeGossipDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+	oversizeGossipDuration := promauto.With(reg).NewHistogram(prometheus.HistogramOpts{
 		Name:                            "alertmanager_oversize_gossip_message_duration_seconds",
 		Help:                            "Duration of oversized gossip message requests.",
 		ConstLabels:                     prometheus.Labels{"key": key},
@@ -77,8 +81,6 @@ func NewChannel(
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
-
-	reg.MustRegister(oversizeGossipDuration, oversizeGossipMessageFailureTotal, oversizeGossipMessageDroppedTotal, oversizeGossipMessageSentTotal)
 
 	c := &Channel{
 		key:                               key,
@@ -100,7 +102,7 @@ func NewChannel(
 
 // handleOverSizedMessages prevents memberlist from opening too many parallel
 // TCP connections to its peers.
-func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
+func (c *Channel) handleOverSizedMessages(stopc <-chan struct{}) {
 	var wg sync.WaitGroup
 	for {
 		select {

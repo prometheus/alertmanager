@@ -1,6 +1,44 @@
-## 0.28.0-rc.0 / 2024-10-24
+## main / (unreleased)
+
+* [CHANGE] ...
+* [FEATURE] ...
+* [ENHANCEMENT] ...
+* [BUGFIX] ...
+
+## 0.29.0-rc.0 / 2025-10-09
+
+* [FEATURE] Add incident.io notifier. #4372
+* [FEATURE] Add monospace message formatting. #4362
+* [FEATURE] Add ability to customize interval for maintenance to run. #4541
+* [ENHANCEMENT] Update Jira notifier to support both Jira cloud API v3 and Jira datacenter API v2. #4542
+* [ENHANCEMENT] Increase mixin rate intervals for alert `FailedToSendAlerts`. #4206
+* [ENHANCEMENT] Make /alertmanager group writable in docker image. #4469
+* [BUGFIX] Fix logged notification count on error in notify. #4323
+* [BUGFIX] Fix docker image permissions path. #4288
+* [BUGFIX] Fix error handling in template rendering for Telegram. #4353
+* [BUGFIX] Fix duplicate `other` in error messages for config. #4366
+* [BUGFIX] Fix logic that considers an alert reopened in Jira. #4478
+
+## 0.28.1 / 2025-03-07
+
+* [ENHANCEMENT] Improved performance of inhibition rules when using Equal labels. #4119
+* [ENHANCEMENT] Improve the documentation on escaping in UTF-8 matchers. #4157
+* [ENHANCEMENT] Update alertmanager_config_hash metric help to document the hash is not cryptographically strong. #4210
+* [BUGFIX] Fix panic in amtool when using `--verbose`. #4218
+* [BUGFIX] Fix templating of channel field for Rocket.Chat. #4220
+* [BUGFIX] Fix `rocketchat_configs` written as `rocket_configs` in docs. #4217
+* [BUGFIX] Fix usage for `--enable-feature` flag. #4214
+* [BUGFIX] Trim whitespace from OpsGenie API Key. #4195
+* [BUGFIX] Fix Jira project template not rendered when searching for existing issues. #4291
+* [BUGFIX] Fix subtle bug in JSON/YAML encoding of inhibition rules that would cause Equal labels to be omitted. #4292
+* [BUGFIX] Fix header for `slack_configs` in docs. #4247
+* [BUGFIX] Fix weight and wrap of Microsoft Teams notifications. #4222
+* [BUGFIX] Fix format of YAML examples in configuration.md. #4207
+
+## 0.28.0 / 2025-01-15
 
 * [CHANGE] Templating errors in the SNS integration now return an error. #3531 #3879
+* [CHANGE] Adopt log/slog, drop go-kit/log #4089
 * [FEATURE] Add a new Microsoft Teams integration based on Flows #4024
 * [FEATURE] Add a new Rocket.Chat integration #3600
 * [FEATURE] Add a new Jira integration #3590 #3931
@@ -18,6 +56,10 @@
 * [ENHANCEMENT] Support the `since` and `humanizeDuration` functions to templates. This means users can now format time to more human-readable text. #3863
 * [ENHANCEMENT] Support the `date` and `tz` functions to templates. This means users can now format time in a specified format and also change the timezone to their specific locale. #3812
 * [ENHANCEMENT] Latency metrics now support native histograms. #3737
+* [ENHANCEMENT] Add full width to adaptive card for msteamsv2 #4135
+* [ENHANCEMENT] Add timeout option for webhook notifier. #4137
+* [ENHANCEMENT] Update config to allow showing secret values when marshaled #4158
+* [ENHANCEMENT] Enable templating for Jira project and issue_type #4159
 * [BUGFIX] Fix the SMTP integration not correctly closing an SMTP submission, which may lead to unsuccessful dispatches being marked as successful. #4006
 * [BUGFIX]  The `ParseMode` option is now set explicitly in the Telegram integration. If we don't HTML tags had not been parsed by default. #4027
 * [BUGFIX] Fix a memory leak that was caused by updates silences continuously. #3930
@@ -30,6 +72,9 @@
 * [BUGFIX] Fix deadlock on the alerts memory store. #3715
 * [BUGFIX] Fix `amtool template render` when using the default values. #3725
 * [BUGFIX] Fix `webhook_url_file` for both the Discord and Microsoft Teams integrations. #3728 #3745
+* [BUGFIX] Fix wechat api link #4084
+* [BUGFIX] Fix build info metric #4166
+* [BUGFIX] Fix UTF-8 not allowed in Equal field for inhibition rules #4177
 
 ## 0.27.0 / 2024-02-28
 
@@ -90,10 +135,10 @@ Should you encounter any problems, you can run the Alertmanager with just the cl
 * [ENHANCEMENT] Templating: Better default text when using `{{ .Annotations }}` and `{{ .Labels }}`. #3256
 * [ENHANCEMENT] Templating: Introduced a new function `trimSpace` which removes leading and trailing white spaces. #3223
 * [ENHANCEMENT] CLI: `amtool silence query` now supports the `--id` flag to query an individual silence. #3241
-* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286 
+* [ENHANCEMENT] Metrics: Introduced `alertmanager_nflog_maintenance_total` and `alertmanager_nflog_maintenance_errors_total` to monitor maintenance of the notification log. #3286
 * [ENHANCEMENT] Metrics: Introduced `alertmanager_silences_maintenance_total` and `alertmanager_silences_maintenance_errors_total` to monitor maintenance of silences. #3285
 * [ENHANCEMENT] Logging: Log GroupKey and alerts on alert delivery when using debug mode. #3438
-* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209 
+* [BUGFIX] Configuration: Empty list of `receivers` and `inhibit_rules` would cause the alertmanager to crash. #3209
 * [BUGFIX] Templating: Fixed a race condition when using the `title` function. It is now race-safe. #3278
 * [BUGFIX] API: Fixed duplicate receiver names in the `api/v2/receivers` API endpoint. #3338
 * [BUGFIX] API: Attempting to delete a silence now returns the correct status code, `404` instead of `500`. #3352

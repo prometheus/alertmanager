@@ -499,6 +499,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 	counter := r.metrics.numTotalFailedNotifications
 
 	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
+	require.Contains(t, err.Error(), "notify retry canceled after 1 attempts: context canceled")
 
 	require.Error(t, err)
 	require.NotNil(t, resctx)
@@ -546,7 +547,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	// All alerts are resolved.
 	sent = sent[:0]
 	ctx = WithFiringAlerts(ctx, []uint64{})
-	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+	alerts[1].EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
@@ -591,7 +592,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	// All alerts are resolved.
 	sent = sent[:0]
 	ctx = WithFiringAlerts(ctx, []uint64{})
-	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+	alerts[1].EndsAt = time.Now().Add(-time.Hour)
 
 	resctx, res, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
@@ -914,7 +915,7 @@ func TestTimeMuteStage(t *testing.T) {
 
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
-				require.Equal(t, len(test.alerts), len(active))
+				require.Len(t, active, len(test.alerts))
 				// The group should not be marked.
 				mutedBy, isMuted := marker.Muted("route1", "group1")
 				require.False(t, isMuted)
@@ -1032,7 +1033,7 @@ func TestTimeActiveStage(t *testing.T) {
 
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
-				require.Equal(t, len(test.alerts), len(active))
+				require.Len(t, active, len(test.alerts))
 				// The group should not be marked.
 				mutedBy, isMuted := marker.Muted("route1", "group1")
 				require.False(t, isMuted)

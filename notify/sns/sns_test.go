@@ -16,12 +16,11 @@ package sns
 import (
 	"context"
 	"net/url"
-	"strings"
 	"testing"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/common/sigv4"
+	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -135,8 +134,8 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 			var alerts []*types.Alert
 			_, err = notifier.Notify(context.Background(), alerts...)
 			require.Error(t, err)
-			require.True(t, strings.Contains(err.Error(), "template \"unknown_template\" not defined"))
-			require.True(t, strings.Contains(err.Error(), tc.errMsg))
+			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")
+			require.Contains(t, err.Error(), tc.errMsg)
 		})
 	}
 }
