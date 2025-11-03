@@ -5,7 +5,7 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
-## 0.29.0-rc.0 / 2025-10-09
+## 0.29.0 / 2025-11-01
 
 * [FEATURE] Add incident.io notifier. #4372
 * [FEATURE] Add monospace message formatting. #4362
@@ -18,6 +18,7 @@
 * [BUGFIX] Fix error handling in template rendering for Telegram. #4353
 * [BUGFIX] Fix duplicate `other` in error messages for config. #4366
 * [BUGFIX] Fix logic that considers an alert reopened in Jira. #4478
+* [BUGFIX] Fix Jira issue count #4615
 
 ## 0.28.1 / 2025-03-07
 
