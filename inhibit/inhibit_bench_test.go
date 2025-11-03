@@ -204,9 +204,8 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 
 	// Wait some time for the inhibitor to seed its cache.
 	<-time.After(time.Second)
-	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		require.NoError(b, opts.benchFunc(ih.Mutes))
 	}
 }

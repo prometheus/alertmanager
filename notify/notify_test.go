@@ -1076,7 +1076,7 @@ func BenchmarkHashAlert(b *testing.B) {
 			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
 		},
 	}
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		hashAlert(alert)
 	}
 }
