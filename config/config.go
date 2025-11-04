@@ -1088,6 +1088,11 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+type Source struct {
+	SrcMatchers Matchers `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	Equal       []string `yaml:"equal,omitempty" json:"equal,omitempty"`
+}
+
 // InhibitRule defines an inhibition rule that mutes alerts that match the
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
@@ -1102,6 +1107,8 @@ type InhibitRule struct {
 	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
 	SourceMatchers Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
+	// Sources defines a set of source matchers and equal labels.
+	Sources []Source `yaml:"source,omitempty" json:"source,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts. Deprecated. Remove before v1.0 release.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`

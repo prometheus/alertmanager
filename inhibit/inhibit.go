@@ -16,6 +16,7 @@ package inhibit
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,6 +75,7 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 			ruleNames[cr.Name] = struct{}{}
 		}
 	}
+
 	return ih
 }
 
@@ -114,21 +116,46 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *types.Alert) {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-
-	// Update the inhibition rules' cache.
-	for _, r := range ih.rules {
-		if r.SourceMatchers.Matches(a.Labels) {
-			attr := attribute.String("alerting.inhibit_rule.name", r.Name)
-			span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
-			if err := r.scache.Set(a); err != nil {
-				message := "error on set alert"
-				ih.logger.Error(message, "err", err)
-				span.SetStatus(codes.Error, message)
-				span.RecordError(err)
-				continue
+			// Update the inhibition rules' cache.
+			cachedSum := 0
+			indexedSum := 0
+			for _, r := range ih.rules {
+				if len(r.Sources) > 0 {
+					allSrcMatched := true
+					for _, src := range r.Sources {
+						if !src.SrcMatchers.Matches(a.Labels) {
+							allSrcMatched = false
+							break
+						} else {
+							attr := attribute.String("alerting.inhibit_rule.name", r.Name)
+							span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
+							if err := src.scache.Set(a); err != nil {
+								message := "error on set alert"
+								ih.logger.Error(message, "err", err)
+								span.SetStatus(codes.Error, message)
+								span.RecordError(err)
+								continue
+							}
+							span.SetAttributes(attr)
+					}
+					if allSrcMatched {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
+				} else {
+					if r.SourceMatchers.Matches(a.Labels) {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
+				}
+				ih.processAlert(a)
 			}
-			span.SetAttributes(attr)
-			r.updateIndex(a)
 		}
 	}
 }
