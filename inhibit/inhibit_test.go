@@ -251,12 +251,20 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 
 	rule1 := amcommoncfg.InhibitRule{
-		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+		Sources: []amcommoncfg.Source{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+			},
+		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          []string{"e"},
 	}
 	rule2 := amcommoncfg.InhibitRule{
-		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+		Sources: []amcommoncfg.Source{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+			},
+		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
 		Equal:          []string{"e"},
 	}
@@ -353,8 +361,10 @@ func TestInhibitRuleName(t *testing.T) {
 
 	config1 := amcommoncfg.InhibitRule{
 		Name: "test-rule",
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []amcommoncfg.Source{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -362,8 +372,10 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 	config2 := amcommoncfg.InhibitRule{
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []amcommoncfg.Source{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},

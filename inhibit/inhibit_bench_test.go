@@ -109,8 +109,12 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
 			return amcommoncfg.InhibitRule{
-				SourceMatchers: amcommoncfg.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				Sources: []amcommoncfg.Source{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+						},
+					},
 				},
 				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
@@ -152,8 +156,12 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 		n: n,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
 			return amcommoncfg.InhibitRule{
-				SourceMatchers: amcommoncfg.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				Sources: []amcommoncfg.Source{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+						},
+					},
 				},
 				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
