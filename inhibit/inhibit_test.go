@@ -250,12 +250,20 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 
 	rule1 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+			},
+		},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          []string{"e"},
 	}
 	rule2 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+			},
+		},
 		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
 		Equal:          []string{"e"},
 	}
@@ -352,8 +360,10 @@ func TestInhibitRuleName(t *testing.T) {
 
 	config1 := config.InhibitRule{
 		Name: "test-rule",
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -361,8 +371,10 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 	config2 := config.InhibitRule{
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},

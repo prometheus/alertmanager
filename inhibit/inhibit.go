@@ -16,6 +16,7 @@ package inhibit
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,18 +69,13 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 			ruleNames[cr.Name] = struct{}{}
 		}
 	}
+
 	return ih
 }
 
 func (ih *Inhibitor) run(ctx context.Context) {
 	initalAlerts, it := ih.alerts.SlurpAndSubscribe("inhibitor")
 	defer it.Close()
-
-	for _, a := range initalAlerts {
-		ih.processAlert(a)
-	}
-
-	ih.loadingFinished.Done()
 
 	for {
 		select {
@@ -90,11 +86,39 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				ih.logger.Error("Error iterating alerts", "err", err)
 				continue
 			}
-			ih.processAlert(a)
+			// Update the inhibition rules' cache.
+			cachedSum := 0
+			indexedSum := 0
+			for _, r := range ih.rules {
+				if len(r.Sources) > 0 {
+					allSrcMatched := true
+					for _, src := range r.Sources {
+						if !src.SrcMatchers.Matches(a.Labels) {
+							allSrcMatched = false
+							break
+						}
+					}
+					if allSrcMatched {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
+				} else {
+					if r.SourceMatchers.Matches(a.Labels) {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
+				}
+				ih.processAlert(a)
+			}
 		}
 	}
 }
-
 func (ih *Inhibitor) processAlert(a *types.Alert) {
 	// Update the inhibition rules' cache.
 	cachedSum := 0
