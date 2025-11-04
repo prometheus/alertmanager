@@ -16,6 +16,7 @@ package inhibit
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,14 +88,31 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			cachedSum := 0
 			indexedSum := 0
 			for _, r := range ih.rules {
-				if r.SourceMatchers.Matches(a.Labels) {
-					if err := r.scache.Set(a); err != nil {
-						ih.logger.Error("error on set alert", "err", err)
-						continue
+				if len(r.Sources) > 0 {
+					allSrcMatched := true
+					for _, src := range r.Sources {
+						if !src.SrcMatchers.Matches(a.Labels) {
+							allSrcMatched = false
+							break
+						}
 					}
-					r.updateIndex(a)
-
+					if allSrcMatched {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
+				} else {
+					if r.SourceMatchers.Matches(a.Labels) {
+						if err := r.scache.Set(a); err != nil {
+							ih.logger.Error("error on set alert", "err", err)
+							continue
+						}
+						r.updateIndex(a)
+					}
 				}
+
 				cached := r.scache.Len()
 				indexed := r.sindex.Len()
 
@@ -169,21 +187,56 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		r.metrics.matchesDurationMatched.Observe(time.Since(ruleStart).Seconds())
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), ruleStart); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			now := time.Now()
-			sinceStart := now.Sub(start)
-			sinceRuleStart := now.Sub(ruleStart)
-			ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
-			r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
-			return true
+
+		if len(r.Sources) > 0 {
+			allSourcesMatched := true
+			var inhibitorIDs []string
+			for _, source := range r.Sources {
+				if inhibitedByFP, eq := r.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart); eq {
+					inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
+				} else {
+					allSourcesMatched = false
+					break
+				}
+			}
+			if allSourcesMatched {
+				compositeInhibitorID := strings.Join(inhibitorIDs, ",")
+				ih.marker.SetInhibited(fp, compositeInhibitorID)
+				now := time.Now()
+				sinceStart := now.Sub(start)
+				sinceRuleStart := now.Sub(ruleStart)
+				ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
+				r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
+				return true
+			}
+		} else {
+			if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), ruleStart); eq {
+				ih.marker.SetInhibited(fp, inhibitedByFP.String())
+				now := time.Now()
+				sinceStart := now.Sub(start)
+				sinceRuleStart := now.Sub(ruleStart)
+				ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
+				r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
+				return true
+			}
+
 		}
 		r.metrics.mutesDurationNotMuted.Observe(time.Since(ruleStart).Seconds())
 	}
+
 	ih.marker.SetInhibited(fp)
 	ih.metrics.mutesDurationNotMuted.Observe(time.Since(start).Seconds())
 
 	return false
+}
+
+type Source struct {
+	// The set of Filters which define the group of source alerts (which inhibit
+	// the target alerts).
+	SrcMatchers labels.Matchers
+	// A set of label names whose label values need to be identical in source and
+	// target alerts in order for the inhibition to take effect.
+	Equal map[model.LabelName]struct{}
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
@@ -197,6 +250,7 @@ type InhibitRule struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
 	SourceMatchers labels.Matchers
+	Sources        []Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
@@ -219,30 +273,46 @@ type InhibitRule struct {
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 	var (
+		sources []Source
 		sourcem labels.Matchers
 		targetm labels.Matchers
 	)
 
-	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatch {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
+	if len(cr.Sources) > 0 {
+		for _, sm := range cr.Sources {
+			sourcem = append(sourcem, sm.SrcMatchers...)
+			equal := map[model.LabelName]struct{}{}
+			for _, ln := range sm.Equal {
+				equal[model.LabelName(ln)] = struct{}{}
+			}
+			sources = append(sources, Source{
+				SrcMatchers: sourcem,
+				Equal:       equal,
+			})
 		}
-		sourcem = append(sourcem, matcher)
-	}
-	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
+	} else {
+
+		// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatch {
+			matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
 		}
-		sourcem = append(sourcem, matcher)
+		// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatchRE {
+			matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
+		}
+		// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+		sourcem = append(sourcem, cr.SourceMatchers...)
 	}
-	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
-	sourcem = append(sourcem, cr.SourceMatchers...)
 
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
@@ -278,6 +348,7 @@ func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 		scache:         store.NewAlerts(),
 		sindex:         newIndex(),
 		metrics:        metrics,
+		Sources:        sources,
 	}
 
 	rule.scache.SetGCCallback(rule.gcCallback)
@@ -288,6 +359,7 @@ func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 // fingerprintEquals returns the fingerprint of the equal labels of the given label set.
 func (r *InhibitRule) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
 	equalSet := model.LabelSet{}
+
 	for n := range r.Equal {
 		equalSet[n] = lset[n]
 	}
