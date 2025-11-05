@@ -51,8 +51,8 @@ var ErrInvalidState = errors.New("invalid state")
 
 type matcherCache map[string]labels.Matchers
 
-// Get retrieves the matchers for a given silence.
-func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
+// get retrieves the matchers for a given silence.
+func (c matcherCache) get(s *pb.Silence) (labels.Matchers, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
@@ -741,7 +741,7 @@ func QIDs(ids ...string) QueryParam {
 func QMatches(set model.LabelSet) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, s *Silences, _ time.Time) (bool, error) {
-			m, err := s.mc.Get(sil)
+			m, err := s.mc.get(sil)
 			if err != nil {
 				return true, err
 			}
