@@ -78,7 +78,7 @@ type request struct {
 	Timestamp string `json:"ts,omitempty"`
 }
 
-// slackResponse represents the response from Slack API
+// slackResponse represents the response from Slack API.
 type slackResponse struct {
 	OK      bool   `json:"ok"`
 	Error   string `json:"error,omitempty"`
@@ -347,7 +347,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return retry, nil
 }
 
-// extractSlackResponseFromBody extracts the full Slack response from body
+// extractSlackResponseFromBody extracts the full Slack response from body.
 func extractSlackResponseFromBody(body []byte) (*slackResponse, error) {
 	var slackResp slackResponse
 	if err := json.Unmarshal(body, &slackResp); err != nil {
@@ -369,17 +369,6 @@ func checkJSONResponseErrorFromBody(body []byte) (bool, error) {
 	}
 	if !data.OK {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
-	}
-	return false, nil
-}
-
-// checkTextResponseError classifies plaintext responses from Slack.
-// A plaintext (non-JSON) response is successful if it's a string "ok".
-// This is typically a response for an Incoming Webhook
-// (https://api.slack.com/messaging/webhooks#handling_errors)
-func checkTextResponseError(body []byte) (bool, error) {
-	if !bytes.Equal(body, []byte("ok")) {
-		return false, fmt.Errorf("received an error response from Slack: %s", string(body))
 	}
 	return false, nil
 }

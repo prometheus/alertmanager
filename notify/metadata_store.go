@@ -1,4 +1,4 @@
-// Copyright 2024 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -70,7 +70,7 @@ func stateKey(gkey string, r *nflogpb.Receiver) string {
 }
 
 // receiverKey creates a unique key from group key and receiver.
-// Format matches nflog's internal stateKey format: "groupKey:groupName/integration/idx"
+// Format matches nflog's internal stateKey format: "groupKey:groupName/integration/idx".
 func receiverKey(groupKey string, r *nflogpb.Receiver) string {
 	return groupKey + ":" + receiverString(r)
 }
@@ -79,4 +79,3 @@ func receiverKey(groupKey string, r *nflogpb.Receiver) string {
 func receiverString(r *nflogpb.Receiver) string {
 	return fmt.Sprintf("%s/%s/%d", r.GroupName, r.Integration, r.Idx)
 }
-
