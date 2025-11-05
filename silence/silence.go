@@ -51,14 +51,12 @@ var ErrInvalidState = errors.New("invalid state")
 
 type matcherCache map[string]labels.Matchers
 
-// Get retrieves the matchers for a given silence. If it is a missed cache
-// access, it compiles and adds the matchers of the requested silence to the
-// cache.
-func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
+// get retrieves the matchers for a given silence.
+func (c matcherCache) get(s *pb.Silence) (labels.Matchers, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
-	return c.add(s)
+	return nil, ErrNotFound
 }
 
 // add compiles a silences' matchers and adds them to the cache.
@@ -217,18 +215,20 @@ type Limits struct {
 type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
-	gcDuration              prometheus.Summary
-	snapshotDuration        prometheus.Summary
-	snapshotSize            prometheus.Gauge
-	queriesTotal            prometheus.Counter
-	queryErrorsTotal        prometheus.Counter
-	queryDuration           prometheus.Histogram
-	silencesActive          prometheus.GaugeFunc
-	silencesPending         prometheus.GaugeFunc
-	silencesExpired         prometheus.GaugeFunc
-	propagatedMessagesTotal prometheus.Counter
-	maintenanceTotal        prometheus.Counter
-	maintenanceErrorsTotal  prometheus.Counter
+	gcDuration                            prometheus.Summary
+	snapshotDuration                      prometheus.Summary
+	snapshotSize                          prometheus.Gauge
+	queriesTotal                          prometheus.Counter
+	queryErrorsTotal                      prometheus.Counter
+	queryDuration                         prometheus.Histogram
+	silencesActive                        prometheus.GaugeFunc
+	silencesPending                       prometheus.GaugeFunc
+	silencesExpired                       prometheus.GaugeFunc
+	propagatedMessagesTotal               prometheus.Counter
+	maintenanceTotal                      prometheus.Counter
+	maintenanceErrorsTotal                prometheus.Counter
+	matcherCompileCacheSilenceErrorsTotal prometheus.Counter
+	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
@@ -273,6 +273,15 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_maintenance_errors_total",
 		Help: "How many maintenances were executed for silences that failed.",
 	})
+	matcherCompileErrorsTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_silences_matcher_compile_errors_total",
+			Help: "How many silence matcher compilations failed.",
+		},
+		[]string{"stage"},
+	)
+	m.matcherCompileCacheSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
+	m.matcherCompileLoadSnapshotErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("load_snapshot")
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
@@ -313,6 +322,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 			m.propagatedMessagesTotal,
 			m.maintenanceTotal,
 			m.maintenanceErrorsTotal,
+			matcherCompileErrorsTotal,
 		)
 	}
 	return m
@@ -562,6 +572,15 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	return nil
 }
 
+func (s *Silences) cacheSilence(sil *pb.Silence) {
+	s.version++
+	_, err := s.mc.add(sil)
+	if err != nil {
+		s.metrics.matcherCompileCacheSilenceErrorsTotal.Inc()
+		s.logger.Error("Failed to compile silence matchers", "silence_id", sil.Id, "err", err)
+	}
+}
+
 func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	msil, ok := s.st[id]
 	if !ok {
@@ -584,7 +603,7 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	}
 	_, added := s.st.merge(msil, now)
 	if added {
-		s.version++
+		s.cacheSilence(msil.Silence)
 	}
 	s.broadcast(b)
 	return nil
@@ -738,7 +757,7 @@ func QIDs(ids ...string) QueryParam {
 func QMatches(set model.LabelSet) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, s *Silences, _ time.Time) (bool, error) {
-			m, err := s.mc.Get(sil)
+			m, err := s.mc.get(sil)
 			if err != nil {
 				return true, err
 			}
@@ -833,8 +852,8 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
 
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
 
 	if q.ids != nil {
 		for _, id := range q.ids {
@@ -883,7 +902,13 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.CreatedBy = e.Silence.Comments[0].Author
 			e.Silence.Comments = nil
 		}
-		st[e.Silence.Id] = e
+		// Add to matcher cache, and only if successful, to the new state.
+		if _, err := s.mc.add(e.Silence); err != nil {
+			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
+			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
+		} else {
+			st[e.Silence.Id] = e
+		}
 	}
 	s.mtx.Lock()
 	s.st = st
@@ -933,7 +958,7 @@ func (s *Silences) Merge(b []byte) error {
 		merged, added := s.st.merge(e, now)
 		if merged {
 			if added {
-				s.version++
+				s.cacheSilence(e.Silence)
 			}
 			if !cluster.OversizedMessage(b) {
 				// If this is the first we've seen the message and it's
