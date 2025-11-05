@@ -794,9 +794,6 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
@@ -835,6 +832,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	// If we have no ID constraint, all silences are our base set.  This and
 	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	if q.ids != nil {
 		for _, id := range q.ids {
