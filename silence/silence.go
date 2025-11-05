@@ -215,18 +215,19 @@ type Limits struct {
 type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
-	gcDuration              prometheus.Summary
-	snapshotDuration        prometheus.Summary
-	snapshotSize            prometheus.Gauge
-	queriesTotal            prometheus.Counter
-	queryErrorsTotal        prometheus.Counter
-	queryDuration           prometheus.Histogram
-	silencesActive          prometheus.GaugeFunc
-	silencesPending         prometheus.GaugeFunc
-	silencesExpired         prometheus.GaugeFunc
-	propagatedMessagesTotal prometheus.Counter
-	maintenanceTotal        prometheus.Counter
-	maintenanceErrorsTotal  prometheus.Counter
+	gcDuration                prometheus.Summary
+	snapshotDuration          prometheus.Summary
+	snapshotSize              prometheus.Gauge
+	queriesTotal              prometheus.Counter
+	queryErrorsTotal          prometheus.Counter
+	queryDuration             prometheus.Histogram
+	silencesActive            prometheus.GaugeFunc
+	silencesPending           prometheus.GaugeFunc
+	silencesExpired           prometheus.GaugeFunc
+	propagatedMessagesTotal   prometheus.Counter
+	maintenanceTotal          prometheus.Counter
+	maintenanceErrorsTotal    prometheus.Counter
+	matcherCompileErrorsTotal *prometheus.CounterVec
 }
 
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
@@ -271,6 +272,13 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_maintenance_errors_total",
 		Help: "How many maintenances were executed for silences that failed.",
 	})
+	m.matcherCompileErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_silences_matcher_compile_errors_total",
+			Help: "How many silence matcher compilations failed.",
+		},
+		[]string{"stage"},
+	)
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
@@ -311,6 +319,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 			m.propagatedMessagesTotal,
 			m.maintenanceTotal,
 			m.maintenanceErrorsTotal,
+			m.matcherCompileErrorsTotal,
 		)
 	}
 	return m
@@ -562,7 +571,11 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 
 func (s *Silences) silenceAdded(sil *pb.Silence) {
 	s.version++
-	s.mc.add(sil)
+	_, err := s.mc.add(sil)
+	if err != nil {
+		s.metrics.matcherCompileErrorsTotal.WithLabelValues("silence_added").Inc()
+		s.logger.Error("Failed to compile silence matchers", "silence_id", sil.Id, "err", err)
+	}
 }
 
 func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
@@ -886,8 +899,13 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.CreatedBy = e.Silence.Comments[0].Author
 			e.Silence.Comments = nil
 		}
-		st[e.Silence.Id] = e
-		s.mc.add(e.Silence)
+		// Add to matcher cache, and only if successful, to the new state.
+		if _, err := s.mc.add(e.Silence); err != nil {
+			s.metrics.matcherCompileErrorsTotal.WithLabelValues("load_snapshot").Inc()
+			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
+		} else {
+			st[e.Silence.Id] = e
+		}
 	}
 	s.mtx.Lock()
 	s.st = st
