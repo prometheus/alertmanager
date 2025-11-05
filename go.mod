@@ -14,7 +14,7 @@ require (
 	github.com/aws/smithy-go v1.23.1
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/coder/quartz v0.2.1
+	github.com/coder/quartz v0.3.0
 	github.com/emersion/go-smtp v0.24.0
 	github.com/go-openapi/analysis v0.24.0
 	github.com/go-openapi/errors v0.22.3
