@@ -18,8 +18,8 @@
 
   },
   "dependencies": {
-    "@mantine/core": "8.2.4",
-    "@mantine/hooks": "8.2.4",
+    "@mantine/core": "8.3.6",
+    "@mantine/hooks": "8.3.6",
     "react": "^19.1.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.5"
@@ -31,11 +31,11 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^24.9.2",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
-    "eslint": "^9.39.0",
+    "eslint": "^9.39.1",
     "eslint-config-mantine": "^4.0.3",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.5",
@@ -51,6 +51,6 @@
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^4.0.6"
+    "vitest": "^4.0.7"
   }
 }
