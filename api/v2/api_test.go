@@ -26,6 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
@@ -84,7 +85,7 @@ var (
 )
 
 func newSilences(t *testing.T) *silence.Silences {
-	silences, err := silence.New(silence.Options{})
+	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
 	return silences

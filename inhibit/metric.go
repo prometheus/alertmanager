@@ -15,6 +15,7 @@ package inhibit
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // InhibitorMetrics represents metrics associated to an inhibitor.
@@ -35,20 +36,23 @@ type InhibitorMetrics struct {
 
 // NewInhibitorMetrics returns a new InhibitorMetrics.
 func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
+	if reg == nil {
+		return nil
+	}
 	metrics := &InhibitorMetrics{
-		sourceAlertsCacheItems: prometheus.NewGauge(
+		sourceAlertsCacheItems: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_inhibitor_source_alerts_cache_items",
 				Help: "Number of source alerts cached in inhibition rules.",
 			},
 		),
-		sourceAlertsIndexItems: prometheus.NewGauge(
+		sourceAlertsIndexItems: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_inhibitor_source_alerts_index_items",
 				Help: "Number of source alerts indexed in inhibition rules.",
 			},
 		),
-		mutesDuration: prometheus.NewSummaryVec(
+		mutesDuration: promauto.With(reg).NewSummaryVec(
 			prometheus.SummaryOpts{
 				Name: "alertmanager_inhibitor_mutes_duration_seconds",
 				Help: "Summary of latencies for the muting of alerts by inhibition rules.",
@@ -56,28 +60,28 @@ func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
 			[]string{"muted"},
 		),
 
-		ruleSourceAlertsCacheItems: prometheus.NewGaugeVec(
+		ruleSourceAlertsCacheItems: promauto.With(reg).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_inhibit_rule_source_alerts_cache_items",
 				Help: "Number of source alerts cached in inhibition rules.",
 			},
 			[]string{"rule"},
 		),
-		ruleSourceAlertsIndexItems: prometheus.NewGaugeVec(
+		ruleSourceAlertsIndexItems: promauto.With(reg).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "alertmanager_inhibit_rule_source_alerts_index_items",
 				Help: "Number of source alerts indexed in inhibition rules.",
 			},
 			[]string{"rule"},
 		),
-		ruleMatchesDuration: prometheus.NewSummaryVec(
+		ruleMatchesDuration: promauto.With(reg).NewSummaryVec(
 			prometheus.SummaryOpts{
 				Name: "alertmanager_inhibit_rule_matches_duration_seconds",
 				Help: "Summary of latencies for the matching of alerts by inhibition rules.",
 			},
 			[]string{"rule", "matched"},
 		),
-		ruleMutesDuration: prometheus.NewSummaryVec(
+		ruleMutesDuration: promauto.With(reg).NewSummaryVec(
 			prometheus.SummaryOpts{
 				Name: "alertmanager_inhibit_rule_mutes_duration_seconds",
 				Help: "Summary of latencies for the muting of alerts by inhibition rules.",
@@ -88,18 +92,6 @@ func NewInhibitorMetrics(reg prometheus.Registerer) *InhibitorMetrics {
 
 	metrics.mutesDurationMuted = metrics.mutesDuration.With(prometheus.Labels{"muted": "true"})
 	metrics.mutesDurationNotMuted = metrics.mutesDuration.With(prometheus.Labels{"muted": "false"})
-
-	if reg != nil {
-		reg.MustRegister(
-			metrics.sourceAlertsCacheItems,
-			metrics.sourceAlertsIndexItems,
-			metrics.mutesDuration,
-			metrics.ruleSourceAlertsCacheItems,
-			metrics.ruleSourceAlertsIndexItems,
-			metrics.ruleMatchesDuration,
-			metrics.ruleMutesDuration,
-		)
-	}
 
 	metrics.sourceAlertsCacheItems.Set(0)
 	metrics.sourceAlertsIndexItems.Set(0)
