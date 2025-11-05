@@ -39,6 +39,9 @@ message Entry {
   repeated uint64 firing_alerts = 6;
   // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
   repeated uint64 resolved_alerts = 7;
+  // Metadata holds integration-specific metadata (e.g. Slack message_ts, Jira issue key).
+  // This allows integrations to store identifiers for updating existing notifications.
+  map<string, string> metadata = 8;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log

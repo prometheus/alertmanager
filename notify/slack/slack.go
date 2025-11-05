@@ -27,6 +27,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -37,11 +38,12 @@ const maxTitleLenRunes = 1024
 
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
-	conf    *config.SlackConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf          *config.SlackConfig
+	tmpl          *template.Template
+	logger        *slog.Logger
+	client        *http.Client
+	retrier       *notify.Retrier
+	metadataStore *notify.MetadataStore
 
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
@@ -54,12 +56,13 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 	}
 
 	return &Notifier{
-		conf:         c,
-		tmpl:         t,
-		logger:       l,
-		client:       client,
-		retrier:      &notify.Retrier{},
-		postJSONFunc: notify.PostJSON,
+		conf:          c,
+		tmpl:          t,
+		logger:        l,
+		client:        client,
+		retrier:       &notify.Retrier{},
+		metadataStore: notify.NewMetadataStore(),
+		postJSONFunc:  notify.PostJSON,
 	}, nil
 }
 
@@ -71,6 +74,16 @@ type request struct {
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
 	Attachments []attachment `json:"attachments"`
+	// Timestamp is used for updating existing messages (chat.update API)
+	Timestamp string `json:"ts,omitempty"`
+}
+
+// slackResponse represents the response from Slack API
+type slackResponse struct {
+	OK      bool   `json:"ok"`
+	Error   string `json:"error,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	TS      string `json:"ts,omitempty"` // Message timestamp, used for updates
 }
 
 // attachment is used to display a richly-formatted message block.
@@ -92,7 +105,17 @@ type attachment struct {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	var err error
+	// Extract group key and receiver name for message tracking
+	key, err := notify.ExtractGroupKey(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	receiverName, ok := notify.ReceiverName(ctx)
+	if !ok {
+		n.logger.Warn("receiver name missing from context")
+	}
+
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
@@ -107,10 +130,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return false, err
-		}
 		n.logger.Warn("Truncated title", "key", key, "max_runes", maxTitleLenRunes)
 	}
 	att := &attachment{
@@ -188,6 +207,53 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	// Check for existing message if update_message is enabled
+	var existingTS string
+	if n.conf.UpdateMessage && receiverName != "" {
+		// Create a simple receiver representation for metadata lookup
+		simpleReceiver := &nflogpb.Receiver{
+			GroupName:   receiverName,
+			Integration: "slack",
+			Idx:         0,
+		}
+
+		n.logger.Debug("checking for existing message",
+			"key", key,
+			"receiver", receiverName,
+			"update_message", n.conf.UpdateMessage)
+
+		if metadata, ok := n.metadataStore.Get(simpleReceiver, key.String()); ok {
+			if ts, exists := metadata["message_ts"]; exists && ts != "" {
+				existingTS = ts
+				req.Timestamp = ts
+
+				// For chat.update, we need to use channel ID, not channel name
+				if channelID, ok := metadata["channel_id"]; ok && channelID != "" {
+					req.Channel = channelID
+					n.logger.Debug("FOUND existing Slack message - will UPDATE",
+						"key", key,
+						"receiver", receiverName,
+						"message_ts", ts,
+						"channel_id", channelID)
+				} else {
+					n.logger.Debug("FOUND message but no channel_id, using channel name",
+						"key", key,
+						"message_ts", ts)
+				}
+			} else {
+				n.logger.Debug("metadata exists but no message_ts", "metadata", metadata)
+			}
+		} else {
+			n.logger.Debug("no existing message found - will create NEW",
+				"key", key,
+				"receiver", receiverName)
+		}
+	} else {
+		n.logger.Debug("update disabled or no receiver",
+			"update_message", n.conf.UpdateMessage,
+			"receiver", receiverName)
+	}
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
 		return false, err
@@ -202,6 +268,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 		u = strings.TrimSpace(string(content))
+	}
+
+	// Use chat.update endpoint if we're updating an existing message
+	if existingTS != "" && n.conf.UpdateMessage {
+		// Replace chat.postMessage with chat.update for updates
+		u = strings.Replace(u, "chat.postMessage", "chat.update", 1)
+		n.logger.Debug("using chat.update endpoint for message update", "url", u)
 	}
 
 	if n.conf.Timeout > 0 {
@@ -219,9 +292,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
+	// Read response body once for all checks
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return true, fmt.Errorf("channel %q: failed to read response body: %w", req.Channel, err)
+	}
+
 	// Use a retrier to generate an error message for non-200 responses and
 	// classify them as retriable or not.
-	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	retry, err := n.retrier.Check(resp.StatusCode, bytes.NewReader(body))
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
@@ -229,26 +308,69 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	// Slack web API might return errors with a 200 response code.
 	// https://slack.dev/node-slack-sdk/web-api#handle-errors
-	retry, err = checkResponseError(resp)
+	retry, err = checkJSONResponseErrorFromBody(body)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 	}
 
+	// Save message timestamp and channel ID for future updates if update_message is enabled
+	if n.conf.UpdateMessage && receiverName != "" {
+		if slackResp, err := extractSlackResponseFromBody(body); err == nil && slackResp.TS != "" {
+			simpleReceiver := &nflogpb.Receiver{
+				GroupName:   receiverName,
+				Integration: "slack",
+				Idx:         0,
+			}
+
+			metadata := map[string]string{
+				"message_ts": slackResp.TS,
+				"channel":    req.Channel,
+			}
+
+			// Save channel ID for future updates (required by chat.update)
+			if slackResp.Channel != "" {
+				metadata["channel_id"] = slackResp.Channel
+			}
+
+			n.metadataStore.Set(simpleReceiver, key.String(), metadata)
+
+			n.logger.Debug("saved Slack message_ts for future updates",
+				"key", key,
+				"receiver", receiverName,
+				"message_ts", slackResp.TS,
+				"channel_id", slackResp.Channel,
+				"is_update", existingTS != "")
+		}
+	}
+
 	return retry, nil
 }
 
-// checkResponseError parses out the error message from Slack API response.
-func checkResponseError(resp *http.Response) (bool, error) {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return true, fmt.Errorf("could not read response body: %w", err)
+// extractSlackResponseFromBody extracts the full Slack response from body
+func extractSlackResponseFromBody(body []byte) (*slackResponse, error) {
+	var slackResp slackResponse
+	if err := json.Unmarshal(body, &slackResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Slack response: %w", err)
 	}
 
-	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		return checkJSONResponseError(body)
+	if !slackResp.OK {
+		return nil, fmt.Errorf("slack API returned error: %s", slackResp.Error)
 	}
-	return checkTextResponseError(body)
+
+	return &slackResp, nil
+}
+
+// checkJSONResponseErrorFromBody classifies JSON responses from body bytes.
+func checkJSONResponseErrorFromBody(body []byte) (bool, error) {
+	var data slackResponse
+	if err := json.Unmarshal(body, &data); err != nil {
+		return true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
+	}
+	if !data.OK {
+		return false, fmt.Errorf("error response from Slack: %s", data.Error)
+	}
+	return false, nil
 }
 
 // checkTextResponseError classifies plaintext responses from Slack.
@@ -258,24 +380,6 @@ func checkResponseError(resp *http.Response) (bool, error) {
 func checkTextResponseError(body []byte) (bool, error) {
 	if !bytes.Equal(body, []byte("ok")) {
 		return false, fmt.Errorf("received an error response from Slack: %s", string(body))
-	}
-	return false, nil
-}
-
-// checkJSONResponseError classifies JSON responses from Slack.
-func checkJSONResponseError(body []byte) (bool, error) {
-	// response is for parsing out errors from the JSON response.
-	type response struct {
-		OK    bool   `json:"ok"`
-		Error string `json:"error"`
-	}
-
-	var data response
-	if err := json.Unmarshal(body, &data); err != nil {
-		return true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
-	}
-	if !data.OK {
-		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
 	return false, nil
 }
