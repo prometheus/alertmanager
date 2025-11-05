@@ -90,10 +90,14 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.NoError(t, err)
 		s.clock = quartz.NewMock(t)
 		now := s.nowUTC()
-		s.st = state{
+		initialState := state{
 			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}, ExpiresAt: now},
 			"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}, ExpiresAt: now.Add(-time.Second)},
 			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
+		}
+		for _, sil := range initialState {
+			s.st[sil.Silence.Id] = sil
+			s.silenceAdded(sil.Silence)
 		}
 		want := state{
 			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
@@ -119,8 +123,6 @@ func TestSilenceGCOverTime(t *testing.T) {
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
 		require.NoError(t, s.Set(sil1))
-		// Need to query the silence to populate the matcher cache.
-		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mc, 1)
 		// Move time forward and both silence and cache entry should be garbage
@@ -148,8 +150,6 @@ func TestSilenceGCOverTime(t *testing.T) {
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
 		require.NoError(t, s.Set(sil1))
-		// Need to query the silence to populate the matcher cache.
-		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mc, 1)
 		// must clone sil1 before replacing it.
@@ -160,8 +160,6 @@ func TestSilenceGCOverTime(t *testing.T) {
 			Pattern: "baz",
 		}}
 		require.NoError(t, s.Set(sil2))
-		// Need to query the silence to populate the matcher cache.
-		s.Query(QMatches(model.LabelSet{"bar": "baz"}))
 		require.Len(t, s.st, 2)
 		require.Len(t, s.mc, 2)
 		// Move time forward and both silence and cache entry should be garbage
@@ -176,7 +174,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 	// This test checks for a memory leak that occurred in the matcher cache when
 	// updating an existing silence.
-	t.Run("updating a silences does not leak cache entries", func(t *testing.T) {
+	t.Run("updating a silence does not leak cache entries", func(t *testing.T) {
 		s, err := New(Options{})
 		require.NoError(t, err)
 		clock := quartz.NewMock(t)
@@ -192,8 +190,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
 		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: clock.Now().Add(time.Minute)}
-		// Need to query the silence to populate the matcher cache.
-		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
+		s.silenceAdded(sil1)
 		require.Len(t, s.mc, 1)
 		// must clone sil1 before updating it.
 		sil2 := cloneSilence(sil1)
@@ -942,7 +939,9 @@ func TestQMatches(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		drop, err := f(c.sil, &Silences{mc: matcherCache{}, st: state{}}, time.Time{})
+		silences := &Silences{mc: matcherCache{}, st: state{}}
+		silences.mc.add(c.sil)
+		drop, err := f(c.sil, silences, time.Time{})
 		require.NoError(t, err)
 		require.Equal(t, c.drop, drop, "unexpected filter result")
 	}

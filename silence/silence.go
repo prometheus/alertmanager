@@ -51,14 +51,12 @@ var ErrInvalidState = errors.New("invalid state")
 
 type matcherCache map[string]labels.Matchers
 
-// Get retrieves the matchers for a given silence. If it is a missed cache
-// access, it compiles and adds the matchers of the requested silence to the
-// cache.
+// Get retrieves the matchers for a given silence.
 func (c matcherCache) Get(s *pb.Silence) (labels.Matchers, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
-	return c.add(s)
+	return nil, ErrNotFound
 }
 
 // add compiles a silences' matchers and adds them to the cache.
@@ -562,6 +560,11 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	return nil
 }
 
+func (s *Silences) silenceAdded(sil *pb.Silence) {
+	s.version++
+	s.mc.add(sil)
+}
+
 func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	msil, ok := s.st[id]
 	if !ok {
@@ -584,7 +587,7 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	}
 	_, added := s.st.merge(msil, now)
 	if added {
-		s.version++
+		s.silenceAdded(msil.Silence)
 	}
 	s.broadcast(b)
 	return nil
@@ -833,8 +836,8 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
 
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
 
 	if q.ids != nil {
 		for _, id := range q.ids {
@@ -884,6 +887,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.Comments = nil
 		}
 		st[e.Silence.Id] = e
+		s.mc.add(e.Silence)
 	}
 	s.mtx.Lock()
 	s.st = st
@@ -933,7 +937,7 @@ func (s *Silences) Merge(b []byte) error {
 		merged, added := s.st.merge(e, now)
 		if merged {
 			if added {
-				s.version++
+				s.silenceAdded(e.Silence)
 			}
 			if !cluster.OversizedMessage(b) {
 				// If this is the first we've seen the message and it's
