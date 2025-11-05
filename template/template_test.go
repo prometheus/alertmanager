@@ -368,9 +368,26 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "<b>",
 		},
 		{
+			title: "URL template with escaping",
+			in:    `<a href="/search?{{ "q=test%20foo" }}"></a>`,
+			html:  true,
+			exp:   `<a href="/search?q%3dtest%2520foo"></a>`,
+		},
+		{
+			title: "URL template using safeUrl",
+			in:    `<a href="/search?{{ "q=test%20foo" | safeUrl }}"></a>`,
+			html:  true,
+			exp:   `<a href="/search?q=test%20foo"></a>`,
+		},
+		{
 			title: "Template using reReplaceAll",
 			in:    `{{ reReplaceAll "ab" "AB" "abcdabcda"}}`,
 			exp:   "ABcdABcda",
+		},
+		{
+			title: "Template using urlUnescape",
+			in:    `{{ "search?q=test%20foo" | urlUnescape }}`,
+			exp:   "search?q=test foo",
 		},
 		{
 			title: "Template using stringSlice",
