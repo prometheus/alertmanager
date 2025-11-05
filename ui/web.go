@@ -19,6 +19,7 @@ import (
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
@@ -87,8 +88,17 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) 
 		w.WriteHeader(http.StatusOK)
 	})
 
-	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
-	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
+	debugHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		subpath := route.Param(req.Context(), "subpath")
+		req.URL.Path = path.Join("/debug", subpath)
+		// path.Join removes trailing slashes, but some pprof handlers expect them.
+		if strings.HasSuffix(subpath, "/") && !strings.HasSuffix(req.URL.Path, "/") {
+			req.URL.Path += "/"
+		}
+		http.DefaultServeMux.ServeHTTP(w, req)
+	}
+	r.Get("/debug/*subpath", debugHandlerFunc)
+	r.Post("/debug/*subpath", debugHandlerFunc)
 }
 
 func disableCaching(w http.ResponseWriter) {
