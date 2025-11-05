@@ -215,19 +215,20 @@ type Limits struct {
 type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
-	gcDuration                prometheus.Summary
-	snapshotDuration          prometheus.Summary
-	snapshotSize              prometheus.Gauge
-	queriesTotal              prometheus.Counter
-	queryErrorsTotal          prometheus.Counter
-	queryDuration             prometheus.Histogram
-	silencesActive            prometheus.GaugeFunc
-	silencesPending           prometheus.GaugeFunc
-	silencesExpired           prometheus.GaugeFunc
-	propagatedMessagesTotal   prometheus.Counter
-	maintenanceTotal          prometheus.Counter
-	maintenanceErrorsTotal    prometheus.Counter
-	matcherCompileErrorsTotal *prometheus.CounterVec
+	gcDuration                            prometheus.Summary
+	snapshotDuration                      prometheus.Summary
+	snapshotSize                          prometheus.Gauge
+	queriesTotal                          prometheus.Counter
+	queryErrorsTotal                      prometheus.Counter
+	queryDuration                         prometheus.Histogram
+	silencesActive                        prometheus.GaugeFunc
+	silencesPending                       prometheus.GaugeFunc
+	silencesExpired                       prometheus.GaugeFunc
+	propagatedMessagesTotal               prometheus.Counter
+	maintenanceTotal                      prometheus.Counter
+	maintenanceErrorsTotal                prometheus.Counter
+	matcherCompileCacheSilenceErrorsTotal prometheus.Counter
+	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
@@ -272,13 +273,15 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_maintenance_errors_total",
 		Help: "How many maintenances were executed for silences that failed.",
 	})
-	m.matcherCompileErrorsTotal = prometheus.NewCounterVec(
+	matcherCompileErrorsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "alertmanager_silences_matcher_compile_errors_total",
 			Help: "How many silence matcher compilations failed.",
 		},
 		[]string{"stage"},
 	)
+	m.matcherCompileCacheSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
+	m.matcherCompileLoadSnapshotErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("load_snapshot")
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
@@ -319,7 +322,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 			m.propagatedMessagesTotal,
 			m.maintenanceTotal,
 			m.maintenanceErrorsTotal,
-			m.matcherCompileErrorsTotal,
+			matcherCompileErrorsTotal,
 		)
 	}
 	return m
@@ -573,7 +576,7 @@ func (s *Silences) cacheSilence(sil *pb.Silence) {
 	s.version++
 	_, err := s.mc.add(sil)
 	if err != nil {
-		s.metrics.matcherCompileErrorsTotal.WithLabelValues("cache_silence").Inc()
+		s.metrics.matcherCompileCacheSilenceErrorsTotal.Inc()
 		s.logger.Error("Failed to compile silence matchers", "silence_id", sil.Id, "err", err)
 	}
 }
@@ -901,7 +904,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 		}
 		// Add to matcher cache, and only if successful, to the new state.
 		if _, err := s.mc.add(e.Silence); err != nil {
-			s.metrics.matcherCompileErrorsTotal.WithLabelValues("load_snapshot").Inc()
+			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
 			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
 		} else {
 			st[e.Silence.Id] = e
