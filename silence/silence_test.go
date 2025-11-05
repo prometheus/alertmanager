@@ -97,7 +97,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}
 		for _, sil := range initialState {
 			s.st[sil.Silence.Id] = sil
-			s.silenceAdded(sil.Silence)
+			s.cacheSilence(sil.Silence)
 		}
 		want := state{
 			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
@@ -190,7 +190,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
 		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: clock.Now().Add(time.Minute)}
-		s.silenceAdded(sil1)
+		s.cacheSilence(sil1)
 		require.Len(t, s.mc, 1)
 		// must clone sil1 before updating it.
 		sil2 := cloneSilence(sil1)

@@ -569,11 +569,11 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	return nil
 }
 
-func (s *Silences) silenceAdded(sil *pb.Silence) {
+func (s *Silences) cacheSilence(sil *pb.Silence) {
 	s.version++
 	_, err := s.mc.add(sil)
 	if err != nil {
-		s.metrics.matcherCompileErrorsTotal.WithLabelValues("silence_added").Inc()
+		s.metrics.matcherCompileErrorsTotal.WithLabelValues("cache_silence").Inc()
 		s.logger.Error("Failed to compile silence matchers", "silence_id", sil.Id, "err", err)
 	}
 }
@@ -600,7 +600,7 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	}
 	_, added := s.st.merge(msil, now)
 	if added {
-		s.silenceAdded(msil.Silence)
+		s.cacheSilence(msil.Silence)
 	}
 	s.broadcast(b)
 	return nil
@@ -955,7 +955,7 @@ func (s *Silences) Merge(b []byte) error {
 		merged, added := s.st.merge(e, now)
 		if merged {
 			if added {
-				s.silenceAdded(e.Silence)
+				s.cacheSilence(e.Silence)
 			}
 			if !cluster.OversizedMessage(b) {
 				// If this is the first we've seen the message and it's
