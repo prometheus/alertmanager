@@ -159,6 +159,7 @@ func run() int {
 		clusterPeerName        = kingpin.Flag("cluster.peer-name", "Explicit name of the peer, rather than generating a random one").Default("").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout            = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
+		peersResolveTimeout    = kingpin.Flag("cluster.peers-resolve-timeout", "Time to resolve peers.").Default(cluster.DefaultResolvePeersTimeout.String()).Duration()
 		gossipInterval         = kingpin.Flag("cluster.gossip-interval", "Interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").Default(cluster.DefaultGossipInterval.String()).Duration()
 		pushPullInterval       = kingpin.Flag("cluster.pushpull-interval", "Interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 		tcpTimeout             = kingpin.Flag("cluster.tcp-timeout", "Timeout for establishing a stream connection with a remote node for a full state sync, and for stream read and write operations.").Default(cluster.DefaultTCPTimeout.String()).Duration()
@@ -245,6 +246,7 @@ func run() int {
 			*pushPullInterval,
 			*gossipInterval,
 			*tcpTimeout,
+			*peersResolveTimeout,
 			*probeTimeout,
 			*probeInterval,
 			tlsTransportConfig,
