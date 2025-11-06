@@ -50,10 +50,10 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherCache map[string]labels.Matchers
+type matcherIndex map[string]labels.Matchers
 
 // get retrieves the matchers for a given silence.
-func (c matcherCache) get(s *pb.Silence) (labels.Matchers, error) {
+func (c matcherIndex) get(s *pb.Silence) (labels.Matchers, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
@@ -62,7 +62,7 @@ func (c matcherCache) get(s *pb.Silence) (labels.Matchers, error) {
 
 // add compiles a silences' matchers and adds them to the cache.
 // It returns the compiled matchers.
-func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
+func (c matcherIndex) add(s *pb.Silence) (labels.Matchers, error) {
 	ms := make(labels.Matchers, len(s.Matchers))
 
 	for i, m := range s.Matchers {
@@ -198,7 +198,7 @@ type Silences struct {
 	st        state
 	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
-	mc        matcherCache
+	mi        matcherIndex
 }
 
 // Limits contains the limits for silences.
@@ -228,7 +228,7 @@ type metrics struct {
 	propagatedMessagesTotal               prometheus.Counter
 	maintenanceTotal                      prometheus.Counter
 	maintenanceErrorsTotal                prometheus.Counter
-	matcherCompileCacheSilenceErrorsTotal prometheus.Counter
+	matcherCompileIndexSilenceErrorsTotal prometheus.Counter
 	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
@@ -281,7 +281,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		},
 		[]string{"stage"},
 	)
-	m.matcherCompileCacheSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
+	m.matcherCompileIndexSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
 	m.matcherCompileLoadSnapshotErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("load_snapshot")
 	m.queriesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
@@ -345,7 +345,7 @@ func New(o Options) (*Silences, error) {
 
 	s := &Silences{
 		clock:     quartz.NewReal(),
-		mc:        matcherCache{},
+		mi:        matcherIndex{},
 		logger:    promslog.NewNopLogger(),
 		retention: o.Retention,
 		limits:    o.Limits,
@@ -477,7 +477,7 @@ func (s *Silences) GC() (int, error) {
 		}
 		if !sil.ExpiresAt.After(now) {
 			delete(s.st, id)
-			delete(s.mc, sil.Silence.Id)
+			delete(s.mi, sil.Silence.Id)
 			n++
 		}
 	}
@@ -559,11 +559,11 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	return nil
 }
 
-func (s *Silences) cacheSilence(sil *pb.Silence) {
+func (s *Silences) indexSilence(sil *pb.Silence) {
 	s.version++
-	_, err := s.mc.add(sil)
+	_, err := s.mi.add(sil)
 	if err != nil {
-		s.metrics.matcherCompileCacheSilenceErrorsTotal.Inc()
+		s.metrics.matcherCompileIndexSilenceErrorsTotal.Inc()
 		s.logger.Error("Failed to compile silence matchers", "silence_id", sil.Id, "err", err)
 	}
 }
@@ -590,7 +590,7 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	}
 	_, added := s.st.merge(msil, now)
 	if added {
-		s.cacheSilence(msil.Silence)
+		s.indexSilence(msil.Silence)
 	}
 	s.broadcast(b)
 	return nil
@@ -744,7 +744,7 @@ func QIDs(ids ...string) QueryParam {
 func QMatches(set model.LabelSet) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, s *Silences, _ time.Time) (bool, error) {
-			m, err := s.mc.get(sil)
+			m, err := s.mi.get(sil)
 			if err != nil {
 				return true, err
 			}
@@ -889,8 +889,8 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.CreatedBy = e.Silence.Comments[0].Author
 			e.Silence.Comments = nil
 		}
-		// Add to matcher cache, and only if successful, to the new state.
-		if _, err := s.mc.add(e.Silence); err != nil {
+		// Add to matcher index, and only if successful, to the new state.
+		if _, err := s.mi.add(e.Silence); err != nil {
 			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
 			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
 		} else {
@@ -945,7 +945,7 @@ func (s *Silences) Merge(b []byte) error {
 		merged, added := s.st.merge(e, now)
 		if merged {
 			if added {
-				s.cacheSilence(e.Silence)
+				s.indexSilence(e.Silence)
 			}
 			if !cluster.OversizedMessage(b) {
 				// If this is the first we've seen the message and it's
