@@ -281,7 +281,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		},
 		[]string{"stage"},
 	)
-	m.matcherCompileIndexSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
+	m.matcherCompileIndexSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("index")
 	m.matcherCompileLoadSnapshotErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("load_snapshot")
 	m.queriesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
