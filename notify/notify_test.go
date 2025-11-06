@@ -716,7 +716,7 @@ func TestMuteStage(t *testing.T) {
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
-	silences, err := silence.New(silence.Options{Retention: time.Hour})
+	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	if err != nil {
 		t.Fatal(err)
 	}

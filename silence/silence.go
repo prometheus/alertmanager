@@ -33,6 +33,7 @@ import (
 	uuid "github.com/gofrs/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 
@@ -251,29 +252,29 @@ func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.Gaug
 func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
-	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+	m.gcDuration = promauto.With(r).NewSummary(prometheus.SummaryOpts{
 		Name:       "alertmanager_silences_gc_duration_seconds",
 		Help:       "Duration of the last silence garbage collection cycle.",
 		Objectives: map[float64]float64{},
 	})
-	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+	m.snapshotDuration = promauto.With(r).NewSummary(prometheus.SummaryOpts{
 		Name:       "alertmanager_silences_snapshot_duration_seconds",
 		Help:       "Duration of the last silence snapshot.",
 		Objectives: map[float64]float64{},
 	})
-	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
+	m.snapshotSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_silences_snapshot_size_bytes",
 		Help: "Size of the last silence snapshot in bytes.",
 	})
-	m.maintenanceTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.maintenanceTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_maintenance_total",
 		Help: "How many maintenances were executed for silences.",
 	})
-	m.maintenanceErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.maintenanceErrorsTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_maintenance_errors_total",
 		Help: "How many maintenances were executed for silences that failed.",
 	})
-	matcherCompileErrorsTotal := prometheus.NewCounterVec(
+	matcherCompileErrorsTotal := promauto.With(r).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "alertmanager_silences_matcher_compile_errors_total",
 			Help: "How many silence matcher compilations failed.",
@@ -282,15 +283,15 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	)
 	m.matcherCompileCacheSilenceErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("cache_silence")
 	m.matcherCompileLoadSnapshotErrorsTotal = matcherCompileErrorsTotal.WithLabelValues("load_snapshot")
-	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.queriesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
 	})
-	m.queryErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.queryErrorsTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_query_errors_total",
 		Help: "How many silence received queries did not succeed.",
 	})
-	m.queryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	m.queryDuration = promauto.With(r).NewHistogram(prometheus.HistogramOpts{
 		Name:                            "alertmanager_silences_query_duration_seconds",
 		Help:                            "Duration of silence query evaluation.",
 		Buckets:                         prometheus.DefBuckets,
@@ -298,7 +299,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
-	m.propagatedMessagesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	m.propagatedMessagesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_gossip_messages_propagated_total",
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
@@ -308,23 +309,6 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		m.silencesExpired = newSilenceMetricByState(s, types.SilenceStateExpired)
 	}
 
-	if r != nil {
-		r.MustRegister(
-			m.gcDuration,
-			m.snapshotDuration,
-			m.snapshotSize,
-			m.queriesTotal,
-			m.queryErrorsTotal,
-			m.queryDuration,
-			m.silencesActive,
-			m.silencesPending,
-			m.silencesExpired,
-			m.propagatedMessagesTotal,
-			m.maintenanceTotal,
-			m.maintenanceErrorsTotal,
-			matcherCompileErrorsTotal,
-		)
-	}
 	return m
 }
 
@@ -367,6 +351,9 @@ func New(o Options) (*Silences, error) {
 		limits:    o.Limits,
 		broadcast: func([]byte) {},
 		st:        state{},
+	}
+	if o.Metrics == nil {
+		return nil, errors.New("Options.Metrics is nil")
 	}
 	s.metrics = newMetrics(o.Metrics, s)
 

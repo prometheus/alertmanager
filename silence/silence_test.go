@@ -62,16 +62,19 @@ func TestOptionsValidate(t *testing.T) {
 	}{
 		{
 			options: &Options{
+				Metrics:        prometheus.NewRegistry(),
 				SnapshotReader: &bytes.Buffer{},
 			},
 		},
 		{
 			options: &Options{
+				Metrics:      prometheus.NewRegistry(),
 				SnapshotFile: "test.bkp",
 			},
 		},
 		{
 			options: &Options{
+				Metrics:        prometheus.NewRegistry(),
 				SnapshotFile:   "test bkp",
 				SnapshotReader: &bytes.Buffer{},
 			},
@@ -86,7 +89,7 @@ func TestOptionsValidate(t *testing.T) {
 
 func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("GC does not remove active silences", func(t *testing.T) {
-		s, err := New(Options{})
+		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
 		s.clock = quartz.NewMock(t)
 		now := s.nowUTC()
@@ -109,7 +112,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	})
 
 	t.Run("GC does not leak cache entries", func(t *testing.T) {
-		s, err := New(Options{})
+		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
 		clock := quartz.NewMock(t)
 		s.clock = clock
@@ -136,7 +139,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	})
 
 	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
-		s, err := New(Options{})
+		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
 		clock := quartz.NewMock(t)
 		s.clock = clock
@@ -175,7 +178,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 	// This test checks for a memory leak that occurred in the matcher cache when
 	// updating an existing silence.
 	t.Run("updating a silence does not leak cache entries", func(t *testing.T) {
-		s, err := New(Options{})
+		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
 		clock := quartz.NewMock(t)
 		s.clock = clock
@@ -360,6 +363,7 @@ alertmanager_silences_maintenance_total 2
 
 func TestSilencesSetSilence(t *testing.T) {
 	s, err := New(Options{
+		Metrics:   prometheus.NewRegistry(),
 		Retention: time.Minute,
 	})
 	require.NoError(t, err)
@@ -411,6 +415,7 @@ func TestSilencesSetSilence(t *testing.T) {
 
 func TestSilenceSet(t *testing.T) {
 	s, err := New(Options{
+		Metrics:   prometheus.NewRegistry(),
 		Retention: time.Hour,
 	})
 	require.NoError(t, err)
@@ -608,6 +613,7 @@ func TestSilenceLimits(t *testing.T) {
 			MaxSilences:         func() int { return 1 },
 			MaxSilenceSizeBytes: func() int { return 2 << 11 }, // 4KB
 		},
+		Metrics: prometheus.NewRegistry(),
 	})
 	require.NoError(t, err)
 
@@ -725,7 +731,8 @@ func TestSilenceLimits(t *testing.T) {
 
 func TestSilenceNoLimits(t *testing.T) {
 	s, err := New(Options{
-		Limits: Limits{},
+		Limits:  Limits{},
+		Metrics: prometheus.NewRegistry(),
 	})
 	require.NoError(t, err)
 
@@ -742,6 +749,7 @@ func TestSilenceNoLimits(t *testing.T) {
 
 func TestSetActiveSilence(t *testing.T) {
 	s, err := New(Options{
+		Metrics:   prometheus.NewRegistry(),
 		Retention: time.Hour,
 	})
 	require.NoError(t, err)
@@ -791,7 +799,7 @@ func TestSetActiveSilence(t *testing.T) {
 }
 
 func TestSilencesSetFail(t *testing.T) {
-	s, err := New(Options{})
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
@@ -948,7 +956,7 @@ func TestQMatches(t *testing.T) {
 }
 
 func TestSilencesQuery(t *testing.T) {
-	s, err := New(Options{})
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
 	s.st = state{
@@ -1158,7 +1166,7 @@ func TestSilenceCanUpdate(t *testing.T) {
 }
 
 func TestSilenceExpire(t *testing.T) {
-	s, err := New(Options{Retention: time.Hour})
+	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
@@ -1255,7 +1263,7 @@ func TestSilenceExpire(t *testing.T) {
 // retention time, a silence explicitly set to expired will also immediately
 // expire from the silence storage.
 func TestSilenceExpireWithZeroRetention(t *testing.T) {
-	s, err := New(Options{Retention: 0})
+	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: 0})
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
@@ -1330,7 +1338,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 
 // This test checks that invalid silences can be expired.
 func TestSilenceExpireInvalid(t *testing.T) {
-	s, err := New(Options{Retention: time.Hour})
+	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
@@ -1369,7 +1377,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 }
 
 func TestSilencer(t *testing.T) {
-	ss, err := New(Options{Retention: time.Hour})
+	ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	require.NoError(t, err)
 
 	clock := quartz.NewMock(t)
