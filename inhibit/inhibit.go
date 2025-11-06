@@ -121,7 +121,6 @@ func (ih *Inhibitor) processAlert(a *types.Alert) {
 	}
 	ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
 	ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
-
 }
 
 func (ih *Inhibitor) WaitForLoading() {

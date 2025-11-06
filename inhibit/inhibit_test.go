@@ -412,6 +412,7 @@ func (f *fakeAlerts) Subscribe(name string) provider.AlertIterator {
 	}()
 	return provider.NewAlertIterator(ch, done, nil)
 }
+
 func (f *fakeAlerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})

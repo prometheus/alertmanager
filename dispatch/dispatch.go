@@ -237,7 +237,6 @@ func (d *Dispatcher) ingestAlert(alert *types.Alert) {
 		d.processAlert(alert, r)
 	}
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
-
 }
 
 func (d *Dispatcher) WaitForLoading() {
