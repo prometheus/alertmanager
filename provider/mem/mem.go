@@ -195,6 +195,22 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
+func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	var (
+		done   = make(chan struct{})
+		alerts = a.alerts.List()
+		ch     = make(chan *types.Alert, alertChannelLength)
+	)
+
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.next++
+
+	return alerts, provider.NewAlertIterator(ch, done, nil)
+}
+
 // GetPending returns an iterator over all the alerts that have
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {

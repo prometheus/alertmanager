@@ -88,6 +88,7 @@ type Dispatcher struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx                sync.RWMutex
+	loadingFinished    sync.WaitGroup
 	aggrGroupsPerRoute map[*Route]map[model.Fingerprint]*aggrGroup
 	aggrGroupsNum      int
 
@@ -138,6 +139,7 @@ func NewDispatcher(
 		limits:              limits,
 		state:               DispatcherStateUnknown,
 	}
+	disp.loadingFinished.Add(1)
 	return disp
 }
 
@@ -156,7 +158,13 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	d.mtx.Unlock()
 
-	d.run(d.alerts.Subscribe("dispatcher"))
+	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
+	for _, alert := range initalAlerts {
+		d.ingestAlert(alert)
+	}
+	d.loadingFinished.Done()
+
+	d.run(it)
 	close(d.done)
 }
 
@@ -185,11 +193,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				continue
 			}
 
-			now := time.Now()
-			for _, r := range d.route.Match(alert.Labels) {
-				d.processAlert(alert, r)
-			}
-			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+			d.ingestAlert(alert)
 
 		case <-d.startTimer.C:
 			if d.state == DispatcherStateWaitingToStart {
@@ -227,6 +231,19 @@ func (d *Dispatcher) doMaintenance() {
 	}
 }
 
+func (d *Dispatcher) ingestAlert(alert *types.Alert) {
+	now := time.Now()
+	for _, r := range d.route.Match(alert.Labels) {
+		d.processAlert(alert, r)
+	}
+	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+
+}
+
+func (d *Dispatcher) WaitForLoading() {
+	d.loadingFinished.Wait()
+}
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
 	Alerts   types.AlertSlice
@@ -249,6 +266,7 @@ func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
 func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+	d.WaitForLoading()
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
