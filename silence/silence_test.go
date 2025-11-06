@@ -100,7 +100,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}
 		for _, sil := range initialState {
 			s.st[sil.Silence.Id] = sil
-			s.cacheSilence(sil.Silence)
+			s.indexSilence(sil.Silence)
 		}
 		want := state{
 			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}, ExpiresAt: now.Add(time.Second)},
@@ -127,7 +127,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}
 		require.NoError(t, s.Set(sil1))
 		require.Len(t, s.st, 1)
-		require.Len(t, s.mc, 1)
+		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
 		clock.Advance(time.Minute)
@@ -135,7 +135,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
 		require.Empty(t, s.st)
-		require.Empty(t, s.mc)
+		require.Empty(t, s.mi)
 	})
 
 	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}
 		require.NoError(t, s.Set(sil1))
 		require.Len(t, s.st, 1)
-		require.Len(t, s.mc, 1)
+		require.Len(t, s.mi, 1)
 		// must clone sil1 before replacing it.
 		sil2 := cloneSilence(sil1)
 		sil2.Matchers = []*pb.Matcher{{
@@ -164,7 +164,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}}
 		require.NoError(t, s.Set(sil2))
 		require.Len(t, s.st, 2)
-		require.Len(t, s.mc, 2)
+		require.Len(t, s.mi, 2)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
 		clock.Advance(time.Minute)
@@ -172,7 +172,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 2, n)
 		require.Empty(t, s.st)
-		require.Empty(t, s.mc)
+		require.Empty(t, s.mi)
 	})
 
 	// This test checks for a memory leak that occurred in the matcher cache when
@@ -193,8 +193,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 			EndsAt:   clock.Now().Add(time.Minute),
 		}
 		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: clock.Now().Add(time.Minute)}
-		s.cacheSilence(sil1)
-		require.Len(t, s.mc, 1)
+		s.indexSilence(sil1)
+		require.Len(t, s.mi, 1)
 		// must clone sil1 before updating it.
 		sil2 := cloneSilence(sil1)
 		require.NoError(t, s.Set(sil2))
@@ -203,7 +203,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		// This check asserts that this no longer happens.
 		s.Query(QMatches(model.LabelSet{"foo": "bar"}))
 		require.Len(t, s.st, 1)
-		require.Len(t, s.mc, 1)
+		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
 		clock.Advance(time.Minute)
@@ -211,7 +211,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
 		require.Empty(t, s.st)
-		require.Empty(t, s.mc)
+		require.Empty(t, s.mi)
 	})
 }
 
@@ -284,7 +284,7 @@ func TestSilencesSnapshot(t *testing.T) {
 		require.NoError(t, err, "opening snapshot file failed")
 
 		// Check again against new nlog instance.
-		s2 := &Silences{mc: matcherCache{}, st: state{}}
+		s2 := &Silences{mi: matcherIndex{}, st: state{}}
 		err = s2.loadSnapshot(f)
 		require.NoError(t, err, "error loading snapshot")
 		require.Equal(t, s1.st, s2.st, "state after loading snapshot did not match snapshotted state")
@@ -947,8 +947,8 @@ func TestQMatches(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		silences := &Silences{mc: matcherCache{}, st: state{}}
-		silences.mc.add(c.sil)
+		silences := &Silences{mi: matcherIndex{}, st: state{}}
+		silences.mi.add(c.sil)
 		drop, err := f(c.sil, silences, time.Time{})
 		require.NoError(t, err)
 		require.Equal(t, c.drop, drop, "unexpected filter result")
