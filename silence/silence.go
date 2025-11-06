@@ -834,18 +834,20 @@ func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	return len(sils), nil
 }
 
+// query executes the given query and returns the resulting silences
 func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
-	// If we have no ID constraint, all silences are our base set.  This and
-	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
 	var err error
 
+	// Take a read lock on Silences: we can read but not modify the Silences struct.
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
+	// If we have IDs, only consider the silences with the given IDs, if they exist.
 	if q.ids != nil {
 		for _, id := range q.ids {
 			if sil, ok := s.st[id]; ok {
+				// append the silence to the results if it satisfies the query.
 				res, err = s.appendIfFiltersMatch(res, sil.Silence, q, now)
 				if err != nil {
 					return nil, s.version, err
@@ -853,7 +855,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			}
 		}
 	} else {
+		// No IDs given, consider all silences.
 		for _, sil := range s.st {
+			// append the silence to the results if it satisfies the query.
 			res, err = s.appendIfFiltersMatch(res, sil.Silence, q, now)
 			if err != nil {
 				return nil, s.version, err
@@ -864,16 +868,21 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	return res, s.version, nil
 }
 
+// appendIfFiltersMatch appends the given silence to the result set
+// if it matches all filters in the query. In case of a filter error, the error is returned.
 func (s *Silences) appendIfFiltersMatch(res []*pb.Silence, sil *pb.Silence, q *query, now time.Time) ([]*pb.Silence, error) {
 	for _, f := range q.filters {
-		ok, err := f(sil, s, now)
+		matches, err := f(sil, s, now)
+		// In case of error return it immediately and don't process further filters.
 		if err != nil {
 			return res, err
 		}
-		if !ok {
+		// If one filter doesn't match, return the result unchanged, immediately.
+		if !matches {
 			return res, nil
 		}
 	}
+	// All filters matched, append the silence to the result.
 	return append(res, cloneSilence(sil)), nil
 }
 
