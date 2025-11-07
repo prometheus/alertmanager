@@ -327,7 +327,7 @@ However, cluster size involves tradeoffs:
 - More gossip traffic
 
 **Typical deployments:**
-- **3-4 instances** - Common for single-datacenter production deployments
+- **2-3 instances** - Common for single-datacenter production deployments
 - **4-5 instances** - Multi-datacenter or highly critical environments
 
 **Note**: Unlike consensus-based systems (etcd, Raft), odd vs. even cluster sizes make no difference - there is no voting or quorum.
