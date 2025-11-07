@@ -26,6 +26,7 @@ require (
 	github.com/go-openapi/validate v0.25.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/renameio/v2 v2.0.0
 	github.com/hashicorp/go-sockaddr v1.0.7
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/memberlist v0.5.3

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
 	"os"
 	"reflect"
 	"regexp"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/coder/quartz"
 	uuid "github.com/gofrs/uuid"
+	"github.com/google/renameio/v2"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -407,15 +407,15 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		if snapf == "" {
 			return size, nil
 		}
-		f, err := openReplace(snapf)
+		f, err := renameio.TempFile("", snapf)
 		if err != nil {
 			return size, err
 		}
+		defer f.Cleanup()
 		if size, err = s.Snapshot(f); err != nil {
-			f.Close()
 			return size, err
 		}
-		return size, f.Close()
+		return size, f.CloseAtomicallyReplace()
 	}
 
 	if override != nil {
@@ -1034,34 +1034,3 @@ func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// replaceFile wraps a file that is moved to another filename on closing.
-type replaceFile struct {
-	*os.File
-	filename string
-}
-
-func (f *replaceFile) Close() error {
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	if err := f.File.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), f.filename)
-}
-
-// openReplace opens a new temporary file that is moved to filename on closing.
-func openReplace(filename string) (*replaceFile, error) {
-	tmpFilename := fmt.Sprintf("%s.%x", filename, uint64(rand.Int63()))
-
-	f, err := os.Create(tmpFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	rf := &replaceFile{
-		File:     f,
-		filename: filename,
-	}
-	return rf, nil
-}

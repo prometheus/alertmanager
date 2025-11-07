@@ -15,9 +15,7 @@ package nflog
 
 import (
 	"bytes"
-	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -181,34 +179,6 @@ alertmanager_nflog_maintenance_errors_total 0
 # TYPE alertmanager_nflog_maintenance_total counter
 alertmanager_nflog_maintenance_total 2
 `), "alertmanager_nflog_maintenance_total", "alertmanager_nflog_maintenance_errors_total"))
-}
-
-func TestReplaceFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "replace_file")
-	require.NoError(t, err, "creating temp dir failed")
-
-	origFilename := filepath.Join(dir, "testfile")
-
-	of, err := os.Create(origFilename)
-	require.NoError(t, err, "creating file failed")
-
-	nf, err := openReplace(origFilename)
-	require.NoError(t, err, "opening replacement file failed")
-
-	_, err = nf.Write([]byte("test"))
-	require.NoError(t, err, "writing replace file failed")
-
-	require.NotEqual(t, nf.Name(), of.Name(), "replacement file must have different name while editing")
-	require.NoError(t, nf.Close(), "closing replacement file failed")
-	require.NoError(t, of.Close(), "closing original file failed")
-
-	ofr, err := os.Open(origFilename)
-	require.NoError(t, err, "opening original file failed")
-	defer ofr.Close()
-
-	res, err := io.ReadAll(ofr)
-	require.NoError(t, err, "reading original file failed")
-	require.Equal(t, "test", string(res), "unexpected file contents")
 }
 
 func TestStateMerge(t *testing.T) {
