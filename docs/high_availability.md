@@ -312,13 +312,25 @@ This ensures:
 - **Independent processing** - Each instance independently evaluates routing, grouping, and deduplication
 - **No single point of failure** - Load balancers introduce a single point of failure
 
-### Cluster Size Recommendations
+### Cluster Size Considerations
 
-- **3 instances** - Recommended minimum for production (tolerates 1 failure)
-- **5 instances** - For critical environments (tolerates 2 failures)
-- **Odd numbers** - Preferred for simpler split-brain scenarios
+Since Alertmanager uses gossip without quorum or voting, **any N instances tolerate up to N-1 failures** - as long as one instance is alive, notifications will be sent.
 
-The gossip protocol scales to dozens of instances, but typical deployments use 3-5.
+However, cluster size involves tradeoffs:
+
+**Benefits of more instances:**
+- Greater resilience to simultaneous failures (hardware, network, datacenter outages)
+- Continued operation even during maintenance windows
+
+**Costs of more instances:**
+- In case of partitions there will be an increase in duplicate notifications
+- More gossip traffic
+
+**Typical deployments:**
+- **3-4 instances** - Common for single-datacenter production deployments
+- **4-5 instances** - Multi-datacenter or highly critical environments
+
+**Note**: Unlike consensus-based systems (etcd, Raft), odd vs. even cluster sizes make no difference - there is no voting or quorum.
 
 ### Monitoring Cluster Health
 
