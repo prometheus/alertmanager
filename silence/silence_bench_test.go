@@ -115,7 +115,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
-	s.st = state{}
+	// Create silences using Set() to properly populate indices
 	for i := 0; i < numSilences; i++ {
 		id := strconv.Itoa(i)
 		// Include an offset to avoid optimizations.
@@ -126,8 +126,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 			patB = "B(B|C)B.|" + id
 		}
 
-		s.st[id] = &silencepb.MeshSilence{Silence: &silencepb.Silence{
-			Id: id,
+		sil := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{
 				{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 				{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
@@ -135,7 +134,8 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 			StartsAt:  now.Add(-time.Minute),
 			EndsAt:    now.Add(time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
-		}}
+		}
+		require.NoError(b, s.Set(sil))
 	}
 
 	// Run things once to populate the matcherCache.
