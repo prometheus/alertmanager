@@ -332,6 +332,70 @@ func TestSilenceGCOverTime(t *testing.T) {
 			require.Contains(t, id, "active-")
 		}
 	})
+
+	t.Run("GC continues and removes erroneous silences", func(t *testing.T) {
+		reg := prometheus.NewRegistry()
+		s, err := New(Options{Metrics: reg})
+		require.NoError(t, err)
+		clock := quartz.NewMock(t)
+		s.clock = clock
+		now := clock.Now()
+
+		// Create a valid silence
+		validSil := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: now,
+			EndsAt:   now.Add(time.Minute),
+		}
+		require.NoError(t, s.Set(validSil))
+		validID := validSil.Id
+
+		// Manually add an erroneous silence with zero expiration
+		erroneousSil := &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id: "erroneous",
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "bar",
+					Pattern: "baz",
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			},
+			ExpiresAt: time.Time{}, // Zero expiration - invalid
+		}
+		s.st["erroneous"] = erroneousSil
+		s.vi.add(s.version+1, "erroneous")
+		s.version++
+
+		// Manually add an entry to version index that doesn't exist in state
+		s.vi.add(s.version+1, "missing")
+		s.version++
+
+		require.Len(t, s.st, 2)
+		require.Len(t, s.vi, 3)
+
+		// Run GC - should continue despite errors
+		n, err := s.GC()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "zero expiration timestamp")
+		require.Contains(t, err.Error(), "missing from state")
+
+		// GC should have removed erroneous silences
+		require.Equal(t, 1, n) // Only the erroneous silence with zero expiration
+		require.Len(t, s.st, 1)
+		require.Len(t, s.vi, 1)
+		require.Contains(t, s.st, validID)
+		require.NotContains(t, s.st, "erroneous")
+
+		// Check that the error metric was incremented
+		metricValue := testutil.ToFloat64(s.metrics.gcErrorsTotal)
+		require.Equal(t, float64(2), metricValue)
+	})
 }
 
 func TestSilencesSnapshot(t *testing.T) {
