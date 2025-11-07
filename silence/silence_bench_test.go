@@ -50,7 +50,7 @@ func BenchmarkMutes(b *testing.B) {
 }
 
 func benchmarkMutes(b *testing.B, n int) {
-	silences, err := New(Options{})
+	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
 	clock := quartz.NewMock(b)
@@ -105,7 +105,7 @@ func BenchmarkQuery(b *testing.B) {
 }
 
 func benchmarkQuery(b *testing.B, numSilences int) {
-	s, err := New(Options{})
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
 	clock := quartz.NewMock(b)
@@ -199,7 +199,7 @@ func BenchmarkQueryParallel(b *testing.B) {
 }
 
 func benchmarkQueryParallel(b *testing.B, numSilences, numGoroutines int) {
-	s, err := New(Options{})
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
 	clock := quartz.NewMock(b)
@@ -278,7 +278,7 @@ func BenchmarkQueryWithConcurrentAdds(b *testing.B) {
 }
 
 func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRatio float64) {
-	s, err := New(Options{})
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
 	clock := quartz.NewMock(b)
@@ -375,7 +375,7 @@ func BenchmarkMutesParallel(b *testing.B) {
 }
 
 func benchmarkMutesParallel(b *testing.B, numSilences, numGoroutines int) {
-	silences, err := New(Options{})
+	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
 	clock := quartz.NewMock(b)
