@@ -834,7 +834,7 @@ func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	return len(sils), nil
 }
 
-// query executes the given query and returns the resulting silences
+// query executes the given query and returns the resulting silences.
 func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	var res []*pb.Silence
 	var err error
