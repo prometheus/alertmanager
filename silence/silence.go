@@ -257,9 +257,14 @@ type metrics struct {
 	queriesTotal                          prometheus.Counter
 	queryErrorsTotal                      prometheus.Counter
 	queryDuration                         prometheus.Histogram
+	queryScannedTotal                     prometheus.Counter
+	querySkippedTotal                     prometheus.Counter
 	silencesActive                        prometheus.GaugeFunc
 	silencesPending                       prometheus.GaugeFunc
 	silencesExpired                       prometheus.GaugeFunc
+	stateSize                             prometheus.Gauge
+	matcherIndexSize                      prometheus.Gauge
+	versionIndexSize                      prometheus.Gauge
 	propagatedMessagesTotal               prometheus.Counter
 	maintenanceTotal                      prometheus.Counter
 	maintenanceErrorsTotal                prometheus.Counter
@@ -334,6 +339,14 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	m.queryScannedTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_query_silences_scanned_total",
+		Help: "How many silences were scanned during query evaluation.",
+	})
+	m.querySkippedTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_query_silences_skipped_total",
+		Help: "How many silences were skipped during query evaluation using the version index.",
+	})
 	m.propagatedMessagesTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_gossip_messages_propagated_total",
 		Help: "Number of received gossip messages that have been further gossiped.",
@@ -342,6 +355,18 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		m.silencesActive = newSilenceMetricByState(s, types.SilenceStateActive)
 		m.silencesPending = newSilenceMetricByState(s, types.SilenceStatePending)
 		m.silencesExpired = newSilenceMetricByState(s, types.SilenceStateExpired)
+		m.stateSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
+			Name: "alertmanager_silences_state_size",
+			Help: "The number of silences in the state map.",
+		})
+		m.matcherIndexSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
+			Name: "alertmanager_silences_matcher_index_size",
+			Help: "The number of entries in the matcher cache index.",
+		})
+		m.versionIndexSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
+			Name: "alertmanager_silences_version_index_size",
+			Help: "The number of entries in the version index.",
+		})
 	}
 
 	return m
@@ -419,6 +444,16 @@ func New(o Options) (*Silences, error) {
 
 func (s *Silences) nowUTC() time.Time {
 	return s.clock.Now().UTC()
+}
+
+// updateSizeMetrics updates the size metrics for state, matcher index, and version index.
+// Must be called while holding s.mtx.
+func (s *Silences) updateSizeMetrics() {
+	if s.metrics != nil && s.metrics.stateSize != nil {
+		s.metrics.stateSize.Set(float64(len(s.st)))
+		s.metrics.matcherIndexSize.Set(float64(len(s.mi)))
+		s.metrics.versionIndexSize.Set(float64(len(s.vi)))
+	}
 }
 
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
@@ -547,6 +582,7 @@ func (s *Silences) GC() (int, error) {
 		clear(s.vi[len(targetVi):])
 	}
 	s.vi = targetVi
+	s.updateSizeMetrics()
 
 	return n, nil
 }
@@ -658,6 +694,7 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	_, added := s.st.merge(msil, now)
 	if added {
 		s.indexSilence(msil.Silence)
+		s.updateSizeMetrics()
 	}
 	s.broadcast(b)
 	return nil
@@ -926,6 +963,11 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	var res []*pb.Silence
 	var err error
 
+	scannedCount := 0
+	defer func() {
+		s.metrics.queryScannedTotal.Add(float64(scannedCount))
+	}()
+
 	// appendIfFiltersMatch appends the given silence to the result set
 	// if it matches all filters in the query. In case of a filter error, the error is returned.
 	appendIfFiltersMatch := func(res []*pb.Silence, sil *pb.Silence) ([]*pb.Silence, error) {
@@ -952,6 +994,7 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	if q.ids != nil {
 		for _, id := range q.ids {
 			if sil, ok := s.st[id]; ok {
+				scannedCount++
 				// append the silence to the results if it satisfies the query.
 				res, err = appendIfFiltersMatch(res, sil.Silence)
 				if err != nil {
@@ -968,8 +1011,11 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			if !found {
 				return res, s.version, nil
 			}
+			// Track how many silences we skipped using the version index.
+			s.metrics.querySkippedTotal.Add(float64(start))
 		}
 		for _, sv := range s.vi[start:] {
+			scannedCount++
 			sil := s.st[sv.id]
 			// append the silence to the results if it satisfies the query.
 			res, err = appendIfFiltersMatch(res, sil.Silence)
@@ -1016,6 +1062,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	s.mi = mi
 	s.vi = vi
 	s.version++
+	s.updateSizeMetrics()
 	s.mtx.Unlock()
 
 	return nil
@@ -1074,6 +1121,7 @@ func (s *Silences) Merge(b []byte) error {
 			}
 		}
 	}
+	s.updateSizeMetrics()
 	return nil
 }
 
