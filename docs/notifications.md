@@ -94,7 +94,9 @@ templating.
 | join | sep string, s []string | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
 | safeHtml | text string | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl | text string | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
+| safeURL | text string | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
 | urlUnescape | text string | [url.QueryUnescape](https://pkg.go.dev/net/url#QueryUnescape), unescapes a URL with % encoding |
+| urldecode | text string | URL decodes a string, returning the decoded string (or original string if decoding fails). |
 | stringSlice | ...string | Returns the passed strings as a slice of strings. |
 | date | string, time.Time | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
 | tz | string, time.Time | Returns the time in the timezone. For example, Europe/Paris. |
