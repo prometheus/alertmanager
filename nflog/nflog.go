@@ -313,7 +313,7 @@ func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan str
 		if err != nil {
 			return size, err
 		}
-		defer f.Cleanup()
+		defer func() { _ = f.Cleanup() }()
 		if size, err = l.Snapshot(f); err != nil {
 			return size, err
 		}
@@ -539,4 +539,3 @@ func (l *Log) SetBroadcast(f func([]byte)) {
 	l.broadcast = f
 	l.mtx.Unlock()
 }
-

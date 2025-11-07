@@ -411,7 +411,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		if err != nil {
 			return size, err
 		}
-		defer f.Cleanup()
+		defer func() { _ = f.Cleanup() }()
 		if size, err = s.Snapshot(f); err != nil {
 			return size, err
 		}
@@ -1033,4 +1033,3 @@ func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
-
