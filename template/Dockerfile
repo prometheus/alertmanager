@@ -4,4 +4,6 @@ ENV NODE_PATH="/usr/local/lib/node_modules"
 
 RUN npm install juice@10.0.1 -g
 
+USER amtool
+USER amtool
 ENTRYPOINT [""]
