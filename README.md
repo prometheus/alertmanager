@@ -347,7 +347,7 @@ $ amtool config routes test --config.file=doc/examples/simple.yml --tree --verif
 Alertmanager's high availability is in production use at many companies and is enabled by default.
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
->  - If you are using a firewall, make sure to whitelist the clustering port for both protocols.
+>  - If you are using a firewall, make sure to allow the clustering port for both protocols.
 >  - If you are running in a container, make sure to expose the clustering port for both protocols.
 
 To create a highly available cluster of the Alertmanager the instances need to
