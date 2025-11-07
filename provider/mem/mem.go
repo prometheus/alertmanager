@@ -242,9 +242,17 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		if old, err := a.alerts.Get(fp); err == nil {
 			existing = true
 
-			// Merge alerts if there is an overlap in activity range.
-			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
-				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
+			// Merge alerts if there is an overlap in activity range, or if
+			// the new alert is updating the existing alert (e.g., setting endsAt
+			// to resolve it, or updating annotations/labels).
+			hasOverlap := (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
+				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt))
+			
+			// Also merge if updating an existing alert (same fingerprint) to allow
+			// updates like setting endsAt to resolve an alert, even without overlap.
+			isUpdate := !alert.UpdatedAt.Before(old.UpdatedAt)
+			
+			if hasOverlap || isUpdate {
 				alert = old.Merge(alert)
 			}
 		}
