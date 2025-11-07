@@ -91,6 +91,40 @@ func (c matcherIndex) add(s *pb.Silence) (labels.Matchers, error) {
 	return ms, nil
 }
 
+// silenceVersion associates a silence with the Silences version when it was created.
+type silenceVersion struct {
+	id      string
+	version int
+}
+
+// versionIndex is a index into Silences ordered by the version of Silences when the
+// silence was created. The index is always sorted from lowest to highest version.
+//
+// The versionIndex allows clients of Silences.Query to incrementally update local caches
+// of query results. Instead of a new version requiring the client to scan  everything
+// again to get an up-to-date picture of Silences, they can use the versionIndex to figure
+// out which silences have been added since the last version they saw. This means they can
+// just scan the NEW silences, rather than all of them.
+type versionIndex []silenceVersion
+
+// add pushes a new silenceVersionMapping to the back of the silenceVersionIndex. It does not
+// validate the input.
+func (s *versionIndex) add(version int, sil string) {
+	*s = append(*s, silenceVersion{version: version, id: sil})
+}
+
+// find uses a log(n) search to find the first index of the versionIndex which has a
+// version higher than version. If any entries with a higher version exist, it returns true
+// and the starting index (which is guaranteed to be a valid index into the slice). Otherwise
+// it returns false.
+func (s versionIndex) find(version int) (int, bool) {
+	startIdx := sort.Search(len(s), func(i int) bool {
+		return s[i].version > version
+	})
+
+	return startIdx, startIdx < len(s)
+}
+
 // Silencer binds together a AlertMarker and a Silences to implement the Muter
 // interface.
 type Silencer struct {
@@ -199,6 +233,7 @@ type Silences struct {
 	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
 	mi        matcherIndex
+	vi        versionIndex
 }
 
 // Limits contains the limits for silences.
@@ -345,7 +380,8 @@ func New(o Options) (*Silences, error) {
 
 	s := &Silences{
 		clock:     quartz.NewReal(),
-		mi:        matcherIndex{},
+		mi:        make(matcherIndex, 512),
+		vi:        make(versionIndex, 0, 512),
 		logger:    promslog.NewNopLogger(),
 		retention: o.Retention,
 		limits:    o.Limits,
@@ -471,16 +507,46 @@ func (s *Silences) GC() (int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	for id, sil := range s.st {
+	// During GC we will delete expired silences from the state map and the indices.
+	// If between the last GC's deletion, and including any silences that were added
+	// until now, we have more than 50% spare capacity, we want to reallocate to a smaller
+	// slice, while still leaving some growth buffer.
+	needsRealloc := cap(s.vi) > 1024 && len(s.vi) < cap(s.vi)/2
+
+	var targetVi versionIndex
+	if needsRealloc {
+		// Allocate new slice with growth buffer.
+		newCap := max(len(s.vi)*5/4, 1024)
+		targetVi = make(versionIndex, 0, newCap)
+	} else {
+		targetVi = s.vi[:0]
+	}
+
+	// Iterate state map directly (fast - no extra lookups).
+	for _, sv := range s.vi {
+		sil, ok := s.st[sv.id]
+		// FIXME: in both these cases rather than breaking GC forever
+		// we should increase an error metric, log, and drop the culprit silence.
+		if !ok {
+			return n, errors.New("silence in index missing from state")
+		}
 		if sil.ExpiresAt.IsZero() {
 			return n, errors.New("unexpected zero expiration timestamp")
 		}
 		if !sil.ExpiresAt.After(now) {
-			delete(s.st, id)
+			delete(s.st, sil.Silence.Id)
 			delete(s.mi, sil.Silence.Id)
 			n++
+		} else {
+			targetVi = append(targetVi, sv)
 		}
 	}
+
+	if !needsRealloc {
+		// If we didn't reallocate, clear tail to prevent string pointer leaks
+		clear(s.vi[len(targetVi):])
+	}
+	s.vi = targetVi
 
 	return n, nil
 }
@@ -561,6 +627,7 @@ func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 
 func (s *Silences) indexSilence(sil *pb.Silence) {
 	s.version++
+	s.vi.add(s.version, sil.Id)
 	_, err := s.mi.add(sil)
 	if err != nil {
 		s.metrics.matcherCompileIndexSilenceErrorsTotal.Inc()
@@ -725,6 +792,7 @@ type QueryParam func(*query) error
 
 type query struct {
 	ids     []string
+	since   *int
 	filters []silenceFilter
 }
 
@@ -738,7 +806,23 @@ func QIDs(ids ...string) QueryParam {
 		if len(ids) == 0 {
 			return errors.New("QIDs filter must have at least one id")
 		}
+		if q.since != nil {
+			return fmt.Errorf("QSince cannot be used with QIDs")
+		}
 		q.ids = append(q.ids, ids...)
+		return nil
+	}
+}
+
+// QSince filters silences to those created after the provided version. This can be used to
+// scan all silences which have been added after the provided version to incrementally update
+// a cache.
+func QSince(version int) QueryParam {
+	return func(q *query) error {
+		if len(q.ids) != 0 {
+			return fmt.Errorf("QSince cannot be used with QIDs")
+		}
+		q.since = &version
 		return nil
 	}
 }
@@ -876,8 +960,17 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			}
 		}
 	} else {
-		// No IDs given, consider all silences.
-		for _, sil := range s.st {
+		start := 0
+		if q.since != nil {
+			var found bool
+			start, found = s.vi.find(*q.since)
+			// no new silences, nothing to do
+			if !found {
+				return res, s.version, nil
+			}
+		}
+		for _, sv := range s.vi[start:] {
+			sil := s.st[sv.id]
 			// append the silence to the results if it satisfies the query.
 			res, err = appendIfFiltersMatch(res, sil.Silence)
 			if err != nil {
@@ -897,7 +990,9 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 		return err
 	}
 
-	newMatcherIndex := matcherIndex{}
+	mi := make(matcherIndex, len(st)) // for a map, len is ok as a size hint.
+	// Choose new version index capacity with some growth buffer.
+	vi := make(versionIndex, 0, max(len(st)*5/4, 1024))
 
 	for _, e := range st {
 		// Comments list was moved to a single comment. Upgrade on loading the snapshot.
@@ -907,16 +1002,19 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.Comments = nil
 		}
 		// Add to matcher index, and only if successful, to the new state.
-		if _, err := newMatcherIndex.add(e.Silence); err != nil {
+		if _, err := mi.add(e.Silence); err != nil {
 			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
 			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
 		} else {
 			st[e.Silence.Id] = e
+
+			vi.add(s.version+1, e.Silence.Id)
 		}
 	}
 	s.mtx.Lock()
 	s.st = st
-	s.mi = newMatcherIndex
+	s.mi = mi
+	s.vi = vi
 	s.version++
 	s.mtx.Unlock()
 
