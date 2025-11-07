@@ -1,6 +1,6 @@
 ---
 title: High Availability
-sort_rank: 3
+sort_rank: 4
 nav_icon: network
 ---
 
