@@ -148,66 +148,93 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	activeIDs, pendingIDs, markerVersion, _ := s.marker.Silenced(fp)
 
 	var (
-		err        error
-		allSils    []*pb.Silence
+		oldSils    []*pb.Silence
+		newSils    []*pb.Silence
 		newVersion = markerVersion
 	)
-	if markerVersion == s.silences.Version() {
-		totalSilences := len(activeIDs) + len(pendingIDs)
-		// No new silences added, just need to check which of the old
-		// silences are still relevant and which of the pending ones
-		// have become active.
-		if totalSilences == 0 {
-			// Super fast path: No silences ever applied to this
-			// alert, none have been added. We are done.
-			return false
-		}
-		// This is still a quite fast path: No silences have been added,
-		// we only need to check which of the applicable silences are
-		// currently active. Note that newVersion is left at
-		// markerVersion because the Query call might already return a
-		// newer version, which is not the version our old list of
-		// applicable silences is based on.
-		allIDs := append(append(make([]string, 0, totalSilences), activeIDs...), pendingIDs...)
-		allSils, _, err = s.silences.Query(
+	totalMarkerSilences := len(activeIDs) + len(pendingIDs)
+	markerIsUpToDate := markerVersion == s.silences.Version()
+
+	if markerIsUpToDate && totalMarkerSilences == 0 {
+		// Very fast path: no new silences have been added and this lset was not
+		// silenced last time we checked.
+		return false
+	}
+	// Either there are new silences and we need to check if those match lset or there were
+	// silences last time we queried so we need to see if those are still active/have become
+	// active. It's possible for there to be both old and new silences.
+
+	if totalMarkerSilences > 0 {
+		// there were old silences for this lset, we need to find them to check if they
+		// are still active/pending, or have ended.
+		var err error
+		allIDs := append(append(make([]string, 0, totalMarkerSilences), activeIDs...), pendingIDs...)
+		oldSils, _, err = s.silences.Query(
 			QIDs(allIDs...),
 			QState(types.SilenceStateActive, types.SilenceStatePending),
 		)
-	} else {
-		// New silences have been added, do a full query.
-		allSils, newVersion, err = s.silences.Query(
+		if err != nil {
+			s.logger.Error(
+				"Querying old silences failed, alerts might not get silenced correctly",
+				"err", err,
+			)
+		}
+	}
+
+	if !markerIsUpToDate {
+		// New silences have been added since the last time the marker was updated. Do a full
+		// query for any silences newer than the markerVersion that match the lset.
+		// On this branch we WILL update newVersion since we can be sure we've seen any silences
+		// newer than markerVersion.
+		var err error
+		newSils, newVersion, err = s.silences.Query(
+			QSince(markerVersion),
 			QState(types.SilenceStateActive, types.SilenceStatePending),
 			QMatches(lset),
 		)
+		if err != nil {
+			s.logger.Error(
+				"Querying silences failed, alerts might not get silenced correctly",
+				"err", err,
+			)
+		}
 	}
-	if err != nil {
-		s.logger.Error("Querying silences failed, alerts might not get silenced correctly", "err", err)
-	}
-	if len(allSils) == 0 {
+	// Note: if markerIsUpToDate, newVersion is left at markerVersion because the Query call
+	// might already return a newer version, which is not the version our old list of
+	// applicable silences is based on.
+
+	totalSilences := len(oldSils) + len(newSils)
+	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.marker.SetActiveOrSilenced(fp, newVersion, nil, nil)
 		return false
 	}
+
 	// It is still possible that nothing has changed, but finding out is not
 	// much less effort than just recreating the IDs from the query
 	// result. So let's do it in any case. Note that we cannot reuse the
 	// current ID slices for concurrency reasons.
-	activeIDs, pendingIDs = nil, nil
+	activeIDs = make([]string, 0, totalSilences)
+	pendingIDs = make([]string, 0, totalSilences)
 	now := s.silences.nowUTC()
-	for _, sil := range allSils {
-		switch getState(sil, now) {
-		case types.SilenceStatePending:
-			pendingIDs = append(pendingIDs, sil.Id)
-		case types.SilenceStateActive:
-			activeIDs = append(activeIDs, sil.Id)
-		default:
-			// Do nothing, silence has expired in the meantime.
+
+	// Categorize old and new silences by their current state
+	for _, sils := range [...][]*pb.Silence{oldSils, newSils} {
+		for _, sil := range sils {
+			switch getState(sil, now) {
+			case types.SilenceStatePending:
+				pendingIDs = append(pendingIDs, sil.Id)
+			case types.SilenceStateActive:
+				activeIDs = append(activeIDs, sil.Id)
+			default:
+				// Do nothing, silence has expired in the meantime.
+			}
 		}
 	}
 	s.logger.Debug(
 		"determined current silences state",
 		"now", now,
-		"total", len(allSils),
+		"total", totalSilences,
 		"active", len(activeIDs),
 		"pending", len(pendingIDs),
 	)
