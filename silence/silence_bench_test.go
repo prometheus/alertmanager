@@ -90,6 +90,130 @@ func benchmarkMutes(b *testing.B, n int) {
 	require.Len(b, activeIDs, n)
 }
 
+// BenchmarkMutesIncremental tests the incremental query optimization when a small
+// number of silences are added to a large existing set. This measures the real-world
+// scenario that the QSince optimization is designed for.
+func BenchmarkMutesIncremental(b *testing.B) {
+	cases := []struct {
+		name     string
+		baseSize int
+	}{
+		{"1000 base silences", 1000},
+		{"3000 base silences", 3000},
+		{"7000 base silences", 7000},
+		{"10000 base silences", 10000},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			silences, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(b, err)
+
+			clock := quartz.NewMock(b)
+			silences.clock = clock
+			now := clock.Now()
+
+			// Create base set of silences - most don't match, some do
+			// This simulates a realistic production scenario
+			// Intersperse matching silences throughout the base set
+			for i := 0; i < tc.baseSize; i++ {
+				var s *silencepb.Silence
+				if i%2000 == 0 && i > 0 {
+					// Sprinkle 1 silence matching every 2000
+					s = &silencepb.Silence{
+						Matchers: []*silencepb.Matcher{
+							{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "service",
+								Pattern: "test",
+							},
+							{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "instance",
+								Pattern: "instance1",
+							},
+						},
+						StartsAt: now,
+						EndsAt:   now.Add(time.Hour),
+					}
+				} else {
+					s = &silencepb.Silence{
+						Matchers: []*silencepb.Matcher{{
+							Type:    silencepb.Matcher_EQUAL,
+							Name:    "job",
+							Pattern: "job" + strconv.Itoa(i),
+						}},
+						StartsAt: now,
+						EndsAt:   now.Add(time.Hour),
+					}
+				}
+				require.NoError(b, silences.Set(s))
+			}
+
+			marker := types.NewMarker(prometheus.NewRegistry())
+			silencer := NewSilencer(silences, marker, promslog.NewNopLogger())
+
+			// Warm up: Establish marker state (markerVersion = current version)
+			// This simulates a system that has been running for a while
+			lset := model.LabelSet{"service": "test", "instance": "instance1"}
+			silencer.Mutes(lset)
+
+			// Benchmark: Measure Mutes() performance with incremental additions
+			// Every other iteration adds 1 new silence, all iterations call Mutes()
+			// This simulates realistic traffic with a mix of incremental and cached queries
+			// With QSince optimization, this should only scan new silences when added
+			b.ResetTimer()
+			iteration := 0
+			for b.Loop() {
+				// Don't measure the Set() time, only Mutes()
+				b.StopTimer()
+
+				// Add one new silence every other iteration to simulate realistic traffic
+				// where Mutes() is sometimes called without new silences
+				if iteration%2 == 0 {
+					var s *silencepb.Silence
+					if iteration%20 == 0 && iteration > 0 {
+						// Only 1 in 20 silences matches the labelset
+						s = &silencepb.Silence{
+							Matchers: []*silencepb.Matcher{
+								{
+									Type:    silencepb.Matcher_EQUAL,
+									Name:    "service",
+									Pattern: "test",
+								},
+								{
+									Type:    silencepb.Matcher_EQUAL,
+									Name:    "instance",
+									Pattern: "instance1",
+								},
+							},
+							StartsAt: now,
+							EndsAt:   now.Add(time.Hour),
+						}
+					} else {
+						// Most don't match
+						s = &silencepb.Silence{
+							Matchers: []*silencepb.Matcher{{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "instance",
+								Pattern: "host" + strconv.Itoa(iteration),
+							}},
+							StartsAt: now,
+							EndsAt:   now.Add(time.Hour),
+						}
+					}
+					require.NoError(b, silences.Set(s))
+				}
+
+				b.StartTimer()
+				// Now query - should use incremental path or cached paths
+				silencer.Mutes(lset)
+				iteration++
+			}
+		})
+	}
+}
+
 // BenchmarkQuery benchmarks the Query method for the Silences struct
 // for different numbers of silences. Not all silences match the query
 // to prevent compiler and runtime optimizations from affecting the benchmarks.
