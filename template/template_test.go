@@ -390,6 +390,17 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "search?q=test foo",
 		},
 		{
+			title: "Template using urldecode",
+			in:    `{{ "search?q=test%20foo" | urldecode }}`,
+			exp:   "search?q=test foo",
+		},
+		{
+			title: "URL template using safeURL",
+			in:    `<a href="/search?{{ "q=test%20foo" | safeURL }}"></a>`,
+			html:  true,
+			exp:   `<a href="/search?q=test%20foo"></a>`,
+		},
+		{
 			title: "Template using stringSlice",
 			in:    `{{ with .GroupLabels }}{{ with .Remove (stringSlice "key1" "key3") }}{{ .SortedPairs.Values }}{{ end }}{{ end }}`,
 			data: Data{

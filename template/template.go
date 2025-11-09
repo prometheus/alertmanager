@@ -191,7 +191,11 @@ var DefaultFuncs = FuncMap{
 	"safeUrl": func(text string) tmplhtml.URL {
 		return tmplhtml.URL(text)
 	},
+	"safeURL": func(text string) tmplhtml.URL {
+		return tmplhtml.URL(text)
+	},
 	"urlUnescape": url.QueryUnescape,
+	"urldecode": url.QueryUnescape,
 	"reReplaceAll": func(pattern, repl, text string) string {
 		re := regexp.MustCompile(pattern)
 		return re.ReplaceAllString(text, repl)
