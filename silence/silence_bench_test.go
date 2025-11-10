@@ -320,45 +320,18 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 // write locks (Lock). With the pre-compiled matcher cache, multiple
 // queries can now execute in parallel.
 func BenchmarkQueryParallel(b *testing.B) {
-	b.Run("100 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 1)
+	b.Run("100 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 100)
 	})
-	b.Run("100 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 2)
+	b.Run("1000 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 1000)
 	})
-	b.Run("100 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 4)
-	})
-	b.Run("100 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 8)
-	})
-	b.Run("1000 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 1)
-	})
-	b.Run("1000 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 2)
-	})
-	b.Run("1000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 4)
-	})
-	b.Run("1000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 8)
-	})
-	b.Run("10000 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 1)
-	})
-	b.Run("10000 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 2)
-	})
-	b.Run("10000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 4)
-	})
-	b.Run("10000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 8)
+	b.Run("10000 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 10000)
 	})
 }
 
-func benchmarkQueryParallel(b *testing.B, numSilences, numGoroutines int) {
+func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
@@ -520,21 +493,18 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 // BenchmarkMutesParallel benchmarks concurrent Mutes calls to demonstrate
 // the performance improvement from parallel query execution.
 func BenchmarkMutesParallel(b *testing.B) {
-	b.Run("100 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 100, 4)
+	b.Run("100 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 100)
 	})
-	b.Run("1000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 1000, 4)
+	b.Run("1000 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 1000)
 	})
-	b.Run("10000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 10000, 4)
-	})
-	b.Run("10000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 10000, 8)
+	b.Run("10000 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 10000)
 	})
 }
 
-func benchmarkMutesParallel(b *testing.B, numSilences, numGoroutines int) {
+func benchmarkMutesParallel(b *testing.B, numSilences int) {
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
@@ -543,7 +513,7 @@ func benchmarkMutesParallel(b *testing.B, numSilences, numGoroutines int) {
 	now := clock.Now()
 
 	// Create silences that will match the alert
-	for i := 0; i < numSilences; i++ {
+	for range numSilences {
 		s := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{{
 				Type:    silencepb.Matcher_EQUAL,
