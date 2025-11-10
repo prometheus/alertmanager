@@ -1013,6 +1013,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		return append(res, cloneSilence(sil)), nil
 	}
 
+	// Preallocate result slice if we have IDs (if not this will be a no-op)
+	res = make([]*pb.Silence, 0, len(q.ids))
+
 	// Take a read lock on Silences: we can read but not modify the Silences struct.
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -1041,6 +1044,10 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			// Track how many silences we skipped using the version index.
 			s.metrics.querySkippedTotal.Add(float64(start))
 		}
+		// Preallocate result slice with a reasonable capacity. If we are
+		// scanning less than 64 silences, we can allocate that many,
+		// otherwise we just allocate 64 and let it grow as needed.
+		res = make([]*pb.Silence, 0, min(64, len(s.vi)-start))
 		for _, sv := range s.vi[start:] {
 			scannedCount++
 			sil := s.st[sv.id]
