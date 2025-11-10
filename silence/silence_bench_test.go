@@ -31,26 +31,40 @@ import (
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface for
-// different numbers of silences, where all silences match the alert.
+// different numbers of silences with varying match ratios.
 func BenchmarkMutes(b *testing.B) {
-	b.Run("1 silence mutes alert", func(b *testing.B) {
-		benchmarkMutes(b, 1)
+	b.Run("0 total, 0 matching", func(b *testing.B) {
+		benchmarkMutes(b, 0, 0)
 	})
-	b.Run("10 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 10)
+	b.Run("1 total, 1 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1, 1)
 	})
-	b.Run("100 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 100)
+	b.Run("100 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 100, 10)
 	})
-	b.Run("1000 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 1000)
+	b.Run("1000 total, 1 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 1)
 	})
-	b.Run("10000 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 10000)
+	b.Run("1000 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 10)
+	})
+	b.Run("1000 total, 100 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 100)
+	})
+	b.Run("10000 total, 0 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 10)
+	})
+	b.Run("10000 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 10)
+	})
+	b.Run("10000 total, 1000 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 1000)
 	})
 }
 
-func benchmarkMutes(b *testing.B, n int) {
+func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
+	require.LessOrEqual(b, matchingSilences, totalSilences)
+
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
@@ -58,22 +72,43 @@ func benchmarkMutes(b *testing.B, n int) {
 	silences.clock = clock
 	now := clock.Now()
 
-	var silenceIDs []string
-	for i := 0; i < n; i++ {
-		s := &silencepb.Silence{
-			Matchers: []*silencepb.Matcher{{
-				Type:    silencepb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
-			}},
-			StartsAt: now,
-			EndsAt:   now.Add(time.Minute),
+	// Calculate interval to intersperse matching silences
+	var interval int
+	if matchingSilences > 0 {
+		interval = totalSilences / matchingSilences
+	}
+
+	// Create silences with matching ones interspersed throughout
+	matchingCreated := 0
+	for i := range totalSilences {
+		var s *silencepb.Silence
+		// Create matching silences at calculated intervals, but make sure there are always enough
+		if matchingCreated < matchingSilences && (i%interval == 0 || i == totalSilences-matchingSilences+matchingCreated) {
+			// Create a matching silence
+			s = &silencepb.Silence{
+				Matchers: []*silencepb.Matcher{{
+					Type:    silencepb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			}
+			matchingCreated++
+		} else {
+			// Create a non-matching silence
+			s = &silencepb.Silence{
+				Matchers: []*silencepb.Matcher{{
+					Type:    silencepb.Matcher_EQUAL,
+					Name:    "job",
+					Pattern: "job" + strconv.Itoa(i),
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			}
 		}
 		require.NoError(b, silences.Set(s))
-		require.NoError(b, err)
-		silenceIDs = append(silenceIDs, s.Id)
 	}
-	require.Len(b, silenceIDs, n)
 
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(silences, m, promslog.NewNopLogger())
@@ -83,11 +118,11 @@ func benchmarkMutes(b *testing.B, n int) {
 	}
 	b.StopTimer()
 
-	// The alert should be marked as silenced for each silence.
+	// The alert should be marked as silenced for each matching silence.
 	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
-	require.True(b, silenced)
+	require.True(b, silenced || matchingSilences == 0)
 	require.Empty(b, pendingIDs)
-	require.Len(b, activeIDs, n)
+	require.Len(b, activeIDs, matchingSilences)
 }
 
 // BenchmarkMutesIncremental tests the incremental query optimization when a small
