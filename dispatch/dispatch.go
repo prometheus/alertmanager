@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -240,11 +241,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		// have a mutex protecting their internal state.
 		// The aggrGroup methods use the internal lock. It is important to avoid
 		// accessing internal fields on the aggrGroup objects.
-		copiedMap := map[model.Fingerprint]*aggrGroup{}
-		for fp, ag := range ags {
-			copiedMap[fp] = ag
-		}
-		aggrGroupsPerRoute[route] = copiedMap
+		aggrGroupsPerRoute[route] = maps.Clone(ags)
 	}
 	d.mtx.RUnlock()
 
