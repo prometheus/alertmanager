@@ -14,7 +14,8 @@
 package silence
 
 import (
-	"bytes"
+	"fmt"
+	"math/rand"
 	"strconv"
 	"sync"
 	"testing"
@@ -542,29 +543,14 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 // BenchmarkGC benchmarks the garbage collection performance for different
 // numbers of silences and different ratios of expired silences.
 func BenchmarkGC(b *testing.B) {
-	b.Run("100 silences, 0% expired", func(b *testing.B) {
-		benchmarkGC(b, 100, 0.0)
-	})
-	b.Run("100 silences, 10% expired", func(b *testing.B) {
-		benchmarkGC(b, 100, 0.1)
-	})
-	b.Run("100 silences, 50% expired", func(b *testing.B) {
-		benchmarkGC(b, 100, 0.5)
-	})
-	b.Run("100 silences, 90% expired", func(b *testing.B) {
-		benchmarkGC(b, 100, 0.9)
-	})
 	b.Run("1000 silences, 0% expired", func(b *testing.B) {
 		benchmarkGC(b, 1000, 0.0)
 	})
-	b.Run("1000 silences, 10% expired", func(b *testing.B) {
-		benchmarkGC(b, 1000, 0.1)
+	b.Run("1000 silences, 30% expired", func(b *testing.B) {
+		benchmarkGC(b, 1000, 0.3)
 	})
-	b.Run("1000 silences, 50% expired", func(b *testing.B) {
-		benchmarkGC(b, 1000, 0.5)
-	})
-	b.Run("1000 silences, 90% expired", func(b *testing.B) {
-		benchmarkGC(b, 1000, 0.9)
+	b.Run("1000 silences, 80% expired", func(b *testing.B) {
+		benchmarkGC(b, 1000, 0.8)
 	})
 	b.Run("10000 silences, 0% expired", func(b *testing.B) {
 		benchmarkGC(b, 10000, 0.0)
@@ -575,159 +561,89 @@ func BenchmarkGC(b *testing.B) {
 	b.Run("10000 silences, 50% expired", func(b *testing.B) {
 		benchmarkGC(b, 10000, 0.5)
 	})
-	b.Run("10000 silences, 90% expired", func(b *testing.B) {
-		benchmarkGC(b, 10000, 0.9)
+	b.Run("10000 silences, 80% expired", func(b *testing.B) {
+		benchmarkGC(b, 10000, 0.8)
 	})
 }
 
 func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
 	b.ReportAllocs()
 
-	s, err := New(Options{
-		Metrics:   prometheus.NewRegistry(),
-		Retention: time.Hour,
-	})
-	require.NoError(b, err)
-
 	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	s.clock = clock
 	now := clock.Now()
 
-	// Create silences - intersperse expired and active with some clustering
-	// This simulates realistic production where silences expire at different times
-	// Divide expired silences into 3 groups that expire at different times
 	numExpired := int(float64(numSilences) * expiredRatio)
-	numExpiredPerGroup := numExpired / 3
-	expiredGroup1 := 0
-	expiredGroup2 := 0
-	expiredGroup3 := 0
+	numActive := numSilences - numExpired
 
-	// Vary cluster size for more realistic distribution (1, 3, or 5 silences per cluster)
-	clusterSizes := []int{1, 3, 5}
-	currentClusterIdx := 0
-	clusterRemaining := clusterSizes[0]
+	matchers := []*silencepb.Matcher{{
+		Type:    silencepb.Matcher_EQUAL,
+		Name:    "foo",
+		Pattern: "bar",
+	}}
+	startTime := now.Add(-2 * time.Hour)
+	updateTime := now.Add(-2 * time.Hour)
+	endTime := now.Add(-time.Hour)
+	expireTime := now.Add(-time.Minute)
+	activeTime := now.Add(2 * time.Hour)
 
-	for i := range numSilences {
-		var startsAt, endsAt time.Time
+	sils := make([]*silencepb.MeshSilence, 0, numSilences)
 
-		// When cluster is exhausted, pick next cluster size
-		if clusterRemaining == 0 {
-			currentClusterIdx = (currentClusterIdx + 1) % len(clusterSizes)
-			clusterRemaining = clusterSizes[currentClusterIdx]
-		}
-		clusterSize := clusterSizes[currentClusterIdx]
-
-		// Determine which group this silence belongs to
-		totalExpiredCreated := expiredGroup1 + expiredGroup2 + expiredGroup3
-		shouldBeExpired := false
-		expiredGroup := 0
-
-		if totalExpiredCreated < numExpired {
-			// Use clustering: within a cluster, all have same state
-			clusterIndex := i / clusterSize
-			// Alternate clusters, but respect the total expired ratio
-			if clusterIndex%3 == 0 || (float64(totalExpiredCreated)/float64(i+1)) < expiredRatio {
-				shouldBeExpired = true
-				// Distribute across 3 groups
-				if expiredGroup1 < numExpiredPerGroup {
-					expiredGroup = 1
-				} else if expiredGroup2 < numExpiredPerGroup {
-					expiredGroup = 2
-				} else {
-					expiredGroup = 3
-				}
+	for _, j := range rand.Perm(numSilences) {
+		if j < numExpired {
+			sil := &silencepb.MeshSilence{
+				Silence: &silencepb.Silence{
+					Id:        fmt.Sprintf("expired-%d", j),
+					Matchers:  matchers,
+					StartsAt:  startTime,
+					EndsAt:    endTime,
+					UpdatedAt: updateTime,
+				},
+				ExpiresAt: expireTime,
 			}
-		}
-
-		if shouldBeExpired && totalExpiredCreated < numExpired {
-			startsAt = now.Add(-time.Hour)
-			// Group 1 expires at 30min, Group 2 at 45min, Group 3 at 60min
-			switch expiredGroup {
-			case 1:
-				endsAt = now.Add(30 * time.Minute)
-				expiredGroup1++
-			case 2:
-				endsAt = now.Add(45 * time.Minute)
-				expiredGroup2++
-			case 3:
-				endsAt = now.Add(60 * time.Minute)
-				expiredGroup3++
-			}
+			sils = append(sils, sil)
 		} else {
-			// Active silences (will survive all 3 GC runs)
-			startsAt = now.Add(-time.Hour)
-			endsAt = now.Add(3 * time.Hour)
+			sil := &silencepb.MeshSilence{
+				Silence: &silencepb.Silence{
+					Id:        fmt.Sprintf("active-%d", j),
+					Matchers:  matchers,
+					StartsAt:  startTime,
+					EndsAt:    endTime,
+					UpdatedAt: updateTime,
+				},
+				ExpiresAt: activeTime,
+			}
+			sils = append(sils, sil)
 		}
-
-		clusterRemaining--
-
-		sil := &silencepb.Silence{
-			Matchers: []*silencepb.Matcher{{
-				Type:    silencepb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
-			}},
-			StartsAt: startsAt,
-			EndsAt:   endsAt,
-		}
-		require.NoError(b, s.Set(sil))
 	}
-
-	// Snapshot the initial state at current time
-	var snapshot bytes.Buffer
-	_, err = s.Snapshot(&snapshot)
-	require.NoError(b, err)
-	snapshotBytes := snapshot.Bytes()
 
 	b.ResetTimer()
 
 	for b.Loop() {
 		b.StopTimer()
 
-		// Create fresh clock at the original time for this iteration
-		iterClock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-
-		// Restore from snapshot
-		snapshotReader := bytes.NewReader(snapshotBytes)
-		s, err = New(Options{
-			Metrics:        prometheus.NewRegistry(),
-			Retention:      1 * time.Hour,
-			SnapshotReader: snapshotReader,
+		s, err := New(Options{
+			Metrics: prometheus.NewRegistry(),
 		})
 		require.NoError(b, err)
-		s.clock = iterClock
+		s.clock = clock
+
+		for _, sil := range sils {
+			s.st[sil.Silence.Id] = sil
+			s.indexSilence(sil.Silence)
+		}
 
 		b.StartTimer()
-
-		// Run 3 GC cycles at different times to collect the 3 expiry groups
-		// Group 1: EndsAt = now+30min → ExpiresAt = now+90min
-		iterClock.Advance(91 * time.Minute)
-		numGC1, err := s.GC()
+		n1, err := s.GC()
 		require.NoError(b, err)
-
-		// Group 2: EndsAt = now+45min → ExpiresAt = now+105min
-		iterClock.Advance(15 * time.Minute)
-		numGC2, err := s.GC()
+		n2, err := s.GC()
 		require.NoError(b, err)
-
-		// Group 3: EndsAt = now+60min → ExpiresAt = now+120min
-		iterClock.Advance(15 * time.Minute)
-		numGC3, err := s.GC()
-		require.NoError(b, err)
-
 		b.StopTimer()
 
-		require.Equal(b, expiredGroup1, numGC1, "GC1 should remove %d expired silences, but removed %d", expiredGroup1, numGC1)
-		require.Equal(b, expiredGroup2, numGC2, "GC2 should remove %d expired silences, but removed %d", expiredGroup2, numGC2)
-		require.Equal(b, expiredGroup3, numGC3, "GC3 should remove %d expired silences, but removed %d", expiredGroup3, numGC3)
-
-		// Verify total GC removed the expected number of silences
-		totalRemoved := numGC1 + numGC2 + numGC3
-		require.Equal(b, numExpired, totalRemoved, "GC should remove %d expired silences total, but removed %d", numExpired, totalRemoved)
-
-		require.Len(b, s.st, numSilences-totalRemoved, "After GC, expected %d silences to remain in state", numSilences-totalRemoved)
-		require.Len(b, s.mi, numSilences-totalRemoved, "After GC, expected %d silences to remain in matcher index", numSilences-totalRemoved)
-
+		require.NoError(b, err)
+		require.Equal(b, numExpired, n1)
+		require.Equal(b, 0, n2)
+		require.Len(b, s.st, numActive)
+		require.Len(b, s.mi, numActive)
 		b.StartTimer()
 	}
 }
