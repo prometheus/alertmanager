@@ -455,7 +455,7 @@ func (a *Alert) Merge(o *Alert) *Alert {
 	if o.Resolved() {
 		// If the new alert is resolved, use its EndsAt timestamp.
 		// This handles the case where an alert is being resolved via API.
-		res.EndsAt = o.EndsAt
+		// Note: res.EndsAt is already o.EndsAt since res := *o above.
 		// The latest explicit resolved timestamp wins if both alerts are effectively resolved.
 		if a.Resolved() && a.EndsAt.After(o.EndsAt) {
 			res.EndsAt = a.EndsAt
