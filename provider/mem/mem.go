@@ -254,7 +254,10 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			// This handles the case where an alert is resolved via API without time overlap.
 			// An alert is being resolved if it has endsAt set and the old alert doesn't,
 			// or if the new endsAt is earlier than the old endsAt.
-			isResolving := !alert.EndsAt.IsZero() && (old.EndsAt.IsZero() || alert.EndsAt.Before(old.EndsAt))
+			// Additionally require StartsAt to match to ensure we're updating the same alert instance.
+			isResolving := !alert.EndsAt.IsZero() &&
+				(old.EndsAt.IsZero() || alert.EndsAt.Before(old.EndsAt)) &&
+				alert.StartsAt.Equal(old.StartsAt)
 			
 			if hasOverlap || isResolving {
 				alert = old.Merge(alert)

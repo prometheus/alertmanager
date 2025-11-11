@@ -710,3 +710,198 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 		return writeCount == float64(len(alertsToSend))
 	}, 1*time.Second, 10*time.Millisecond, "subscriberChannelWrites should equal the number of alerts sent")
 }
+
+// TestAlertMergeResolution tests the specific case of resolving alerts via API
+// where endsAt is set without normal time overlap.
+func TestAlertMergeResolution(t *testing.T) {
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	now := time.Now()
+	baseLabels := model.LabelSet{"alertname": "test", "instance": "localhost:9090"}
+
+	// Test case 1: Resolving an active alert (old alert has no EndsAt)
+	t.Run("resolve_active_alert", func(t *testing.T) {
+		activeAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       baseLabels,
+				Annotations:  model.LabelSet{"summary": "Active alert"},
+				StartsAt:     now.Add(-1 * time.Hour),
+				EndsAt:       time.Time{}, // Zero time = active
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now.Add(-30 * time.Minute),
+			Timeout:   false,
+		}
+
+		resolveAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       baseLabels,
+				Annotations:  model.LabelSet{"summary": "Resolved alert"},
+				StartsAt:     now.Add(-1 * time.Hour), // Same StartsAt
+				EndsAt:       now.Add(-10 * time.Minute), // EndsAt in the past
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		}
+
+		// Insert active alert first
+		err := alerts.Put(activeAlert)
+		require.NoError(t, err)
+
+		// Verify it's stored
+		stored, err := alerts.Get(activeAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, stored.EndsAt.IsZero(), "Active alert should have zero EndsAt")
+
+		// Now resolve it
+		err = alerts.Put(resolveAlert)
+		require.NoError(t, err)
+
+		// Verify it was merged and resolved
+		updated, err := alerts.Get(activeAlert.Fingerprint())
+		require.NoError(t, err)
+		require.False(t, updated.EndsAt.IsZero(), "Alert should now have EndsAt set")
+		require.True(t, updated.EndsAt.Equal(resolveAlert.EndsAt), "EndsAt should match resolve alert")
+	})
+
+	// Test case 2: Re-resolving an already resolved alert to an earlier time
+	t.Run("re_resolve_earlier", func(t *testing.T) {
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "re_resolve_test"},
+				Annotations:  model.LabelSet{"summary": "Originally resolved"},
+				StartsAt:     now.Add(-2 * time.Hour),
+				EndsAt:       now.Add(-30 * time.Minute), // Already resolved
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now.Add(-1 * time.Hour),
+			Timeout:   false,
+		}
+
+		reResolveAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "re_resolve_test"},
+				Annotations:  model.LabelSet{"summary": "Re-resolved earlier"},
+				StartsAt:     now.Add(-2 * time.Hour), // Same StartsAt
+				EndsAt:       now.Add(-1 * time.Hour), // Earlier resolution
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		}
+
+		// Insert resolved alert first
+		err := alerts.Put(resolvedAlert)
+		require.NoError(t, err)
+
+		// Verify it's stored with original EndsAt
+		stored, err := alerts.Get(resolvedAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, stored.EndsAt.Equal(resolvedAlert.EndsAt), "Should have original EndsAt")
+
+		// Now re-resolve it earlier
+		err = alerts.Put(reResolveAlert)
+		require.NoError(t, err)
+
+		// Verify it was updated to the earlier resolution time
+		updated, err := alerts.Get(resolvedAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, updated.EndsAt.Equal(reResolveAlert.EndsAt), "Should have earlier EndsAt")
+	})
+
+	// Test case 3: Reject merge when StartsAt doesn't match (different alert instance)
+	t.Run("reject_different_starts_at", func(t *testing.T) {
+		originalAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "starts_at_test"},
+				Annotations:  model.LabelSet{"summary": "Original alert"},
+				StartsAt:     now.Add(-1 * time.Hour),
+				EndsAt:       time.Time{}, // Active
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now.Add(-30 * time.Minute),
+			Timeout:   false,
+		}
+
+		differentStartsAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "starts_at_test"}, // Same labels
+				Annotations:  model.LabelSet{"summary": "Different start time"},
+				StartsAt:     now.Add(-2 * time.Hour), // Different StartsAt!
+				EndsAt:       now.Add(-10 * time.Minute), // Trying to resolve
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		}
+
+		// Insert original alert
+		err := alerts.Put(originalAlert)
+		require.NoError(t, err)
+
+		// Try to "resolve" with different StartsAt
+		err = alerts.Put(differentStartsAlert)
+		require.NoError(t, err)
+
+		// Verify it was NOT merged - should be stored as separate alert
+		allAlerts := alerts.GetAll()
+		require.Len(t, allAlerts, 2, "Should have 2 separate alerts")
+
+		// Original should still be active
+		stored, err := alerts.Get(originalAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, stored.EndsAt.IsZero(), "Original alert should still be active")
+
+		// New alert should exist separately
+		stored2, err := alerts.Get(differentStartsAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, stored2.EndsAt.Equal(differentStartsAlert.EndsAt), "New alert should have its own EndsAt")
+	})
+
+	// Test case 4: Reject merge when trying to extend active alert (security check)
+	t.Run("reject_extend_active_alert", func(t *testing.T) {
+		activeAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "extend_test"},
+				Annotations:  model.LabelSet{"summary": "Active alert"},
+				StartsAt:     now.Add(-1 * time.Hour),
+				EndsAt:       time.Time{}, // Active
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now.Add(-30 * time.Minute),
+			Timeout:   false,
+		}
+
+		extendAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "extend_test"}, // Same labels
+				Annotations:  model.LabelSet{"summary": "Trying to extend"},
+				StartsAt:     now.Add(-1 * time.Hour), // Same StartsAt
+				EndsAt:       now.Add(1 * time.Hour),   // Future time - trying to extend!
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: now,
+			Timeout:   false,
+		}
+
+		// Insert active alert
+		err := alerts.Put(activeAlert)
+		require.NoError(t, err)
+
+		// Try to extend it (this should NOT merge)
+		err = alerts.Put(extendAlert)
+		require.NoError(t, err)
+
+		// Verify it was NOT merged - should be stored as separate alert
+		allAlerts := alerts.GetAll()
+		require.Len(t, allAlerts, 2, "Should have 2 separate alerts")
+
+		// Original should still be active
+		stored, err := alerts.Get(activeAlert.Fingerprint())
+		require.NoError(t, err)
+		require.True(t, stored.EndsAt.IsZero(), "Original alert should still be active")
+	})
+}
