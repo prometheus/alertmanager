@@ -195,6 +195,8 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 				if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq && !source.foundMatch {
 					inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
 					source.foundMatch = true
+				} else {
+					break
 				}
 			}
 			if allSourcesMatched := r.allSourcesSatisfied(); allSourcesMatched {
