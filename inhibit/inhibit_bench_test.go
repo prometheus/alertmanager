@@ -76,6 +76,15 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("10000 inhibition rules, last rule matches", func(b *testing.B) {
 		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10000))
 	})
+	b.Run("10 inhibition rules, 5 sources, 100 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, manySourcesBenchMark(b, 5, 10, 100))
+	})
+	b.Run("100 inhibition rules, 10 sources, 1000 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, manySourcesBenchMark(b, 10, 100, 1000))
+	})
+	b.Run("1000 inhibition rules, 20 sources, 100 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, manySourcesBenchMark(b, 20, 1000, 1000))
+	})
 }
 
 // benchmarkOptions allows the declaration of a wide range of benchmarks.
@@ -182,6 +191,47 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 			}}
 		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
 			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
+				return errors.New("expected dst=0 to be muted")
+			}
+			return nil
+		},
+	}
+}
+
+func manySourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
+	return benchmarkOptions{
+		n: numInhibitionRules,
+		newRuleFunc: func(idx int) config.InhibitRule {
+			sources := []config.Source{}
+			for i := 0; i < numSources; i++ {
+				sources = append(sources, config.Source{
+					SrcMatchers: config.Matchers{
+						mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(i)),
+					},
+				})
+			}
+			return config.InhibitRule{
+				Sources: sources,
+				TargetMatchers: config.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+				},
+			}
+		},
+		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
+			var alerts []types.Alert
+			for i := 0; i < numInhibitingAlerts; i++ {
+				alerts = append(alerts, types.Alert{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"src": model.LabelValue(strconv.Itoa(idx)),
+							"idx": model.LabelValue(strconv.Itoa(i)),
+						},
+					},
+				})
+			}
+			return alerts
+		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
+			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
