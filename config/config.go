@@ -1107,8 +1107,9 @@ type InhibitRule struct {
 	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
 	SourceMatchers Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
-	// Sources defines a set of source matchers and equal labels.
-	Sources []Source `yaml:"source,omitempty" json:"source,omitempty"`
+	// Sources defines a set of source matchers and equal labels for source alerts.
+	// All Source entries have to match for the inhibition to take effect.
+	Sources []Source `yaml:"sources,omitempty" json:"sources,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts. Deprecated. Remove before v1.0 release.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
