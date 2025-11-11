@@ -113,15 +113,14 @@ func (s *versionIndex) add(version int, sil string) {
 	*s = append(*s, silenceVersion{version: version, id: sil})
 }
 
-// find uses a log(n) search to find the first index of the versionIndex which has a
-// version higher than version. If any entries with a higher version exist, it returns true
-// and the starting index (which is guaranteed to be a valid index into the slice). Otherwise
-// it returns false.
-func (s versionIndex) find(version int) (int, bool) {
+// findVersionGreaterThan uses a log(n) search to find the first index of the versionIndex
+// which has a version higher than version. If any entries with a higher version exist,
+// it returns true and the starting index (which is guaranteed to be a valid index into
+// the slice). Otherwise it returns false.
+func (s versionIndex) findVersionGreaterThan(version int) (index int, found bool) {
 	startIdx := sort.Search(len(s), func(i int) bool {
 		return s[i].version > version
 	})
-
 	return startIdx, startIdx < len(s)
 }
 
@@ -1036,7 +1035,7 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		start := 0
 		if q.since != nil {
 			var found bool
-			start, found = s.vi.find(*q.since)
+			start, found = s.vi.findVersionGreaterThan(*q.since)
 			// no new silences, nothing to do
 			if !found {
 				return res, s.version, nil
