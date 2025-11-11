@@ -77,13 +77,13 @@ func BenchmarkMutes(b *testing.B) {
 		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10000))
 	})
 	b.Run("10 inhibition rules, 5 sources, 100 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, manySourcesBenchMark(b, 5, 10, 100))
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 5, 10, 100))
 	})
 	b.Run("100 inhibition rules, 10 sources, 1000 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, manySourcesBenchMark(b, 10, 100, 1000))
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 10, 100, 1000))
 	})
 	b.Run("1000 inhibition rules, 20 sources, 100 inhibiting alerts", func(b *testing.B) {
-		benchmarkMutes(b, manySourcesBenchMark(b, 20, 1000, 1000))
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 20, 1000, 1000))
 	})
 }
 
@@ -198,7 +198,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 	}
 }
 
-func manySourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
+func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
 	return benchmarkOptions{
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
@@ -219,15 +219,17 @@ func manySourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numInhib
 		},
 		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
 			var alerts []types.Alert
-			for i := 0; i < numInhibitingAlerts; i++ {
-				alerts = append(alerts, types.Alert{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"src": model.LabelValue(strconv.Itoa(idx)),
-							"idx": model.LabelValue(strconv.Itoa(i)),
+			for src := 0; src < numSources; src++ {
+				for i := 0; i < numInhibitingAlerts; i++ {
+					alerts = append(alerts, types.Alert{
+						Alert: model.Alert{
+							Labels: model.LabelSet{
+								"src": model.LabelValue(strconv.Itoa(src)),
+								"idx": model.LabelValue(strconv.Itoa(i)),
+							},
 						},
-					},
-				})
+					})
+				}
 			}
 			return alerts
 		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
