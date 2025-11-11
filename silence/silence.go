@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/quartz"
 	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -334,8 +333,6 @@ func (s *Silencer) PostGC(ff model.Fingerprints) {
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
-	clock quartz.Clock
-
 	logger    *slog.Logger
 	metrics   *metrics
 	retention time.Duration
@@ -529,7 +526,6 @@ func New(o Options) (*Silences, error) {
 	}
 
 	s := &Silences{
-		clock:     quartz.NewReal(),
 		mi:        make(matcherIndex, 512),
 		vi:        make(versionIndex, 0, 512),
 		logger:    promslog.NewNopLogger(),
@@ -570,7 +566,7 @@ func New(o Options) (*Silences, error) {
 }
 
 func (s *Silences) nowUTC() time.Time {
-	return s.clock.Now().UTC()
+	return time.Now().UTC()
 }
 
 // updateSizeMetrics updates the size metrics for state, matcher index, and version index.
@@ -592,7 +588,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		s.logger.Error("interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := s.clock.NewTicker(interval)
+	t := time.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
@@ -630,7 +626,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 			s.metrics.maintenanceErrorsTotal.Inc()
 			return err
 		}
-		s.logger.Debug("Maintenance done", "duration", s.clock.Since(start), "size", size)
+		s.logger.Debug("Maintenance done", "duration", time.Since(start), "size", size)
 		return nil
 	}
 

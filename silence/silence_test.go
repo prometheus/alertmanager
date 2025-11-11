@@ -19,15 +19,14 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
@@ -43,6 +42,7 @@ import (
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/test"
 )
 
 // checkMutes checks that the marker recorded the expected silenced state
@@ -122,7 +122,6 @@ func TestSilenceGCOverTime(t *testing.T) {
 	t.Run("GC does not remove active silences", func(t *testing.T) {
 		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
-		s.clock = quartz.NewMock(t)
 		now := s.nowUTC()
 		initialState := state{
 			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}, ExpiresAt: timestamppb.New(now)},
@@ -142,11 +141,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 		requireStatesEqual(t, want, s.st)
 	})
 
-	t.Run("GC does not leak cache entries", func(t *testing.T) {
+	test.SyncTestRun("GC removes expired silences", t, func(t *testing.T) {
 		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
-		clock := quartz.NewMock(t)
-		s.clock = clock
+		now := time.Now().UTC()
 		sil1 := &pb.Silence{
 			MatcherSets: []*pb.MatcherSet{{
 				Matchers: []*pb.Matcher{{
@@ -155,15 +153,15 @@ func TestSilenceGCOverTime(t *testing.T) {
 					Pattern: "bar",
 				}},
 			}},
-			StartsAt: timestamppb.New(clock.Now()),
-			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Minute)),
 		}
 		require.NoError(t, s.Set(t.Context(), sil1))
 		require.Len(t, s.st, 1)
 		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Advance(time.Minute)
+		time.Sleep(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
@@ -171,11 +169,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Empty(t, s.mi)
 	})
 
-	t.Run("replacing a silences does not leak cache entries", func(t *testing.T) {
+	test.SyncTestRun("replacing a silence does not leak cache entries", t, func(t *testing.T) {
 		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
-		clock := quartz.NewMock(t)
-		s.clock = clock
+		now := time.Now().UTC()
 		sil1 := &pb.Silence{
 			MatcherSets: []*pb.MatcherSet{{
 				Matchers: []*pb.Matcher{{
@@ -184,8 +181,8 @@ func TestSilenceGCOverTime(t *testing.T) {
 					Pattern: "bar",
 				}},
 			}},
-			StartsAt: timestamppb.New(clock.Now()),
-			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Minute)),
 		}
 		require.NoError(t, s.Set(t.Context(), sil1))
 		require.Len(t, s.st, 1)
@@ -204,7 +201,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 2)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Advance(time.Minute)
+		time.Sleep(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 2, n)
@@ -214,11 +211,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 	// This test checks for a memory leak that occurred in the matcher cache when
 	// updating an existing silence.
-	t.Run("updating a silence does not leak cache entries", func(t *testing.T) {
+	test.SyncTestRun("updating a silence does not leak cache entries", t, func(t *testing.T) {
 		s, err := New(Options{Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
-		clock := quartz.NewMock(t)
-		s.clock = clock
+		now := s.nowUTC()
 		sil1 := &pb.Silence{
 			Id: "1",
 			MatcherSets: []*pb.MatcherSet{{
@@ -228,10 +224,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 					Pattern: "bar",
 				}},
 			}},
-			StartsAt: timestamppb.New(clock.Now()),
-			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Minute)),
 		}
-		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: timestamppb.New(clock.Now().Add(time.Minute))}
+		s.st["1"] = &pb.MeshSilence{Silence: sil1, ExpiresAt: timestamppb.New(now.Add(time.Minute))}
 		s.indexSilence(sil1)
 		require.Len(t, s.mi, 1)
 		// must clone sil1 before updating it.
@@ -245,7 +241,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 1)
 		// Move time forward and both silence and cache entry should be garbage
 		// collected.
-		clock.Advance(time.Minute)
+		time.Sleep(time.Minute)
 		n, err := s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
@@ -253,15 +249,13 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Empty(t, s.mi)
 	})
 
-	t.Run("GC collects silences in multiple rounds", func(t *testing.T) {
+	test.SyncTestRun("GC collects silences in multiple rounds", t, func(t *testing.T) {
 		s, err := New(Options{
 			Metrics:   prometheus.NewRegistry(),
 			Retention: time.Hour,
 		})
-		clock := quartz.NewMock(t)
-		s.clock = clock
 		require.NoError(t, err)
-		now := s.nowUTC().UTC()
+		now := s.nowUTC()
 
 		matcher := &pb.Matcher{
 			Type:    pb.Matcher_EQUAL,
@@ -350,7 +344,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 60)
 
 		// Advance time to 91 minutes - Group 1 should be GC'd
-		clock.Advance(91 * time.Minute)
+		time.Sleep(91 * time.Minute)
 		n, err = s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 10, n)
@@ -358,7 +352,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 50)
 
 		// Advance time to 106 minutes - Group 2 should be GC'd
-		clock.Advance(15 * time.Minute)
+		time.Sleep(15 * time.Minute)
 		n, err = s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 10, n)
@@ -366,7 +360,7 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 40)
 
 		// Advance time to 121 minutes - Group 3 should be GC'd
-		clock.Advance(15 * time.Minute)
+		time.Sleep(15 * time.Minute)
 		n, err = s.GC()
 		require.NoError(t, err)
 		require.Equal(t, 10, n)
@@ -379,13 +373,11 @@ func TestSilenceGCOverTime(t *testing.T) {
 		}
 	})
 
-	t.Run("GC continues and removes erroneous silences", func(t *testing.T) {
+	test.SyncTestRun("GC continues and removes erroneous silences", t, func(t *testing.T) {
 		reg := prometheus.NewRegistry()
 		s, err := New(Options{Metrics: reg})
 		require.NoError(t, err)
-		clock := quartz.NewMock(t)
-		s.clock = clock
-		now := clock.Now()
+		now := time.Now().UTC()
 
 		// Create a valid silence
 		validSil := &pb.Silence{
@@ -449,151 +441,155 @@ func TestSilenceGCOverTime(t *testing.T) {
 }
 
 func TestSilencesSnapshot(t *testing.T) {
-	// Check whether storing and loading the snapshot is symmetric.
-	now := quartz.NewMock(t).Now().UTC()
+	synctest.Test(t, func(t *testing.T) {
+		// Check whether storing and loading the snapshot is symmetric.
+		now := time.Now().UTC()
 
-	cases := []struct {
-		entries []*pb.MeshSilence
-	}{
-		{
-			entries: []*pb.MeshSilence{
-				{
-					Silence: &pb.Silence{
-						Id: "3be80475-e219-4ee7-b6fc-4b65114e362f",
-						MatcherSets: []*pb.MatcherSet{{
-							Matchers: []*pb.Matcher{
-								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
-							},
-						}},
-						StartsAt:  timestamppb.New(now),
-						EndsAt:    timestamppb.New(now),
-						UpdatedAt: timestamppb.New(now),
+		cases := []struct {
+			entries []*pb.MeshSilence
+		}{
+			{
+				entries: []*pb.MeshSilence{
+					{
+						Silence: &pb.Silence{
+							Id: "3be80475-e219-4ee7-b6fc-4b65114e362f",
+							MatcherSets: []*pb.MatcherSet{{
+								Matchers: []*pb.Matcher{
+									{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+									{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+								},
+							}},
+							StartsAt:  timestamppb.New(now),
+							EndsAt:    timestamppb.New(now),
+							UpdatedAt: timestamppb.New(now),
+						},
+						ExpiresAt: timestamppb.New(now),
 					},
-					ExpiresAt: timestamppb.New(now),
-				},
-				{
-					Silence: &pb.Silence{
-						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
-						MatcherSets: []*pb.MatcherSet{{
-							Matchers: []*pb.Matcher{
-								{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
-								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
-							},
-						}},
-						StartsAt:  timestamppb.New(now),
-						EndsAt:    timestamppb.New(now),
-						UpdatedAt: timestamppb.New(now),
+					{
+						Silence: &pb.Silence{
+							Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+							MatcherSets: []*pb.MatcherSet{{
+								Matchers: []*pb.Matcher{
+									{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+									{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+								},
+							}},
+							StartsAt:  timestamppb.New(now),
+							EndsAt:    timestamppb.New(now),
+							UpdatedAt: timestamppb.New(now),
+						},
+						ExpiresAt: timestamppb.New(now),
 					},
-					ExpiresAt: timestamppb.New(now),
-				},
-				{
-					Silence: &pb.Silence{
-						Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
-						MatcherSets: []*pb.MatcherSet{{
-							Matchers: []*pb.Matcher{
-								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-							},
-						}},
-						StartsAt:  timestamppb.New(now.Add(time.Hour)),
-						EndsAt:    timestamppb.New(now.Add(2 * time.Hour)),
-						UpdatedAt: timestamppb.New(now),
+					{
+						Silence: &pb.Silence{
+							Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
+							MatcherSets: []*pb.MatcherSet{{
+								Matchers: []*pb.Matcher{
+									{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								},
+							}},
+							StartsAt:  timestamppb.New(now.Add(time.Hour)),
+							EndsAt:    timestamppb.New(now.Add(2 * time.Hour)),
+							UpdatedAt: timestamppb.New(now),
+						},
+						ExpiresAt: timestamppb.New(now.Add(24 * time.Hour)),
 					},
-					ExpiresAt: timestamppb.New(now.Add(24 * time.Hour)),
 				},
 			},
-		},
-	}
-
-	for _, c := range cases {
-		f, err := os.CreateTemp(t.TempDir(), "snapshot")
-		require.NoError(t, err, "creating temp file failed")
-
-		s1 := &Silences{st: state{}, metrics: newMetrics(nil, nil)}
-		// Setup internal state manually.
-		for _, e := range c.entries {
-			s1.st[e.Silence.Id] = e
-		}
-		_, err = s1.Snapshot(f)
-		require.NoError(t, err, "creating snapshot failed")
-
-		require.NoError(t, f.Close(), "closing snapshot file failed")
-
-		f, err = os.Open(f.Name())
-		require.NoError(t, err, "opening snapshot file failed")
-
-		// Check again against new nlog instance.
-		s2 := &Silences{mi: matcherIndex{}, st: state{}}
-		err = s2.loadSnapshot(f)
-		require.NoError(t, err, "error loading snapshot")
-		require.Len(t, s2.st, len(s1.st), "state length mismatch after loading snapshot")
-		for id, expected := range s1.st {
-			actual, ok := s2.st[id]
-			require.True(t, ok, "silence %s missing from loaded state", id)
-			require.True(t, proto.Equal(expected, actual), "silence %s mismatch after loading snapshot", id)
 		}
 
-		require.NoError(t, f.Close(), "closing snapshot file failed")
-	}
+		for _, c := range cases {
+			f, err := os.CreateTemp(t.TempDir(), "snapshot")
+			require.NoError(t, err, "creating temp file failed")
+
+			s1 := &Silences{st: state{}, metrics: newMetrics(nil, nil)}
+			// Setup internal state manually.
+			for _, e := range c.entries {
+				s1.st[e.Silence.Id] = e
+			}
+			_, err = s1.Snapshot(f)
+			require.NoError(t, err, "creating snapshot failed")
+
+			require.NoError(t, f.Close(), "closing snapshot file failed")
+
+			f, err = os.Open(f.Name())
+			require.NoError(t, err, "opening snapshot file failed")
+
+			// Check again against new nlog instance.
+			s2 := &Silences{mi: matcherIndex{}, st: state{}}
+			err = s2.loadSnapshot(f)
+			require.NoError(t, err, "error loading snapshot")
+			require.Len(t, s2.st, len(s1.st), "state length mismatch after loading snapshot")
+			for id, expected := range s1.st {
+				actual, ok := s2.st[id]
+				require.True(t, ok, "silence %s missing from loaded state", id)
+				require.True(t, proto.Equal(expected, actual), "silence %s mismatch after loading snapshot", id)
+			}
+
+			require.NoError(t, f.Close(), "closing snapshot file failed")
+		}
+	})
 }
 
 // This tests a regression introduced by https://github.com/prometheus/alertmanager/pull/2689.
 func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "snapshot")
-	require.NoError(t, err, "creating temp file failed")
-	clock := quartz.NewMock(t)
-	s := &Silences{st: state{}, logger: promslog.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
-	stopc := make(chan struct{})
+	synctest.Test(t, func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
+		require.NoError(t, err, "creating temp file failed")
+		s := &Silences{st: state{}, logger: promslog.NewNopLogger(), metrics: newMetrics(nil, nil)}
+		stopc := make(chan struct{})
 
-	done := make(chan struct{})
-	go func() {
-		s.Maintenance(100*time.Millisecond, f.Name(), stopc, nil)
-		close(done)
-	}()
-	runtime.Gosched()
+		done := make(chan struct{})
+		go func() {
+			s.Maintenance(100*time.Millisecond, f.Name(), stopc, nil)
+			close(done)
+		}()
+		gosched()
 
-	clock.Advance(100 * time.Millisecond)
-	close(stopc)
+		time.Sleep(100 * time.Millisecond)
+		close(stopc)
 
-	<-done
+		<-done
+	})
 }
 
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "snapshot")
-	require.NoError(t, err, "creating temp file failed")
-	clock := quartz.NewMock(t)
-	reg := prometheus.NewRegistry()
-	s := &Silences{st: state{}, logger: promslog.NewNopLogger(), clock: clock}
-	s.metrics = newMetrics(reg, s)
-	stopc := make(chan struct{})
+	synctest.Test(t, func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
+		require.NoError(t, err, "creating temp file failed")
+		reg := prometheus.NewRegistry()
+		s := &Silences{st: state{}, logger: promslog.NewNopLogger()}
+		s.metrics = newMetrics(reg, s)
+		stopc := make(chan struct{})
 
-	var calls atomic.Int32
-	var wg sync.WaitGroup
+		var calls atomic.Int32
+		var wg sync.WaitGroup
 
-	wg.Go(func() {
-		s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
-			calls.Add(1)
-			return 0, nil
+		wg.Go(func() {
+			s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
+				calls.Add(1)
+				return 0, nil
+			})
 		})
-	})
-	gosched()
+		gosched()
 
-	// Before the first tick, no maintenance executed.
-	clock.Advance(9 * time.Second)
-	require.EqualValues(t, 0, calls.Load())
+		// Before the first tick, no maintenance executed.
+		time.Sleep(9 * time.Second)
+		require.EqualValues(t, 0, calls.Load())
 
-	// Tick once.
-	clock.Advance(1 * time.Second)
-	require.Eventually(t, func() bool { return calls.Load() == 1 }, 5*time.Second, time.Second)
+		// Tick once.
+		time.Sleep(1 * time.Second)
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
 
-	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
-	close(stopc)
-	wg.Wait()
+		// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
+		close(stopc)
+		wg.Wait()
 
-	require.EqualValues(t, 2, calls.Load())
+		require.EqualValues(t, 2, calls.Load())
 
-	// Check the maintenance metrics.
-	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+		// Check the maintenance metrics.
+		require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
 # HELP alertmanager_silences_maintenance_errors_total How many maintenances were executed for silences that failed.
 # TYPE alertmanager_silences_maintenance_errors_total counter
 alertmanager_silences_maintenance_errors_total 0
@@ -601,6 +597,7 @@ alertmanager_silences_maintenance_errors_total 0
 # TYPE alertmanager_silences_maintenance_total counter
 alertmanager_silences_maintenance_total 2
 `), "alertmanager_silences_maintenance_total", "alertmanager_silences_maintenance_errors_total"))
+	})
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -609,9 +606,6 @@ func TestSilencesSetSilence(t *testing.T) {
 		Retention: time.Minute,
 	})
 	require.NoError(t, err)
-
-	clock := quartz.NewMock(t)
-	s.clock = clock
 
 	nowpb := s.nowUTC()
 
@@ -672,215 +666,215 @@ func TestSilencesSetSilence(t *testing.T) {
 }
 
 func TestSilenceSet(t *testing.T) {
-	s, err := New(Options{
-		Metrics:   prometheus.NewRegistry(),
-		Retention: time.Hour,
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+		})
+		require.NoError(t, err)
+
+		start1 := s.nowUTC()
+
+		// Insert silence with fixed start time.
+		sil1 := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+			}},
+			StartsAt: timestamppb.New(start1.Add(2 * time.Minute)),
+			EndsAt:   timestamppb.New(start1.Add(5 * time.Minute)),
+		}
+		versionBeforeOp := s.Version()
+		require.NoError(t, s.Set(t.Context(), sil1))
+		require.NotEmpty(t, sil1.Id)
+		require.NotEqual(t, versionBeforeOp, s.Version())
+
+		want := state{
+			sil1.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil1.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(start1.Add(2 * time.Minute)),
+					EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
+					UpdatedAt: timestamppb.New(start1),
+				},
+				ExpiresAt: timestamppb.New(start1.Add(5*time.Minute + s.retention)),
+			},
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+
+		// Insert silence with unset start time. Must be set to now.
+		time.Sleep(time.Minute)
+		start2 := s.nowUTC()
+
+		sil2 := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+			}},
+			EndsAt: timestamppb.New(start2.Add(1 * time.Minute)),
+		}
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil2))
+		require.NotEmpty(t, sil2.Id)
+		require.NotEqual(t, versionBeforeOp, s.Version())
+
+		want = state{
+			sil1.Id: want[sil1.Id],
+			sil2.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil2.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(start2),
+					EndsAt:    timestamppb.New(start2.Add(1 * time.Minute)),
+					UpdatedAt: timestamppb.New(start2),
+				},
+				ExpiresAt: timestamppb.New(start2.Add(1*time.Minute + s.retention)),
+			},
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+
+		// Should be able to update silence without modifications. It is expected to
+		// keep the same ID.
+		sil3 := cloneSilence(sil2)
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil3))
+		require.Equal(t, sil2.Id, sil3.Id)
+		require.Equal(t, versionBeforeOp, s.Version())
+
+		// Should be able to update silence with comment. It is also expected to
+		// keep the same ID.
+		sil4 := cloneSilence(sil3)
+		sil4.Comment = "c"
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil4))
+		require.Equal(t, sil3.Id, sil4.Id)
+		require.Equal(t, versionBeforeOp, s.Version())
+
+		// Extend sil4 to expire at a later time. This should not expire the
+		// existing silence, and so should also keep the same ID.
+		time.Sleep(time.Minute)
+		start5 := s.nowUTC()
+		sil5 := cloneSilence(sil4)
+		sil5.EndsAt = timestamppb.New(start5.Add(100 * time.Minute))
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil5))
+		require.Equal(t, sil4.Id, sil5.Id)
+		want = state{
+			sil1.Id: want[sil1.Id],
+			sil2.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil2.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(start2),
+					EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
+					UpdatedAt: timestamppb.New(start5),
+					Comment:   "c",
+				},
+				ExpiresAt: timestamppb.New(start5.Add(100*time.Minute + s.retention)),
+			},
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+		require.Equal(t, versionBeforeOp, s.Version())
+
+		// Replace the silence sil5 with another silence with different matchers.
+		// Unlike previous updates, changing the matchers for an existing silence
+		// will expire the existing silence and create a new silence. The new
+		// silence is expected to have a different ID to preserve the history of
+		// the previous silence.
+		time.Sleep(time.Minute)
+		start6 := s.nowUTC()
+
+		sil6 := cloneSilence(sil5)
+		sil6.MatcherSets = []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
+		}}
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil6))
+		require.NotEqual(t, sil5.Id, sil6.Id)
+		want = state{
+			sil1.Id: want[sil1.Id],
+			sil2.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil2.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(start2),
+					EndsAt:    timestamppb.New(start6), // Expired
+					UpdatedAt: timestamppb.New(start6),
+					Comment:   "c",
+				},
+				ExpiresAt: timestamppb.New(start6.Add(s.retention)),
+			},
+			sil6.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil6.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
+					}},
+					StartsAt:  timestamppb.New(start6),
+					EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
+					UpdatedAt: timestamppb.New(start6),
+					Comment:   "c",
+				},
+				ExpiresAt: timestamppb.New(start5.Add(100*time.Minute + s.retention)),
+			},
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+		require.NotEqual(t, versionBeforeOp, s.Version())
+
+		// Re-create the silence that we just replaced. Changing the start time,
+		// just like changing the matchers, creates a new silence with a different
+		// ID. This is again to preserve the history of the original silence.
+		time.Sleep(time.Minute)
+		start7 := s.nowUTC()
+		sil7 := cloneSilence(sil5)
+		sil7.StartsAt = timestamppb.New(start1)
+		sil7.EndsAt = timestamppb.New(start1.Add(5 * time.Minute))
+		versionBeforeOp = s.Version()
+		require.NoError(t, s.Set(t.Context(), sil7))
+		require.NotEqual(t, sil2.Id, sil7.Id)
+		want = state{
+			sil1.Id: want[sil1.Id],
+			sil2.Id: want[sil2.Id],
+			sil6.Id: want[sil6.Id],
+			sil7.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil7.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(start7), // New silences have their start time set to "now" when created.
+					EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
+					UpdatedAt: timestamppb.New(start7),
+					Comment:   "c",
+				},
+				ExpiresAt: timestamppb.New(start1.Add(5*time.Minute + s.retention)),
+			},
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+		require.NotEqual(t, versionBeforeOp, s.Version())
+
+		// Updating an existing silence with an invalid silence should not expire
+		// the original silence.
+		time.Sleep(time.Millisecond)
+		sil8 := cloneSilence(sil7)
+		sil8.EndsAt = nil // nil represents zero timestamp
+		versionBeforeOp = s.Version()
+		require.EqualError(t, s.Set(t.Context(), sil8), "invalid silence: invalid zero end timestamp")
+
+		// sil7 should not be expired because the update failed.
+		time.Sleep(time.Millisecond)
+		sil7, err = s.QueryOne(t.Context(), QIDs(sil7.Id))
+		require.NoError(t, err)
+		require.Equal(t, SilenceStateActive, getState(sil7, s.nowUTC()))
+		require.Equal(t, versionBeforeOp, s.Version())
 	})
-	require.NoError(t, err)
-
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	start1 := s.nowUTC()
-
-	// Insert silence with fixed start time.
-	sil1 := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		}},
-		StartsAt: timestamppb.New(start1.Add(2 * time.Minute)),
-		EndsAt:   timestamppb.New(start1.Add(5 * time.Minute)),
-	}
-	versionBeforeOp := s.Version()
-	require.NoError(t, s.Set(t.Context(), sil1))
-	require.NotEmpty(t, sil1.Id)
-	require.NotEqual(t, versionBeforeOp, s.Version())
-
-	want := state{
-		sil1.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil1.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(start1.Add(2 * time.Minute)),
-				EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
-				UpdatedAt: timestamppb.New(start1),
-			},
-			ExpiresAt: timestamppb.New(start1.Add(5*time.Minute + s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
-
-	// Insert silence with unset start time. Must be set to now.
-	clock.Advance(time.Minute)
-	start2 := s.nowUTC()
-
-	sil2 := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		}},
-		EndsAt: timestamppb.New(start2.Add(1 * time.Minute)),
-	}
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil2))
-	require.NotEmpty(t, sil2.Id)
-	require.NotEqual(t, versionBeforeOp, s.Version())
-
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil2.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(start2),
-				EndsAt:    timestamppb.New(start2.Add(1 * time.Minute)),
-				UpdatedAt: timestamppb.New(start2),
-			},
-			ExpiresAt: timestamppb.New(start2.Add(1*time.Minute + s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
-
-	// Should be able to update silence without modifications. It is expected to
-	// keep the same ID.
-	sil3 := cloneSilence(sil2)
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil3))
-	require.Equal(t, sil2.Id, sil3.Id)
-	require.Equal(t, versionBeforeOp, s.Version())
-
-	// Should be able to update silence with comment. It is also expected to
-	// keep the same ID.
-	sil4 := cloneSilence(sil3)
-	sil4.Comment = "c"
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil4))
-	require.Equal(t, sil3.Id, sil4.Id)
-	require.Equal(t, versionBeforeOp, s.Version())
-
-	// Extend sil4 to expire at a later time. This should not expire the
-	// existing silence, and so should also keep the same ID.
-	clock.Advance(time.Minute)
-	start5 := s.nowUTC()
-	sil5 := cloneSilence(sil4)
-	sil5.EndsAt = timestamppb.New(start5.Add(100 * time.Minute))
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil5))
-	require.Equal(t, sil4.Id, sil5.Id)
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil2.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(start2),
-				EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
-				UpdatedAt: timestamppb.New(start5),
-				Comment:   "c",
-			},
-			ExpiresAt: timestamppb.New(start5.Add(100*time.Minute + s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
-	require.Equal(t, versionBeforeOp, s.Version())
-
-	// Replace the silence sil5 with another silence with different matchers.
-	// Unlike previous updates, changing the matchers for an existing silence
-	// will expire the existing silence and create a new silence. The new
-	// silence is expected to have a different ID to preserve the history of
-	// the previous silence.
-	clock.Advance(time.Minute)
-	start6 := s.nowUTC()
-
-	sil6 := cloneSilence(sil5)
-	sil6.MatcherSets = []*pb.MatcherSet{{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
-	}}
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil6))
-	require.NotEqual(t, sil5.Id, sil6.Id)
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil2.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(start2),
-				EndsAt:    timestamppb.New(start6), // Expired
-				UpdatedAt: timestamppb.New(start6),
-				Comment:   "c",
-			},
-			ExpiresAt: timestamppb.New(start6.Add(s.retention)),
-		},
-		sil6.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil6.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
-				}},
-				StartsAt:  timestamppb.New(start6),
-				EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
-				UpdatedAt: timestamppb.New(start6),
-				Comment:   "c",
-			},
-			ExpiresAt: timestamppb.New(start5.Add(100*time.Minute + s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
-	require.NotEqual(t, versionBeforeOp, s.Version())
-
-	// Re-create the silence that we just replaced. Changing the start time,
-	// just like changing the matchers, creates a new silence with a different
-	// ID. This is again to preserve the history of the original silence.
-	clock.Advance(time.Minute)
-	start7 := s.nowUTC()
-	sil7 := cloneSilence(sil5)
-	sil7.StartsAt = timestamppb.New(start1)
-	sil7.EndsAt = timestamppb.New(start1.Add(5 * time.Minute))
-	versionBeforeOp = s.Version()
-	require.NoError(t, s.Set(t.Context(), sil7))
-	require.NotEqual(t, sil2.Id, sil7.Id)
-	want = state{
-		sil1.Id: want[sil1.Id],
-		sil2.Id: want[sil2.Id],
-		sil6.Id: want[sil6.Id],
-		sil7.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil7.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(start7), // New silences have their start time set to "now" when created.
-				EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
-				UpdatedAt: timestamppb.New(start7),
-				Comment:   "c",
-			},
-			ExpiresAt: timestamppb.New(start1.Add(5*time.Minute + s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
-	require.NotEqual(t, versionBeforeOp, s.Version())
-
-	// Updating an existing silence with an invalid silence should not expire
-	// the original silence.
-	clock.Advance(time.Millisecond)
-	sil8 := cloneSilence(sil7)
-	sil8.EndsAt = nil // nil represents zero timestamp
-	versionBeforeOp = s.Version()
-	require.EqualError(t, s.Set(t.Context(), sil8), "invalid silence: invalid zero end timestamp")
-
-	// sil7 should not be expired because the update failed.
-	clock.Advance(time.Millisecond)
-	sil7, err = s.QueryOne(t.Context(), QIDs(sil7.Id))
-	require.NoError(t, err)
-	require.Equal(t, SilenceStateActive, getState(sil7, s.nowUTC()))
-	require.Equal(t, versionBeforeOp, s.Version())
 }
 
 func TestSilenceLimits(t *testing.T) {
@@ -1034,66 +1028,65 @@ func TestSilenceNoLimits(t *testing.T) {
 }
 
 func TestSetActiveSilence(t *testing.T) {
-	s, err := New(Options{
-		Metrics:   prometheus.NewRegistry(),
-		Retention: time.Hour,
-	})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+		})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	now := clock.Now()
+		now := time.Now().UTC()
 
-	startsAt := now.Add(-1 * time.Minute)
-	endsAt := now.Add(5 * time.Minute)
-	// Insert silence with fixed start time.
-	sil1 := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		}},
-		StartsAt: timestamppb.New(startsAt),
-		EndsAt:   timestamppb.New(endsAt),
-	}
-	require.NoError(t, s.Set(t.Context(), sil1))
+		startsAt := now.Add(-1 * time.Minute)
+		endsAt := now.Add(5 * time.Minute)
+		// Insert silence with fixed start time.
+		sil1 := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+			}},
+			StartsAt: timestamppb.New(startsAt),
+			EndsAt:   timestamppb.New(endsAt),
+		}
+		require.NoError(t, s.Set(t.Context(), sil1))
 
-	// Update silence with 2 extra nanoseconds so the "seconds" part should not change
+		// Update silence with 2 extra nanoseconds so the "seconds" part should not change
 
-	newStartsAt := now.Add(2 * time.Nanosecond)
-	newEndsAt := endsAt.Add(2 * time.Minute)
+		newStartsAt := now.Add(2 * time.Nanosecond)
+		newEndsAt := endsAt.Add(2 * time.Minute)
 
-	sil2 := cloneSilence(sil1)
-	sil2.Id = sil1.Id
-	sil2.StartsAt = timestamppb.New(newStartsAt)
-	sil2.EndsAt = timestamppb.New(newEndsAt)
+		sil2 := cloneSilence(sil1)
+		sil2.Id = sil1.Id
+		sil2.StartsAt = timestamppb.New(newStartsAt)
+		sil2.EndsAt = timestamppb.New(newEndsAt)
 
-	clock.Advance(time.Minute)
-	now = s.nowUTC()
-	require.NoError(t, s.Set(t.Context(), sil2))
-	require.Equal(t, sil1.Id, sil2.Id)
+		time.Sleep(time.Minute)
+		now = s.nowUTC()
+		require.NoError(t, s.Set(t.Context(), sil2))
+		require.Equal(t, sil1.Id, sil2.Id)
 
-	want := state{
-		sil2.Id: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id: sil1.Id,
-				MatcherSets: []*pb.MatcherSet{{
-					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				}},
-				StartsAt:  timestamppb.New(newStartsAt),
-				EndsAt:    timestamppb.New(newEndsAt),
-				UpdatedAt: timestamppb.New(now),
+		want := state{
+			sil2.Id: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: sil1.Id,
+					MatcherSets: []*pb.MatcherSet{{
+						Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					}},
+					StartsAt:  timestamppb.New(newStartsAt),
+					EndsAt:    timestamppb.New(newEndsAt),
+					UpdatedAt: timestamppb.New(now),
+				},
+				ExpiresAt: timestamppb.New(newEndsAt.Add(s.retention)),
 			},
-			ExpiresAt: timestamppb.New(newEndsAt.Add(s.retention)),
-		},
-	}
-	requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+		}
+		requireStatesEqual(t, want, s.st, "unexpected state after silence creation")
+	})
 }
 
 func TestSilencesSetFail(t *testing.T) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
+	now := time.Now()
 
 	cases := []struct {
 		s   *pb.Silence
@@ -1105,7 +1098,7 @@ func TestSilencesSetFail(t *testing.T) {
 				MatcherSets: []*pb.MatcherSet{{
 					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
 				}},
-				EndsAt: timestamppb.New(clock.Now().Add(5 * time.Minute)),
+				EndsAt: timestamppb.New(now.Add(5 * time.Minute)),
 			},
 			err: ErrNotFound.Error(),
 		}, {
@@ -1119,7 +1112,7 @@ func TestSilencesSetFail(t *testing.T) {
 }
 
 func TestQState(t *testing.T) {
-	now := time.Now().UTC()
+	now := time.Now()
 
 	cases := []struct {
 		sil    *pb.Silence
@@ -2033,35 +2026,106 @@ func TestSilenceCanUpdate(t *testing.T) {
 }
 
 func TestSilenceExpire(t *testing.T) {
-	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	now := s.nowUTC()
+		now := s.nowUTC()
 
-	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+		m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
-	s.st = state{
-		"pending": &pb.MeshSilence{Silence: &pb.Silence{
+		s.st = state{
+			"pending": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "pending",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(time.Minute)),
+				EndsAt:    timestamppb.New(now.Add(time.Hour)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
+			}},
+			"active": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "active",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+				EndsAt:    timestamppb.New(now.Add(time.Hour)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
+			}},
+			"expired": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "expired",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
+				EndsAt:    timestamppb.New(now.Add(-time.Minute)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
+			}},
+		}
+		s.vi = versionIndex{
+			silenceVersion{id: "pending"},
+			silenceVersion{id: "active"},
+			silenceVersion{id: "expired"},
+		}
+		count, err := s.CountState(t.Context(), SilenceStatePending)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+
+		count, err = s.CountState(t.Context(), SilenceStateExpired)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+
+		require.NoError(t, s.Expire(t.Context(), "pending"))
+		require.NoError(t, s.Expire(t.Context(), "active"))
+
+		require.NoError(t, s.Expire(t.Context(), "expired"))
+
+		sil, err := s.QueryOne(t.Context(), QIDs("pending"))
+		require.NoError(t, err)
+		expectedPending := &pb.Silence{
 			Id: "pending",
 			MatcherSets: []*pb.MatcherSet{{
 				Matchers: []*pb.Matcher{m},
 			}},
-			StartsAt:  timestamppb.New(now.Add(time.Minute)),
-			EndsAt:    timestamppb.New(now.Add(time.Hour)),
-			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-		"active": &pb.MeshSilence{Silence: &pb.Silence{
+			StartsAt:  timestamppb.New(now),
+			EndsAt:    timestamppb.New(now),
+			UpdatedAt: timestamppb.New(now),
+		}
+		require.True(t, proto.Equal(expectedPending, sil), "pending silence mismatch")
+
+		// Let time pass...
+		time.Sleep(time.Second)
+
+		count, err = s.CountState(t.Context(), SilenceStatePending)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
+
+		count, err = s.CountState(t.Context(), SilenceStateExpired)
+		require.NoError(t, err)
+		require.Equal(t, 3, count)
+
+		// Expiring a pending Silence should make the API return the
+		// SilenceStateExpired Silence state.
+		silenceState := CurrentState(sil.StartsAt.AsTime(), sil.EndsAt.AsTime())
+		require.Equal(t, SilenceStateExpired, silenceState)
+
+		sil, err = s.QueryOne(t.Context(), QIDs("active"))
+		require.NoError(t, err)
+		expectedActive := &pb.Silence{
 			Id: "active",
 			MatcherSets: []*pb.MatcherSet{{
 				Matchers: []*pb.Matcher{m},
 			}},
 			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
-			EndsAt:    timestamppb.New(now.Add(time.Hour)),
-			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-		"expired": &pb.MeshSilence{Silence: &pb.Silence{
+			EndsAt:    timestamppb.New(now),
+			UpdatedAt: timestamppb.New(now),
+		}
+		require.True(t, proto.Equal(expectedActive, sil), "active silence mismatch")
+
+		sil, err = s.QueryOne(t.Context(), QIDs("expired"))
+		require.NoError(t, err)
+		expectedExpired := &pb.Silence{
 			Id: "expired",
 			MatcherSets: []*pb.MatcherSet{{
 				Matchers: []*pb.Matcher{m},
@@ -2069,371 +2133,300 @@ func TestSilenceExpire(t *testing.T) {
 			StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 			EndsAt:    timestamppb.New(now.Add(-time.Minute)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-	}
-	s.vi = versionIndex{
-		silenceVersion{id: "pending"},
-		silenceVersion{id: "active"},
-		silenceVersion{id: "expired"},
-	}
-	count, err := s.CountState(t.Context(), SilenceStatePending)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
-
-	count, err = s.CountState(t.Context(), SilenceStateExpired)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
-
-	require.NoError(t, s.Expire(t.Context(), "pending"))
-	require.NoError(t, s.Expire(t.Context(), "active"))
-
-	require.NoError(t, s.Expire(t.Context(), "expired"))
-
-	sil, err := s.QueryOne(t.Context(), QIDs("pending"))
-	require.NoError(t, err)
-	expectedPending := &pb.Silence{
-		Id: "pending",
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{m},
-		}},
-		StartsAt:  timestamppb.New(now),
-		EndsAt:    timestamppb.New(now),
-		UpdatedAt: timestamppb.New(now),
-	}
-	require.True(t, proto.Equal(expectedPending, sil), "pending silence mismatch")
-
-	// Let time pass...
-	clock.Advance(time.Second)
-
-	count, err = s.CountState(t.Context(), SilenceStatePending)
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
-
-	count, err = s.CountState(t.Context(), SilenceStateExpired)
-	require.NoError(t, err)
-	require.Equal(t, 3, count)
-
-	// Expiring a pending Silence should make the API return the
-	// SilenceStateExpired Silence state.
-	silenceState := CurrentState(sil.StartsAt.AsTime(), sil.EndsAt.AsTime())
-	require.Equal(t, SilenceStateExpired, silenceState)
-
-	sil, err = s.QueryOne(t.Context(), QIDs("active"))
-	require.NoError(t, err)
-	expectedActive := &pb.Silence{
-		Id: "active",
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{m},
-		}},
-		StartsAt:  timestamppb.New(now.Add(-time.Minute)),
-		EndsAt:    timestamppb.New(now),
-		UpdatedAt: timestamppb.New(now),
-	}
-	require.True(t, proto.Equal(expectedActive, sil), "active silence mismatch")
-
-	sil, err = s.QueryOne(t.Context(), QIDs("expired"))
-	require.NoError(t, err)
-	expectedExpired := &pb.Silence{
-		Id: "expired",
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{m},
-		}},
-		StartsAt:  timestamppb.New(now.Add(-time.Hour)),
-		EndsAt:    timestamppb.New(now.Add(-time.Minute)),
-		UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-	}
-	require.True(t, proto.Equal(expectedExpired, sil), "expired silence mismatch")
+		}
+		require.True(t, proto.Equal(expectedExpired, sil), "expired silence mismatch")
+	})
 }
 
 // TestSilenceExpireWithZeroRetention covers the problem that, with zero
 // retention time, a silence explicitly set to expired will also immediately
 // expire from the silence storage.
 func TestSilenceExpireWithZeroRetention(t *testing.T) {
-	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: 0})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: 0})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	now := s.nowUTC()
+		now := s.nowUTC()
 
-	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+		m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
-	s.st = state{
-		"pending": &pb.MeshSilence{Silence: &pb.Silence{
-			Id: "pending",
-			MatcherSets: []*pb.MatcherSet{{
-				Matchers: []*pb.Matcher{m},
+		s.st = state{
+			"pending": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "pending",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(time.Minute)),
+				EndsAt:    timestamppb.New(now.Add(time.Hour)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 			}},
-			StartsAt:  timestamppb.New(now.Add(time.Minute)),
-			EndsAt:    timestamppb.New(now.Add(time.Hour)),
-			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-		"active": &pb.MeshSilence{Silence: &pb.Silence{
-			Id: "active",
-			MatcherSets: []*pb.MatcherSet{{
-				Matchers: []*pb.Matcher{m},
+			"active": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "active",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+				EndsAt:    timestamppb.New(now.Add(time.Hour)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 			}},
-			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
-			EndsAt:    timestamppb.New(now.Add(time.Hour)),
-			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-		"expired": &pb.MeshSilence{Silence: &pb.Silence{
-			Id: "expired",
-			MatcherSets: []*pb.MatcherSet{{
-				Matchers: []*pb.Matcher{m},
+			"expired": &pb.MeshSilence{Silence: &pb.Silence{
+				Id: "expired",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{m},
+				}},
+				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
+				EndsAt:    timestamppb.New(now.Add(-time.Minute)),
+				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 			}},
-			StartsAt:  timestamppb.New(now.Add(-time.Hour)),
-			EndsAt:    timestamppb.New(now.Add(-time.Minute)),
-			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-		}},
-	}
-	s.vi = versionIndex{
-		silenceVersion{id: "pending"},
-		silenceVersion{id: "active"},
-		silenceVersion{id: "expired"},
-	}
+		}
+		s.vi = versionIndex{
+			silenceVersion{id: "pending"},
+			silenceVersion{id: "active"},
+			silenceVersion{id: "expired"},
+		}
 
-	count, err := s.CountState(t.Context(), SilenceStatePending)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+		count, err := s.CountState(t.Context(), SilenceStatePending)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
 
-	count, err = s.CountState(t.Context(), SilenceStateActive)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+		count, err = s.CountState(t.Context(), SilenceStateActive)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
 
-	count, err = s.CountState(t.Context(), SilenceStateExpired)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+		count, err = s.CountState(t.Context(), SilenceStateExpired)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
 
-	// Advance time. The silence state management code uses update time when
-	// merging, and the logic is "first write wins". So we must advance the clock
-	// one tick for updates to take effect.
-	clock.Advance(1 * time.Millisecond)
+		// Advance time. The silence state management code uses update time when
+		// merging, and the logic is "first write wins". So we must advance the clock
+		// one tick for updates to take effect.
+		time.Sleep(1 * time.Millisecond)
 
-	require.NoError(t, s.Expire(t.Context(), "pending"))
-	require.NoError(t, s.Expire(t.Context(), "active"))
-	require.NoError(t, s.Expire(t.Context(), "expired"))
+		require.NoError(t, s.Expire(t.Context(), "pending"))
+		require.NoError(t, s.Expire(t.Context(), "active"))
+		require.NoError(t, s.Expire(t.Context(), "expired"))
 
-	// Advance time again. Despite what the function name says, s.Expire() does
-	// not expire a silence. It sets the silence to EndAt the current time. This
-	// means that the silence is active immediately after calling Expire.
-	clock.Advance(1 * time.Millisecond)
+		// Advance time again. Despite what the function name says, s.Expire() does
+		// not expire a silence. It sets the silence to EndAt the current time. This
+		// means that the silence is active immediately after calling Expire.
+		time.Sleep(1 * time.Millisecond)
 
-	// Verify all silences have expired.
-	count, err = s.CountState(t.Context(), SilenceStatePending)
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+		// Verify all silences have expired.
+		count, err = s.CountState(t.Context(), SilenceStatePending)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
 
-	count, err = s.CountState(t.Context(), SilenceStateActive)
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+		count, err = s.CountState(t.Context(), SilenceStateActive)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
 
-	count, err = s.CountState(t.Context(), SilenceStateExpired)
-	require.NoError(t, err)
-	require.Equal(t, 3, count)
+		count, err = s.CountState(t.Context(), SilenceStateExpired)
+		require.NoError(t, err)
+		require.Equal(t, 3, count)
+	})
 }
 
 // This test checks that invalid silences can be expired.
 func TestSilenceExpireInvalid(t *testing.T) {
-	s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	now := s.nowUTC()
+		now := s.nowUTC()
 
-	// In this test the matcher has an invalid type.
-	silence := pb.Silence{
-		Id: "active",
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
-		}},
-		StartsAt:  timestamppb.New(now.Add(-time.Minute)),
-		EndsAt:    timestamppb.New(now.Add(time.Hour)),
-		UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
-	}
-	// Assert that this silence is invalid.
-	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0 in set 0: unknown matcher type \"-1\"")
+		// In this test the matcher has an invalid type.
+		silence := pb.Silence{
+			Id: "active",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+			}},
+			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+			EndsAt:    timestamppb.New(now.Add(time.Hour)),
+			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
+		}
+		// Assert that this silence is invalid.
+		require.EqualError(t, validateSilence(&silence), "invalid label matcher 0 in set 0: unknown matcher type \"-1\"")
 
-	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
-	s.vi = versionIndex{silenceVersion{id: "active"}}
+		s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+		s.vi = versionIndex{silenceVersion{id: "active"}}
 
-	// The silence should be active.
-	count, err := s.CountState(t.Context(), SilenceStateActive)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+		// The silence should be active.
+		count, err := s.CountState(t.Context(), SilenceStateActive)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
 
-	clock.Advance(time.Millisecond)
-	require.NoError(t, s.Expire(t.Context(), "active"))
-	clock.Advance(time.Millisecond)
+		time.Sleep(time.Millisecond)
+		require.NoError(t, s.Expire(t.Context(), "active"))
+		time.Sleep(time.Millisecond)
 
-	// The silence should be expired.
-	count, err = s.CountState(t.Context(), SilenceStateActive)
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
-	count, err = s.CountState(t.Context(), SilenceStateExpired)
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+		// The silence should be expired.
+		count, err = s.CountState(t.Context(), SilenceStateActive)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
+		count, err = s.CountState(t.Context(), SilenceStateExpired)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+	})
 }
 
 func TestSilencer(t *testing.T) {
-	ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	ss.clock = clock
-	now := ss.nowUTC()
+		now := ss.nowUTC()
 
-	s := NewSilencer(ss, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+		s := NewSilencer(ss, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
-	m := marker.NewAlertMarker()
-	ctx := marker.WithContext(t.Context(), m)
+		m := marker.NewAlertMarker()
+		ctx := marker.WithContext(t.Context(), m)
 
-	require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced without any silences")
+		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced without any silences")
 
-	sil1 := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
-		}},
-		StartsAt: timestamppb.New(now.Add(-time.Hour)),
-		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
-	}
-	require.NoError(t, ss.Set(t.Context(), sil1))
+		sil1 := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
+			}},
+			StartsAt: timestamppb.New(now.Add(-time.Hour)),
+			EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
+		}
+		require.NoError(t, ss.Set(t.Context(), sil1))
 
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by non-matching silence")
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by non-matching silence")
 
-	sil2 := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
-		}},
-		StartsAt: timestamppb.New(now.Add(-time.Hour)),
-		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
-	}
-	require.NoError(t, ss.Set(t.Context(), sil2))
-	require.NotEmpty(t, sil2.Id)
+		sil2 := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+			}},
+			StartsAt: timestamppb.New(now.Add(-time.Hour)),
+			EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
+		}
+		require.NoError(t, ss.Set(t.Context(), sil2))
+		require.NotEmpty(t, sil2.Id)
 
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by matching silence")
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by matching silence")
 
-	// One hour passes, silence expires.
-	clock.Advance(time.Hour)
-	now = ss.nowUTC()
+		// One hour passes, silence expires.
+		time.Sleep(time.Hour)
+		now = ss.nowUTC()
 
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by expired silence")
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by expired silence")
 
-	// Update silence to start in the future.
-	err = ss.Set(t.Context(), &pb.Silence{
-		Id: sil2.Id,
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
-		}},
-		StartsAt: timestamppb.New(now.Add(time.Hour)),
-		EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
+		// Update silence to start in the future.
+		err = ss.Set(t.Context(), &pb.Silence{
+			Id: sil2.Id,
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+			}},
+			StartsAt: timestamppb.New(now.Add(time.Hour)),
+			EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
+		})
+		require.NoError(t, err)
+
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by future silence")
+
+		// Two hours pass, silence becomes active.
+		time.Sleep(2 * time.Hour)
+		now = ss.nowUTC()
+
+		// Exposes issue #2426.
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated silence")
+
+		err = ss.Set(t.Context(), &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
+			}},
+			StartsAt: timestamppb.New(now.Add(time.Hour)),
+			EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
+		})
+		require.NoError(t, err)
+
+		// Note that issue #2426 doesn't apply anymore because we added a new silence.
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker still silenced by activated silence")
+
+		// Two hours pass, first silence expires, overlapping second silence becomes active.
+		time.Sleep(2 * time.Hour)
+
+		// Another variant of issue #2426 (overlapping silences).
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
+		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated second silence")
 	})
-	require.NoError(t, err)
-
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by future silence")
-
-	// Two hours pass, silence becomes active.
-	clock.Advance(2 * time.Hour)
-	now = ss.nowUTC()
-
-	// Exposes issue #2426.
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated silence")
-
-	err = ss.Set(t.Context(), &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
-		}},
-		StartsAt: timestamppb.New(now.Add(time.Hour)),
-		EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
-	})
-	require.NoError(t, err)
-
-	// Note that issue #2426 doesn't apply anymore because we added a new silence.
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker still silenced by activated silence")
-
-	// Two hours pass, first silence expires, overlapping second silence becomes active.
-	clock.Advance(2 * time.Hour)
-
-	// Another variant of issue #2426 (overlapping silences).
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
-	checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated second silence")
 }
 
 func TestSilencerPostDeleteEvictsCache(t *testing.T) {
-	ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	ss.clock = clock
-	now := ss.nowUTC()
+		now := ss.nowUTC()
 
-	s := NewSilencer(ss, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+		s := NewSilencer(ss, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
-	lset := model.LabelSet{"foo": "bar"}
-	fp := lset.Fingerprint()
+		lset := model.LabelSet{"foo": "bar"}
+		fp := lset.Fingerprint()
 
-	// Create a matching silence.
-	sil := &pb.Silence{
-		MatcherSets: []*pb.MatcherSet{{
-			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
-		}},
-		StartsAt: timestamppb.New(now.Add(-time.Hour)),
-		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
-	}
-	require.NoError(t, ss.Set(t.Context(), sil))
+		// Create a matching silence.
+		sil := &pb.Silence{
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+			}},
+			StartsAt: timestamppb.New(now.Add(-time.Hour)),
+			EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
+		}
+		require.NoError(t, ss.Set(t.Context(), sil))
 
-	// Mutes populates the cache.
-	m := marker.NewAlertMarker()
-	ctx := marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, lset))
-	checkMutes(t, m, lset, true, "expected marker silenced after initial Mutes")
-	entry := s.cache.get(fp)
-	require.Positive(t, entry.count(), "cache should have entries after Mutes()")
+		// Mutes populates the cache.
+		m := marker.NewAlertMarker()
+		ctx := marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, lset))
+		checkMutes(t, m, lset, true, "expected marker silenced after initial Mutes")
+		entry := s.cache.get(fp)
+		require.Positive(t, entry.count(), "cache should have entries after Mutes()")
 
-	// PostGC evicts the cache entry for this fingerprint.
-	s.PostGC(model.Fingerprints{fp})
-	entry = s.cache.get(fp)
-	require.Equal(t, 0, entry.count(), "cache should be empty after PostGC()")
-	require.Equal(t, 0, entry.version, "version should be zero for evicted entry")
+		// PostGC evicts the cache entry for this fingerprint.
+		s.PostGC(model.Fingerprints{fp})
+		entry = s.cache.get(fp)
+		require.Equal(t, 0, entry.count(), "cache should be empty after PostGC()")
+		require.Equal(t, 0, entry.version, "version should be zero for evicted entry")
 
-	// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
-	m = marker.NewAlertMarker()
-	ctx = marker.WithContext(t.Context(), m)
-	require.True(t, s.Mutes(ctx, lset), "expected alert still silenced after cache eviction")
-	checkMutes(t, m, lset, true, "expected marker silenced after cache eviction")
-	entry = s.cache.get(fp)
-	require.Positive(t, entry.count(), "cache should be repopulated after Mutes()")
+		// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
+		m = marker.NewAlertMarker()
+		ctx = marker.WithContext(t.Context(), m)
+		require.True(t, s.Mutes(ctx, lset), "expected alert still silenced after cache eviction")
+		checkMutes(t, m, lset, true, "expected marker silenced after cache eviction")
+		entry = s.cache.get(fp)
+		require.Positive(t, entry.count(), "cache should be repopulated after Mutes()")
 
-	// Expire the silence, advance time so it's truly expired.
-	clock.Advance(time.Hour)
+		// Expire the silence, advance time so it's truly expired.
+		time.Sleep(time.Hour)
 
-	// PostGC for a different fingerprint should not affect this entry.
-	otherLset := model.LabelSet{"other": "alert"}
-	s.PostGC(model.Fingerprints{otherLset.Fingerprint()})
-	entry = s.cache.get(fp)
-	require.Positive(t, entry.count(), "unrelated PostGC should not evict other entries")
+		// PostGC for a different fingerprint should not affect this entry.
+		otherLset := model.LabelSet{"other": "alert"}
+		s.PostGC(model.Fingerprints{otherLset.Fingerprint()})
+		entry = s.cache.get(fp)
+		require.Positive(t, entry.count(), "unrelated PostGC should not evict other entries")
+	})
 }
 
 func TestValidateClassicMatcher(t *testing.T) {
@@ -2886,8 +2879,6 @@ func TestLogSilence(t *testing.T) {
 		logger: logger,
 	}
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
 	now := s.nowUTC()
 
 	silence := &pb.Silence{
@@ -2919,126 +2910,126 @@ func TestLogSilence(t *testing.T) {
 }
 
 func TestSilenceAnnotations(t *testing.T) {
-	s, err := New(Options{
-		Metrics:   prometheus.NewRegistry(),
-		Retention: time.Hour,
-	})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+		})
+		require.NoError(t, err)
 
-	clock := quartz.NewMock(t)
-	s.clock = clock
-	now := s.nowUTC()
+		now := s.nowUTC()
 
-	// Create a silence with annotations
-	sil1 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
-		StartsAt: timestamppb.New(now),
-		EndsAt:   timestamppb.New(now.Add(time.Hour)),
-		Annotations: map[string]string{
-			"ticket": "JIRA-123",
-			"type":   "planned",
-			"test":   "integration",
-		},
-	}
-
-	// Set the silence via the API
-	require.NoError(t, s.Set(t.Context(), sil1))
-	require.NotEmpty(t, sil1.Id)
-
-	// Query the silence back by ID
-	queriedSil, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
-	require.NoError(t, err)
-
-	// Verify all annotations are returned correctly
-	require.NotNil(t, queriedSil.Annotations)
-	require.Equal(t, "JIRA-123", queriedSil.Annotations["ticket"])
-	require.Equal(t, "planned", queriedSil.Annotations["type"])
-	require.Equal(t, "integration", queriedSil.Annotations["test"])
-
-	// Test querying all silences
-	allSils, _, err := s.Query(t.Context())
-	require.NoError(t, err)
-	require.Len(t, allSils, 1)
-	require.Equal(t, queriedSil.Annotations, allSils[0].Annotations)
-
-	// Create a second silence with different annotations
-	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "job", Pattern: "frontend"}},
-		StartsAt: timestamppb.New(now),
-		EndsAt:   timestamppb.New(now.Add(time.Hour)),
-		Annotations: map[string]string{
-			"ticket": "JIRA-456",
-		},
-	}
-	require.NoError(t, s.Set(t.Context(), sil2))
-
-	// Query by state and verify both silences have their annotations
-	activeSils, _, err := s.Query(t.Context(), QState(SilenceStateActive))
-	require.NoError(t, err)
-	require.Len(t, activeSils, 2)
-
-	for _, sil := range activeSils {
-		require.NotNil(t, sil.Annotations)
-		switch sil.Id {
-		case sil1.Id:
-			require.Len(t, sil.Annotations, 3)
-			require.Equal(t, "JIRA-123", sil.Annotations["ticket"])
-		case sil2.Id:
-			require.Len(t, sil.Annotations, 1)
-			require.Equal(t, "JIRA-456", sil.Annotations["ticket"])
-		default:
-			t.Fatalf("unexpected silence ID: %s", sil.Id)
+		// Create a silence with annotations
+		sil1 := &pb.Silence{
+			Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Hour)),
+			Annotations: map[string]string{
+				"ticket": "JIRA-123",
+				"type":   "planned",
+				"test":   "integration",
+			},
 		}
-	}
 
-	// Test updating a silence with new annotations
-	clock.Advance(time.Minute)
-	sil1Updated := &pb.Silence{
-		Id:       sil1.Id,
-		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
-		StartsAt: sil1.StartsAt,
-		EndsAt:   sil1.EndsAt,
-		Annotations: map[string]string{
-			"ticket": "JIRA-123",
-			"type":   "emergency", // changed
-			"test":   "load",      // changed
-		},
-	}
-	require.NoError(t, s.Set(t.Context(), sil1Updated))
+		// Set the silence via the API
+		require.NoError(t, s.Set(t.Context(), sil1))
+		require.NotEmpty(t, sil1.Id)
 
-	// Query back and verify annotations were updated
-	queriedUpdated, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
-	require.NoError(t, err)
-	require.Len(t, queriedUpdated.Annotations, 3)
-	require.Equal(t, "emergency", queriedUpdated.Annotations["type"])
-	require.Equal(t, "load", queriedUpdated.Annotations["test"])
+		// Query the silence back by ID
+		queriedSil, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+		require.NoError(t, err)
 
-	// Test silence with nil annotations
-	sil3 := &pb.Silence{
-		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "backend"}},
-		StartsAt:    timestamppb.New(now),
-		EndsAt:      timestamppb.New(now.Add(time.Hour)),
-		Annotations: nil,
-	}
-	require.NoError(t, s.Set(t.Context(), sil3))
-	queriedSil3, err := s.QueryOne(t.Context(), QIDs(sil3.Id))
-	require.NoError(t, err)
-	// nil annotations should be preserved or converted to empty map
-	if queriedSil3.Annotations != nil {
-		require.Empty(t, queriedSil3.Annotations)
-	}
+		// Verify all annotations are returned correctly
+		require.NotNil(t, queriedSil.Annotations)
+		require.Equal(t, "JIRA-123", queriedSil.Annotations["ticket"])
+		require.Equal(t, "planned", queriedSil.Annotations["type"])
+		require.Equal(t, "integration", queriedSil.Annotations["test"])
 
-	// Test silence with empty annotations map
-	sil4 := &pb.Silence{
-		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "database"}},
-		StartsAt:    timestamppb.New(now),
-		EndsAt:      timestamppb.New(now.Add(time.Hour)),
-		Annotations: map[string]string{},
-	}
-	require.NoError(t, s.Set(t.Context(), sil4))
-	queriedSil4, err := s.QueryOne(t.Context(), QIDs(sil4.Id))
-	require.NoError(t, err)
-	if queriedSil4.Annotations != nil {
-		require.Empty(t, queriedSil4.Annotations)
-	}
+		// Test querying all silences
+		allSils, _, err := s.Query(t.Context())
+		require.NoError(t, err)
+		require.Len(t, allSils, 1)
+		require.Equal(t, queriedSil.Annotations, allSils[0].Annotations)
+
+		// Create a second silence with different annotations
+		sil2 := &pb.Silence{
+			Matchers: []*pb.Matcher{{Name: "job", Pattern: "frontend"}},
+			StartsAt: timestamppb.New(now),
+			EndsAt:   timestamppb.New(now.Add(time.Hour)),
+			Annotations: map[string]string{
+				"ticket": "JIRA-456",
+			},
+		}
+		require.NoError(t, s.Set(t.Context(), sil2))
+
+		// Query by state and verify both silences have their annotations
+		activeSils, _, err := s.Query(t.Context(), QState(SilenceStateActive))
+		require.NoError(t, err)
+		require.Len(t, activeSils, 2)
+
+		for _, sil := range activeSils {
+			require.NotNil(t, sil.Annotations)
+			switch sil.Id {
+			case sil1.Id:
+				require.Len(t, sil.Annotations, 3)
+				require.Equal(t, "JIRA-123", sil.Annotations["ticket"])
+			case sil2.Id:
+				require.Len(t, sil.Annotations, 1)
+				require.Equal(t, "JIRA-456", sil.Annotations["ticket"])
+			default:
+				t.Fatalf("unexpected silence ID: %s", sil.Id)
+			}
+		}
+
+		// Test updating a silence with new annotations
+		time.Sleep(time.Minute)
+		sil1Updated := &pb.Silence{
+			Id:       sil1.Id,
+			Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+			StartsAt: sil1.StartsAt,
+			EndsAt:   sil1.EndsAt,
+			Annotations: map[string]string{
+				"ticket": "JIRA-123",
+				"type":   "emergency", // changed
+				"test":   "load",      // changed
+			},
+		}
+		require.NoError(t, s.Set(t.Context(), sil1Updated))
+
+		// Query back and verify annotations were updated
+		queriedUpdated, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+		require.NoError(t, err)
+		require.Len(t, queriedUpdated.Annotations, 3)
+		require.Equal(t, "emergency", queriedUpdated.Annotations["type"])
+		require.Equal(t, "load", queriedUpdated.Annotations["test"])
+
+		// Test silence with nil annotations
+		sil3 := &pb.Silence{
+			Matchers:    []*pb.Matcher{{Name: "job", Pattern: "backend"}},
+			StartsAt:    timestamppb.New(now),
+			EndsAt:      timestamppb.New(now.Add(time.Hour)),
+			Annotations: nil,
+		}
+		require.NoError(t, s.Set(t.Context(), sil3))
+		queriedSil3, err := s.QueryOne(t.Context(), QIDs(sil3.Id))
+		require.NoError(t, err)
+		// nil annotations should be preserved or converted to empty map
+		if queriedSil3.Annotations != nil {
+			require.Empty(t, queriedSil3.Annotations)
+		}
+
+		// Test silence with empty annotations map
+		sil4 := &pb.Silence{
+			Matchers:    []*pb.Matcher{{Name: "job", Pattern: "database"}},
+			StartsAt:    timestamppb.New(now),
+			EndsAt:      timestamppb.New(now.Add(time.Hour)),
+			Annotations: map[string]string{},
+		}
+		require.NoError(t, s.Set(t.Context(), sil4))
+		queriedSil4, err := s.QueryOne(t.Context(), QIDs(sil4.Id))
+		require.NoError(t, err)
+		if queriedSil4.Annotations != nil {
+			require.Empty(t, queriedSil4.Annotations)
+		}
+	})
 }
