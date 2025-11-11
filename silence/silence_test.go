@@ -16,6 +16,7 @@ package silence
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime"
 	"sort"
@@ -212,6 +213,124 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Equal(t, 1, n)
 		require.Empty(t, s.st)
 		require.Empty(t, s.mi)
+	})
+
+	t.Run("GC collects silences in multiple rounds", func(t *testing.T) {
+		s, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+		})
+		clock := quartz.NewMock(t)
+		s.clock = clock
+		require.NoError(t, err)
+		now := s.nowUTC().UTC()
+
+		matcher := &pb.Matcher{
+			Type:    pb.Matcher_EQUAL,
+			Name:    "job",
+			Pattern: "test",
+		}
+
+		// Create silences that expire at different times.
+		// Directly set them in state to create pre-expired silences.
+		// Group 1: expires at now+30min (with retention: now+90min)
+		// Group 2: expires at now+45min (with retention: now+105min)
+		// Group 3: expires at now+60min (with retention: now+120min)
+		// Group 4: active, expires at now+3hours (with retention: now+4hours)
+
+		sils := make([]*pb.Silence, 0, 60)
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group1-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(30 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group2-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(45 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group3-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(60 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 30 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("active-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(3 * time.Hour),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		// Shuffle silences to ensure GC order is not dependent on insertion order.
+		rand.Shuffle(len(sils), func(i, j int) {
+			sils[i], sils[j] = sils[j], sils[i]
+		})
+		for _, sil := range sils {
+			ms := s.toMeshSilence(sil)
+			s.st[ms.Silence.Id] = ms
+			s.indexSilence(ms.Silence)
+		}
+
+		require.Len(t, s.st, 60)
+		require.Len(t, s.mi, 60)
+
+		// First GC: nothing should be collected yet
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 0, n)
+		require.Len(t, s.st, 60)
+		require.Len(t, s.mi, 60)
+
+		// Advance time to 91 minutes - Group 1 should be GC'd
+		clock.Advance(91 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 50)
+		require.Len(t, s.mi, 50)
+
+		// Advance time to 106 minutes - Group 2 should be GC'd
+		clock.Advance(15 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 40)
+		require.Len(t, s.mi, 40)
+
+		// Advance time to 121 minutes - Group 3 should be GC'd
+		clock.Advance(15 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 30)
+		require.Len(t, s.mi, 30)
+
+		// Verify all remaining silences are active
+		for id := range s.st {
+			require.Contains(t, id, "active-")
+		}
 	})
 }
 
