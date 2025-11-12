@@ -243,6 +243,16 @@ func (d *Dispatcher) WaitForLoading() {
 	d.loadingFinished.Wait()
 }
 
+func (d *Dispatcher) LoadingDone() <-chan struct{} {
+	doneChan := make(chan struct{})
+	go func() {
+		d.WaitForLoading()
+		close(doneChan)
+	}()
+
+	return doneChan
+}
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
 	Alerts   types.AlertSlice
@@ -264,7 +274,12 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-d.LoadingDone():
+	}
 	d.WaitForLoading()
 	groups := AlertGroups{}
 
@@ -327,7 +342,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		sort.Strings(receivers[i])
 	}
 
-	return groups, receivers
+	return groups, receivers, nil
 }
 
 // Stop the dispatcher.
