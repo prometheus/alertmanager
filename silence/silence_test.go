@@ -1074,6 +1074,98 @@ func TestQMatches(t *testing.T) {
 	}
 }
 
+func TestQSince(t *testing.T) {
+	type testCase struct {
+		index versionIndex
+
+		since   int
+		results []string
+	}
+
+	cases := map[string]testCase{
+		"skips current version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+			},
+
+			since:   1,
+			results: []string{"2"},
+		},
+		"skips any number of old versions": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 2},
+				{id: "4", version: 3},
+				{id: "5", version: 4},
+			},
+
+			since:   3,
+			results: []string{"5"},
+		},
+		"since 0 returns everything": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+			},
+
+			since:   0,
+			results: []string{"1", "2"},
+		},
+		"returns all elements of a group with the same version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 3},
+				{id: "4", version: 3},
+			},
+
+			since:   2,
+			results: []string{"3", "4"},
+		},
+		"returns everything after the provided version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 3},
+				{id: "4", version: 3},
+				{id: "5", version: 4},
+				{id: "6", version: 5},
+			},
+
+			since:   2,
+			results: []string{"3", "4", "5", "6"},
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			silences, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(t, err)
+			// build state from index so test cases are easier to write
+			st := state{}
+			for _, mapping := range c.index {
+				st[mapping.id] = &pb.MeshSilence{Silence: &pb.Silence{Id: mapping.id}}
+			}
+			silences.st = st
+			silences.vi = c.index
+
+			res, _, err := silences.Query(QSince(c.since))
+			require.NoError(t, err)
+			resultIds := []string{}
+			for _, sil := range res {
+				resultIds = append(resultIds, sil.Id)
+			}
+
+			sort.StringSlice(c.results).Sort()
+			sort.StringSlice(resultIds).Sort()
+
+			require.Equal(t, c.results, resultIds)
+		})
+	}
+}
+
 func TestSilencesQuery(t *testing.T) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
@@ -1084,6 +1176,13 @@ func TestSilencesQuery(t *testing.T) {
 		"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
 		"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
 		"5": &pb.MeshSilence{Silence: &pb.Silence{Id: "5"}},
+	}
+	s.vi = versionIndex{
+		{id: "1"},
+		{id: "2"},
+		{id: "3"},
+		{id: "4"},
+		{id: "5"},
 	}
 	cases := []struct {
 		q   *query
@@ -1355,7 +1454,11 @@ func TestSilenceExpire(t *testing.T) {
 			UpdatedAt: now.Add(-time.Hour),
 		}},
 	}
-
+	s.vi = versionIndex{
+		silenceVersion{id: "pending"},
+		silenceVersion{id: "active"},
+		silenceVersion{id: "expired"},
+	}
 	count, err := s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
@@ -1452,6 +1555,11 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 			UpdatedAt: now.Add(-time.Hour),
 		}},
 	}
+	s.vi = versionIndex{
+		silenceVersion{id: "pending"},
+		silenceVersion{id: "active"},
+		silenceVersion{id: "expired"},
+	}
 
 	count, err := s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
@@ -1514,6 +1622,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
 
 	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+	s.vi = versionIndex{silenceVersion{id: "active"}}
 
 	// The silence should be active.
 	count, err := s.CountState(types.SilenceStateActive)
