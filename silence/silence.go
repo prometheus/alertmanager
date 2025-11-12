@@ -893,6 +893,9 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	if err != nil {
 		return err
 	}
+
+	newMatcherIndex := matcherIndex{}
+
 	for _, e := range st {
 		// Comments list was moved to a single comment. Upgrade on loading the snapshot.
 		if len(e.Silence.Comments) > 0 {
@@ -901,7 +904,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			e.Silence.Comments = nil
 		}
 		// Add to matcher index, and only if successful, to the new state.
-		if _, err := s.mi.add(e.Silence); err != nil {
+		if _, err := newMatcherIndex.add(e.Silence); err != nil {
 			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
 			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
 		} else {
@@ -910,6 +913,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	}
 	s.mtx.Lock()
 	s.st = st
+	s.mi = newMatcherIndex
 	s.version++
 	s.mtx.Unlock()
 
