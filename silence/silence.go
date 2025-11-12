@@ -735,6 +735,9 @@ type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 // QIDs configures a query to select the given silence IDs.
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
+		if len(ids) == 0 {
+			return errors.New("QIDs filter must have at least one id")
+		}
 		q.ids = append(q.ids, ids...)
 		return nil
 	}

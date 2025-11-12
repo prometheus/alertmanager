@@ -1152,6 +1152,44 @@ func TestSilencesQuery(t *testing.T) {
 	}
 }
 
+func TestQIDs(t *testing.T) {
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
+	require.NoError(t, err)
+
+	s.st = state{
+		"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}},
+		"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}},
+		"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
+		"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
+	}
+
+	// Test QIDs with empty arguments returns an error
+	_, _, err = s.Query(QIDs())
+	require.Error(t, err, "expected error when QIDs is called with no arguments")
+	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
+
+	// Test QIDs with empty arguments returns an error via QueryOne
+	_, err = s.QueryOne(QIDs())
+	require.Error(t, err, "expected error when QIDs is called with no arguments")
+	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
+
+	// Test QIDs with single ID works
+	res, _, err := s.Query(QIDs("1"))
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Equal(t, "1", res[0].Id)
+
+	// Test QIDs with multiple IDs works
+	res, _, err = s.Query(QIDs("1", "2"))
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+
+	// Test QueryOne with single ID works
+	sil, err := s.QueryOne(QIDs("1"))
+	require.NoError(t, err)
+	require.Equal(t, "1", sil.Id)
+}
+
 type silencesByID []*pb.Silence
 
 func (s silencesByID) Len() int           { return len(s) }
