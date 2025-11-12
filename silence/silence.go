@@ -736,7 +736,7 @@ type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		if len(ids) == 0 {
-			return fmt.Errorf("QIDs filter must have at least one id")
+			return errors.New("QIDs filter must have at least one id")
 		}
 		q.ids = append(q.ids, ids...)
 		return nil
