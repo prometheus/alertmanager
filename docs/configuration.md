@@ -145,7 +145,7 @@ inhibit_rules:
 # DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
-  [ - <mute_time_interval> ... ]
+  [ - <time_interval> ... ]
 
 # A list of time intervals for muting/activating routes.
 time_intervals:
