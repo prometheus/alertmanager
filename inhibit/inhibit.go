@@ -238,9 +238,11 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		if len(r.Sources) > 0 {
 			var inhibitorIDs []string
 			for _, source := range r.Sources {
-				if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq && !source.foundMatch {
-					inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
-					source.foundMatch = true
+				if !source.foundMatch {
+					if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq {
+						inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
+						source.foundMatch = true
+					}
 				} else {
 					break
 				}
