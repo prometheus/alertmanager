@@ -72,7 +72,7 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "slack_test")
+	f, err := os.CreateTemp(t.TempDir(), "slack_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String())
 	require.NoError(t, err, "writing to temp file failed")
@@ -94,7 +94,7 @@ func TestTrimmingSlackURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "slack_test_newline")
+	f, err := os.CreateTemp(t.TempDir(), "slack_test_newline")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n\n")
 	require.NoError(t, err, "writing to temp file failed")

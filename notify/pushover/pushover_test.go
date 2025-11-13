@@ -68,7 +68,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 	defer fn()
 
 	const userKey = "user key"
-	f, err := os.CreateTemp("", "pushover_user_key")
+	f, err := os.CreateTemp(t.TempDir(), "pushover_user_key")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(userKey)
 	require.NoError(t, err, "writing to temp file failed")
@@ -93,7 +93,7 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	defer fn()
 
 	const token = "token"
-	f, err := os.CreateTemp("", "pushover_token")
+	f, err := os.CreateTemp(t.TempDir(), "pushover_token")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(token)
 	require.NoError(t, err, "writing to temp file failed")

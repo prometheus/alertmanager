@@ -46,7 +46,7 @@ func TestRocketchatRetry(t *testing.T) {
 }
 
 func TestGettingRocketchatTokenFromFile(t *testing.T) {
-	f, err := os.CreateTemp("", "rocketchat_test")
+	f, err := os.CreateTemp(t.TempDir(), "rocketchat_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString("secret")
 	require.NoError(t, err, "writing to temp file failed")

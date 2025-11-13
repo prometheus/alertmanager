@@ -76,7 +76,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 
 	key := "key"
 
-	f, err := os.CreateTemp("", "opsgenie_test")
+	f, err := os.CreateTemp(t.TempDir(), "opsgenie_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
