@@ -14,6 +14,7 @@
 !/cluster/testdata/*.yml
 !/config/testdata/*.yml
 !/examples/ha/tls/*.yml
+!/examples/slack-update-messages.yml
 !/notify/email/testdata/*.yml
 !/doc/examples/simple.yml
 !/circle.yml

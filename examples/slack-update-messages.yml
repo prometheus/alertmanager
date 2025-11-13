@@ -1,0 +1,37 @@
+# Alertmanager configuration with Slack message updates
+global:
+  resolve_timeout: 5m
+
+# Route configuration - required!
+route:
+  receiver: 'slack'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+receivers:
+  - name: 'slack'
+    slack_configs:
+      - send_resolved: true # Required for message updates!
+        api_url: 'https://slack.com/api/chat.postMessage'
+        http_config:
+          authorization:
+            credentials: 'xoxb-your-bot-token'
+        channel: '#your-channel'
+        update_message: true  # This enables message updates!
+        
+        # Template for updated messages
+        title: '{{ .GroupLabels.alertname }} - {{ .Status | toUpper }}'
+        text: |
+          {{ if eq .Status "firing" }}
+          🔥 *{{ .Alerts.Firing | len }} alert(s) firing*
+          {{ else }}
+          ✅ *All alerts resolved*
+          {{ end }}
+          
+          {{ range .Alerts }}
+          • {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else }}{{ .Labels.alertname }}{{ end }}
+          {{ end }}
+        
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
