@@ -103,7 +103,7 @@ func TestLogSnapshot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		f, err := os.CreateTemp("", "snapshot")
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
 		l1 := &Log{
@@ -132,7 +132,7 @@ func TestLogSnapshot(t *testing.T) {
 }
 
 func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := os.CreateTemp("", "snapshot")
+	f, err := os.CreateTemp(t.TempDir(), "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	stopc := make(chan struct{})
 	reg := prometheus.NewPedanticRegistry()

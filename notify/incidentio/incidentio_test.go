@@ -77,7 +77,7 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "incidentio_test")
+	f, err := os.CreateTemp(t.TempDir(), "incidentio_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
