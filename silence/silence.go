@@ -278,6 +278,7 @@ type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
 	gcDuration                            prometheus.Summary
+	gcErrorsTotal                         prometheus.Counter
 	snapshotDuration                      prometheus.Summary
 	snapshotSize                          prometheus.Gauge
 	queriesTotal                          prometheus.Counter
@@ -322,6 +323,10 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name:       "alertmanager_silences_gc_duration_seconds",
 		Help:       "Duration of the last silence garbage collection cycle.",
 		Objectives: map[float64]float64{},
+	})
+	m.gcErrorsTotal = promauto.With(r).NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_gc_errors_total",
+		Help: "How many silence GC errors were encountered.",
 	})
 	m.snapshotDuration = promauto.With(r).NewSummary(prometheus.SummaryOpts{
 		Name:       "alertmanager_silences_snapshot_duration_seconds",
@@ -540,8 +545,7 @@ Loop:
 			break Loop
 		case <-t.C:
 			if err := runMaintenance(doMaintenance); err != nil {
-				// @tjhop: this should probably log at error level
-				s.logger.Info("Running maintenance failed", "err", err)
+				s.logger.Error("Running maintenance failed", "err", err)
 			}
 		}
 	}
@@ -564,6 +568,7 @@ func (s *Silences) GC() (int, error) {
 
 	now := s.nowUTC()
 	var n int
+	var errs error
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -586,15 +591,21 @@ func (s *Silences) GC() (int, error) {
 	// Iterate state map directly (fast - no extra lookups).
 	for _, sv := range s.vi {
 		sil, ok := s.st[sv.id]
-		// FIXME: in both these cases rather than breaking GC forever
-		// we should increase an error metric, log, and drop the culprit silence.
+		expire := false
 		if !ok {
-			return n, errors.New("silence in index missing from state")
+			// Silence in version index but not in state - remove from version index and count error
+			s.metrics.gcErrorsTotal.Inc()
+			errs = errors.Join(errs, fmt.Errorf("silence %s in version index missing from state", sv.id))
+			// not adding to targetVi effectively removes it
+			continue
 		}
 		if sil.ExpiresAt.IsZero() {
-			return n, errors.New("unexpected zero expiration timestamp")
+			// Invalid expiration timestamp - remove silence and count error
+			s.metrics.gcErrorsTotal.Inc()
+			errs = errors.Join(errs, fmt.Errorf("silence %s has zero expiration timestamp", sil.Silence.Id))
+			expire = true
 		}
-		if !sil.ExpiresAt.After(now) {
+		if expire || !sil.ExpiresAt.After(now) {
 			delete(s.st, sil.Silence.Id)
 			delete(s.mi, sil.Silence.Id)
 			n++
@@ -610,7 +621,7 @@ func (s *Silences) GC() (int, error) {
 	s.vi = targetVi
 	s.updateSizeMetrics()
 
-	return n, nil
+	return n, errs
 }
 
 func validateMatcher(m *pb.Matcher) error {
