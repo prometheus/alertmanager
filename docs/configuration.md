@@ -116,6 +116,7 @@ global:
   [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
+  [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
@@ -1875,8 +1876,9 @@ API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Serv
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The API key to use when talking to the WeChat API.
+# The API key to use when talking to the WeChat API. Either api_secret or api_secret_file should be set.
 [ api_secret: <secret> | default = global.wechat_api_secret ]
+[ api_secret_file: <string> | default = global.wechat_api_secret_file ]
 
 # The WeChat API URL.
 [ api_url: <string> | default = global.wechat_api_url ]

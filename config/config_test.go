@@ -1593,3 +1593,48 @@ func TestInhibitRuleEqual(t *testing.T) {
 	r = c.InhibitRules[0]
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
+
+func TestWechatNoAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.wechat-no-api-secret.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.wechat-no-api-url.yml", err)
+	}
+	if err.Error() != "no global Wechat Api Secret set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Wechat Api Secret set either inline or in a file", err.Error())
+	}
+}
+
+func TestWechatBothAPIURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.wechat-both-file-and-secret.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.wechat-both-file-and-secret.yml", err)
+	}
+	if err.Error() != "at most one of wechat_api_secret & wechat_api_secret_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of wechat_api_secret & wechat_api_secret_file must be configured", err.Error())
+	}
+}
+
+func TestWechatGlobalAPISecretFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.wechat-default-api-secret-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.wechat-default-api-secret-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].WechatConfigs[0]
+	if firstConfig.APISecretFile != "/global_file" || string(firstConfig.APISecret) != "" {
+		t.Fatalf("Invalid Wechat API Secret file: %s\nExpected: %s", firstConfig.APISecretFile, "/global_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].WechatConfigs[1]
+	if secondConfig.APISecretFile != "/override_file" || string(secondConfig.APISecret) != "" {
+		t.Fatalf("Invalid Wechat API Secret file: %s\nExpected: %s", secondConfig.APISecretFile, "/override_file")
+	}
+
+	// override the global file with an inline URL
+	thirdConfig := conf.Receivers[0].WechatConfigs[2]
+	if string(thirdConfig.APISecret) != "my_inline_secret" || thirdConfig.APISecretFile != "" {
+		t.Fatalf("Invalid Wechat API Secret: %s\nExpected: %s", string(thirdConfig.APISecret), "my_inline_secret")
+	}
+}
