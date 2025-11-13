@@ -590,6 +590,18 @@ func (am *Alertmanager) QuerySilence(match ...string) ([]TestSilence, error) {
 	return parseSilenceQueryResponse(out)
 }
 
+// QueryExpiredSilence queries expired silences using the 'amtool silence query --expired --within' command.
+func (am *Alertmanager) QueryExpiredSilence(match ...string) ([]TestSilence, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := append([]string{amURLFlag, "silence", "query", "--expired", "--within=1h"}, match...)
+	cmd := exec.Command(amtool, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		am.t.Error("Silence query command failed: ", err)
+	}
+	return parseSilenceQueryResponse(out)
+}
+
 var silenceHeaderFields = []string{"ID", "Matchers", "Ends At", "Created By", "Comment"}
 
 func parseSilenceQueryResponse(data []byte) ([]TestSilence, error) {
@@ -654,6 +666,30 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) expireSilenceCommand(sil *TestSilence) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "silence", "expire", sil.ID()}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
+}
+
+// ExportSilences exports all silences to JSON format using 'amtool silence query -o json'.
+func (am *Alertmanager) ExportSilences() ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "query", "-o", "json"}
+	cmd := exec.Command(amtool, args...)
+	return cmd.Output()
+}
+
+// ImportSilences imports silences from a JSON file using 'amtool silence import'.
+func (am *Alertmanager) ImportSilences(filename string) ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "import", filename}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
+}
+
+// ExpireSilenceByID expires a silence by its ID using 'amtool silence expire'.
+func (am *Alertmanager) ExpireSilenceByID(id string) ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "expire", id}
 	cmd := exec.Command(amtool, args...)
 	return cmd.CombinedOutput()
 }
