@@ -439,6 +439,53 @@ func TestJiraNotify(t *testing.T) {
 		errMsg             string
 	}{
 		{
+			title: "create new issue with group labels as hash identifier",
+			cfg: &config.JiraConfig{
+				Summary:           `{{ template "jira.default.summary" . }}`,
+				Description:       `{{ template "jira.default.description" . }}`,
+				IssueType:         "Incident",
+				Project:           "OPS",
+				Priority:          `{{ template "jira.default.priority" . }}`,
+				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+				HashIdentifier:    `{{ .GroupLabels }}`,
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "[FIRING:1] test (vm1 critical)",
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Labels: []string{
+						"ALERT{602a8de61908ae3ce97961992ec1ed4ea9500c331b79baaf6f565ccdc1750c0c}",
+						"alertmanager",
+						"test",
+					},
+					Project:  &issueProject{Key: "OPS"},
+					Priority: &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+			errMsg:             "",
+		},
+		{
 			title: "create new issue",
 			cfg: &config.JiraConfig{
 				Summary:           `{{ template "jira.default.summary" . }}`,

@@ -1076,6 +1076,10 @@ project: <string>
 # Issue description template.
 [ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
 
+# overrides the default ALERT{<group-hash>} jira label used to correlate issues.
+# Example: {{ .GroupLabels }}
+[ hash_identifier: <tmpl_string> ]
+
 # Labels to be added to the issue.
 labels:
   [ - <tmpl_string> ... ]
