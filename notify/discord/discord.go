@@ -95,10 +95,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	n.logger.Debug("extracted group key", "key", key)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
 	alerts := types.Alerts(as...)
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
 		return false, err
@@ -109,14 +110,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	if truncated {
-		n.logger.Warn("Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+		logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
 	}
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
 		return false, err
 	}
 	if truncated {
-		n.logger.Warn("Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
+		logger.Warn("Truncated message", "max_runes", maxDescriptionLenRunes)
 	}
 
 	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
@@ -124,7 +125,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	if truncated {
-		n.logger.Warn("Truncated message", "key", key, "max_runes", maxContentLenRunes)
+		logger.Warn("Truncated message", "max_runes", maxContentLenRunes)
 	}
 
 	color := colorGrey
@@ -160,7 +161,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if _, err := netUrl.Parse(n.conf.AvatarURL); err == nil {
 			w.AvatarURL = n.conf.AvatarURL
 		} else {
-			n.logger.Warn("Bad avatar url", "key", key)
+			logger.Warn("Bad avatar url", "key", key)
 		}
 	}
 

@@ -555,8 +555,7 @@ Loop:
 		return
 	}
 	if err := runMaintenance(doMaintenance); err != nil {
-		// @tjhop: this should probably log at error level
-		s.logger.Info("Creating shutdown snapshot failed", "err", err)
+		s.logger.Error("Creating shutdown snapshot failed", "err", err)
 	}
 }
 
