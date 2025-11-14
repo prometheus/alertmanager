@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -254,7 +254,8 @@ routes:
 		var keys []string
 
 		for _, r := range tree.Match(test.input) {
-			matches = append(matches, &r.RouteOpts)
+			options := r.Options()
+			matches = append(matches, &options)
 			keys = append(keys, r.Key())
 		}
 
@@ -344,8 +345,8 @@ routes:
 	}
 
 	var got []string
-	tree.Walk(func(r *Route) {
-		got = append(got, r.RouteOpts.Receiver)
+	tree.Walk(func(r Route) {
+		got = append(got, r.Options().Receiver)
 	})
 
 	if !reflect.DeepEqual(got, expected) {
@@ -375,12 +376,12 @@ routes:
 	}
 
 	tree := NewRoute(&ctree, nil)
-	parent := tree.Routes[0]
-	child1 := parent.Routes[0]
-	child2 := parent.Routes[1]
-	require.True(t, parent.RouteOpts.GroupByAll)
-	require.True(t, child1.RouteOpts.GroupByAll)
-	require.False(t, child2.RouteOpts.GroupByAll)
+	parent := tree.Routes()[0]
+	child1 := parent.Routes()[0]
+	child2 := parent.Routes()[1]
+	require.True(t, parent.Options().GroupByAll)
+	require.True(t, child1.Options().GroupByAll)
+	require.False(t, child2.Options().GroupByAll)
 }
 
 func TestRouteMatchers(t *testing.T) {
@@ -604,7 +605,8 @@ routes:
 		var keys []string
 
 		for _, r := range tree.Match(test.input) {
-			matches = append(matches, &r.RouteOpts)
+			options := r.Options()
+			matches = append(matches, &options)
 			keys = append(keys, r.Key())
 		}
 
@@ -840,7 +842,8 @@ routes:
 		var keys []string
 
 		for _, r := range tree.Match(test.input) {
-			matches = append(matches, &r.RouteOpts)
+			options := r.Options()
+			matches = append(matches, &options)
 			keys = append(keys, r.Key())
 		}
 
@@ -915,7 +918,7 @@ routes:
 	}
 
 	var actual []string
-	r.Walk(func(r *Route) {
+	r.Walk(func(r Route) {
 		actual = append(actual, r.ID())
 	})
 	require.ElementsMatch(t, actual, expected)

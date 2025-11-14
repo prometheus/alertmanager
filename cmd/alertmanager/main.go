@@ -353,7 +353,7 @@ func run() int {
 		disp.Stop()
 	}()
 
-	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+	groupFn := func(routeFilter func(dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) map[dispatch.Route]map[model.Fingerprint]dispatch.AggregationGroup {
 		return disp.Groups(routeFilter, alertFilter)
 	}
 
@@ -425,8 +425,8 @@ func run() int {
 		// Build the routing tree and record which receivers are used.
 		routes := dispatch.NewRoute(conf.Route, nil)
 		activeReceivers := make(map[string]struct{})
-		routes.Walk(func(r *dispatch.Route) {
-			activeReceivers[r.RouteOpts.Receiver] = struct{}{}
+		routes.Walk(func(r dispatch.Route) {
+			activeReceivers[r.Options().Receiver] = struct{}{}
 		})
 
 		// Build the map of receiver to integrations.
@@ -494,12 +494,12 @@ func run() int {
 		})
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, *dispatchMaintenanceInterval, nil, logger, dispMetrics)
-		routes.Walk(func(r *dispatch.Route) {
-			if r.RouteOpts.RepeatInterval > *retention {
+		routes.Walk(func(r dispatch.Route) {
+			if r.Options().RepeatInterval > *retention {
 				configLogger.Warn(
 					"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
 					"repeat_interval",
-					r.RouteOpts.RepeatInterval,
+					r.Options().RepeatInterval,
 					"retention",
 					*retention,
 					"route",
@@ -507,13 +507,13 @@ func run() int {
 				)
 			}
 
-			if r.RouteOpts.RepeatInterval < r.RouteOpts.GroupInterval {
+			if r.Options().RepeatInterval < r.Options().GroupInterval {
 				configLogger.Warn(
 					"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
 					"repeat_interval",
-					r.RouteOpts.RepeatInterval,
+					r.Options().RepeatInterval,
 					"group_interval",
-					r.RouteOpts.GroupInterval,
+					r.Options().GroupInterval,
 					"route",
 					r.Key(),
 				)

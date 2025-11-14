@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -38,30 +38,50 @@ var DefaultRouteOpts = RouteOpts{
 	MuteTimeIntervals: []string{},
 }
 
+type Route interface {
+	// Key returns a key for the route. It does not uniquely identify the route in general.
+	Key() string
+	// ID returns a unique identifier for the route.
+	ID() string
+	// Walk traverses the route tree in depth-first order.
+	Walk(func(Route))
+	// Match does a depth-first left-to-right search through the route tree
+	// and returns the matching routing nodes.
+	Match(model.LabelSet) []Route
+	// Matchers returns the matchers for the route.
+	Matchers() labels.Matchers
+	// Options returns the options for the route.
+	Options() RouteOpts
+	// Continues returns true if the route will continue matching alerts.
+	Continues() bool
+	// Routes returns the child routes of the route.
+	Routes() []Route
+}
+
 // A Route is a node that contains definitions of how to handle alerts.
-type Route struct {
-	parent *Route
+type route struct {
+	parent Route
 
 	// The configuration parameters for matches of this route.
 	RouteOpts RouteOpts
 
 	// Matchers an alert has to fulfill to match
 	// this route.
-	Matchers labels.Matchers
+	matchers labels.Matchers
 
 	// If true, an alert matches further routes on the same level.
 	Continue bool
 
 	// Children routes of this route.
-	Routes []*Route
+	routes []Route
 }
 
 // NewRoute returns a new route.
-func NewRoute(cr *config.Route, parent *Route) *Route {
+func NewRoute(cr *config.Route, parent Route) Route {
 	// Create default and overwrite with configured settings.
 	opts := DefaultRouteOpts
 	if parent != nil {
-		opts = parent.RouteOpts
+		opts = parent.Options()
 	}
 
 	if cr.Receiver != "" {
@@ -121,21 +141,21 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
 	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals
 
-	route := &Route{
+	r := &route{
 		parent:    parent,
 		RouteOpts: opts,
-		Matchers:  matchers,
+		matchers:  matchers,
 		Continue:  cr.Continue,
 	}
 
-	route.Routes = NewRoutes(cr.Routes, route)
+	r.routes = NewRoutes(cr.Routes, r)
 
-	return route
+	return r
 }
 
 // NewRoutes returns a slice of routes.
-func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
-	res := []*Route{}
+func NewRoutes(croutes []*config.Route, parent Route) []Route {
+	res := []Route{}
 	for _, cr := range croutes {
 		res = append(res, NewRoute(cr, parent))
 	}
@@ -144,19 +164,19 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
-func (r *Route) Match(lset model.LabelSet) []*Route {
-	if !r.Matchers.Matches(lset) {
+func (r *route) Match(lset model.LabelSet) []Route {
+	if !r.matchers.Matches(lset) {
 		return nil
 	}
 
-	var all []*Route
+	var all []Route
 
-	for _, cr := range r.Routes {
+	for _, cr := range r.routes {
 		matches := cr.Match(lset)
 
 		all = append(all, matches...)
 
-		if matches != nil && !cr.Continue {
+		if matches != nil && !cr.Continues() {
 			break
 		}
 	}
@@ -169,20 +189,24 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
+func (r *route) Matchers() labels.Matchers {
+	return r.matchers
+}
+
 // Key returns a key for the route. It does not uniquely identify the route in general.
-func (r *Route) Key() string {
+func (r *route) Key() string {
 	b := strings.Builder{}
 
 	if r.parent != nil {
 		b.WriteString(r.parent.Key())
 		b.WriteRune('/')
 	}
-	b.WriteString(r.Matchers.String())
+	b.WriteString(r.matchers.String())
 	return b.String()
 }
 
 // ID returns a unique identifier for the route.
-func (r *Route) ID() string {
+func (r *route) ID() string {
 	b := strings.Builder{}
 
 	if r.parent != nil {
@@ -190,11 +214,11 @@ func (r *Route) ID() string {
 		b.WriteRune('/')
 	}
 
-	b.WriteString(r.Matchers.String())
+	b.WriteString(r.matchers.String())
 
 	if r.parent != nil {
-		for i := range r.parent.Routes {
-			if r == r.parent.Routes[i] {
+		for i := range r.parent.Routes() {
+			if r == r.parent.Routes()[i] {
 				b.WriteRune('/')
 				b.WriteString(strconv.Itoa(i))
 				break
@@ -206,11 +230,23 @@ func (r *Route) ID() string {
 }
 
 // Walk traverses the route tree in depth-first order.
-func (r *Route) Walk(visit func(*Route)) {
+func (r *route) Walk(visit func(Route)) {
 	visit(r)
-	for i := range r.Routes {
-		r.Routes[i].Walk(visit)
+	for i := range r.Routes() {
+		r.Routes()[i].Walk(visit)
 	}
+}
+
+func (r *route) Options() RouteOpts {
+	return r.RouteOpts
+}
+
+func (r *route) Routes() []Route {
+	return r.routes
+}
+
+func (r *route) Continues() bool {
+	return r.Continue
 }
 
 // RouteOpts holds various routing options necessary for processing alerts

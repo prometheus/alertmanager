@@ -30,7 +30,7 @@ type routingTestDefinition struct {
 	configFile        string
 }
 
-func checkResolvedReceivers(mainRoute *dispatch.Route, ls models.LabelSet, expectedReceivers []string) error {
+func checkResolvedReceivers(mainRoute dispatch.Route, ls models.LabelSet, expectedReceivers []string) error {
 	resolvedReceivers, err := resolveAlertReceivers(mainRoute, &ls)
 	if err != nil {
 		return err

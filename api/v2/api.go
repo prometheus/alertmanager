@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -57,7 +57,7 @@ type API struct {
 	peer           cluster.ClusterPeer
 	silences       *silence.Silences
 	alerts         provider.Alerts
-	alertGroups    groupsFn
+	dispatchGroups dispatchGroupsFn
 	getAlertStatus getAlertStatusFn
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
@@ -67,7 +67,7 @@ type API struct {
 	// resolveTimeout represents the default resolve timeout that an alert is
 	// assigned if no end time is specified.
 	alertmanagerConfig *config.Config
-	route              *dispatch.Route
+	route              dispatch.Route
 	setAlertStatus     setAlertStatusFn
 
 	logger *slog.Logger
@@ -77,7 +77,7 @@ type API struct {
 }
 
 type (
-	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	dispatchGroupsFn func(func(dispatch.Route) bool, func(*types.Alert, time.Time) bool) map[dispatch.Route]map[prometheus_model.Fingerprint]dispatch.AggregationGroup
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
@@ -86,7 +86,7 @@ type (
 // NewAPI returns a new Alertmanager API v2.
 func NewAPI(
 	alerts provider.Alerts,
-	gf groupsFn,
+	dgf dispatchGroupsFn,
 	asf getAlertStatusFn,
 	gmf groupMutedFunc,
 	silences *silence.Silences,
@@ -97,7 +97,7 @@ func NewAPI(
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: asf,
-		alertGroups:    gf,
+		dispatchGroups: dgf,
 		groupMutedFunc: gmf,
 		peer:           peer,
 		silences:       silences,
@@ -282,7 +282,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		routes := api.route.Match(a.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
-			receivers = append(receivers, r.RouteOpts.Receiver)
+			receivers = append(receivers, r.Options().Receiver)
 		}
 
 		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
@@ -394,9 +394,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}
 
-	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
-		return func(r *dispatch.Route) bool {
-			receiver := r.RouteOpts.Receiver
+	rf := func(receiverFilter *regexp.Regexp) func(r dispatch.Route) bool {
+		return func(r dispatch.Route) bool {
+			receiver := r.Options().Receiver
 			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
 				return false
 			}
@@ -405,11 +405,68 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers := api.alertGroups(rf, af)
+	dispatchGroups := api.dispatchGroups(rf, af)
 
-	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
+	groups := AlertGroups{}
+	// Keep a list of receivers for an alert to prevent checking each alert
+	// again against all routes. The alert has already matched against this
+	// route on ingestion.
+	receivers := map[prometheus_model.Fingerprint][]string{}
 
-	for _, alertGroup := range alertGroups {
+	now := time.Now()
+	for route, ags := range dispatchGroups {
+		if !rf(route) {
+			continue
+		}
+
+		for _, ag := range ags {
+			receiver := route.Options().Receiver
+			alertGroup := &AlertGroup{
+				Labels:   ag.Labels(),
+				Receiver: receiver,
+				GroupKey: ag.GroupKey(),
+				RouteID:  ag.RouteID(),
+			}
+
+			alerts := ag.Alerts()
+			filteredAlerts := make([]*types.Alert, 0, len(alerts))
+			for _, a := range alerts {
+				if !af(a, now) {
+					continue
+				}
+
+				fp := a.Fingerprint()
+				if r, ok := receivers[fp]; ok {
+					// Receivers slice already exists. Add
+					// the current receiver to the slice.
+					receivers[fp] = append(r, receiver)
+				} else {
+					// First time we've seen this alert fingerprint.
+					// Initialize a new receivers slice.
+					receivers[fp] = []string{receiver}
+				}
+
+				filteredAlerts = append(filteredAlerts, a)
+			}
+			if len(filteredAlerts) == 0 {
+				continue
+			}
+			alertGroup.Alerts = filteredAlerts
+
+			groups = append(groups, alertGroup)
+		}
+	}
+	sort.Sort(groups)
+	for i := range groups {
+		sort.Sort(groups[i].Alerts)
+	}
+	for i := range receivers {
+		sort.Strings(receivers[i])
+	}
+
+	res := make(open_api_models.AlertGroups, 0, len(groups))
+
+	for _, alertGroup := range groups {
 		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
 		if !*params.Muted && isMuted {
 			continue
@@ -423,7 +480,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
-			receivers := allReceivers[fp]
+			receivers := receivers[fp]
 			status := api.getAlertStatus(fp)
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
