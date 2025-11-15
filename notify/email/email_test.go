@@ -832,7 +832,6 @@ func TestEmailGetPassword(t *testing.T) {
 			errMsg: "could not read",
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			email := &Email{
 				conf: &config.EmailConfig{},
@@ -844,9 +843,9 @@ func TestEmailGetPassword(t *testing.T) {
 			if len(tc.errMsg) > 0 {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errMsg)
-				require.Equal(t, "", password)
+				require.Empty(t, password)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "secret", password)
 			}
 		})
@@ -888,7 +887,6 @@ func TestEmailGetSecret(t *testing.T) {
 			errMsg: "could not read",
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			email := &Email{
 				conf: &config.EmailConfig{},
@@ -900,9 +898,9 @@ func TestEmailGetSecret(t *testing.T) {
 			if len(tc.errMsg) > 0 {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errMsg)
-				require.Equal(t, "", secret)
+				require.Empty(t, secret)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "secret", secret)
 			}
 		})
