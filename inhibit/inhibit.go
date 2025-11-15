@@ -209,7 +209,7 @@ type InhibitRule struct {
 
 	// Index of fingerprints of source alert equal labels to fingerprint of source alert.
 	// The index helps speed up source alert lookups from scache significantely in scenarios with 100s of source alerts cached.
-	// The index items might overwrite eachother if multiple source alerts have exact equal labels.
+	// The index items might overwrite each other if multiple source alerts have exact equal labels.
 	// Overwrites only happen if the new source alert has bigger EndsAt value.
 	sindex *index
 
