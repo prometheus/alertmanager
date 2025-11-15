@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -555,12 +555,12 @@ func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
 
 func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 	if !existing {
-		l.alerts.Inc()
+		l.alerts.Add(1)
 	}
 }
 
 func (l *limitCountCallback) PostDelete(_ *types.Alert) {
-	l.alerts.Dec()
+	l.alerts.Add(-1)
 }
 
 func TestAlertsConcurrently(t *testing.T) {
