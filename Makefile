@@ -40,7 +40,7 @@ assets-tarball: ui/app/script.js ui/app/index.html
 	scripts/package_assets.sh
 
 asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
-	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
+	$(GO) generate $(GOOPTS) ./asset
 	@$(GOFMT) -w ./asset
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
