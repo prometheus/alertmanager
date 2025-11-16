@@ -165,7 +165,7 @@ func TestAggrGroup(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// New alert should come in after group interval.
 		ag.insert(a3)
 
@@ -207,7 +207,7 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected alerts %v but got %v", exp, batch)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// New alert should come in after group interval.
 		ag.insert(a3)
 

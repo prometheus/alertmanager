@@ -325,7 +325,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 
 	// Create alerts with large annotations
 	var alerts []*types.Alert
-	for i := 0; i < 10; i++ { // 10 alerts * 100KB = 1MB total in annotations alone
+	for i := range 10 { // 10 alerts * 100KB = 1MB total in annotations alone
 		alert := &types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
@@ -394,7 +394,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 
 	// Create many alerts with many labels to push size over limit even without annotations
 	var alerts []*types.Alert
-	for i := 0; i < 100; i++ { // Many alerts
+	for i := range 100 { // Many alerts
 		labels := model.LabelSet{
 			"alertname": model.LabelValue("TestAlert" + string(rune('0'+i%10))),
 			"severity":  "critical",
@@ -403,7 +403,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 		}
 
 		// Add many extra labels with long values
-		for j := 0; j < 50; j++ {
+		for j := range 50 {
 			labelName := model.LabelName("label_" + string(rune('a'+j%26)) + "_" + string(rune('0'+j/26)))
 			labelValue := make([]byte, 1024) // 1KB per label value
 			for k := range labelValue {

@@ -136,7 +136,7 @@ func (t *AcceptanceTest) Do(at float64, f func()) {
 func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *AlertmanagerCluster {
 	amc := AlertmanagerCluster{}
 
-	for i := 0; i < size; i++ {
+	for range size {
 		am := &Alertmanager{
 			t:    t,
 			opts: t.opts,
@@ -353,7 +353,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		resp, err := http.Get(am.getURL("/"))
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
@@ -380,7 +380,7 @@ func (am *Alertmanager) WaitForCluster(size int) error {
 	var status general.GetStatusOK
 
 	// Poll for 2s
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		status, err := am.clientV2.General.GetStatus(params)
 		if err != nil {
 			return err

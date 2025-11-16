@@ -276,7 +276,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	// Create silences using Set() to properly populate indices
-	for i := 0; i < numSilences; i++ {
+	for i := range numSilences {
 		id := strconv.Itoa(i)
 		// Include an offset to avoid optimizations.
 		patA := "A{4}|" + id
@@ -343,7 +343,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	// Create silences with pre-compiled matchers
-	for i := 0; i < numSilences; i++ {
+	for i := range numSilences {
 		id := strconv.Itoa(i)
 		patA := "A{4}|" + id
 		patB := id
