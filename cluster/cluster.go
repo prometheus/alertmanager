@@ -15,10 +15,11 @@ package cluster
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/big"
 	"net"
 	"sort"
 	"strconv"
