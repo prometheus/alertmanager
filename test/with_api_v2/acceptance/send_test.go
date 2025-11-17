@@ -419,6 +419,68 @@ receivers:
 	}
 }
 
+func TestColdStart(t *testing.T) {
+	t.Parallel()
+
+	// This integration test ensures that the first alert isn't notified before
+	// the AlertManager process has started considering the resend delay.
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  6s
+  repeat_interval: 10m
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+	amc.Push(At(1), Alert("alertname", "test1").Active(-100))
+	amc.Push(At(2), Alert("alertname", "test2"))
+
+	// Alerts are dispatched 5 seconds after the AlertManager process has started.
+	// start delay: 5s
+	// first alert received at: 1s
+	// first alert dispatched at: 5s - 1s = 4s
+	co.Want(Between(4, 5),
+		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test2").Active(4),
+	)
+
+	// Reload AlertManager process.
+	at.Do(At(5), amc.Reload)
+
+	amc.Push(At(6), Alert("alertname", "test3").Active(-100))
+	amc.Push(At(7), Alert("alertname", "test4"))
+
+	// Group interval is applied on top of start delay.
+	// start delay: 5s
+	// group interval: 6s
+	// alerts dispatched at: 5s + 6s = 11s
+	co.Want(Between(11, 11.5),
+		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test2").Active(4),
+		Alert("alertname", "test3").Active(6),
+		Alert("alertname", "test4").Active(7),
+	)
+
+	at.Run("--dispatch.start-delay", "5s")
+
+	t.Log(co.Check())
+}
+
 func TestReload(t *testing.T) {
 	t.Parallel()
 
