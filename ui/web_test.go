@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/common/route"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDebugHandlersWithRoutePrefix(t *testing.T) {
@@ -37,21 +38,15 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d for %s, got %d. Body: %s", http.StatusOK, req.URL.Path, w.Code, w.Body.String())
-	}
-	if w.Body.Len() == 0 {
-		t.Error("Expected non-empty response body for pprof index")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotEqual(t, 0, w.Body.Len())
 
 	// Test GET request to pprof heap endpoint
 	req = httptest.NewRequest("GET", routePrefix+"/debug/pprof/heap", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d for %s, got %d", http.StatusOK, req.URL.Path, w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 
 	// Test without route prefix (should also work)
 	router2 := route.New()
@@ -61,7 +56,5 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	w = httptest.NewRecorder()
 	router2.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d for %s without prefix, got %d", http.StatusOK, req.URL.Path, w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
