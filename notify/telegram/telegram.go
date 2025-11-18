@@ -64,9 +64,17 @@ func New(conf *config.TelegramConfig, t *template.Template, l *slog.Logger, http
 }
 
 func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+	key, ok := notify.GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
+
 	var (
 		err  error
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		data = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
@@ -74,17 +82,12 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 	}
 
-	key, ok := notify.GroupKey(ctx)
-	if !ok {
-		return false, fmt.Errorf("group key missing")
-	}
-
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 	if err != nil {
 		return false, err
 	}
 	if truncated {
-		n.logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
+		logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
 	}
 
 	n.client.Token, err = n.getBotToken()
@@ -101,7 +104,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err != nil {
 		return true, err
 	}
-	n.logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
+	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
 	return false, nil
 }

@@ -298,6 +298,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.RocketchatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.MattermostConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -674,6 +677,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				rocketchat.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
+		for _, mattermost := range rcv.MattermostConfigs {
+			if mattermost.HTTPConfig == nil {
+				mattermost.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -996,6 +1004,8 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
 type InhibitRule struct {
+	// Name is an optional name for the inhibition rule.
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 	// SourceMatch defines a set of labels that have to equal the given
 	// value for source alerts. Deprecated. Remove before v1.0 release.
 	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
@@ -1068,6 +1078,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

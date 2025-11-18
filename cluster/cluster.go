@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,10 +15,10 @@ package cluster
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net"
 	"sort"
 	"strconv"
@@ -27,8 +27,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/memberlist"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // ClusterPeer represents a single Peer in a gossip cluster.
@@ -59,7 +60,8 @@ type Peer struct {
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
-	resolvedPeers []string
+	resolvedPeers       []string
+	resolvePeersTimeout time.Duration
 
 	mtx    sync.RWMutex
 	states map[string]State
@@ -116,15 +118,16 @@ func (s PeerStatus) String() string {
 }
 
 const (
-	DefaultPushPullInterval  = 60 * time.Second
-	DefaultGossipInterval    = 200 * time.Millisecond
-	DefaultTCPTimeout        = 10 * time.Second
-	DefaultProbeTimeout      = 500 * time.Millisecond
-	DefaultProbeInterval     = 1 * time.Second
-	DefaultReconnectInterval = 10 * time.Second
-	DefaultReconnectTimeout  = 6 * time.Hour
-	DefaultRefreshInterval   = 15 * time.Second
-	MaxGossipPacketSize      = 1400
+	DefaultPushPullInterval    = 60 * time.Second
+	DefaultGossipInterval      = 200 * time.Millisecond
+	DefaultTCPTimeout          = 10 * time.Second
+	DefaultProbeTimeout        = 500 * time.Millisecond
+	DefaultProbeInterval       = 1 * time.Second
+	DefaultReconnectInterval   = 10 * time.Second
+	DefaultReconnectTimeout    = 6 * time.Hour
+	DefaultRefreshInterval     = 15 * time.Second
+	DefaultResolvePeersTimeout = 15 * time.Second
+	MaxGossipPacketSize        = 1400
 )
 
 func Create(
@@ -137,11 +140,13 @@ func Create(
 	pushPullInterval time.Duration,
 	gossipInterval time.Duration,
 	tcpTimeout time.Duration,
+	resolveTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
 	label string,
+	name string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -166,7 +171,9 @@ func Create(
 		}
 	}
 
-	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
+	ctx, cancel := context.WithTimeout(context.Background(), resolveTimeout)
+	defer cancel()
+	resolvedPeers, err := resolvePeers(ctx, knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, fmt.Errorf("resolve peers: %w", err)
 	}
@@ -187,23 +194,27 @@ func Create(
 		advertisePort = bindPort
 	}
 
-	// TODO(fabxc): generate human-readable but random names?
-	name, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
-	if err != nil {
-		return nil, err
+	// Generate a random name if none is provided.
+	if name == "" {
+		id, err := ulid.New(ulid.Now(), rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+		name = id.String()
 	}
 
 	p := &Peer{
-		states:        map[string]State{},
-		stopc:         make(chan struct{}),
-		readyc:        make(chan struct{}),
-		logger:        l,
-		peers:         map[string]peer{},
-		resolvedPeers: resolvedPeers,
-		knownPeers:    knownPeers,
+		states:              map[string]State{},
+		stopc:               make(chan struct{}),
+		readyc:              make(chan struct{}),
+		logger:              l,
+		peers:               map[string]peer{},
+		resolvedPeers:       resolvedPeers,
+		resolvePeersTimeout: resolveTimeout,
+		knownPeers:          knownPeers,
 	}
 
-	p.register(reg, name.String())
+	p.register(reg, name)
 
 	retransmit := len(knownPeers) / 2
 	if retransmit < 3 {
@@ -212,13 +223,14 @@ func Create(
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
-	cfg.Name = name.String()
+	cfg.Name = name
 	cfg.BindAddr = bindHost
 	cfg.BindPort = bindPort
 	cfg.Delegate = p.delegate
 	cfg.Ping = p.delegate
 	cfg.Alive = p.delegate
 	cfg.Events = p.delegate
+	cfg.Conflict = p.delegate
 	cfg.GossipInterval = gossipInterval
 	cfg.PushPullInterval = pushPullInterval
 	cfg.TCPTimeout = tcpTimeout
@@ -333,7 +345,7 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 }
 
 func (p *Peer) register(reg prometheus.Registerer, name string) {
-	peerInfo := prometheus.NewGauge(
+	peerInfo := promauto.With(reg).NewGauge(
 		prometheus.GaugeOpts{
 			Name:        "alertmanager_cluster_peer_info",
 			Help:        "A metric with a constant '1' value labeled by peer name.",
@@ -341,7 +353,7 @@ func (p *Peer) register(reg prometheus.Registerer, name string) {
 		},
 	)
 	peerInfo.Set(1)
-	clusterFailedPeers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	promauto.With(reg).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_failed_peers",
 		Help: "Number indicating the current number of failed peers in the cluster.",
 	}, func() float64 {
@@ -350,40 +362,37 @@ func (p *Peer) register(reg prometheus.Registerer, name string) {
 
 		return float64(len(p.failedPeers))
 	})
-	p.failedReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.failedReconnectionsCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_reconnections_failed_total",
 		Help: "A counter of the number of failed cluster peer reconnection attempts.",
 	})
 
-	p.reconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.reconnectionsCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_reconnections_total",
 		Help: "A counter of the number of cluster peer reconnections.",
 	})
 
-	p.failedRefreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.failedRefreshCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_refresh_join_failed_total",
 		Help: "A counter of the number of failed cluster peer joined attempts via refresh.",
 	})
-	p.refreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.refreshCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_refresh_join_total",
 		Help: "A counter of the number of cluster peer joined via refresh.",
 	})
 
-	p.peerLeaveCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.peerLeaveCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_peers_left_total",
 		Help: "A counter of the number of peers that have left.",
 	})
-	p.peerUpdateCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.peerUpdateCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_peers_update_total",
 		Help: "A counter of the number of peers that have updated metadata.",
 	})
-	p.peerJoinCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	p.peerJoinCounter = promauto.With(reg).NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_peers_joined_total",
 		Help: "A counter of the number of peers that have joined.",
 	})
-
-	reg.MustRegister(peerInfo, clusterFailedPeers, p.failedReconnectionsCounter, p.reconnectionsCounter,
-		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter, p.refreshCounter, p.failedRefreshCounter)
 }
 
 func (p *Peer) runPeriodicTask(d time.Duration, f func()) {
@@ -442,7 +451,9 @@ func (p *Peer) reconnect() {
 func (p *Peer) refresh() {
 	logger := p.logger.With("msg", "refresh")
 
-	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
+	ctx, cancel := context.WithTimeout(context.Background(), p.resolvePeersTimeout)
+	defer cancel()
+	resolvedPeers, err := resolvePeers(ctx, p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("%v", p.knownPeers), "err", err)
 		return

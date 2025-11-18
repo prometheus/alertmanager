@@ -25,6 +25,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
@@ -276,32 +277,32 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 	}
 
 	m := &Metrics{
-		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotifications: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_total",
 			Help:      "The total number of attempted notifications.",
 		}, labels),
-		numTotalFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numTotalFailedNotifications: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
 		}, append(labels, "reason")),
-		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotificationRequestsTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
 			Help:      "The total number of attempted notification requests.",
 		}, labels),
-		numNotificationRequestsFailedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotificationRequestsFailedTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
 		}, labels),
-		numNotificationSuppressedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotificationSuppressedTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_suppressed_total",
 			Help:      "The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.",
 		}, []string{"reason"}),
-		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		notificationLatencySeconds: promauto.With(r).NewHistogramVec(prometheus.HistogramOpts{
 			Namespace:                       "alertmanager",
 			Name:                            "notification_latency_seconds",
 			Help:                            "The latency of notifications in seconds.",
@@ -312,12 +313,6 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 		}, labels),
 		ff: ff,
 	}
-
-	r.MustRegister(
-		m.numNotifications, m.numTotalFailedNotifications,
-		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
-		m.numNotificationSuppressedTotal, m.notificationLatencySeconds,
-	)
 
 	return m
 }
@@ -368,6 +363,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"incidentio",
 		"jira",
 		"rocketchat",
+		"mattermost",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)

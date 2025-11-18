@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -77,7 +78,7 @@ type API struct {
 }
 
 type (
-	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
@@ -405,7 +406,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers := api.alertGroups(rf, af)
+	alertGroups, allReceivers, err := api.alertGroups(params.HTTPRequest.Context(), rf, af)
+	if err != nil {
+		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
+	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 

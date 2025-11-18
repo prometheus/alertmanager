@@ -34,6 +34,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -60,22 +61,21 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
-	reactapp "github.com/prometheus/alertmanager/ui/react-app"
 )
 
 var (
-	requestDuration = prometheus.NewHistogramVec(
+	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:                            "alertmanager_http_request_duration_seconds",
 			Help:                            "Histogram of latencies for HTTP requests.",
-			Buckets:                         []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
+			Buckets:                         prometheus.DefBuckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
-		[]string{"handler", "method"},
+		[]string{"handler", "method", "code"},
 	)
-	responseSize = prometheus.NewHistogramVec(
+	responseSize = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_response_size_bytes",
 			Help:    "Histogram of response size for HTTP requests.",
@@ -83,41 +83,33 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
-	clusterEnabled = prometheus.NewGauge(
+	clusterEnabled = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_cluster_enabled",
 			Help: "Indicates whether the clustering is enabled or not.",
 		},
 	)
-	configuredReceivers = prometheus.NewGauge(
+	configuredReceivers = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_receivers",
 			Help: "Number of configured receivers.",
 		},
 	)
-	configuredIntegrations = prometheus.NewGauge(
+	configuredIntegrations = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_integrations",
 			Help: "Number of configured integrations.",
 		},
 	)
-	configuredInhibitionRules = prometheus.NewGauge(
+	configuredInhibitionRules = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_inhibition_rules",
 			Help: "Number of configured inhibition rules.",
-		})
+		},
+	)
+
 	promslogConfig = promslog.Config{}
 )
-
-func init() {
-	prometheus.MustRegister(requestDuration)
-	prometheus.MustRegister(responseSize)
-	prometheus.MustRegister(clusterEnabled)
-	prometheus.MustRegister(configuredReceivers)
-	prometheus.MustRegister(configuredIntegrations)
-	prometheus.MustRegister(configuredInhibitionRules)
-	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
-}
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
 	handlerLabel := prometheus.Labels{"handler": handlerName}
@@ -151,6 +143,7 @@ func run() int {
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
+		DispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
@@ -164,8 +157,10 @@ func run() int {
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
+		clusterPeerName        = kingpin.Flag("cluster.peer-name", "Explicit name of the peer, rather than generating a random one").Default("").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout            = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
+		peersResolveTimeout    = kingpin.Flag("cluster.peers-resolve-timeout", "Time to resolve peers.").Default(cluster.DefaultResolvePeersTimeout.String()).Duration()
 		gossipInterval         = kingpin.Flag("cluster.gossip-interval", "Interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").Default(cluster.DefaultGossipInterval.String()).Duration()
 		pushPullInterval       = kingpin.Flag("cluster.pushpull-interval", "Interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 		tcpTimeout             = kingpin.Flag("cluster.tcp-timeout", "Timeout for establishing a stream connection with a remote node for a full state sync, and for stream read and write operations.").Default(cluster.DefaultTCPTimeout.String()).Duration()
@@ -180,6 +175,8 @@ func run() int {
 		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Comma-separated experimental features to enable. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
 	)
 
+	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
+
 	promslogflag.AddFlags(kingpin.CommandLine, &promslogConfig)
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 
@@ -190,6 +187,8 @@ func run() int {
 	logger := promslog.New(&promslogConfig)
 
 	logger.Info("Starting Alertmanager", "version", version.Info())
+	startTime := time.Now()
+
 	logger.Info("Build context", "build_context", version.BuildContext())
 
 	ff, err := featurecontrol.NewFlags(logger, *featureFlags)
@@ -250,11 +249,13 @@ func run() int {
 			*pushPullInterval,
 			*gossipInterval,
 			*tcpTimeout,
+			*peersResolveTimeout,
 			*probeTimeout,
 			*probeInterval,
 			tlsTransportConfig,
 			*allowInsecureAdvertise,
 			*label,
+			*clusterPeerName,
 		)
 		if err != nil {
 			logger.Error("unable to initialize gossip mesh", "err", err)
@@ -355,8 +356,8 @@ func run() int {
 		disp.Stop()
 	}()
 
-	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
-		return disp.Groups(routeFilter, alertFilter)
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return disp.Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -377,6 +378,7 @@ func run() int {
 		Concurrency:     *getConcurrency,
 		Logger:          logger.With("component", "api"),
 		Registry:        prometheus.DefaultRegisterer,
+		RequestDuration: requestDuration,
 		GroupFunc:       groupFn,
 	})
 	if err != nil {
@@ -408,6 +410,7 @@ func run() int {
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
+	inhibitMetrics := inhibit.NewInhibitorMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
@@ -462,7 +465,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger, inhibitMetrics)
 		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
@@ -493,7 +496,17 @@ func run() int {
 			silencer.Mutes(labels)
 		})
 
-		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, *dispatchMaintenanceInterval, nil, logger, dispMetrics)
+		newDisp := dispatch.NewDispatcher(
+			alerts,
+			routes,
+			pipeline,
+			marker,
+			timeoutFunc,
+			*dispatchMaintenanceInterval,
+			nil,
+			logger,
+			dispMetrics,
+		)
 		routes.Walk(func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
 				configLogger.Warn(
@@ -520,8 +533,18 @@ func run() int {
 			}
 		})
 
-		go disp.Run()
+		// first, start the inhibitor so the inhibition cache can populate
+		// wait for this to load alerts before starting the dispatcher so
+		// we don't accidentially notify for an alert that will be inhibited
 		go inhibitor.Run()
+		inhibitor.WaitForLoading()
+
+		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
+		// This ensures that the API doesn't see the new dispatcher before it finishes populating
+		// the aggrGroups
+		go newDisp.Run(startTime.Add(*DispatchStartDelay))
+		newDisp.WaitForLoading()
+		disp = newDisp
 
 		return nil
 	})
@@ -548,7 +571,6 @@ func run() int {
 	webReload := make(chan chan error)
 
 	ui.Register(router, webReload, logger)
-	reactapp.Register(router, logger)
 
 	mux := api.Register(router, *routePrefix)
 

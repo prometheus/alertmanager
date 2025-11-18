@@ -121,7 +121,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 
 func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 	key := "key"
-	f, err := os.CreateTemp("", "victorops_test")
+	f, err := os.CreateTemp(t.TempDir(), "victorops_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")

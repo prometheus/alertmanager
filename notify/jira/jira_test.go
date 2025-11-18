@@ -81,7 +81,7 @@ func TestSearchExistingIssue(t *testing.T) {
 				return
 			}
 			require.Equal(t, expectedJQL, data.JQL)
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
@@ -318,18 +318,20 @@ func TestPrepareSearchRequest(t *testing.T) {
 }
 
 func TestJiraTemplating(t *testing.T) {
+	var capturedBody map[string]any
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/search":
-			w.Write([]byte(`{"total": 0, "issues": []}`))
+			w.Write([]byte(`{"issues": []}`))
 			return
 		default:
 			dec := json.NewDecoder(r.Body)
 			out := make(map[string]any)
-			err := dec.Decode(&out)
-			if err != nil {
+			if err := dec.Decode(&out); err != nil {
 				panic(err)
 			}
+			capturedBody = out
 		}
 	}))
 	defer srv.Close()
@@ -339,16 +341,23 @@ func TestJiraTemplating(t *testing.T) {
 		title string
 		cfg   *config.JiraConfig
 
-		retry  bool
-		errMsg string
+		retry              bool
+		errMsg             string
+		expectedFieldKey   string
+		expectedFieldValue any
 	}{
 		{
-			title: "full-blown message",
+			title: "full-blown message with templated custom field",
 			cfg: &config.JiraConfig{
 				Summary:     `{{ template "jira.default.summary" . }}`,
 				Description: `{{ template "jira.default.description" . }}`,
+				Fields: map[string]any{
+					"customfield_14400": `{{ template "jira.host" . }}`,
+				},
 			},
-			retry: false,
+			retry:              false,
+			expectedFieldKey:   "customfield_14400",
+			expectedFieldValue: "host1.example.com",
 		},
 		{
 			title: "template project",
@@ -396,19 +405,32 @@ func TestJiraTemplating(t *testing.T) {
 		tc := tc
 
 		t.Run(tc.title, func(t *testing.T) {
+			capturedBody = nil
+
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
+			// Add the jira.host template just for this test
+			if tc.expectedFieldKey == "customfield_14400" {
+				err = pd.tmpl.Parse(strings.NewReader(`{{ define "jira.host" }}{{ .CommonLabels.hostname }}{{ end }}`))
+				require.NoError(t, err)
+			}
+
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupLabels(ctx, model.LabelSet{
+				"lbl1":     "val1",
+				"hostname": "host1.example.com",
+			})
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
-							"lbl1": "val1",
+							"lbl1":     "val1",
+							"hostname": "host1.example.com",
 						},
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
@@ -422,6 +444,14 @@ func TestJiraTemplating(t *testing.T) {
 				require.Contains(t, err.Error(), tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
+
+			// Verify that custom fields were templated correctly
+			if tc.expectedFieldKey != "" {
+				require.NotNil(t, capturedBody, "expected request body")
+				fields, ok := capturedBody["fields"].(map[string]any)
+				require.True(t, ok, "fields should be a map")
+				require.Equal(t, tc.expectedFieldValue, fields[tc.expectedFieldKey])
+			}
 		})
 	}
 }
@@ -464,7 +494,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -509,7 +538,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -562,7 +590,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total:  0,
 				Issues: []issue{},
 			},
 			issue: issue{
@@ -612,7 +639,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-1",
@@ -668,7 +694,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",
@@ -723,7 +748,6 @@ func TestJiraNotify(t *testing.T) {
 				},
 			},
 			searchResponse: issueSearchResult{
-				Total: 1,
 				Issues: []issue{
 					{
 						Key: "OPS-3",

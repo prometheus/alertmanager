@@ -111,6 +111,11 @@ func (s *TestSilence) ID() string {
 	return s.id
 }
 
+// EndsAt gets the silence end time.
+func (s *TestSilence) EndsAt() float64 {
+	return s.endsAt
+}
+
 // TestAlert models a model.Alert with relative times.
 type TestAlert struct {
 	labels           models.LabelSet

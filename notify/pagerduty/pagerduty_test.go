@@ -113,7 +113,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 
 func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -137,7 +137,7 @@ func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 
 func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -495,4 +495,71 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		},
 	}...)
 	require.NoError(t, err)
+}
+
+func TestPagerDutyTimeout(t *testing.T) {
+	type pagerDutyEvent struct {
+		RoutingKey  string           `json:"routing_key"`
+		EventAction string           `json:"event_action"`
+		DedupKey    string           `json:"dedup_key"`
+		Payload     pagerDutyPayload `json:"payload"`
+		Images      []pagerDutyImage
+		Links       []pagerDutyLink
+	}
+
+	tests := map[string]struct {
+		latency time.Duration
+		timeout time.Duration
+		wantErr bool
+	}{
+		"success": {latency: 100 * time.Millisecond, timeout: 120 * time.Millisecond, wantErr: false},
+		"error":   {latency: 100 * time.Millisecond, timeout: 80 * time.Millisecond, wantErr: true},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					decoder := json.NewDecoder(r.Body)
+					var event pagerDutyEvent
+					if err := decoder.Decode(&event); err != nil {
+						panic(err)
+					}
+
+					if event.RoutingKey == "" || event.EventAction == "" {
+						http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+						return
+					}
+					time.Sleep(tt.latency)
+				},
+			))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			cfg := config.PagerdutyConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				URL:        &config.URL{URL: u},
+				Timeout:    tt.timeout,
+			}
+
+			pd, err := New(&cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			_, err = pd.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, err != nil)
+		})
+	}
 }

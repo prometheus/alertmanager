@@ -72,6 +72,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	logger := n.logger.With("group_key", key.String())
+	logger.Debug("extracted group key")
 
 	var (
 		alerts = types.Alerts(as...)
@@ -119,7 +120,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
-func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logger, groupID string, tmplTextFunc templateFunc) (issue, error) {
+func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logger, groupID string, tmplTextFunc template.TemplateFunc) (issue, error) {
 	summary, err := tmplTextFunc(n.conf.Summary)
 	if err != nil {
 		return issue{}, fmt.Errorf("summary template: %w", err)
@@ -138,6 +139,13 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
 	if err != nil {
 		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
+	}
+
+	for key, value := range fieldsWithStringKeys {
+		fieldsWithStringKeys[key], err = template.DeepCopyWithTemplate(value, tmplTextFunc)
+		if err != nil {
+			return issue{}, fmt.Errorf("fields template: %w", err)
+		}
 	}
 
 	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
@@ -194,7 +202,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool, tmplTextFunc templateFunc) (*issue, bool, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool, tmplTextFunc template.TemplateFunc) (*issue, bool, error) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -236,12 +244,13 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 		return nil, false, err
 	}
 
-	if issueSearchResult.Total == 0 {
+	issuesCount := len(issueSearchResult.Issues)
+	if issuesCount == 0 {
 		logger.Debug("found no existing issue")
 		return nil, false, nil
 	}
 
-	if issueSearchResult.Total > 1 {
+	if issuesCount > 1 {
 		logger.Warn("more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 

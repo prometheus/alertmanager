@@ -75,7 +75,19 @@ type Alerts interface {
 	// Subscribe returns an iterator over active alerts that have not been
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
-	Subscribe() AlertIterator
+	Subscribe(name string) AlertIterator
+
+	// SlurpAndSubcribe returns a list of all active alerts which are available
+	// in the provider before the call to SlurpAndSubcribe and an iterator
+	// of all alerts available after the call to SlurpAndSubcribe.
+	// SlurpAndSubcribe can be used by clients which need to build in memory state
+	// to know when they've processed the 'initial' batch of alerts in a provider
+	// after they reload their subscription.
+	// Implementation of SlurpAndSubcribe is optional - providers may choose to
+	// return an empty list for the first return value and the result of Subscribe
+	// for the second return value.
+	SlurpAndSubscribe(name string) ([]*types.Alert, AlertIterator)
+
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
 	GetPending() AlertIterator

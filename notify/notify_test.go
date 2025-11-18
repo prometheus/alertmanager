@@ -716,7 +716,7 @@ func TestMuteStage(t *testing.T) {
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
-	silences, err := silence.New(silence.Options{Retention: time.Hour})
+	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1076,7 +1076,7 @@ func BenchmarkHashAlert(b *testing.B) {
 			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
 		},
 	}
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		hashAlert(alert)
 	}
 }

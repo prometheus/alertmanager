@@ -17,8 +17,6 @@ import (
 	"encoding/json"
 )
 
-type templateFunc func(string) (string, error)
-
 type issue struct {
 	Key        string       `json:"key,omitempty"`
 	Fields     *issueFields `json:"fields,omitempty"`
@@ -61,7 +59,6 @@ type issueSearch struct {
 }
 
 type issueSearchResult struct {
-	Total  int     `json:"total"`
 	Issues []issue `json:"issues"`
 }
 

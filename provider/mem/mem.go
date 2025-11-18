@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -44,6 +45,8 @@ type Alerts struct {
 	callback AlertStoreCallback
 
 	logger *slog.Logger
+
+	subscriberChannelWrites *prometheus.CounterVec
 }
 
 type AlertStoreCallback interface {
@@ -61,13 +64,14 @@ type AlertStoreCallback interface {
 }
 
 type listeningAlerts struct {
+	name   string
 	alerts chan *types.Alert
 	done   chan struct{}
 }
 
 func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 	newMemAlertByStatus := func(s types.AlertState) prometheus.GaugeFunc {
-		return prometheus.NewGaugeFunc(
+		return promauto.With(r).NewGaugeFunc(
 			prometheus.GaugeOpts{
 				Name:        "alertmanager_alerts",
 				Help:        "How many alerts by state.",
@@ -79,9 +83,17 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 		)
 	}
 
-	r.MustRegister(newMemAlertByStatus(types.AlertStateActive))
-	r.MustRegister(newMemAlertByStatus(types.AlertStateSuppressed))
-	r.MustRegister(newMemAlertByStatus(types.AlertStateUnprocessed))
+	newMemAlertByStatus(types.AlertStateActive)
+	newMemAlertByStatus(types.AlertStateSuppressed)
+	newMemAlertByStatus(types.AlertStateUnprocessed)
+
+	a.subscriberChannelWrites = promauto.With(r).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_alerts_subscriber_channel_writes_total",
+			Help: "Number of times alerts were written to subscriber channels",
+		},
+		[]string{"subscriber"},
+	)
 }
 
 // NewAlerts returns a new alert provider.
@@ -164,7 +176,7 @@ func max(a, b int) int {
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
-func (a *Alerts) Subscribe() provider.AlertIterator {
+func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	var (
@@ -177,10 +189,26 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 		ch <- a
 	}
 
-	a.listeners[a.next] = listeningAlerts{alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
+}
+
+func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	var (
+		done   = make(chan struct{})
+		alerts = a.alerts.List()
+		ch     = make(chan *types.Alert, alertChannelLength)
+	)
+
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.next++
+
+	return alerts, provider.NewAlertIterator(ch, done, nil)
 }
 
 // GetPending returns an iterator over all the alerts that have
@@ -252,6 +280,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		for _, l := range a.listeners {
 			select {
 			case l.alerts <- alert:
+				a.subscriberChannelWrites.WithLabelValues(l.name).Inc()
 			case <-l.done:
 			}
 		}
@@ -262,9 +291,6 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 // count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
 func (a *Alerts) count(state types.AlertState) int {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	var count int
 	for _, alert := range a.alerts.List() {
 		if alert.Resolved() {

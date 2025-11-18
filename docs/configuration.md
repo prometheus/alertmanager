@@ -145,7 +145,7 @@ inhibit_rules:
 # DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
-  [ - <mute_time_interval> ... ]
+  [ - <time_interval> ... ]
 
 # A list of time intervals for muting/activating routes.
 time_intervals:
@@ -441,6 +441,10 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
+# Optional name of the inhibition rule.
+# Duplicate names are allowed but will affect the per-rule metrics.
+name: <string>
+
 # DEPRECATED: Use target_matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
@@ -736,6 +740,8 @@ discord_configs:
   [ - <discord_config>, ... ]
 email_configs:
   [ - <email_config>, ... ]
+mattermost_configs:
+  [ - <mattermost_config>, ... ]
 msteams_configs:
   [ - <msteams_config>, ... ]
 msteamsv2_configs:
@@ -986,6 +992,93 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+```
+
+### `<mattermost_config>`
+
+Mattermost notifications are sent via the [Mattermost webhook API](https://developers.mattermost.com/integrate/webhooks/incoming/).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Mattermost webhook URL.
+# webhook_url and webhook_url_file are mutually exclusive.
+webhook_url: <secret>
+webhook_url_file: <filepath>
+
+# Overrides the channel the message posts in. Use the channel’s name and not the display name, e.g. use town-square, not Town Square.
+[ channel: <string> | default = '' ]
+
+# Overrides the username the message posts as.
+# Defaults to the username set during webhook creation; if no username was set during creation, webhook is used.
+[ username: <string> | default = '' ]
+
+# Markdown-formatted message to display in the post.
+# To trigger notifications, use @<username>, @channel, and @here like you would in other Mattermost messages.
+text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
+
+# Overrides the profile picture the message posts with.
+[ icon_url: <string> | default = '' ]
+
+# Overrides the profile picture and icon_url parameter.
+[ icon_emoji: <string> | default = '' ]
+
+# Message attachments used for richer formatting options.
+# It is for compatibility with Slack.
+[ attachments: ]
+  [ <attachment_config> ... ]
+
+[ props: <prop_config> ]
+
+[ priority: <priority_config> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<attachment_config>`
+
+See [Mattermost documentation](https://developers.mattermost.com/integrate/reference/message-attachments/) for more info.
+```yaml
+[ fallback: <string> | default = '' ]
+[ color: <string> | default = '' ]
+[ pretext: <string> | default = '' ]
+[ text: <string> | default = '' ]
+[ author_name: <string> | default = '' ]
+[ author_link: <string> | default = '' ]
+[ author_icon: <string> | default = '' ]
+[ title: <string> | default = '' ]
+[ title_link: <string> | default = '' ]
+# Same as Slack fields.
+[ fields: <string> | default = '' ]
+  [ <field_config> ... ]
+[ thumb_url: <string> | default = '' ]
+[ footer: <string> | default = '' ]
+[ footer_icon: <string> | default = '' ]
+[ image_url: <string> | default = '' ]
+```
+
+#### `<prop_config>`
+
+```yaml
+# Props card allows for extra information (Markdown-formatted text) to be sent to Mattermost that will only be displayed in the RHS panel after a user selects the info icon displayed alongside the post.
+[ card: <string> | default = '' ]
+```
+
+#### `<priority_config>`
+
+```yaml
+# priority adds label to the message. Possible values are "urgent", "important" and "standard".
+[ priority: <string> | default = '' ]
+
+# If set to true, the message will be marked as requiring an acknowledgment from the users by displaying a checkmark icon next to the message. Keep in mind that this requires the message priority to be set to Important or Urgent.
+# Only for enterprise version of Mattermost.
+[ requested_ack: <bool> | default = false ]
+
+# Only for Urgent messages. If set to true recipients will receive a persistent notification every five minutes until they acknowledge the message.
+# Only for enterprise version of Mattermost.
+[ persistent_notifications: <bool> | default = false ]
 ```
 
 ### `<msteams_config>`
@@ -1276,6 +1369,12 @@ links:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# The maximum time to wait for a pagerduty request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 #### `<image_config>`
@@ -1460,6 +1559,12 @@ fields:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# The maximum time to wait for a slack request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 #### `<action_config>`

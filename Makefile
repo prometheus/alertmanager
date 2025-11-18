@@ -27,19 +27,10 @@ STATICCHECK_IGNORE =
 build-all: assets apiv2 build
 
 .PHONY: build
-build: build-react-app assets-compress common-build
+build: common-build
 
 .PHONY: lint
-lint: assets-compress common-lint
-
-.PHONY: build-react-app
-build-react-app:
-	cd ui/react-app && npm install && npm run build
-
-.PHONY: assets-compress
-assets-compress: build-react-app
-	@echo '>> compressing assets'
-	scripts/compress_assets.sh
+lint: common-lint
 
 .PHONY: assets
 assets: asset/assets_vfsdata.go
@@ -49,7 +40,7 @@ assets-tarball: ui/app/script.js ui/app/index.html
 	scripts/package_assets.sh
 
 asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
-	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
+	$(GO) generate $(GOOPTS) ./asset
 	@$(GOFMT) -w ./asset
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
@@ -78,11 +69,3 @@ clean:
                   template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
-
-# In github actions we skip the email test for now. Service containers in github
-# actions currently have a bug, see https://github.com/prometheus/alertmanager/pull/3299
-# So define a test target, that skips the email test for now.
-.PHONY: test
-test: $(GOTEST_DIR)
-	@echo ">> running all tests, except notify/email"
-	$(GOTEST) $(test-flags) $(GOOPTS) `go list ./... | grep -v notify/email`

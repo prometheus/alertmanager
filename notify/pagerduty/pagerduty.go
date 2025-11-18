@@ -308,17 +308,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	logger := n.logger.With("group_key", key)
 
 	var (
 		alerts    = types.Alerts(as...)
-		data      = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)
 	if alerts.Status() == model.AlertResolved {
 		eventType = pagerDutyEventResolve
 	}
 
-	n.logger.Debug("extracted group key", "key", key, "eventType", eventType)
+	logger.Debug("extracted group key", "eventType", eventType)
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
@@ -329,10 +330,24 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		details[k] = detail
 	}
 
-	if n.apiV1 != "" {
-		return n.notifyV1(ctx, eventType, key, data, details, as...)
+	if n.conf.Timeout > 0 {
+		nfCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured pagerduty timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = nfCtx
 	}
-	return n.notifyV2(ctx, eventType, key, data, details, as...)
+
+	nf := n.notifyV2
+	if n.apiV1 != "" {
+		nf = n.notifyV1
+	}
+	retry, err := nf(ctx, eventType, key, data, details, as...)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
+		return retry, err
+	}
+	return retry, nil
 }
 
 func errDetails(status int, body io.Reader) string {
