@@ -18,7 +18,9 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -175,12 +177,42 @@ func EqualTime(a, b time.Time, opts *AcceptanceOpts) bool {
 	return diff <= opts.Tolerance
 }
 
-// HandleWebhookRequest is a common HTTP handler logic for mock webhooks.
-// It decodes the webhook message, transforms it to GettableAlerts, and adds them to the collector.
-func HandleWebhookRequest(w http.ResponseWriter, req *http.Request, collector *Collector, opts *AcceptanceOpts, shouldDrop func(float64) bool) {
+// MockWebhook provides a mock HTTP webhook receiver for testing.
+type MockWebhook struct {
+	opts      *AcceptanceOpts
+	collector *Collector
+	addr      string
+
+	// Func is called early on when retrieving a notification by an
+	// Alertmanager. If Func returns true, the given notification is dropped.
+	// See sample usage in `send_test.go/TestRetry()`.
+	Func func(timestamp float64) bool
+}
+
+// NewWebhook creates a new MockWebhook that collects alerts via HTTP.
+func NewWebhook(t *testing.T, c *Collector) *MockWebhook {
+	t.Helper()
+
+	wh := &MockWebhook{
+		collector: c,
+		opts:      c.Opts(),
+	}
+
+	server := httptest.NewServer(wh)
+	wh.addr = server.Listener.Addr().String()
+
+	t.Cleanup(func() {
+		server.Close()
+	})
+
+	return wh
+}
+
+// ServeHTTP handles incoming webhook requests.
+func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Inject drop function if it exists.
-	if shouldDrop != nil {
-		if shouldDrop(opts.RelativeTime(time.Now())) {
+	if ws.Func != nil {
+		if ws.Func(ws.opts.RelativeTime(time.Now())) {
 			return
 		}
 	}
@@ -217,5 +249,10 @@ func HandleWebhookRequest(w http.ResponseWriter, req *http.Request, collector *C
 		})
 	}
 
-	collector.Add(alerts...)
+	ws.collector.Add(alerts...)
+}
+
+// Address returns the address of the mock webhook server.
+func (ws *MockWebhook) Address() string {
+	return ws.addr
 }

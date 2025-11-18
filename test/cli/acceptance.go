@@ -78,11 +78,6 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-// freeAddress is an alias for testutils.FreeAddress for backward compatibility.
-func freeAddress() string {
-	return testutils.FreeAddress()
-}
-
 // AmtoolOk verifies that the "amtool" file exists in the correct location for testing,
 // and is a regular file.
 func AmtoolOk() (bool, error) {
@@ -124,8 +119,8 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 		am.confFile = cf
 		am.UpdateConfig(conf)
 
-		am.apiAddr = freeAddress()
-		am.clusterAddr = freeAddress()
+		am.apiAddr = testutils.FreeAddress()
+		am.clusterAddr = testutils.FreeAddress()
 
 		transport := httptransport.New(am.apiAddr, t.opts.RoutePrefix+"/api/v2/", nil)
 		am.clientV2 = apiclient.New(transport, strfmt.Default)

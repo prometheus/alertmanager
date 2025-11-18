@@ -14,10 +14,7 @@
 package test
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"sync"
-	"testing"
 
 	"github.com/go-openapi/strfmt"
 
@@ -27,14 +24,16 @@ import (
 
 // Re-export common types and functions from testutils.
 type (
-	Interval  = testutils.Interval
-	TestAlert = testutils.TestAlert
+	Interval    = testutils.Interval
+	TestAlert   = testutils.TestAlert
+	MockWebhook = testutils.MockWebhook
 )
 
 var (
-	At      = testutils.At
-	Between = testutils.Between
-	Alert   = testutils.Alert
+	At         = testutils.At
+	Between    = testutils.Between
+	Alert      = testutils.Alert
+	NewWebhook = testutils.NewWebhook
 )
 
 // TestSilence models a model.Silence with relative times.
@@ -121,41 +120,4 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *models.Silence {
 	nsil.CreatedBy = &createdBy
 
 	return nsil
-}
-
-type MockWebhook struct {
-	opts      *AcceptanceOpts
-	collector *Collector
-	addr      string
-
-	// Func is called early on when retrieving a notification by an
-	// Alertmanager. If Func returns true, the given notification is dropped.
-	// See sample usage in `send_test.go/TestRetry()`.
-	Func func(timestamp float64) bool
-}
-
-func NewWebhook(t *testing.T, c *Collector) *MockWebhook {
-	t.Helper()
-
-	wh := &MockWebhook{
-		collector: c,
-		opts:      c.Opts(),
-	}
-
-	server := httptest.NewServer(wh)
-	wh.addr = server.Listener.Addr().String()
-
-	t.Cleanup(func() {
-		server.Close()
-	})
-
-	return wh
-}
-
-func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	testutils.HandleWebhookRequest(w, req, ws.collector, ws.opts, ws.Func)
-}
-
-func (ws *MockWebhook) Address() string {
-	return ws.addr
 }

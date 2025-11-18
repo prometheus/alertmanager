@@ -14,22 +14,21 @@
 package test
 
 import (
-	"net"
-	"net/http"
-
 	"github.com/prometheus/alertmanager/test/testutils"
 )
 
 // Re-export common types and functions from testutils.
 type (
-	Interval  = testutils.Interval
-	TestAlert = testutils.TestAlert
+	Interval    = testutils.Interval
+	TestAlert   = testutils.TestAlert
+	MockWebhook = testutils.MockWebhook
 )
 
 var (
-	At      = testutils.At
-	Between = testutils.Between
-	Alert   = testutils.Alert
+	At         = testutils.At
+	Between    = testutils.Between
+	Alert      = testutils.Alert
+	NewWebhook = testutils.NewWebhook
 )
 
 // TestSilence models a model.Silence with relative times.
@@ -96,45 +95,4 @@ func (s *TestSilence) ID() string {
 // EndsAt gets the silence end time.
 func (s *TestSilence) EndsAt() float64 {
 	return s.endsAt
-}
-
-type MockWebhook struct {
-	opts      *AcceptanceOpts
-	collector *Collector
-	listener  net.Listener
-
-	// Func is called early on when retrieving a notification by an
-	// Alertmanager. If Func returns true, the given notification is dropped.
-	// See sample usage in `send_test.go/TestRetry()`.
-	Func func(timestamp float64) bool
-}
-
-func NewWebhook(c *Collector) *MockWebhook {
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
-		// we want to shut them down after test completion. Then we might want to
-		// log the error properly, too.
-		panic(err)
-	}
-	wh := &MockWebhook{
-		listener:  l,
-		collector: c,
-		opts:      c.Opts(),
-	}
-	go func() {
-		if err := http.Serve(l, wh); err != nil {
-			panic(err)
-		}
-	}()
-
-	return wh
-}
-
-func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	testutils.HandleWebhookRequest(w, req, ws.collector, ws.opts, ws.Func)
-}
-
-func (ws *MockWebhook) Address() string {
-	return ws.listener.Addr().String()
 }

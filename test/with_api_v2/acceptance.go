@@ -70,11 +70,6 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-// freeAddress is an alias for testutils.FreeAddress for backward compatibility.
-func freeAddress() string {
-	return testutils.FreeAddress()
-}
-
 // Do sets the given function to be executed at the given time.
 func (t *AcceptanceTest) Do(at float64, f func()) {
 	t.actions[at] = append(t.actions[at], f)
@@ -104,8 +99,8 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 		am.confFile = cf
 		am.UpdateConfig(conf)
 
-		am.apiAddr = freeAddress()
-		am.clusterAddr = freeAddress()
+		am.apiAddr = testutils.FreeAddress()
+		am.clusterAddr = testutils.FreeAddress()
 
 		transport := httptransport.New(am.apiAddr, t.opts.RoutePrefix+"/api/v2/", nil)
 		am.clientV2 = apiclient.New(transport, strfmt.Default)
