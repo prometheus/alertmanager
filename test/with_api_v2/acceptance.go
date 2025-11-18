@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,20 +88,36 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 }
 
 // freeAddress returns a new listen address not currently in use.
-func freeAddress() string {
-	// Let the OS allocate a free address, close it and hope
-	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp4", "localhost:0")
+func (t *AcceptanceTest) freeAddress() string {
+	// Let the OS allocate a free address.
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			panic(err)
+	t.Cleanup(func() {
+		// Keep the fd open until the end of test. This ensures the port is not
+		// used by other process binding to port 0. Any process can still bind
+		// to the port by specifying it explicitly.
+		if err := syscall.Close(fd); err != nil {
+			t.Fatalf("Failed to close fd: %v", fd)
 		}
-	}()
+	})
 
-	return l.Addr().String()
+	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		panic(err)
+	}
+
+	addr := syscall.SockaddrInet4{Port: 0, Addr: [4]byte{127, 0, 0, 1}}
+	if err := syscall.Bind(fd, &addr); err != nil {
+		panic(err)
+	}
+
+	boundAddr, err := syscall.Getsockname(fd)
+	if err != nil {
+		panic(err)
+	}
+
+	return fmt.Sprintf("127.0.0.1:%d", boundAddr.(*syscall.SockaddrInet4).Port)
 }
 
 // Do sets the given function to be executed at the given time.
@@ -134,8 +149,8 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 		am.confFile = cf
 		am.UpdateConfig(conf)
 
-		am.apiAddr = freeAddress()
-		am.clusterAddr = freeAddress()
+		am.apiAddr = t.freeAddress()
+		am.clusterAddr = t.freeAddress()
 
 		transport := httptransport.New(am.apiAddr, t.opts.RoutePrefix+"/api/v2/", nil)
 		am.clientV2 = apiclient.New(transport, strfmt.Default)
