@@ -69,7 +69,7 @@ type issueTransitions struct {
 
 // MarshalJSON merges the struct issueFields and issueFields.CustomField together.
 func (i issueFields) MarshalJSON() ([]byte, error) {
-	jsonFields := map[string]interface{}{}
+	jsonFields := map[string]any{}
 
 	if i.Summary != nil {
 		jsonFields["summary"] = *i.Summary
