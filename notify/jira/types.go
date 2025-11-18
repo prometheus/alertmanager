@@ -15,6 +15,7 @@ package jira
 
 import (
 	"encoding/json"
+	"maps"
 )
 
 type issue struct {
@@ -97,9 +98,7 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 		jsonFields["status"] = i.Status
 	}
 
-	for key, field := range i.Fields {
-		jsonFields[key] = field
-	}
+	maps.Copy(jsonFields, i.Fields)
 
 	return json.Marshal(jsonFields)
 }

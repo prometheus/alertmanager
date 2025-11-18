@@ -25,6 +25,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -932,10 +933,8 @@ func QState(states ...types.SilenceState) QueryParam {
 		f := func(sil *pb.Silence, _ *Silences, now time.Time) (bool, error) {
 			s := getState(sil, now)
 
-			for _, ps := range states {
-				if s == ps {
-					return true, nil
-				}
+			if slices.Contains(states, s) {
+				return true, nil
 			}
 			return false, nil
 		}

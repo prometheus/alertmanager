@@ -313,7 +313,6 @@ func TestErrDetails(t *testing.T) {
 			exp: "",
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			err := errDetails(tc.status, tc.body)
 			require.Contains(t, err, tc.exp)

@@ -1398,7 +1398,6 @@ func TestUnmarshalHostPort(t *testing.T) {
 			err: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.in, func(t *testing.T) {
 			hp := HostPort{}
 			err := yaml.Unmarshal([]byte(tc.in), &hp)

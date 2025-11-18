@@ -422,7 +422,7 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	// Create initial silences
-	for i := 0; i < initialSilences; i++ {
+	for i := range initialSilences {
 		id := strconv.Itoa(i)
 		patA := "A{4}|" + id
 		patB := id

@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -286,7 +287,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			receivers = append(receivers, r.RouteOpts.Receiver)
 		}
 
-		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
+		if receiverFilter != nil && !slices.ContainsFunc(receivers, receiverFilter.MatchString) {
 			continue
 		}
 
@@ -472,16 +473,6 @@ func removeEmptyLabels(ls prometheus_model.LabelSet) {
 			delete(ls, k)
 		}
 	}
-}
-
-func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
-	for _, r := range receivers {
-		if filter.MatchString(r) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*labels.Matcher) bool {

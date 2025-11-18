@@ -367,7 +367,6 @@ func TestAlertMerge(t *testing.T) {
 	}
 
 	for i, p := range pairs {
-		p := p
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			if res := p.A.Merge(p.B); !reflect.DeepEqual(p.Res, res) {
 				t.Errorf("unexpected merged alert %#v", res)
