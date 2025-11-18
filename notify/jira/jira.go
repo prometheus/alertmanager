@@ -134,7 +134,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		return issue{}, fmt.Errorf("issue_type template: %w", err)
 	}
 
-	// Recursively convert any maps to map[string]interface{}, filtering out all non-string keys, so the json encoder
+	// Recursively convert any maps to map[string]any, filtering out all non-string keys, so the json encoder
 	// doesn't blow up when marshaling JIRA requests.
 	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
 	if err != nil {

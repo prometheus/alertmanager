@@ -434,7 +434,7 @@ type TemplateFunc func(string) (string, error)
 
 // deepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
 // provided template (with the provided data) on all string keys or values. All maps are connverted to
-// map[string]interface{}, with all non-string keys discarded.
+// map[string]any, with all non-string keys discarded.
 func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 	if value == nil {
 		return value, nil
