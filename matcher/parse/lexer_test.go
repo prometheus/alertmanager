@@ -700,7 +700,7 @@ func TestLexer_Scan(t *testing.T) {
 // error has occurred.
 func TestLexer_ScanError(t *testing.T) {
 	l := lexer{input: "\"hello"}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tok, err := l.scan()
 		require.Equal(t, token{}, tok)
 		require.EqualError(t, err, "0:6: \"hello: missing end \"")
@@ -738,7 +738,7 @@ func TestLexer_Peek(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected1, tok)
 	// Check that peek() returns the second token until the next scan().
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tok, err = l.peek()
 		require.NoError(t, err)
 		require.Equal(t, expected2, tok)
@@ -748,7 +748,7 @@ func TestLexer_Peek(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected2, tok)
 	// Should not be able to peek() further tokens.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tok, err = l.peek()
 		require.NoError(t, err)
 		require.Equal(t, token{}, tok)

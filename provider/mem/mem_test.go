@@ -96,7 +96,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 	alertsToInsert := []*types.Alert{}
 	// Exhaust alert channel
-	for i := 0; i < alertChannelLength+1; i++ {
+	for i := range alertChannelLength + 1 {
 		alertsToInsert = append(alertsToInsert, &types.Alert{
 			Alert: model.Alert{
 				// Make sure the fingerprints differ
@@ -147,7 +147,7 @@ func TestDeadLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	alertsToInsert := []*types.Alert{}
-	for i := 0; i < 200+1; i++ {
+	for i := range 200 + 1 {
 		alertsToInsert = append(alertsToInsert, &types.Alert{
 			Alert: model.Alert{
 				// Make sure the fingerprints differ
