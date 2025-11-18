@@ -14,6 +14,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -83,7 +84,7 @@ type Options struct {
 	// GroupFunc returns a list of alert groups. The alerts are grouped
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
-	GroupFunc func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string)
+	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
 }
 
 func (o Options) validate() error {

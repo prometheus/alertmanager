@@ -420,7 +420,7 @@ route:
 	}
 	require.Len(t, recorder.Alerts(), 7)
 
-	alertGroups, receivers := dispatcher.Groups(
+	alertGroups, receivers, _ := dispatcher.Groups(context.Background(),
 		func(*Route) bool {
 			return true
 		}, func(*types.Alert, time.Time) bool {
@@ -579,7 +579,7 @@ route:
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
 
-	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _, _ := dispatcher.Groups(context.Background(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 
 	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
@@ -597,7 +597,7 @@ route:
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
-	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _, _ = dispatcher.Groups(context.Background(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
 }
 

@@ -356,8 +356,8 @@ func run() int {
 		disp.Stop()
 	}()
 
-	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
-		return disp.Groups(routeFilter, alertFilter)
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return disp.Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -496,7 +496,7 @@ func run() int {
 			silencer.Mutes(labels)
 		})
 
-		disp = dispatch.NewDispatcher(
+		newDisp := dispatch.NewDispatcher(
 			alerts,
 			routes,
 			pipeline,
@@ -533,8 +533,18 @@ func run() int {
 			}
 		})
 
-		go disp.Run(startTime.Add(*DispatchStartDelay))
+		// first, start the inhibitor so the inhibition cache can populate
+		// wait for this to load alerts before starting the dispatcher so
+		// we don't accidentially notify for an alert that will be inhibited
 		go inhibitor.Run()
+		inhibitor.WaitForLoading()
+
+		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
+		// This ensures that the API doesn't see the new dispatcher before it finishes populating
+		// the aggrGroups
+		go newDisp.Run(startTime.Add(*DispatchStartDelay))
+		newDisp.WaitForLoading()
+		disp = newDisp
 
 		return nil
 	})
