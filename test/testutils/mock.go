@@ -16,10 +16,12 @@ package testutils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -182,6 +184,7 @@ type MockWebhook struct {
 	opts      *AcceptanceOpts
 	collector *Collector
 	addr      string
+	closing   atomic.Bool
 
 	// Func is called early on when retrieving a notification by an
 	// Alertmanager. If Func returns true, the given notification is dropped.
@@ -202,6 +205,7 @@ func NewWebhook(t *testing.T, c *Collector) *MockWebhook {
 	wh.addr = server.Listener.Addr().String()
 
 	t.Cleanup(func() {
+		wh.closing.Store(true)
 		server.Close()
 	})
 
@@ -222,6 +226,10 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	var v webhook.Message
 	if err := dec.Decode(&v); err != nil {
+		// During shutdown, ignore EOF errors from interrupted connections
+		if ws.closing.Load() && (err == io.EOF || err.Error() == "EOF") {
+			return
+		}
 		panic(err)
 	}
 
