@@ -569,7 +569,7 @@ type IncidentioConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultIncidentioConfig
 	type plain IncidentioConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -1102,7 +1102,7 @@ type MattermostField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for MattermostField.
-func (c *MattermostField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MattermostField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain MattermostField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -1157,7 +1157,7 @@ type MattermostConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *MattermostConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMattermostConfig
 	type plain MattermostConfig
 	if err := unmarshal((*plain)(c)); err != nil {

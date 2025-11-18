@@ -142,7 +142,6 @@ func TestSearchExistingIssue(t *testing.T) {
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			expectedJQL = tc.expectedJQL
 			tc.cfg.APIURL = &config.URL{URL: u}
@@ -300,7 +299,6 @@ func TestPrepareSearchRequest(t *testing.T) {
 			expectedURLPath: "/rest/api/2",
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
@@ -402,8 +400,6 @@ func TestJiraTemplating(t *testing.T) {
 			errMsg: "template: :1: unclosed action",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
 			capturedBody = nil
 
@@ -778,8 +774,6 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
@@ -1118,8 +1112,6 @@ func TestJiraPriority(t *testing.T) {
 			"Medium",
 		},
 	} {
-		tc := tc
-
 		t.Run(tc.title, func(t *testing.T) {
 			t.Parallel()
 			u, err := url.Parse("http://example.com/")

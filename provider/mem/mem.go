@@ -166,13 +166,6 @@ func (a *Alerts) Close() {
 	}
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.

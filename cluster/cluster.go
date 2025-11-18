@@ -216,10 +216,7 @@ func Create(
 
 	p.register(reg, name)
 
-	retransmit := len(knownPeers) / 2
-	if retransmit < 3 {
-		retransmit = 3
-	}
+	retransmit := max(len(knownPeers)/2, 3)
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
