@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright 2018 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package test
+package testutils
 
 import (
 	"encoding/json"
@@ -37,8 +37,24 @@ type Collector struct {
 	mtx sync.RWMutex
 }
 
+// NewCollector creates a new Collector with the given parameters.
+func NewCollector(t *testing.T, name string, opts *AcceptanceOpts) *Collector {
+	return &Collector{
+		t:         t,
+		name:      name,
+		opts:      opts,
+		collected: map[float64][]models.GettableAlerts{},
+		expected:  map[Interval][]models.GettableAlerts{},
+	}
+}
+
 func (c *Collector) String() string {
 	return c.name
+}
+
+// Opts returns the acceptance options for this collector.
+func (c *Collector) Opts() *AcceptanceOpts {
+	return c.opts
 }
 
 // Collected returns a map of alerts collected by the collector indexed with the
@@ -57,7 +73,7 @@ func batchesEqual(as, bs models.GettableAlerts, opts *AcceptanceOpts) bool {
 	for _, a := range as {
 		found := false
 		for _, b := range bs {
-			if equalAlerts(a, b, opts) {
+			if EqualAlerts(a, b, opts) {
 				found = true
 				break
 			}
@@ -69,9 +85,9 @@ func batchesEqual(as, bs models.GettableAlerts, opts *AcceptanceOpts) bool {
 	return true
 }
 
-// latest returns the latest relative point in time where a notification is
+// Latest returns the latest relative point in time where a notification is
 // expected.
-func (c *Collector) latest() float64 {
+func (c *Collector) Latest() float64 {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 	var latest float64
@@ -90,17 +106,18 @@ func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 	defer c.mtx.Unlock()
 	var nas models.GettableAlerts
 	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(c.opts))
+		nas = append(nas, a.NativeAlert(c.opts))
 	}
 
 	c.expected[iv] = append(c.expected[iv], nas)
 }
 
-// add the given alerts to the collected alerts.
-func (c *Collector) add(alerts ...*models.GettableAlert) {
+// Add the given alerts to the collected alerts.
+// This is exported so it can be used by MockWebhook implementations.
+func (c *Collector) Add(alerts ...*models.GettableAlert) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	arrival := c.opts.relativeTime(time.Now())
+	arrival := c.opts.RelativeTime(time.Now())
 
 	c.collected[arrival] = append(c.collected[arrival], models.GettableAlerts(alerts))
 }
@@ -127,7 +144,7 @@ func (c *Collector) Check() string {
 			report.WriteString("---\n")
 
 			for _, e := range exp {
-				report.WriteString(fmt.Sprintf("- %v\n", c.opts.alertString(e)))
+				report.WriteString(fmt.Sprintf("- %v\n", c.opts.AlertString(e)))
 			}
 
 			for _, a := range alerts {
@@ -173,7 +190,7 @@ func (c *Collector) Check() string {
 			for _, alerts := range col {
 				report.WriteString(fmt.Sprintf("@ %v\n", at))
 				for _, a := range alerts {
-					report.WriteString(fmt.Sprintf("- %v\n", c.opts.alertString(a)))
+					report.WriteString(fmt.Sprintf("- %v\n", c.opts.AlertString(a)))
 				}
 			}
 		}
@@ -231,7 +248,7 @@ func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
 	for _, aAlert := range aAlerts {
 		found := false
 		for _, bAlert := range bAlerts {
-			if equalAlerts(aAlert, bAlert, opts) {
+			if EqualAlerts(aAlert, bAlert, opts) {
 				found = true
 				break
 			}

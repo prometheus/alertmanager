@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,12 +38,19 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/test/testutils"
 )
 
 const (
 	// nolint:godot
 	// amtool is the relative path to local amtool binary.
 	amtool = "../../../amtool"
+)
+
+// Re-export common types from testutils.
+type (
+	Collector      = testutils.Collector
+	AcceptanceOpts = testutils.AcceptanceOpts
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -60,32 +66,6 @@ type AcceptanceTest struct {
 	actions map[float64][]func()
 }
 
-// AcceptanceOpts defines configuration parameters for an acceptance test.
-type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
-}
-
-func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
-	if a.EndsAt == nil || time.Time(*a.EndsAt).IsZero() {
-		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(*a.StartsAt)))
-	}
-	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(*a.StartsAt)), opts.relativeTime(time.Time(*a.EndsAt)))
-}
-
-// expandTime returns the absolute time for the relative time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) expandTime(rel float64) time.Time {
-	return opts.baseTime.Add(time.Duration(rel * float64(time.Second)))
-}
-
-// expandTime returns the relative time for the given time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
-	return float64(act.Sub(opts.baseTime)) / float64(time.Second)
-}
-
 // NewAcceptanceTest returns a new acceptance test with the base time
 // set to the current time.
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
@@ -98,21 +78,9 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-// freeAddress returns a new listen address not currently in use.
+// freeAddress is an alias for testutils.FreeAddress for backward compatibility.
 func freeAddress() string {
-	// Let the OS allocate a free address, close it and hope
-	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	return l.Addr().String()
+	return testutils.FreeAddress()
 }
 
 // AmtoolOk verifies that the "amtool" file exists in the correct location for testing,
@@ -172,13 +140,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 
 // Collector returns a new collector bound to the test instance.
 func (t *AcceptanceTest) Collector(name string) *Collector {
-	co := &Collector{
-		t:         t.T,
-		name:      name,
-		opts:      t.opts,
-		collected: map[float64][]models.GettableAlerts{},
-		expected:  map[Interval][]models.GettableAlerts{},
-	}
+	co := testutils.NewCollector(t.T, name, t.opts)
 	t.collectors = append(t.collectors, co)
 
 	return co
@@ -206,18 +168,18 @@ func (t *AcceptanceTest) Run() {
 
 	// Set the reference time right before running the test actions to avoid
 	// test failures due to slow setup of the test environment.
-	t.opts.baseTime = time.Now()
+	t.opts.SetBaseTime(time.Now())
 
 	go t.runActions()
 
 	var latest float64
 	for _, coll := range t.collectors {
-		if l := coll.latest(); l > latest {
+		if l := coll.Latest(); l > latest {
 			latest = l
 		}
 	}
 
-	deadline := t.opts.expandTime(latest)
+	deadline := t.opts.ExpandTime(latest)
 
 	select {
 	case <-time.After(time.Until(deadline)):
@@ -232,7 +194,7 @@ func (t *AcceptanceTest) runActions() {
 	var wg sync.WaitGroup
 
 	for at, fs := range t.actions {
-		ts := t.opts.expandTime(at)
+		ts := t.opts.ExpandTime(at)
 		wg.Add(len(fs))
 
 		for _, f := range fs {
@@ -485,8 +447,8 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
-	labels := make(models.LabelSet, len(alert.labels))
-	maps.Copy(labels, alert.labels)
+	labels := make(models.LabelSet, len(alert.Labels))
+	maps.Copy(labels, alert.Labels)
 	if omitEquals {
 		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
@@ -498,10 +460,10 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	for k, v := range labels {
 		args = append(args, k+"="+v)
 	}
-	startsAt := strfmt.DateTime(am.opts.expandTime(alert.startsAt))
+	startsAt := strfmt.DateTime(am.opts.ExpandTime(alert.StartsAt))
 	args = append(args, "--start="+startsAt.String())
-	if alert.endsAt > alert.startsAt {
-		endsAt := strfmt.DateTime(am.opts.expandTime(alert.endsAt))
+	if alert.EndsAt > alert.StartsAt {
+		endsAt := strfmt.DateTime(am.opts.ExpandTime(alert.EndsAt))
 		args = append(args, "--end="+endsAt.String())
 	}
 	cmd := exec.Command(amtool, args...)
@@ -541,9 +503,9 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 		}
 		summary := strings.TrimSpace(line[summPos:])
 		alert := TestAlert{
-			labels:   models.LabelSet{"alertname": alertName},
-			startsAt: float64(startsAt.Unix()),
-			summary:  summary,
+			Labels:   models.LabelSet{"alertname": alertName},
+			StartsAt: float64(startsAt.Unix()),
+			Summary:  summary,
 		}
 		alerts = append(alerts, alert)
 	}

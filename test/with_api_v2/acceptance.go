@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,7 +34,17 @@ import (
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+
+	"github.com/prometheus/alertmanager/test/testutils"
 )
+
+// Re-export common types and functions from testutils.
+type (
+	Collector      = testutils.Collector
+	AcceptanceOpts = testutils.AcceptanceOpts
+)
+
+var CompareCollectors = testutils.CompareCollectors
 
 // AcceptanceTest provides declarative definition of given inputs and expected
 // output of an Alertmanager setup.
@@ -50,33 +59,6 @@ type AcceptanceTest struct {
 	actions map[float64][]func()
 }
 
-// AcceptanceOpts defines configuration parameters for an acceptance test.
-type AcceptanceOpts struct {
-	FeatureFlags []string
-	RoutePrefix  string
-	Tolerance    time.Duration
-	baseTime     time.Time
-}
-
-func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
-	if a.EndsAt == nil || time.Time(*a.EndsAt).IsZero() {
-		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(*a.StartsAt)))
-	}
-	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(*a.StartsAt)), opts.relativeTime(time.Time(*a.EndsAt)))
-}
-
-// expandTime returns the absolute time for the relative time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) expandTime(rel float64) time.Time {
-	return opts.baseTime.Add(time.Duration(rel * float64(time.Second)))
-}
-
-// expandTime returns the relative time for the given time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
-	return float64(act.Sub(opts.baseTime)) / float64(time.Second)
-}
-
 // NewAcceptanceTest returns a new acceptance test with the base time
 // set to the current time.
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
@@ -88,21 +70,9 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-// freeAddress returns a new listen address not currently in use.
+// freeAddress is an alias for testutils.FreeAddress for backward compatibility.
 func freeAddress() string {
-	// Let the OS allocate a free address, close it and hope
-	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	return l.Addr().String()
+	return testutils.FreeAddress()
 }
 
 // Do sets the given function to be executed at the given time.
@@ -150,13 +120,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 
 // Collector returns a new collector bound to the test instance.
 func (t *AcceptanceTest) Collector(name string) *Collector {
-	co := &Collector{
-		t:         t.T,
-		name:      name,
-		opts:      t.opts,
-		collected: map[float64][]models.GettableAlerts{},
-		expected:  map[Interval][]models.GettableAlerts{},
-	}
+	co := testutils.NewCollector(t.T, name, t.opts)
 	t.collectors = append(t.collectors, co)
 
 	return co
@@ -182,18 +146,18 @@ func (t *AcceptanceTest) Run(additionalArgs ...string) {
 
 	// Set the reference time right before running the test actions to avoid
 	// test failures due to slow setup of the test environment.
-	t.opts.baseTime = time.Now()
+	t.opts.SetBaseTime(time.Now())
 
 	go t.runActions()
 
 	var latest float64
 	for _, coll := range t.collectors {
-		if l := coll.latest(); l > latest {
+		if l := coll.Latest(); l > latest {
 			latest = l
 		}
 	}
 
-	deadline := t.opts.expandTime(latest)
+	deadline := t.opts.ExpandTime(latest)
 
 	select {
 	case <-time.After(time.Until(deadline)):
@@ -208,7 +172,7 @@ func (t *AcceptanceTest) runActions() {
 	var wg sync.WaitGroup
 
 	for at, fs := range t.actions {
-		ts := t.opts.expandTime(at)
+		ts := t.opts.ExpandTime(at)
 		wg.Add(len(fs))
 
 		for _, f := range fs {
@@ -431,7 +395,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 	am.t.Do(at, func() {
 		var cas models.PostableAlerts
 		for i := range alerts {
-			a := alerts[i].nativeAlert(am.opts)
+			a := alerts[i].NativeAlert(am.opts)
 			alert := &models.PostableAlert{
 				Alert: models.Alert{
 					Labels:       a.Labels,
