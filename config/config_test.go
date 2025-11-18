@@ -1249,8 +1249,8 @@ func TestSlackGlobalAppToken(t *testing.T) {
 	if firstConfig.AppToken != defaultToken {
 		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", firstConfig.AppToken, defaultToken)
 	}
-	if firstConfig.APIURL.URL.String() != conf.Global.SlackAppURL.String() {
-		t.Fatalf("Expected API URL: %s\nGot: %s", conf.Global.SlackAppURL.String(), firstConfig.APIURL.URL.String())
+	if firstConfig.APIURL.String() != conf.Global.SlackAppURL.String() {
+		t.Fatalf("Expected API URL: %s\nGot: %s", conf.Global.SlackAppURL.String(), firstConfig.APIURL.String())
 	}
 	if firstConfig.HTTPConfig == nil || firstConfig.HTTPConfig.Authorization == nil {
 		t.Fatalf("Error configuring Slack App authorization: %s", firstConfig.HTTPConfig)
