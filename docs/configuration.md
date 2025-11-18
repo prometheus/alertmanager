@@ -1164,8 +1164,8 @@ project: <string>
     # Template for the issue summary.
     [ template: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
     
-    # If true, the summary will not be updated when updating an existing issue.
-    [ enable_update: <boolean> | default = false ]
+    # If set to false, the summary will not be updated when updating an existing issue.
+    [ enable_update: <boolean> | default = true ]
 ]
 
 # Issue description configuration.
@@ -1173,8 +1173,8 @@ project: <string>
     # Template for the issue description.
     [ template: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
     
-    # If true, the description will not be updated when updating an existing issue.
-    [ enable_update: <boolean> | default = false ]
+    # If set to false, the description will not be updated when updating an existing issue.
+    [ enable_update: <boolean> | default = true ]
 ]
 
 # Labels to be added to the issue.
