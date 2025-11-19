@@ -435,7 +435,7 @@ type TemplateFunc func(string) (string, error)
 // deepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
 // provided template (with the provided data) on all string keys or values. All maps are connverted to
 // map[string]interface{}, with all non-string keys discarded.
-func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interface{}, error) {
+func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 	if value == nil {
 		return value, nil
 	}
@@ -446,7 +446,7 @@ func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interfa
 	case reflect.String:
 		parsed, ok := tmplTextFunc(value.(string))
 		if ok == nil {
-			var inlineType interface{}
+			var inlineType any
 			err := yaml.Unmarshal([]byte(parsed), &inlineType)
 			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
 				// ignore error, thus the string is not an interface
@@ -458,8 +458,8 @@ func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interfa
 
 	case reflect.Array, reflect.Slice:
 		arrayLen := valueMeta.Len()
-		converted := make([]interface{}, arrayLen)
-		for i := 0; i < arrayLen; i++ {
+		converted := make([]any, arrayLen)
+		for i := range arrayLen {
 			var err error
 			converted[i], err = DeepCopyWithTemplate(valueMeta.Index(i).Interface(), tmplTextFunc)
 			if err != nil {
@@ -470,7 +470,7 @@ func DeepCopyWithTemplate(value interface{}, tmplTextFunc TemplateFunc) (interfa
 
 	case reflect.Map:
 		keys := valueMeta.MapKeys()
-		converted := make(map[string]interface{}, len(keys))
+		converted := make(map[string]any, len(keys))
 
 		for _, keyMeta := range keys {
 			var err error

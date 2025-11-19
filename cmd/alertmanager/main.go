@@ -143,6 +143,7 @@ func run() int {
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
+		DispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
@@ -186,6 +187,8 @@ func run() int {
 	logger := promslog.New(&promslogConfig)
 
 	logger.Info("Starting Alertmanager", "version", version.Info())
+	startTime := time.Now()
+
 	logger.Info("Build context", "build_context", version.BuildContext())
 
 	ff, err := featurecontrol.NewFlags(logger, *featureFlags)
@@ -353,8 +356,8 @@ func run() int {
 		disp.Stop()
 	}()
 
-	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
-		return disp.Groups(routeFilter, alertFilter)
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return disp.Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -493,7 +496,17 @@ func run() int {
 			silencer.Mutes(labels)
 		})
 
-		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, *dispatchMaintenanceInterval, nil, logger, dispMetrics)
+		newDisp := dispatch.NewDispatcher(
+			alerts,
+			routes,
+			pipeline,
+			marker,
+			timeoutFunc,
+			*dispatchMaintenanceInterval,
+			nil,
+			logger,
+			dispMetrics,
+		)
 		routes.Walk(func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
 				configLogger.Warn(
@@ -520,8 +533,18 @@ func run() int {
 			}
 		})
 
-		go disp.Run()
+		// first, start the inhibitor so the inhibition cache can populate
+		// wait for this to load alerts before starting the dispatcher so
+		// we don't accidentially notify for an alert that will be inhibited
 		go inhibitor.Run()
+		inhibitor.WaitForLoading()
+
+		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
+		// This ensures that the API doesn't see the new dispatcher before it finishes populating
+		// the aggrGroups
+		go newDisp.Run(startTime.Add(*DispatchStartDelay))
+		newDisp.WaitForLoading()
+		disp = newDisp
 
 		return nil
 	})

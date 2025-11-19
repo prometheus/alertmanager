@@ -380,8 +380,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		*c.Global = DefaultGlobalConfig()
 	}
 
+	if c.Global.SlackAppToken != "" && len(c.Global.SlackAppTokenFile) > 0 {
+		return errors.New("at most one of slack_app_token & slack_app_token_file must be configured")
+	}
+
 	if c.Global.SlackAPIURL != nil && len(c.Global.SlackAPIURLFile) > 0 {
 		return errors.New("at most one of slack_api_url & slack_api_url_file must be configured")
+	}
+
+	if (c.Global.SlackAppToken != "" || len(c.Global.SlackAppTokenFile) > 0) && (c.Global.SlackAPIURL != nil || len(c.Global.SlackAPIURLFile) > 0) {
+		// Support transition from workaround suggested in https://github.com/prometheus/alertmanager/issues/2513,
+		// where users might set `slack_api_url` at the top level and then have `http_config` with individual
+		// bearer tokens in the receivers.
+		if c.Global.SlackAPIURL.String() != c.Global.SlackAppURL.String() {
+			return errors.New("at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured")
+		}
 	}
 
 	if c.Global.OpsGenieAPIKey != "" && len(c.Global.OpsGenieAPIKeyFile) > 0 {
@@ -453,15 +466,39 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
-			if sc.HTTPConfig == nil {
-				sc.HTTPConfig = c.Global.HTTPConfig
+			if sc.AppURL == nil {
+				if c.Global.SlackAppURL == nil {
+					return errors.New("no global Slack App URL set")
+				}
+				sc.AppURL = c.Global.SlackAppURL
+			}
+			// we only want to set the app token from global if there's no local authorization or webhook url
+			if sc.AppToken == "" && len(sc.AppTokenFile) == 0 && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) && sc.APIURL == nil {
+				sc.AppToken = c.Global.SlackAppToken
+				sc.AppTokenFile = c.Global.SlackAppTokenFile
 			}
 			if sc.APIURL == nil && len(sc.APIURLFile) == 0 {
-				if c.Global.SlackAPIURL == nil && len(c.Global.SlackAPIURLFile) == 0 {
-					return errors.New("no global Slack API URL set either inline or in a file")
-				}
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
+			}
+			if sc.APIURL == nil && len(sc.APIURLFile) == 0 && sc.AppToken == "" && len(sc.AppTokenFile) == 0 {
+				return errors.New("no Slack API URL nor App token set either inline or in a file")
+			}
+			if sc.HTTPConfig == nil {
+				// we don't want to change the global http config when setting the receiver's http config, do we do a copy
+				httpconfig := *c.Global.HTTPConfig
+				sc.HTTPConfig = &httpconfig
+			}
+			if sc.AppToken != "" || len(sc.AppTokenFile) != 0 {
+				if sc.HTTPConfig.Authorization != nil {
+					return errors.New("http authorization can't be set when using Slack App tokens")
+				}
+				sc.HTTPConfig.Authorization = &commoncfg.Authorization{
+					Type:            "Bearer",
+					Credentials:     commoncfg.Secret(sc.AppToken),
+					CredentialsFile: sc.AppTokenFile,
+				}
+				sc.APIURL = (*SecretURL)(sc.AppURL)
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -749,6 +786,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
 		WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
 		RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
+		SlackAppURL:      mustParseURL("https://slack.com/api/chat.postMessage"),
 	}
 }
 
@@ -863,6 +901,9 @@ type GlobalConfig struct {
 	SMTPTLSConfig         *commoncfg.TLSConfig `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
 	SlackAPIURL           *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile       string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	SlackAppToken         Secret               `yaml:"slack_app_token,omitempty" json:"slack_app_token,omitempty"`
+	SlackAppTokenFile     string               `yaml:"slack_app_token_file,omitempty" json:"slack_app_token_file,omitempty"`
+	SlackAppURL           *URL                 `yaml:"slack_app_url,omitempty" json:"slack_app_url,omitempty"`
 	PagerdutyURL          *URL                 `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	OpsGenieAPIURL        *URL                 `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey        Secret               `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`

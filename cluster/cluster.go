@@ -15,10 +15,10 @@ package cluster
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net"
 	"sort"
 	"strconv"
@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/memberlist"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -196,7 +196,7 @@ func Create(
 
 	// Generate a random name if none is provided.
 	if name == "" {
-		id, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
+		id, err := ulid.New(ulid.Now(), rand.Reader)
 		if err != nil {
 			return nil, err
 		}
@@ -216,10 +216,7 @@ func Create(
 
 	p.register(reg, name)
 
-	retransmit := len(knownPeers) / 2
-	if retransmit < 3 {
-		retransmit = 3
-	}
+	retransmit := max(len(knownPeers)/2, 3)
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()

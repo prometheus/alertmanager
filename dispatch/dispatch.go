@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +31,12 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
+)
+
+const (
+	DispatcherStateUnknown = iota
+	DispatcherStateWaitingToStart
+	DispatcherStateRunning
 )
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
@@ -81,6 +88,7 @@ type Dispatcher struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx                sync.RWMutex
+	loadingFinished    sync.WaitGroup
 	aggrGroupsPerRoute map[*Route]map[model.Fingerprint]*aggrGroup
 	aggrGroupsNum      int
 
@@ -90,6 +98,9 @@ type Dispatcher struct {
 	cancel              func()
 
 	logger *slog.Logger
+
+	startTimer *time.Timer
+	state      int
 }
 
 // Limits describes limits used by Dispatcher.
@@ -102,46 +113,58 @@ type Limits interface {
 
 // NewDispatcher returns a new Dispatcher.
 func NewDispatcher(
-	ap provider.Alerts,
-	r *Route,
-	s notify.Stage,
-	mk types.GroupMarker,
-	to func(time.Duration) time.Duration,
-	mi time.Duration,
-	lim Limits,
-	l *slog.Logger,
-	m *DispatcherMetrics,
+	alerts provider.Alerts,
+	route *Route,
+	stage notify.Stage,
+	marker types.GroupMarker,
+	timeout func(time.Duration) time.Duration,
+	maintenanceInterval time.Duration,
+	limits Limits,
+	logger *slog.Logger,
+	metrics *DispatcherMetrics,
 ) *Dispatcher {
-	if lim == nil {
-		lim = nilLimits{}
+	if limits == nil {
+		limits = nilLimits{}
 	}
 
 	disp := &Dispatcher{
-		alerts:              ap,
-		stage:               s,
-		route:               r,
-		marker:              mk,
-		timeout:             to,
-		maintenanceInterval: mi,
-		logger:              l.With("component", "dispatcher"),
-		metrics:             m,
-		limits:              lim,
+		alerts:              alerts,
+		stage:               stage,
+		route:               route,
+		marker:              marker,
+		timeout:             timeout,
+		maintenanceInterval: maintenanceInterval,
+		logger:              logger.With("component", "dispatcher"),
+		metrics:             metrics,
+		limits:              limits,
+		state:               DispatcherStateUnknown,
 	}
+	disp.loadingFinished.Add(1)
 	return disp
 }
 
 // Run starts dispatching alerts incoming via the updates channel.
-func (d *Dispatcher) Run() {
+func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.done = make(chan struct{})
 
 	d.mtx.Lock()
+	d.logger.Debug("preparing to start", "startTime", dispatchStartTime)
+	d.startTimer = time.NewTimer(time.Until(dispatchStartTime))
+	d.state = DispatcherStateWaitingToStart
+	d.logger.Debug("setting state", "state", "waiting_to_start")
 	d.aggrGroupsPerRoute = map[*Route]map[model.Fingerprint]*aggrGroup{}
 	d.aggrGroupsNum = 0
 	d.metrics.aggrGroups.Set(0)
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	d.mtx.Unlock()
 
-	d.run(d.alerts.Subscribe("dispatcher"))
+	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
+	for _, alert := range initalAlerts {
+		d.ingestAlert(alert)
+	}
+	d.loadingFinished.Done()
+
+	d.run(it)
 	close(d.done)
 }
 
@@ -170,11 +193,19 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				continue
 			}
 
-			now := time.Now()
-			for _, r := range d.route.Match(alert.Labels) {
-				d.processAlert(alert, r)
+			d.ingestAlert(alert)
+
+		case <-d.startTimer.C:
+			if d.state == DispatcherStateWaitingToStart {
+				d.state = DispatcherStateRunning
+				d.logger.Debug("started", "state", "running")
+				d.logger.Debug("Starting all existing aggregation groups")
+				for _, groups := range d.aggrGroupsPerRoute {
+					for _, ag := range groups {
+						d.runAG(ag)
+					}
+				}
 			}
-			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 
 		case <-maintenance.C:
 			d.doMaintenance()
@@ -200,6 +231,28 @@ func (d *Dispatcher) doMaintenance() {
 	}
 }
 
+func (d *Dispatcher) ingestAlert(alert *types.Alert) {
+	now := time.Now()
+	for _, r := range d.route.Match(alert.Labels) {
+		d.processAlert(alert, r)
+	}
+	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
+}
+
+func (d *Dispatcher) WaitForLoading() {
+	d.loadingFinished.Wait()
+}
+
+func (d *Dispatcher) LoadingDone() <-chan struct{} {
+	doneChan := make(chan struct{})
+	go func() {
+		d.WaitForLoading()
+		close(doneChan)
+	}()
+
+	return doneChan
+}
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
 	Alerts   types.AlertSlice
@@ -221,7 +274,13 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-d.LoadingDone():
+	}
+	d.WaitForLoading()
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
@@ -283,7 +342,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		sort.Strings(receivers[i])
 	}
 
-	return groups, receivers
+	return groups, receivers, nil
 }
 
 // Stop the dispatcher.
@@ -311,6 +370,7 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+	now := time.Now()
 	groupLabels := getGroupLabels(alert, route)
 
 	fp := groupLabels.Fingerprint()
@@ -347,6 +407,30 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// alert is already there.
 	ag.insert(alert)
 
+	if alert.StartsAt.Add(ag.opts.GroupWait).Before(now) {
+		ag.logger.Debug(
+			"Alert is old enough for immediate flush, resetting timer to zero",
+			"alert", alert.Name(),
+			"fingerprint", alert.Fingerprint(),
+			"startsAt", alert.StartsAt,
+		)
+		ag.resetTimer(0)
+	}
+	// Check dispatcher and alert state to determine if we should run the AG now.
+	switch d.state {
+	case DispatcherStateWaitingToStart:
+		d.logger.Debug("Dispatcher still waiting to start")
+	case DispatcherStateRunning:
+		d.runAG(ag)
+	default:
+		d.logger.Warn("unknown state detected", "state", "unknown")
+	}
+}
+
+func (d *Dispatcher) runAG(ag *aggrGroup) {
+	if ag.running.Load() {
+		return
+	}
 	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
@@ -392,13 +476,18 @@ type aggrGroup struct {
 	done    chan struct{}
 	next    *time.Timer
 	timeout func(time.Duration) time.Duration
-
-	mtx        sync.RWMutex
-	hasFlushed bool
+	running atomic.Bool
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, marker types.AlertMarker, logger *slog.Logger) *aggrGroup {
+func newAggrGroup(
+	ctx context.Context,
+	labels model.LabelSet,
+	r *Route,
+	to func(time.Duration) time.Duration,
+	marker types.AlertMarker,
+	logger *slog.Logger,
+) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -436,6 +525,7 @@ func (ag *aggrGroup) String() string {
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
+	ag.running.Store(true)
 	defer close(ag.done)
 	defer ag.next.Stop()
 
@@ -462,10 +552,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRouteID(ctx, ag.routeID)
 
 			// Wait the configured interval before calling flush again.
-			ag.mtx.Lock()
-			ag.next.Reset(ag.opts.GroupInterval)
-			ag.hasFlushed = true
-			ag.mtx.Unlock()
+			ag.resetTimer(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
@@ -486,18 +573,15 @@ func (ag *aggrGroup) stop() {
 	<-ag.done
 }
 
+// resetTimer resets the timer for the AG.
+func (ag *aggrGroup) resetTimer(t time.Duration) {
+	ag.next.Reset(t)
+}
+
 // insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
 	if err := ag.alerts.Set(alert); err != nil {
 		ag.logger.Error("error on set alert", "err", err)
-	}
-
-	// Immediately trigger a flush if the wait duration for this
-	// alert is already over.
-	ag.mtx.Lock()
-	defer ag.mtx.Unlock()
-	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
-		ag.next.Reset(0)
 	}
 }
 

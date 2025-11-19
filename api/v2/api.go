@@ -14,11 +14,13 @@
 package v2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -77,7 +79,7 @@ type API struct {
 }
 
 type (
-	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
@@ -285,7 +287,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			receivers = append(receivers, r.RouteOpts.Receiver)
 		}
 
-		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
+		if receiverFilter != nil && !slices.ContainsFunc(receivers, receiverFilter.MatchString) {
 			continue
 		}
 
@@ -405,7 +407,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers := api.alertGroups(rf, af)
+	alertGroups, allReceivers, err := api.alertGroups(params.HTTPRequest.Context(), rf, af)
+	if err != nil {
+		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
+	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
@@ -468,16 +473,6 @@ func removeEmptyLabels(ls prometheus_model.LabelSet) {
 			delete(ls, k)
 		}
 	}
-}
-
-func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
-	for _, r := range receivers {
-		if filter.MatchString(r) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func alertMatchesFilterLabels(a *prometheus_model.Alert, matchers []*labels.Matcher) bool {

@@ -16,11 +16,13 @@ package silence
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +33,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
@@ -213,6 +214,188 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Empty(t, s.st)
 		require.Empty(t, s.mi)
 	})
+
+	t.Run("GC collects silences in multiple rounds", func(t *testing.T) {
+		s, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+		})
+		clock := quartz.NewMock(t)
+		s.clock = clock
+		require.NoError(t, err)
+		now := s.nowUTC().UTC()
+
+		matcher := &pb.Matcher{
+			Type:    pb.Matcher_EQUAL,
+			Name:    "job",
+			Pattern: "test",
+		}
+
+		// Create silences that expire at different times.
+		// Directly set them in state to create pre-expired silences.
+		// Group 1: expires at now+30min (with retention: now+90min)
+		// Group 2: expires at now+45min (with retention: now+105min)
+		// Group 3: expires at now+60min (with retention: now+120min)
+		// Group 4: active, expires at now+3hours (with retention: now+4hours)
+
+		sils := make([]*pb.Silence, 0, 60)
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group1-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(30 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group2-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(45 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 10 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("group3-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(60 * time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		for i := range 30 {
+			sil := &pb.Silence{
+				Id:        fmt.Sprintf("active-%d", i),
+				Matchers:  []*pb.Matcher{matcher},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(3 * time.Hour),
+				UpdatedAt: now.Add(-time.Hour),
+			}
+			sils = append(sils, sil)
+		}
+
+		// Shuffle silences to ensure GC order is not dependent on insertion order.
+		rand.Shuffle(len(sils), func(i, j int) {
+			sils[i], sils[j] = sils[j], sils[i]
+		})
+		for _, sil := range sils {
+			ms := s.toMeshSilence(sil)
+			s.st[ms.Silence.Id] = ms
+			s.indexSilence(ms.Silence)
+		}
+
+		require.Len(t, s.st, 60)
+		require.Len(t, s.mi, 60)
+
+		// First GC: nothing should be collected yet
+		n, err := s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 0, n)
+		require.Len(t, s.st, 60)
+		require.Len(t, s.mi, 60)
+
+		// Advance time to 91 minutes - Group 1 should be GC'd
+		clock.Advance(91 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 50)
+		require.Len(t, s.mi, 50)
+
+		// Advance time to 106 minutes - Group 2 should be GC'd
+		clock.Advance(15 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 40)
+		require.Len(t, s.mi, 40)
+
+		// Advance time to 121 minutes - Group 3 should be GC'd
+		clock.Advance(15 * time.Minute)
+		n, err = s.GC()
+		require.NoError(t, err)
+		require.Equal(t, 10, n)
+		require.Len(t, s.st, 30)
+		require.Len(t, s.mi, 30)
+
+		// Verify all remaining silences are active
+		for id := range s.st {
+			require.Contains(t, id, "active-")
+		}
+	})
+
+	t.Run("GC continues and removes erroneous silences", func(t *testing.T) {
+		reg := prometheus.NewRegistry()
+		s, err := New(Options{Metrics: reg})
+		require.NoError(t, err)
+		clock := quartz.NewMock(t)
+		s.clock = clock
+		now := clock.Now()
+
+		// Create a valid silence
+		validSil := &pb.Silence{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "foo",
+				Pattern: "bar",
+			}},
+			StartsAt: now,
+			EndsAt:   now.Add(time.Minute),
+		}
+		require.NoError(t, s.Set(validSil))
+		validID := validSil.Id
+
+		// Manually add an erroneous silence with zero expiration
+		erroneousSil := &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id: "erroneous",
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "bar",
+					Pattern: "baz",
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			},
+			ExpiresAt: time.Time{}, // Zero expiration - invalid
+		}
+		s.st["erroneous"] = erroneousSil
+		s.vi.add(s.version+1, "erroneous")
+		s.version++
+
+		// Manually add an entry to version index that doesn't exist in state
+		s.vi.add(s.version+1, "missing")
+		s.version++
+
+		require.Len(t, s.st, 2)
+		require.Len(t, s.vi, 3)
+
+		// Run GC - should continue despite errors
+		n, err := s.GC()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "zero expiration timestamp")
+		require.Contains(t, err.Error(), "missing from state")
+
+		// GC should have removed erroneous silences
+		require.Equal(t, 1, n) // Only the erroneous silence with zero expiration
+		require.Len(t, s.st, 1)
+		require.Len(t, s.vi, 1)
+		require.Contains(t, s.st, validID)
+		require.NotContains(t, s.st, "erroneous")
+
+		// Check that the error metric was incremented
+		metricValue := testutil.ToFloat64(s.metrics.gcErrorsTotal)
+		require.Equal(t, float64(2), metricValue)
+	})
 }
 
 func TestSilencesSnapshot(t *testing.T) {
@@ -267,7 +450,7 @@ func TestSilencesSnapshot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		f, err := os.CreateTemp("", "snapshot")
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
 		s1 := &Silences{st: state{}, metrics: newMetrics(nil, nil)}
@@ -295,7 +478,7 @@ func TestSilencesSnapshot(t *testing.T) {
 
 // This tests a regression introduced by https://github.com/prometheus/alertmanager/pull/2689.
 func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
-	f, err := os.CreateTemp("", "snapshot")
+	f, err := os.CreateTemp(t.TempDir(), "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := quartz.NewMock(t)
 	s := &Silences{st: state{}, logger: promslog.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
@@ -315,7 +498,7 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 }
 
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := os.CreateTemp("", "snapshot")
+	f, err := os.CreateTemp(t.TempDir(), "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := quartz.NewMock(t)
 	reg := prometheus.NewRegistry()
@@ -955,6 +1138,98 @@ func TestQMatches(t *testing.T) {
 	}
 }
 
+func TestQSince(t *testing.T) {
+	type testCase struct {
+		index versionIndex
+
+		since   int
+		results []string
+	}
+
+	cases := map[string]testCase{
+		"skips current version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+			},
+
+			since:   1,
+			results: []string{"2"},
+		},
+		"skips any number of old versions": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 2},
+				{id: "4", version: 3},
+				{id: "5", version: 4},
+			},
+
+			since:   3,
+			results: []string{"5"},
+		},
+		"since 0 returns everything": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+			},
+
+			since:   0,
+			results: []string{"1", "2"},
+		},
+		"returns all elements of a group with the same version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 3},
+				{id: "4", version: 3},
+			},
+
+			since:   2,
+			results: []string{"3", "4"},
+		},
+		"returns everything after the provided version": {
+			index: versionIndex{
+				{id: "1", version: 1},
+				{id: "2", version: 2},
+				{id: "3", version: 3},
+				{id: "4", version: 3},
+				{id: "5", version: 4},
+				{id: "6", version: 5},
+			},
+
+			since:   2,
+			results: []string{"3", "4", "5", "6"},
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			silences, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(t, err)
+			// build state from index so test cases are easier to write
+			st := state{}
+			for _, mapping := range c.index {
+				st[mapping.id] = &pb.MeshSilence{Silence: &pb.Silence{Id: mapping.id}}
+			}
+			silences.st = st
+			silences.vi = c.index
+
+			res, _, err := silences.Query(QSince(c.since))
+			require.NoError(t, err)
+			resultIds := []string{}
+			for _, sil := range res {
+				resultIds = append(resultIds, sil.Id)
+			}
+
+			sort.StringSlice(c.results).Sort()
+			sort.StringSlice(resultIds).Sort()
+
+			require.Equal(t, c.results, resultIds)
+		})
+	}
+}
+
 func TestSilencesQuery(t *testing.T) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
@@ -965,6 +1240,13 @@ func TestSilencesQuery(t *testing.T) {
 		"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
 		"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
 		"5": &pb.MeshSilence{Silence: &pb.Silence{Id: "5"}},
+	}
+	s.vi = versionIndex{
+		{id: "1"},
+		{id: "2"},
+		{id: "3"},
+		{id: "4"},
+		{id: "5"},
 	}
 	cases := []struct {
 		q   *query
@@ -1031,6 +1313,44 @@ func TestSilencesQuery(t *testing.T) {
 		sort.Sort(silencesByID(res))
 		require.Equal(t, c.exp, res, "unexpected silences in result")
 	}
+}
+
+func TestQIDs(t *testing.T) {
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
+	require.NoError(t, err)
+
+	s.st = state{
+		"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}},
+		"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}},
+		"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
+		"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
+	}
+
+	// Test QIDs with empty arguments returns an error
+	_, _, err = s.Query(QIDs())
+	require.Error(t, err, "expected error when QIDs is called with no arguments")
+	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
+
+	// Test QIDs with empty arguments returns an error via QueryOne
+	_, err = s.QueryOne(QIDs())
+	require.Error(t, err, "expected error when QIDs is called with no arguments")
+	require.Contains(t, err.Error(), "QIDs filter must have at least one id")
+
+	// Test QIDs with single ID works
+	res, _, err := s.Query(QIDs("1"))
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Equal(t, "1", res[0].Id)
+
+	// Test QIDs with multiple IDs works
+	res, _, err = s.Query(QIDs("1", "2"))
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+
+	// Test QueryOne with single ID works
+	sil, err := s.QueryOne(QIDs("1"))
+	require.NoError(t, err)
+	require.Equal(t, "1", sil.Id)
 }
 
 type silencesByID []*pb.Silence
@@ -1198,7 +1518,11 @@ func TestSilenceExpire(t *testing.T) {
 			UpdatedAt: now.Add(-time.Hour),
 		}},
 	}
-
+	s.vi = versionIndex{
+		silenceVersion{id: "pending"},
+		silenceVersion{id: "active"},
+		silenceVersion{id: "expired"},
+	}
 	count, err := s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
@@ -1295,6 +1619,11 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 			UpdatedAt: now.Add(-time.Hour),
 		}},
 	}
+	s.vi = versionIndex{
+		silenceVersion{id: "pending"},
+		silenceVersion{id: "active"},
+		silenceVersion{id: "expired"},
+	}
 
 	count, err := s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
@@ -1357,6 +1686,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
 
 	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
+	s.vi = versionIndex{silenceVersion{id: "active"}}
 
 	// The silence should be active.
 	count, err := s.CountState(types.SilenceStateActive)

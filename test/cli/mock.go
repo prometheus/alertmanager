@@ -16,6 +16,7 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"reflect"
@@ -109,6 +110,11 @@ func (s *TestSilence) SetID(ID string) {
 // ID gets the silence ID.
 func (s *TestSilence) ID() string {
 	return s.id
+}
+
+// EndsAt gets the silence end time.
+func (s *TestSilence) EndsAt() float64 {
+	return s.endsAt
 }
 
 // TestAlert models a model.Alert with relative times.
@@ -288,12 +294,8 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			labels      = models.LabelSet{}
 			annotations = models.LabelSet{}
 		)
-		for k, v := range a.Labels {
-			labels[k] = v
-		}
-		for k, v := range a.Annotations {
-			annotations[k] = v
-		}
+		maps.Copy(labels, a.Labels)
+		maps.Copy(annotations, a.Annotations)
 
 		start := strfmt.DateTime(a.StartsAt)
 		end := strfmt.DateTime(a.EndsAt)

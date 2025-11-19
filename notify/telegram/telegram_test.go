@@ -88,7 +88,7 @@ func TestTelegramRetry(t *testing.T) {
 func TestTelegramNotify(t *testing.T) {
 	token := "secret"
 
-	fileWithToken, err := os.CreateTemp("", "telegram-bot-token")
+	fileWithToken, err := os.CreateTemp(t.TempDir(), "telegram-bot-token")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = fileWithToken.WriteString(token)
 	require.NoError(t, err, "writing to temp file failed")

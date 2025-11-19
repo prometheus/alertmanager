@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
@@ -132,17 +133,16 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	if err != nil {
 		return nil, false, err
 	}
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
-	n.logger.Debug("extracted group key", "key", key)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
 	details := make(map[string]string)
 
-	for k, v := range data.CommonLabels {
-		details[k] = v
-	}
+	maps.Copy(details, data.CommonLabels)
 
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
@@ -174,7 +174,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	default:
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
-			n.logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
+			logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()

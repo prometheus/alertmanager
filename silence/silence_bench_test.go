@@ -14,6 +14,8 @@
 package silence
 
 import (
+	"fmt"
+	"math/rand"
 	"strconv"
 	"sync"
 	"testing"
@@ -30,49 +32,84 @@ import (
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface for
-// different numbers of silences, where all silences match the alert.
+// different numbers of silences with varying match ratios.
 func BenchmarkMutes(b *testing.B) {
-	b.Run("1 silence mutes alert", func(b *testing.B) {
-		benchmarkMutes(b, 1)
+	b.Run("0 total, 0 matching", func(b *testing.B) {
+		benchmarkMutes(b, 0, 0)
 	})
-	b.Run("10 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 10)
+	b.Run("1 total, 1 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1, 1)
 	})
-	b.Run("100 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 100)
+	b.Run("100 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 100, 10)
 	})
-	b.Run("1000 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 1000)
+	b.Run("1000 total, 1 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 1)
 	})
-	b.Run("10000 silences mute alert", func(b *testing.B) {
-		benchmarkMutes(b, 10000)
+	b.Run("1000 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 10)
+	})
+	b.Run("1000 total, 100 matching", func(b *testing.B) {
+		benchmarkMutes(b, 1000, 100)
+	})
+	b.Run("10000 total, 0 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 10)
+	})
+	b.Run("10000 total, 10 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 10)
+	})
+	b.Run("10000 total, 1000 matching", func(b *testing.B) {
+		benchmarkMutes(b, 10000, 1000)
 	})
 }
 
-func benchmarkMutes(b *testing.B, n int) {
+func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
+	require.LessOrEqual(b, matchingSilences, totalSilences)
+
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b)
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
 	silences.clock = clock
 	now := clock.Now()
 
-	var silenceIDs []string
-	for i := 0; i < n; i++ {
-		s := &silencepb.Silence{
-			Matchers: []*silencepb.Matcher{{
-				Type:    silencepb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
-			}},
-			StartsAt: now,
-			EndsAt:   now.Add(time.Minute),
+	// Calculate interval to intersperse matching silences
+	var interval int
+	if matchingSilences > 0 {
+		interval = totalSilences / matchingSilences
+	}
+
+	// Create silences with matching ones interspersed throughout
+	matchingCreated := 0
+	for i := range totalSilences {
+		var s *silencepb.Silence
+		// Create matching silences at calculated intervals, but make sure there are always enough
+		if matchingCreated < matchingSilences && (i%interval == 0 || i == totalSilences-matchingSilences+matchingCreated) {
+			// Create a matching silence
+			s = &silencepb.Silence{
+				Matchers: []*silencepb.Matcher{{
+					Type:    silencepb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			}
+			matchingCreated++
+		} else {
+			// Create a non-matching silence
+			s = &silencepb.Silence{
+				Matchers: []*silencepb.Matcher{{
+					Type:    silencepb.Matcher_EQUAL,
+					Name:    "job",
+					Pattern: "job" + strconv.Itoa(i),
+				}},
+				StartsAt: now,
+				EndsAt:   now.Add(time.Minute),
+			}
 		}
 		require.NoError(b, silences.Set(s))
-		require.NoError(b, err)
-		silenceIDs = append(silenceIDs, s.Id)
 	}
-	require.Len(b, silenceIDs, n)
 
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(silences, m, promslog.NewNopLogger())
@@ -82,11 +119,135 @@ func benchmarkMutes(b *testing.B, n int) {
 	}
 	b.StopTimer()
 
-	// The alert should be marked as silenced for each silence.
+	// The alert should be marked as silenced for each matching silence.
 	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
-	require.True(b, silenced)
+	require.True(b, silenced || matchingSilences == 0)
 	require.Empty(b, pendingIDs)
-	require.Len(b, activeIDs, n)
+	require.Len(b, activeIDs, matchingSilences)
+}
+
+// BenchmarkMutesIncremental tests the incremental query optimization when a small
+// number of silences are added to a large existing set. This measures the real-world
+// scenario that the QSince optimization is designed for.
+func BenchmarkMutesIncremental(b *testing.B) {
+	cases := []struct {
+		name     string
+		baseSize int
+	}{
+		{"1000 base silences", 1000},
+		{"3000 base silences", 3000},
+		{"7000 base silences", 7000},
+		{"10000 base silences", 10000},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			silences, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(b, err)
+
+			clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
+			silences.clock = clock
+			now := clock.Now()
+
+			// Create base set of silences - most don't match, some do
+			// This simulates a realistic production scenario
+			// Intersperse matching silences throughout the base set
+			for i := 0; i < tc.baseSize; i++ {
+				var s *silencepb.Silence
+				if i%2000 == 0 && i > 0 {
+					// Sprinkle 1 silence matching every 2000
+					s = &silencepb.Silence{
+						Matchers: []*silencepb.Matcher{
+							{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "service",
+								Pattern: "test",
+							},
+							{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "instance",
+								Pattern: "instance1",
+							},
+						},
+						StartsAt: now,
+						EndsAt:   now.Add(time.Hour),
+					}
+				} else {
+					s = &silencepb.Silence{
+						Matchers: []*silencepb.Matcher{{
+							Type:    silencepb.Matcher_EQUAL,
+							Name:    "job",
+							Pattern: "job" + strconv.Itoa(i),
+						}},
+						StartsAt: now,
+						EndsAt:   now.Add(time.Hour),
+					}
+				}
+				require.NoError(b, silences.Set(s))
+			}
+
+			marker := types.NewMarker(prometheus.NewRegistry())
+			silencer := NewSilencer(silences, marker, promslog.NewNopLogger())
+
+			// Warm up: Establish marker state (markerVersion = current version)
+			// This simulates a system that has been running for a while
+			lset := model.LabelSet{"service": "test", "instance": "instance1"}
+			silencer.Mutes(lset)
+
+			// Benchmark: Measure Mutes() performance with incremental additions
+			// Every other iteration adds 1 new silence, all iterations call Mutes()
+			// This simulates realistic traffic with a mix of incremental and cached queries
+			// With QSince optimization, this should only scan new silences when added
+			b.ResetTimer()
+			iteration := 0
+			for b.Loop() {
+				// Don't measure the Set() time, only Mutes()
+				b.StopTimer()
+
+				// Add one new silence every other iteration to simulate realistic traffic
+				// where Mutes() is sometimes called without new silences
+				if iteration%2 == 0 {
+					var s *silencepb.Silence
+					if iteration%20 == 0 && iteration > 0 {
+						// Only 1 in 20 silences matches the labelset
+						s = &silencepb.Silence{
+							Matchers: []*silencepb.Matcher{
+								{
+									Type:    silencepb.Matcher_EQUAL,
+									Name:    "service",
+									Pattern: "test",
+								},
+								{
+									Type:    silencepb.Matcher_EQUAL,
+									Name:    "instance",
+									Pattern: "instance1",
+								},
+							},
+							StartsAt: now,
+							EndsAt:   now.Add(time.Hour),
+						}
+					} else {
+						// Most don't match
+						s = &silencepb.Silence{
+							Matchers: []*silencepb.Matcher{{
+								Type:    silencepb.Matcher_EQUAL,
+								Name:    "instance",
+								Pattern: "host" + strconv.Itoa(iteration),
+							}},
+							StartsAt: now,
+							EndsAt:   now.Add(time.Hour),
+						}
+					}
+					require.NoError(b, silences.Set(s))
+				}
+
+				b.StartTimer()
+				// Now query - should use incremental path or cached paths
+				silencer.Mutes(lset)
+				iteration++
+			}
+		})
+	}
 }
 
 // BenchmarkQuery benchmarks the Query method for the Silences struct
@@ -108,14 +269,14 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b)
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
 	s.clock = clock
 	now := clock.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
-	s.st = state{}
-	for i := 0; i < numSilences; i++ {
+	// Create silences using Set() to properly populate indices
+	for i := range numSilences {
 		id := strconv.Itoa(i)
 		// Include an offset to avoid optimizations.
 		patA := "A{4}|" + id
@@ -125,8 +286,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 			patB = "B(B|C)B.|" + id
 		}
 
-		s.st[id] = &silencepb.MeshSilence{Silence: &silencepb.Silence{
-			Id: id,
+		sil := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{
 				{Type: silencepb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
 				{Type: silencepb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
@@ -134,7 +294,8 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 			StartsAt:  now.Add(-time.Minute),
 			EndsAt:    now.Add(time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
-		}}
+		}
+		require.NoError(b, s.Set(sil))
 	}
 
 	// Run things once to populate the matcherCache.
@@ -160,56 +321,29 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 // write locks (Lock). With the pre-compiled matcher cache, multiple
 // queries can now execute in parallel.
 func BenchmarkQueryParallel(b *testing.B) {
-	b.Run("100 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 1)
+	b.Run("100 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 100)
 	})
-	b.Run("100 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 2)
+	b.Run("1000 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 1000)
 	})
-	b.Run("100 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 4)
-	})
-	b.Run("100 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 100, 8)
-	})
-	b.Run("1000 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 1)
-	})
-	b.Run("1000 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 2)
-	})
-	b.Run("1000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 4)
-	})
-	b.Run("1000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 1000, 8)
-	})
-	b.Run("10000 silences, 1 goroutine", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 1)
-	})
-	b.Run("10000 silences, 2 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 2)
-	})
-	b.Run("10000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 4)
-	})
-	b.Run("10000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkQueryParallel(b, 10000, 8)
+	b.Run("10000 silences", func(b *testing.B) {
+		benchmarkQueryParallel(b, 10000)
 	})
 }
 
-func benchmarkQueryParallel(b *testing.B, numSilences, numGoroutines int) {
+func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b)
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
 	s.clock = clock
 	now := clock.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	// Create silences with pre-compiled matchers
-	for i := 0; i < numSilences; i++ {
+	for i := range numSilences {
 		id := strconv.Itoa(i)
 		patA := "A{4}|" + id
 		patB := id
@@ -281,14 +415,14 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b)
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
 	s.clock = clock
 	now := clock.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
 	// Create initial silences
-	for i := 0; i < initialSilences; i++ {
+	for i := range initialSilences {
 		id := strconv.Itoa(i)
 		patA := "A{4}|" + id
 		patB := id
@@ -360,30 +494,27 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 // BenchmarkMutesParallel benchmarks concurrent Mutes calls to demonstrate
 // the performance improvement from parallel query execution.
 func BenchmarkMutesParallel(b *testing.B) {
-	b.Run("100 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 100, 4)
+	b.Run("100 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 100)
 	})
-	b.Run("1000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 1000, 4)
+	b.Run("1000 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 1000)
 	})
-	b.Run("10000 silences, 4 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 10000, 4)
-	})
-	b.Run("10000 silences, 8 goroutines", func(b *testing.B) {
-		benchmarkMutesParallel(b, 10000, 8)
+	b.Run("10000 silences", func(b *testing.B) {
+		benchmarkMutesParallel(b, 10000)
 	})
 }
 
-func benchmarkMutesParallel(b *testing.B, numSilences, numGoroutines int) {
+func benchmarkMutesParallel(b *testing.B, numSilences int) {
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b)
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
 	silences.clock = clock
 	now := clock.Now()
 
 	// Create silences that will match the alert
-	for i := 0; i < numSilences; i++ {
+	for range numSilences {
 		s := &silencepb.Silence{
 			Matchers: []*silencepb.Matcher{{
 				Type:    silencepb.Matcher_EQUAL,
@@ -407,4 +538,112 @@ func benchmarkMutesParallel(b *testing.B, numSilences, numGoroutines int) {
 			silencer.Mutes(model.LabelSet{"foo": "bar"})
 		}
 	})
+}
+
+// BenchmarkGC benchmarks the garbage collection performance for different
+// numbers of silences and different ratios of expired silences.
+func BenchmarkGC(b *testing.B) {
+	b.Run("1000 silences, 0% expired", func(b *testing.B) {
+		benchmarkGC(b, 1000, 0.0)
+	})
+	b.Run("1000 silences, 30% expired", func(b *testing.B) {
+		benchmarkGC(b, 1000, 0.3)
+	})
+	b.Run("1000 silences, 80% expired", func(b *testing.B) {
+		benchmarkGC(b, 1000, 0.8)
+	})
+	b.Run("10000 silences, 0% expired", func(b *testing.B) {
+		benchmarkGC(b, 10000, 0.0)
+	})
+	b.Run("10000 silences, 10% expired", func(b *testing.B) {
+		benchmarkGC(b, 10000, 0.1)
+	})
+	b.Run("10000 silences, 50% expired", func(b *testing.B) {
+		benchmarkGC(b, 10000, 0.5)
+	})
+	b.Run("10000 silences, 80% expired", func(b *testing.B) {
+		benchmarkGC(b, 10000, 0.8)
+	})
+}
+
+func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
+	b.ReportAllocs()
+
+	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
+	now := clock.Now()
+
+	numExpired := int(float64(numSilences) * expiredRatio)
+	numActive := numSilences - numExpired
+
+	matchers := []*silencepb.Matcher{{
+		Type:    silencepb.Matcher_EQUAL,
+		Name:    "foo",
+		Pattern: "bar",
+	}}
+	startTime := now.Add(-2 * time.Hour)
+	updateTime := now.Add(-2 * time.Hour)
+	endTime := now.Add(-time.Hour)
+	expireTime := now.Add(-time.Minute)
+	activeTime := now.Add(2 * time.Hour)
+
+	sils := make([]*silencepb.MeshSilence, 0, numSilences)
+
+	for _, j := range rand.Perm(numSilences) {
+		if j < numExpired {
+			sil := &silencepb.MeshSilence{
+				Silence: &silencepb.Silence{
+					Id:        fmt.Sprintf("expired-%d", j),
+					Matchers:  matchers,
+					StartsAt:  startTime,
+					EndsAt:    endTime,
+					UpdatedAt: updateTime,
+				},
+				ExpiresAt: expireTime,
+			}
+			sils = append(sils, sil)
+		} else {
+			sil := &silencepb.MeshSilence{
+				Silence: &silencepb.Silence{
+					Id:        fmt.Sprintf("active-%d", j),
+					Matchers:  matchers,
+					StartsAt:  startTime,
+					EndsAt:    endTime,
+					UpdatedAt: updateTime,
+				},
+				ExpiresAt: activeTime,
+			}
+			sils = append(sils, sil)
+		}
+	}
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		b.StopTimer()
+
+		s, err := New(Options{
+			Metrics: prometheus.NewRegistry(),
+		})
+		require.NoError(b, err)
+		s.clock = clock
+
+		for _, sil := range sils {
+			s.st[sil.Silence.Id] = sil
+			s.indexSilence(sil.Silence)
+		}
+
+		b.StartTimer()
+		n1, err := s.GC()
+		require.NoError(b, err)
+		n2, err := s.GC()
+		require.NoError(b, err)
+		b.StopTimer()
+
+		require.NoError(b, err)
+		require.Equal(b, numExpired, n1)
+		require.Equal(b, 0, n2)
+		require.Len(b, s.st, numActive)
+		require.Len(b, s.mi, numActive)
+		b.StartTimer()
+	}
 }

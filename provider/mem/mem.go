@@ -166,13 +166,6 @@ func (a *Alerts) Close() {
 	}
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
@@ -193,6 +186,22 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
+}
+
+func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	var (
+		done   = make(chan struct{})
+		alerts = a.alerts.List()
+		ch     = make(chan *types.Alert, alertChannelLength)
+	)
+
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.next++
+
+	return alerts, provider.NewAlertIterator(ch, done, nil)
 }
 
 // GetPending returns an iterator over all the alerts that have

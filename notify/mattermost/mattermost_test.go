@@ -58,7 +58,7 @@ func TestMattermostTemplating(t *testing.T) {
 	// Create a fake HTTP server to simulate the Mattermost webhook
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -140,7 +140,7 @@ func TestMattermostReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
@@ -172,11 +172,8 @@ func TestMattermost_Notify(t *testing.T) {
 	}))
 
 	// Create a temporary file to simulate the WebhookURLFile
-	tempFile, err := os.CreateTemp("", "webhook_url")
+	tempFile, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.Remove(tempFile.Name()))
-	})
 
 	// Write the fake webhook URL to the temp file
 	_, err = tempFile.WriteString(srv.URL)

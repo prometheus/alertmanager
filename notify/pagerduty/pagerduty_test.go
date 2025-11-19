@@ -113,7 +113,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 
 func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -137,7 +137,7 @@ func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 
 func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -313,7 +313,6 @@ func TestErrDetails(t *testing.T) {
 			exp: "",
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			err := errDetails(tc.status, tc.body)
 			require.Contains(t, err, tc.exp)

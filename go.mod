@@ -33,7 +33,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0
 	github.com/matttproud/golang_protobuf_extensions v1.0.4
 	github.com/oklog/run v1.2.0
-	github.com/oklog/ulid v1.3.1
+	github.com/oklog/ulid/v2 v2.1.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.2
@@ -45,7 +45,6 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/trivago/tgo v1.0.7
 	github.com/xlab/treeprint v1.2.0
-	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/mod v0.29.0
 	golang.org/x/net v0.46.0
@@ -103,6 +102,7 @@ require (
 	github.com/miekg/dns v1.1.41 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
+	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect

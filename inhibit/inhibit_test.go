@@ -413,6 +413,27 @@ func (f *fakeAlerts) Subscribe(name string) provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
+func (f *fakeAlerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+	ch := make(chan *types.Alert)
+	done := make(chan struct{})
+	go func() {
+		for _, a := range f.alerts {
+			ch <- a
+		}
+		// Send another (meaningless) alert to make sure that the inhibitor has
+		// processed everything.
+		ch <- &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{},
+				StartsAt: time.Now(),
+			},
+		}
+		close(f.finished)
+		<-done
+	}()
+	return []*types.Alert{}, provider.NewAlertIterator(ch, done, nil)
+}
+
 func TestInhibit(t *testing.T) {
 	t.Parallel()
 

@@ -278,7 +278,6 @@ func TestData(t *testing.T) {
 			},
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.alerts...)
 			require.Equal(t, tc.exp, got)
@@ -403,7 +402,6 @@ func TestTemplateExpansion(t *testing.T) {
 			exp: "[key2 key4]",
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString
 			if tc.html {
@@ -465,7 +463,6 @@ func TestTemplateExpansionWithOptions(t *testing.T) {
 			exp: "bar",
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			tmpl, err := FromGlobs([]string{}, tc.options...)
 			require.NoError(t, err)
@@ -579,10 +576,9 @@ func TestTemplateFuncs(t *testing.T) {
 		data:  time.Now().Add(-1 * time.Hour),
 		exp:   "1h 0m 0s",
 	}} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -656,7 +652,6 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			want:  nil,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			got, err := DeepCopyWithTemplate(tc.input, tc.fn)
 			require.NoError(t, err)

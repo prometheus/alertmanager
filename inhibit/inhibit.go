@@ -40,8 +40,9 @@ type Inhibitor struct {
 	logger  *slog.Logger
 	metrics *InhibitorMetrics
 
-	mtx    sync.RWMutex
-	cancel func()
+	mtx             sync.RWMutex
+	loadingFinished sync.WaitGroup
+	cancel          func()
 }
 
 // NewInhibitor returns a new Inhibitor.
@@ -53,6 +54,7 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 		metrics: metrics,
 	}
 
+	ih.loadingFinished.Add(1)
 	ruleNames := make(map[string]struct{})
 	for i, cr := range rs {
 		if _, ok := ruleNames[cr.Name]; ok {
@@ -66,13 +68,18 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 			ruleNames[cr.Name] = struct{}{}
 		}
 	}
-
 	return ih
 }
 
 func (ih *Inhibitor) run(ctx context.Context) {
-	it := ih.alerts.Subscribe("inhibitor")
+	initalAlerts, it := ih.alerts.SlurpAndSubscribe("inhibitor")
 	defer it.Close()
+
+	for _, a := range initalAlerts {
+		ih.processAlert(a)
+	}
+
+	ih.loadingFinished.Done()
 
 	for {
 		select {
@@ -83,33 +90,41 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				ih.logger.Error("Error iterating alerts", "err", err)
 				continue
 			}
-			// Update the inhibition rules' cache.
-			cachedSum := 0
-			indexedSum := 0
-			for _, r := range ih.rules {
-				if r.SourceMatchers.Matches(a.Labels) {
-					if err := r.scache.Set(a); err != nil {
-						ih.logger.Error("error on set alert", "err", err)
-						continue
-					}
-					r.updateIndex(a)
-
-				}
-				cached := r.scache.Len()
-				indexed := r.sindex.Len()
-
-				if r.Name != "" {
-					r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
-					r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
-				}
-
-				cachedSum += cached
-				indexedSum += indexed
-			}
-			ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
-			ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
+			ih.processAlert(a)
 		}
 	}
+}
+
+func (ih *Inhibitor) processAlert(a *types.Alert) {
+	// Update the inhibition rules' cache.
+	cachedSum := 0
+	indexedSum := 0
+	for _, r := range ih.rules {
+		if r.SourceMatchers.Matches(a.Labels) {
+			if err := r.scache.Set(a); err != nil {
+				ih.logger.Error("error on set alert", "err", err)
+				continue
+			}
+			r.updateIndex(a)
+
+		}
+		cached := r.scache.Len()
+		indexed := r.sindex.Len()
+
+		if r.Name != "" {
+			r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
+			r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
+		}
+
+		cachedSum += cached
+		indexedSum += indexed
+	}
+	ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
+	ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
+}
+
+func (ih *Inhibitor) WaitForLoading() {
+	ih.loadingFinished.Wait()
 }
 
 // Run the Inhibitor's background processing.

@@ -5,6 +5,7 @@ linters:
     - errorlint
     - godot
     - misspell
+    - modernize
     - revive
     - sloglint
     - testifylint
@@ -13,8 +14,6 @@ linters:
       rules:
         main:
           deny:
-            - pkg: sync/atomic
-              desc: "Use go.uber.org/atomic instead of sync/atomic"
             - pkg: github.com/stretchr/testify/assert
               desc: "Use github.com/stretchr/testify/require instead of github.com/stretchr/testify/assert"
             - pkg: github.com/go-kit/kit/log
@@ -79,6 +78,9 @@ linters:
       - linters:
           - errcheck
         path: _test.go
+      - linters:
+          - modernize
+        text: "omitzero: Omitempty has no effect on nested struct fields"
     warn-unused: true
 issues:
   max-issues-per-linter: 0

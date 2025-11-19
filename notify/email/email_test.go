@@ -300,7 +300,6 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 			hasEmail: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			if len(tc.errMsg) == 0 {
 				t.Fatal("please define the expected error message")
@@ -455,12 +454,13 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fileWithCorrectPassword, err := os.CreateTemp("", "smtp-password-correct")
+	td := t.TempDir()
+	fileWithCorrectPassword, err := os.CreateTemp(td, "smtp-password-correct")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = fileWithCorrectPassword.WriteString(c.Password)
 	require.NoError(t, err, "writing to temp file failed")
 
-	fileWithIncorrectPassword, err := os.CreateTemp("", "smtp-password-incorrect")
+	fileWithIncorrectPassword, err := os.CreateTemp(td, "smtp-password-incorrect")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = fileWithIncorrectPassword.WriteString(c.Password + "wrong")
 	require.NoError(t, err, "writing to temp file failed")
@@ -578,7 +578,6 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			retry:  true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			emailCfg := &config.EmailConfig{
 				Smarthost: c.Smarthost,

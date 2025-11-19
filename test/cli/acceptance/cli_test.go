@@ -271,3 +271,129 @@ receivers:
 	require.EqualError(t, err, "exit status 1")
 	require.Equal(t, "amtool: error: Failed to parse labels: unexpected open or close brace: {foo=bar}\n\n", string(out))
 }
+
+func TestSilenceImport(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1ms
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := NewWebhook(co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	// Add some test silences
+	silence1 := Silence(0, 4).Match("alertname=test1", "severity=warning").Comment("test silence 1")
+	silence2 := Silence(0, 4).Match("alertname=test2", "severity=critical").Comment("test silence 2")
+
+	am.SetSilence(0, silence1)
+	am.SetSilence(0, silence2)
+
+	// Export silences to JSON file
+	tmpDir := t.TempDir()
+	exportFile := tmpDir + "/silences.json"
+
+	exportOut, err := am.ExportSilences()
+	require.NoError(t, err)
+
+	// Write to file
+	err = os.WriteFile(exportFile, exportOut, 0o644)
+	require.NoError(t, err)
+
+	// Query current silences to get their IDs, then expire them
+	sils, err := am.QuerySilence()
+	require.NoError(t, err)
+	require.Len(t, sils, 2)
+	silIDs := make([]string, 0, len(sils))
+
+	// Expire all silences by ID
+	for _, sil := range sils {
+		id := sil.ID()
+		_, err := am.ExpireSilenceByID(id)
+		require.NoError(t, err)
+		silIDs = append(silIDs, id)
+	}
+
+	// Verify silences show as expired
+	sils, err = am.QueryExpiredSilence()
+	require.NoError(t, err)
+	// Silences should still be queryable but in expired state
+	require.Len(t, sils, 2, "expired silences should still be queryable")
+	// Check that the silences are actually expired (endsAt is in the past or equal to now)
+	now := float64(time.Now().Unix())
+	for _, sil := range sils {
+		require.Contains(t, silIDs, sil.ID(), "silence ID should be in the expired list")
+		require.LessOrEqual(t, sil.EndsAt(), now, "silence %s should be expired", sil.ID())
+	}
+
+	// Import silences back
+	importOut, err := am.ImportSilences(exportFile)
+	require.NoError(t, err, "import failed: %s", string(importOut))
+
+	// Verify silences were imported
+	sils, err = am.QuerySilence()
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(sils), 2, "expected at least 2 silences after import")
+}
+
+func TestSilenceImportInvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1ms
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := NewWebhook(co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	// Create file with invalid JSON
+	tmpDir := t.TempDir()
+	invalidFile := tmpDir + "/invalid.json"
+	err := os.WriteFile(invalidFile, []byte(`[{"broken": "json"`), 0o644)
+	require.NoError(t, err)
+
+	// Try to import - should fail
+	out, err := am.ImportSilences(invalidFile)
+	require.Error(t, err, "import should fail with invalid JSON")
+	require.Contains(t, string(out), "couldn't unmarshal", "error message should mention JSON parsing")
+}
