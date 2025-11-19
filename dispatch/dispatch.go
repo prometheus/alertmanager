@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -283,8 +284,22 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 	d.WaitForLoading()
 	groups := AlertGroups{}
 
+	// Make a snapshot of the aggrGroupsPerRoute map to use for this function.
+	// This ensures that we hold the Dispatcher.mtx for as little time as
+	// possible.
+	// It also prevents us from holding the any locks in alertFilter or routeFilter
+	// while we hold the dispatcher lock
 	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	aggrGroupsPerRoute := map[*Route]map[model.Fingerprint]*aggrGroup{}
+	for route, ags := range d.aggrGroupsPerRoute {
+		// Since other goroutines could modify d.aggrGroupsPerRoute, we need to
+		// copy it. We DON'T need to copy the aggrGroup objects because they each
+		// have a mutex protecting their internal state.
+		// The aggrGroup methods use the internal lock. It is important to avoid
+		// accessing internal fields on the aggrGroup objects.
+		aggrGroupsPerRoute[route] = maps.Clone(ags)
+	}
+	d.mtx.RUnlock()
 
 	// Keep a list of receivers for an alert to prevent checking each alert
 	// again against all routes. The alert has already matched against this
@@ -292,7 +307,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 	receivers := map[model.Fingerprint][]string{}
 
 	now := time.Now()
-	for route, ags := range d.aggrGroupsPerRoute {
+	for route, ags := range aggrGroupsPerRoute {
 		if !routeFilter(route) {
 			continue
 		}
