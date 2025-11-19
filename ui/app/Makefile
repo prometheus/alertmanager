@@ -9,6 +9,7 @@ JUNIT_DIR ?=
 
 ifeq ($(NO_DOCKER), true)
   DOCKER_CMD=
+  DOCKER_RUN_CURRENT_USER=
 endif
 
 all: script.js test
