@@ -1236,6 +1236,7 @@ func TestJiraPriority(t *testing.T) {
 		})
 	}
 }
+
 func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
