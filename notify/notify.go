@@ -537,8 +537,10 @@ const (
 
 // MuteStage filters alerts through a Muter.
 type MuteStage struct {
-	muter   types.Muter
-	metrics *Metrics
+	muter           types.Muter
+	metrics         *Metrics
+	notificationLog NotificationLog
+	receivers       map[string][]Integration
 }
 
 // NewMuteStage return a new MuteStage.
@@ -546,8 +548,26 @@ func NewMuteStage(m types.Muter, metrics *Metrics) *MuteStage {
 	return &MuteStage{muter: m, metrics: metrics}
 }
 
+// NewMuteStageWithSendResolved returns a new MuteStage that honors send_resolved
+// for silenced alerts. This should be used for silence.Silencer to allow resolved
+// notifications for previously notified alerts.
+func NewMuteStageWithSendResolved(m types.Muter, notificationLog NotificationLog, receivers map[string][]Integration, metrics *Metrics) *MuteStage {
+	return &MuteStage{
+		muter:           m,
+		metrics:         metrics,
+		notificationLog: notificationLog,
+		receivers:       receivers,
+	}
+}
+
 // Exec implements the Stage interface.
 func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	// If this is a silencer with send_resolved support, use the enhanced logic
+	if _, isSilencer := n.muter.(*silence.Silencer); isSilencer && n.notificationLog != nil && n.receivers != nil {
+		return n.execWithSendResolved(ctx, logger, alerts...)
+	}
+
+	// Standard muting logic for inhibitors or silencers without send_resolved support
 	var (
 		filtered []*types.Alert
 		muted    []*types.Alert
@@ -574,6 +594,114 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*ty
 		}
 		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
 		logger.Debug("Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
+	}
+
+	return ctx, filtered, nil
+}
+
+// execWithSendResolved implements enhanced silence filtering that honors send_resolved config.
+// It allows resolved notifications for silenced alerts if the alert was previously notified
+// and the receiver has send_resolved enabled.
+func (n *MuteStage) execWithSendResolved(ctx context.Context, logger *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	var (
+		filtered []*types.Alert
+		muted    []*types.Alert
+	)
+
+	// Get the receiver name from context
+	receiverName, ok := ReceiverName(ctx)
+	if !ok {
+		return ctx, nil, errors.New("receiver name missing")
+	}
+
+	// Get the group key from context
+	groupKey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group key missing")
+	}
+
+	// Check if any integration for this receiver has send_resolved enabled
+	receiverIntegrations, receiverExists := n.receivers[receiverName]
+	if !receiverExists {
+		// Receiver not found, fall back to standard behavior
+		for _, a := range alerts {
+			if n.muter.Mutes(a.Labels) {
+				muted = append(muted, a)
+			} else {
+				filtered = append(filtered, a)
+			}
+		}
+		if len(muted) > 0 {
+			n.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonSilence).Add(float64(len(muted)))
+			logger.Debug("Notifications will not be sent for silenced alerts", "alerts", fmt.Sprintf("%v", muted), "reason", SuppressedReasonSilence)
+		}
+		return ctx, filtered, nil
+	}
+
+	// Check if any integration has send_resolved enabled
+	hasSendResolved := false
+	for _, integration := range receiverIntegrations {
+		if integration.SendResolved() {
+			hasSendResolved = true
+			break
+		}
+	}
+
+	// Process each alert
+	for _, a := range alerts {
+		if !n.muter.Mutes(a.Labels) {
+			// Alert is not silenced, let it through
+			filtered = append(filtered, a)
+			continue
+		}
+
+		// Alert is silenced
+		if !a.Resolved() || !hasSendResolved {
+			// Alert is firing or receiver doesn't have send_resolved, filter it out
+			muted = append(muted, a)
+			continue
+		}
+
+		// Alert is resolved and receiver has send_resolved enabled
+		// Check if this alert was previously notified
+		wasNotified := false
+		for _, integration := range receiverIntegrations {
+			if !integration.SendResolved() {
+				continue
+			}
+
+			recv := &nflogpb.Receiver{
+				GroupName:   receiverName,
+				Integration: integration.Name(),
+				Idx:         uint32(integration.Index()),
+			}
+
+			entries, err := n.notificationLog.Query(nflog.QGroupKey(groupKey), nflog.QReceiver(recv))
+			if err != nil && !errors.Is(err, nflog.ErrNotFound) {
+				logger.Warn("Failed to query notification log for silenced resolved alert", "alert", a.Name(), "err", err)
+				continue
+			}
+
+			if len(entries) > 0 && len(entries[0].FiringAlerts) > 0 {
+				// This alert was previously notified as firing for this integration
+				wasNotified = true
+				break
+			}
+		}
+
+		if wasNotified {
+			// Alert was previously notified and is now resolved, let it through for resolved notification
+			filtered = append(filtered, a)
+			logger.Debug("Allowing resolved notification for silenced alert", "alert", a.Name())
+		} else {
+			// Alert was not previously notified, filter it out
+			muted = append(muted, a)
+		}
+	}
+
+	if len(muted) > 0 {
+		n.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonSilence).Add(float64(len(muted)))
+		logger.Debug("Notifications will not be sent for silenced alerts", "alerts", fmt.Sprintf("%v", muted), "reason", SuppressedReasonSilence)
 	}
 
 	return ctx, filtered, nil
