@@ -504,7 +504,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -553,7 +553,7 @@ func TestJiraNotify(t *testing.T) {
 						Key: "MONITORING-1",
 						Fields: &issueFields{
 							Summary:     stringPtr("Original Summary"),
-							Description: stringPtr("Original Description"),
+							Description: "Original Description",
 							Status: &issueStatus{
 								Name: "Open",
 								StatusCategory: struct {
@@ -619,7 +619,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1 MINOR MONITORING critical)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "MINOR"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "MONITORING"},
@@ -671,7 +671,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr(strings.Repeat("A", maxSummaryLenRunes-1) + "…"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -734,7 +734,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -789,7 +789,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[RESOLVED] test (vm1)"),
-					Description: stringPtr("\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n"),
+					Description: "\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -843,7 +843,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: "\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n",
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
