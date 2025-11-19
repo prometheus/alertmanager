@@ -300,7 +300,6 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 			hasEmail: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			if len(tc.errMsg) == 0 {
 				t.Fatal("please define the expected error message")
@@ -579,7 +578,6 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			retry:  true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			emailCfg := &config.EmailConfig{
 				Smarthost: c.Smarthost,

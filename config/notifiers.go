@@ -206,10 +206,14 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		APIType:     "auto",
-		Summary:     `{{ template "jira.default.summary" . }}`,
-		Description: `{{ template "jira.default.description" . }}`,
-		Priority:    `{{ template "jira.default.priority" . }}`,
+		APIType: "auto",
+		Summary: JiraFieldConfig{
+			Template: `{{ template "jira.default.summary" . }}`,
+		},
+		Description: JiraFieldConfig{
+			Template: `{{ template "jira.default.description" . }}`,
+		},
+		Priority: `{{ template "jira.default.priority" . }}`,
 	}
 
 	DefaultMattermostConfig = MattermostConfig{
@@ -578,7 +582,7 @@ type IncidentioConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultIncidentioConfig
 	type plain IncidentioConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -978,6 +982,13 @@ func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+type JiraFieldConfig struct {
+	// Template is the template string used to render the field.
+	Template string `yaml:"template,omitempty" json:"template,omitempty"`
+	// EnableUpdate indicates whether this field should be omitted when updating an existing issue.
+	EnableUpdate *bool `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
+}
+
 type JiraConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
@@ -985,12 +996,12 @@ type JiraConfig struct {
 	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	APIType string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
-	Project     string   `yaml:"project,omitempty" json:"project,omitempty"`
-	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Labels      []string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	IssueType   string   `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
+	Project     string          `yaml:"project,omitempty" json:"project,omitempty"`
+	Summary     JiraFieldConfig `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description JiraFieldConfig `yaml:"description,omitempty" json:"description,omitempty"`
+	Labels      []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Priority    string          `yaml:"priority,omitempty" json:"priority,omitempty"`
+	IssueType   string          `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
 	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
 	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
@@ -998,6 +1009,28 @@ type JiraConfig struct {
 	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
 
 	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
+}
+
+func (f *JiraFieldConfig) EnableUpdateValue() bool {
+	if f.EnableUpdate == nil {
+		return true
+	}
+	return *f.EnableUpdate
+}
+
+// Supports both the legacy string and the new object form.
+func (f *JiraFieldConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	// Try simple string first (backward compatibility).
+	var s string
+	if err := unmarshal(&s); err == nil {
+		f.Template = s
+		// DisableUpdate stays false by default.
+		return nil
+	}
+
+	// Fallback to full object form.
+	type plain JiraFieldConfig
+	return unmarshal((*plain)(f))
 }
 
 func (c *JiraConfig) UnmarshalYAML(unmarshal func(any) error) error {
@@ -1111,7 +1144,7 @@ type MattermostField struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for MattermostField.
-func (c *MattermostField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MattermostField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain MattermostField
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -1166,7 +1199,7 @@ type MattermostConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *MattermostConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMattermostConfig
 	type plain MattermostConfig
 	if err := unmarshal((*plain)(c)); err != nil {

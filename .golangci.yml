@@ -5,6 +5,7 @@ linters:
     - errorlint
     - godot
     - misspell
+    - modernize
     - revive
     - sloglint
     - testifylint
@@ -77,6 +78,9 @@ linters:
       - linters:
           - errcheck
         path: _test.go
+      - linters:
+          - modernize
+        text: "omitzero: Omitempty has no effect on nested struct fields"
     warn-unused: true
 issues:
   max-issues-per-linter: 0

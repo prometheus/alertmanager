@@ -759,7 +759,7 @@ func TestLexer_Peek(t *testing.T) {
 // error has occurred.
 func TestLexer_PeekError(t *testing.T) {
 	l := lexer{input: "\"hello"}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tok, err := l.peek()
 		require.Equal(t, token{}, tok)
 		require.EqualError(t, err, "0:6: \"hello: missing end \"")

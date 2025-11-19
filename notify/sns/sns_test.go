@@ -113,7 +113,6 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 			},
 		},
 	} {
-		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			snsCfg := &config.SNSConfig{
 				HTTPConfig: &commoncfg.HTTPClientConfig{},

@@ -1159,11 +1159,23 @@ The default `jira.default.description` template only works with V2.
 # The project key where issues are created.
 project: <string>
 
-# Issue summary template.
-[ summary: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
+# Issue summary configuration.
+[ summary:
+    # Template for the issue summary.
+    [ template: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
+    
+    # If set to false, the summary will not be updated when updating an existing issue.
+    [ enable_update: <boolean> | default = true ]
+]
 
-# Issue description template.
-[ description: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
+# Issue description configuration.
+[ description:
+    # Template for the issue description.
+    [ template: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
+    
+    # If set to false, the description will not be updated when updating an existing issue.
+    [ enable_update: <boolean> | default = true ]
+]
 
 # Labels to be added to the issue.
 labels:

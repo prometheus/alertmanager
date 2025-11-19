@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -485,9 +486,7 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
 	labels := make(models.LabelSet, len(alert.labels))
-	for k, v := range alert.labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, alert.labels)
 	if omitEquals {
 		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.

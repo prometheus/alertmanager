@@ -113,7 +113,7 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		return NoopFlags{}, nil
 	}
 
-	for _, feature := range strings.Split(features, ",") {
+	for feature := range strings.SplitSeq(features, ",") {
 		switch feature {
 		case FeatureReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())

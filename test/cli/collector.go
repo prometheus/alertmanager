@@ -16,6 +16,7 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -105,12 +106,13 @@ func (c *Collector) add(alerts ...*models.GettableAlert) {
 }
 
 func (c *Collector) Check() string {
-	report := fmt.Sprintf("\ncollector %q:\n\n", c)
+	var report strings.Builder
+	report.WriteString(fmt.Sprintf("\ncollector %q:\n\n", c))
 
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 	for iv, expected := range c.expected {
-		report += fmt.Sprintf("interval %v\n", iv)
+		report.WriteString(fmt.Sprintf("interval %v\n", iv))
 
 		var alerts []models.GettableAlerts
 		for at, got := range c.collected {
@@ -122,10 +124,10 @@ func (c *Collector) Check() string {
 		for _, exp := range expected {
 			found := len(exp) == 0 && len(alerts) == 0
 
-			report += "---\n"
+			report.WriteString("---\n")
 
 			for _, e := range exp {
-				report += fmt.Sprintf("- %v\n", c.opts.alertString(e))
+				report.WriteString(fmt.Sprintf("- %v\n", c.opts.alertString(e)))
 			}
 
 			for _, a := range alerts {
@@ -136,10 +138,10 @@ func (c *Collector) Check() string {
 			}
 
 			if found {
-				report += "  [ ✓ ]\n"
+				report.WriteString("  [ ✓ ]\n")
 			} else {
 				c.t.Fail()
-				report += "  [ ✗ ]\n"
+				report.WriteString("  [ ✗ ]\n")
 			}
 		}
 	}
@@ -161,23 +163,23 @@ func (c *Collector) Check() string {
 	}
 	if totalExp != totalAct {
 		c.t.Fail()
-		report += fmt.Sprintf("\nExpected total of %d alerts, got %d", totalExp, totalAct)
+		report.WriteString(fmt.Sprintf("\nExpected total of %d alerts, got %d", totalExp, totalAct))
 	}
 
 	if c.t.Failed() {
-		report += "\nreceived:\n"
+		report.WriteString("\nreceived:\n")
 
 		for at, col := range c.collected {
 			for _, alerts := range col {
-				report += fmt.Sprintf("@ %v\n", at)
+				report.WriteString(fmt.Sprintf("@ %v\n", at))
 				for _, a := range alerts {
-					report += fmt.Sprintf("- %v\n", c.opts.alertString(a))
+					report.WriteString(fmt.Sprintf("- %v\n", c.opts.alertString(a)))
 				}
 			}
 		}
 	}
 
-	return report
+	return report.String()
 }
 
 // alertsToString returns a string representation of the given Alerts. Use for
