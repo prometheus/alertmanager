@@ -502,8 +502,11 @@ type SlackConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL     *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIURLFile string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
+	APIURL       *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURLFile   string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
+	AppToken     Secret     `yaml:"app_token,omitempty" json:"app_token,omitempty"`
+	AppTokenFile string     `yaml:"app_token_file,omitempty" json:"app_token_file,omitempty"`
+	AppURL       *URL       `yaml:"app_url,omitempty" json:"app_url,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -541,6 +544,12 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return errors.New("at most one of api_url & api_url_file must be configured")
+	}
+	if c.AppToken != "" && len(c.AppTokenFile) > 0 {
+		return errors.New("at most one of app_token & app_token_file must be configured")
+	}
+	if (c.APIURL != nil || len(c.APIURLFile) > 0) && (c.AppToken != "" || len(c.AppTokenFile) > 0) {
+		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
 	return nil

@@ -934,6 +934,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				InsecureSkipVerify: false,
 			},
 			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
+			SlackAppURL:      mustParseURL("https://slack.com/api/chat.postMessage"),
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
@@ -1212,13 +1213,116 @@ func TestSlackBothAPIURLAndFile(t *testing.T) {
 	}
 }
 
-func TestSlackNoAPIURL(t *testing.T) {
-	_, err := LoadFile("testdata/conf.slack-no-api-url.yml")
+func TestSlackBothAppTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-both-file-and-token.yml")
 	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-no-api-url.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-both-file-and-token.yml", err)
 	}
-	if err.Error() != "no global Slack API URL set either inline or in a file" {
-		t.Errorf("Expected: %s\nGot: %s", "no global Slack API URL set either inline or in a file", err.Error())
+	if err.Error() != "at most one of slack_app_token & slack_app_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of slack_app_token & slack_app_token_file must be configured", err.Error())
+	}
+}
+
+func TestSlackBothAppTokenAndAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-both-url-and-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-both-url-and-token.yml", err)
+	}
+	if err.Error() != "at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured", err.Error())
+	}
+}
+
+func TestSlackGlobalAppToken(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-default-app-token.yml", err)
+	}
+
+	// no override
+	defaultToken := conf.Global.SlackAppToken
+	firstAuth := commoncfg.Authorization{
+		Type:        "Bearer",
+		Credentials: commoncfg.Secret(defaultToken),
+	}
+	firstConfig := conf.Receivers[0].SlackConfigs[0]
+	if firstConfig.AppToken != defaultToken {
+		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", firstConfig.AppToken, defaultToken)
+	}
+	if firstConfig.APIURL.String() != conf.Global.SlackAppURL.String() {
+		t.Fatalf("Expected API URL: %s\nGot: %s", conf.Global.SlackAppURL.String(), firstConfig.APIURL.String())
+	}
+	if firstConfig.HTTPConfig == nil || firstConfig.HTTPConfig.Authorization == nil {
+		t.Fatalf("Error configuring Slack App authorization: %s", firstConfig.HTTPConfig)
+	}
+	if firstConfig.HTTPConfig.Authorization.Type != firstAuth.Type {
+		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", firstConfig.HTTPConfig.Authorization.Type, firstAuth.Type)
+	}
+	if firstConfig.HTTPConfig.Authorization.Credentials != firstAuth.Credentials {
+		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", firstConfig.HTTPConfig.Authorization.Credentials, firstAuth.Credentials)
+	}
+
+	// inline override
+	inlineToken := "xoxb-1234-xxxxxx"
+	secondAuth := commoncfg.Authorization{
+		Type:        "Bearer",
+		Credentials: commoncfg.Secret(inlineToken),
+	}
+	secondConfig := conf.Receivers[0].SlackConfigs[1]
+	if secondConfig.AppToken != Secret(inlineToken) {
+		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", secondConfig.AppToken, inlineToken)
+	}
+	if secondConfig.HTTPConfig == nil || secondConfig.HTTPConfig.Authorization == nil {
+		t.Fatalf("Error configuring Slack App authorization: %s", secondConfig.HTTPConfig)
+	}
+	if secondConfig.HTTPConfig.Authorization.Type != secondAuth.Type {
+		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", secondConfig.HTTPConfig.Authorization.Type, secondAuth.Type)
+	}
+	if secondConfig.HTTPConfig.Authorization.Credentials != secondAuth.Credentials {
+		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", secondConfig.HTTPConfig.Authorization.Credentials, secondAuth.Credentials)
+	}
+
+	// custom app url
+	thirdConfig := conf.Receivers[0].SlackConfigs[2]
+	if thirdConfig.AppURL.String() != "http://api.fakeslack.example/" {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
+	}
+
+	// workaround override
+	workaroundToken := "xoxb-my-bot-token"
+	fourthAuth := commoncfg.Authorization{
+		Type:        "Bearer",
+		Credentials: commoncfg.Secret(workaroundToken),
+	}
+	fourthConfig := conf.Receivers[0].SlackConfigs[3]
+	if fourthConfig.AppToken != "" {
+		t.Fatalf("Invalid Slack App token: %q\nExpected: %q", fourthConfig.AppToken, "")
+	}
+	if fourthConfig.HTTPConfig == nil || fourthConfig.HTTPConfig.Authorization == nil {
+		t.Fatalf("Error configuring Slack App authorization: %s", fourthConfig.HTTPConfig)
+	}
+	if fourthConfig.HTTPConfig.Authorization.Type != fourthAuth.Type {
+		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Type, fourthAuth.Type)
+	}
+	if fourthConfig.HTTPConfig.Authorization.Credentials != fourthAuth.Credentials {
+		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Credentials, fourthAuth.Credentials)
+	}
+
+	// override the global file with an inline webhook URL
+	apiURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+	fifthConfig := conf.Receivers[0].SlackConfigs[4]
+	if fifthConfig.APIURL.String() != apiURL || fifthConfig.APIURLFile != "" {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", fifthConfig.APIURL.String(), apiURL)
+	}
+}
+
+func TestSlackNoAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-no-api-url-or-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-no-api-url-or-token.yml", err)
+	}
+	if err.Error() != "no Slack API URL nor App token set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no Slack API URL nor App token set either inline or in a file", err.Error())
 	}
 }
 
