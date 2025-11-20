@@ -49,23 +49,53 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1#adaptivecarditemschema
-type Content struct {
-	Schema  string  `json:"$schema"`
-	Type    string  `json:"type"`
-	Version string  `json:"version"`
-	Body    []Body  `json:"body"`
-	Msteams Msteams `json:"msteams,omitempty"`
+type Action struct {
+	Type  string `json:"type"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
 }
 
-type Body struct {
+// https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1#adaptivecarditemschema
+type Content struct {
+	Schema  string   `json:"$schema"`
+	Type    string   `json:"type"`
+	Version string   `json:"version"`
+	Body    []Body   `json:"body"`
+	Msteams Msteams  `json:"msteams,omitempty"`
+	Actions []Action `json:"actions,omitempty"`
+}
+
+type Item struct {
 	Type   string `json:"type"`
-	Text   string `json:"text"`
 	Weight string `json:"weight,omitempty"`
 	Size   string `json:"size,omitempty"`
 	Wrap   bool   `json:"wrap,omitempty"`
 	Style  string `json:"style,omitempty"`
 	Color  string `json:"color,omitempty"`
+	Text   string `json:"text"`
+}
+
+type Column struct {
+	Type  string `json:"type"`
+	Width string `json:"width"`
+	Items []Item `json:"items"`
+}
+
+type Fact struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+}
+
+type Body struct {
+	Type    string   `json:"type"`
+	Text    string   `json:"text"`
+	Weight  string   `json:"weight,omitempty"`
+	Size    string   `json:"size,omitempty"`
+	Wrap    bool     `json:"wrap,omitempty"`
+	Style   string   `json:"style,omitempty"`
+	Color   string   `json:"color,omitempty"`
+	Columns []Column `json:"columns,omitempty"`
+	Facts   []Fact   `json:"facts,omitempty"`
 }
 
 type Msteams struct {
@@ -126,14 +156,26 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	card := tmpl(n.conf.Card)
+	if err != nil {
+		return false, err
+	}
 
 	alerts := types.Alerts(as...)
+	// summary := ""
 	color := colorGrey
+	status := "unknown"
+	statusIcon := "⚠"
+
 	switch alerts.Status() {
 	case model.AlertFiring:
 		color = colorRed
+		status = "firing"
+		statusIcon = "🔥"
 	case model.AlertResolved:
 		color = colorGreen
+		status = "resolved"
+		statusIcon = "✅"
 	}
 
 	var url string
@@ -147,44 +189,113 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		url = strings.TrimSpace(string(content))
 	}
 
-	// A message as referenced in https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1%2Cdotnet#request-body-schema
-	t := teamsMessage{
-		Type: "message",
-		Attachments: []Attachment{
-			{
-				ContentType: "application/vnd.microsoft.card.adaptive",
-				ContentURL:  nil,
-				Content: Content{
-					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
-					Type:    "AdaptiveCard",
-					Version: "1.2",
-					Body: []Body{
-						{
-							Type:   "TextBlock",
-							Text:   title,
-							Weight: "Bolder",
-							Size:   "Medium",
-							Wrap:   true,
-							Style:  "heading",
-							Color:  color,
+	// If the card is empty, use title and text otherwise use card.
+	var payload bytes.Buffer
+	if card == "" {
+		// A message as referenced in https://learn.microsoft.com/en-us/connectors/teams/?tabs=text1%2Cdotnet#request-body-schema
+		t := teamsMessage{
+			Type: "message",
+			Attachments: []Attachment{
+				{
+					ContentType: "application/vnd.microsoft.card.adaptive",
+					ContentURL:  nil,
+					Content: Content{
+						Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+						Type:    "AdaptiveCard",
+						Version: "1.4",
+						Msteams: Msteams{
+							Width: "Full"},
+						Body: []Body{
+							{
+								Type:  "ColumnSet",
+								Style: color,
+								Columns: []Column{
+									{
+										Type:  "Column",
+										Width: "stretch",
+										Items: []Item{
+											{
+												Type:   "TextBlock",
+												Weight: "Bolder",
+												Size:   "ExtraLarge",
+												Color:  color,
+												Text:   fmt.Sprintf("%s %s", statusIcon, title),
+											},
+											{
+												Type:   "TextBlock",
+												Weight: "Bolder",
+												Size:   "ExtraLarge",
+												Text:   text,
+												Wrap:   true,
+											},
+										},
+									},
+								},
+							},
+							{
+								Type: "FactSet",
+								Facts: []Fact{
+									{
+										Title: "Status",
+										Value: fmt.Sprintf("%s %s", status, statusIcon),
+									},
+									{
+										Title: "Alert",
+										Value: extractKV(data.CommonLabels, "alertname"),
+									},
+									{
+										Title: "Summary",
+										Value: extractKV(data.CommonAnnotations, "summary"),
+									},
+									{
+										Title: "Severity",
+										Value: renderSeverity(extractKV(data.CommonLabels, "severity")),
+									},
+									{
+										Title: "In Host",
+										Value: extractKV(data.CommonLabels, "instance"),
+									},
+									{
+										Title: "Description",
+										Value: extractKV(data.CommonAnnotations, "description"),
+									},
+									{
+										Title: "Common Labels",
+										Value: renderCommonLabels(data.CommonLabels),
+									},
+									{
+										Title: "Common Annotations",
+										Value: renderCommonAnnotations(data.CommonAnnotations),
+									},
+								},
+							},
 						},
-						{
-							Type: "TextBlock",
-							Text: text,
-							Wrap: true,
+						Actions: []Action{
+							{
+								Type:  "Action.OpenUrl",
+								Title: "View details",
+								URL:   extractKV(data.CommonAnnotations, "runbook_url"),
+							},
 						},
-					},
-					Msteams: Msteams{
-						Width: "full",
 					},
 				},
 			},
-		},
-	}
+		}
 
-	var payload bytes.Buffer
-	if err = json.NewEncoder(&payload).Encode(t); err != nil {
-		return false, err
+		// Check if summary exists in CommonLabels
+
+		if err = json.NewEncoder(&payload).Encode(t); err != nil {
+			return false, err
+		}
+	} else {
+		// Transform card string into object
+		var jsonMap map[string]interface{}
+		json.Unmarshal([]byte(card), &jsonMap)
+		n.logger.Debug("jsonMap", "jsonMap", jsonMap)
+
+		if err = json.NewEncoder(&payload).Encode(jsonMap); err != nil {
+			return false, err
+		}
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
@@ -199,4 +310,38 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 	return shouldRetry, err
+}
+
+func renderSeverity(severity string) string {
+	switch severity {
+	case "critical":
+		return fmt.Sprintf("%s %s", severity, "❌")
+	case "error":
+		return fmt.Sprintf("%s %s", severity, "❗️")
+	case "warning":
+		return fmt.Sprintf("%s %s", severity, "⚠️")
+	case "info":
+		return fmt.Sprintf("%s %s", severity, "ℹ️")
+	default:
+		return "unknown ❓"
+	}
+}
+
+func renderCommonLabels(commonLabels template.KV) string {
+	removeList := []string{"alertname", "instance", "severity"}
+
+	return commonLabels.Remove(removeList).String()
+}
+
+func renderCommonAnnotations(commonLabels template.KV) string {
+	removeList := []string{"summary", "description"}
+
+	return commonLabels.Remove(removeList).String()
+}
+
+func extractKV(kv template.KV, key string) string {
+	if v, ok := kv[key]; ok {
+		return v
+	}
+	return ""
 }
