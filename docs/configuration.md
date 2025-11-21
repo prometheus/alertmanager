@@ -80,6 +80,7 @@ global:
   # The default hostname to identify to the SMTP server.
   [ smtp_hello: <string> | default = "localhost" ]
   # SMTP Auth using CRAM-MD5, LOGIN and PLAIN. If empty, Alertmanager doesn't authenticate to the SMTP server.
+  # PLAIN is only supported when using TLS.
   [ smtp_auth_username: <string> ]
   # SMTP Auth using LOGIN and PLAIN.
   [ smtp_auth_password: <secret> ]
@@ -1155,7 +1156,7 @@ The default `jira.default.description` template only works with V2.
 # The API Type to use for search requests, can be either auto, cloud or datacenter
 # Example: cloud
 [ api_type: <string> | default = auto ]
-   
+
 # The project key where issues are created.
 project: <string>
 
@@ -1826,7 +1827,7 @@ Please be aware that if the payload exceeds incident.io's API limits (512KB), th
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
-# The URL to send the incident.io alert. This would typically be provided by the 
+# The URL to send the incident.io alert. This would typically be provided by the
 # incident.io team when setting up an alert source.
 # URL and URL_file are mutually exclusive.
 url: <string>
