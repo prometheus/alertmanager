@@ -67,7 +67,7 @@ receivers:
 		Tolerance: 150 * time.Millisecond,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
@@ -104,7 +104,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -169,7 +169,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -225,7 +225,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -258,7 +258,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -296,7 +296,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -380,7 +380,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	wh := NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
