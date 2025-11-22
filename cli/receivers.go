@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"sort"
 	"time"
 
@@ -170,10 +171,7 @@ func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Te
 		return newTestReceiversResult(testAlert, invalid, now), nil
 	}
 
-	numWorkers := maxTestReceiversWorkers
-	if numWorkers > len(jobs) {
-		numWorkers = len(jobs)
-	}
+	numWorkers := min(maxTestReceiversWorkers, len(jobs))
 
 	resultCh := make(chan result, len(jobs))
 	jobCh := make(chan job, len(jobs))
@@ -183,7 +181,7 @@ func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Te
 	close(jobCh)
 
 	g, ctx := errgroup.WithContext(ctx)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		g.Go(func() error {
 			for job := range jobCh {
 				v := result{
@@ -232,14 +230,10 @@ func newTestAlert(c TestReceiversParams, startsAt, updatedAt time.Time) types.Al
 
 	if c.Alert != nil {
 		if c.Alert.Annotations != nil {
-			for k, v := range c.Alert.Annotations {
-				alert.Annotations[k] = v
-			}
+			maps.Copy(alert.Annotations, c.Alert.Annotations)
 		}
 		if c.Alert.Labels != nil {
-			for k, v := range c.Alert.Labels {
-				alert.Labels[k] = v
-			}
+			maps.Copy(alert.Labels, c.Alert.Labels)
 		}
 	}
 
