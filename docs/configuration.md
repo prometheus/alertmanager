@@ -115,6 +115,7 @@ global:
   [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
+  [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
@@ -1155,7 +1156,7 @@ The default `jira.default.description` template only works with V2.
 # The API Type to use for search requests, can be either auto, cloud or datacenter
 # Example: cloud
 [ api_type: <string> | default = auto ]
-   
+
 # The project key where issues are created.
 project: <string>
 
@@ -1826,7 +1827,7 @@ Please be aware that if the payload exceeds incident.io's API limits (512KB), th
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
-# The URL to send the incident.io alert. This would typically be provided by the 
+# The URL to send the incident.io alert. This would typically be provided by the
 # incident.io team when setting up an alert source.
 # URL and URL_file are mutually exclusive.
 url: <string>
@@ -1860,8 +1861,9 @@ API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Serv
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The API key to use when talking to the WeChat API.
+# The API key to use when talking to the WeChat API. Either api_secret or api_secret_file should be set.
 [ api_secret: <secret> | default = global.wechat_api_secret ]
+[ api_secret_file: <string> | default = global.wechat_api_secret_file ]
 
 # The WeChat API URL.
 [ api_url: <string> | default = global.wechat_api_url ]
