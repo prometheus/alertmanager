@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	uuid "github.com/gofrs/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -775,7 +775,7 @@ func (s *Silences) Set(sil *pb.Silence) error {
 		}
 	}
 
-	uid, err := uuid.NewV4()
+	uid, err := uuid.NewRandom()
 	if err != nil {
 		return fmt.Errorf("generate uuid: %w", err)
 	}
