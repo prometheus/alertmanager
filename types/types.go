@@ -14,6 +14,7 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -471,7 +472,7 @@ func (a *Alert) Merge(o *Alert) *Alert {
 // maintain an underlying AlertMarker are expected to update it during a call of
 // Mutes.
 type Muter interface {
-	Mutes(model.LabelSet) bool
+	Mutes(ctx context.Context, lset model.LabelSet) bool
 }
 
 // A TimeMuter determines if the time is muted by one or more active or mute
@@ -482,10 +483,10 @@ type TimeMuter interface {
 }
 
 // A MuteFunc is a function that implements the Muter interface.
-type MuteFunc func(model.LabelSet) bool
+type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 
 // Mutes implements the Muter interface.
-func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
+func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
 // A Silence determines whether a given label set is muted.
 type Silence struct {

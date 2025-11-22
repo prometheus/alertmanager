@@ -38,7 +38,7 @@ route:
   repeat_interval: 3h
 
   # A default receiver
-  receiver: team-X-mails
+  receiver: team-X-pager
 
   # All the above attributes are inherited by all child routes and can
   # overwritten on each.
@@ -120,3 +120,8 @@ receivers:
   - name: 'team-DB-pager'
     pagerduty_configs:
       - service_key: <team-DB-key>
+
+tracing:
+  endpoint: localhost:4317
+  insecure: true
+  sampling_fraction: 1.0

@@ -664,7 +664,7 @@ func TestSetNotifiesStage(t *testing.T) {
 
 func TestMuteStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(lset model.LabelSet) bool {
+	muter := types.MuteFunc(func(ctx context.Context, lset model.LabelSet) bool {
 		_, ok := lset["mute"]
 		return ok
 	})
@@ -724,7 +724,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}
-	if err = silences.Set(sil); err != nil {
+	if err = silences.Set(t.Context(), sil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -801,11 +801,11 @@ func TestMuteStageWithSilences(t *testing.T) {
 	}
 
 	// Expire the silence and verify that no alerts are silenced now.
-	if err := silences.Expire(sil.Id); err != nil {
+	if err := silences.Expire(t.Context(), sil.Id); err != nil {
 		t.Fatal(err)
 	}
 
-	_, alerts, err = stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
+	_, alerts, err = stage.Exec(t.Context(), promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}

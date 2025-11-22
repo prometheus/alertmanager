@@ -22,7 +22,12 @@ import (
 )
 
 func main() {
-	log.Fatal(http.ListenAndServe(":5001", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log.Fatal(http.ListenAndServe("127.0.0.1:5001", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("headers:")
+		for k, v := range r.Header {
+			log.Printf("  %s: %s", k, v)
+		}
+
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
