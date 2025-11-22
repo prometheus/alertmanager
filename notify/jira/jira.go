@@ -27,7 +27,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/trivago/tgo/tcontainer"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -143,14 +142,8 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		return issue{}, fmt.Errorf("issue_type template: %w", err)
 	}
 
-	// Recursively convert any maps to map[string]any, filtering out all non-string keys, so the json encoder
-	// doesn't blow up when marshaling JIRA requests.
-	fieldsWithStringKeys, err := tcontainer.ConvertToMarshalMap(n.conf.Fields, func(v string) string { return v })
-	if err != nil {
-		return issue{}, fmt.Errorf("convertToMarshalMap: %w", err)
-	}
-
-	for key, value := range fieldsWithStringKeys {
+	fieldsWithStringKeys := make(map[string]any, len(n.conf.Fields))
+	for key, value := range n.conf.Fields {
 		fieldsWithStringKeys[key], err = template.DeepCopyWithTemplate(value, tmplTextFunc)
 		if err != nil {
 			return issue{}, fmt.Errorf("fields template: %w", err)
