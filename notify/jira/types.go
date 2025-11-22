@@ -25,7 +25,7 @@ type issue struct {
 }
 
 type issueFields struct {
-	Description *string       `json:"description,omitempty"`
+	Description any           `json:"description,omitempty"`
 	Issuetype   *idNameValue  `json:"issuetype,omitempty"`
 	Labels      []string      `json:"labels,omitempty"`
 	Priority    *idNameValue  `json:"priority,omitempty"`
@@ -74,9 +74,8 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 	if i.Summary != nil {
 		jsonFields["summary"] = *i.Summary
 	}
-
 	if i.Description != nil {
-		jsonFields["description"] = *i.Description
+		jsonFields["description"] = i.Description
 	}
 	if i.Issuetype != nil {
 		jsonFields["issuetype"] = i.Issuetype

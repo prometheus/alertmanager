@@ -180,13 +180,24 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		logger.Warn("Truncated description", "max_runes", maxDescriptionLenRunes)
 	}
 
+	var description any
 	descriptionCopy := issueDescriptionString
 	if isAPIv3Path(n.conf.APIURL.Path) {
+		// For v3 we expect descriptionCopy to already be valid JSON (ADF)
+		descriptionCopy = strings.TrimSpace(descriptionCopy)
 		if !json.Valid([]byte(descriptionCopy)) {
 			return issue{}, fmt.Errorf("description template: invalid JSON for API v3")
 		}
+
+		// v3: send description as JSON object (ADF)
+		raw := json.RawMessage(descriptionCopy)
+		description = raw
+	} else {
+		// v2: send description as plain string
+		description = descriptionCopy
 	}
-	requestBody.Fields.Description = &descriptionCopy
+
+	requestBody.Fields.Description = description
 
 	for i, label := range n.conf.Labels {
 		label, err = tmplTextFunc(label)
