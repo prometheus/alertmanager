@@ -16,12 +16,12 @@ package cli
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sort"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/promslog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/prometheus/alertmanager/config"
@@ -86,7 +86,7 @@ func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Te
 	// we must set group labels to avoid issues with templating
 	ctx = notify.WithGroupLabels(ctx, testAlert.Labels)
 
-	logger := promlog.New(&promlog.Config{})
+	logger := promslog.New(&promslog.Config{})
 
 	// job contains all metadata required to test a receiver
 	type job struct {
@@ -253,62 +253,62 @@ type ReceiverIntegration struct {
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger) []ReceiverIntegration {
+func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger *slog.Logger) []ReceiverIntegration {
 	var (
 		integrations []ReceiverIntegration
-		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
-			n, err := f(log.With(logger, "integration", name))
+		add          = func(name string, i int, rs notify.ResolvedSender, f func(l *slog.Logger) (notify.Notifier, error)) {
+			n, err := f(logger.With("integration", name))
 			if err != nil {
 				integrations = append(integrations, ReceiverIntegration{
-					Integration: notify.NewIntegration(nil, rs, name, i),
+					Integration: notify.NewIntegration(nil, rs, name, i, nc.Name),
 					Error:       err,
 				})
 			} else {
 				integrations = append(integrations, ReceiverIntegration{
-					Integration: notify.NewIntegration(n, rs, name, i),
+					Integration: notify.NewIntegration(n, rs, name, i, nc.Name),
 				})
 			}
 		}
 	)
 
 	for i, c := range nc.WebhookConfigs {
-		add("webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l) })
+		add("webhook", i, c, func(l *slog.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l) })
 	}
 	for i, c := range nc.EmailConfigs {
-		add("email", i, c, func(l log.Logger) (notify.Notifier, error) { return email.New(c, tmpl, l), nil })
+		add("email", i, c, func(l *slog.Logger) (notify.Notifier, error) { return email.New(c, tmpl, l), nil })
 	}
 	for i, c := range nc.PagerdutyConfigs {
-		add("pagerduty", i, c, func(l log.Logger) (notify.Notifier, error) { return pagerduty.New(c, tmpl, l) })
+		add("pagerduty", i, c, func(l *slog.Logger) (notify.Notifier, error) { return pagerduty.New(c, tmpl, l) })
 	}
 	for i, c := range nc.OpsGenieConfigs {
-		add("opsgenie", i, c, func(l log.Logger) (notify.Notifier, error) { return opsgenie.New(c, tmpl, l) })
+		add("opsgenie", i, c, func(l *slog.Logger) (notify.Notifier, error) { return opsgenie.New(c, tmpl, l) })
 	}
 	for i, c := range nc.WechatConfigs {
-		add("wechat", i, c, func(l log.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l) })
+		add("wechat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return wechat.New(c, tmpl, l) })
 	}
 	for i, c := range nc.SlackConfigs {
-		add("slack", i, c, func(l log.Logger) (notify.Notifier, error) { return slack.New(c, tmpl, l) })
+		add("slack", i, c, func(l *slog.Logger) (notify.Notifier, error) { return slack.New(c, tmpl, l) })
 	}
 	for i, c := range nc.VictorOpsConfigs {
-		add("victorops", i, c, func(l log.Logger) (notify.Notifier, error) { return victorops.New(c, tmpl, l) })
+		add("victorops", i, c, func(l *slog.Logger) (notify.Notifier, error) { return victorops.New(c, tmpl, l) })
 	}
 	for i, c := range nc.PushoverConfigs {
-		add("pushover", i, c, func(l log.Logger) (notify.Notifier, error) { return pushover.New(c, tmpl, l) })
+		add("pushover", i, c, func(l *slog.Logger) (notify.Notifier, error) { return pushover.New(c, tmpl, l) })
 	}
 	for i, c := range nc.SNSConfigs {
-		add("sns", i, c, func(l log.Logger) (notify.Notifier, error) { return sns.New(c, tmpl, l) })
+		add("sns", i, c, func(l *slog.Logger) (notify.Notifier, error) { return sns.New(c, tmpl, l) })
 	}
 	for i, c := range nc.TelegramConfigs {
-		add("telegram", i, c, func(l log.Logger) (notify.Notifier, error) { return telegram.New(c, tmpl, l) })
+		add("telegram", i, c, func(l *slog.Logger) (notify.Notifier, error) { return telegram.New(c, tmpl, l) })
 	}
 	for i, c := range nc.DiscordConfigs {
-		add("discord", i, c, func(l log.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l) })
+		add("discord", i, c, func(l *slog.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l) })
 	}
 	for i, c := range nc.WebexConfigs {
-		add("webex", i, c, func(l log.Logger) (notify.Notifier, error) { return webex.New(c, tmpl, l) })
+		add("webex", i, c, func(l *slog.Logger) (notify.Notifier, error) { return webex.New(c, tmpl, l) })
 	}
 	for i, c := range nc.MSTeamsConfigs {
-		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
+		add("msteams", i, c, func(l *slog.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
 	}
 
 	return integrations
