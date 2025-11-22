@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -74,10 +73,6 @@ var (
 		Timeout:   false,
 	}
 )
-
-func init() {
-	pretty.CompareConfig.IncludeUnexported = true
-}
 
 // TestAlertsSubscribePutStarvation tests starvation of `iterator.Close` and
 // `alerts.Put`. Both `Subscribe` and `Put` use the Alerts.mtx lock. `Subscribe`
@@ -211,10 +206,7 @@ func TestAlertsPut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("retrieval error: %s", err)
 		}
-		if !alertsEqual(res, a) {
-			t.Errorf("Unexpected alert: %d", i)
-			t.Fatal(pretty.Compare(res, a))
-		}
+		require.NoError(t, alertDiff(a, res), "unexpected alert: %d", i)
 	}
 }
 
@@ -265,8 +257,8 @@ func TestAlertsSubscribe(t *testing.T) {
 						return
 					}
 					expected := expectedAlerts[got.Fingerprint()]
-					if !alertsEqual(got, expected) {
-						fatalc <- fmt.Sprintf("Unexpected alert (iterator %d)\n%s", i, pretty.Compare(got, expected))
+					if err := alertDiff(got, expected); err != nil {
+						fatalc <- fmt.Sprintf("Unexpected alert (iterator %d)\n%s", i, err.Error())
 						return
 					}
 					received[got.Fingerprint()] = struct{}{}
@@ -315,10 +307,7 @@ func TestAlertsGetPending(t *testing.T) {
 	iterator := alerts.GetPending()
 	for actual := range iterator.Next() {
 		expected := expectedAlerts[actual.Fingerprint()]
-		if !alertsEqual(actual, expected) {
-			t.Errorf("Unexpected alert")
-			t.Fatal(pretty.Compare(actual, expected))
-		}
+		require.NoError(t, alertDiff(actual, expected))
 	}
 
 	if err := alerts.Put(alert3); err != nil {
@@ -333,10 +322,7 @@ func TestAlertsGetPending(t *testing.T) {
 	iterator = alerts.GetPending()
 	for actual := range iterator.Next() {
 		expected := expectedAlerts[actual.Fingerprint()]
-		if !alertsEqual(actual, expected) {
-			t.Errorf("Unexpected alert")
-			t.Fatal(pretty.Compare(actual, expected))
-		}
+		require.NoError(t, alertDiff(actual, expected))
 	}
 }
 
@@ -422,10 +408,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !alertsEqual(a, &alert1Mod) {
-		t.Errorf("Unexpected alert")
-		t.Fatal(pretty.Compare(a, &alert1Mod))
-	}
+	require.NoError(t, alertDiff(a, &alert1Mod))
 
 	// Now wait until existing alerts are GC-ed, and make sure that callback was called.
 	time.Sleep(300 * time.Millisecond)
@@ -508,29 +491,31 @@ func TestAlerts_Count(t *testing.T) {
 	}, 600*time.Millisecond, 100*time.Millisecond)
 }
 
-func alertsEqual(a1, a2 *types.Alert) bool {
-	if a1 == nil || a2 == nil {
-		return false
+func alertDiff(left, right *types.Alert) error {
+	if left == nil || right == nil {
+		return errors.New("should not be nil")
 	}
-	if !reflect.DeepEqual(a1.Labels, a2.Labels) {
-		return false
+	comparisons := []struct {
+		name     string
+		isEqual  bool
+		expected any
+		got      any
+	}{
+		{"Labels", reflect.DeepEqual(right.Labels, left.Labels), right.Labels, left.Labels},
+		{"Annotations", reflect.DeepEqual(right.Annotations, left.Annotations), right.Annotations, left.Annotations},
+		{"StartsAt", right.StartsAt.Equal(left.StartsAt), right.StartsAt, left.StartsAt},
+		{"EndsAt", right.EndsAt.Equal(left.EndsAt), right.EndsAt, left.EndsAt},
+		{"UpdatedAt", right.UpdatedAt.Equal(left.UpdatedAt), right.UpdatedAt, left.UpdatedAt},
+		{"GeneratorURL", right.GeneratorURL == left.GeneratorURL, right.GeneratorURL, left.GeneratorURL},
+		{"Timeout", right.Timeout == left.Timeout, right.Timeout, left.Timeout},
 	}
-	if !reflect.DeepEqual(a1.Annotations, a2.Annotations) {
-		return false
+	var errs []error
+	for _, comp := range comparisons {
+		if !comp.isEqual {
+			errs = append(errs, fmt.Errorf("field `%s` mismatch.\n Expected: %v\n Got: %v", comp.name, comp.expected, comp.got))
+		}
 	}
-	if a1.GeneratorURL != a2.GeneratorURL {
-		return false
-	}
-	if !a1.StartsAt.Equal(a2.StartsAt) {
-		return false
-	}
-	if !a1.EndsAt.Equal(a2.EndsAt) {
-		return false
-	}
-	if !a1.UpdatedAt.Equal(a2.UpdatedAt) {
-		return false
-	}
-	return a1.Timeout == a2.Timeout
+	return errors.Join(errs...)
 }
 
 type limitCountCallback struct {
