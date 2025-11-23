@@ -315,6 +315,13 @@ type EmailConfig struct {
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	Threading        ThreadingConfig      `yaml:"threading,omitempty" json:"threading,omitempty"`
+}
+
+// ThreadingConfig configures mail threading.
+type ThreadingConfig struct {
+	Enabled      bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	ThreadByDate string `yaml:"thread_by_date,omitempty" json:"thread_by_date,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

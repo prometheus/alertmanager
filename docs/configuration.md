@@ -992,6 +992,13 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+
+# Email threading configuration.
+threading:
+  # Whether to enable threading, which results in one thread per day
+  # instead of one thread per alert group.
+  [ enabled: <boolean> | default = false ]
+  [ thread_by_date: <string> | default = daily ]
 ```
 
 ### `<mattermost_config>`
