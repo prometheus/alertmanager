@@ -5,6 +5,44 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
+## 0.30.0-rc.0 / 2025-12-12
+
+* [CHANGE] Don't allow calling qids with an empty ids list. #4707
+* [FEATURE] Add mattermost integration. #4090
+* [FEATURE] Add saturday to the first day of the week options. #4473
+* [FEATURE] Add templating functions for working with urls. #4625
+* [FEATURE] Feat(cluster): persistant peer names. #4636
+* [FEATURE] Feat(dispatch): add start delay. #4704
+* [FEATURE] Feat(inhibit): add inhibition metrics. #4629
+* [FEATURE] Feat(provider): add subscriber channel metrics. #4630
+* [FEATURE] Feat: add api http metrics. #4162
+* [FEATURE] Feat: add names to inhibit rules. #4628
+* [FEATURE] Feat: add timeout option for pagerduty notifier. #4354
+* [FEATURE] Feat: add timeout option for slack notifier. #4355
+* [FEATURE] Gc: report errors, but remove erroneous silences and continue. #4724
+* [FEATURE] Jira integration template customfields. #4029
+* [FEATURE] Jira integration: allow configuring issue update via parameter. #4621
+* [FEATURE] Slack app support. #4211
+* [ENHANCEMENT] Add documentation about high availability. #4708
+* [ENHANCEMENT] Add documentation for `client_allowed_sans`. #4706
+* [ENHANCEMENT] Chore: improves logging around webhook dispatch failure. #4511
+* [ENHANCEMENT] Compile silence matchers when the silence is added. #4695
+* [ENHANCEMENT] Fix '`s/client/alerts_api/g`' broken link in 0.29. #4718
+* [ENHANCEMENT] Fix: `<mute_time_interval>` was renamed. #4729
+* [ENHANCEMENT] Fix: improve inhibition performance. #4607
+* [ENHANCEMENT] Loadsnapshot: update matcher index properly while not holding lock. #4714
+* [ENHANCEMENT] Logging improvements. #4113
+* [ENHANCEMENT] Move query locking back into private query function. #4694
+* [ENHANCEMENT] Optimize the new inhibitor implementation for ~2.5x performance improvement. #4668
+* [ENHANCEMENT] Reduce the time dispatch.group holds the mutex. #4670
+* [ENHANCEMENT] Refactor: use b.loop() to simplify the code and improve performance. #4642
+* [ENHANCEMENT] Remove duplicate slice during silences query. #4696
+* [ENHANCEMENT] Silences: optimize incremental mutes queries via a silence version index. #4723
+* [BUGFIX] Add new behavior to avoid races on config reload. #4705
+* [BUGFIX] Config: fix duplicate header detection for all case variants. #2810
+* [BUGFIX] Fix(marker): stop state leakage from aggregation groups. #4438
+* [BUGFIX] Fix: set context timeout for resolvepeers. #4343
+
 ## 0.29.0 / 2025-11-01
 
 * [FEATURE] Add incident.io notifier. #4372
