@@ -1155,7 +1155,7 @@ The default `jira.default.description` template only works with V2.
 # The API Type to use for search requests, can be either auto, cloud or datacenter
 # Example: cloud
 [ api_type: <string> | default = auto ]
-   
+
 # The project key where issues are created.
 project: <string>
 
@@ -1163,7 +1163,7 @@ project: <string>
 [ summary:
     # Template for the issue summary.
     [ template: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
-    
+
     # If set to false, the summary will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1172,7 +1172,7 @@ project: <string>
 [ description:
     # Template for the issue description.
     [ template: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
-    
+
     # If set to false, the description will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1491,8 +1491,7 @@ token_id_file: <filepath>
 [ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
 [ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
 [ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
-[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url <tmpl_string> ]
@@ -1826,7 +1825,7 @@ Please be aware that if the payload exceeds incident.io's API limits (512KB), th
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
-# The URL to send the incident.io alert. This would typically be provided by the 
+# The URL to send the incident.io alert. This would typically be provided by the
 # incident.io team when setting up an alert source.
 # URL and URL_file are mutually exclusive.
 url: <string>
