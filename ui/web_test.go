@@ -39,7 +39,7 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.NotEqual(t, 0, w.Body.Len())
+	require.Contains(t, w.Body.String(), "/debug/pprof/", "pprof page did not load with expected content when using a route prefix")
 
 	// Test GET request to pprof heap endpoint
 	req = httptest.NewRequest("GET", routePrefix+"/debug/pprof/heap", nil)
@@ -57,4 +57,5 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	router2.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "/debug/pprof/", "pprof page did not load with expected content")
 }
