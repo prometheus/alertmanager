@@ -14,6 +14,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -302,6 +303,9 @@ type Alert struct {
 	// The authoritative timestamp.
 	UpdatedAt time.Time
 	Timeout   bool
+
+	// Any additional data relevant to the alert
+	ExtraData json.RawMessage
 }
 
 func validateLs(ls model.LabelSet) error {
