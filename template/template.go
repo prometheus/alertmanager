@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -213,6 +214,13 @@ var DefaultFuncs = FuncMap{
 	},
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
+	"toJson": func(v any) (string, error) {
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes), nil
+	},
 }
 
 // Pair is a key/value string pair.

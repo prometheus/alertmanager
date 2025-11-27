@@ -401,6 +401,65 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: "[key2 key4]",
 		},
+		{
+			title: "Template using toJson with string",
+			in:    `{{ "test" | toJson }}`,
+			exp:   `"test"`,
+		},
+		{
+			title: "Template using toJson with number",
+			in:    `{{ 42 | toJson }}`,
+			exp:   `42`,
+		},
+		{
+			title: "Template using toJson with boolean",
+			in:    `{{ true | toJson }}`,
+			exp:   `true`,
+		},
+		{
+			title: "Template using toJson with map",
+			in:    `{{ . | toJson }}`,
+			data:  map[string]any{"key": "value", "number": 123},
+			exp:   `{"key":"value","number":123}`,
+		},
+		{
+			title: "Template using toJson with slice",
+			in:    `{{ . | toJson }}`,
+			data:  []string{"a", "b", "c"},
+			exp:   `["a","b","c"]`,
+		},
+		{
+			title: "Template using toJson with KV",
+			in:    `{{ .CommonLabels | toJson }}`,
+			data: Data{
+				CommonLabels: KV{"severity": "critical", "job": "foo"},
+			},
+			exp: `{"job":"foo","severity":"critical"}`,
+		},
+		{
+			title: "Template using toJson with Alerts",
+			in:    `{{ .Alerts | toJson }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{"alertname": "test"},
+					},
+				},
+			},
+			exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+		},
+		{
+			title: "Template using toJson with Alerts.Firing()",
+			in:    `{{ .Alerts.Firing | toJson }}`,
+			data: Data{
+				Alerts: Alerts{
+					{Status: "firing"},
+					{Status: "resolved"},
+				},
+			},
+			exp: `[{"status":"firing","labels":null,"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString
@@ -575,6 +634,25 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    "{{ . | since | humanizeDuration }}",
 		data:  time.Now().Add(-1 * time.Hour),
 		exp:   "1h 0m 0s",
+	}, {
+		title: "Template using toJson with string",
+		in:    `{{ "hello" | toJson }}`,
+		exp:   `"hello"`,
+	}, {
+		title: "Template using toJson with map",
+		in:    `{{ . | toJson }}`,
+		data:  map[string]string{"key": "value"},
+		exp:   `{"key":"value"}`,
+	}, {
+		title: "Template using toJson with Alerts.Firing()",
+		in:    `{{ .Alerts.Firing | toJson }}`,
+		data: Data{
+			Alerts: Alerts{
+				{Status: "firing", Labels: KV{"alertname": "test"}},
+				{Status: "resolved"},
+			},
+		},
+		exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
 	}} {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
