@@ -296,8 +296,6 @@ type Source struct {
 	// The index items might overwrite eachother if multiple source alerts have exact equal labels.
 	// Overwrites only happen if the new source alert has bigger EndsAt value.
 	sindex *index
-
-	foundMatch bool
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
