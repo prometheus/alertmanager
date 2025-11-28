@@ -317,7 +317,7 @@ type InhibitRule struct {
 	// the target alerts).
 	SourceMatchers labels.Matchers
 
-	Sources        []*Source
+	Sources []*Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
@@ -338,7 +338,6 @@ type InhibitRule struct {
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	var (
-
 		sources []*Source
 		sourcem labels.Matchers
 		targetm labels.Matchers
@@ -367,19 +366,19 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 				panic(err)
 			}
 			sourcem = append(sourcem, matcher)
-	}
-	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
 		}
-		sourcem = append(sourcem, matcher)
+		// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatchRE {
+			matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
+		}
+		// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+		sourcem = append(sourcem, cr.SourceMatchers...)
 	}
-	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
-	sourcem = append(sourcem, cr.SourceMatchers...)
-
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
 		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
