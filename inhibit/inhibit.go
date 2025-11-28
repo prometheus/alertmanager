@@ -281,7 +281,8 @@ type InhibitRule struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
 	SourceMatchers labels.Matchers
-
+	// The set of Sources which define multiple groups of source alerts (which inhibit
+	// the target alerts).
 	Sources []*Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
@@ -376,6 +377,7 @@ func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 	rule := &InhibitRule{
 		Name:           cr.Name,
 		SourceMatchers: sourcem,
+		Sources:        sources,
 		TargetMatchers: targetm,
 		Equal:          equal,
 		scache:         store.NewAlerts(),
@@ -519,7 +521,6 @@ func (r *InhibitRule) gcCallback(alerts []types.Alert) {
 				if src.SrcMatchers.Matches(a.Labels) {
 					fp := src.fingerprintEquals(a.Labels)
 					src.sindex.Delete(fp)
-
 					break
 				}
 			}
