@@ -237,17 +237,16 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 		if len(r.Sources) > 0 {
 			var inhibitorIDs []string
+			sourceHasNoEqual := false
 			for _, source := range r.Sources {
-				if !source.foundMatch {
-					if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq {
-						inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
-						source.foundMatch = true
-					}
+				if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq {
+					inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
 				} else {
+					sourceHasNoEqual = true
 					break
 				}
 			}
-			if allSourcesMatched := r.allSourcesSatisfied(); allSourcesMatched {
+			if !sourceHasNoEqual {
 				compositeInhibitorID := strings.Join(inhibitorIDs, ",")
 				ih.marker.SetInhibited(fp, compositeInhibitorID)
 				ih.marker.SetInhibited(fp, inhibitedByFP.String())
@@ -262,10 +261,6 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
 				r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
 				return true
-			}
-			// Reset for next use.
-			for _, source := range r.Sources {
-				source.foundMatch = false
 			}
 
 		} else {
@@ -588,17 +583,4 @@ func (s *Source) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now ti
 	}
 
 	return model.Fingerprint(0), false
-}
-
-func (r *InhibitRule) allSourcesSatisfied() bool {
-	for _, source := range r.Sources {
-		if !source.foundMatch {
-			return false
-		}
-	}
-	// Reset for next use.
-	for _, source := range r.Sources {
-		source.foundMatch = false
-	}
-	return true
 }

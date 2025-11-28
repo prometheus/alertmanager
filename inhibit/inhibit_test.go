@@ -696,7 +696,7 @@ func TestInhibitByMultipleSources(t *testing.T) {
 					muted: false,
 				},
 				{
-					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
 					muted: true,
 				},
 				{
