@@ -155,7 +155,7 @@ func TestAlertsPut(t *testing.T) {
 		}
 		if !alertsEqual(res, a) {
 			t.Errorf("Unexpected alert: %d", i)
-			t.Fatalf(pretty.Compare(res, a))
+			t.Fatal(pretty.Compare(res, a))
 		}
 	}
 }
@@ -236,7 +236,7 @@ func TestAlertsSubscribe(t *testing.T) {
 	close(fatalc)
 	fatal, ok := <-fatalc
 	if ok {
-		t.Fatalf(fatal)
+		t.Fatal(fatal)
 	}
 }
 
@@ -260,7 +260,7 @@ func TestAlertsGetPending(t *testing.T) {
 		expected := expectedAlerts[actual.Fingerprint()]
 		if !alertsEqual(actual, expected) {
 			t.Errorf("Unexpected alert")
-			t.Fatalf(pretty.Compare(actual, expected))
+			t.Fatal(pretty.Compare(actual, expected))
 		}
 	}
 
@@ -278,7 +278,7 @@ func TestAlertsGetPending(t *testing.T) {
 		expected := expectedAlerts[actual.Fingerprint()]
 		if !alertsEqual(actual, expected) {
 			t.Errorf("Unexpected alert")
-			t.Fatalf(pretty.Compare(actual, expected))
+			t.Fatal(pretty.Compare(actual, expected))
 		}
 	}
 }
@@ -367,7 +367,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	}
 	if !alertsEqual(a, &alert1Mod) {
 		t.Errorf("Unexpected alert")
-		t.Fatalf(pretty.Compare(a, &alert1Mod))
+		t.Fatal(pretty.Compare(a, &alert1Mod))
 	}
 
 	// Now wait until existing alerts are GC-ed, and make sure that callback was called.
