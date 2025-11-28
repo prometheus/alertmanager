@@ -251,8 +251,6 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
-<<<<<<< HEAD
-=======
 type Source struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
@@ -272,7 +270,6 @@ type Source struct {
 	foundMatch bool
 }
 
->>>>>>> 4d97c9a0 (refactor and update cache)
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts
@@ -284,10 +281,8 @@ type InhibitRule struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
 	SourceMatchers labels.Matchers
-<<<<<<< HEAD
-=======
-	Sources        []*Source
->>>>>>> 4d97c9a0 (refactor and update cache)
+
+	Sources []*Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
@@ -310,22 +305,11 @@ type InhibitRule struct {
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 	var (
-<<<<<<< HEAD
-=======
 		sources []*Source
->>>>>>> 4d97c9a0 (refactor and update cache)
 		sourcem labels.Matchers
 		targetm labels.Matchers
 	)
 
-<<<<<<< HEAD
-	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatch {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
-=======
 	if len(cr.Sources) > 0 {
 		for _, sm := range cr.Sources {
 			var sourcesm labels.Matchers
@@ -340,22 +324,29 @@ func NewInhibitRule(cr config.InhibitRule, metrics *RuleMetrics) *InhibitRule {
 				scache:      store.NewAlerts(),
 				sindex:      newIndex(),
 			})
->>>>>>> 4d97c9a0 (refactor and update cache)
 		}
-		sourcem = append(sourcem, matcher)
-	}
-	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
+	} else {
+		// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatch {
+			matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
 		}
-		sourcem = append(sourcem, matcher)
+		// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatchRE {
+			matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
+		}
+		// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+		sourcem = append(sourcem, cr.SourceMatchers...)
 	}
-	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
-	sourcem = append(sourcem, cr.SourceMatchers...)
-
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
 		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
