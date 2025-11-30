@@ -69,7 +69,7 @@ type GetAlertGroupsParams struct {
 	  Default: true
 	*/
 	Active *bool
-	/*A list of matchers to filter alerts by
+	/*A matcher expression to filter alert groups. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	  In: query
 	  Collection Format: multi
 	*/
