@@ -614,8 +614,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     *SecretURL `yaml:"url" json:"url"`
-	URLFile string     `yaml:"url_file" json:"url_file"`
+	URL     Secret `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string `yaml:"url_file" json:"url_file"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -634,10 +634,10 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil && c.URLFile == "" {
+	if c.URL == "" && c.URLFile == "" {
 		return errors.New("one of url or url_file must be configured")
 	}
-	if c.URL != nil && c.URLFile != "" {
+	if c.URL != "" && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
 	}
 	return nil
