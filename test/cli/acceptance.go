@@ -357,7 +357,7 @@ func (am *Alertmanager) testRouteCommand(labels ...string) ([]byte, error) {
 }
 
 func (am *Alertmanager) getURL(path string) string {
-	return fmt.Sprintf("http://%s%s%s", am.APIAddr, am.Opts.RoutePrefix, path)
+	return fmt.Sprintf("http://%s%s%s", am.APIAddr(), am.Opts.RoutePrefix, path)
 }
 
 // Version runs the 'amtool' command with the --version option and checks
