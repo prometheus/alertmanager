@@ -175,8 +175,10 @@ func TestInhibitorMetrics_RuleMutesDuration_NotMuted(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			SourceMatchers: []*labels.Matcher{
-				{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+			Sources: []config.Source{
+				{
+					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+				},
 			},
 			TargetMatchers: []*labels.Matcher{
 				{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -229,8 +231,10 @@ func TestInhibitorMetrics_NoRuleMatches(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			SourceMatchers: []*labels.Matcher{
-				{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+			Sources: []config.Source{
+				{
+					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+				},
 			},
 			TargetMatchers: []*labels.Matcher{
 				{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -455,8 +459,10 @@ func TestInhibitorMetrics_Registration(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			SourceMatchers: []*labels.Matcher{
-				{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+			Sources: []config.Source{
+				{
+					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+				},
 			},
 			TargetMatchers: []*labels.Matcher{
 				{Type: labels.MatchEqual, Name: "severity", Value: "warning"},

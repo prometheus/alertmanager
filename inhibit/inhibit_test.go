@@ -352,8 +352,10 @@ func TestInhibitRuleName(t *testing.T) {
 
 	config1 := config.InhibitRule{
 		Name: "test-rule",
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -361,8 +363,10 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 	config2 := config.InhibitRule{
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []config.Source{
+			{
+				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -521,6 +525,182 @@ func TestInhibit(t *testing.T) {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
 		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
+
+		go func() {
+			for ap.finished != nil {
+				select {
+				case <-ap.finished:
+					ap.finished = nil
+				default:
+				}
+			}
+			inhibitor.Stop()
+		}()
+		inhibitor.Run()
+
+		for _, expected := range tc.expected {
+			if inhibitor.Mutes(expected.lbls) != expected.muted {
+				mute := "unmuted"
+				if expected.muted {
+					mute = "muted"
+				}
+				t.Errorf("tc: %d, expected alert with labels %q to be %s", i, expected.lbls, mute)
+			}
+		}
+	}
+}
+
+func TestInhibitByMultipleSources(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	inhibitRules := func() []config.InhibitRule {
+		return []config.InhibitRule{
+			{
+				Sources: []config.Source{
+					{
+						SrcMatchers: config.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s11", Value: "1"},
+						},
+						Equal: []string{"e"},
+					},
+					{
+						SrcMatchers: config.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s22", Value: "1"},
+						},
+						Equal: []string{"f"},
+					},
+				},
+				TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+			},
+		}
+	}
+	// alertOne is muted by alertTwo and alertThree when it is active.
+	alertOne := func() *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"t": "1", "e": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(time.Hour),
+			},
+		}
+	}
+	alertTwo := func(resolved bool) *types.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s1": "1", "s11": "1", "e": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	alertThree := func(resolved bool) *types.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s2": "1", "s22": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	type exp struct {
+		lbls  model.LabelSet
+		muted bool
+	}
+	for i, tc := range []struct {
+		alerts   []*types.Alert
+		expected []exp
+	}{
+		{
+			// alertOne shouldn't be muted since alertTwo and alertThree hasn't fired.
+			alerts: []*types.Alert{alertOne()},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne shouldnt be muted by alertTwo which is active since alertThree is not active.
+			alerts: []*types.Alert{alertOne(), alertTwo(false), alertThree(true)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "e": "f"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+
+		{
+			// alertOne shouldn't be muted by alertTwo which is active since alertThree is not active.
+			alerts: []*types.Alert{alertOne(), alertTwo(true), alertThree(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+			},
+		},
+
+		{
+			// alertOne should be muted since alertTwo and alertThree are active.
+			alerts: []*types.Alert{alertOne(), alertTwo(false), alertThree(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "f": "5"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
+					muted: true,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "2", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "4"},
+					muted: false,
+				},
+			},
+		},
+	} {
+		ap := newFakeAlerts(tc.alerts)
+		mk := types.NewMarker(prometheus.NewRegistry())
+		inhibitor := NewInhibitor(ap, inhibitRules(), mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
 
 		go func() {
 			for ap.finished != nil {
