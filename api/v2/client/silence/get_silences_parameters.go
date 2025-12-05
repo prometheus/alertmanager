@@ -78,7 +78,7 @@ type GetSilencesParams struct {
 
 	/* Filter.
 
-	   A list of matchers to filter silences by
+	   A matcher expression to filter silences. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	*/
 	Filter []string
 
