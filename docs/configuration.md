@@ -1173,7 +1173,7 @@ project: <string>
 [ summary:
     # Template for the issue summary.
     [ template: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
-    
+
     # If set to false, the summary will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1182,7 +1182,7 @@ project: <string>
 [ description:
     # Template for the issue description.
     [ template: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
-    
+
     # If set to false, the description will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1501,8 +1501,7 @@ token_id_file: <filepath>
 [ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
 [ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
 [ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
-[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url <tmpl_string> ]
