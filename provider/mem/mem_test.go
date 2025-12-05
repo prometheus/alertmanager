@@ -109,7 +109,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 	putIsDone := make(chan struct{})
 	putsErr := make(chan error, 1)
 	go func() {
-		if err := alerts.Put(alertsToInsert...); err != nil {
+		if err := alerts.Put(context.Background(), alertsToInsert...); err != nil {
 			putsErr <- err
 			return
 		}
@@ -157,7 +157,7 @@ func TestDeadLock(t *testing.T) {
 		})
 	}
 
-	if err := alerts.Put(alertsToInsert...); err != nil {
+	if err := alerts.Put(context.Background(), alertsToInsert...); err != nil {
 		t.Fatal("Unable to add alerts")
 	}
 	done := make(chan bool)
@@ -197,7 +197,7 @@ func TestAlertsPut(t *testing.T) {
 
 	insert := []*types.Alert{alert1, alert2, alert3}
 
-	if err := alerts.Put(insert...); err != nil {
+	if err := alerts.Put(context.Background(), insert...); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -220,7 +220,7 @@ func TestAlertsSubscribe(t *testing.T) {
 	}
 
 	// Add alert1 to validate if pending alerts will be sent.
-	if err := alerts.Put(alert1); err != nil {
+	if err := alerts.Put(ctx, alert1); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -256,12 +256,12 @@ func TestAlertsSubscribe(t *testing.T) {
 						fatalc <- fmt.Sprintf("Iterator %d: %v", i, it.Err())
 						return
 					}
-					expected := expectedAlerts[got.Fingerprint()]
-					if err := alertDiff(got, expected); err != nil {
+					expected := expectedAlerts[got.Data.Fingerprint()]
+					if err := alertDiff(got.Data, expected); err != nil {
 						fatalc <- fmt.Sprintf("Unexpected alert (iterator %d)\n%s", i, err.Error())
 						return
 					}
-					received[got.Fingerprint()] = struct{}{}
+					received[got.Data.Fingerprint()] = struct{}{}
 					if len(received) == len(expectedAlerts) {
 						return
 					}
@@ -274,10 +274,10 @@ func TestAlertsSubscribe(t *testing.T) {
 	}
 
 	// Add more alerts that should be received by the subscribers.
-	if err := alerts.Put(alert2); err != nil {
+	if err := alerts.Put(ctx, alert2); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
-	if err := alerts.Put(alert3); err != nil {
+	if err := alerts.Put(ctx, alert3); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -296,7 +296,8 @@ func TestAlertsGetPending(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := alerts.Put(alert1, alert2); err != nil {
+	ctx := context.Background()
+	if err := alerts.Put(ctx, alert1, alert2); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -306,11 +307,11 @@ func TestAlertsGetPending(t *testing.T) {
 	}
 	iterator := alerts.GetPending()
 	for actual := range iterator.Next() {
-		expected := expectedAlerts[actual.Fingerprint()]
-		require.NoError(t, alertDiff(actual, expected))
+		expected := expectedAlerts[actual.Data.Fingerprint()]
+		require.NoError(t, alertDiff(actual.Data, expected))
 	}
 
-	if err := alerts.Put(alert3); err != nil {
+	if err := alerts.Put(ctx, alert3); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -321,8 +322,8 @@ func TestAlertsGetPending(t *testing.T) {
 	}
 	iterator = alerts.GetPending()
 	for actual := range iterator.Next() {
-		expected := expectedAlerts[actual.Fingerprint()]
-		require.NoError(t, alertDiff(actual, expected))
+		expected := expectedAlerts[actual.Data.Fingerprint()]
+		require.NoError(t, alertDiff(actual.Data, expected))
 	}
 }
 
@@ -335,7 +336,7 @@ func TestAlertsGC(t *testing.T) {
 
 	insert := []*types.Alert{alert1, alert2, alert3}
 
-	if err := alerts.Put(insert...); err != nil {
+	if err := alerts.Put(context.Background(), insert...); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -370,7 +371,8 @@ func TestAlertsStoreCallback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = alerts.Put(alert1, alert2, alert3)
+	ctx := context.Background()
+	err = alerts.Put(ctx, alert1, alert2, alert3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +395,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 		Timeout:   false,
 	}
 
-	err = alerts.Put(&alert1Mod, alert4)
+	err = alerts.Put(ctx, &alert1Mod, alert4)
 	// Verify that we failed to put new alert into store (not reported via error, only checked using Load)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
@@ -417,7 +419,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 0, num)
 	}
 
-	err = alerts.Put(alert4)
+	err = alerts.Put(ctx, alert4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +460,8 @@ func TestAlerts_Count(t *testing.T) {
 		Timeout:   false,
 	}
 
-	alerts.Put(a1)
+	ctx := context.Background()
+	alerts.Put(ctx, a1)
 	require.Equal(t, 1, countByState(types.AlertStateUnprocessed))
 	require.Equal(t, 1, countTotal())
 	require.Eventually(t, func() bool {
@@ -480,7 +483,7 @@ func TestAlerts_Count(t *testing.T) {
 	}
 
 	// When insert an alert, and then silence it. It shows up with the correct filter.
-	alerts.Put(a2)
+	alerts.Put(ctx, a2)
 	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
 	require.Equal(t, 1, countByState(types.AlertStateSuppressed))
 	require.Equal(t, 1, countTotal())
@@ -575,7 +578,7 @@ func TestAlertsConcurrently(t *testing.T) {
 				default:
 				}
 				now := time.Now()
-				err := a.Put(&types.Alert{
+				err := a.Put(context.Background(), &types.Alert{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"bar": model.LabelValue(strconv.Itoa(j))},
 						StartsAt: now,
@@ -685,7 +688,7 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 		},
 	}
 
-	err = alerts.Put(alertsToSend...)
+	err = alerts.Put(context.Background(), alertsToSend...)
 	require.NoError(t, err)
 
 	// Verify the counter incremented for each successful write

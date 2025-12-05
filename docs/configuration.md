@@ -831,14 +831,20 @@ tls_config:
 # Custom HTTP headers to be sent along with each request.
 # Headers that are set by Prometheus itself can't be overwritten.
 http_headers:
-  # Header name.
-  [ <string>:
+  [ <http_header> ]
+```
+
+#### `<http_header>`
+
+```yaml
+# Header name.
+<string>:
     # Header values.
     [ values: [<string>, ...] ]
     # Headers values. Hidden in configuration page.
     [ secrets: [<secret>, ...] ]
     # Files to read header values from.
-    [ files: [<string>, ...] ] ]
+    [ files: [<string>, ...] ]
 ```
 
 #### `<oauth2>`
@@ -1907,3 +1913,34 @@ room_id: <tmpl_string>
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
 ```
+
+## Tracing Configuration
+### `<tracing_config>`
+
+```yaml
+# The tracing client type, supported values are `http` and `grpc`.
+[ client_type: <tracing_client_type> | default = "grpc" ]
+
+# The tracing endpoint.
+[ endpoint: <string> | default = "" ]
+
+# The sampling fraction.
+[ sampling_fraction: <float> | default = 0.0 ]
+
+# Whether to disable TLS.
+[ insecure: <boolean> | default = false ]
+
+# The HTTP client's configuration.
+[ tls_config: <tls_config> ]
+
+# Custom HTTP headers.
+[ http_headers:
+  [ <http_header> ] ]
+
+# The tracing compression.
+[ compression: <string> | default = "gzip" ]
+
+# The tracing timeout.
+[ timeout: <duration> | default = 0s ]
+```
+

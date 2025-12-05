@@ -53,7 +53,15 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 
 	// Test ensures this method call does not panic.
-	status := api.getStatusHandler(general_ops.GetStatusParams{}).(*general_ops.GetStatusOK)
+	status := api.getStatusHandler(
+		general_ops.GetStatusParams{
+			HTTPRequest: httptest.NewRequest(
+				"GET",
+				"/api/v2/status",
+				nil,
+			),
+		},
+	).(*general_ops.GetStatusOK)
 
 	c := status.Payload.Cluster
 
@@ -160,7 +168,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -168,8 +176,8 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	for i, tc := range []struct {
 		sid          string
@@ -222,7 +230,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -230,8 +238,8 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	t.Run("Silences CRUD", func(t *testing.T) {
 		for i, tc := range []struct {

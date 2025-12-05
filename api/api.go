@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
@@ -201,7 +202,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
+func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Context, labels model.LabelSet)) {
 	api.v2.Update(cfg, setAlertStatus)
 }
 
@@ -242,7 +243,7 @@ func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {
 		}
 		promhttp.InstrumentHandlerDuration(
 			api.requestDuration.MustCurryWith(prometheus.Labels{"handler": path}),
-			h,
+			otelhttp.WithRouteTag(path, h),
 		).ServeHTTP(w, r)
 	})
 }
