@@ -45,7 +45,7 @@
     "postcss-simple-vars": "^7.0.1",
     "prettier": "^3.5.3",
     "prop-types": "^15.8.1",
-    "stylelint": "^16.20.0",
+    "stylelint": "^16.26.1",
     "stylelint-config-standard-scss": "^16.0.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3",
