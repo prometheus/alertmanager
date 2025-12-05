@@ -315,6 +315,13 @@ type EmailConfig struct {
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	Threading        ThreadingConfig      `yaml:"threading,omitempty" json:"threading,omitempty"`
+}
+
+// ThreadingConfig configures mail threading.
+type ThreadingConfig struct {
+	Enabled      bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	ThreadByDate string `yaml:"thread_by_date,omitempty" json:"thread_by_date,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -337,6 +344,15 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		normalizedHeaders[normalized] = v
 	}
 	c.Headers = normalizedHeaders
+
+	if c.Threading.Enabled {
+		if _, ok := normalizedHeaders["References"]; ok {
+			return errors.New("conflicting configuration: threading.enabled conflicts with custom References header")
+		}
+		if _, ok := normalizedHeaders["In-Reply-To"]; ok {
+			return errors.New("conflicting configuration: threading.enabled conflicts with custom In-Reply-To header")
+		}
+	}
 
 	return nil
 }

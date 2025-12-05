@@ -52,6 +52,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -794,3 +795,78 @@ func (s *mockSMTPSession) Data(io.Reader) error {
 func (*mockSMTPSession) Reset() {}
 
 func (*mockSMTPSession) Logout() error { return nil }
+
+func TestEmailNotifyWithThreading(t *testing.T) {
+	cfgFile := os.Getenv(emailNoAuthConfigVar)
+	if len(cfgFile) == 0 {
+		t.Skipf("%s not set", emailNoAuthConfigVar)
+	}
+
+	c, err := loadEmailTestConfiguration(cfgFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name         string
+		threadByDate string
+		wantDatePart bool
+	}{
+		{
+			name:         "threading with daily date (default)",
+			threadByDate: "",
+			wantDatePart: true,
+		},
+		{
+			name:         "threading with explicit daily",
+			threadByDate: "daily",
+			wantDatePart: true,
+		},
+		{
+			name:         "threading without date",
+			threadByDate: "none",
+			wantDatePart: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create context with group key (required for threading).
+			ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+
+			emailCfg := &config.EmailConfig{
+				Smarthost: c.Smarthost,
+				To:        emailTo,
+				From:      emailFrom,
+				HTML:      "HTML body",
+				Text:      "Text body",
+				Threading: config.ThreadingConfig{
+					Enabled:      true,
+					ThreadByDate: tc.threadByDate,
+				},
+			}
+
+			mail, _, err := notifyEmailWithContext(ctx, t, emailCfg, c.Server)
+			require.NoError(t, err)
+
+			referencesValue := mail.Headers["references"]
+			inReplyToValue := mail.Headers["in-reply-to"]
+
+			require.NotEmpty(t, referencesValue, "References header not found in %v", mail.Headers)
+			require.NotEmpty(t, inReplyToValue, "In-Reply-To header not found in %v", mail.Headers)
+
+			require.Equal(t, referencesValue, inReplyToValue, "References and In-Reply-To should match")
+
+			// Verify the format: <alert-HASH-DATE@alertmanager>
+			require.Contains(t, referencesValue, "<alert-")
+			require.Contains(t, referencesValue, "@alertmanager>")
+
+			if tc.wantDatePart {
+				today := time.Now().Format("2006-01-02")
+				require.Contains(t, referencesValue, today, "threading header should contain today's date")
+			} else {
+				// With thread_by_date: none, there should be no date
+				// (empty string between hash and @).
+				require.Contains(t, referencesValue, "-@alertmanager>", "threading header should have empty date part")
+			}
+		})
+	}
+}
