@@ -823,6 +823,204 @@ func TestMuteStageWithSilences(t *testing.T) {
 	}
 }
 
+func TestMuteStageWithSendResolved(t *testing.T) {
+	// Create silences
+	silences, err := silence.New(silence.Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	sil := &silencepb.Silence{
+		EndsAt:   utcNow().Add(time.Hour),
+		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
+	}
+	require.NoError(t, silences.Set(sil))
+
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger())
+
+	// Create notification log
+	nflog, err := nflog.New(nflog.Options{
+		Retention: time.Hour,
+		Logger:    promslog.NewNopLogger(),
+		Metrics:   reg,
+	})
+	require.NoError(t, err)
+
+	// Create receivers with different send_resolved settings
+	receiversWithSendResolved := map[string][]Integration{
+		"with_resolved": {
+			NewIntegration(&testNotifier{}, sendResolved(true), "webhook", 0, "with_resolved"),
+		},
+		"without_resolved": {
+			NewIntegration(&testNotifier{}, sendResolved(false), "webhook", 0, "without_resolved"),
+		},
+		"mixed": {
+			NewIntegration(&testNotifier{}, sendResolved(true), "webhook", 0, "mixed"),
+			NewIntegration(&testNotifier{}, sendResolved(false), "email", 1, "mixed"),
+		},
+	}
+
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	stage := NewMuteStageWithSendResolved(silencer, nflog, receiversWithSendResolved, metrics)
+
+	// Test 1: Silenced firing alerts are filtered out
+	t.Run("silenced firing alerts are filtered", func(t *testing.T) {
+		firingAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"mute": "me", "alertname": "test"},
+				EndsAt:   time.Time{}, // Firing alert has zero EndsAt
+				StartsAt: time.Now().Add(-time.Hour),
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, "with_resolved")
+		ctx = WithGroupKey(ctx, "test-group")
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), firingAlert)
+		require.NoError(t, err)
+		require.Empty(t, alerts, "firing silenced alerts should be filtered")
+	})
+
+	// Test 2: Silenced resolved alerts without prior notification are filtered
+	t.Run("silenced resolved alerts without prior notification are filtered", func(t *testing.T) {
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"mute": "me", "alertname": "test2"},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, "with_resolved")
+		ctx = WithGroupKey(ctx, "test-group-2")
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), resolvedAlert)
+		require.NoError(t, err)
+		require.Empty(t, alerts, "resolved silenced alerts without prior notification should be filtered")
+	})
+
+	// Test 3: Silenced resolved alerts with prior notification and send_resolved=true are allowed
+	t.Run("silenced resolved alerts with prior notification and send_resolved are allowed", func(t *testing.T) {
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"mute": "me", "alertname": "test3"},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			},
+		}
+
+		groupKey := "test-group-3"
+		receiverName := "with_resolved"
+
+		// Log a previous notification for this alert
+		recv := &nflogpb.Receiver{
+			GroupName:   receiverName,
+			Integration: "webhook",
+			Idx:         0,
+		}
+		err := nflog.Log(recv, groupKey, []uint64{1234}, []uint64{}, time.Hour)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, receiverName)
+		ctx = WithGroupKey(ctx, groupKey)
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), resolvedAlert)
+		require.NoError(t, err)
+		require.Len(t, alerts, 1, "resolved silenced alerts with prior notification should be allowed when send_resolved=true")
+	})
+
+	// Test 4: Silenced resolved alerts with send_resolved=false are filtered even with prior notification
+	t.Run("silenced resolved alerts without send_resolved are filtered", func(t *testing.T) {
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"mute": "me", "alertname": "test4"},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			},
+		}
+
+		groupKey := "test-group-4"
+		receiverName := "without_resolved"
+
+		// Log a previous notification for this alert
+		recv := &nflogpb.Receiver{
+			GroupName:   receiverName,
+			Integration: "webhook",
+			Idx:         0,
+		}
+		err := nflog.Log(recv, groupKey, []uint64{5678}, []uint64{}, time.Hour)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, receiverName)
+		ctx = WithGroupKey(ctx, groupKey)
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), resolvedAlert)
+		require.NoError(t, err)
+		require.Empty(t, alerts, "resolved silenced alerts should be filtered when send_resolved=false")
+	})
+
+	// Test 5: Non-silenced alerts pass through
+	t.Run("non-silenced alerts pass through", func(t *testing.T) {
+		firingAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"not": "muted", "alertname": "test5"},
+				EndsAt:   time.Time{},
+				StartsAt: time.Now().Add(-time.Hour),
+			},
+		}
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"not": "muted", "alertname": "test6"},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, "with_resolved")
+		ctx = WithGroupKey(ctx, "test-group-5")
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), firingAlert, resolvedAlert)
+		require.NoError(t, err)
+		require.Len(t, alerts, 2, "non-silenced alerts should pass through")
+	})
+
+	// Test 6: Mixed receiver with at least one send_resolved=true integration
+	t.Run("mixed receiver with send_resolved allows resolved silenced alerts", func(t *testing.T) {
+		resolvedAlert := &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"mute": "me", "alertname": "test7"},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			},
+		}
+
+		groupKey := "test-group-7"
+		receiverName := "mixed"
+
+		// Log a previous notification for the webhook integration (send_resolved=true)
+		recv := &nflogpb.Receiver{
+			GroupName:   receiverName,
+			Integration: "webhook",
+			Idx:         0,
+		}
+		err := nflog.Log(recv, groupKey, []uint64{9999}, []uint64{}, time.Hour)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		ctx = WithReceiverName(ctx, receiverName)
+		ctx = WithGroupKey(ctx, groupKey)
+
+		_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), resolvedAlert)
+		require.NoError(t, err)
+		require.Len(t, alerts, 1, "resolved silenced alerts should be allowed when at least one integration has send_resolved=true")
+	})
+}
+
 func TestTimeMuteStage(t *testing.T) {
 	sydney, err := time.LoadLocation("Australia/Sydney")
 	if err != nil {
@@ -1079,4 +1277,10 @@ func BenchmarkHashAlert(b *testing.B) {
 	for b.Loop() {
 		hashAlert(alert)
 	}
+}
+
+type testNotifier struct{}
+
+func (n *testNotifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return true, nil
 }
