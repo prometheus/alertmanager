@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"testing"
 
@@ -32,13 +31,9 @@ import (
 )
 
 func TestWebhookRetry(t *testing.T) {
-	u, err := url.Parse("http://example.com")
-	if err != nil {
-		require.NoError(t, err)
-	}
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        config.Secret("http://example.com"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -107,7 +102,7 @@ func TestWebhookRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        config.Secret(u.String()),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
