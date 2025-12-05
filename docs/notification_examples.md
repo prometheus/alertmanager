@@ -2,7 +2,6 @@
 title: Notification template examples
 sort_rank: 8
 ---
-# Notification Template Examples
 
 The following are all different examples of alerts and corresponding Alertmanager configuration file setups (alertmanager.yml).
 Each use the [Go templating](http://golang.org/pkg/text/template/) system.
@@ -13,6 +12,8 @@ In this example we've customised our Slack notification to send a URL to our org
 
 ```
 global:
+  # Also possible to place this URL in a file.
+  # Ex: `slack_api_url_file: '/etc/alertmanager/slack_url'`
   slack_api_url: '<slack_webhook_url>'
 
 route:
@@ -74,7 +75,7 @@ Receiver
 ## Defining reusable templates
 
 Going back to our first example, we can also provide a file containing named templates which are then loaded by Alertmanager in order to avoid complex templates that span many lines.
-Create a file under `/alertmanager/template/myorg.tmpl` and create a template in it named "slack.myorg.txt":
+Create a file under `/alertmanager/template/myorg.tmpl` and create a template in it named "slack.myorg.text":
 
 ```
 {{ define "slack.myorg.text" }}https://internal.myorg.net/wiki/alerts/{{ .GroupLabels.app }}/{{ .GroupLabels.alertname }}{{ end}}

@@ -7,8 +7,8 @@ import Data.VersionInfo exposing (VersionInfo)
 import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
 import Status.Api exposing (clusterStatusToString)
-import Status.Types exposing (StatusResponse, VersionInfo)
-import Types exposing (Msg(..))
+import Status.Types exposing (VersionInfo)
+import Types
 import Utils.Date exposing (timeToString)
 import Utils.Types exposing (ApiData(..))
 import Utils.Views

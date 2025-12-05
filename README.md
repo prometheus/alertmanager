@@ -1,9 +1,9 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
+# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
-The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct [receiver integrations](https://prometheus.io/docs/alerting/latest/configuration/#receiver) such as email, PagerDuty, OpsGenie, or many other [mechanisms](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) thanks to the webhook receiver. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
 
@@ -30,10 +30,10 @@ Alertmanager will now be reachable at http://localhost:9093/.
 
 ### Compiling the binary
 
-You can either `go get` it:
+You can either `go install` it:
 
 ```
-$ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
+$ go install github.com/prometheus/alertmanager/cmd/...@latest
 # cd $GOPATH/src/github.com/prometheus/alertmanager
 $ alertmanager --config.file=<your_file>
 ```
@@ -102,45 +102,45 @@ route:
 
   # The child route trees.
   routes:
-  # This routes performs a regular expression match on alert labels to
+  # This route performs a regular expression match on alert labels to
   # catch alerts that are related to a list of services.
-  - match_re:
-      service: ^(foo1|foo2|baz)$
+  - matchers:
+    - service=~"^(foo1|foo2|baz)$"
     receiver: team-X-mails
 
     # The service has a sub-route for critical alerts, any alerts
     # that do not match, i.e. severity != critical, fall-back to the
     # parent node and are sent to 'team-X-mails'
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-X-pager
 
-  - match:
-      service: files
+  - matchers:
+    - service="files"
     receiver: team-Y-mails
 
     routes:
-    - match:
-        severity: critical
+    - matchers:
+      - severity="critical"
       receiver: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
   # no team to handle it, it defaults to the DB team.
-  - match:
-      service: database
+  - matchers:
+    - service="database"
 
     receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
 
     routes:
-    - match:
-        owner: team-X
+    - matchers:
+      - owner="team-X"
       receiver: team-X-pager
 
-    - match:
-        owner: team-Y
+    - matchers:
+      - owner="team-Y"
       receiver: team-Y-pager
 
 
@@ -149,10 +149,10 @@ route:
 # We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
-- source_match:
-    severity: 'critical'
-  target_match:
-    severity: 'warning'
+- source_matchers:
+    - severity="critical"
+  target_matchers:
+    - severity="warning"
   # Apply inhibition if the alertname is the same.
   # CAUTION: 
   #   If all label names listed in `equal` are missing 
@@ -192,15 +192,13 @@ The current Alertmanager API is version 2. This API is fully generated via the
 and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
 of the HTTP handlers themselves. The API specification can be found in
 [api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
-accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
+accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major languages.
 
-With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
+APIv2 is accessed via the `/api/v2` prefix. APIv1 was deprecated in `0.16.0` and is removed as of version `0.27.0`.
 The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is set then API routes are
 prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
 relate to `/alertmanager/api/v2/status`.
-
-_API v2 is still under heavy development and thereby subject to change._
 
 ## amtool
 
@@ -210,7 +208,7 @@ _API v2 is still under heavy development and thereby subject to change._
 
 Alternatively you can install with:
 ```
-go get github.com/prometheus/alertmanager/cmd/amtool
+$ go install github.com/prometheus/alertmanager/cmd/amtool@latest
 ```
 
 ### Examples
@@ -283,7 +281,7 @@ $ amtool silence query instance=~".+0"
 ID                                    Matchers                            Ends At                  Created By  Comment
 e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 
-$ amtool silence expire $(amtool silence -q query instance=~".+0")
+$ amtool silence expire $(amtool silence query -q instance=~".+0")
 
 $ amtool silence query instance=~".+0"
 
@@ -292,6 +290,17 @@ $ amtool silence query instance=~".+0"
 Expire all silences:
 ```
 $ amtool silence expire $(amtool silence query -q)
+```
+
+Try out how a template works. Let's say you have this in your configuration file:
+```
+templates:
+  - '/foo/bar/*.tmpl'
+```
+
+Then you can test out how a template would look like with example by using this command:
+```
+amtool template render --template.glob='/foo/bar/*.tmpl' --template.text='{{ template "slack.default.markdown.v1" . }}'
 ```
 
 ### Configuration
@@ -349,6 +358,7 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.advertise-address` string: cluster advertise address
 - `--cluster.peer` value: initial peers (repeat flag for each additional peer)
 - `--cluster.peer-timeout` value: peer timeout period (default "15s")
+- `--cluster.peers-resolve-timeout` value: peers resolve timeout period (default "15s")
 - `--cluster.gossip-interval` value: cluster message propagation speed
   (default "200ms")
 - `--cluster.pushpull-interval` value: lower values will increase
@@ -361,6 +371,7 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.probe-interval` value: interval between random node probes (default "1s")
 - `--cluster.reconnect-interval` value: interval between attempting to reconnect to lost peers (default "10s")
 - `--cluster.reconnect-timeout` value: length of time to attempt to reconnect to a lost peer (default: "6h0m0s")
+- `--cluster.label` value: the label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages (default:"")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
@@ -395,7 +406,7 @@ If running Alertmanager in high availability mode is not desired, setting `--clu
 
 ## Contributing
 
-Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/main/CONTRIBUTING.md).
 
 To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
@@ -405,7 +416,7 @@ To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CO
 
 ## License
 
-Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/master/LICENSE).
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/main/LICENSE).
 
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager

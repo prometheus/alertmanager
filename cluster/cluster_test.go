@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -18,11 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 )
 
 func TestClusterJoinAndReconnect(t *testing.T) {
@@ -35,10 +35,14 @@ func TestClusterJoinAndReconnect(t *testing.T) {
 	t.Run("TestReconnect", testReconnect)
 	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
 	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
+	t.Run("TestTLSConnection", testTLSConnection)
+	t.Run("TestRandomPeerNames", func(t *testing.T) { testPeerNames(t, "", "") })
+	t.Run("TestSetPeerNames", func(t *testing.T) { testPeerNames(t, "peer1", "peer2") })
+	t.Run("TestDuplicatePeerNames", func(t *testing.T) { testPeerNames(t, "peer", "peer") })
 }
 
 func testJoinLeave(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -48,9 +52,14 @@ func testJoinLeave(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -65,10 +74,10 @@ func testJoinLeave(t *testing.T) {
 		cancel()
 		require.Equal(t, context.Canceled, p.WaitReady(ctx))
 	}
-	require.Equal(t, p.Status(), "settling")
+	require.Equal(t, "settling", p.Status())
 	go p.Settle(context.Background(), 0*time.Second)
 	require.NoError(t, p.WaitReady(context.Background()))
-	require.Equal(t, p.Status(), "ready")
+	require.Equal(t, "ready", p.Status())
 
 	// Create the peer who joins the first.
 	p2, err := Create(
@@ -80,9 +89,14 @@ func testJoinLeave(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -92,17 +106,18 @@ func testJoinLeave(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p2.WaitReady(context.Background()))
 
-	require.Equal(t, 2, p.ClusterSize())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 2 }, 5*time.Second, time.Second)
 	p2.Leave(0 * time.Second)
-	require.Equal(t, 1, p.ClusterSize())
-	require.Equal(t, 1, len(p.failedPeers))
-	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Node.Address())
+	require.Eventually(t, func() bool { return p.ClusterSize() == 1 }, 5*time.Second, time.Second)
+	require.Len(t, p.failedPeers, 1)
+	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
 
 func testReconnect(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -112,9 +127,14 @@ func testReconnect(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -135,9 +155,14 @@ func testReconnect(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -153,17 +178,17 @@ func testReconnect(t *testing.T) {
 	p.peerLeave(p2.Self())
 
 	require.Equal(t, 1, p.ClusterSize())
-	require.Equal(t, 1, len(p.failedPeers))
+	require.Len(t, p.failedPeers, 1)
 
 	p.reconnect()
 
 	require.Equal(t, 2, p.ClusterSize())
-	require.Equal(t, 0, len(p.failedPeers))
+	require.Empty(t, p.failedPeers)
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
 
 func testRemoveFailedPeers(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
@@ -173,9 +198,14 @@ func testRemoveFailedPeers(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -205,12 +235,12 @@ func testRemoveFailedPeers(t *testing.T) {
 	p.failedPeers = []peer{p1, p2, p3}
 
 	p.removeFailedPeers(30 * time.Minute)
-	require.Equal(t, 1, len(p.failedPeers))
+	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p1, p.failedPeers[0])
 }
 
 func testInitiallyFailingPeers(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	myAddr := "1.2.3.4:5000"
 	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000", "foo.example.com:5000"}
 	p, err := Create(
@@ -222,9 +252,14 @@ func testInitiallyFailingPeers(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -238,7 +273,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 
 	// We shouldn't have added "our" bind addr and the FQDN address to the
 	// failed peers list.
-	require.Equal(t, len(peerAddrs)-2, len(p.failedPeers))
+	require.Len(t, p.failedPeers, len(peerAddrs)-2)
 	for _, addr := range peerAddrs {
 		if addr == myAddr || addr == "foo.example.com:5000" {
 			continue
@@ -250,6 +285,156 @@ func testInitiallyFailingPeers(t *testing.T) {
 		require.Equal(t, addr, pr.Address())
 		expectedLen := len(p.failedPeers) - 1
 		p.peerJoin(pr.Node)
-		require.Equal(t, expectedLen, len(p.failedPeers))
+		require.Len(t, p.failedPeers, expectedLen)
+	}
+}
+
+func testTLSConnection(t *testing.T) {
+	logger := promslog.NewNopLogger()
+	tlsTransportConfig1, err := GetTLSTransportConfig("./testdata/tls_config_node1.yml")
+	require.NoError(t, err)
+	p1, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		tlsTransportConfig1,
+		false,
+		"",
+		"",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p1)
+	err = p1.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.False(t, p1.Ready())
+	require.Equal(t, "settling", p1.Status())
+	go p1.Settle(context.Background(), 0*time.Second)
+	p1.WaitReady(context.Background())
+	require.Equal(t, "ready", p1.Status())
+
+	// Create the peer who joins the first.
+	tlsTransportConfig2, err := GetTLSTransportConfig("./testdata/tls_config_node2.yml")
+	require.NoError(t, err)
+	p2, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		tlsTransportConfig2,
+		false,
+		"",
+		"",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	go p2.Settle(context.Background(), 0*time.Second)
+	p2.WaitReady(context.Background())
+	require.Equal(t, "ready", p2.Status())
+
+	require.Eventually(t, func() bool { return p1.ClusterSize() == 2 }, 5*time.Second, time.Second)
+	p2.Leave(0 * time.Second)
+	require.Eventually(t, func() bool { return p1.ClusterSize() == 1 }, 5*time.Second, time.Second)
+	require.Len(t, p1.failedPeers, 1)
+	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Address())
+	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
+}
+
+func testPeerNames(t *testing.T, name1, name2 string) {
+	t.Helper()
+	logger := promslog.NewNopLogger()
+	p1, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		name1,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p1)
+	err = p1.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.False(t, p1.Ready())
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		require.Equal(t, context.Canceled, p1.WaitReady(ctx))
+	}
+	require.Equal(t, "settling", p1.Status())
+	go p1.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p1.WaitReady(context.Background()))
+	require.Equal(t, "ready", p1.Status())
+
+	// Create the peer who joins the first.
+	p2, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultResolvePeersTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+		name2,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	go p2.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p2.WaitReady(context.Background()))
+
+	if name1 != name2 {
+		require.Eventually(t, func() bool { return p1.ClusterSize() == 2 }, 5*time.Second, time.Second)
+		require.Eventually(t, func() bool { return p2.ClusterSize() == 2 }, 5*time.Second, time.Second)
+		require.NotEqual(t, p1.Name(), p2.Name(), "peers should have different names")
 	}
 }

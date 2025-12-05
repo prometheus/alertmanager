@@ -15,18 +15,25 @@ package nflog
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+
+	"github.com/coder/quartz"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLogGC(t *testing.T) {
-	now := utcNow()
+	mockClock := quartz.NewMock(t)
+	now := mockClock.Now()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
@@ -40,8 +47,8 @@ func TestLogGC(t *testing.T) {
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
 		},
-		now:     func() time.Time { return now },
-		metrics: newMetrics(nil),
+		clock:   mockClock,
+		metrics: newMetrics(prometheus.NewRegistry()),
 	}
 	n, err := l.GC()
 	require.NoError(t, err, "unexpected error in garbage collection")
@@ -50,12 +57,13 @@ func TestLogGC(t *testing.T) {
 	expected := state{
 		"a2": newEntry(now.Add(time.Second)),
 	}
-	require.Equal(t, l.st, expected, "unexpected state after garbage collection")
+	require.Equal(t, expected, l.st, "unexpected state after garbage collection")
 }
 
 func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	now := utcNow()
+	mockClock := quartz.NewMock(t)
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -95,7 +103,7 @@ func TestLogSnapshot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		f, err := ioutil.TempFile("", "snapshot")
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
 		l1 := &Log{
@@ -123,8 +131,60 @@ func TestLogSnapshot(t *testing.T) {
 	}
 }
 
+func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+	stopc := make(chan struct{})
+	reg := prometheus.NewPedanticRegistry()
+	opts := Options{
+		Metrics:      reg,
+		SnapshotFile: f.Name(),
+	}
+
+	l, err := New(opts)
+	clock := quartz.NewMock(t)
+	l.clock = clock
+	require.NoError(t, err)
+
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
+			return 0, nil
+		})
+	}()
+	gosched()
+
+	// Before the first tick, no maintenance executed.
+	clock.Advance(99 * time.Millisecond)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Advance(1 * time.Millisecond)
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 5*time.Second, time.Second)
+
+	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
+	close(stopc)
+	wg.Wait()
+
+	require.EqualValues(t, 2, calls.Load())
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_nflog_maintenance_errors_total How many maintenances were executed for the notification log that failed.
+# TYPE alertmanager_nflog_maintenance_errors_total counter
+alertmanager_nflog_maintenance_errors_total 0
+# HELP alertmanager_nflog_maintenance_total How many maintenances were executed for the notification log.
+# TYPE alertmanager_nflog_maintenance_total counter
+alertmanager_nflog_maintenance_total 2
+`), "alertmanager_nflog_maintenance_total", "alertmanager_nflog_maintenance_errors_total"))
+}
+
 func TestReplaceFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "replace_file")
+	dir, err := os.MkdirTemp("", "replace_file")
 	require.NoError(t, err, "creating temp dir failed")
 
 	origFilename := filepath.Join(dir, "testfile")
@@ -146,13 +206,14 @@ func TestReplaceFile(t *testing.T) {
 	require.NoError(t, err, "opening original file failed")
 	defer ofr.Close()
 
-	res, err := ioutil.ReadAll(ofr)
+	res, err := io.ReadAll(ofr)
 	require.NoError(t, err, "reading original file failed")
 	require.Equal(t, "test", string(res), "unexpected file contents")
 }
 
 func TestStateMerge(t *testing.T) {
-	now := utcNow()
+	mockClock := quartz.NewMock(t)
+	now := mockClock.Now()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
@@ -213,7 +274,8 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	now := utcNow()
+	mockClock := quartz.NewMock(t)
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -269,7 +331,8 @@ func TestStateDataCoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	nl, err := New(WithRetention(time.Second))
+	opts := Options{Metrics: prometheus.NewRegistry(), Retention: time.Second}
+	nl, err := New(opts)
 	if err != nil {
 		require.NoError(t, err, "constructing nflog failed")
 	}
@@ -292,14 +355,14 @@ func TestQuery(t *testing.T) {
 	firingAlerts := []uint64{1, 2, 3}
 	resolvedAlerts := []uint64{4, 5}
 
-	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts)
+	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts, 0)
 	require.NoError(t, err, "logging notification failed")
 
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
 	require.NoError(t, err, "querying nflog failed")
 	entry := entries[0]
-	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
-	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
+	require.Equal(t, firingAlerts, entry.FiringAlerts)
+	require.Equal(t, resolvedAlerts, entry.ResolvedAlerts)
 }
 
 func TestStateDecodingError(t *testing.T) {
@@ -311,4 +374,10 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }

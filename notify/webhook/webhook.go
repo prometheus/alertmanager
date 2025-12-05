@@ -18,13 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -32,20 +31,18 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
-
 // Notifier implements a Notifier for generic webhooks.
 type Notifier struct {
 	conf    *config.WebhookConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new Webhook.
-func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", false, false)
+func New(conf *config.WebhookConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -56,11 +53,7 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		client: client,
 		// Webhooks are assumed to respond with 2xx response codes on a successful
 		// request and 5xx response codes are assumed to be recoverable.
-		retrier: &notify.Retrier{
-			CustomDetailsFunc: func(int, io.Reader) string {
-				return conf.URL.String()
-			},
-		},
+		retrier: &notify.Retrier{},
 	}, nil
 }
 
@@ -89,8 +82,11 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		level.Error(n.logger).Log("err", err)
+		return false, err
 	}
+
+	logger := n.logger.With("group_key", groupKey)
+	logger.Debug("extracted group key")
 
 	msg := &Message{
 		Version:         "4",
@@ -104,18 +100,35 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
-	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
-	if err != nil {
-		return true, err
+	var url string
+	if n.conf.URL != nil {
+		url = n.conf.URL.String()
+	} else {
+		content, err := os.ReadFile(n.conf.URLFile)
+		if err != nil {
+			return false, fmt.Errorf("read url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(content))
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgentHeader)
 
-	resp, err := n.client.Do(req.WithContext(ctx))
-	if err != nil {
-		return true, err
+	if n.conf.Timeout > 0 {
+		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = postCtx
 	}
-	notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, nil)
+	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
+		}
+		return true, notify.RedactURL(err)
+	}
+	defer notify.Drain(resp)
+
+	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+	return shouldRetry, err
 }

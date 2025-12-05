@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"time"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/common/model"
 )
 
 type silenceUpdateCmd struct {
@@ -131,7 +131,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			return fmt.Errorf("unknown output formatter")
 		}
 		if err := formatter.FormatSilences(updatedSilences); err != nil {
-			return fmt.Errorf("error formatting silences: %v", err)
+			return fmt.Errorf("error formatting silences: %w", err)
 		}
 	}
 	return nil

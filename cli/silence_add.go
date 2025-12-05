@@ -18,14 +18,17 @@ import (
 	"errors"
 	"fmt"
 	"os/user"
+	"strconv"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 func username() string {
@@ -83,7 +86,6 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	addCmd.Action(execWithTimeout(c.add))
-
 }
 
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
@@ -93,19 +95,33 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := parseMatchers([]string{c.matchers[0]})
+		_, err := compat.Matcher(c.matchers[0], "cli")
 		if err != nil {
-			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}
 	}
 
-	matchers, err := parseMatchers(c.matchers)
-	if err != nil {
-		return err
+	matchers := make([]labels.Matcher, 0, len(c.matchers))
+	for _, s := range c.matchers {
+		m, err := compat.Matcher(s, "cli")
+		if err != nil {
+			return err
+		}
+		matchers = append(matchers, *m)
 	}
-
 	if len(matchers) < 1 {
 		return fmt.Errorf("no matchers specified")
+	}
+
+	var startsAt time.Time
+	if c.start != "" {
+		startsAt, err = time.Parse(time.RFC3339, c.start)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		startsAt = time.Now().UTC()
 	}
 
 	var endsAt time.Time
@@ -122,26 +138,15 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		if d == 0 {
 			return fmt.Errorf("silence duration must be greater than 0")
 		}
-		endsAt = time.Now().UTC().Add(time.Duration(d))
-	}
-
-	if c.requireComment && c.comment == "" {
-		return errors.New("comment required by config")
-	}
-
-	var startsAt time.Time
-	if c.start != "" {
-		startsAt, err = time.Parse(time.RFC3339, c.start)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		startsAt = time.Now().UTC()
+		endsAt = startsAt.UTC().Add(time.Duration(d))
 	}
 
 	if startsAt.After(endsAt) {
 		return errors.New("silence cannot start after it ends")
+	}
+
+	if c.requireComment && c.comment == "" {
+		return errors.New("comment required by config")
 	}
 
 	start := strfmt.DateTime(startsAt)

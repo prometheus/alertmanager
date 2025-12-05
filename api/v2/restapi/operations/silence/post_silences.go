@@ -20,6 +20,7 @@ package silence
 // Editing this file might prove futile when you re-run the generate command
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -45,10 +46,10 @@ func NewPostSilences(ctx *middleware.Context, handler PostSilencesHandler) *Post
 	return &PostSilences{Context: ctx, Handler: handler}
 }
 
-/*PostSilences swagger:route POST /silences silence postSilences
+/*
+	PostSilences swagger:route POST /silences silence postSilences
 
 Post a new silence or update an existing one
-
 */
 type PostSilences struct {
 	Context *middleware.Context
@@ -58,17 +59,15 @@ type PostSilences struct {
 func (o *PostSilences) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewPostSilencesParams()
-
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
-
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }
@@ -84,6 +83,11 @@ type PostSilencesOKBody struct {
 
 // Validate validates this post silences o k body
 func (o *PostSilencesOKBody) Validate(formats strfmt.Registry) error {
+	return nil
+}
+
+// ContextValidate validates this post silences o k body based on context it is used
+func (o *PostSilencesOKBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 

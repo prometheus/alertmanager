@@ -14,16 +14,20 @@
 package cluster
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/hashicorp/go-sockaddr"
-	"github.com/pkg/errors"
 )
 
-type getPrivateIPFunc func() (string, error)
+type getIPFunc func() (string, error)
 
-// This is overridden in unit tests to mock the sockaddr.GetPrivateIP function.
-var getPrivateAddress getPrivateIPFunc = sockaddr.GetPrivateIP
+// These are overridden in unit tests to mock the sockaddr functions.
+var (
+	getPrivateAddress getIPFunc = sockaddr.GetPrivateIP
+	getPublicAddress  getIPFunc = sockaddr.GetPublicIP
+)
 
 // calculateAdvertiseAddress attempts to clone logic from deep within memberlist
 // (NetTransport.FinalAdvertiseAddr) in order to surface its conclusions to the
@@ -31,11 +35,11 @@ var getPrivateAddress getPrivateIPFunc = sockaddr.GetPrivateIP
 // inadvertently misconfigured their cluster.
 //
 // https://github.com/hashicorp/memberlist/blob/022f081/net_transport.go#L126
-func calculateAdvertiseAddress(bindAddr, advertiseAddr string) (net.IP, error) {
+func calculateAdvertiseAddress(bindAddr, advertiseAddr string, allowInsecureAdvertise bool) (net.IP, error) {
 	if advertiseAddr != "" {
 		ip := net.ParseIP(advertiseAddr)
 		if ip == nil {
-			return nil, errors.Errorf("failed to parse advertise addr '%s'", advertiseAddr)
+			return nil, fmt.Errorf("failed to parse advertise addr '%s'", advertiseAddr)
 		}
 		if ip4 := ip.To4(); ip4 != nil {
 			ip = ip4
@@ -44,23 +48,42 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string) (net.IP, error) {
 	}
 
 	if isAny(bindAddr) {
-		privateIP, err := getPrivateAddress()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get private IP")
-		}
-		if privateIP == "" {
-			return nil, errors.New("no private IP found, explicit advertise addr not provided")
-		}
-		ip := net.ParseIP(privateIP)
-		if ip == nil {
-			return nil, errors.Errorf("failed to parse private IP '%s'", privateIP)
-		}
-		return ip, nil
+		return discoverAdvertiseAddress(allowInsecureAdvertise)
 	}
 
 	ip := net.ParseIP(bindAddr)
 	if ip == nil {
-		return nil, errors.Errorf("failed to parse bind addr '%s'", bindAddr)
+		return nil, fmt.Errorf("failed to parse bind addr '%s'", bindAddr)
+	}
+	return ip, nil
+}
+
+// discoverAdvertiseAddress will attempt to get a single IP address to use as
+// the advertise address when one is not explicitly provided. It defaults to
+// using a private IP address, and if not found then using a public IP if
+// insecure advertising is allowed.
+func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
+	addr, err := getPrivateAddress()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get private IP: %w", err)
+	}
+	if addr == "" && !allowInsecureAdvertise {
+		return nil, errors.New("no private IP found, explicit advertise addr not provided")
+	}
+
+	if addr == "" {
+		addr, err = getPublicAddress()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get public IP: %w", err)
+		}
+		if addr == "" {
+			return nil, errors.New("no private/public IP found, explicit advertise addr not provided")
+		}
+	}
+
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return nil, fmt.Errorf("failed to parse discovered IP '%s'", addr)
 	}
 	return ip, nil
 }

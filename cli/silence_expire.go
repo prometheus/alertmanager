@@ -17,9 +17,10 @@ import (
 	"context"
 	"errors"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type silenceExpireCmd struct {

@@ -16,28 +16,40 @@ package notify
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
+	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/pkg/errors"
+	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
+// truncationMarker is the character used to represent a truncation.
+const truncationMarker = "…"
+
+// UserAgentHeader is the default User-Agent for notification requests.
+var UserAgentHeader = version.ComponentUserAgent("Alertmanager")
+
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
-	e, ok := err.(*url.Error)
-	if !ok {
+	var e *url.Error
+	if !errors.As(err, &e) {
 		return err
 	}
 	e.URL = "<redacted>"
 	return e
+}
+
+// Get sends a GET request to the given URL.
+func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	return request(ctx, client, http.MethodGet, url, "", nil)
 }
 
 // PostJSON sends a POST request with JSON payload to the given URL.
@@ -50,32 +62,71 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "text/plain", body)
 }
 
-func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, body)
+func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPost, url, bodyType, body)
+}
+
+func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", bodyType)
+	req.Header.Set("User-Agent", UserAgentHeader)
+	if bodyType != "" {
+		req.Header.Set("Content-Type", bodyType)
+	}
 	return client.Do(req.WithContext(ctx))
 }
 
 // Drain consumes and closes the response's body to make sure that the
 // HTTP client can reuse existing connections.
 func Drain(r *http.Response) {
-	io.Copy(ioutil.Discard, r.Body)
+	io.Copy(io.Discard, r.Body)
 	r.Body.Close()
 }
 
-// Truncate truncates a string to fit the given size.
-func Truncate(s string, n int) (string, bool) {
+// TruncateInRunes truncates a string to fit the given size in Runes.
+func TruncateInRunes(s string, n int) (string, bool) {
 	r := []rune(s)
 	if len(r) <= n {
 		return s, false
 	}
+
 	if n <= 3 {
 		return string(r[:n]), true
 	}
-	return string(r[:n-3]) + "...", true
+
+	return string(r[:n-1]) + truncationMarker, true
+}
+
+// TruncateInBytes truncates a string to fit the given size in Bytes.
+func TruncateInBytes(s string, n int) (string, bool) {
+	// First, measure the string the w/o a to-rune conversion.
+	if len(s) <= n {
+		return s, false
+	}
+
+	// The truncationMarker itself is 3 bytes, we can't return any part of the string when it's less than 3.
+	if n <= 3 {
+		switch n {
+		case 3:
+			return truncationMarker, true
+		default:
+			return strings.Repeat(".", n), true
+		}
+	}
+
+	// Now, to ensure we don't butcher the string we need to remove using runes.
+	r := []rune(s)
+	truncationTarget := n - 3
+
+	// Next, let's truncate the runes to the lower possible number.
+	truncatedRunes := r[:truncationTarget]
+	for len(string(truncatedRunes)) > truncationTarget {
+		truncatedRunes = r[:len(truncatedRunes)-1]
+	}
+
+	return string(truncatedRunes) + truncationMarker, true
 }
 
 // TmplText is using monadic error handling in order to make string templating
@@ -83,7 +134,7 @@ func Truncate(s string, n int) (string, bool) {
 func TmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
-			return
+			return s
 		}
 		s, *err = tmpl.ExecuteTextString(name, data)
 		return s
@@ -95,7 +146,7 @@ func TmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
-			return
+			return s
 		}
 		s, *err = tmpl.ExecuteHTMLString(name, data)
 		return s
@@ -109,7 +160,7 @@ type Key string
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return "", errors.Errorf("group key missing")
+		return "", fmt.Errorf("group key missing")
 	}
 	return Key(key), nil
 }
@@ -129,14 +180,14 @@ func (k Key) String() string {
 }
 
 // GetTemplateData creates the template data from the context and the alerts.
-func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l log.Logger) *template.Data {
+func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l *slog.Logger) *template.Data {
 	recv, ok := ReceiverName(ctx)
 	if !ok {
-		level.Error(l).Log("msg", "Missing receiver")
+		l.Error("Missing receiver")
 	}
 	groupLabels, ok := GroupLabels(ctx)
 	if !ok {
-		level.Error(l).Log("msg", "Missing group labels")
+		l.Error("Missing group labels")
 	}
 	return tmpl.Data(recv, groupLabels, alerts...)
 }
@@ -145,7 +196,7 @@ func readAll(r io.Reader) string {
 	if r == nil {
 		return ""
 	}
-	bs, err := ioutil.ReadAll(r)
+	bs, err := io.ReadAll(r)
 	if err != nil {
 		return ""
 	}
@@ -172,15 +223,7 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	}
 
 	// 5xx responses are considered to be always retried.
-	retry := statusCode/100 == 5
-	if !retry {
-		for _, code := range r.RetryCodes {
-			if code == statusCode {
-				retry = true
-				break
-			}
-		}
-	}
+	retry := statusCode/100 == 5 || slices.Contains(r.RetryCodes, statusCode)
 
 	s := fmt.Sprintf("unexpected status code %v", statusCode)
 	var details string
@@ -193,4 +236,64 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		s = fmt.Sprintf("%s: %s", s, details)
 	}
 	return retry, errors.New(s)
+}
+
+type ErrorWithReason struct {
+	Err error
+
+	Reason Reason
+}
+
+func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
+	return &ErrorWithReason{
+		Err:    err,
+		Reason: reason,
+	}
+}
+
+func (e *ErrorWithReason) Error() string {
+	return e.Err.Error()
+}
+
+// Reason is the failure reason.
+type Reason int
+
+const (
+	DefaultReason Reason = iota
+	ClientErrorReason
+	ServerErrorReason
+	ContextCanceledReason
+	ContextDeadlineExceededReason
+)
+
+func (s Reason) String() string {
+	switch s {
+	case DefaultReason:
+		return "other"
+	case ClientErrorReason:
+		return "clientError"
+	case ServerErrorReason:
+		return "serverError"
+	case ContextCanceledReason:
+		return "contextCanceled"
+	case ContextDeadlineExceededReason:
+		return "contextDeadlineExceeded"
+	default:
+		panic(fmt.Sprintf("unknown Reason: %d", s))
+	}
+}
+
+// possibleFailureReasonCategory is a list of possible failure reason.
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String()}
+
+// GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
+func GetFailureReasonFromStatusCode(statusCode int) Reason {
+	if statusCode/100 == 4 {
+		return ClientErrorReason
+	}
+	if statusCode/100 == 5 {
+		return ServerErrorReason
+	}
+
+	return DefaultReason
 }

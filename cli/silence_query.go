@@ -17,21 +17,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	kingpin "github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
 type silenceQueryCmd struct {
-	expired  bool
-	quiet    bool
-	matchers []string
-	within   time.Duration
+	expired   bool
+	quiet     bool
+	createdBy string
+	ID        string
+	matchers  []string
+	within    time.Duration
 }
 
 const querySilenceHelp = `Query Alertmanager silences.
@@ -84,6 +87,8 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 
 	queryCmd.Flag("expired", "Show expired silences instead of active").BoolVar(&c.expired)
 	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
+	queryCmd.Flag("created-by", "Show silences that belong to this creator").StringVar(&c.createdBy)
+	queryCmd.Flag("id", "Get a single silence by its ID").StringVar(&c.ID)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
 	queryCmd.Action(execWithTimeout(c.query))
@@ -94,9 +99,9 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := labels.ParseMatcher(c.matchers[0])
+		_, err := compat.Matcher(c.matchers[0], "cli")
 		if err != nil {
-			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+			c.matchers[0] = fmt.Sprintf("alertname=%s", strconv.Quote(c.matchers[0]))
 		}
 	}
 
@@ -127,6 +132,14 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		if c.expired && int64(c.within) > 0 && time.Time(*silence.EndsAt).Before(time.Now().UTC().Add(-c.within)) {
 			continue
 		}
+		// Skip silences if the author doesn't match.
+		if c.createdBy != "" && *silence.CreatedBy != c.createdBy {
+			continue
+		}
+		// Skip silences if the ID doesn't match.
+		if c.ID != "" && c.ID != *silence.ID {
+			continue
+		}
 
 		displaySilences = append(displaySilences, *silence)
 	}
@@ -141,7 +154,7 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 			return errors.New("unknown output formatter")
 		}
 		if err := formatter.FormatSilences(displaySilences); err != nil {
-			return fmt.Errorf("error formatting silences: %v", err)
+			return fmt.Errorf("error formatting silences: %w", err)
 		}
 	}
 	return nil

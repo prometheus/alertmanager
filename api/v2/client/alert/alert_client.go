@@ -23,12 +23,38 @@ import (
 	"fmt"
 
 	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 )
 
 // New creates a new alert API client.
 func New(transport runtime.ClientTransport, formats strfmt.Registry) ClientService {
 	return &Client{transport: transport, formats: formats}
+}
+
+// New creates a new alert API client with basic auth credentials.
+// It takes the following parameters:
+// - host: http host (github.com).
+// - basePath: any base path for the API client ("/v1", "/v3").
+// - scheme: http scheme ("http", "https").
+// - user: user for basic authentication header.
+// - password: password for basic authentication header.
+func NewClientWithBasicAuth(host, basePath, scheme, user, password string) ClientService {
+	transport := httptransport.New(host, basePath, []string{scheme})
+	transport.DefaultAuthentication = httptransport.BasicAuth(user, password)
+	return &Client{transport: transport, formats: strfmt.Default}
+}
+
+// New creates a new alert API client with a bearer token for authentication.
+// It takes the following parameters:
+// - host: http host (github.com).
+// - basePath: any base path for the API client ("/v1", "/v3").
+// - scheme: http scheme ("http", "https").
+// - bearerToken: bearer token for Bearer authentication header.
+func NewClientWithBearerToken(host, basePath, scheme, bearerToken string) ClientService {
+	transport := httptransport.New(host, basePath, []string{scheme})
+	transport.DefaultAuthentication = httptransport.BearerToken(bearerToken)
+	return &Client{transport: transport, formats: strfmt.Default}
 }
 
 /*
@@ -39,25 +65,27 @@ type Client struct {
 	formats   strfmt.Registry
 }
 
+// ClientOption may be used to customize the behavior of Client methods.
+type ClientOption func(*runtime.ClientOperation)
+
 // ClientService is the interface for Client methods
 type ClientService interface {
-	GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error)
+	GetAlerts(params *GetAlertsParams, opts ...ClientOption) (*GetAlertsOK, error)
 
-	PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error)
+	PostAlerts(params *PostAlertsParams, opts ...ClientOption) (*PostAlertsOK, error)
 
 	SetTransport(transport runtime.ClientTransport)
 }
 
 /*
-  GetAlerts Get a list of alerts
+GetAlerts Get a list of alerts
 */
-func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
+func (a *Client) GetAlerts(params *GetAlertsParams, opts ...ClientOption) (*GetAlertsOK, error) {
 	// TODO: Validate the params before sending
 	if params == nil {
 		params = NewGetAlertsParams()
 	}
-
-	result, err := a.transport.Submit(&runtime.ClientOperation{
+	op := &runtime.ClientOperation{
 		ID:                 "getAlerts",
 		Method:             "GET",
 		PathPattern:        "/alerts",
@@ -68,7 +96,12 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 		Reader:             &GetAlertsReader{formats: a.formats},
 		Context:            params.Context,
 		Client:             params.HTTPClient,
-	})
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
 	if err != nil {
 		return nil, err
 	}
@@ -83,15 +116,14 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 }
 
 /*
-  PostAlerts Create new Alerts
+PostAlerts Create new Alerts
 */
-func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
+func (a *Client) PostAlerts(params *PostAlertsParams, opts ...ClientOption) (*PostAlertsOK, error) {
 	// TODO: Validate the params before sending
 	if params == nil {
 		params = NewPostAlertsParams()
 	}
-
-	result, err := a.transport.Submit(&runtime.ClientOperation{
+	op := &runtime.ClientOperation{
 		ID:                 "postAlerts",
 		Method:             "POST",
 		PathPattern:        "/alerts",
@@ -102,7 +134,12 @@ func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
 		Reader:             &PostAlertsReader{formats: a.formats},
 		Context:            params.Context,
 		Client:             params.HTTPClient,
-	})
+	}
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	result, err := a.transport.Submit(op)
 	if err != nil {
 		return nil, err
 	}

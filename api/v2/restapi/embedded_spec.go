@@ -48,6 +48,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {
@@ -177,6 +178,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -271,6 +279,9 @@ func init() {
           "200": {
             "description": "Delete silence response"
           },
+          "404": {
+            "description": "A silence with the specified ID was not found"
+          },
           "500": {
             "$ref": "#/responses/InternalServerError"
           }
@@ -312,6 +323,9 @@ func init() {
             "schema": {
               "$ref": "#/definitions/gettableSilences"
             }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
           },
           "500": {
             "$ref": "#/responses/InternalServerError"
@@ -426,10 +440,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
@@ -831,6 +852,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {
@@ -972,6 +994,13 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
@@ -1075,6 +1104,9 @@ func init() {
           "200": {
             "description": "Delete silence response"
           },
+          "404": {
+            "description": "A silence with the specified ID was not found"
+          },
           "500": {
             "description": "Internal server error",
             "schema": {
@@ -1118,6 +1150,12 @@ func init() {
             "description": "Get silences response",
             "schema": {
               "$ref": "#/definitions/gettableSilences"
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
             }
           },
           "500": {
@@ -1239,10 +1277,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"

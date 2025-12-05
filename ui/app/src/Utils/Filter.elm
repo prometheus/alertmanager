@@ -7,7 +7,6 @@ module Utils.Filter exposing
     , emptySilenceFormGetParams
     , fromApiMatcher
     , generateAPIQueryString
-    , generateQueryParam
     , nullFilter
     , parseFilter
     , parseGroup
@@ -35,6 +34,7 @@ type alias Filter =
     , receiver : Maybe String
     , showSilenced : Maybe Bool
     , showInhibited : Maybe Bool
+    , showMuted : Maybe Bool
     , showActive : Maybe Bool
     }
 
@@ -47,6 +47,7 @@ nullFilter =
     , receiver = Nothing
     , showSilenced = Nothing
     , showInhibited = Nothing
+    , showMuted = Nothing
     , showActive = Nothing
     }
 
@@ -57,11 +58,12 @@ generateQueryParam name =
 
 
 toUrl : String -> Filter -> String
-toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
+toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showMuted, showActive, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
             , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+            , ( "muted", Maybe.withDefault False showMuted |> boolToString |> Just )
             , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
@@ -82,7 +84,7 @@ toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActiv
 
 
 generateAPIQueryString : Filter -> String
-generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text, group } =
+generateAPIQueryString { receiver, showSilenced, showInhibited, showMuted, showActive, text, group } =
     let
         filter_ =
             case parseFilter (Maybe.withDefault "" text) of
@@ -96,6 +98,7 @@ generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text
             filter_
                 ++ [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
                    , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+                   , ( "muted", Maybe.withDefault False showMuted |> boolToString |> Just )
                    , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
                    , ( "receiver", emptyToNothing receiver )
                    , ( "group", group )
@@ -376,6 +379,7 @@ silencePreviewFilter apiMatchers =
                 |> Just
         , showSilenced = Just True
         , showInhibited = Just True
+        , showMuted = Just True
         , showActive = Just True
     }
 

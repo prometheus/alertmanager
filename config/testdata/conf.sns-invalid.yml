@@ -1,0 +1,13 @@
+route:
+  receiver: 'sns-api-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'sns-api-notifications'
+    sns_configs:
+      - api_url: https://sns.us-east-2.amazonaws.com
+        sigv4:
+          region: us-east-2
+          access_key: access_key
+          secret_key: secret_ket
+        attributes:
+          severity: Sev2

@@ -1,0 +1,25 @@
+global:
+  opsgenie_api_key: asd132
+  opsgenie_api_key_file: '/global_file'
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  receiver: escalation-Y-opsgenie
+  routes:
+    - match:
+        service: foo
+      receiver: team-X-opsgenie
+receivers:
+  - name: 'team-X-opsgenie'
+    opsgenie_configs:
+      - responders:
+          - name: 'team-X'
+            type: 'team'
+  - name: 'escalation-Y-opsgenie'
+    opsgenie_configs:
+      - responders:
+          - name: 'escalation-Y'
+            type: 'escalation'
+        api_key: qwe456

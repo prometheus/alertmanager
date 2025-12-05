@@ -6,14 +6,19 @@
 /.build
 /.release
 /.tarballs
+/vendor
 
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
+!/cluster/testdata/*.yml
 !/config/testdata/*.yml
+!/examples/ha/tls/*.yml
 !/notify/email/testdata/*.yml
 !/doc/examples/simple.yml
 !/circle.yml
 !/.travis.yml
 !/.promu.yml
 !/api/v2/openapi.yaml
+!.github/workflows/*.yml
+!.github/ISSUE_TEMPLATE/*.yml

@@ -2,20 +2,19 @@ module Views.AlertList.Views exposing (view)
 
 import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
-import Dict exposing (Dict)
+import Data.Receiver exposing (Receiver)
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Set exposing (Set)
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
-import Utils.List
 import Utils.Types exposing (ApiData(..), Labels)
 import Utils.Views
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Views.FilterBar.Views as FilterBar
-import Views.GroupBar.Types as GroupBar
 import Views.GroupBar.Views as GroupBar
 import Views.ReceiverBar.Views as ReceiverBar
 
@@ -47,7 +46,7 @@ groupTabName customGrouping =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
+view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
     div []
         [ div
             [ class "card mb-3" ]
@@ -60,6 +59,7 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
                         |> Html.map (MsgForReceiverBar >> MsgForAlertList)
                     , renderCheckbox "Silenced" filter.showSilenced ToggleSilenced
                     , renderCheckbox "Inhibited" filter.showInhibited ToggleInhibited
+                    , renderCheckbox "Muted" filter.showMuted ToggleMuted
                     ]
                 ]
             , div [ class "card-block" ]
@@ -93,25 +93,25 @@ defaultAlertGroups activeId activeGroups expandAll groups =
         [] ->
             Utils.Views.error "No alert groups found"
 
-        [ { labels, alerts } ] ->
+        [ { labels, receiver, alerts } ] ->
             let
                 labels_ =
                     Dict.toList labels
             in
-            alertGroup activeId (Set.singleton 0) labels_ alerts 0 expandAll
+            alertGroup activeId (Set.singleton 0) receiver labels_ alerts 0 expandAll
 
         _ ->
             div [ class "pl-5" ]
                 (List.indexedMap
                     (\index group ->
-                        alertGroup activeId activeGroups (Dict.toList group.labels) group.alerts index expandAll
+                        alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) group.alerts index expandAll
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Set Int -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
-alertGroup activeId activeGroups labels alerts groupId expandAll =
+alertGroup : Maybe String -> Set Int -> Receiver -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
+alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
     let
         groupActive =
             expandAll || Set.member groupId activeGroups
@@ -144,7 +144,7 @@ alertGroup activeId activeGroups labels alerts groupId expandAll =
                         labels
 
         expandButton =
-            expandAlertGroup groupActive groupId
+            expandAlertGroup groupActive groupId receiver
                 |> Html.map (\msg -> MsgForAlertList (ActiveGroups msg))
 
         alertCount =
@@ -170,8 +170,8 @@ alertGroup activeId activeGroups labels alerts groupId expandAll =
         ]
 
 
-expandAlertGroup : Bool -> Int -> Html Int
-expandAlertGroup expanded groupId =
+expandAlertGroup : Bool -> Int -> Receiver -> Html Int
+expandAlertGroup expanded groupId receiver =
     let
         icon =
             if expanded then
@@ -185,4 +185,10 @@ expandAlertGroup expanded groupId =
         , class "btn btn-outline-info border-0 mr-1 mb-1"
         , style "margin-left" "-3rem"
         ]
-        [ i [ class ("fa " ++ icon) ] [] ]
+        [ i
+            [ class ("fa " ++ icon)
+            , class "mr-2"
+            ]
+            []
+        , text receiver.name
+        ]

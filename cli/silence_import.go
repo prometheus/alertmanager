@@ -16,12 +16,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/pkg/errors"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	kingpin "github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -62,7 +62,8 @@ func addSilenceWorker(ctx context.Context, sclient silence.ClientService, silenc
 		sid := s.ID
 		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)
 		postOk, err := sclient.PostSilences(params)
-		if _, ok := err.(*silence.PostSilencesNotFound); ok {
+		var e *silence.PostSilencesNotFound
+		if errors.As(err, &e) {
 			// silence doesn't exists yet, retry to create as a new one
 			params.Silence.ID = ""
 			postOk, err = sclient.PostSilences(params)
@@ -92,13 +93,27 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 	// read open square bracket
 	_, err = dec.Token()
 	if err != nil {
-		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
+		return fmt.Errorf("couldn't unmarshal input data, is it JSON?: %w", err)
 	}
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 	silencec := make(chan *models.PostableSilence, 100)
 	errc := make(chan error, 100)
+	errDone := make(chan struct{})
+
 	var wg sync.WaitGroup
+	var once sync.Once
+
+	closeChannels := func() {
+		once.Do(func() {
+			close(silencec)
+			wg.Wait()
+			close(errc)
+			<-errDone
+			close(errDone)
+		})
+	}
+	defer closeChannels()
 	for w := 0; w < c.workers; w++ {
 		wg.Add(1)
 		go func() {
@@ -114,6 +129,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 				errCount++
 			}
 		}
+		errDone <- struct{}{}
 	}()
 
 	count := 0
@@ -121,7 +137,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		var s models.PostableSilence
 		err := dec.Decode(&s)
 		if err != nil {
-			return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
+			return fmt.Errorf("couldn't unmarshal input data, is it JSON?: %w", err)
 		}
 
 		if c.force {
@@ -133,9 +149,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		count++
 	}
 
-	close(silencec)
-	wg.Wait()
-	close(errc)
+	closeChannels()
 
 	if errCount > 0 {
 		return fmt.Errorf("couldn't import %v out of %v silences", errCount, count)

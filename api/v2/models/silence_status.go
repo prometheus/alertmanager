@@ -20,6 +20,7 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/go-openapi/errors"
@@ -35,7 +36,7 @@ type SilenceStatus struct {
 
 	// state
 	// Required: true
-	// Enum: [expired active pending]
+	// Enum: ["expired","active","pending"]
 	State *string `json:"state"`
 }
 
@@ -96,6 +97,11 @@ func (m *SilenceStatus) validateState(formats strfmt.Registry) error {
 		return err
 	}
 
+	return nil
+}
+
+// ContextValidate validates this silence status based on context it is used
+func (m *SilenceStatus) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 

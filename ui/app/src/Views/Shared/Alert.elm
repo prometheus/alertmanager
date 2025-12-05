@@ -1,8 +1,8 @@
 module Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, i, li, span, table, td, text, th, tr)
-import Html.Attributes exposing (class, href, style)
+import Html exposing (Html, a, button, i, span, td, text, th, tr)
+import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.Views exposing (linkifyText)
@@ -45,8 +45,12 @@ titleView alert =
 
 generatorUrlButton : String -> Html msg
 generatorUrlButton url =
-    a
-        [ class "btn btn-outline-info border-0", href url ]
-        [ i [ class "fa fa-line-chart mr-2" ] []
-        , text "Source"
-        ]
+    if String.startsWith "http://" url || String.startsWith "https://" url then
+        a
+            [ class "btn btn-outline-info border-0", href url ]
+            [ i [ class "fa fa-line-chart mr-2" ] []
+            , text "Source"
+            ]
+
+    else
+        text ""

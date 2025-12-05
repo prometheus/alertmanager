@@ -1,10 +1,9 @@
-module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
+module Views.SilenceList.SilenceView exposing (editButton, view)
 
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.SilenceStatus exposing (State(..))
-import Dict exposing (Dict)
-import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
+import Html exposing (Html, a, button, div, li, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Time exposing (Posix)
@@ -12,10 +11,10 @@ import Types exposing (Msg(..))
 import Utils.Date
 import Utils.Filter
 import Utils.List
-import Utils.Views exposing (buttonLink)
+import Utils.Views
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Dialog as Dialog
-import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers, newSilenceFromMatchersAndComment)
+import Views.SilenceForm.Parsing exposing (newSilenceFromMatchersAndComment)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
@@ -39,7 +38,7 @@ view showConfirmationDialog silence =
                     dateView "Expired" silence.endsAt
             , detailsButton silence.id
             , editButton silence
-            , deleteButton silence False
+            , deleteButton silence
             ]
         , div [ class "" ] (List.map matcherButton silence.matchers)
         , Dialog.view
@@ -137,8 +136,8 @@ editButton silence =
             default
 
 
-deleteButton : GettableSilence -> Bool -> Html Msg
-deleteButton silence refresh =
+deleteButton : GettableSilence -> Html Msg
+deleteButton silence =
     case silence.status.state of
         Expired ->
             text ""
@@ -146,7 +145,7 @@ deleteButton silence refresh =
         Active ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence))
                 ]
                 [ text "Expire"
                 ]
@@ -154,7 +153,7 @@ deleteButton silence refresh =
         Pending ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence))
                 ]
                 [ text "Delete"
                 ]

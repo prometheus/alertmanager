@@ -29,7 +29,7 @@
               < on (%(alertmanagerClusterLabels)s) group_left
                 count by (%(alertmanagerClusterLabels)s) (max_over_time(alertmanager_cluster_members{%(alertmanagerSelector)s}[5m]))
             ||| % $._config,
-            'for': '10m',
+            'for': '15m',
             labels: {
               severity: 'critical',
             },
@@ -42,9 +42,9 @@
             alert: 'AlertmanagerFailedToSendAlerts',
             expr: |||
               (
-                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s}[5m])
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s}[15m])
               /
-                rate(alertmanager_notifications_total{%(alertmanagerSelector)s}[5m])
+                ignoring (reason) group_left rate(alertmanager_notifications_total{%(alertmanagerSelector)s}[15m])
               )
               > 0.01
             ||| % $._config,
@@ -61,9 +61,9 @@
             alert: 'AlertmanagerClusterFailedToSendAlerts',
             expr: |||
               min by (%(alertmanagerClusterLabels)s, integration) (
-                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               /
-                rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+                ignoring (reason) group_left rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               )
               > 0.01
             ||| % $._config,
@@ -80,9 +80,9 @@
             alert: 'AlertmanagerClusterFailedToSendAlerts',
             expr: |||
               min by (%(alertmanagerClusterLabels)s, integration) (
-                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               /
-                rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+                ignoring (reason) group_left rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               )
               > 0.01
             ||| % $._config,

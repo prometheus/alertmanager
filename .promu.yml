@@ -1,7 +1,7 @@
 go:
-    # Whenever the Go version is updated here, .travis.yml and
+    # Whenever the Go version is updated here,
     # .circle/config.yml should also be updated.
-    version: 1.16
+    version: 1.25
 repository:
     path: github.com/prometheus/alertmanager
 build:
@@ -10,7 +10,10 @@ build:
           path: ./cmd/alertmanager
         - name: amtool
           path: ./cmd/amtool
-    flags: -mod vendor -a -tags netgo
+    tags:
+        all:
+            - netgo
+        windows: []
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}
         -X github.com/prometheus/common/version.Revision={{.Revision}}

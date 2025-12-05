@@ -43,10 +43,10 @@ func NewDeleteSilence(ctx *middleware.Context, handler DeleteSilenceHandler) *De
 	return &DeleteSilence{Context: ctx, Handler: handler}
 }
 
-/*DeleteSilence swagger:route DELETE /silence/{silenceID} silence deleteSilence
+/*
+	DeleteSilence swagger:route DELETE /silence/{silenceID} silence deleteSilence
 
 Delete a silence by its ID
-
 */
 type DeleteSilence struct {
 	Context *middleware.Context
@@ -56,17 +56,15 @@ type DeleteSilence struct {
 func (o *DeleteSilence) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewDeleteSilenceParams()
-
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
-
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }

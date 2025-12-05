@@ -1,11 +1,11 @@
 module Updates exposing (update)
 
 import Browser.Navigation as Navigation
-import String exposing (trim)
 import Task
 import Types exposing (Model, Msg(..), Route(..))
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.AlertList.Updates
+import Views.Settings.Updates
 import Views.SilenceForm.Types exposing (SilenceFormMsg(..))
 import Views.SilenceForm.Updates
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
@@ -67,25 +67,11 @@ update msg ({ basePath, apiUrl } as model) =
         RedirectAlerts ->
             ( model, Navigation.pushUrl model.key (basePath ++ "#/alerts") )
 
-        UpdateFilter text ->
-            let
-                t =
-                    if trim text == "" then
-                        Nothing
-
-                    else
-                        Just text
-
-                prevFilter =
-                    model.filter
-            in
-            ( { model | filter = { prevFilter | text = t } }, Cmd.none )
-
-        Noop ->
-            ( model, Cmd.none )
+        NavigateToSettings ->
+            ( { model | route = SettingsRoute }, Cmd.none )
 
         MsgForStatus subMsg ->
-            Views.Status.Updates.update subMsg model apiUrl
+            Views.Status.Updates.update subMsg model
 
         MsgForAlertList subMsg ->
             let
@@ -100,6 +86,13 @@ update msg ({ basePath, apiUrl } as model) =
                     Views.SilenceList.Updates.update subMsg model.silenceList model.filter basePath apiUrl
             in
             ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
+
+        MsgForSettings subMsg ->
+            let
+                ( settingsView, cmd ) =
+                    Views.Settings.Updates.update subMsg model.settings
+            in
+            ( { model | settings = settingsView }, cmd )
 
         MsgForSilenceView subMsg ->
             let

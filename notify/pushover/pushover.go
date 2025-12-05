@@ -16,13 +16,13 @@ package pushover
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -31,19 +31,28 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const (
+	// https://pushover.net/api#limits - 250 characters or runes.
+	maxTitleLenRunes = 250
+	// https://pushover.net/api#limits - 1024 characters or runes.
+	maxMessageLenRunes = 1024
+	// https://pushover.net/api#limits - 512 characters or runes.
+	maxURLLenRunes = 512
+)
+
 // Notifier implements a Notifier for Pushover notifications.
 type Notifier struct {
 	conf    *config.PushoverConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 	apiURL  string // for tests.
 }
 
 // New returns a new Pushover notifier.
-func New(c *config.PushoverConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover", false, false)
+func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +72,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if !ok {
 		return false, fmt.Errorf("group key missing")
 	}
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
-	level.Debug(n.logger).Log("incident", key)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
 	var (
 		err     error
@@ -74,13 +84,36 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 
-	parameters := url.Values{}
-	parameters.Add("token", tmpl(string(n.conf.Token)))
-	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	var (
+		token   string
+		userKey string
+	)
+	if n.conf.Token != "" {
+		token = string(n.conf.Token)
+	} else {
+		content, err := os.ReadFile(n.conf.TokenFile)
+		if err != nil {
+			return false, fmt.Errorf("read token_file: %w", err)
+		}
+		token = string(content)
+	}
+	if n.conf.UserKey != "" {
+		userKey = string(n.conf.UserKey)
+	} else {
+		content, err := os.ReadFile(n.conf.UserKeyFile)
+		if err != nil {
+			return false, fmt.Errorf("read user_key_file: %w", err)
+		}
+		userKey = string(content)
+	}
 
-	title, truncated := notify.Truncate(tmpl(n.conf.Title), 250)
+	parameters := url.Values{}
+	parameters.Add("token", tmpl(token))
+	parameters.Add("user", tmpl(userKey))
+
+	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated title", "truncated_title", title, "incident", key)
+		logger.Warn("Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
 	}
 	parameters.Add("title", title)
 
@@ -91,9 +124,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = tmpl(n.conf.Message)
 	}
 
-	message, truncated = notify.Truncate(message, 1024)
+	if n.conf.Monospace {
+		parameters.Add("monospace", "1")
+	}
+
+	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated message", "truncated_message", message, "incident", key)
+		logger.Warn("Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -102,9 +139,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("message", message)
 
-	supplementaryURL, truncated := notify.Truncate(tmpl(n.conf.URL), 512)
+	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated URL", "truncated_url", supplementaryURL, "incident", key)
+		logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))
@@ -112,7 +149,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+	parameters.Add("device", tmpl(n.conf.Device))
 	parameters.Add("sound", tmpl(n.conf.Sound))
+
+	newttl := int64(time.Duration(n.conf.TTL).Seconds())
+	if newttl > 0 {
+		parameters.Add("ttl", fmt.Sprintf("%d", newttl))
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -123,12 +167,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
-	level.Debug(n.logger).Log("msg", "Sending message", "incident", key)
+	logger.Debug("Sending message", "incident", key)
 	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, nil)
+	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+	return shouldRetry, err
 }

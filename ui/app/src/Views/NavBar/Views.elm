@@ -3,7 +3,7 @@ module Views.NavBar.Views exposing (navBar)
 import Html exposing (Html, a, div, header, li, nav, text, ul)
 import Html.Attributes exposing (class, href, style, title)
 import Types exposing (Route(..))
-import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, silencesTab, statusTab, tabs)
+import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, settingsTab, silencesTab, statusTab, tabs)
 
 
 navBar : Route -> Html msg
@@ -82,3 +82,6 @@ routeToTab currentRoute =
 
         TopLevelRoute ->
             noneTab
+
+        SettingsRoute ->
+            settingsTab

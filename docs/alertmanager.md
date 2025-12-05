@@ -4,8 +4,6 @@ sort_rank: 2
 nav_icon: sliders
 ---
 
-# Alertmanager
-
 The [Alertmanager](https://github.com/prometheus/alertmanager) handles alerts
 sent by client applications such as the Prometheus server.
 It takes care of deduplicating, grouping, and routing
@@ -64,7 +62,7 @@ Silences are configured in the web interface of the Alertmanager.
 
 ## Client behavior
 
-The Alertmanager has [special requirements](clients.md) for behavior of its
+The Alertmanager has [special requirements](alerts_api.md) for behavior of its
 client. Those are only relevant for advanced use cases where Prometheus
 is not used to send alerts.
 

@@ -14,19 +14,16 @@
 package labels
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/pkg/errors"
 )
 
 var (
-	re = regexp.MustCompile(
-		// '=~' has to come before '=' because otherwise only the '='
-		// will be consumed, and the '~' will be part of the 3rd token.
-		`^\s*([a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`,
-	)
+	// '=~' has to come before '=' because otherwise only the '='
+	// will be consumed, and the '~' will be part of the 3rd token.
+	re      = regexp.MustCompile(`^\s*([a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
 	typeMap = map[string]MatchType{
 		"=":  MatchEqual,
 		"!=": MatchNotEqual,
@@ -47,11 +44,12 @@ var (
 // this comma and whitespace will be trimmed.
 //
 // Examples for valid input strings:
-//   {foo = "bar", dings != "bums", }
-//   foo=bar,dings!=bums
-//   foo=bar, dings!=bums
-//   {quote="She said: \"Hi, ladies! That's gender-neutral…\""}
-//   statuscode=~"5.."
+//
+//	{foo = "bar", dings != "bums", }
+//	foo=bar,dings!=bums
+//	foo=bar, dings!=bums
+//	{quote="She said: \"Hi, ladies! That's gender-neutral…\""}
+//	statuscode=~"5.."
 //
 // See ParseMatcher for details on how an individual Matcher is parsed.
 func ParseMatchers(s string) ([]*Matcher, error) {
@@ -116,23 +114,29 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 // character). However, literal line feed characters are tolerated, as are
 // single '\' characters not followed by '\', 'n', or '"'. They act as a literal
 // backslash in that case.
-func ParseMatcher(s string) (*Matcher, error) {
+func ParseMatcher(s string) (_ *Matcher, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) == 0 {
-		return nil, errors.Errorf("bad matcher format: %s", s)
+		return nil, fmt.Errorf("bad matcher format: %s", s)
 	}
 
 	var (
-		rawValue = strings.TrimPrefix(ms[3], "\"")
-		value    strings.Builder
-		escaped  bool
+		rawValue            = ms[3]
+		value               strings.Builder
+		escaped             bool
+		expectTrailingQuote bool
 	)
 
-	if !utf8.ValidString(rawValue) {
-		return nil, errors.Errorf("matcher value not valid UTF-8: %s", rawValue)
+	if after, ok := strings.CutPrefix(rawValue, "\""); ok {
+		rawValue = after
+		expectTrailingQuote = true
 	}
 
-	// Unescape the rawValue:
+	if !utf8.ValidString(rawValue) {
+		return nil, fmt.Errorf("matcher value not valid UTF-8: %s", ms[3])
+	}
+
+	// Unescape the rawValue.
 	for i, r := range rawValue {
 		if escaped {
 			escaped = false
@@ -157,14 +161,17 @@ func ParseMatcher(s string) (*Matcher, error) {
 			// '\' encountered as last byte. Treat it as literal.
 			value.WriteByte('\\')
 		case '"':
-			if i < len(rawValue)-1 { // Otherwise this is a trailing quote.
-				return nil, errors.Errorf(
-					"matcher value contains unescaped double quote: %s", rawValue,
-				)
+			if !expectTrailingQuote || i < len(rawValue)-1 {
+				return nil, fmt.Errorf("matcher value contains unescaped double quote: %s", ms[3])
 			}
+			expectTrailingQuote = false
 		default:
 			value.WriteRune(r)
 		}
+	}
+
+	if expectTrailingQuote {
+		return nil, fmt.Errorf("matcher value contains unescaped double quote: %s", ms[3])
 	}
 
 	return NewMatcher(typeMap[ms[2]], ms[1], value.String())

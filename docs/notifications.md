@@ -2,7 +2,6 @@
 title: Notification template reference
 sort_rank: 7
 ---
-# Notification Template Reference
 
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.
@@ -84,13 +83,21 @@ templating.
 
 ## Strings
 
-| Name          | Arguments     | Returns  | Notes    |
-| ------------- | ------------- | -------- | -------- |
-| title | string |[strings.Title](http://golang.org/pkg/strings/#Title), capitalises first character of each word. |
-| toUpper | string | [strings.ToUpper](http://golang.org/pkg/strings/#ToUpper), converts all characters to upper case. |
-| toLower | string | [strings.ToLower](http://golang.org/pkg/strings/#ToLower), converts all characters to lower case. |
-| match | pattern, string | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
-| reReplaceAll | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
-| join | sep string, s []string | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
-| safeHtml | text string | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
-| stringSlice | ...string | Returns the passed strings as a slice of strings. |
+| Name             | Arguments                  | Description |
+| ---------------- | -------------------------- | ----------- |
+| date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
+| humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
+| join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
+| match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
+| reReplaceAll     | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
+| safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
+| safeUrl          | text string                | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
+| since            | time.Time                  | [time.Since](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
+| stringSlice      | ...string                  | Returns the passed strings as a slice of strings. |
+| title            | string                     | [strings.Title](http://golang.org/pkg/strings/#Title), capitalises first character of each word. |
+| toJson           | any                        | [json.Marshal](https://pkg.go.dev/encoding/json#Marshal), returns the JSON encoding of the value. |
+| toLower          | string                     | [strings.ToLower](http://golang.org/pkg/strings/#ToLower), converts all characters to lower case. |
+| toUpper          | string                     | [strings.ToUpper](http://golang.org/pkg/strings/#ToUpper), converts all characters to upper case. |
+| trimSpace        | string                     | [strings.TrimSpace](https://pkg.go.dev/strings#TrimSpace), removes leading and trailing white spaces. |
+| tz               | string, time.Time          | Returns the time in the timezone. For example, Europe/Paris. |
+| urlUnescape      | text string                | [url.QueryUnescape](https://pkg.go.dev/net/url#QueryUnescape), unescapes a URL with % encoding |

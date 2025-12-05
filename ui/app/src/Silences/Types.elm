@@ -1,14 +1,12 @@
 module Silences.Types exposing
-    ( nullMatcher
-    , nullSilence
-    , nullSilenceStatus
+    ( nullSilence
     , stateToString
     )
 
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
-import Data.SilenceStatus exposing (SilenceStatus, State(..))
-import Time exposing (Posix)
+import Data.SilenceStatus exposing (State(..))
+import Time
 
 
 nullSilence : PostableSilence
@@ -19,12 +17,6 @@ nullSilence =
     , startsAt = Time.millisToPosix 0
     , endsAt = Time.millisToPosix 0
     , matchers = nullMatchers
-    }
-
-
-nullSilenceStatus : SilenceStatus
-nullSilenceStatus =
-    { state = Expired
     }
 
 

@@ -17,8 +17,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
 )
 
 type fakeRegisterer struct {
@@ -39,7 +39,7 @@ func (r *fakeRegisterer) Unregister(prometheus.Collector) bool {
 
 func TestCoordinatorRegistersMetrics(t *testing.T) {
 	fr := fakeRegisterer{}
-	NewCoordinator("testdata/conf.good.yml", &fr, log.NewNopLogger())
+	NewCoordinator("testdata/conf.good.yml", &fr, promslog.NewNopLogger())
 
 	if len(fr.registeredCollectors) == 0 {
 		t.Error("expected NewCoordinator to register metrics on the given registerer")
@@ -48,7 +48,7 @@ func TestCoordinatorRegistersMetrics(t *testing.T) {
 
 func TestCoordinatorNotifiesSubscribers(t *testing.T) {
 	callBackCalled := false
-	c := NewCoordinator("testdata/conf.good.yml", prometheus.NewRegistry(), log.NewNopLogger())
+	c := NewCoordinator("testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
 	c.Subscribe(func(*Config) error {
 		callBackCalled = true
 		return nil
@@ -66,7 +66,7 @@ func TestCoordinatorNotifiesSubscribers(t *testing.T) {
 
 func TestCoordinatorFailReloadWhenSubscriberFails(t *testing.T) {
 	errMessage := "something happened"
-	c := NewCoordinator("testdata/conf.good.yml", prometheus.NewRegistry(), log.NewNopLogger())
+	c := NewCoordinator("testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
 
 	c.Subscribe(func(*Config) error {
 		return errors.New(errMessage)
