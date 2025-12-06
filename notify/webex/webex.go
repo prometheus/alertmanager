@@ -60,9 +60,14 @@ func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts .
 	return n, nil
 }
 
-type webhook struct {
-	Markdown string `json:"markdown"`
-	RoomID   string `json:"roomId,omitempty"`
+type webexMessage struct {
+	Markdown    string                   `json:"markdown"`
+	RoomID      string                   `json:"roomId,omitempty"`
+	Attachments *webexMessageAttachments `json:"attachments,omitempty"`
+}
+type webexMessageAttachments struct {
+	ContentType string           `json:"contentType"`
+	Content     *json.RawMessage `json:"content"`
 }
 
 // Notify implements the Notifier interface.
@@ -90,12 +95,26 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if truncated {
 		logger.Debug("message truncated due to exceeding maximum allowed length by webex", "truncated_message", message)
 	}
+	var AdaptiveCardJson json.RawMessage
+	if n.conf.AdaptiveCard != "" {
+		AdaptiveCard := tmpl(n.conf.AdaptiveCard)
+		if err != nil {
+			return false, err
+		}
+		AdaptiveCardJson = json.RawMessage(AdaptiveCard)
+	}
 
-	w := webhook{
+	w := webexMessage{
 		Markdown: message,
 		RoomID:   tmpl(n.conf.RoomID),
 	}
 
+	if len(AdaptiveCardJson) != 0 {
+		w.Attachments = &webexMessageAttachments{
+			ContentType: "application/vnd.microsoft.card.adaptive",
+			Content:     &AdaptiveCardJson,
+		}
+	}
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
 		return false, err
