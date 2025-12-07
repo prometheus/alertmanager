@@ -13,21 +13,26 @@
 * [FEATURE] Add templating functions for working with urls. #4625
 * [FEATURE] Feat(cluster): persistant peer names. #4636
 * [FEATURE] Feat(dispatch): add start delay. #4704
-* [FEATURE] Feat(inhibit): add inhibition metrics. #4629
 * [FEATURE] Feat(provider): add subscriber channel metrics. #4630
+* [FEATURE] Feat(template): add tojson function. #4773
 * [FEATURE] Feat: add api http metrics. #4162
+* [FEATURE] Feat: add distributed tracing support. #4745
 * [FEATURE] Feat: add names to inhibit rules. #4628
 * [FEATURE] Feat: add timeout option for pagerduty notifier. #4354
 * [FEATURE] Feat: add timeout option for slack notifier. #4355
+* [FEATURE] Feat: allow nested details fields in pagerduty. #3944
+* [FEATURE] Feat: implement `phantom_threading` to group email alerts into threads. #4623
 * [FEATURE] Gc: report errors, but remove erroneous silences and continue. #4724
 * [FEATURE] Jira integration template customfields. #4029
 * [FEATURE] Jira integration: allow configuring issue update via parameter. #4621
 * [FEATURE] Slack app support. #4211
+* [ENHANCEMENT] Add comment about smtp plain authentication. #4741
 * [ENHANCEMENT] Add documentation about high availability. #4708
 * [ENHANCEMENT] Add documentation for `client_allowed_sans`. #4706
 * [ENHANCEMENT] Chore: improves logging around webhook dispatch failure. #4511
 * [ENHANCEMENT] Compile silence matchers when the silence is added. #4695
 * [ENHANCEMENT] Fix '`s/client/alerts_api/g`' broken link in 0.29. #4718
+* [ENHANCEMENT] Fix `rocketchat_config` docs. #4767
 * [ENHANCEMENT] Fix: `<mute_time_interval>` was renamed. #4729
 * [ENHANCEMENT] Fix: improve inhibition performance. #4607
 * [ENHANCEMENT] Loadsnapshot: update matcher index properly while not holding lock. #4714
@@ -38,9 +43,11 @@
 * [ENHANCEMENT] Refactor: use b.loop() to simplify the code and improve performance. #4642
 * [ENHANCEMENT] Remove duplicate slice during silences query. #4696
 * [ENHANCEMENT] Silences: optimize incremental mutes queries via a silence version index. #4723
+* [ENHANCEMENT] Update description for filter param in openapi. #4775
 * [BUGFIX] Add new behavior to avoid races on config reload. #4705
 * [BUGFIX] Config: fix duplicate header detection for all case variants. #2810
 * [BUGFIX] Fix(marker): stop state leakage from aggregation groups. #4438
+* [BUGFIX] Fix: pprof debug endpoints not working with --web.route-prefix. #4698
 * [BUGFIX] Fix: set context timeout for resolvepeers. #4343
 
 ## 0.29.0 / 2025-11-01
