@@ -22,6 +22,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -29,6 +33,8 @@ import (
 )
 
 const alertChannelLength = 200
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/provider/mem")
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
@@ -44,7 +50,8 @@ type Alerts struct {
 
 	callback AlertStoreCallback
 
-	logger *slog.Logger
+	logger     *slog.Logger
+	propagator propagation.TextMapPropagator
 
 	subscriberChannelWrites *prometheus.CounterVec
 }
@@ -65,7 +72,7 @@ type AlertStoreCallback interface {
 
 type listeningAlerts struct {
 	name   string
-	alerts chan *types.Alert
+	alerts chan *provider.Alert
 	done   chan struct{}
 }
 
@@ -104,13 +111,14 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:    m,
-		alerts:    store.NewAlerts(),
-		cancel:    cancel,
-		listeners: map[int]listeningAlerts{},
-		next:      0,
-		logger:    l.With("component", "provider"),
-		callback:  alertCallback,
+		marker:     m,
+		alerts:     store.NewAlerts(),
+		cancel:     cancel,
+		listeners:  map[int]listeningAlerts{},
+		next:       0,
+		logger:     l.With("component", "provider"),
+		propagator: otel.GetTextMapPropagator(),
+		callback:   alertCallback,
 	}
 
 	if r != nil {
@@ -175,11 +183,14 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
-		ch     = make(chan *types.Alert, max(len(alerts), alertChannelLength))
+		ch     = make(chan *provider.Alert, max(len(alerts), alertChannelLength))
 	)
 
 	for _, a := range alerts {
-		ch <- a
+		ch <- &provider.Alert{
+			Header: map[string]string{},
+			Data:   a,
+		}
 	}
 
 	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
@@ -195,7 +206,7 @@ func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertI
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
-		ch     = make(chan *types.Alert, alertChannelLength)
+		ch     = make(chan *provider.Alert, alertChannelLength)
 	)
 
 	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
@@ -208,7 +219,7 @@ func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertI
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, alertChannelLength)
+		ch   = make(chan *provider.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
 	a.mtx.Lock()
@@ -219,7 +230,10 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 		defer close(ch)
 		for _, a := range alerts {
 			select {
-			case ch <- a:
+			case ch <- &provider.Alert{
+				Header: map[string]string{},
+				Data:   a,
+			}:
 			case <-done:
 				return
 			}
@@ -237,9 +251,17 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 }
 
 // Put adds the given alert to the set.
-func (a *Alerts) Put(alerts ...*types.Alert) error {
+func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
+
+	ctx, span := tracer.Start(ctx, "provider.mem.Put",
+		trace.WithAttributes(
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		),
+		trace.WithSpanKind(trace.SpanKindProducer),
+	)
+	defer span.End()
 
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
@@ -270,9 +292,16 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 		a.callback.PostStore(alert, existing)
 
+		metadata := map[string]string{}
+		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
+		msg := &provider.Alert{
+			Data:   alert,
+			Header: metadata,
+		}
+
 		for _, l := range a.listeners {
 			select {
-			case l.alerts <- alert:
+			case l.alerts <- msg:
 				a.subscriberChannelWrites.WithLabelValues(l.name).Inc()
 			case <-l.done:
 			}

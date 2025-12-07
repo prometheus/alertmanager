@@ -33,6 +33,8 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
@@ -53,6 +55,8 @@ import (
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
@@ -82,7 +86,7 @@ type (
 	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
-	setAlertStatusFn func(prometheus_model.LabelSet)
+	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
 )
 
 // NewAPI returns a new Alertmanager API v2.
@@ -173,6 +177,9 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 	api.mtx.RLock()
 	defer api.mtx.RUnlock()
 
+	_, span := tracer.Start(params.HTTPRequest.Context(), "api.getStatusHandler")
+	defer span.End()
+
 	original := api.alertmanagerConfig.String()
 	uptime := strfmt.DateTime(api.uptime)
 
@@ -229,6 +236,9 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 	api.mtx.RLock()
 	defer api.mtx.RUnlock()
 
+	_, span := tracer.Start(params.HTTPRequest.Context(), "api.getReceiversHandler")
+	defer span.End()
+
 	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
 	for i := range api.alertmanagerConfig.Receivers {
 		receivers = append(receivers, &open_api_models.Receiver{Name: &api.alertmanagerConfig.Receivers[i].Name})
@@ -243,10 +253,12 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
 		res = open_api_models.GettableAlerts{}
-		ctx = params.HTTPRequest.Context()
 
 		logger = api.requestLogger(params.HTTPRequest)
 	)
+
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.getAlertsHandler")
+	defer span.End()
 
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
@@ -274,6 +286,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 
 	api.mtx.RLock()
 	for a := range alerts.Next() {
+		alert := a.Data
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -281,7 +294,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			break
 		}
 
-		routes := api.route.Match(a.Labels)
+		routes := api.route.Match(alert.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
@@ -291,13 +304,13 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		if !alertFilter(a, now) {
+		if !alertFilter(alert, now) {
 			continue
 		}
 
-		alert := AlertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil)
 
-		res = append(res, alert)
+		res = append(res, openAlert)
 	}
 	api.mtx.RUnlock()
 
@@ -315,7 +328,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	alerts := OpenAPIAlertsToAlerts(params.Alerts)
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.postAlertsHandler")
+	defer span.End()
+
+	alerts := OpenAPIAlertsToAlerts(ctx, params.Alerts)
+
 	now := time.Now()
 
 	api.mtx.RLock()
@@ -361,13 +378,19 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		}
 		validAlerts = append(validAlerts, a)
 	}
-	if err := api.alerts.Put(validAlerts...); err != nil {
-		logger.Error("Failed to create alerts", "err", err)
+	if err := api.alerts.Put(ctx, validAlerts...); err != nil {
+		message := "Failed to create alerts"
+		logger.Error(message, "err", err)
+		span.SetStatus(codes.Error, message)
+		span.RecordError(err)
 		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
 	}
 
 	if validationErrs.Len() > 0 {
-		logger.Error("Failed to validate alerts", "err", validationErrs.Error())
+		message := "Failed to validate alerts"
+		logger.Error(message, "err", validationErrs.Error())
+		span.SetStatus(codes.Error, message)
+		span.RecordError(validationErrs)
 		return alert_ops.NewPostAlertsBadRequest().WithPayload(validationErrs.Error())
 	}
 
@@ -376,6 +399,9 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 
 func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
+
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.getAlertGroupsHandler")
+	defer span.End()
 
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
@@ -407,8 +433,12 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers, err := api.alertGroups(params.HTTPRequest.Context(), rf, af)
+	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
+		message := "Failed to get alert groups"
+		logger.Error(message, "err", err)
+		span.SetStatus(codes.Error, message)
+		span.RecordError(err)
 		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
 	}
 
@@ -441,12 +471,15 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
 	return func(a *types.Alert, now time.Time) bool {
+		ctx, span := tracer.Start(context.Background(), "alertFilter")
+		defer span.End()
+
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 			return false
 		}
 
 		// Set alert's current status based on its label set.
-		api.setAlertStatus(a.Labels)
+		api.setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
@@ -510,13 +543,16 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.getSilencesHandler")
+	defer span.End()
+
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
 		logger.Debug("Failed to parse matchers", "err", err)
 		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
-	psils, _, err := api.silences.Query()
+	psils, _, err := api.silences.Query(ctx)
 	if err != nil {
 		logger.Error("Failed to get silences", "err", err)
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
@@ -606,7 +642,10 @@ func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Ma
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	sils, _, err := api.silences.Query(silence.QIDs(params.SilenceID.String()))
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.getSilenceHandler")
+	defer span.End()
+
+	sils, _, err := api.silences.Query(ctx, silence.QIDs(params.SilenceID.String()))
 	if err != nil {
 		logger.Error("Failed to get silence by id", "err", err, "id", params.SilenceID.String())
 		return silence_ops.NewGetSilenceInternalServerError().WithPayload(err.Error())
@@ -629,8 +668,11 @@ func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middlewar
 func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.deleteSilenceHandler")
+	defer span.End()
+
 	sid := params.SilenceID.String()
-	if err := api.silences.Expire(sid); err != nil {
+	if err := api.silences.Expire(ctx, sid); err != nil {
 		logger.Error("Failed to expire silence", "err", err)
 		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewDeleteSilenceNotFound()
@@ -642,6 +684,9 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 
 func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
+
+	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.postSilencesHandler")
+	defer span.End()
 
 	sil, err := PostableSilenceToProto(params.Silence)
 	if err != nil {
@@ -663,7 +708,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
 	}
 
-	if err = api.silences.Set(sil); err != nil {
+	if err = api.silences.Set(ctx, sil); err != nil {
 		logger.Error("Failed to create silence", "err", err)
 		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())

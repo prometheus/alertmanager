@@ -92,7 +92,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alerts. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -190,7 +190,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alert groups. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -312,7 +312,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter silences by",
+            "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           }
@@ -896,7 +896,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alerts. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -1006,7 +1006,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alert groups. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -1140,7 +1140,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter silences by",
+            "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           }

@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -170,7 +171,10 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 }
 
 // OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*types.Alert.
-func OpenAPIAlertsToAlerts(apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
+	defer span.End()
+
 	alerts := []*types.Alert{}
 	for _, apiAlert := range apiAlerts {
 		alert := types.Alert{

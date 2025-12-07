@@ -88,7 +88,7 @@ type benchmarkOptions struct {
 	// It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
-	benchFunc func(mutesFunc func(model.LabelSet) bool) error
+	benchFunc func(mutesFunc func(context.Context, model.LabelSet) bool) error
 }
 
 // allRulesMatchBenchmark returns a new benchmark where all inhibition rules
@@ -130,8 +130,8 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				})
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
@@ -172,8 +172,8 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 					},
 				},
 			}}
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
@@ -193,12 +193,12 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	alerts, rules := benchmarkFromOptions(opts)
 	for _, a := range alerts {
 		tmp := a
-		if err = s.Put(&tmp); err != nil {
+		if err = s.Put(context.Background(), &tmp); err != nil {
 			b.Fatal(err)
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger(), NewInhibitorMetrics(r))
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
 

@@ -80,6 +80,7 @@ global:
   # The default hostname to identify to the SMTP server.
   [ smtp_hello: <string> | default = "localhost" ]
   # SMTP Auth using CRAM-MD5, LOGIN and PLAIN. If empty, Alertmanager doesn't authenticate to the SMTP server.
+  # PLAIN is only supported when using TLS.
   [ smtp_auth_username: <string> ]
   # SMTP Auth using LOGIN and PLAIN.
   [ smtp_auth_password: <secret> ]
@@ -830,14 +831,20 @@ tls_config:
 # Custom HTTP headers to be sent along with each request.
 # Headers that are set by Prometheus itself can't be overwritten.
 http_headers:
-  # Header name.
-  [ <string>:
+  [ <http_header> ]
+```
+
+#### `<http_header>`
+
+```yaml
+# Header name.
+<string>:
     # Header values.
     [ values: [<string>, ...] ]
     # Headers values. Hidden in configuration page.
     [ secrets: [<secret>, ...] ]
     # Files to read header values from.
-    [ files: [<string>, ...] ] ]
+    [ files: [<string>, ...] ]
 ```
 
 #### `<oauth2>`
@@ -1164,7 +1171,7 @@ The default `jira.default.description` template only works with V2.
 # The API Type to use for search requests, can be either auto, cloud or datacenter
 # Example: cloud
 [ api_type: <string> | default = auto ]
-   
+
 # The project key where issues are created.
 project: <string>
 
@@ -1172,7 +1179,7 @@ project: <string>
 [ summary:
     # Template for the issue summary.
     [ template: <tmpl_string> | default = '{{ template "jira.default.summary" . }}' ]
-    
+
     # If set to false, the summary will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1181,7 +1188,7 @@ project: <string>
 [ description:
     # Template for the issue description.
     [ template: <tmpl_string> | default = '{{ template "jira.default.description" . }}' ]
-    
+
     # If set to false, the description will not be updated when updating an existing issue.
     [ enable_update: <boolean> | default = true ]
 ]
@@ -1362,11 +1369,11 @@ service_key_file: <filepath>
 # Unique location of the affected system.
 [ source: <tmpl_string> | default = client ]
 
-# A set of arbitrary key/value pairs that provide further detail
-# about the incident.
+# A set of arbitrary key/value pairs that provide further detail about the incident.
+# Nested key/value pairs are accepted when using PagerDuty integration type `Events API v2`.
 [ details: { <string>: <tmpl_string>, ... } | default = {
-  firing:       '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
-  resolved:     '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+  firing:       '{{ .Alerts.Firing | toJSON }}'
+  resolved:     '{{ .Alerts.Resolved | toJSON }}'
   num_firing:   '{{ .Alerts.Firing | len }}'
   num_resolved: '{{ .Alerts.Resolved | len }}'
 } ]
@@ -1500,8 +1507,7 @@ token_id_file: <filepath>
 [ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
 [ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
 [ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ titleLink <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
-[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
+[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url <tmpl_string> ]
@@ -1835,7 +1841,7 @@ Please be aware that if the payload exceeds incident.io's API limits (512KB), th
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
-# The URL to send the incident.io alert. This would typically be provided by the 
+# The URL to send the incident.io alert. This would typically be provided by the
 # incident.io team when setting up an alert source.
 # URL and URL_file are mutually exclusive.
 url: <string>
@@ -1907,3 +1913,34 @@ room_id: <tmpl_string>
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
 ```
+
+## Tracing Configuration
+### `<tracing_config>`
+
+```yaml
+# The tracing client type, supported values are `http` and `grpc`.
+[ client_type: <tracing_client_type> | default = "grpc" ]
+
+# The tracing endpoint.
+[ endpoint: <string> | default = "" ]
+
+# The sampling fraction.
+[ sampling_fraction: <float> | default = 0.0 ]
+
+# Whether to disable TLS.
+[ insecure: <boolean> | default = false ]
+
+# The HTTP client's configuration.
+[ tls_config: <tls_config> ]
+
+# Custom HTTP headers.
+[ http_headers:
+  [ <http_header> ] ]
+
+# The tracing compression.
+[ compression: <string> | default = "gzip" ]
+
+# The tracing timeout.
+[ timeout: <duration> | default = 0s ]
+```
+

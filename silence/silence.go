@@ -17,6 +17,7 @@ package silence
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -31,12 +32,16 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	uuid "github.com/gofrs/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/matcher/compat"
@@ -44,6 +49,8 @@ import (
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var tracer = otel.Tracer("github.com/prometheus/alertmanager/silence")
 
 // ErrNotFound is returned if a silence was not found.
 var ErrNotFound = errors.New("silence not found")
@@ -143,9 +150,17 @@ func NewSilencer(s *Silences, m types.AlertMarker, l *slog.Logger) *Silencer {
 }
 
 // Mutes implements the Muter interface.
-func (s *Silencer) Mutes(lset model.LabelSet) bool {
+func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 	activeIDs, pendingIDs, markerVersion, _ := s.marker.Silenced(fp)
+
+	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
+		trace.WithAttributes(
+			attribute.String("alerting.alert.fingerprint", fp.String()),
+		),
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
 
 	var (
 		oldSils    []*pb.Silence
@@ -158,6 +173,11 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	if markerIsUpToDate && totalMarkerSilences == 0 {
 		// Very fast path: no new silences have been added and this lset was not
 		// silenced last time we checked.
+		span.AddEvent("No new silences to match since last check",
+			trace.WithAttributes(
+				attribute.Int("alerting.silences.count", totalMarkerSilences),
+			),
+		)
 		return false
 	}
 	// Either there are new silences and we need to check if those match lset or there were
@@ -170,10 +190,13 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 		var err error
 		allIDs := append(append(make([]string, 0, totalMarkerSilences), activeIDs...), pendingIDs...)
 		oldSils, _, err = s.silences.Query(
+			ctx,
 			QIDs(allIDs...),
 			QState(types.SilenceStateActive, types.SilenceStatePending),
 		)
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
 			s.logger.Error(
 				"Querying old silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -188,11 +211,14 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 		// newer than markerVersion.
 		var err error
 		newSils, newVersion, err = s.silences.Query(
+			ctx,
 			QSince(markerVersion),
 			QState(types.SilenceStateActive, types.SilenceStatePending),
 			QMatches(lset),
 		)
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
 			s.logger.Error(
 				"Querying silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -207,6 +233,9 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.marker.SetActiveOrSilenced(fp, newVersion, nil, nil)
+		span.AddEvent("No silences to match", trace.WithAttributes(
+			attribute.Int("alerting.silences.count", totalSilences),
+		))
 		return false
 	}
 
@@ -242,8 +271,12 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	sort.Strings(pendingIDs)
 
 	s.marker.SetActiveOrSilenced(fp, newVersion, activeIDs, pendingIDs)
-
-	return len(activeIDs) > 0
+	mutes := len(activeIDs) > 0
+	span.AddEvent("Silencer mutes alert", trace.WithAttributes(
+		attribute.Int("alerting.silences.active.count", len(activeIDs)),
+		attribute.Int("alerting.silences.pending.count", len(pendingIDs)),
+	))
+	return mutes
 }
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
@@ -308,7 +341,7 @@ func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.Gaug
 			ConstLabels: prometheus.Labels{"state": string(st)},
 		},
 		func() float64 {
-			count, err := s.CountState(st)
+			count, err := s.CountState(context.Background(), st)
 			if err != nil {
 				s.logger.Error("Counting silences failed", "err", err)
 			}
@@ -739,7 +772,10 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 
 // Set the specified silence. If a silence with the ID already exists and the modification
 // modifies history, the old silence gets expired and a new one is created.
-func (s *Silences) Set(sil *pb.Silence) error {
+func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
+	_, span := tracer.Start(ctx, "silences.Set")
+	defer span.End()
+
 	now := s.nowUTC()
 	if sil.StartsAt.IsZero() {
 		sil.StartsAt = now
@@ -775,7 +811,7 @@ func (s *Silences) Set(sil *pb.Silence) error {
 		}
 	}
 
-	uid, err := uuid.NewV4()
+	uid, err := uuid.NewRandom()
 	if err != nil {
 		return fmt.Errorf("generate uuid: %w", err)
 	}
@@ -830,9 +866,15 @@ func canUpdate(a, b *pb.Silence, now time.Time) bool {
 }
 
 // Expire the silence with the given ID immediately.
-func (s *Silences) Expire(id string) error {
+func (s *Silences) Expire(ctx context.Context, id string) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	_, span := tracer.Start(ctx, "silences.Expire", trace.WithAttributes(
+		attribute.String("alerting.silence.id", id),
+	))
+	defer span.End()
+
 	return s.expire(id)
 }
 
@@ -945,8 +987,12 @@ func QState(states ...types.SilenceState) QueryParam {
 
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
-func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
-	res, _, err := s.Query(params...)
+func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Silence, error) {
+	_, span := tracer.Start(ctx, "inhibit.Silences.QueryOne",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+	res, _, err := s.Query(ctx, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -958,7 +1004,11 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
-func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
+func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silence, int, error) {
+	_, span := tracer.Start(ctx, "inhibit.Silences.Query",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
@@ -984,9 +1034,13 @@ func (s *Silences) Version() int {
 }
 
 // CountState counts silences by state.
-func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
+func (s *Silences) CountState(ctx context.Context, states ...types.SilenceState) (int, error) {
+	_, span := tracer.Start(ctx, "inhibit.Silences.CountState",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
 	// This could probably be optimized.
-	sils, _, err := s.Query(QState(states...))
+	sils, _, err := s.Query(ctx, QState(states...))
 	if err != nil {
 		return -1, err
 	}

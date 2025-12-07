@@ -648,6 +648,8 @@ func TestJiraNotify(t *testing.T) {
 					"customfield_10006": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": "green"}},
 					"customfield_10007": []map[any]any{{"value": "red"}, {"value": "blue"}, {"value": 0}},
 					"customfield_10008": []map[any]any{{"value": 0}, {"value": 1}, {"value": 2}},
+					"customfield_10009": []map[any]any{{1: 0}, {1.0: 1}, {"a": []any{2}}},
+					"customfield_10010": []any{map[any]any{1: 0}, []int{3}},
 				},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
@@ -686,6 +688,9 @@ func TestJiraNotify(t *testing.T) {
 				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": "green"}}, issue["customfield_10006"])
 				require.Equal(t, []any{map[string]any{"value": "red"}, map[string]any{"value": "blue"}, map[string]any{"value": float64(0)}}, issue["customfield_10007"])
 				require.Equal(t, []any{map[string]any{"value": float64(0)}, map[string]any{"value": float64(1)}, map[string]any{"value": float64(2)}}, issue["customfield_10008"])
+				require.Equal(t, []any([]any{map[string]any{}, map[string]any{}, map[string]any{"a": []any{2.0}}}),
+					issue["customfield_10009"])
+				require.Equal(t, []any{map[string]any{}, []any{3.0}}, issue["customfield_10010"])
 			},
 			errMsg: "",
 		},

@@ -252,7 +252,7 @@ update msg model basePath apiUrl =
 
                 Nothing ->
                     ( { model
-                        | alerts = Failure "Can not display affected Alerts, Silence is not yet valid."
+                        | alerts = Failure "Cannot display affected Alerts, Silence is not yet valid."
                         , form = validateForm model.form
                         , filterBarValid = validateMatchers model.filterBar
                       }
