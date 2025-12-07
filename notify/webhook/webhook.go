@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -116,6 +117,10 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	if tmplErr != nil {
 		return false, fmt.Errorf("failed to template webhook URL: %w", tmplErr)
+	}
+
+	if url == "" {
+		return false, errors.New("webhook URL is empty after templating")
 	}
 
 	if n.conf.Timeout > 0 {

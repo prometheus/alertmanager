@@ -329,6 +329,81 @@ url: 'http://example.com'
 	}
 }
 
+func TestWebhookURLValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid http URL",
+			in: `
+url: 'http://example.com/webhook'
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid URL missing scheme",
+			in: `
+url: 'example.com/webhook'
+`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name: "invalid URL unsupported scheme",
+			in: `
+url: 'ftp://example.com/webhook'
+`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name: "templated URL is not validated",
+			in: `
+url: 'http://example.com/{{ .GroupLabels.alertname }}'
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid URL with template is not validated",
+			in: `
+url: 'not-a-url-{{ .GroupLabels.alertname }}'
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid template syntax",
+			in: `
+url: 'http://example.com/{{ .Invalid'
+`,
+			expectError: true,
+			errorMsg:    "invalid template syntax",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg WebhookConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				if tc.errorMsg != "" && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("expected error to contain %q, got: %v", tc.errorMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestWebhookPasswordIsObfuscated(t *testing.T) {
 	in := `
 url: 'http://example.com'

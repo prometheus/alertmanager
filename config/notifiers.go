@@ -27,6 +27,19 @@ import (
 	"github.com/prometheus/sigv4"
 )
 
+// containsTemplating checks if the string contains template syntax
+func containsTemplating(s string) (bool, error) {
+	if !strings.Contains(s, "{{") {
+		return false, nil
+	}
+	// If it contains template syntax, validate it's actually a valid templ
+	_, err := template.New("").Parse(s)
+	if err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 var (
 	// DefaultIncidentioConfig defines default values for Incident.io configurations.
 	DefaultIncidentioConfig = IncidentioConfig{
@@ -656,6 +669,19 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.URL != "" && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
 	}
+
+	if c.URL != "" {
+		isTemplated, err := containsTemplating(string(c.URL))
+		if err != nil {
+			return fmt.Errorf("webhook URL contains invalid template syntax: %w", err)
+		}
+		if !isTemplated {
+			if _, err := parseURL(string(c.URL)); err != nil {
+				return fmt.Errorf("invalid webhook URL: %w", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -742,12 +768,11 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			return fmt.Errorf("opsGenieConfig responder %v has to have at least one of id, username or name specified", r)
 		}
 
-		if strings.Contains(r.Type, "{{") {
-			_, err := template.New("").Parse(r.Type)
-			if err != nil {
-				return fmt.Errorf("opsGenieConfig responder %v type is not a valid template: %w", r, err)
-			}
-		} else {
+		isTemplated, err := containsTemplating(r.Type)
+		if err != nil {
+			return fmt.Errorf("opsGenieConfig responder %v type contains invalid template syntax: %w", r, err)
+		}
+		if !isTemplated {
 			r.Type = strings.ToLower(r.Type)
 			if !opsgenieTypeMatcher.MatchString(r.Type) {
 				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
