@@ -27,12 +27,12 @@ import (
 	"github.com/prometheus/sigv4"
 )
 
-// containsTemplating checks if the string contains template syntax
+// containsTemplating checks if the string contains template syntax.
 func containsTemplating(s string) (bool, error) {
 	if !strings.Contains(s, "{{") {
 		return false, nil
 	}
-	// If it contains template syntax, validate it's actually a valid templ
+	// If it contains template syntax, validate it's actually a valid templ.
 	_, err := template.New("").Parse(s)
 	if err != nil {
 		return true, err
