@@ -1547,7 +1547,7 @@ If using an incoming webhook then `api_url` must be set to the URL of the incomi
 
 If using Bot tokens then `api_url` must be set to [`https://slack.com/api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage), the bot token must be set as the authorization credentials in `http_config`, and `channel` must contain either the name of the channel or Channel ID to send notifications to. If using the name of the channel the # is optional.
 
-The notification contains an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
+The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1596,7 +1596,7 @@ fields:
 
 #### `<action_config>`
 
-The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/messaging/composing/layouts#attachments) and [interactive messages](https://api.slack.com/legacy/interactive-message-field-guide#action_fields).
+The fields are documented in the Slack API documentation for [message attachments](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/) and [interactive messages](https://docs.slack.dev/legacy/legacy-messaging/legacy-interactive-message-field-guide/#action_fields).
 
 ```yaml
 text: <tmpl_string>
@@ -1623,7 +1623,7 @@ text: <tmpl_string>
 
 #### `<field_config>`
 
-The fields are documented in the [Slack API documentation](https://api.slack.com/messaging/composing/layouts#attachments).
+The fields are documented in the [Slack API documentation](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
 ```yaml
 title: <tmpl_string>
