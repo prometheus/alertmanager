@@ -118,7 +118,7 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
-				Sources: []config.Source{
+				Sources: []config.InhibitRuleSource{
 					{
 						SrcMatchers: config.Matchers{
 							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
@@ -165,7 +165,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 		n: n,
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
-				Sources: []config.Source{
+				Sources: []config.InhibitRuleSource{
 					{
 						SrcMatchers: config.Matchers{
 							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
@@ -202,9 +202,9 @@ func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numI
 	return benchmarkOptions{
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
-			sources := []config.Source{}
+			sources := []config.InhibitRuleSource{}
 			for i := 0; i < numSources; i++ {
-				sources = append(sources, config.Source{
+				sources = append(sources, config.InhibitRuleSource{
 					SrcMatchers: config.Matchers{
 						mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(i)),
 					},

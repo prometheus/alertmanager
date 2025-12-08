@@ -144,8 +144,8 @@ func TestInhibitorMetrics_RuleMutesDuration_Muted(t *testing.T) {
 			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
-	inhibitor.rules[0].scache.Set(sourceAlert)
-	inhibitor.rules[0].updateIndex(sourceAlert)
+	inhibitor.rules[0].Sources[0].scache.Set(sourceAlert)
+	inhibitor.rules[0].Sources[0].updateIndex(sourceAlert)
 
 	// Test that target alert is muted
 	targetAlert := model.LabelSet{
@@ -175,7 +175,7 @@ func TestInhibitorMetrics_RuleMutesDuration_NotMuted(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			Sources: []config.Source{
+			Sources: []config.InhibitRuleSource{
 				{
 					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
 				},
@@ -201,7 +201,7 @@ func TestInhibitorMetrics_RuleMutesDuration_NotMuted(t *testing.T) {
 			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
-	inhibitor.rules[0].scache.Set(sourceAlert)
+	inhibitor.rules[0].Sources[0].scache.Set(sourceAlert)
 
 	// Test that target alert with different instance is NOT muted
 	targetAlert := model.LabelSet{
@@ -231,7 +231,7 @@ func TestInhibitorMetrics_NoRuleMatches(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			Sources: []config.Source{
+			Sources: []config.InhibitRuleSource{
 				{
 					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
 				},
@@ -308,8 +308,8 @@ func TestInhibitorMetrics_MultipleRules(t *testing.T) {
 			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
-	inhibitor.rules[0].scache.Set(sourceAlert1)
-	inhibitor.rules[0].updateIndex(sourceAlert1)
+	inhibitor.rules[0].Sources[0].scache.Set(sourceAlert1)
+	inhibitor.rules[0].Sources[0].updateIndex(sourceAlert1)
 
 	// Test alert that matches rule-1
 	targetAlert1 := model.LabelSet{
@@ -459,7 +459,7 @@ func TestInhibitorMetrics_Registration(t *testing.T) {
 	rules := []config.InhibitRule{
 		{
 			Name: "test-rule",
-			Sources: []config.Source{
+			Sources: []config.InhibitRuleSource{
 				{
 					SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
 				},

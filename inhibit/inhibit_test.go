@@ -126,19 +126,23 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Sources: []*Source{
+					{
+						scache: store.NewAlerts(),
+						sindex: newIndex(),
+					},
+				},
+				Equal: map[model.LabelName]struct{}{},
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
 			}
 			for _, v := range c.initial {
-				r.scache.Set(v)
-				r.updateIndex(v)
+				r.Sources[0].scache.Set(v)
+				r.Sources[0].updateIndex(v)
 			}
 
-			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
+			if _, have := r.Sources[0].hasEqual(c.input, false, time.Now(), r.TargetMatchers); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
@@ -179,15 +183,15 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].Sources[0].scache = store.NewAlerts()
+	ih.rules[0].Sources[0].scache.Set(sourceAlert1)
+	ih.rules[0].Sources[0].sindex = newIndex()
+	ih.rules[0].Sources[0].updateIndex(sourceAlert1)
 
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].Sources[0].scache = store.NewAlerts()
+	ih.rules[1].Sources[0].scache.Set(sourceAlert2)
+	ih.rules[1].Sources[0].sindex = newIndex()
+	ih.rules[1].Sources[0].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -280,15 +284,15 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].Sources[0].scache = store.NewAlerts()
+	ih.rules[0].Sources[0].scache.Set(sourceAlert1)
+	ih.rules[0].Sources[0].sindex = newIndex()
+	ih.rules[0].Sources[0].updateIndex(sourceAlert1)
 
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].Sources[0].scache = store.NewAlerts()
+	ih.rules[1].Sources[0].scache.Set(sourceAlert2)
+	ih.rules[1].Sources[0].sindex = newIndex()
+	ih.rules[1].Sources[0].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -352,7 +356,7 @@ func TestInhibitRuleName(t *testing.T) {
 
 	config1 := config.InhibitRule{
 		Name: "test-rule",
-		Sources: []config.Source{
+		Sources: []config.InhibitRuleSource{
 			{
 				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
 			},
@@ -363,7 +367,7 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 	config2 := config.InhibitRule{
-		Sources: []config.Source{
+		Sources: []config.InhibitRuleSource{
 			{
 				SrcMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
 			},
@@ -569,7 +573,7 @@ func TestInhibitByMultipleSources(t *testing.T) {
 	inhibitRules := func() []config.InhibitRule {
 		return []config.InhibitRule{
 			{
-				Sources: []config.Source{
+				Sources: []config.InhibitRuleSource{
 					{
 						SrcMatchers: config.Matchers{
 							&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"},
@@ -667,7 +671,6 @@ func TestInhibitByMultipleSources(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			// alertOne shouldn't be muted by alertTwo which is active since alertThree is not active.
 			alerts: []*types.Alert{alertOne(), alertTwo(true), alertThree(false)},
@@ -686,7 +689,6 @@ func TestInhibitByMultipleSources(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			// alertOne should be muted since alertTwo and alertThree are active.
 			alerts: []*types.Alert{alertOne(), alertTwo(false), alertThree(false)},
@@ -697,6 +699,10 @@ func TestInhibitByMultipleSources(t *testing.T) {
 				},
 				{
 					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
+					muted: true,
+				},
+				{
+					lbls:  model.LabelSet{"s3": "1", "t": "1", "s11": "1", "e": "1", "f": "1"},
 					muted: true,
 				},
 				{

@@ -122,39 +122,24 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *types.Alert) {
 	cached := 0
 	indexed := 0
 	for _, r := range ih.rules {
-		if len(r.Sources) > 0 {
-			cached = 0
-			indexed = 0
-			for _, src := range r.Sources {
-				if src.SrcMatchers.Matches(a.Labels) {
-					attr := attribute.String("alerting.inhibit_rule.name", r.Name)
-					span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
-					if err := src.scache.Set(a); err != nil {
-						message := "error on set alert"
-						ih.logger.Error(message, "err", err)
-						span.SetStatus(codes.Error, message)
-						span.RecordError(err)
-						continue
-					}
-					src.updateIndex(a)
-					cached += src.scache.Len()
-					indexed += src.sindex.Len()
-					break
-				}
-			}
-
-		} else {
-			if r.SourceMatchers.Matches(a.Labels) {
-				if err := r.scache.Set(a); err != nil {
-					ih.logger.Error("error on set alert", "err", err)
+		for _, src := range r.Sources {
+			if src.SrcMatchers.Matches(a.Labels) {
+				attr := attribute.String("alerting.inhibit_rule.name", r.Name)
+				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
+				if err := src.scache.Set(a); err != nil {
+					message := "error on set alert"
+					ih.logger.Error(message, "err", err)
+					span.SetStatus(codes.Error, message)
+					span.RecordError(err)
 					continue
 				}
-				r.updateIndex(a)
+				src.updateIndex(a)
+				cached += src.scache.Len()
+				indexed += src.sindex.Len()
+				break
 			}
-			cached = r.scache.Len()
-			indexed = r.sindex.Len()
-
 		}
+
 		if r.Name != "" {
 			r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
 			r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
@@ -183,7 +168,11 @@ func (ih *Inhibitor) Run() {
 	runCtx, runCancel := context.WithCancel(ctx)
 
 	for _, rule := range ih.rules {
-		go rule.scache.Run(runCtx, 15*time.Minute)
+		// Start GC goroutine for each rule's source cache.
+		for _, src := range rule.Sources {
+			go src.scache.Run(runCtx, 15*time.Minute)
+		}
+		//go rule.scache.Run(runCtx, 15*time.Minute)
 	}
 
 	g.Add(func() error {
@@ -235,44 +224,22 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 
-		if len(r.Sources) > 0 {
-			var inhibitorIDs []string
-			sourceHasNoEqual := false
-			for _, source := range r.Sources {
-				if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq {
-					inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
-				} else {
-					sourceHasNoEqual = true
-					break
-				}
+		// If we are here, the target side matches. If the source side matches, too, we
+		// need to exclude inhibiting alerts for which the same is true.
+		var inhibitorIDs []string
+		sourceHasNoEqual := false
+		for _, source := range r.Sources {
+			if inhibitedByFP, eq := source.hasEqual(lset, source.SrcMatchers.Matches(lset), ruleStart, r.TargetMatchers); eq {
+				inhibitorIDs = append(inhibitorIDs, inhibitedByFP.String())
+			} else {
+				sourceHasNoEqual = true
+				break
 			}
-			if !sourceHasNoEqual {
-				compositeInhibitorID := strings.Join(inhibitorIDs, ",")
-				ih.marker.SetInhibited(fp, compositeInhibitorID)
-				ih.marker.SetInhibited(fp, inhibitedByFP.String())
-				span.AddEvent("alert inhibited",
-					trace.WithAttributes(
-						attribute.String("alerting.inhibit_rule.source.fingerprint", compositeInhibitorID.String()),
-					),
-				)
-				now := time.Now()
-				sinceStart := now.Sub(start)
-				sinceRuleStart := now.Sub(ruleStart)
-				ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
-				r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
-				return true
-			}
-
-		} else {
-			if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), ruleStart); eq {
-				ih.marker.SetInhibited(fp, inhibitedByFP.String())
-				now := time.Now()
-				sinceStart := now.Sub(start)
-				sinceRuleStart := now.Sub(ruleStart)
-				ih.metrics.mutesDurationMuted.Observe(sinceStart.Seconds())
-				r.metrics.mutesDurationMuted.Observe(sinceRuleStart.Seconds())
-				return true
-			}
+		}
+		if !sourceHasNoEqual {
+			compositeInhibitorID := strings.Join(inhibitorIDs, ",")
+			ih.marker.SetInhibited(fp, compositeInhibitorID)
+			return true
 		}
 	}
 	ih.marker.SetInhibited(fp)
@@ -306,9 +273,6 @@ type Source struct {
 type InhibitRule struct {
 	// Name is an optional name for the inhibition rule.
 	Name string
-	// The set of Filters which define the group of source alerts (which inhibit
-	// the target alerts).
-	SourceMatchers labels.Matchers
 	// The set of Sources which define multiple groups of source alerts (which inhibit
 	// the target alerts).
 	Sources []*Source
@@ -318,15 +282,6 @@ type InhibitRule struct {
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
 	Equal map[model.LabelName]struct{}
-
-	// Cache of alerts matching source labels.
-	scache *store.Alerts
-
-	// Index of fingerprints of source alert equal labels to fingerprint of source alert.
-	// The index helps speed up source alert lookups from scache significantely in scenarios with 100s of source alerts cached.
-	// The index items might overwrite eachother if multiple source alerts have exact equal labels.
-	// Overwrites only happen if the new source alert has bigger EndsAt value.
-	sindex *index
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
@@ -345,12 +300,13 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 			for _, ln := range sm.Equal {
 				equal[model.LabelName(ln)] = struct{}{}
 			}
-			sources = append(sources, &Source{
+			src := &Source{
 				SrcMatchers: sourcesm,
 				Equal:       equal,
 				scache:      store.NewAlerts(),
 				sindex:      newIndex(),
-			})
+			}
+			sources = append(sources, src)
 		}
 	} else {
 		for ln, lv := range cr.SourceMatch {
@@ -372,6 +328,18 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 		}
 		// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 		sourcem = append(sourcem, cr.SourceMatchers...)
+
+		equal := map[model.LabelName]struct{}{}
+		for _, ln := range cr.Equal {
+			equal[model.LabelName(ln)] = struct{}{}
+		}
+
+		sources = append(sources, &Source{
+			SrcMatchers: sourcem,
+			Equal:       equal,
+			scache:      store.NewAlerts(),
+			sindex:      newIndex(),
+		})
 	}
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
@@ -394,22 +362,15 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	targetm = append(targetm, cr.TargetMatchers...)
 
-	equal := map[model.LabelName]struct{}{}
-	for _, ln := range cr.Equal {
-		equal[model.LabelName(ln)] = struct{}{}
-	}
-
 	rule := &InhibitRule{
 		Name:           cr.Name,
-		SourceMatchers: sourcem,
 		Sources:        sources,
 		TargetMatchers: targetm,
-		Equal:          equal,
-		scache:         store.NewAlerts(),
-		sindex:         newIndex(),
 	}
-
-	rule.scache.SetGCCallback(rule.gcCallback)
+	// set GC callback for source caches
+	for _, src := range rule.Sources {
+		src.scache.SetGCCallback(rule.gcCallback)
+	}
 
 	return rule
 }
@@ -430,40 +391,6 @@ func (s *Source) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
 		equalSet[n] = lset[n]
 	}
 	return equalSet.Fingerprint()
-}
-
-// updateIndex updates the source alert index if necessary.
-func (r *InhibitRule) updateIndex(alert *types.Alert) {
-	fp := alert.Fingerprint()
-	// Calculate source labelset subset which is in equals.
-	eq := r.fingerprintEquals(alert.Labels)
-
-	// Check if the equal labelset is already in the index.
-	indexed, ok := r.sindex.Get(eq)
-	if !ok {
-		// If not, add it.
-		r.sindex.Set(eq, fp)
-		return
-	}
-	// If the indexed fingerprint is the same as the new fingerprint, do nothing.
-	if indexed == fp {
-		return
-	}
-
-	// New alert and existing index are not the same, compare them.
-	existing, err := r.scache.Get(indexed)
-	if err != nil {
-		// failed to get the existing alert, overwrite the index.
-		r.sindex.Set(eq, fp)
-		return
-	}
-
-	// If the new alert resolves after the existing alert, replace the index.
-	if existing.ResolvedAt(alert.EndsAt) {
-		r.sindex.Set(eq, fp)
-		return
-	}
-	// If the existing alert resolves after the new alert, do nothing.
 }
 
 func (src *Source) updateIndex(alert *types.Alert) {
@@ -499,26 +426,6 @@ func (src *Source) updateIndex(alert *types.Alert) {
 	// If the existing alert resolves after the new alert, do nothing.
 }
 
-// findEqualSourceAlert returns the source alert that matches the equal labels of the given label set.
-func (r *InhibitRule) findEqualSourceAlert(lset model.LabelSet, now time.Time) (*types.Alert, bool) {
-	equalsFP := r.fingerprintEquals(lset)
-	sourceFP, ok := r.sindex.Get(equalsFP)
-	if ok {
-		alert, err := r.scache.Get(sourceFP)
-		if err != nil {
-			return nil, false
-		}
-
-		if alert.ResolvedAt(now) {
-			return nil, false
-		}
-
-		return alert, true
-	}
-
-	return nil, false
-}
-
 func (s *Source) findEqualSourceAlert(lset model.LabelSet, now time.Time) (*types.Alert, bool) {
 	equalsFP := s.fingerprintEquals(lset)
 	sourceFP, ok := s.sindex.Get(equalsFP)
@@ -540,35 +447,14 @@ func (s *Source) findEqualSourceAlert(lset model.LabelSet, now time.Time) (*type
 
 func (r *InhibitRule) gcCallback(alerts []types.Alert) {
 	for _, a := range alerts {
-		if len(r.Sources) > 0 {
-			for _, src := range r.Sources {
-				if src.SrcMatchers.Matches(a.Labels) {
-					fp := src.fingerprintEquals(a.Labels)
-					src.sindex.Delete(fp)
-					break
-				}
+		for _, src := range r.Sources {
+			if src.SrcMatchers.Matches(a.Labels) {
+				fp := src.fingerprintEquals(a.Labels)
+				src.sindex.Delete(fp)
+				break
 			}
-		} else {
-			fp := r.fingerprintEquals(a.Labels)
-			r.sindex.Delete(fp)
 		}
 	}
-}
-
-// hasEqual checks whether the source cache contains alerts matching the equal
-// labels for the given label set. If so, the fingerprint of one of those alerts
-// is returned. If excludeTwoSidedMatch is true, alerts that match both the
-// source and the target side of the rule are disregarded.
-func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time) (model.Fingerprint, bool) {
-	equal, found := r.findEqualSourceAlert(lset, now)
-	if found {
-		if excludeTwoSidedMatch && r.TargetMatchers.Matches(equal.Labels) {
-			return model.Fingerprint(0), false
-		}
-		return equal.Fingerprint(), found
-	}
-
-	return model.Fingerprint(0), false
 }
 
 func (s *Source) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time, targetMatchers labels.Matchers) (model.Fingerprint, bool) {
