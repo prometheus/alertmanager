@@ -227,6 +227,11 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		if !sourceHasNoEqual {
 			compositeInhibitorID := strings.Join(inhibitorIDs, ",")
 			ih.marker.SetInhibited(fp, compositeInhibitorID)
+			span.AddEvent("alert inhibited",
+				trace.WithAttributes(
+					attribute.String("alerting.inhibit_rule.source.fingerprint", compositeInhibitorID),
+				),
+			)
 			return true
 		}
 	}
