@@ -38,7 +38,7 @@ import (
 func TestWebhookRetry(t *testing.T) {
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        config.Secret("http://example.com"),
+			URL:        config.SecretTemplURL("http://example.com"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -107,7 +107,7 @@ func TestWebhookRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        config.Secret(u.String()),
+			URL:        config.SecretTemplURL(u.String()),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -189,7 +189,7 @@ func TestWebhookURLTemplating(t *testing.T) {
 
 			notifier, err := New(
 				&config.WebhookConfig{
-					URL:        config.Secret(tc.url),
+					URL:        config.SecretTemplURL(tc.url),
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 				},
 				test.CreateTmpl(t),

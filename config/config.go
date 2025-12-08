@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -196,6 +197,85 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 		return errors.New(strings.ReplaceAll(err.Error(), string(data), "[REDACTED]"))
 	}
 
+	return nil
+}
+
+// containsTemplating checks if the string contains template syntax.
+func containsTemplating(s string) (bool, error) {
+	if !strings.Contains(s, "{{") {
+		return false, nil
+	}
+	// If it contains template syntax, validate it's actually a valid templ.
+	_, err := template.New("").Parse(s)
+	if err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// SecretTemplURL is a Secret string that represents a URL which may contain
+// Go template syntax. Unlike SecretURL, it allows templated values and only
+// validates non-templated URLs at unmarshal time.
+type SecretTemplURL Secret
+
+// MarshalYAML implements the yaml.Marshaler interface for SecretTemplURL.
+func (s SecretTemplURL) MarshalYAML() (any, error) {
+	if s != "" {
+		if MarshalSecretValue {
+			return string(s), nil
+		}
+		return secretToken, nil
+	}
+	return nil, nil
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SecretTemplURL.
+func (s *SecretTemplURL) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain Secret
+	if err := unmarshal((*plain)(s)); err != nil {
+		return err
+	}
+
+	urlStr := string(*s)
+
+	// Skip validation for empty strings or secret token
+	if urlStr == "" || urlStr == secretToken {
+		return nil
+	}
+
+	// Check if the URL contains template syntax
+	isTemplated, err := containsTemplating(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid template syntax: %w", err)
+	}
+
+	// Only validate as URL if it's not templated
+	if !isTemplated {
+		if _, err := parseURL(urlStr); err != nil {
+			return fmt.Errorf("invalid URL: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for SecretTemplURL.
+func (s SecretTemplURL) MarshalJSON() ([]byte, error) {
+	return Secret(s).MarshalJSON()
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for SecretTemplURL.
+func (s *SecretTemplURL) UnmarshalJSON(data []byte) error {
+	if string(data) == secretToken || string(data) == secretTokenJSON {
+		*s = ""
+		return nil
+	}
+	// Just unmarshal as a string since Secret doesn't have UnmarshalJSON
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+	*s = SecretTemplURL(str)
 	return nil
 }
 

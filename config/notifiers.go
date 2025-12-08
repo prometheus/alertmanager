@@ -19,26 +19,12 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
-	"text/template"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/sigv4"
 )
-
-// containsTemplating checks if the string contains template syntax.
-func containsTemplating(s string) (bool, error) {
-	if !strings.Contains(s, "{{") {
-		return false, nil
-	}
-	// If it contains template syntax, validate it's actually a valid templ.
-	_, err := template.New("").Parse(s)
-	if err != nil {
-		return true, err
-	}
-	return true, nil
-}
 
 var (
 	// DefaultIncidentioConfig defines default values for Incident.io configurations.
@@ -643,8 +629,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     Secret `yaml:"url,omitempty" json:"url,omitempty"`
-	URLFile string `yaml:"url_file" json:"url_file"`
+	URL     SecretTemplURL `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string         `yaml:"url_file" json:"url_file"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -669,19 +655,6 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.URL != "" && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
 	}
-
-	if c.URL != "" {
-		isTemplated, err := containsTemplating(string(c.URL))
-		if err != nil {
-			return fmt.Errorf("webhook URL contains invalid template syntax: %w", err)
-		}
-		if !isTemplated {
-			if _, err := parseURL(string(c.URL)); err != nil {
-				return fmt.Errorf("invalid webhook URL: %w", err)
-			}
-		}
-	}
-
 	return nil
 }
 

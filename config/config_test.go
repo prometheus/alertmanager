@@ -1552,6 +1552,117 @@ func TestNilRegexp(t *testing.T) {
 	}
 }
 
+func TestSecretTemplURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid http URL",
+			input:       `"http://example.com/webhook"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid URL missing scheme",
+			input:       `"example.com/webhook"`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name:        "invalid URL unsupported scheme",
+			input:       `"ftp://example.com/webhook"`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name:        "templated URL is not validated",
+			input:       `"http://example.com/{{ .GroupLabels.alertname }}"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid URL with template is not validated",
+			input:       `"not-a-url-{{ .GroupLabels.alertname }}"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid template syntax",
+			input:       `"http://example.com/{{ .Invalid"`,
+			expectError: true,
+			errorMsg:    "invalid template syntax",
+		},
+		{
+			name:        "empty string",
+			input:       `""`,
+			expectError: false,
+		},
+		{
+			name:        "secret token",
+			input:       `"<secret>"`,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var u SecretTemplURL
+			err := yaml.Unmarshal([]byte(tc.input), &u)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSecretTemplURLMarshaling(t *testing.T) {
+	t.Run("marshals to secret token by default", func(t *testing.T) {
+		u := SecretTemplURL("http://example.com/secret")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "<secret>\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		// JSON escapes < and > as \u003c and \u003e
+		require.JSONEq(t, `"<secret>"`, string(jsonOut))
+	})
+
+	t.Run("marshals actual value when MarshalSecretValue is true", func(t *testing.T) {
+		MarshalSecretValue = true
+		defer func() { MarshalSecretValue = false }()
+
+		u := SecretTemplURL("http://example.com/secret")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "http://example.com/secret\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		require.JSONEq(t, `"http://example.com/secret"`, string(jsonOut))
+	})
+
+	t.Run("empty URL marshals to empty", func(t *testing.T) {
+		u := SecretTemplURL("")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "null\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		require.JSONEq(t, `""`, string(jsonOut))
+	})
+}
+
 func TestInhibitRuleEqual(t *testing.T) {
 	c, err := LoadFile("testdata/conf.inhibit-equal.yml")
 	require.NoError(t, err)
