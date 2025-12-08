@@ -232,8 +232,8 @@ func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numI
 				}
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil

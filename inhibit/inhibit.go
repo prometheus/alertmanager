@@ -15,7 +15,6 @@ package inhibit
 
 import (
 	"context"
-	"github.com/prometheus/client_golang/prometheus"
 	"log/slog"
 	"strings"
 	"sync"
@@ -116,11 +115,9 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *types.Alert) {
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
+	defer span.End()
+
 	// Update the inhibition rules' cache.
-	cachedSum := 0
-	indexedSum := 0
-	cached := 0
-	indexed := 0
 	for _, r := range ih.rules {
 		for _, src := range r.Sources {
 			if src.SrcMatchers.Matches(a.Labels) {
@@ -133,22 +130,12 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *types.Alert) {
 					span.RecordError(err)
 					continue
 				}
+				span.SetAttributes(attr)
 				src.updateIndex(a)
-				cached += src.scache.Len()
-				indexed += src.sindex.Len()
 				break
 			}
 		}
-
-		if r.Name != "" {
-			r.metrics.sourceAlertsCacheItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(cached))
-			r.metrics.sourceAlertsIndexItems.With(prometheus.Labels{"rule": r.Name}).Set(float64(indexed))
-		}
-		cachedSum += cached
-		indexedSum += indexed
 	}
-	ih.metrics.sourceAlertsCacheItems.Set(float64(cachedSum))
-	ih.metrics.sourceAlertsIndexItems.Set(float64(indexedSum))
 }
 
 func (ih *Inhibitor) WaitForLoading() {
@@ -211,6 +198,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
+	ruleStart := time.Now()
 	for _, r := range ih.rules {
 		if !r.TargetMatchers.Matches(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.

@@ -718,7 +718,7 @@ func TestInhibitByMultipleSources(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, inhibitRules(), mk, nopLogger, NewInhibitorMetrics(prometheus.NewRegistry()))
+		inhibitor := NewInhibitor(ap, inhibitRules(), mk, nopLogger)
 
 		go func() {
 			for ap.finished != nil {
@@ -733,7 +733,7 @@ func TestInhibitByMultipleSources(t *testing.T) {
 		inhibitor.Run()
 
 		for _, expected := range tc.expected {
-			if inhibitor.Mutes(expected.lbls) != expected.muted {
+			if inhibitor.Mutes(context.Background(), expected.lbls) != expected.muted {
 				mute := "unmuted"
 				if expected.muted {
 					mute = "muted"
