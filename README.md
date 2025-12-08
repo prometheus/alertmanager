@@ -158,7 +158,7 @@ inhibit_rules:
 # the target alerts.
 
 inhibit_rules:
-  - source:
+  - sources:
       - matchers:
           - alertname="instance_down"
           - application="abc"
