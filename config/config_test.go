@@ -1631,7 +1631,6 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 
 		jsonOut, err := json.Marshal(&u)
 		require.NoError(t, err)
-		// JSON escapes < and > as \u003c and \u003e
 		require.JSONEq(t, `"<secret>"`, string(jsonOut))
 	})
 
