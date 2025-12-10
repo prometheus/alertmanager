@@ -213,13 +213,13 @@ func containsTemplating(s string) (bool, error) {
 	return true, nil
 }
 
-// SecretTemplURL is a Secret string that represents a URL which may contain
+// SecretTemplateURL is a Secret string that represents a URL which may contain
 // Go template syntax. Unlike SecretURL, it allows templated values and only
 // validates non-templated URLs at unmarshal time.
-type SecretTemplURL Secret
+type SecretTemplateURL Secret
 
-// MarshalYAML implements the yaml.Marshaler interface for SecretTemplURL.
-func (s SecretTemplURL) MarshalYAML() (any, error) {
+// MarshalYAML implements the yaml.Marshaler interface for SecretTemplateURL.
+func (s SecretTemplateURL) MarshalYAML() (any, error) {
 	if s != "" {
 		if MarshalSecretValue {
 			return string(s), nil
@@ -229,8 +229,8 @@ func (s SecretTemplURL) MarshalYAML() (any, error) {
 	return nil, nil
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for SecretTemplURL.
-func (s *SecretTemplURL) UnmarshalYAML(unmarshal func(any) error) error {
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SecretTemplateURL.
+func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain Secret
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -259,13 +259,13 @@ func (s *SecretTemplURL) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaler interface for SecretTemplURL.
-func (s SecretTemplURL) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaler interface for SecretTemplateURL.
+func (s SecretTemplateURL) MarshalJSON() ([]byte, error) {
 	return Secret(s).MarshalJSON()
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface for SecretTemplURL.
-func (s *SecretTemplURL) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaler interface for SecretTemplateURL.
+func (s *SecretTemplateURL) UnmarshalJSON(data []byte) error {
 	if string(data) == secretToken || string(data) == secretTokenJSON {
 		*s = ""
 		return nil
@@ -275,7 +275,7 @@ func (s *SecretTemplURL) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &str); err != nil {
 		return err
 	}
-	*s = SecretTemplURL(str)
+	*s = SecretTemplateURL(str)
 	return nil
 }
 

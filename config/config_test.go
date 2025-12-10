@@ -1606,7 +1606,7 @@ func TestSecretTemplURL(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var u SecretTemplURL
+			var u SecretTemplateURL
 			err := yaml.Unmarshal([]byte(tc.input), &u)
 
 			if tc.expectError {
@@ -1623,7 +1623,7 @@ func TestSecretTemplURL(t *testing.T) {
 
 func TestSecretTemplURLMarshaling(t *testing.T) {
 	t.Run("marshals to secret token by default", func(t *testing.T) {
-		u := SecretTemplURL("http://example.com/secret")
+		u := SecretTemplateURL("http://example.com/secret")
 
 		yamlOut, err := yaml.Marshal(&u)
 		require.NoError(t, err)
@@ -1638,7 +1638,7 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 		MarshalSecretValue = true
 		defer func() { MarshalSecretValue = false }()
 
-		u := SecretTemplURL("http://example.com/secret")
+		u := SecretTemplateURL("http://example.com/secret")
 
 		yamlOut, err := yaml.Marshal(&u)
 		require.NoError(t, err)
@@ -1650,7 +1650,7 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 	})
 
 	t.Run("empty URL marshals to empty", func(t *testing.T) {
-		u := SecretTemplURL("")
+		u := SecretTemplateURL("")
 
 		yamlOut, err := yaml.Marshal(&u)
 		require.NoError(t, err)
