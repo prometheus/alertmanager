@@ -17,26 +17,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-)
-
-const (
-	colorRed   = "8C1A1A"
-	colorGreen = "2DC72D"
-	colorGrey  = "808080"
 )
 
 type Notifier struct {
@@ -49,14 +39,16 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
+// Adaptive card reference can be found at https://learn.microsoft.com/en-us/power-automate/overview-adaptive-cards
 type teamsMessage struct {
-	Context    string `json:"@context"`
-	Type       string `json:"type"`
-	Title      string `json:"title"`
-	Summary    string `json:"summary"`
-	Text       string `json:"text"`
-	ThemeColor string `json:"themeColor"`
+	Type        string                    `json:"type"`
+	Attachments []teamsMessageAttachments `json:"attachments"`
+}
+
+type teamsMessageAttachments struct {
+	ContentType string           `json:"contentType"`
+	Content     *json.RawMessage `json:"content"`
+	//ContentURL  string        `json:"contentUrl"`
 }
 
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
@@ -94,46 +86,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	title := tmpl(n.conf.Title)
-	if err != nil {
-		return false, err
-	}
 	text := tmpl(n.conf.Text)
 	if err != nil {
 		return false, err
 	}
-	summary := tmpl(n.conf.Summary)
-	if err != nil {
-		return false, err
-	}
 
-	alerts := types.Alerts(as...)
-	color := colorGrey
-	switch alerts.Status() {
-	case model.AlertFiring:
-		color = colorRed
-	case model.AlertResolved:
-		color = colorGreen
-	}
-
-	var url string
-	if n.conf.WebhookURL != nil {
-		url = n.conf.WebhookURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.WebhookURLFile)
-		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
-		}
-		url = strings.TrimSpace(string(content))
-	}
+	textJson := json.RawMessage(text)
 
 	t := teamsMessage{
-		Context:    "http://schema.org/extensions",
-		Type:       "MessageCard",
-		Title:      title,
-		Summary:    summary,
-		Text:       text,
-		ThemeColor: color,
+		Type: "message",
+		Attachments: []teamsMessageAttachments{
+			{
+				ContentType: "application/vnd.microsoft.card.adaptive",
+				Content:     &textJson,
+			},
+		},
 	}
 
 	var payload bytes.Buffer
@@ -141,7 +108,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
+	resp, err := n.postJSONFunc(ctx, n.client, n.webhookURL.String(), &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
