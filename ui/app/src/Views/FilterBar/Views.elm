@@ -125,6 +125,7 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                             [ input
                                 [ id "filter-bar-matcher"
                                 , class "form-control"
+
                                 -- Setting spellcheck=false on an input element will disable smartquotes in iOS.
                                 , spellcheck False
                                 , value matcherText
