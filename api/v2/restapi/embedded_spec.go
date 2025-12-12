@@ -61,28 +61,28 @@ func init() {
           {
             "type": "boolean",
             "default": true,
-            "description": "Show active alerts",
+            "description": "Include active alerts in results. If false, excludes active alerts and returns only suppressed (silenced or inhibited) alerts.",
             "name": "active",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show silenced alerts",
+            "description": "Include silenced alerts in results. If false, excludes silenced alerts. Note that true (default) shows both silenced and non-silenced alerts.",
             "name": "silenced",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show inhibited alerts",
+            "description": "Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.",
             "name": "inhibited",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show unprocessed alerts",
+            "description": "Include unprocessed alerts in results. If false, excludes unprocessed alerts. Note that true (default) shows both processed and unprocessed alerts.",
             "name": "unprocessed",
             "in": "query"
           },
@@ -159,28 +159,28 @@ func init() {
           {
             "type": "boolean",
             "default": true,
-            "description": "Show active alerts",
+            "description": "Include active alerts within the returned groups. If false, excludes active alerts from groups and only shows suppressed (silenced or inhibited) alerts.",
             "name": "active",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show silenced alerts",
+            "description": "Include silenced alerts within the returned groups. If false, excludes silenced alerts from groups. Note that true (default) shows both silenced and non-silenced alerts.",
             "name": "silenced",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show inhibited alerts",
+            "description": "Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.",
             "name": "inhibited",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show muted alerts",
+            "description": "Include muted (silenced or inhibited) alert groups in results. If false, excludes entire groups where all alerts are muted.",
             "name": "muted",
             "in": "query"
           },
@@ -865,28 +865,28 @@ func init() {
           {
             "type": "boolean",
             "default": true,
-            "description": "Show active alerts",
+            "description": "Include active alerts in results. If false, excludes active alerts and returns only suppressed (silenced or inhibited) alerts.",
             "name": "active",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show silenced alerts",
+            "description": "Include silenced alerts in results. If false, excludes silenced alerts. Note that true (default) shows both silenced and non-silenced alerts.",
             "name": "silenced",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show inhibited alerts",
+            "description": "Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.",
             "name": "inhibited",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show unprocessed alerts",
+            "description": "Include unprocessed alerts in results. If false, excludes unprocessed alerts. Note that true (default) shows both processed and unprocessed alerts.",
             "name": "unprocessed",
             "in": "query"
           },
@@ -975,28 +975,28 @@ func init() {
           {
             "type": "boolean",
             "default": true,
-            "description": "Show active alerts",
+            "description": "Include active alerts within the returned groups. If false, excludes active alerts from groups and only shows suppressed (silenced or inhibited) alerts.",
             "name": "active",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show silenced alerts",
+            "description": "Include silenced alerts within the returned groups. If false, excludes silenced alerts from groups. Note that true (default) shows both silenced and non-silenced alerts.",
             "name": "silenced",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show inhibited alerts",
+            "description": "Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.",
             "name": "inhibited",
             "in": "query"
           },
           {
             "type": "boolean",
             "default": true,
-            "description": "Show muted alerts",
+            "description": "Include muted (silenced or inhibited) alert groups in results. If false, excludes entire groups where all alerts are muted.",
             "name": "muted",
             "in": "query"
           },
