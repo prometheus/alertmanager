@@ -92,7 +92,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alerts. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -178,12 +178,19 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alert groups. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -305,7 +312,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter silences by",
+            "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           }
@@ -433,10 +440,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"
@@ -882,7 +896,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alerts. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -980,12 +994,19 @@ func init() {
             "in": "query"
           },
           {
+            "type": "boolean",
+            "default": true,
+            "description": "Show muted alerts",
+            "name": "muted",
+            "in": "query"
+          },
+          {
             "type": "array",
             "items": {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter alerts by",
+            "description": "A matcher expression to filter alert groups. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           },
@@ -1119,7 +1140,7 @@ func init() {
               "type": "string"
             },
             "collectionFormat": "multi",
-            "description": "A list of matchers to filter silences by",
+            "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
           }
@@ -1256,10 +1277,17 @@ func init() {
       "required": [
         "state",
         "silencedBy",
-        "inhibitedBy"
+        "inhibitedBy",
+        "mutedBy"
       ],
       "properties": {
         "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mutedBy": {
           "type": "array",
           "items": {
             "type": "string"

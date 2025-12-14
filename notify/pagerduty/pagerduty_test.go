@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,14 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -45,14 +45,14 @@ func TestPagerDutyRetryV1(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusForbidden)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retryv1 - error on status %d", statusCode)
 	}
 }
 
@@ -63,14 +63,14 @@ func TestPagerDutyRetryV2(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
+		require.Equal(t, expected, actual, "retryv2 - error on status %d", statusCode)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
@@ -105,7 +105,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 
 func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -128,7 +128,7 @@ func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
@@ -138,7 +138,7 @@ func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
 
 func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 	key := "01234567890123456789012345678901"
-	f, err := os.CreateTemp("", "pagerduty_test")
+	f, err := os.CreateTemp(t.TempDir(), "pagerduty_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -153,7 +153,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -163,7 +163,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 func TestPagerDutyTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -180,7 +180,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 		errMsg string
 	}{
 		{
-			title: "full-blown message",
+			title: "full-blown legacy message",
 			cfg: &config.PagerdutyConfig{
 				RoutingKey: config.Secret("01234567890123456789012345678901"),
 				Images: []config.PagerdutyImage{
@@ -196,7 +196,32 @@ func TestPagerDutyTemplating(t *testing.T) {
 						Text: "{{ .Status }}",
 					},
 				},
-				Details: map[string]string{
+				Details: map[string]any{
+					"firing":       `{{ .Alerts.Firing | toJson }}`,
+					"resolved":     `{{ .Alerts.Resolved | toJson }}`,
+					"num_firing":   `{{ .Alerts.Firing | len }}`,
+					"num_resolved": `{{ .Alerts.Resolved | len }}`,
+				},
+			},
+		},
+		{
+			title: "full-blown legacy message",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Images: []config.PagerdutyImage{
+					{
+						Src:  "{{ .Status }}",
+						Alt:  "{{ .Status }}",
+						Href: "{{ .Status }}",
+					},
+				},
+				Links: []config.PagerdutyLink{
+					{
+						Href: "{{ .Status }}",
+						Text: "{{ .Status }}",
+					},
+				},
+				Details: map[string]any{
 					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
 					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
@@ -205,17 +230,51 @@ func TestPagerDutyTemplating(t *testing.T) {
 			},
 		},
 		{
+			title: "nested details",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]any{
+					"a": map[string]any{
+						"b": map[string]any{
+							"c": map[string]any{
+								"firing":       `{{ .Alerts.Firing | toJson }}`,
+								"resolved":     `{{ .Alerts.Resolved | toJson }}`,
+								"num_firing":   `{{ .Alerts.Firing | len }}`,
+								"num_resolved": `{{ .Alerts.Resolved | len }}`,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			title: "nested details with template error",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]any{
+					"a": map[string]any{
+						"b": map[string]any{
+							"c": map[string]any{
+								"firing": `{{ template "pagerduty.default.instances" .Alerts.Firing`,
+							},
+						},
+					},
+				},
+			},
+			errMsg: "failed to render details: template: :1: unclosed action",
+		},
+		{
 			title: "details with templating errors",
 			cfg: &config.PagerdutyConfig{
 				RoutingKey: config.Secret("01234567890123456789012345678901"),
-				Details: map[string]string{
-					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing`,
-					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+				Details: map[string]any{
+					"firing":       `{{ .Alerts.Firing | toJson`,
+					"resolved":     `{{ .Alerts.Resolved | toJson }}`,
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
 			},
-			errMsg: "failed to template",
+			errMsg: "failed to render details: template: :1: unclosed action",
 		},
 		{
 			title: "v2 message with templating errors",
@@ -251,7 +310,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.URL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 			if pd.apiV1 != "" {
 				pd.apiV1 = u.String()
@@ -314,7 +373,6 @@ func TestErrDetails(t *testing.T) {
 			exp: "",
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			err := errDetails(tc.status, tc.body)
 			require.Contains(t, err, tc.exp)
@@ -323,7 +381,10 @@ func TestErrDetails(t *testing.T) {
 }
 
 func TestEventSizeEnforcement(t *testing.T) {
-	bigDetails := map[string]string{
+	bigDetailsV1 := map[string]any{
+		"firing": strings.Repeat("a", 513000),
+	}
+	bigDetailsV2 := map[string]any{
 		"firing": strings.Repeat("a", 513000),
 	}
 
@@ -331,7 +392,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 	msgV1 := &pagerDutyMessage{
 		ServiceKey: "01234567890123456789012345678901",
 		EventType:  "trigger",
-		Details:    bigDetails,
+		Details:    bigDetailsV1,
 	}
 
 	notifierV1, err := New(
@@ -340,7 +401,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -353,7 +414,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 		RoutingKey:  "01234567890123456789012345678901",
 		EventAction: "trigger",
 		Payload: &pagerDutyPayload{
-			CustomDetails: bigDetails,
+			CustomDetails: bigDetailsV2,
 		},
 	}
 
@@ -363,7 +424,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -478,7 +539,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		Links:      links,
 	}
 
-	pagerDuty, err := New(&pagerDutyConfig, test.CreateTmpl(t), log.NewNopLogger())
+	pagerDuty, err := New(&pagerDutyConfig, test.CreateTmpl(t), promslog.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -496,4 +557,330 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 		},
 	}...)
 	require.NoError(t, err)
+}
+
+func TestPagerDutyTimeout(t *testing.T) {
+	type pagerDutyEvent struct {
+		RoutingKey  string           `json:"routing_key"`
+		EventAction string           `json:"event_action"`
+		DedupKey    string           `json:"dedup_key"`
+		Payload     pagerDutyPayload `json:"payload"`
+		Images      []pagerDutyImage
+		Links       []pagerDutyLink
+	}
+
+	tests := map[string]struct {
+		latency time.Duration
+		timeout time.Duration
+		wantErr bool
+	}{
+		"success": {latency: 100 * time.Millisecond, timeout: 120 * time.Millisecond, wantErr: false},
+		"error":   {latency: 100 * time.Millisecond, timeout: 80 * time.Millisecond, wantErr: true},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					decoder := json.NewDecoder(r.Body)
+					var event pagerDutyEvent
+					if err := decoder.Decode(&event); err != nil {
+						panic(err)
+					}
+
+					if event.RoutingKey == "" || event.EventAction == "" {
+						http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+						return
+					}
+					time.Sleep(tt.latency)
+				},
+			))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			cfg := config.PagerdutyConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				URL:        &config.URL{URL: u},
+				Timeout:    tt.timeout,
+			}
+
+			pd, err := New(&cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			_, err = pd.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, err != nil)
+		})
+	}
+}
+
+func TestRenderDetails(t *testing.T) {
+	type args struct {
+		details map[string]any
+		data    *template.Data
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    map[string]any
+		wantErr bool
+	}{
+		{
+			name: "flat",
+			args: args{
+				details: map[string]any{
+					"a": "{{ .Status }}",
+					"b": "String",
+				},
+				data: &template.Data{
+					Status: "Flat",
+				},
+			},
+			want: map[string]any{
+				"a": "Flat",
+				"b": "String",
+			},
+			wantErr: false,
+		},
+		{
+			name: "flat error",
+			args: args{
+				details: map[string]any{
+					"a": "{{ .Status",
+				},
+				data: &template.Data{
+					Status: "Error",
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "nested",
+			args: args{
+				details: map[string]any{
+					"a": map[string]any{
+						"b": map[string]any{
+							"c": "{{ .Status }}",
+							"d": "String",
+						},
+					},
+				},
+				data: &template.Data{
+					Status: "Nested",
+				},
+			},
+			want: map[string]any{
+				"a": map[string]any{
+					"b": map[string]any{
+						"c": "Nested",
+						"d": "String",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "nested error",
+			args: args{
+				details: map[string]any{
+					"a": map[string]any{
+						"b": map[string]any{
+							"c": "{{ .Status",
+						},
+					},
+				},
+				data: &template.Data{
+					Status: "Error",
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "alerts",
+			args: args{
+				details: map[string]any{
+					"alerts": map[string]any{
+						"firing":       "{{ .Alerts.Firing | toJson }}",
+						"resolved":     "{{ .Alerts.Resolved | toJson }}",
+						"num_firing":   "{{ len .Alerts.Firing }}",
+						"num_resolved": "{{ len .Alerts.Resolved }}",
+					},
+				},
+				data: &template.Data{
+					Alerts: template.Alerts{
+						{
+							Status: "firing",
+							Annotations: template.KV{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							Labels: template.KV{
+								"alertname": "Firing1",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							Fingerprint:  "fingerprint1",
+							GeneratorURL: "http://generator1",
+							StartsAt:     time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC),
+							EndsAt:       time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC),
+						},
+						{
+							Status: "firing",
+							Annotations: template.KV{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							Labels: template.KV{
+								"alertname": "Firing2",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							Fingerprint:  "fingerprint2",
+							GeneratorURL: "http://generator2",
+							StartsAt:     time.Date(2002, time.January, 1, 0, 0, 0, 0, time.UTC),
+							EndsAt:       time.Date(2002, time.January, 1, 1, 0, 0, 0, time.UTC),
+						},
+						{
+							Status: "resolved",
+							Annotations: template.KV{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							Labels: template.KV{
+								"alertname": "Resolved1",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							Fingerprint:  "fingerprint3",
+							GeneratorURL: "http://generator3",
+							StartsAt:     time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC),
+							EndsAt:       time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC),
+						},
+						{
+							Status: "resolved",
+							Annotations: template.KV{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							Labels: template.KV{
+								"alertname": "Resolved2",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							Fingerprint:  "fingerprint4",
+							GeneratorURL: "http://generator4",
+							StartsAt:     time.Date(2002, time.January, 1, 0, 0, 0, 0, time.UTC),
+							EndsAt:       time.Date(2002, time.January, 1, 1, 0, 0, 0, time.UTC),
+						},
+					},
+				},
+			},
+			want: map[string]any{
+				"alerts": map[string]any{
+					"firing": []any{
+						map[string]any{
+							"status": "firing",
+							"labels": map[string]any{
+								"alertname": "Firing1",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							"annotations": map[string]any{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							"startsAt":     time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"endsAt":       time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"fingerprint":  "fingerprint1",
+							"generatorURL": "http://generator1",
+						},
+						map[string]any{
+							"status": "firing",
+							"labels": map[string]any{
+								"alertname": "Firing2",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							"annotations": map[string]any{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							"startsAt":     time.Date(2002, time.January, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"endsAt":       time.Date(2002, time.January, 1, 1, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"fingerprint":  "fingerprint2",
+							"generatorURL": "http://generator2",
+						},
+					},
+					"resolved": []any{
+						map[string]any{
+							"status": "resolved",
+							"labels": map[string]any{
+								"alertname": "Resolved1",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							"annotations": map[string]any{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							"startsAt":     time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"endsAt":       time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"fingerprint":  "fingerprint3",
+							"generatorURL": "http://generator3",
+						},
+						map[string]any{
+							"status": "resolved",
+							"labels": map[string]any{
+								"alertname": "Resolved2",
+								"label1":    "value1",
+								"label2":    "value2",
+							},
+							"annotations": map[string]any{
+								"annotation1": "value1",
+								"annotation2": "value2",
+							},
+							"startsAt":     time.Date(2002, time.January, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"endsAt":       time.Date(2002, time.January, 1, 1, 0, 0, 0, time.UTC).Format(time.RFC3339),
+							"fingerprint":  "fingerprint4",
+							"generatorURL": "http://generator4",
+						},
+					},
+					"num_firing":   2,
+					"num_resolved": 2,
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &Notifier{
+				conf: &config.PagerdutyConfig{
+					Details: tt.args.details,
+				},
+				tmpl: test.CreateTmpl(t),
+			}
+			got, err := n.renderDetails(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("renderDetails() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

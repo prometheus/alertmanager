@@ -22,8 +22,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -42,7 +42,7 @@ func TestWebhookRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	if err != nil {
 		require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestWebhookRetry(t *testing.T) {
 	t.Run("test retry status code", func(t *testing.T) {
 		for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 			actual, _ := notifier.retrier.Check(statusCode, nil)
-			require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+			require.Equal(t, expected, actual, "error on status %d", statusCode)
 		}
 	})
 
@@ -68,12 +68,12 @@ func TestWebhookRetry(t *testing.T) {
 					`{"status":"invalid event"}`,
 				)),
 
-				exp: fmt.Sprintf(`unexpected status code %d: %s: {"status":"invalid event"}`, http.StatusBadRequest, u.String()),
+				exp: fmt.Sprintf(`unexpected status code %d: {"status":"invalid event"}`, http.StatusBadRequest),
 			},
 			{
 				status: http.StatusBadRequest,
 
-				exp: fmt.Sprintf(`unexpected status code %d: %s`, http.StatusBadRequest, u.String()),
+				exp: fmt.Sprintf(`unexpected status code %d`, http.StatusBadRequest),
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestWebhookRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
@@ -133,7 +133,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 

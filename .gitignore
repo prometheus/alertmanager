@@ -21,3 +21,4 @@
 !/.promu.yml
 !/api/v2/openapi.yaml
 !.github/workflows/*.yml
+!.github/ISSUE_TEMPLATE/*.yml

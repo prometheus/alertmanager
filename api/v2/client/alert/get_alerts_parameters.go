@@ -86,7 +86,7 @@ type GetAlertsParams struct {
 
 	/* Filter.
 
-	   A list of matchers to filter alerts by
+	   A matcher expression to filter alerts. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	*/
 	Filter []string
 

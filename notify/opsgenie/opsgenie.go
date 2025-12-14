@@ -18,12 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -40,13 +40,13 @@ const maxMessageLenRunes = 130
 type Notifier struct {
 	conf    *config.OpsGenieConfig
 	tmpl    *template.Template
-	logger  log.Logger
+	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new OpsGenie notifier.
-func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -133,17 +133,16 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	if err != nil {
 		return nil, false, err
 	}
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
-	level.Debug(n.logger).Log("alert", key)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
 	details := make(map[string]string)
 
-	for k, v := range data.CommonLabels {
-		details[k] = v
-	}
+	maps.Copy(details, data.CommonLabels)
 
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
@@ -183,7 +182,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	default:
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
-			level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
+			logger.Warn("Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()
@@ -260,6 +259,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			return nil, false, fmt.Errorf("read key_file error: %w", err)
 		}
 		apiKey = tmpl(string(content))
+		apiKey = strings.TrimSpace(string(apiKey))
 	}
 
 	if err != nil {

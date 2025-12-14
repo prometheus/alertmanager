@@ -99,7 +99,21 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 	silencec := make(chan *models.PostableSilence, 100)
 	errc := make(chan error, 100)
+	errDone := make(chan struct{})
+
 	var wg sync.WaitGroup
+	var once sync.Once
+
+	closeChannels := func() {
+		once.Do(func() {
+			close(silencec)
+			wg.Wait()
+			close(errc)
+			<-errDone
+			close(errDone)
+		})
+	}
+	defer closeChannels()
 	for w := 0; w < c.workers; w++ {
 		wg.Add(1)
 		go func() {
@@ -115,6 +129,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 				errCount++
 			}
 		}
+		errDone <- struct{}{}
 	}()
 
 	count := 0
@@ -134,9 +149,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		count++
 	}
 
-	close(silencec)
-	wg.Wait()
-	close(errc)
+	closeChannels()
 
 	if errCount > 0 {
 		return fmt.Errorf("couldn't import %v out of %v silences", errCount, count)

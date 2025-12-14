@@ -15,20 +15,24 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
 	tmpltext "text/template"
 	"time"
 
+	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -130,7 +134,7 @@ func (t *Template) FromGlob(path string) error {
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
+func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
 		return "", nil
 	}
@@ -148,7 +152,7 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 }
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
+func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if html == "" {
 		return "", nil
 	}
@@ -165,7 +169,7 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 	return buf.String(), err
 }
 
-type FuncMap map[string]interface{}
+type FuncMap map[string]any
 
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
@@ -185,12 +189,37 @@ var DefaultFuncs = FuncMap{
 	"safeHtml": func(text string) tmplhtml.HTML {
 		return tmplhtml.HTML(text)
 	},
+	"safeUrl": func(text string) tmplhtml.URL {
+		return tmplhtml.URL(text)
+	},
+	"urlUnescape": url.QueryUnescape,
 	"reReplaceAll": func(pattern, repl, text string) string {
 		re := regexp.MustCompile(pattern)
 		return re.ReplaceAllString(text, repl)
 	},
 	"stringSlice": func(s ...string) []string {
 		return s
+	},
+	// date returns the text representation of the time in the specified format.
+	"date": func(fmt string, t time.Time) string {
+		return t.Format(fmt)
+	},
+	// tz returns the time in the timezone.
+	"tz": func(name string, t time.Time) (time.Time, error) {
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return t.In(loc), nil
+	},
+	"since":            time.Since,
+	"humanizeDuration": commonTemplates.HumanizeDuration,
+	"toJson": func(v any) (string, error) {
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes), nil
 	},
 }
 
@@ -407,4 +436,67 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 	}
 
 	return data
+}
+
+type TemplateFunc func(string) (string, error)
+
+// DeepCopyWithTemplate returns a deep copy of a map/slice/array/string/int/bool or combination thereof, executing the
+// provided template (with the provided data) on all string keys or values. All maps are connverted to
+// map[string]any, with all non-string keys discarded.
+func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
+	if value == nil {
+		return value, nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+
+	case reflect.String:
+		parsed, ok := tmplTextFunc(value.(string))
+		if ok == nil {
+			var inlineType any
+			err := yaml.Unmarshal([]byte(parsed), &inlineType)
+			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			return DeepCopyWithTemplate(inlineType, tmplTextFunc)
+		}
+		return parsed, ok
+
+	case reflect.Array, reflect.Slice:
+		arrayLen := valueMeta.Len()
+		converted := make([]any, arrayLen)
+		for i := range arrayLen {
+			var err error
+			converted[i], err = DeepCopyWithTemplate(valueMeta.Index(i).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+
+	case reflect.Map:
+		keys := valueMeta.MapKeys()
+		converted := make(map[string]any, len(keys))
+
+		for _, keyMeta := range keys {
+			var err error
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			strKey, err = tmplTextFunc(strKey)
+			if err != nil {
+				return nil, err
+			}
+			converted[strKey], err = DeepCopyWithTemplate(valueMeta.MapIndex(keyMeta).Interface(), tmplTextFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+	default:
+		return value, nil
+	}
 }

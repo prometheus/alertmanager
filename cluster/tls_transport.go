@@ -22,15 +22,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
 )
@@ -46,7 +46,7 @@ const (
 type TLSTransport struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
-	logger       log.Logger
+	logger       *slog.Logger
 	bindAddr     string
 	bindPort     int
 	done         chan struct{}
@@ -71,12 +71,16 @@ type TLSTransport struct {
 // a free port automatically.
 func NewTLSTransport(
 	ctx context.Context,
-	logger log.Logger,
+	logger *slog.Logger,
 	reg prometheus.Registerer,
 	bindAddr string,
 	bindPort int,
 	cfg *TLSTransportConfig,
 ) (*TLSTransport, error) {
+	if reg == nil {
+		return nil, errors.New("missing Prometheus registry")
+	}
+
 	if cfg == nil {
 		return nil, errors.New("must specify TLSTransportConfig")
 	}
@@ -188,7 +192,7 @@ func (t *TLSTransport) StreamCh() <-chan net.Conn {
 // Shutdown is called when memberlist is shutting down; this gives the
 // TLS Transport a chance to clean up the listener and other goroutines.
 func (t *TLSTransport) Shutdown() error {
-	level.Debug(t.logger).Log("msg", "shutting down tls transport")
+	t.logger.Debug("shutting down tls transport")
 	t.cancel()
 	err := t.listener.Close()
 	t.connPool.shutdown()
@@ -255,7 +259,7 @@ func (t *TLSTransport) listen() {
 					return
 				}
 				t.readErrs.Inc()
-				level.Debug(t.logger).Log("msg", "error accepting connection", "err", err)
+				t.logger.Debug("error accepting connection", "err", err)
 
 			} else {
 				go t.handle(conn)
@@ -268,7 +272,7 @@ func (t *TLSTransport) handle(conn net.Conn) {
 	for {
 		packet, err := rcvTLSConn(conn).read()
 		if err != nil {
-			level.Debug(t.logger).Log("msg", "error reading from connection", "err", err)
+			t.logger.Debug("error reading from connection", "err", err)
 			t.readErrs.Inc()
 			return
 		}
@@ -290,7 +294,7 @@ func (t *TLSTransport) handle(conn net.Conn) {
 }
 
 func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
-	t.packetsSent = prometheus.NewCounter(
+	t.packetsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -298,7 +302,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes sent to outgoing connections (excluding internal metadata).",
 		},
 	)
-	t.packetsRcvd = prometheus.NewCounter(
+	t.packetsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -306,7 +310,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of packet bytes received from incoming connections (excluding internal metadata).",
 		},
 	)
-	t.streamsSent = prometheus.NewCounter(
+	t.streamsSent = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -315,7 +319,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 	)
 
-	t.streamsRcvd = prometheus.NewCounter(
+	t.streamsRcvd = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -323,7 +327,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of stream connections received.",
 		},
 	)
-	t.readErrs = prometheus.NewCounter(
+	t.readErrs = promauto.With(reg).NewCounter(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -331,7 +335,7 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 			Help:      "The number of errors encountered while reading from incoming connections.",
 		},
 	)
-	t.writeErrs = prometheus.NewCounterVec(
+	t.writeErrs = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Subsystem: metricSubsystem,
@@ -340,13 +344,4 @@ func (t *TLSTransport) registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"connection_type"},
 	)
-
-	if reg != nil {
-		reg.MustRegister(t.packetsSent)
-		reg.MustRegister(t.packetsRcvd)
-		reg.MustRegister(t.streamsSent)
-		reg.MustRegister(t.streamsRcvd)
-		reg.MustRegister(t.readErrs)
-		reg.MustRegister(t.writeErrs)
-	}
 }

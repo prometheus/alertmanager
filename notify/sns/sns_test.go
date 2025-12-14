@@ -14,10 +14,21 @@
 package sns
 
 import (
+	"context"
+	"net/url"
 	"testing"
 
+	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
 )
+
+var logger = promslog.NewNopLogger()
 
 func TestValidateAndTruncateMessage(t *testing.T) {
 	sBuff := make([]byte, 257*1024)
@@ -42,4 +53,96 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	invalidUtf8String := "\xc3\x28"
 	_, _, err = validateAndTruncateMessage(invalidUtf8String, 100)
 	require.Error(t, err)
+}
+
+func TestNotifyWithInvalidTemplate(t *testing.T) {
+	for _, tc := range []struct {
+		title     string
+		errMsg    string
+		updateCfg func(*config.SNSConfig)
+	}{
+		{
+			title:  "with invalid Attribute template",
+			errMsg: "execute 'attributes' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.Attributes = map[string]string{
+					"attribName1": "{{ template \"unknown_template\" . }}",
+				}
+			},
+		},
+		{
+			title:  "with invalid TopicArn template",
+			errMsg: "execute 'topic_arn' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.TopicARN = "{{ template \"unknown_template\" . }}"
+			},
+		},
+		{
+			title:  "with invalid PhoneNumber template",
+			errMsg: "execute 'phone_number' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.PhoneNumber = "{{ template \"unknown_template\" . }}"
+			},
+		},
+		{
+			title:  "with invalid Message template",
+			errMsg: "execute 'message' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.Message = "{{ template \"unknown_template\" . }}"
+			},
+		},
+		{
+			title:  "with invalid Subject template",
+			errMsg: "execute 'subject' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.Subject = "{{ template \"unknown_template\" . }}"
+			},
+		},
+		{
+			title:  "with invalid APIUrl template",
+			errMsg: "execute 'api_url' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.APIUrl = "{{ template \"unknown_template\" . }}"
+			},
+		},
+		{
+			title:  "with invalid TargetARN template",
+			errMsg: "execute 'target_arn' template",
+			updateCfg: func(cfg *config.SNSConfig) {
+				cfg.TargetARN = "{{ template \"unknown_template\" . }}"
+			},
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			snsCfg := &config.SNSConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				TopicARN:   "TestTopic",
+				Sigv4: sigv4.SigV4Config{
+					Region: "us-west-2",
+				},
+			}
+			if tc.updateCfg != nil {
+				tc.updateCfg(snsCfg)
+			}
+			notifier, err := New(
+				snsCfg,
+				createTmpl(t),
+				logger,
+			)
+			require.NoError(t, err)
+			var alerts []*types.Alert
+			_, err = notifier.Notify(context.Background(), alerts...)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")
+			require.Contains(t, err.Error(), tc.errMsg)
+		})
+	}
+}
+
+// CreateTmpl returns a ready-to-use template.
+func createTmpl(t *testing.T) *template.Template {
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL, _ = url.Parse("http://am")
+	return tmpl
 }

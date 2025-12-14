@@ -17,10 +17,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
+	netUrl "net/url"
+	"os"
+	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -35,6 +38,8 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
+
+	maxContentLenRunes = 2000
 )
 
 const (
@@ -47,14 +52,14 @@ const (
 type Notifier struct {
 	conf       *config.DiscordConfig
 	tmpl       *template.Template
-	logger     log.Logger
+	logger     *slog.Logger
 	client     *http.Client
 	retrier    *notify.Retrier
 	webhookURL *config.SecretURL
 }
 
 // New returns a new Discord notifier.
-func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *config.DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "discord", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -71,8 +76,10 @@ func New(c *config.DiscordConfig, t *template.Template, l log.Logger, httpOpts .
 }
 
 type webhook struct {
-	Content string         `json:"content"`
-	Embeds  []webhookEmbed `json:"embeds"`
+	Content   string         `json:"content"`
+	Embeds    []webhookEmbed `json:"embeds"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
 }
 
 type webhookEmbed struct {
@@ -88,10 +95,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	level.Debug(n.logger).Log("incident", key)
+	logger := n.logger.With("group_key", key)
+	logger.Debug("extracted group key")
 
 	alerts := types.Alerts(as...)
-	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
 		return false, err
@@ -102,14 +110,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+		logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
 	}
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
 		return false, err
 	}
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "key", key, "max_runes", maxDescriptionLenRunes)
+		logger.Warn("Truncated message", "max_runes", maxDescriptionLenRunes)
+	}
+
+	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		logger.Warn("Truncated message", "max_runes", maxContentLenRunes)
 	}
 
 	color := colorGrey
@@ -120,7 +136,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
+	var url string
+	if n.conf.WebhookURL != nil {
+		url = n.conf.WebhookURL.String()
+	} else {
+		b, err := os.ReadFile(n.conf.WebhookURLFile)
+		if err != nil {
+			return false, fmt.Errorf("read webhook_url_file: %w", err)
+		}
+		url = strings.TrimSpace(string(b))
+	}
+
 	w := webhook{
+		Content:  content,
+		Username: n.conf.Username,
 		Embeds: []webhookEmbed{{
 			Title:       title,
 			Description: description,
@@ -128,12 +157,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}},
 	}
 
+	if len(n.conf.AvatarURL) != 0 {
+		if _, err := netUrl.Parse(n.conf.AvatarURL); err == nil {
+			w.AvatarURL = n.conf.AvatarURL
+		} else {
+			logger.Warn("Bad avatar url", "key", key)
+		}
+	}
+
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

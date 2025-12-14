@@ -3,8 +3,6 @@ title: HTTPS and authentication
 sort_rank: 11
 ---
 
-# HTTPS and authentication
-
 Alertmanager supports basic authentication and TLS.
 This is **experimental** and might change in the future.
 
@@ -45,6 +43,13 @@ tls_server_config:
 
   # CA certificate for client certificate authentication to the server.
   [ client_ca_file: <filename> ]
+
+  # Verify that the client certificate has a Subject Alternate Name (SAN)
+  # which is an exact match to an entry in this list, else terminate the
+  # connection. SAN match can be one or multiple of the following: DNS,
+  # IP, e-mail, or URI address from https://pkg.go.dev/crypto/x509#Certificate.
+  [ client_allowed_sans:
+    [ - <string> ] ]
 
   # Minimum TLS version that is acceptable.
   [ min_version: <string> | default = "TLS12" ]
@@ -158,15 +163,15 @@ tls_server_config:
 tls_client_config:
   # Path to the CA certificate with which to validate the server certificate.
   [ ca_file: <filepath> ]
-    
+
   # Certificate and key files for client cert authentication to the server.
   [ cert_file: <filepath> ]
   [ key_file: <filepath> ]
-  
+
   # Server name extension to indicate the name of the server.
   # http://tools.ietf.org/html/rfc4366#section-3.1
   [ server_name: <string> ]
-  
+
   # Disable validation of the server certificate.
   [ insecure_skip_verify: <boolean> | default = false]
 ```

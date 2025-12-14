@@ -48,6 +48,7 @@ view labels maybeActiveId alert =
                     text ""
             , silenceButton alert
             , inhibitedIcon alert
+            , mutedIcon alert
             , linkButton alert
             ]
         , if maybeActiveId == Just alert.fingerprint then
@@ -145,11 +146,26 @@ inhibitedIcon : GettableAlert -> Html Msg
 inhibitedIcon alert =
     case List.head alert.status.inhibitedBy of
         Just _ ->
-            a
-                [ class "btn btn-outline-info border-0 text-info"
+            span
+                [ class "btn btn-outline-danger border-0"
                 ]
                 [ i [ class "fa fa-eye-slash mr-2" ] []
                 , text "Inhibited"
+                ]
+
+        Nothing ->
+            text ""
+
+
+mutedIcon : GettableAlert -> Html Msg
+mutedIcon alert =
+    case List.head alert.status.mutedBy of
+        Just _ ->
+            span
+                [ class "btn btn-outline-danger border-0"
+                ]
+                [ i [ class "fa fa-bell-slash mr-2" ] []
+                , text "Muted"
                 ]
 
         Nothing ->

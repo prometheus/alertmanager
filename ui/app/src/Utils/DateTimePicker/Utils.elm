@@ -25,6 +25,7 @@ import Time.Extra as Time exposing (Interval(..))
 type FirstDayOfWeek
     = Monday
     | Sunday
+    | Saturday
 
 
 listDaysOfMonth : Posix -> FirstDayOfWeek -> List Posix
@@ -53,6 +54,16 @@ listDaysOfMonth time firstDayOfWeek =
 
                                 else
                                     wd - 1
+
+                            Saturday ->
+                                if wd == 6 then
+                                    0
+
+                                else if wd == 7 then
+                                    1
+
+                                else
+                                    wd + 1
                    )
                 |> (\w -> Time.add Time.Day -w utc firstOfMonth)
                 |> (\d -> Time.range Time.Day 1 utc d firstOfMonth)
@@ -70,6 +81,16 @@ listDaysOfMonth time firstDayOfWeek =
 
                                 else
                                     wd - 1
+
+                            Saturday ->
+                                if wd == 6 then
+                                    7
+
+                                else if wd == 7 then
+                                    1
+
+                                else
+                                    wd + 1
                    )
                 |> (\w -> Time.add Time.Day (7 - w) utc firstOfNextMonth)
                 |> Time.range Time.Day 1 utc firstOfNextMonth

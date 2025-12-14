@@ -127,8 +127,8 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		expectTrailingQuote bool
 	)
 
-	if strings.HasPrefix(rawValue, "\"") {
-		rawValue = strings.TrimPrefix(rawValue, "\"")
+	if after, ok := strings.CutPrefix(rawValue, "\""); ok {
+		rawValue = after
 		expectTrailingQuote = true
 	}
 
@@ -136,7 +136,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		return nil, fmt.Errorf("matcher value not valid UTF-8: %s", ms[3])
 	}
 
-	// Unescape the rawValue:
+	// Unescape the rawValue.
 	for i, r := range rawValue {
 		if escaped {
 			escaped = false

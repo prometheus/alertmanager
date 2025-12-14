@@ -16,7 +16,6 @@ package victorops
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -24,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -36,7 +35,7 @@ import (
 )
 
 func TestVictorOpsCustomFields(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	tmpl := test.CreateTmpl(t)
 
 	url, err := url.Parse("http://nowhere.com")
@@ -92,12 +91,12 @@ func TestVictorOpsRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
 
@@ -113,7 +112,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -122,7 +121,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 
 func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 	key := "key"
-	f, err := os.CreateTemp("", "victorops_test")
+	f, err := os.CreateTemp(t.TempDir(), "victorops_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -137,7 +136,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -147,7 +146,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 func TestVictorOpsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -207,7 +206,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.APIKey = "test"
-			vo, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			vo, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
