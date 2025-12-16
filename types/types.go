@@ -35,6 +35,7 @@ const (
 	AlertStateUnprocessed AlertState = "unprocessed"
 	AlertStateActive      AlertState = "active"
 	AlertStateSuppressed  AlertState = "suppressed"
+	AlertStateResolved    AlertState = "resolved"
 )
 
 // AlertStatus stores the state of an alert and, as applicable, the IDs of
@@ -125,16 +126,32 @@ type GroupMarker interface {
 // NewMarker returns an instance of a AlertMarker implementation.
 func NewMarker(r prometheus.Registerer) *MemMarker {
 	m := &MemMarker{
-		alerts: map[model.Fingerprint]*AlertStatus{},
-		groups: map[string]*groupStatus{},
+		alerts:    map[model.Fingerprint]*AlertStatus{},
+		groups:    map[string]*groupStatus{},
+		listeners: map[int]markerListener{},
+		next:      0,
 	}
 	m.registerMetrics(r)
 	return m
 }
 
+type MarkerEvent struct {
+	Fingerprint model.Fingerprint
+	Status      *AlertStatus
+}
+
+type markerListener struct {
+	name   string
+	events chan *MarkerEvent
+	done   chan struct{}
+}
+
 type MemMarker struct {
 	alerts map[model.Fingerprint]*AlertStatus
 	groups map[string]*groupStatus
+
+	listeners map[int]markerListener
+	next      int
 
 	mtx sync.RWMutex
 }
@@ -211,6 +228,53 @@ func (m *MemMarker) Count(states ...AlertState) int {
 	return count
 }
 
+// Subscribe returns a channel that will receive marker events for status changes and deletes.
+// The done channel should be closed by the caller when they want to unsubscribe.
+func (m *MemMarker) Subscribe(name string) (<-chan *MarkerEvent, chan struct{}) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	var (
+		done   = make(chan struct{})
+		events = make(chan *MarkerEvent, 200)
+	)
+
+	// Send current state to new subscriber
+	for fp, status := range m.alerts {
+		statusCopy := *status
+		events <- &MarkerEvent{
+			Fingerprint: fp,
+			Status:      &statusCopy,
+		}
+	}
+
+	// TODO(siavashs): implement GC or Unsubscribe method to remove listeners.
+	m.listeners[m.next] = markerListener{name: name, events: events, done: done}
+	m.next++
+
+	return events, done
+}
+
+func (m *MemMarker) notifyListeners(fp model.Fingerprint, status *AlertStatus) {
+	var statusCopy *AlertStatus
+	if status != nil {
+		copy := *status
+		statusCopy = &copy
+	}
+
+	event := &MarkerEvent{
+		Fingerprint: fp,
+		Status:      statusCopy,
+	}
+
+	for _, l := range m.listeners {
+		select {
+		case l.events <- event:
+		case <-l.done:
+		}
+	}
+}
+
 // SetActiveOrSilenced implements AlertMarker.
 func (m *MemMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
 	m.mtx.Lock()
@@ -230,10 +294,11 @@ func (m *MemMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, ac
 	// AlertStateActive.
 	if len(activeIDs) == 0 && len(s.InhibitedBy) == 0 {
 		s.State = AlertStateActive
-		return
+	} else {
+		s.State = AlertStateSuppressed
 	}
 
-	s.State = AlertStateSuppressed
+	m.notifyListeners(alert, s)
 }
 
 // SetInhibited implements AlertMarker.
@@ -253,10 +318,11 @@ func (m *MemMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	// AlertStateActive.
 	if len(ids) == 0 && len(s.SilencedBy) == 0 {
 		s.State = AlertStateActive
-		return
+	} else {
+		s.State = AlertStateSuppressed
 	}
 
-	s.State = AlertStateSuppressed
+	m.notifyListeners(alert, s)
 }
 
 // Status implements AlertMarker.
@@ -279,6 +345,8 @@ func (m *MemMarker) Delete(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	// Notify listeners before deleting
+	m.notifyListeners(alert, &AlertStatus{State: AlertStateResolved})
 	delete(m.alerts, alert)
 }
 
