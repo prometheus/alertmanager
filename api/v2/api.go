@@ -53,6 +53,7 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tsdb"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -67,6 +68,7 @@ type API struct {
 	getAlertStatus getAlertStatusFn
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
+	tsdb           *tsdb.TSDB
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -97,6 +99,7 @@ func NewAPI(
 	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
+	tsdb *tsdb.TSDB,
 	l *slog.Logger,
 	r prometheus.Registerer,
 ) (*API, error) {
@@ -107,6 +110,7 @@ func NewAPI(
 		groupMutedFunc: gmf,
 		peer:           peer,
 		silences:       silences,
+		tsdb:           tsdb,
 		logger:         l,
 		m:              metrics.NewAlerts(r),
 		uptime:         time.Now(),

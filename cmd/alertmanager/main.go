@@ -408,6 +408,7 @@ func run() int {
 		clusterPeer = peer
 	}
 
+	// API
 	api, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
@@ -420,6 +421,7 @@ func run() int {
 		Registry:        prometheus.DefaultRegisterer,
 		RequestDuration: requestDuration,
 		GroupFunc:       groupFn,
+		TSDB:            db,
 	})
 	if err != nil {
 		logger.Error("failed to create API", "err", err)
