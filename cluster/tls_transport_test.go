@@ -210,11 +210,9 @@ func TestDialTimeout(t *testing.T) {
 
 	var to net.Conn
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		to = <-t2.StreamCh()
-		wg.Done()
-	}()
+	})
 
 	sent := []byte(("test stream"))
 	m, err := from.Write(sent)

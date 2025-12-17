@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand"
 	"sync"
@@ -196,7 +195,7 @@ func TestSyncTimer_getFirstFlushTime(t *testing.T) {
 			flushlog := &mockLog{t: t, queryCalls: []mockQueryCall{tc.queryCall}}
 			st := &syncTimer{
 				flushLog:         flushlog,
-				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
+				logger:           slog.New(slog.DiscardHandler),
 				groupFingerprint: 0,
 			}
 			ft, err := st.getFirstFlushTime()
@@ -270,7 +269,7 @@ func TestSyncTimer_getNextTick(t *testing.T) {
 			flushlog := &mockLog{t: t, queryCalls: []mockQueryCall{tc.queryCall}}
 			st := &syncTimer{
 				flushLog:      flushlog,
-				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+				logger:        slog.New(slog.DiscardHandler),
 				groupInterval: time.Millisecond * 10,
 			}
 			ft, err := st.getNextTick(tc.now)
@@ -351,7 +350,7 @@ func TestSyncTimer_nextFlushIteration(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			st := &syncTimer{
-				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+				logger:        slog.New(slog.DiscardHandler),
 				groupInterval: time.Millisecond * 10,
 			}
 			fi := st.nextFlushIteration(tc.firstFlush, tc.now)
@@ -498,19 +497,19 @@ func (pb *logBuf) requireLogs(expLogs ...string) {
 }
 
 func BenchmarkSyncTimer(b *testing.B) {
-	for range b.N {
+	for b.Loop() {
 		benchTimer(func(m *mockLog) TimerFactory { return NewSyncTimerFactory(m, func() int { return 0 }) }, b)
 	}
 }
 
 func BenchmarkStdTimer(b *testing.B) {
-	for range b.N {
+	for b.Loop() {
 		benchTimer(func(*mockLog) TimerFactory { return standardTimerFactory }, b)
 	}
 }
 
 func benchTimer(timerFactoryBuilder func(*mockLog) TimerFactory, b *testing.B) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
 	if err != nil {
@@ -534,7 +533,7 @@ func benchTimer(timerFactoryBuilder func(*mockLog) TimerFactory, b *testing.B) {
 	}
 
 	as := make([]*types.Alert, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		as = append(as, newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("TestingAlert_%d", i))}))
 	}
 
@@ -543,7 +542,7 @@ func benchTimer(timerFactoryBuilder func(*mockLog) TimerFactory, b *testing.B) {
 
 	go dispatcher.Run(time.Now())
 
-	for i := 0; i < n; i++ {
+	for range n {
 		alerts.Put(context.Background(), as...)
 	}
 

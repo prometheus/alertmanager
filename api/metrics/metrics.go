@@ -40,7 +40,7 @@ func NewAlerts(r prometheus.Registerer) *Alerts {
 	if r != nil {
 		for _, c := range []prometheus.Collector{numReceivedAlerts, numInvalidAlerts} {
 			r.Unregister(c)
-			r.Register(c)
+			_ = r.Register(c)
 		}
 	}
 	return &Alerts{

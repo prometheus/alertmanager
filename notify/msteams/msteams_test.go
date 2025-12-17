@@ -297,9 +297,9 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				},
 			}
 			if tt.isResolved {
-				alert1.Alert.EndsAt = time.Now()
+				alert1.EndsAt = time.Now()
 			} else {
-				alert1.Alert.EndsAt = time.Now().Add(time.Hour)
+				alert1.EndsAt = time.Now().Add(time.Hour)
 			}
 
 			shouldRetry, err := notifier.Notify(ctx, alert1)

@@ -1,6 +1,6 @@
 module github.com/prometheus/alertmanager
 
-go 1.24.0
+go 1.25.1
 
 require (
 	github.com/KimMachineGun/automemlimit v0.7.5
@@ -12,12 +12,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.8
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.3
 	github.com/aws/smithy-go v1.24.0
-	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/quartz v0.3.0
 	github.com/emersion/go-smtp v0.24.0
-	github.com/go-kit/log v0.1.0
 	github.com/go-openapi/analysis v0.24.1
 	github.com/go-openapi/errors v0.22.4
 	github.com/go-openapi/loads v0.23.2
@@ -81,7 +79,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.22.1 // indirect

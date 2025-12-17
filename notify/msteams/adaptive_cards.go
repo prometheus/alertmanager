@@ -63,17 +63,17 @@ func NewAdaptiveCard() AdaptiveCard {
 
 func (c *AdaptiveCard) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Body    []AdaptiveCardItem     `json:"body"`
-		Schema  string                 `json:"$schema"`
-		Type    string                 `json:"type"`
-		Version string                 `json:"version"`
-		MsTeams map[string]interface{} `json:"msTeams,omitempty"`
+		Body    []AdaptiveCardItem `json:"body"`
+		Schema  string             `json:"$schema"`
+		Type    string             `json:"type"`
+		Version string             `json:"version"`
+		MsTeams map[string]any     `json:"msTeams,omitempty"`
 	}{
 		Body:    c.Body,
 		Schema:  c.Schema,
 		Type:    c.Type,
 		Version: c.Version,
-		MsTeams: map[string]interface{}{"width": "Full"},
+		MsTeams: map[string]any{"width": "Full"},
 	})
 }
 

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/rand"
 	"os"
 	"sync"
@@ -133,9 +134,7 @@ type state map[uint64]*pb.MeshFlushLog
 
 func (s state) clone() state {
 	c := make(state, len(s))
-	for k, v := range s {
-		c[k] = v
-	}
+	maps.Copy(c, s)
 	return c
 }
 
@@ -227,7 +226,7 @@ func New(o Options) (*FlushLog, error) {
 
 	l := &FlushLog{
 		retention: time.Hour * 2,
-		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		logger:    slog.New(slog.DiscardHandler),
 		st:        state{},
 		broadcast: func([]byte) {},
 		metrics:   newMetrics(o.Metrics),
@@ -260,10 +259,6 @@ func New(o Options) (*FlushLog, error) {
 	}
 
 	return l, nil
-}
-
-func (l *FlushLog) now() time.Time {
-	return time.Now()
 }
 
 // Maintenance garbage collects the flush log state at the given interval. If the snapshot
@@ -312,7 +307,7 @@ func (l *FlushLog) Maintenance(interval time.Duration, snapf string, stopc <-cha
 			l.metrics.maintenanceErrorsTotal.Inc()
 			return err
 		}
-		l.logger.Debug("Maintenance done", "duration", time.Now().Sub(start), "size", size)
+		l.logger.Debug("Maintenance done", "duration", time.Since(start), "size", size)
 		return nil
 	}
 
@@ -520,13 +515,13 @@ type replaceFile struct {
 }
 
 func (f *replaceFile) Close() error {
-	if err := f.File.Sync(); err != nil {
+	if err := f.Sync(); err != nil {
 		return err
 	}
 	if err := f.File.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.File.Name(), f.filename)
+	return os.Rename(f.Name(), f.filename)
 }
 
 // openReplace opens a new temporary file that is moved to filename on closing.

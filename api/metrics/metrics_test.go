@@ -26,7 +26,7 @@ func Test_NewAlerts(t *testing.T) {
 		r := prometheus.NewRegistry()
 
 		require.NotPanics(t, func() {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				as := NewAlerts(r)
 				as.Firing().Inc()
 				as.Resolved().Inc()
@@ -35,7 +35,7 @@ func Test_NewAlerts(t *testing.T) {
 				mf, err := r.Gather()
 				require.NoError(t, err)
 
-				for j := 0; j < len(mf); j++ {
+				for j := range len(mf) {
 					require.Equal(t, float64(1), mf[j].GetMetric()[0].GetCounter().GetValue())
 				}
 			}
