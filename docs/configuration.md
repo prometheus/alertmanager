@@ -988,6 +988,11 @@ to: <tmpl_string>
 # Note that Go does not support unencrypted connections to remote SMTP endpoints.
 [ require_tls: <bool> | default = global.smtp_require_tls ]
 
+# Force use of implicit TLS (direct TLS connection) for better security.
+# true: force use of implicit TLS (direct TLS connection on any port)
+# nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
+[ implicit_tls: <bool> | default = nil ]
+
 # TLS configuration.
 tls_config:
   [ <tls_config> | default = global.smtp_tls_config ]
@@ -1000,6 +1005,27 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+
+#### Email TLS Configuration Examples
+
+```yaml
+# Example 1: Force implicit TLS on any port (recommended for security)
+receivers:
+  - name: email-implicit-tls
+    email_configs:
+      - to: alerts@example.com
+        smarthost: smtp.example.com:8465
+        implicit_tls: true  # Use direct TLS connection on port 8465
+
+# Example 2: Backward compatible (no implicit_tls specified)
+receivers:
+  - name: email-default
+    email_configs:
+      - to: alerts@example.com
+        smarthost: smtp.example.com:465  # Auto-detects implicit TLS
+      - to: alerts@example.com
+        smarthost: smtp.example.com:587  # Auto-detects explicit TLS
+```
 
 # Email threading configuration.
 threading:
