@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	FeatureAlertsLimitedMetric   = "alerts-limited-metric"
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
@@ -29,6 +30,7 @@ const (
 )
 
 var AllowedFlags = []string{
+	FeatureAlertsLimitedMetric,
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
@@ -42,6 +44,7 @@ type Flagger interface {
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
 	EnableAutoGOMAXPROCS() bool
+	EnableAlertsLimitedMetric() bool
 }
 
 type Flags struct {
@@ -51,6 +54,7 @@ type Flags struct {
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
+	enableAlertsLimitedMetric    bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -71,6 +75,10 @@ func (f *Flags) EnableAutoGOMEMLIMIT() bool {
 
 func (f *Flags) EnableAutoGOMAXPROCS() bool {
 	return f.enableAutoGOMAXPROCS
+}
+
+func (f *Flags) EnableAlertsLimitedMetric() bool {
+	return f.enableAlertsLimitedMetric
 }
 
 type flagOption func(flags *Flags)
@@ -105,6 +113,12 @@ func enableAutoGOMAXPROCS() flagOption {
 	}
 }
 
+func enableAlertsLimitedMetric() flagOption {
+	return func(configs *Flags) {
+		configs.enableAlertsLimitedMetric = true
+	}
+}
+
 func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -130,6 +144,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			logger.Warn("Automatically set GOMAXPROCS to match Linux container CPU quota")
+		case FeatureAlertsLimitedMetric:
+			opts = append(opts, enableAlertsLimitedMetric())
+			logger.Warn("Alerts limited metric enabled")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
@@ -157,3 +174,5 @@ func (n NoopFlags) UTF8StrictMode() bool { return false }
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
+
+func (n NoopFlags) EnableAlertsLimitedMetric() bool { return false }
