@@ -1,4 +1,4 @@
-smarthost: localhost:1026
-server: http://localhost:1081/
+smarthost: maildev-auth:1025
+server: http://maildev-auth:1080/
 username: user
 password: pass

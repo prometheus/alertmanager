@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -117,7 +118,7 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
+func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
@@ -128,7 +129,13 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	}
 
 	fp := alert.Fingerprint().String()
+
 	state := string(status.State)
+	if len(mutedBy) > 0 {
+		// If the alert is muted, change the state to suppressed.
+		state = open_api_models.AlertStatusStateSuppressed
+	}
+
 	aa := &open_api_models.GettableAlert{
 		Alert: open_api_models.Alert{
 			GeneratorURL: strfmt.URI(alert.GeneratorURL),
@@ -144,6 +151,7 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 			State:       &state,
 			SilencedBy:  status.SilencedBy,
 			InhibitedBy: status.InhibitedBy,
+			MutedBy:     mutedBy,
 		},
 	}
 
@@ -155,11 +163,18 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 		aa.Status.InhibitedBy = []string{}
 	}
 
+	if aa.Status.MutedBy == nil {
+		aa.Status.MutedBy = []string{}
+	}
+
 	return aa
 }
 
 // OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*types.Alert.
-func OpenAPIAlertsToAlerts(apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
+	defer span.End()
+
 	alerts := []*types.Alert{}
 	for _, apiAlert := range apiAlerts {
 		alert := types.Alert{

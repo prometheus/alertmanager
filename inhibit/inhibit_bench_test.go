@@ -1,4 +1,4 @@
-// Copyright 2024 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -88,7 +88,7 @@ type benchmarkOptions struct {
 	// It is called n times.
 	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
-	benchFunc func(mutesFunc func(model.LabelSet) bool) error
+	benchFunc func(mutesFunc func(context.Context, model.LabelSet) bool) error
 }
 
 // allRulesMatchBenchmark returns a new benchmark where all inhibition rules
@@ -119,7 +119,7 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		},
 		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
 			var alerts []types.Alert
-			for i := 0; i < numInhibitingAlerts; i++ {
+			for i := range numInhibitingAlerts {
 				alerts = append(alerts, types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -130,8 +130,8 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				})
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
@@ -172,8 +172,8 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 					},
 				},
 			}}
-		}, benchFunc: func(mutesFunc func(set model.LabelSet) bool) error {
-			if ok := mutesFunc(model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
@@ -184,7 +184,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	r := prometheus.NewRegistry()
 	m := types.NewMarker(r)
-	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, nil, log.NewNopLogger(), r)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, nil, promslog.NewNopLogger(), r)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -193,20 +193,19 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	alerts, rules := benchmarkFromOptions(opts)
 	for _, a := range alerts {
 		tmp := a
-		if err = s.Put(&tmp); err != nil {
+		if err = s.Put(context.Background(), &tmp); err != nil {
 			b.Fatal(err)
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, log.NewNopLogger())
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
 
 	// Wait some time for the inhibitor to seed its cache.
 	<-time.After(time.Second)
-	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		require.NoError(b, opts.benchFunc(ih.Mutes))
 	}
 }

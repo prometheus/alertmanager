@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,7 +45,7 @@ func TestMSTeamsV2Retry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 				},
 				test.CreateTmpl(t),
-				log.NewNopLogger(),
+				promslog.NewNopLogger(),
 			)
 			require.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 func TestMSTeamsV2Templating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -155,7 +155,7 @@ func TestMSTeamsV2Templating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.WebhookURL = &config.SecretURL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -194,7 +194,7 @@ func TestMSTeamsV2RedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -205,7 +205,7 @@ func TestMSTeamsV2ReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
@@ -216,7 +216,7 @@ func TestMSTeamsV2ReadingURLFromFile(t *testing.T) {
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 

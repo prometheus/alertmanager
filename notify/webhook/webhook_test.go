@@ -22,8 +22,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -42,7 +42,7 @@ func TestWebhookRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	if err != nil {
 		require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestWebhookRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
@@ -133,7 +133,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 

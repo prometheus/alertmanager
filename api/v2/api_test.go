@@ -26,7 +26,9 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
@@ -38,8 +40,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	"github.com/go-kit/log"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -53,7 +53,15 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 
 	// Test ensures this method call does not panic.
-	status := api.getStatusHandler(general_ops.GetStatusParams{}).(*general_ops.GetStatusOK)
+	status := api.getStatusHandler(
+		general_ops.GetStatusParams{
+			HTTPRequest: httptest.NewRequest(
+				"GET",
+				"/api/v2/status",
+				nil,
+			),
+		},
+	).(*general_ops.GetStatusOK)
 
 	c := status.Payload.Cluster
 
@@ -85,7 +93,7 @@ var (
 )
 
 func newSilences(t *testing.T) *silence.Silences {
-	silences, err := silence.New(silence.Options{})
+	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(t, err)
 
 	return silences
@@ -160,7 +168,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -168,8 +176,8 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	for i, tc := range []struct {
 		sid          string
@@ -191,7 +199,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		api := API{
 			uptime:   time.Now(),
 			silences: silences,
-			logger:   log.NewNopLogger(),
+			logger:   promslog.NewNopLogger(),
 		}
 
 		r, err := http.NewRequest("DELETE", "/api/v2/silence/${tc.sid}", nil)
@@ -222,7 +230,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(unexpiredSil))
+	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
@@ -230,8 +238,8 @@ func TestPostSilencesHandler(t *testing.T) {
 		EndsAt:    now.Add(time.Hour),
 		UpdatedAt: now,
 	}
-	require.NoError(t, silences.Set(expiredSil))
-	require.NoError(t, silences.Expire(expiredSil.Id))
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
 
 	t.Run("Silences CRUD", func(t *testing.T) {
 		for i, tc := range []struct {
@@ -273,7 +281,7 @@ func TestPostSilencesHandler(t *testing.T) {
 				api := API{
 					uptime:   time.Now(),
 					silences: silences,
-					logger:   log.NewNopLogger(),
+					logger:   promslog.NewNopLogger(),
 				}
 
 				sil := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
@@ -292,7 +300,7 @@ func TestPostSilencesHandlerMissingIdCreatesSilence(t *testing.T) {
 	api := API{
 		uptime:   time.Now(),
 		silences: silences,
-		logger:   log.NewNopLogger(),
+		logger:   promslog.NewNopLogger(),
 	}
 
 	// Create a new silence. It should be assigned a random UUID.
@@ -483,16 +491,11 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
 			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
-		},
-		Status: &open_api_models.AlertStatus{
-			State:       &active,
-			InhibitedBy: []string{},
-			SilencedBy:  []string{},
 		},
 		StartsAt:    convertDateTime(start),
 		EndsAt:      convertDateTime(time.Time{}),
@@ -501,6 +504,12 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		Receivers: []*open_api_models.Receiver{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+			MutedBy:     []string{},
 		},
 	}, openAPIAlert)
 }
@@ -555,7 +564,7 @@ receivers:
 	cfg, _ := config.Load(in)
 	api := API{
 		uptime:             time.Now(),
-		logger:             log.NewNopLogger(),
+		logger:             promslog.NewNopLogger(),
 		alertmanagerConfig: cfg,
 	}
 

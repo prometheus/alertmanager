@@ -15,9 +15,8 @@ package jira
 
 import (
 	"encoding/json"
+	"maps"
 )
-
-type templateFunc func(string) (string, error)
 
 type issue struct {
 	Key        string       `json:"key,omitempty"`
@@ -26,13 +25,13 @@ type issue struct {
 }
 
 type issueFields struct {
-	Description any           `json:"description"`
+	Description *string       `json:"description,omitempty"`
 	Issuetype   *idNameValue  `json:"issuetype,omitempty"`
 	Labels      []string      `json:"labels,omitempty"`
 	Priority    *idNameValue  `json:"priority,omitempty"`
 	Project     *issueProject `json:"project,omitempty"`
 	Resolution  *idNameValue  `json:"resolution,omitempty"`
-	Summary     string        `json:"summary"`
+	Summary     *string       `json:"summary,omitempty"`
 	Status      *issueStatus  `json:"status,omitempty"`
 
 	Fields map[string]any `json:"-"`
@@ -70,11 +69,15 @@ type issueTransitions struct {
 
 // MarshalJSON merges the struct issueFields and issueFields.CustomField together.
 func (i issueFields) MarshalJSON() ([]byte, error) {
-	jsonFields := map[string]interface{}{
-		"description": i.Description,
-		"summary":     i.Summary,
+	jsonFields := map[string]any{}
+
+	if i.Summary != nil {
+		jsonFields["summary"] = *i.Summary
 	}
 
+	if i.Description != nil {
+		jsonFields["description"] = *i.Description
+	}
 	if i.Issuetype != nil {
 		jsonFields["issuetype"] = i.Issuetype
 	}
@@ -99,9 +102,7 @@ func (i issueFields) MarshalJSON() ([]byte, error) {
 		jsonFields["status"] = i.Status
 	}
 
-	for key, field := range i.Fields {
-		jsonFields[key] = field
-	}
+	maps.Copy(jsonFields, i.Fields)
 
 	return json.Marshal(jsonFields)
 }

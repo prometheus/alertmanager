@@ -120,3 +120,8 @@ receivers:
   - name: 'team-DB-pager'
     pagerduty_configs:
       - service_key: <team-DB-key>
+
+tracing:
+  endpoint: localhost:4317
+  insecure: true
+  sampling_fraction: 1.0

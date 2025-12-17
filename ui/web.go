@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,11 +15,12 @@ package ui
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
+	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 
@@ -27,7 +28,7 @@ import (
 )
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
@@ -87,8 +88,17 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
-	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
+	debugHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		subpath := route.Param(req.Context(), "subpath")
+		req.URL.Path = path.Join("/debug", subpath)
+		// path.Join removes trailing slashes, but some pprof handlers expect them.
+		if strings.HasSuffix(subpath, "/") && !strings.HasSuffix(req.URL.Path, "/") {
+			req.URL.Path += "/"
+		}
+		http.DefaultServeMux.ServeHTTP(w, req)
+	}
+	r.Get("/debug/*subpath", debugHandlerFunc)
+	r.Post("/debug/*subpath", debugHandlerFunc)
 }
 
 func disableCaching(w http.ResponseWriter) {

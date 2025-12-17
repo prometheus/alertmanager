@@ -14,30 +14,21 @@
 package test
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
+	"maps"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
-	"syscall"
 	"testing"
 	"time"
 
-	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 
-	apiclient "github.com/prometheus/alertmanager/api/v2/client"
-	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/test/testutils"
 )
 
 const (
@@ -46,72 +37,24 @@ const (
 	amtool = "../../../amtool"
 )
 
-// AcceptanceTest provides declarative definition of given inputs and expected
-// output of an Alertmanager setup.
+// Re-export common types from testutils.
+type (
+	Collector      = testutils.Collector
+	AcceptanceOpts = testutils.AcceptanceOpts
+)
+
+var CompareCollectors = testutils.CompareCollectors
+
+// AcceptanceTest wraps testutils.AcceptanceTest for CLI-based testing.
 type AcceptanceTest struct {
-	*testing.T
-
-	opts *AcceptanceOpts
-
-	amc        *AlertmanagerCluster
-	collectors []*Collector
-
-	actions map[float64][]func()
+	*testutils.AcceptanceTest
 }
 
-// AcceptanceOpts defines configuration parameters for an acceptance test.
-type AcceptanceOpts struct {
-	RoutePrefix string
-	Tolerance   time.Duration
-	baseTime    time.Time
-}
-
-func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
-	if a.EndsAt == nil || time.Time(*a.EndsAt).IsZero() {
-		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(*a.StartsAt)))
-	}
-	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(*a.StartsAt)), opts.relativeTime(time.Time(*a.EndsAt)))
-}
-
-// expandTime returns the absolute time for the relative time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) expandTime(rel float64) time.Time {
-	return opts.baseTime.Add(time.Duration(rel * float64(time.Second)))
-}
-
-// expandTime returns the relative time for the given time
-// calculated from the test's base time.
-func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
-	return float64(act.Sub(opts.baseTime)) / float64(time.Second)
-}
-
-// NewAcceptanceTest returns a new acceptance test with the base time
-// set to the current time.
+// NewAcceptanceTest returns a new acceptance test.
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
-	test := &AcceptanceTest{
-		T:       t,
-		opts:    opts,
-		actions: map[float64][]func(){},
+	return &AcceptanceTest{
+		AcceptanceTest: testutils.NewAcceptanceTest(t, opts),
 	}
-
-	return test
-}
-
-// freeAddress returns a new listen address not currently in use.
-func freeAddress() string {
-	// Let the OS allocate a free address, close it and hope
-	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	return l.Addr().String()
 }
 
 // AmtoolOk verifies that the "amtool" file exists in the correct location for testing,
@@ -126,340 +69,37 @@ func AmtoolOk() (bool, error) {
 	return true, nil
 }
 
-// Do sets the given function to be executed at the given time.
-func (t *AcceptanceTest) Do(at float64, f func()) {
-	t.actions[at] = append(t.actions[at], f)
-}
-
-// AlertmanagerCluster returns a new AlertmanagerCluster that allows starting a
-// cluster of Alertmanager instances on random ports.
-func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *AlertmanagerCluster {
-	amc := AlertmanagerCluster{}
-
-	for i := 0; i < size; i++ {
-		am := &Alertmanager{
-			t:    t,
-			opts: t.opts,
-		}
-
-		dir, err := os.MkdirTemp("", "am_test")
-		if err != nil {
-			t.Fatal(err)
-		}
-		am.dir = dir
-
-		cf, err := os.Create(filepath.Join(dir, "config.yml"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		am.confFile = cf
-		am.UpdateConfig(conf)
-
-		am.apiAddr = freeAddress()
-		am.clusterAddr = freeAddress()
-
-		transport := httptransport.New(am.apiAddr, t.opts.RoutePrefix+"/api/v2/", nil)
-		am.clientV2 = apiclient.New(transport, strfmt.Default)
-
-		amc.ams = append(amc.ams, am)
-	}
-
-	t.amc = &amc
-
-	return &amc
-}
-
-// Collector returns a new collector bound to the test instance.
-func (t *AcceptanceTest) Collector(name string) *Collector {
-	co := &Collector{
-		t:         t.T,
-		name:      name,
-		opts:      t.opts,
-		collected: map[float64][]models.GettableAlerts{},
-		expected:  map[Interval][]models.GettableAlerts{},
-	}
-	t.collectors = append(t.collectors, co)
-
-	return co
-}
-
-// Run starts all Alertmanagers and runs queries against them. It then checks
-// whether all expected notifications have arrived at the expected receiver.
-func (t *AcceptanceTest) Run() {
-	errc := make(chan error)
-
-	for _, am := range t.amc.ams {
-		am.errc = errc
-		defer func(am *Alertmanager) {
-			am.Terminate()
-			am.cleanup()
-			t.Logf("stdout:\n%v", am.cmd.Stdout)
-			t.Logf("stderr:\n%v", am.cmd.Stderr)
-		}(am)
-	}
-
-	err := t.amc.Start()
-	if err != nil {
-		t.T.Fatal(err)
-	}
-
-	// Set the reference time right before running the test actions to avoid
-	// test failures due to slow setup of the test environment.
-	t.opts.baseTime = time.Now()
-
-	go t.runActions()
-
-	var latest float64
-	for _, coll := range t.collectors {
-		if l := coll.latest(); l > latest {
-			latest = l
-		}
-	}
-
-	deadline := t.opts.expandTime(latest)
-
-	select {
-	case <-time.After(time.Until(deadline)):
-		// continue
-	case err := <-errc:
-		t.Error(err)
-	}
-}
-
-// runActions performs the stored actions at the defined times.
-func (t *AcceptanceTest) runActions() {
-	var wg sync.WaitGroup
-
-	for at, fs := range t.actions {
-		ts := t.opts.expandTime(at)
-		wg.Add(len(fs))
-
-		for _, f := range fs {
-			go func(f func()) {
-				time.Sleep(time.Until(ts))
-				f()
-				wg.Done()
-			}(f)
-		}
-	}
-
-	wg.Wait()
-}
-
-type buffer struct {
-	b   bytes.Buffer
-	mtx sync.Mutex
-}
-
-func (b *buffer) Write(p []byte) (int, error) {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	return b.b.Write(p)
-}
-
-func (b *buffer) String() string {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	return b.b.String()
-}
-
-// Alertmanager encapsulates an Alertmanager process and allows
-// declaring alerts being pushed to it at fixed points in time.
+// Alertmanager wraps testutils.Alertmanager and adds CLI-specific methods.
 type Alertmanager struct {
-	t    *AcceptanceTest
-	opts *AcceptanceOpts
-
-	apiAddr     string
-	clusterAddr string
-	clientV2    *apiclient.AlertmanagerAPI
-	cmd         *exec.Cmd
-	confFile    *os.File
-	dir         string
-
-	errc chan<- error
+	*testutils.Alertmanager
 }
 
-// AlertmanagerCluster represents a group of Alertmanager instances
-// acting as a cluster.
+// AlertmanagerCluster wraps testutils.AlertmanagerCluster and adds CLI-specific methods.
 type AlertmanagerCluster struct {
-	ams []*Alertmanager
+	*testutils.AlertmanagerCluster
 }
 
-// Start the Alertmanager cluster and wait until it is ready to receive.
-func (amc *AlertmanagerCluster) Start() error {
-	var peerFlags []string
-	for _, am := range amc.ams {
-		peerFlags = append(peerFlags, "--cluster.peer="+am.clusterAddr)
+// AlertmanagerCluster returns a new AlertmanagerCluster.
+func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *AlertmanagerCluster {
+	return &AlertmanagerCluster{
+		AlertmanagerCluster: t.AcceptanceTest.AlertmanagerCluster(conf, size),
 	}
-
-	for _, am := range amc.ams {
-		err := am.Start(peerFlags)
-		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %w", err)
-		}
-	}
-
-	for _, am := range amc.ams {
-		err := am.WaitForCluster(len(amc.ams))
-		if err != nil {
-			return fmt.Errorf("waiting alertmanager cluster: %w", err)
-		}
-	}
-
-	return nil
 }
 
-// Members returns the underlying slice of cluster members.
+// Members returns the underlying Alertmanager instances wrapped for CLI testing.
 func (amc *AlertmanagerCluster) Members() []*Alertmanager {
-	return amc.ams
+	baseMembers := amc.AlertmanagerCluster.Members()
+	wrapped := make([]*Alertmanager, len(baseMembers))
+	for i, am := range baseMembers {
+		wrapped[i] = &Alertmanager{Alertmanager: am}
+	}
+	return wrapped
 }
 
-// Start the alertmanager and wait until it is ready to receive.
-func (am *Alertmanager) Start(additionalArg []string) error {
-	am.t.Helper()
-	args := []string{
-		"--config.file", am.confFile.Name(),
-		"--log.level", "debug",
-		"--web.listen-address", am.apiAddr,
-		"--storage.path", am.dir,
-		"--cluster.listen-address", am.clusterAddr,
-		"--cluster.settle-timeout", "0s",
-	}
-	if am.opts.RoutePrefix != "" {
-		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
-	}
-	args = append(args, additionalArg...)
-
-	cmd := exec.Command("../../../alertmanager", args...)
-
-	if am.cmd == nil {
-		var outb, errb buffer
-		cmd.Stdout = &outb
-		cmd.Stderr = &errb
-	} else {
-		cmd.Stdout = am.cmd.Stdout
-		cmd.Stderr = am.cmd.Stderr
-	}
-	am.cmd = cmd
-
-	if err := am.cmd.Start(); err != nil {
-		return fmt.Errorf("starting alertmanager failed: %w", err)
-	}
-
-	go func() {
-		if err := am.cmd.Wait(); err != nil {
-			am.errc <- err
-		}
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	for i := 0; i < 10; i++ {
-		resp, err := http.Get(am.getURL("/"))
-		if err != nil {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
-		}
-		_, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("starting alertmanager failed: %w", err)
-		}
-		return nil
-	}
-	return fmt.Errorf("starting alertmanager failed: timeout")
-}
-
-// WaitForCluster waits for the Alertmanager instance to join a cluster with the
-// given size.
-func (am *Alertmanager) WaitForCluster(size int) error {
-	params := general.NewGetStatusParams()
-	params.WithContext(context.Background())
-	var status general.GetStatusOK
-
-	// Poll for 2s
-	for i := 0; i < 20; i++ {
-		status, err := am.clientV2.General.GetStatus(params)
-		if err != nil {
-			return err
-		}
-
-		if len(status.Payload.Cluster.Peers) == size {
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	return fmt.Errorf(
-		"failed to wait for Alertmanager instance %q to join cluster: expected %v peers, but got %v",
-		am.clusterAddr,
-		size,
-		len(status.Payload.Cluster.Peers),
-	)
-}
-
-// Terminate kills the underlying Alertmanager cluster processes and removes intermediate
-// data.
-func (amc *AlertmanagerCluster) Terminate() {
-	for _, am := range amc.ams {
-		am.Terminate()
-	}
-}
-
-// Terminate kills the underlying Alertmanager process and remove intermediate
-// data.
-func (am *Alertmanager) Terminate() {
-	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
-	}
-}
-
-// Reload sends the reloading signal to the Alertmanager instances.
-func (amc *AlertmanagerCluster) Reload() {
-	for _, am := range amc.ams {
-		am.Reload()
-	}
-}
-
-// Reload sends the reloading signal to the Alertmanager process.
-func (am *Alertmanager) Reload() {
-	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
-	}
-}
-
-func (am *Alertmanager) cleanup() {
-	am.t.Helper()
-	if err := os.RemoveAll(am.confFile.Name()); err != nil {
-		am.t.Errorf("Error removing test config file %q: %v", am.confFile.Name(), err)
-	}
-}
-
-// Version runs the 'amtool' command with the --version option and checks
-// for appropriate output.
-func Version() (string, error) {
-	cmd := exec.Command(amtool, "--version")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-
-	versionRE := regexp.MustCompile(`^amtool, version (\d+\.\d+\.\d+) *`)
-	matched := versionRE.FindStringSubmatch(string(out))
-	if len(matched) != 2 {
-		return "", errors.New("Unable to match version info regex: " + string(out))
-	}
-	return matched[1], nil
-}
-
-// AddAlertsAt declares alerts that are to be added to the Alertmanager
-// server at a relative point in time.
+// AddAlertsAt declares alerts that are to be added to the Alertmanager server
+// at a relative point in time.
 func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*TestAlert) {
-	am.t.Do(at, func() {
+	am.T.Do(at, func() {
 		am.AddAlerts(omitEquals, alerts...)
 	})
 }
@@ -475,7 +115,7 @@ func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
 	for _, alert := range alerts {
 		out, err := am.addAlertCommand(omitEquals, alert)
 		if err != nil {
-			am.t.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
+			am.T.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
@@ -484,10 +124,8 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
-	labels := make(models.LabelSet, len(alert.labels))
-	for k, v := range alert.labels {
-		labels[k] = v
-	}
+	labels := make(models.LabelSet, len(alert.Labels))
+	maps.Copy(labels, alert.Labels)
 	if omitEquals {
 		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
@@ -499,10 +137,10 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	for k, v := range labels {
 		args = append(args, k+"="+v)
 	}
-	startsAt := strfmt.DateTime(am.opts.expandTime(alert.startsAt))
+	startsAt := strfmt.DateTime(am.Opts.ExpandTime(alert.StartsAt))
 	args = append(args, "--start="+startsAt.String())
-	if alert.endsAt > alert.startsAt {
-		endsAt := strfmt.DateTime(am.opts.expandTime(alert.endsAt))
+	if alert.EndsAt > alert.StartsAt {
+		endsAt := strfmt.DateTime(am.Opts.ExpandTime(alert.EndsAt))
 		args = append(args, "--end="+endsAt.String())
 	}
 	cmd := exec.Command(amtool, args...)
@@ -542,9 +180,9 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 		}
 		summary := strings.TrimSpace(line[summPos:])
 		alert := TestAlert{
-			labels:   models.LabelSet{"alertname": alertName},
-			startsAt: float64(startsAt.Unix()),
-			summary:  summary,
+			Labels:   models.LabelSet{"alertname": alertName},
+			StartsAt: float64(startsAt.Unix()),
+			Summary:  summary,
 		}
 		alerts = append(alerts, alert)
 	}
@@ -553,7 +191,7 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 
 // SetSilence updates or creates the given Silence.
 func (amc *AlertmanagerCluster) SetSilence(at float64, sil *TestSilence) {
-	for _, am := range amc.ams {
+	for _, am := range amc.Members() {
 		am.SetSilence(at, sil)
 	}
 }
@@ -562,7 +200,7 @@ func (amc *AlertmanagerCluster) SetSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	out, err := am.addSilenceCommand(sil)
 	if err != nil {
-		am.t.T.Errorf("Unable to set silence %v %v", err, string(out))
+		am.T.Errorf("Unable to set silence %v %v", err, string(out))
 	}
 }
 
@@ -585,7 +223,19 @@ func (am *Alertmanager) QuerySilence(match ...string) ([]TestSilence, error) {
 	cmd := exec.Command(amtool, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		am.t.T.Error("Silence query command failed: ", err)
+		am.T.Error("Silence query command failed: ", err)
+	}
+	return parseSilenceQueryResponse(out)
+}
+
+// QueryExpiredSilence queries expired silences using the 'amtool silence query --expired --within' command.
+func (am *Alertmanager) QueryExpiredSilence(match ...string) ([]TestSilence, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := append([]string{amURLFlag, "silence", "query", "--expired", "--within=1h"}, match...)
+	cmd := exec.Command(amtool, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		am.T.Error("Silence query command failed: ", err)
 	}
 	return parseSilenceQueryResponse(out)
 }
@@ -636,7 +286,7 @@ func parseSilenceQueryResponse(data []byte) ([]TestSilence, error) {
 
 // DelSilence deletes the silence with the sid at the given time.
 func (amc *AlertmanagerCluster) DelSilence(at float64, sil *TestSilence) {
-	for _, am := range amc.ams {
+	for _, am := range amc.Members() {
 		am.DelSilence(at, sil)
 	}
 }
@@ -645,7 +295,7 @@ func (amc *AlertmanagerCluster) DelSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	output, err := am.expireSilenceCommand(sil)
 	if err != nil {
-		am.t.Errorf("Error expiring silence %v: %s", string(output), err)
+		am.T.Errorf("Error expiring silence %v: %s", string(output), err)
 		return
 	}
 }
@@ -658,27 +308,31 @@ func (am *Alertmanager) expireSilenceCommand(sil *TestSilence) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// UpdateConfig rewrites the configuration file for the Alertmanager cluster. It
-// does not initiate config reloading.
-func (amc *AlertmanagerCluster) UpdateConfig(conf string) {
-	for _, am := range amc.ams {
-		am.UpdateConfig(conf)
-	}
+// ExportSilences exports all silences to JSON format using 'amtool silence query -o json'.
+func (am *Alertmanager) ExportSilences() ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "query", "-o", "json"}
+	cmd := exec.Command(amtool, args...)
+	return cmd.Output()
 }
 
-// UpdateConfig rewrites the configuration file for the Alertmanager. It does not
-// initiate config reloading.
-func (am *Alertmanager) UpdateConfig(conf string) {
-	if _, err := am.confFile.WriteString(conf); err != nil {
-		am.t.Fatal(err)
-		return
-	}
-	if err := am.confFile.Sync(); err != nil {
-		am.t.Fatal(err)
-		return
-	}
+// ImportSilences imports silences from a JSON file using 'amtool silence import'.
+func (am *Alertmanager) ImportSilences(filename string) ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "import", filename}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
 }
 
+// ExpireSilenceByID expires a silence by its ID using 'amtool silence expire'.
+func (am *Alertmanager) ExpireSilenceByID(id string) ([]byte, error) {
+	amURLFlag := "--alertmanager.url=" + am.getURL("/")
+	args := []string{amURLFlag, "silence", "expire", id}
+	cmd := exec.Command(amtool, args...)
+	return cmd.CombinedOutput()
+}
+
+// ShowRoute shows the routing tree using 'amtool config routes show'.
 func (am *Alertmanager) ShowRoute() ([]byte, error) {
 	return am.showRouteCommand()
 }
@@ -690,6 +344,7 @@ func (am *Alertmanager) showRouteCommand() ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+// TestRoute tests label matching against the routing tree using 'amtool config routes test'.
 func (am *Alertmanager) TestRoute(labels ...string) ([]byte, error) {
 	return am.testRouteCommand(labels...)
 }
@@ -702,5 +357,22 @@ func (am *Alertmanager) testRouteCommand(labels ...string) ([]byte, error) {
 }
 
 func (am *Alertmanager) getURL(path string) string {
-	return fmt.Sprintf("http://%s%s%s", am.apiAddr, am.opts.RoutePrefix, path)
+	return fmt.Sprintf("http://%s%s%s", am.APIAddr(), am.Opts.RoutePrefix, path)
+}
+
+// Version runs the 'amtool' command with the --version option and checks
+// for appropriate output.
+func Version() (string, error) {
+	cmd := exec.Command(amtool, "--version")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+
+	versionRE := regexp.MustCompile(`^amtool, version (\d+\.\d+\.\d+) *`)
+	matched := versionRE.FindStringSubmatch(string(out))
+	if len(matched) != 2 {
+		return "", errors.New("Unable to match version info regex: " + string(out))
+	}
+	return matched[1], nil
 }

@@ -14,15 +14,18 @@
 package pushover
 
 import (
+	"net/http"
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPushoverRetry(t *testing.T) {
@@ -31,7 +34,7 @@ func TestPushoverRetry(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
@@ -52,7 +55,7 @@ func TestPushoverRedactedURL(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 	notifier.apiURL = u.String()
@@ -65,7 +68,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 	defer fn()
 
 	const userKey = "user key"
-	f, err := os.CreateTemp("", "pushover_user_key")
+	f, err := os.CreateTemp(t.TempDir(), "pushover_user_key")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(userKey)
 	require.NoError(t, err, "writing to temp file failed")
@@ -77,7 +80,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
@@ -90,7 +93,7 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	defer fn()
 
 	const token = "token"
-	f, err := os.CreateTemp("", "pushover_token")
+	f, err := os.CreateTemp(t.TempDir(), "pushover_token")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(token)
 	require.NoError(t, err, "writing to temp file failed")
@@ -102,10 +105,34 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
-		log.NewNopLogger(),
+		promslog.NewNopLogger(),
 	)
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, token)
+}
+
+func TestPushoverMonospaceParameter(t *testing.T) {
+	ctx, apiURL, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "1", r.FormValue("monospace"), `expected monospace parameter to be set to "1"`)
+	})
+	defer fn()
+
+	notifier, err := New(
+		&config.PushoverConfig{
+			UserKey:    config.Secret("user_key"),
+			Token:      config.Secret("token"),
+			Monospace:  true,
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	notifier.apiURL = apiURL.String()
+	require.NoError(t, err)
+
+	_, err = notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.Alert{})
+	require.NoError(t, err)
 }

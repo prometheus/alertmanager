@@ -14,6 +14,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/prometheus/common/model"
@@ -23,6 +24,12 @@ import (
 
 // ErrNotFound is returned if a provider cannot find a requested item.
 var ErrNotFound = fmt.Errorf("item not found")
+
+type Alert struct {
+	// Header contains metadata, for example propagated tracing information.
+	Header map[string]string
+	Data   *types.Alert
+}
 
 // Iterator provides the functions common to all iterators. To be useful, a
 // specific iterator interface (e.g. AlertIterator) has to be implemented that
@@ -44,11 +51,11 @@ type AlertIterator interface {
 	// exhausted. It is not necessary to exhaust the iterator but Close must
 	// be called in any case to release resources used by the iterator (even
 	// if the iterator is exhausted).
-	Next() <-chan *types.Alert
+	Next() <-chan *Alert
 }
 
 // NewAlertIterator returns a new AlertIterator based on the generic alertIterator type.
-func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
+func NewAlertIterator(ch <-chan *Alert, done chan struct{}, err error) AlertIterator {
 	return &alertIterator{
 		ch:   ch,
 		done: done,
@@ -58,12 +65,12 @@ func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) Ale
 
 // alertIterator implements AlertIterator. So far, this one fits all providers.
 type alertIterator struct {
-	ch   <-chan *types.Alert
+	ch   <-chan *Alert
 	done chan struct{}
 	err  error
 }
 
-func (ai alertIterator) Next() <-chan *types.Alert {
+func (ai alertIterator) Next() <-chan *Alert {
 	return ai.ch
 }
 
@@ -75,12 +82,24 @@ type Alerts interface {
 	// Subscribe returns an iterator over active alerts that have not been
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
-	Subscribe() AlertIterator
+	Subscribe(name string) AlertIterator
+
+	// SlurpAndSubcribe returns a list of all active alerts which are available
+	// in the provider before the call to SlurpAndSubcribe and an iterator
+	// of all alerts available after the call to SlurpAndSubcribe.
+	// SlurpAndSubcribe can be used by clients which need to build in memory state
+	// to know when they've processed the 'initial' batch of alerts in a provider
+	// after they reload their subscription.
+	// Implementation of SlurpAndSubcribe is optional - providers may choose to
+	// return an empty list for the first return value and the result of Subscribe
+	// for the second return value.
+	SlurpAndSubscribe(name string) ([]*types.Alert, AlertIterator)
+
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
 	GetPending() AlertIterator
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given set of alerts to the set.
-	Put(...*types.Alert) error
+	Put(ctx context.Context, alerts ...*types.Alert) error
 }

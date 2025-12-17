@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"testing"
@@ -30,7 +32,6 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func TestSyncTimer(t *testing.T) {
 	now := time.Now()
 
 	buf := &logBuf{t: t, b: []string{}}
-	logger := log.NewJSONLogger(buf)
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
 	if err != nil {
@@ -98,9 +99,9 @@ func TestSyncTimer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	go dispatcher.Run()
+	go dispatcher.Run(time.Now())
 
-	alerts.Put(newAlert(model.LabelSet{"alertname": "TestingAlert"}))
+	alerts.Put(context.Background(), newAlert(model.LabelSet{"alertname": "TestingAlert"}))
 
 	var i int
 	for {
@@ -195,7 +196,7 @@ func TestSyncTimer_getFirstFlushTime(t *testing.T) {
 			flushlog := &mockLog{t: t, queryCalls: []mockQueryCall{tc.queryCall}}
 			st := &syncTimer{
 				flushLog:         flushlog,
-				logger:           log.NewNopLogger(),
+				logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 				groupFingerprint: 0,
 			}
 			ft, err := st.getFirstFlushTime()
@@ -269,7 +270,7 @@ func TestSyncTimer_getNextTick(t *testing.T) {
 			flushlog := &mockLog{t: t, queryCalls: []mockQueryCall{tc.queryCall}}
 			st := &syncTimer{
 				flushLog:      flushlog,
-				logger:        log.NewNopLogger(),
+				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 				groupInterval: time.Millisecond * 10,
 			}
 			ft, err := st.getNextTick(tc.now)
@@ -350,7 +351,7 @@ func TestSyncTimer_nextFlushIteration(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			st := &syncTimer{
-				logger:        log.NewNopLogger(),
+				logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 				groupInterval: time.Millisecond * 10,
 			}
 			fi := st.nextFlushIteration(tc.firstFlush, tc.now)
@@ -509,7 +510,7 @@ func BenchmarkStdTimer(b *testing.B) {
 }
 
 func benchTimer(timerFactoryBuilder func(*mockLog) TimerFactory, b *testing.B) {
-	logger := log.NewNopLogger()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
 	if err != nil {
@@ -540,10 +541,10 @@ func benchTimer(timerFactoryBuilder func(*mockLog) TimerFactory, b *testing.B) {
 	b.StartTimer()
 	defer b.StopTimer()
 
-	go dispatcher.Run()
+	go dispatcher.Run(time.Now())
 
 	for i := 0; i < n; i++ {
-		alerts.Put(as...)
+		alerts.Put(context.Background(), as...)
 	}
 
 	var i int
@@ -565,8 +566,8 @@ func newTestDispatcher(
 	groupInterval time.Duration,
 	alerts *mem.Alerts,
 	stage notify.Stage,
-	marker types.Marker,
-	logger log.Logger,
+	marker types.GroupMarker,
+	logger *slog.Logger,
 	timerFactory TimerFactory,
 ) (*Dispatcher, error) {
 	confData := fmt.Sprintf(`receivers:
@@ -586,14 +587,14 @@ route:
 	route := NewRoute(conf.Route, nil)
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 
-	return NewDispatcher(alerts, route, stage, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), timerFactory), nil
+	return NewDispatcher(alerts, route, stage, marker, timeout, time.Millisecond, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()), timerFactory), nil
 }
 
 type pubStage struct {
 	c chan struct{}
 }
 
-func (b *pubStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (b *pubStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	b.c <- struct{}{}
 	return ctx, nil, nil
 }

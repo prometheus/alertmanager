@@ -23,6 +23,10 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 type sendResolved bool
 
 func (s sendResolved) SendResolved() bool { return bool(s) }
@@ -49,8 +53,8 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 				},
 			},
 			exp: []*notify.Integration{
-				notify.NewIntegration(nil, sendResolved(false), "webhook", 0, "foo"),
-				notify.NewIntegration(nil, sendResolved(true), "webhook", 1, "foo"),
+				ptr(notify.NewIntegration(nil, sendResolved(false), "webhook", 0, "foo")),
+				ptr(notify.NewIntegration(nil, sendResolved(true), "webhook", 1, "foo")),
 			},
 		},
 		{
@@ -69,7 +73,6 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			err: true,
 		},
 	} {
-		tc := tc
 		t.Run("", func(t *testing.T) {
 			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
 			if tc.err {
