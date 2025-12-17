@@ -130,7 +130,17 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		err     error
 		success = false
 	)
-	if n.conf.Smarthost.Port == "465" {
+	// Determine whether to use Implicit TLS
+	var useImplicitTLS bool
+	if n.conf.ImplicitTLS != nil && *n.conf.ImplicitTLS {
+		// User explicitly configured to use implicit TLS
+		useImplicitTLS = true
+	} else {
+		// Default logic: port 465 uses implicit TLS (backward compatibility)
+		useImplicitTLS = n.conf.Smarthost.Port == "465"
+	}
+
+	if useImplicitTLS {
 		tlsConfig, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
@@ -173,7 +183,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
-	if *n.conf.RequireTLS {
+	if *n.conf.RequireTLS && !useImplicitTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
