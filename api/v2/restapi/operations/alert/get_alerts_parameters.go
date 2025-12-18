@@ -64,7 +64,7 @@ type GetAlertsParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
-	/*Show active alerts
+	/*Include active alerts in results. If false, excludes active alerts and returns only suppressed (silenced or inhibited) alerts.
 	  In: query
 	  Default: true
 	*/
@@ -74,7 +74,7 @@ type GetAlertsParams struct {
 	  Collection Format: multi
 	*/
 	Filter []string
-	/*Show inhibited alerts
+	/*Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.
 	  In: query
 	  Default: true
 	*/
@@ -83,12 +83,12 @@ type GetAlertsParams struct {
 	  In: query
 	*/
 	Receiver *string
-	/*Show silenced alerts
+	/*Include silenced alerts in results. If false, excludes silenced alerts. Note that true (default) shows both silenced and non-silenced alerts.
 	  In: query
 	  Default: true
 	*/
 	Silenced *bool
-	/*Show unprocessed alerts
+	/*Include unprocessed alerts in results. If false, excludes unprocessed alerts. Note that true (default) shows both processed and unprocessed alerts.
 	  In: query
 	  Default: true
 	*/

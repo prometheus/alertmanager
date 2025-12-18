@@ -78,7 +78,7 @@ type GetAlertsParams struct {
 
 	/* Active.
 
-	   Show active alerts
+	   Include active alerts in results. If false, excludes active alerts and returns only suppressed (silenced or inhibited) alerts.
 
 	   Default: true
 	*/
@@ -92,7 +92,7 @@ type GetAlertsParams struct {
 
 	/* Inhibited.
 
-	   Show inhibited alerts
+	   Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.
 
 	   Default: true
 	*/
@@ -106,7 +106,7 @@ type GetAlertsParams struct {
 
 	/* Silenced.
 
-	   Show silenced alerts
+	   Include silenced alerts in results. If false, excludes silenced alerts. Note that true (default) shows both silenced and non-silenced alerts.
 
 	   Default: true
 	*/
@@ -114,7 +114,7 @@ type GetAlertsParams struct {
 
 	/* Unprocessed.
 
-	   Show unprocessed alerts
+	   Include unprocessed alerts in results. If false, excludes unprocessed alerts. Note that true (default) shows both processed and unprocessed alerts.
 
 	   Default: true
 	*/
