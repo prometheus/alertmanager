@@ -665,15 +665,16 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret   Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID      string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
-	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	APISecret     Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	APISecretFile string `yaml:"api_secret_file,omitempty" json:"api_secret_file,omitempty"`
+	CorpID        string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser        string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty       string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag         string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID       string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType   string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
 
 const wechatValidTypesRe = `^(text|markdown)$`
@@ -694,6 +695,10 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if !wechatTypeMatcher.MatchString(c.MessageType) {
 		return fmt.Errorf("weChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
+	}
+
+	if c.APISecret != "" && len(c.APISecretFile) > 0 {
+		return errors.New("at most one of api_secret & api_secret_file must be configured")
 	}
 
 	return nil
