@@ -565,6 +565,111 @@ receivers:
 	require.Contains(t, string(out), "couldn't import 2 out of 5 silences", "error message should report 2 failures out of 5")
 }
 
+func TestGroupingOnConfigReload(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  8s
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := amc.Members()[0]
+
+	alert1 := Alert("alertname", "test1", "tag", "one").Active(1, 400)
+	am.AddAlertsAt(false, 0, alert1)
+	co.Want(Between(1, 2), Alert("alertname", "test1", "tag", "one").Active(1))
+
+	alert2 := Alert("alertname", "test1", "tag", "two").Active(4, 402)
+	am.AddAlertsAt(false, 4, alert2)
+
+	// Force a config re-load
+	at.Do(5, func() { amc.Reload() })
+
+	// No alert as result of the config reloading.
+	co.Want(Between(3, 8))
+
+	// The group_interval should deliver the second alert of the group.
+	co.Want(Between(9, 10),
+		Alert("alertname", "test1", "tag", "one").Active(1),
+		Alert("alertname", "test1", "tag", "two").Active(4),
+	)
+
+	at.Run()
+
+	t.Log(co.Check())
+}
+
+func TestGroupingOnConfigReload_LongWait(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait:      1s
+  group_interval:  8s
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := amc.Members()[0]
+
+	alert1 := Alert("alertname", "test1", "tag", "one").Active(1, 400)
+	am.AddAlertsAt(false, 0, alert1)
+	co.Want(Between(1, 2), Alert("alertname", "test1", "tag", "one").Active(1))
+
+	// No alert for another group_interval.
+	co.Want(Between(3, 18))
+
+	// Force a config re-load
+	at.Do(19, func() { amc.Reload() })
+
+	// No alert as result of the config reloading.
+	co.Want(Between(18, 26))
+
+	alert2 := Alert("alertname", "test1", "tag", "two").Active(26, 402)
+	am.AddAlertsAt(false, 26, alert2)
+
+	// The group_interval should deliver the second alert of the group.
+	co.Want(Between(33, 34),
+		Alert("alertname", "test1", "tag", "one").Active(1),
+		Alert("alertname", "test1", "tag", "two").Active(26),
+	)
+
+	at.Run()
+
+	t.Log(co.Check())
+}
+
 func ptrString(s string) *string { return &s }
 func ptrBool(b bool) *bool       { return &b }
 func ptrTime(t time.Time) *strfmt.DateTime {

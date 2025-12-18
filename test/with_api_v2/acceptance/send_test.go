@@ -468,8 +468,10 @@ receivers:
 	// Group interval is applied on top of start delay.
 	// start delay: 5s
 	// group interval: 6s
-	// alerts dispatched at: 5s + 6s = 11s
-	co.Want(Between(11, 11.5),
+	// group wait: 1s
+	// last exec time: 1s + 1s
+	// next exec time: 1s + 1s + 6s = 8s
+	co.Want(Between(8, 8.5),
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test2").Active(4),
 		Alert("alertname", "test3").Active(6),
@@ -515,9 +517,9 @@ receivers:
 	amc.Push(At(4), Alert("alertname", "test2"))
 
 	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
-	// Timers are reset on reload regardless, so we count the 6 second group
-	// interval from 3 onwards.
-	co.Want(Between(9, 9.5),
+	// Timers sync on reload regardless, so we count the 6 second group
+	// interval from 2 onwards.
+	co.Want(Between(8, 8.5),
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test2").Active(4),
 	)
