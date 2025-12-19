@@ -1,4 +1,4 @@
-// Copyright 2018 Prometheus Team
+// Copyright Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -32,7 +32,7 @@ var ErrNotFound = errors.New("alert not found")
 // gcInterval. An optional callback can be set which receives a slice of all
 // resolved alerts that have been removed.
 type Alerts struct {
-	sync.Mutex
+	sync.RWMutex
 	c  map[model.Fingerprint]*types.Alert
 	cb func([]types.Alert)
 }
@@ -97,8 +97,8 @@ func (a *Alerts) GC() []types.Alert {
 // Get returns the Alert with the matching fingerprint, or an error if it is
 // not found.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 
 	alert, prs := a.c[fp]
 	if !prs {
@@ -132,8 +132,8 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 
 // List returns a slice of Alerts currently held in memory.
 func (a *Alerts) List() []*types.Alert {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 
 	alerts := make([]*types.Alert, 0, len(a.c))
 	for _, alert := range a.c {
@@ -145,16 +145,16 @@ func (a *Alerts) List() []*types.Alert {
 
 // Empty returns true if the store is empty.
 func (a *Alerts) Empty() bool {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 
 	return len(a.c) == 0
 }
 
 // Len returns the number of alerts in the store.
 func (a *Alerts) Len() int {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 
 	return len(a.c)
 }
