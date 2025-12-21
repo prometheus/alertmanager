@@ -938,9 +938,6 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.BotToken == "" && c.BotTokenFile == "" {
-		return errors.New("missing bot_token or bot_token_file on telegram_config")
-	}
 	if c.BotToken != "" && c.BotTokenFile != "" {
 		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}
