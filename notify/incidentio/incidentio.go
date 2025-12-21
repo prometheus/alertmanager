@@ -101,7 +101,7 @@ type Message struct {
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
 }
 
-func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
+func truncateAlerts(maxAlerts uint64, alerts []*types.AlertSnapshot) ([]*types.AlertSnapshot, uint64) {
 	if maxAlerts != 0 && uint64(len(alerts)) > maxAlerts {
 		return alerts[:maxAlerts], uint64(len(alerts)) - maxAlerts
 	}
@@ -153,7 +153,7 @@ func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alerts ...*types.AlertSnapshot) (bool, error) {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 

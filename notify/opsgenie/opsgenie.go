@@ -94,7 +94,7 @@ type opsGenieUpdateDescriptionMessage struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	requests, retry, err := n.createRequests(ctx, as...)
 	if err != nil {
 		return retry, err
@@ -128,7 +128,7 @@ func safeSplit(s, sep string) []string {
 }
 
 // Create requests for a list of alerts.
-func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*http.Request, bool, error) {
+func (n *Notifier) createRequests(ctx context.Context, as ...*types.AlertSnapshot) ([]*http.Request, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return nil, false, err
@@ -152,7 +152,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	var (
 		alias  = key.Hash()
-		alerts = types.Alerts(as...)
+		alerts = types.AlertsSnapshot(as)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:

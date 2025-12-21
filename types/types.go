@@ -363,6 +363,26 @@ type Alert struct {
 	Timeout   bool
 }
 
+type AlertSnapshot struct {
+	Alert
+	SnapshotAt time.Time
+}
+
+func NewAlertSnapshot(a *Alert, ref time.Time) *AlertSnapshot {
+	return &AlertSnapshot{
+		Alert:      *a,
+		SnapshotAt: ref,
+	}
+}
+
+func (a *AlertSnapshot) Resolved() bool {
+	return a.ResolvedAt(a.SnapshotAt)
+}
+
+func (a *AlertSnapshot) Status() model.AlertStatus {
+	return a.StatusAt(a.SnapshotAt)
+}
+
 func validateLs(ls model.LabelSet) error {
 	for ln, lv := range ls {
 		if !compat.IsValidLabelName(ln) {
@@ -396,10 +416,7 @@ func (a *Alert) Validate() error {
 	return nil
 }
 
-// AlertSlice is a sortable slice of Alerts.
-type AlertSlice []*Alert
-
-func (as AlertSlice) Less(i, j int) bool {
+func (as AlertsSnapshot) Less(i, j int) bool {
 	// Look at labels.job, then labels.instance.
 	for _, overrideKey := range [...]model.LabelName{"job", "instance"} {
 		iVal, iOk := as[i].Labels[overrideKey]
@@ -419,22 +436,30 @@ func (as AlertSlice) Less(i, j int) bool {
 	}
 	return as[i].Labels.Before(as[j].Labels)
 }
-func (as AlertSlice) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
-func (as AlertSlice) Len() int      { return len(as) }
+func (as AlertsSnapshot) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
+func (as AlertsSnapshot) Len() int      { return len(as) }
 
-// Alerts turns a sequence of internal alerts into a list of
-// exposable model.Alert structures.
-func Alerts(alerts ...*Alert) model.Alerts {
-	res := make(model.Alerts, 0, len(alerts))
-	for _, a := range alerts {
-		v := a.Alert
-		// If the end timestamp is not reached yet, do not expose it.
+type AlertsSnapshot []*AlertSnapshot
+
+func (as AlertsSnapshot) Status() model.AlertStatus {
+	for _, a := range as {
 		if !a.Resolved() {
-			v.EndsAt = time.Time{}
+			return model.AlertFiring
 		}
-		res = append(res, &v)
 	}
-	return res
+	return model.AlertResolved
+}
+
+func (as AlertsSnapshot) HasFiring() bool {
+	return as.Status() == model.AlertFiring
+}
+
+func SnapshotAlerts(alerts []*Alert, now time.Time) AlertsSnapshot {
+	as := make(AlertsSnapshot, 0, len(alerts))
+	for _, a := range alerts {
+		as = append(as, NewAlertSnapshot(a, now))
+	}
+	return as
 }
 
 // Merge merges the timespan of two alerts based and overwrites annotations

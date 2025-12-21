@@ -308,8 +308,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil)
-
+		openAlert := AlertToOpenAPIAlert(types.NewAlertSnapshot(alert, now), api.getAlertStatus(alert.Fingerprint()), receivers, nil)
 		res = append(res, openAlert)
 	}
 	api.mtx.RUnlock()

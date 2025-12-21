@@ -96,8 +96,8 @@ func TestMattermostTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
+			ok, err := pd.Notify(ctx, []*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1": "val1",
@@ -105,7 +105,7 @@ func TestMattermostTemplating(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, err)
@@ -182,8 +182,8 @@ func TestMattermost_Notify(t *testing.T) {
 	// Create a context and alerts
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	alerts := []*types.Alert{
-		{
+	alerts := []*types.AlertSnapshot{
+		types.NewAlertSnapshot(&types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"lbl1": "val1",
@@ -191,7 +191,7 @@ func TestMattermost_Notify(t *testing.T) {
 				StartsAt: time.Now(),
 				EndsAt:   time.Now().Add(time.Hour),
 			},
-		},
+		}, time.Now()),
 	}
 
 	type testcase struct {
