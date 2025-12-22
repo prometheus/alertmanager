@@ -1,4 +1,4 @@
-// Copyright 2016 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -425,22 +425,14 @@ func TestAlertsStoreCallback(t *testing.T) {
 	}
 }
 
-func TestAlerts_Count(t *testing.T) {
+func TestAlerts_CountByState(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, promslog.NewNopLogger(), nil)
 	require.NoError(t, err)
 
-	states := []types.AlertState{types.AlertStateActive, types.AlertStateSuppressed, types.AlertStateUnprocessed}
-
-	countByState := func(st types.AlertState) int {
-		return alerts.count(st)
-	}
 	countTotal := func() int {
-		var count int
-		for _, st := range states {
-			count += countByState(st)
-		}
-		return count
+		active, suppressed, unprocessed := alerts.countByState()
+		return active + suppressed + unprocessed
 	}
 
 	// First, there shouldn't be any alerts.
@@ -462,7 +454,8 @@ func TestAlerts_Count(t *testing.T) {
 
 	ctx := context.Background()
 	alerts.Put(ctx, a1)
-	require.Equal(t, 1, countByState(types.AlertStateUnprocessed))
+	_, _, unprocessed := alerts.countByState()
+	require.Equal(t, 1, unprocessed)
 	require.Equal(t, 1, countTotal())
 	require.Eventually(t, func() bool {
 		// When the alert will eventually expire and is considered resolved - it won't count.
@@ -485,7 +478,8 @@ func TestAlerts_Count(t *testing.T) {
 	// When insert an alert, and then silence it. It shows up with the correct filter.
 	alerts.Put(ctx, a2)
 	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
-	require.Equal(t, 1, countByState(types.AlertStateSuppressed))
+	_, suppressed, _ := alerts.countByState()
+	require.Equal(t, 1, suppressed)
 	require.Equal(t, 1, countTotal())
 
 	require.Eventually(t, func() bool {
@@ -604,7 +598,8 @@ func TestAlertsConcurrently(t *testing.T) {
 	time.Sleep(expire)
 	require.Eventually(t, func() bool {
 		// When the alert will eventually expire and is considered resolved - it won't count.
-		return a.count(types.AlertStateActive) == 0
+		active, _, _ := a.countByState()
+		return active == 0
 	}, 2*expire, expire)
 	require.Equal(t, int32(0), callback.alerts.Load())
 }
