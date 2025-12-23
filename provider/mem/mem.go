@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -53,6 +54,8 @@ type Alerts struct {
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
 
+	alertsLimit             prometheus.Gauge
+	alertsLimitedTotal      *prometheus.CounterVec
 	subscriberChannelWrites *prometheus.CounterVec
 }
 
@@ -79,6 +82,19 @@ type listeningAlerts struct {
 func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 	r.MustRegister(&alertsCollector{alerts: a})
 
+	a.alertsLimit = promauto.With(r).NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_alerts_per_alert_limit",
+		Help: "Current limit on number of alerts per alert name",
+	})
+
+	a.alertsLimitedTotal = promauto.With(r).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_alerts_limited_total",
+			Help: "Total number of alerts that were dropped due to per alert name limit",
+		},
+		[]string{"alertname"},
+	)
+
 	a.subscriberChannelWrites = promauto.With(r).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "alertmanager_alerts_subscriber_channel_writes_total",
@@ -89,15 +105,27 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duration, alertCallback AlertStoreCallback, l *slog.Logger, r prometheus.Registerer) (*Alerts, error) {
+func NewAlerts(
+	ctx context.Context,
+	m types.AlertMarker,
+	intervalGC time.Duration,
+	perAlertLimit int,
+	alertCallback AlertStoreCallback,
+	l *slog.Logger,
+	r prometheus.Registerer,
+) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
+	}
+
+	if perAlertLimit > 0 {
+		l.Info("per alert name limit enabled", "limit", perAlertLimit)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
 		marker:     m,
-		alerts:     store.NewAlerts(),
+		alerts:     store.NewAlerts().WithPerAlertLimit(perAlertLimit),
 		cancel:     cancel,
 		listeners:  map[int]listeningAlerts{},
 		next:       0,
@@ -108,6 +136,7 @@ func NewAlerts(ctx context.Context, m types.AlertMarker, intervalGC time.Duratio
 
 	if r != nil {
 		a.registerMetrics(r)
+		a.alertsLimit.Set(float64(perAlertLimit))
 	}
 
 	go a.gcLoop(ctx, intervalGC)
@@ -271,7 +300,10 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
-			a.logger.Error("error on set alert", "err", err)
+			a.logger.Error("error on set alert", "alertname", alert.Name(), "err", err)
+			if errors.Is(err, store.ErrLimited) {
+				a.alertsLimitedTotal.WithLabelValues(alert.Name()).Inc()
+			}
 			continue
 		}
 
