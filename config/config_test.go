@@ -1600,19 +1600,14 @@ route:
   receiver: 'default'
   group_by: ['alertname', 'cluster']
   routes:
-    - match:
-        service: 'database'
-      receiver: 'database-team'
-      group_by: []
+    - group_by: []
+
 receivers:
   - name: 'default'
-  - name: 'database-team'
 `
 	cfg, err := Load(in)
 	require.NoError(t, err)
-	// Root route should have group_by labels.
 	require.Len(t, cfg.Route.GroupBy, 2)
-	// Child route should have empty non-nil slice (explicit override, not inheritance).
 	require.NotNil(t, cfg.Route.Routes[0].GroupBy)
 	require.Empty(t, cfg.Route.Routes[0].GroupBy)
 }
