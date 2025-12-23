@@ -1593,3 +1593,21 @@ func TestInhibitRuleEqual(t *testing.T) {
 	r = c.InhibitRules[0]
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
+
+func TestGroupByEmptyOverride(t *testing.T) {
+	in := `
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster']
+  routes:
+    - group_by: []
+
+receivers:
+  - name: 'default'
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+	require.Len(t, cfg.Route.GroupBy, 2)
+	require.NotNil(t, cfg.Route.Routes[0].GroupBy)
+	require.Empty(t, cfg.Route.Routes[0].GroupBy)
+}
