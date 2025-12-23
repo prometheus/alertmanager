@@ -15,30 +15,30 @@ package webhook
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
 )
 
 func TestWebhookRetry(t *testing.T) {
-	u, err := url.Parse("http://example.com")
-	if err != nil {
-		require.NoError(t, err)
-	}
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        config.SecretTemplateURL("http://example.com"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -107,7 +107,7 @@ func TestWebhookRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        &config.SecretURL{URL: u},
+			URL:        config.SecretTemplateURL(u.String()),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -138,4 +138,90 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+func TestWebhookURLTemplating(t *testing.T) {
+	var calledURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calledURL = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	tests := []struct {
+		name           string
+		url            string
+		groupLabels    model.LabelSet
+		alertLabels    model.LabelSet
+		expectError    bool
+		expectedErrMsg string
+		expectedPath   string
+	}{
+		{
+			name:         "templating with alert labels",
+			url:          srv.URL + "/{{ .GroupLabels.alertname }}/{{ .CommonLabels.severity }}",
+			groupLabels:  model.LabelSet{"alertname": "TestAlert"},
+			alertLabels:  model.LabelSet{"alertname": "TestAlert", "severity": "critical"},
+			expectError:  false,
+			expectedPath: "/TestAlert/critical",
+		},
+		{
+			name:           "invalid template field",
+			url:            srv.URL + "/{{ .InvalidField }}",
+			groupLabels:    model.LabelSet{"alertname": "TestAlert"},
+			alertLabels:    model.LabelSet{"alertname": "TestAlert"},
+			expectError:    true,
+			expectedErrMsg: "failed to template webhook URL",
+		},
+		{
+			name:           "template renders to empty string",
+			url:            "{{ if .CommonLabels.nonexistent }}http://example.com{{ end }}",
+			groupLabels:    model.LabelSet{"alertname": "TestAlert"},
+			alertLabels:    model.LabelSet{"alertname": "TestAlert"},
+			expectError:    true,
+			expectedErrMsg: "webhook URL is empty after templating",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			calledURL = "" // Reset for each test
+
+			notifier, err := New(
+				&config.WebhookConfig{
+					URL:        config.SecretTemplateURL(tc.url),
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "test-group")
+			if tc.groupLabels != nil {
+				ctx = notify.WithGroupLabels(ctx, tc.groupLabels)
+			}
+
+			alerts := []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels:   tc.alertLabels,
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}
+
+			_, err = notifier.Notify(ctx, alerts...)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedPath, calledURL)
+			}
+		})
+	}
 }

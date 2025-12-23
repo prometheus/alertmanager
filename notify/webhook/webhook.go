@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -101,14 +102,25 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	var url string
-	if n.conf.URL != nil {
-		url = n.conf.URL.String()
+	var tmplErr error
+	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+
+	if n.conf.URL != "" {
+		url = tmpl(string(n.conf.URL))
 	} else {
 		content, err := os.ReadFile(n.conf.URLFile)
 		if err != nil {
 			return false, fmt.Errorf("read url_file: %w", err)
 		}
-		url = strings.TrimSpace(string(content))
+		url = tmpl(strings.TrimSpace(string(content)))
+	}
+
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template webhook URL: %w", tmplErr)
+	}
+
+	if url == "" {
+		return false, errors.New("webhook URL is empty after templating")
 	}
 
 	if n.conf.Timeout > 0 {
