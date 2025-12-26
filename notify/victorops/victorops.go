@@ -50,6 +50,7 @@ func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOp
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 	return &Notifier{
 		conf:   c,
 		tmpl:   t,
