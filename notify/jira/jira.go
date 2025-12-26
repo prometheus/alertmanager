@@ -53,6 +53,7 @@ func New(c *config.JiraConfig, t *template.Template, l *slog.Logger, httpOpts ..
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 
 	return &Notifier{
 		conf:    c,

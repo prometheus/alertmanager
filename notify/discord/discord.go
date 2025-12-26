@@ -64,6 +64,7 @@ func New(c *config.DiscordConfig, t *template.Template, l *slog.Logger, httpOpts
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 	n := &Notifier{
 		conf:       c,
 		tmpl:       t,

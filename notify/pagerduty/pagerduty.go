@@ -59,6 +59,7 @@ func New(c *config.PagerdutyConfig, t *template.Template, l *slog.Logger, httpOp
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 	n := &Notifier{conf: c, tmpl: t, logger: l, client: client}
 	if c.ServiceKey != "" || c.ServiceKeyFile != "" {
 		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
