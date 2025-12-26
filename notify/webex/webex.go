@@ -48,6 +48,7 @@ func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts .
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 
 	n := &Notifier{
 		conf:    c,

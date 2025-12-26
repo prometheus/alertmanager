@@ -48,6 +48,7 @@ func New(conf *config.TelegramConfig, t *template.Template, l *slog.Logger, http
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(httpclient)
 
 	client, err := createTelegramClient(conf.APIUrl.String(), conf.ParseMode, httpclient)
 	if err != nil {

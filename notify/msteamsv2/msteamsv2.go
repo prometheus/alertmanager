@@ -89,6 +89,7 @@ func New(c *config.MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOp
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 
 	n := &Notifier{
 		conf:         c,

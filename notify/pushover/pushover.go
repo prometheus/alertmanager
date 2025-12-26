@@ -56,6 +56,7 @@ func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpt
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,

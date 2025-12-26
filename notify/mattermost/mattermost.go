@@ -54,6 +54,7 @@ func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpO
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 
 	return &Notifier{
 		conf:         c,
