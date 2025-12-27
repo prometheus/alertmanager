@@ -1,4 +1,4 @@
-import { useAPIQuery } from '@/data/api';
+import { useSuspenseAPIQuery } from '@/data/api';
 
 type Silence = {
   id: string;
@@ -19,13 +19,13 @@ type Silence = {
 };
 
 export const useSilences = () => {
-  return useAPIQuery<Array<Silence>>({
+  return useSuspenseAPIQuery<Array<Silence>>({
     path: '/silences',
   });
 };
 
 export const useSilence = (id: string) => {
-  return useAPIQuery<Silence>({
+  return useSuspenseAPIQuery<Silence>({
     path: `/silence/${id}`,
   });
 };

@@ -1,4 +1,4 @@
-import { useAPIQuery } from '@/data/api';
+import { useSuspenseAPIQuery } from '@/data/api';
 
 type Status = {
   cluster: {
@@ -24,7 +24,7 @@ type Status = {
 };
 
 export const useStatus = () => {
-  return useAPIQuery<Status>({
+  return useSuspenseAPIQuery<Status>({
     path: '/status',
   });
 };

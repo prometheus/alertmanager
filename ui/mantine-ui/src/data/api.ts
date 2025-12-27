@@ -1,4 +1,4 @@
-import { QueryKey, useQuery } from '@tanstack/react-query';
+import { QueryKey, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
 // TODO(@sysadmind): Infer this from the current location.
 // We don't have a good strategy for storing global settings yet.
@@ -53,7 +53,7 @@ const createQueryFn =
       });
 
       if (!res.ok && !res.headers.get('content-type')?.startsWith('application/json')) {
-        // For example, Prometheus may send a 503 Service Unavailable response
+        // For example, Alertmanager may send a 503 Service Unavailable response
         // with a "text/plain" content type when it's starting up. But the API
         // may also respond with a JSON error message and the same error code.
         throw new Error(res.statusText);
@@ -117,5 +117,15 @@ export const useAPIQuery = <T>({
     gcTime: 0,
     enabled,
     queryFn: createQueryFn<T>({ pathPrefix, path, params, recordResponseTime }),
+  });
+};
+
+export const useSuspenseAPIQuery = <T>({ key, path, params }: QueryOptions) => {
+  return useSuspenseQuery<T>({
+    queryKey: key !== undefined ? key : [path, params],
+    retry: false,
+    refetchOnWindowFocus: false,
+    gcTime: 0,
+    queryFn: createQueryFn({ pathPrefix, path, params }),
   });
 };

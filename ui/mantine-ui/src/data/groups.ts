@@ -1,4 +1,4 @@
-import { useAPIQuery } from '@/data/api';
+import { useSuspenseAPIQuery } from '@/data/api';
 
 type Group = {
   alerts: Alert[];
@@ -29,7 +29,7 @@ type Alert = {
 };
 
 export const useGroups = () => {
-  return useAPIQuery<Array<Group>>({
+  return useSuspenseAPIQuery<Array<Group>>({
     path: '/alerts/groups',
   });
 };
