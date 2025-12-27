@@ -15,19 +15,19 @@ export default function App() {
     <BrowserRouter>
       <MantineProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
-        <AppShell padding="md" header={{ height: 60 }}>
-          <Header />
-          <AppShell.Main>
-            {/* Main content will be rendered here by the Router */}
-            <Routes>
-              {/* Redirect the root path to the alerts page */}
-              {/* TODO(@sysadmind): This should take the fact that previous UI used /#/routeName */}
-              <Route path="/" element={<Navigate to="/alerts" replace />} />
-              <Route path="/alerts" element={<AlertsPage />} />
-              <Route path="/silences" element={<SilencesPage />} />
-            </Routes>
-          </AppShell.Main>
-        </AppShell>
+          <AppShell padding="md" header={{ height: 60 }}>
+            <Header />
+            <AppShell.Main>
+              {/* Main content will be rendered here by the Router */}
+              <Routes>
+                {/* Redirect the root path to the alerts page */}
+                {/* TODO(@sysadmind): This should take the fact that previous UI used /#/routeName */}
+                <Route path="/" element={<Navigate to="/alerts" replace />} />
+                <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/silences" element={<SilencesPage />} />
+              </Routes>
+            </AppShell.Main>
+          </AppShell>
         </QueryClientProvider>
       </MantineProvider>
     </BrowserRouter>
