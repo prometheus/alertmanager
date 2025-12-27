@@ -1,5 +1,6 @@
 import '@mantine/core/styles.css';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell, MantineProvider } from '@mantine/core';
 import { Header } from './components/Header';
@@ -7,10 +8,13 @@ import { AlertsPage } from './pages/Alerts.page';
 import { SilencesPage } from './pages/Silences.page';
 import { theme } from './theme';
 
+const queryClient = new QueryClient();
+
 export default function App() {
   return (
     <BrowserRouter>
       <MantineProvider theme={theme}>
+        <QueryClientProvider client={queryClient}>
         <AppShell padding="md" header={{ height: 60 }}>
           <Header />
           <AppShell.Main>
@@ -24,6 +28,7 @@ export default function App() {
             </Routes>
           </AppShell.Main>
         </AppShell>
+        </QueryClientProvider>
       </MantineProvider>
     </BrowserRouter>
   );
