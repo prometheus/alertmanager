@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/tsdb"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -43,6 +44,8 @@ import (
 type API struct {
 	v2                *apiv2.API
 	deprecationRouter *V1DeprecationRouter
+
+	tsdb *tsdb.TSDB
 
 	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
@@ -86,6 +89,8 @@ type Options struct {
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
 	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	// TSDB to be used by the API. Optional.
+	TSDB *tsdb.TSDB
 }
 
 func (o Options) validate() error {
@@ -129,6 +134,7 @@ func New(opts Options) (*API, error) {
 		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
+		opts.TSDB,
 		l.With("version", "v2"),
 		opts.Registry,
 	)
@@ -158,6 +164,7 @@ func New(opts Options) (*API, error) {
 	return &API{
 		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
+		tsdb:                     opts.TSDB,
 		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -196,6 +203,26 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 			),
 		),
 	)
+
+	// Add Prometheus query API
+	if api.tsdb != nil {
+		queryAPI, err := tsdb.NewQueryAPI(api.tsdb)
+		if err != nil {
+			panic(fmt.Sprintf("failed to create query API: %v", err))
+		}
+		handler := http.StripPrefix(apiPrefix+"/api/v1", queryAPI.Handler())
+		wrappedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Printf("Prometheus API request: method=%s path=%s\n", r.Method, r.URL.Path)
+			handler.ServeHTTP(w, r)
+		})
+		mux.Handle(
+			apiPrefix+"/api/v1/",
+			wrappedHandler,
+		)
+		fmt.Printf("Registered Prometheus query API at: %s/api/v1/\n", apiPrefix)
+	} else {
+		fmt.Println("TSDB is nil, not registering Prometheus query API")
+	}
 
 	return mux
 }
