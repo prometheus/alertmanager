@@ -92,6 +92,7 @@ func New(c *config.RocketchatConfig, t *template.Template, l *slog.Logger, httpO
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 	token, err := getToken(c)
 	if err != nil {
 		return nil, err

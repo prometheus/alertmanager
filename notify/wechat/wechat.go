@@ -75,6 +75,7 @@ func New(c *config.WechatConfig, t *template.Template, l *slog.Logger, httpOpts 
 	if err != nil {
 		return nil, err
 	}
+	notify.WrapWithTracing(client)
 
 	return &Notifier{conf: c, tmpl: t, logger: l, client: client}, nil
 }

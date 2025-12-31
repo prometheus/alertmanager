@@ -38,6 +38,15 @@ const truncationMarker = "…"
 // UserAgentHeader is the default User-Agent for notification requests.
 var UserAgentHeader = version.ComponentUserAgent("Alertmanager")
 
+// WrapWithTracing wraps an HTTP client's transport with tracing instrumentation.
+// This should be called once when creating the client, not on every request.
+func WrapWithTracing(client *http.Client) {
+	if client == nil {
+		return
+	}
+	client.Transport = tracing.Transport(client.Transport)
+}
+
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
 	var e *url.Error
@@ -76,9 +85,6 @@ func request(ctx context.Context, client *http.Client, method, url, bodyType str
 	if bodyType != "" {
 		req.Header.Set("Content-Type", bodyType)
 	}
-
-	// Inject trancing transport
-	client.Transport = tracing.Transport(client.Transport)
 
 	return client.Do(req.WithContext(ctx))
 }
