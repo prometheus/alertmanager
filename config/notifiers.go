@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"regexp"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -351,6 +352,9 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		if _, ok := normalizedHeaders["In-Reply-To"]; ok {
 			return errors.New("conflicting configuration: threading.enabled conflicts with custom In-Reply-To header")
+		}
+		if !slices.Contains([]string{"none", "daily"}, c.Threading.ThreadByDate) {
+			return errors.New("threading.thread_by_date must be either 'none' or 'daily'")
 		}
 	}
 
