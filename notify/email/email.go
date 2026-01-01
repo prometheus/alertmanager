@@ -83,7 +83,11 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	for mech := range strings.SplitSeq(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
-			secret := string(n.conf.AuthSecret)
+			secret, secretErr := n.getAuthSecret()
+			if secretErr != nil {
+				err.Add(secretErr)
+				continue
+			}
 			if secret == "" {
 				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
@@ -409,4 +413,15 @@ func (n *Email) getPassword() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
+}
+
+func (n *Email) getAuthSecret() (string, error) {
+	if len(n.conf.AuthSecretFile) > 0 {
+		content, err := os.ReadFile(n.conf.AuthSecretFile)
+		if err != nil {
+			return "", fmt.Errorf("could not read %s: %w", n.conf.AuthSecretFile, err)
+		}
+		return string(content), nil
+	}
+	return string(n.conf.AuthSecret), nil
 }
