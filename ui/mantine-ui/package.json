@@ -21,7 +21,7 @@
     "@mantine/hooks": "8.3.9",
     "@tanstack/react-query": "^5.90.12",
     "react": "^19.1.0",
-    "react-dom": "^19.2.0",
+    "react-dom": "^19.2.3",
     "react-router-dom": "^7.10.1"
   },
   "devDependencies": {
