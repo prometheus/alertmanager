@@ -64,6 +64,7 @@
 * [BUGFIX] Fix duplicate `other` in error messages for config. #4366
 * [BUGFIX] Fix logic that considers an alert reopened in Jira. #4478
 * [BUGFIX] Fix Jira issue count #4615
+* [FEATURE] Add Multiple Sources support for Inhibition Rules. #4504
 
 ## 0.28.1 / 2025-03-07
 
