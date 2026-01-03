@@ -978,6 +978,9 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 			r.GroupBy = append(r.GroupBy, labelName)
 		}
 	}
+	if r.GroupByStr != nil && len(r.GroupByStr) == 0 {
+		r.GroupBy = make([]model.LabelName, 0)
+	}
 
 	if len(r.GroupBy) > 0 && r.GroupByAll {
 		return errors.New("cannot have wildcard group_by (`...`) and other labels at the same time")
