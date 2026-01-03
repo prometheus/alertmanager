@@ -383,6 +383,32 @@ routes:
 	require.False(t, child2.RouteOpts.GroupByAll)
 }
 
+func TestOverrideGroupByEmpty(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['alertname', 'cluster']
+
+  routes:
+  - match:
+      env: 'child'
+    group_by: []
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child := parent.Routes[0]
+	require.NotEmpty(t, parent.RouteOpts.GroupBy)
+	require.Empty(t, child.RouteOpts.GroupBy)
+	require.False(t, child.RouteOpts.GroupByAll)
+}
+
 func TestRouteMatchers(t *testing.T) {
 	in := `
 receiver: 'notify-def'
