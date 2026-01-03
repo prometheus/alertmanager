@@ -705,7 +705,7 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration, now time.Time) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
@@ -732,7 +732,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.Timestamp.Before(now.Add(-repeat))
 }
 
 // Exec implements the Stage interface.
@@ -788,7 +788,12 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	now := n.now()
+	if ctxNow, ok := Now(ctx); ok {
+		now = ctxNow
+	}
+
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, now) {
 		span.AddEvent("notify.DedupStage.Exec nflog needs update")
 		return ctx, alerts, nil
 	}
