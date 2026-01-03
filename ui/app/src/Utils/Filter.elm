@@ -377,14 +377,14 @@ escapeMatcherValue value =
         []
         value
         |> List.reverse
-        |> String.join ""
+        |> String.concat
 
 
 unescapeMatcherValue : String -> String
 unescapeMatcherValue value =
     let
-        step char ( escaped, acc ) =
-            if escaped then
+        step char ( isEscaped, acc ) =
+            if isEscaped then
                 case char of
                     'n' ->
                         ( False, '\n' :: acc )
@@ -404,14 +404,14 @@ unescapeMatcherValue value =
             else
                 ( False, char :: acc )
 
-        ( escaped, acc ) =
+        ( finalEscaped, finalAcc ) =
             String.foldl step ( False, [] ) value
     in
-    (if escaped then
-        '\\' :: acc
+    (if finalEscaped then
+        '\\' :: finalAcc
 
      else
-        acc
+        finalAcc
     )
         |> List.reverse
         |> String.fromList
