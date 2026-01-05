@@ -55,11 +55,10 @@ type Notifier struct {
 
 // New returns a new PagerDuty notifier.
 func New(c *config.PagerdutyConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pagerduty", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "pagerduty", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
-	notify.WrapWithTracing(client)
 	n := &Notifier{conf: c, tmpl: t, logger: l, client: client}
 	if c.ServiceKey != "" || c.ServiceKeyFile != "" {
 		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"

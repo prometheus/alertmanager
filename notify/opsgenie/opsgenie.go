@@ -47,11 +47,10 @@ type Notifier struct {
 
 // New returns a new OpsGenie notifier.
 func New(c *config.OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
-	notify.WrapWithTracing(client)
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,
