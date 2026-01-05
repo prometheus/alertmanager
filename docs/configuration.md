@@ -26,7 +26,7 @@ Alertmanager supports a number of configurable limits via command-line flags.
 
 To limit the maximum number of silences, including expired ones,
 use the `--silences.max-silences` flag.
-You can limit the maximum size of individual silences with `--silences.max-per-silence-bytes`,
+You can limit the maximum size of individual silences with `--silences.max-silence-size-bytes`,
 where the unit is in bytes.
 
 Both limits are disabled by default.
