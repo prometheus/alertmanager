@@ -499,6 +499,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of rocketchat_token_id & rocketchat_token_id_file must be configured")
 	}
 
+	if c.Global.WeChatAPISecret != "" && len(c.Global.WeChatAPISecretFile) > 0 {
+		return errors.New("at most one of wechat_api_secret & wechat_api_secret_file must be configured")
+	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -637,11 +641,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				wcc.APIURL = c.Global.WeChatAPIURL
 			}
 
-			if wcc.APISecret == "" {
-				if c.Global.WeChatAPISecret == "" {
-					return errors.New("no global Wechat ApiSecret set")
+			if wcc.APISecret == "" && len(wcc.APISecretFile) == 0 {
+				if c.Global.WeChatAPISecret == "" && len(c.Global.WeChatAPISecretFile) == 0 {
+					return errors.New("no global Wechat Api Secret set either inline or in a file")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
+				wcc.APISecretFile = c.Global.WeChatAPISecretFile
 			}
 
 			if wcc.CorpID == "" {
@@ -992,6 +997,7 @@ type GlobalConfig struct {
 	OpsGenieAPIKeyFile    string               `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
 	WeChatAPIURL          *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret       Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPISecretFile   string               `yaml:"wechat_api_secret_file,omitempty" json:"wechat_api_secret_file,omitempty"`
 	WeChatAPICorpID       string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL       *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
