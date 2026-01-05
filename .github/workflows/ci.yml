@@ -2,7 +2,6 @@ name: CI
 on:  # yamllint disable-line rule:truthy
   pull_request:
   workflow_call:
-
 jobs:
   test_frontend:
     name: Test alertmanager frontend
