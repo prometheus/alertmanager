@@ -126,7 +126,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Sources: []*Source{
+				Sources: []Source{
 					{
 						scache: store.NewAlerts(),
 						sindex: newIndex(),
