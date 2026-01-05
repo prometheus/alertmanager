@@ -263,7 +263,7 @@ type InhibitRule struct {
 	Name string
 	// The set of Sources which define multiple groups of source alerts (which inhibit
 	// the target alerts).
-	Sources []*Source
+	Sources []Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
@@ -275,7 +275,7 @@ type InhibitRule struct {
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	var (
-		sources []*Source
+		sources []Source
 		sourcem labels.Matchers
 		targetm labels.Matchers
 	)
@@ -288,7 +288,7 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 			for _, ln := range sm.Equal {
 				equal[model.LabelName(ln)] = struct{}{}
 			}
-			src := &Source{
+			src := Source{
 				SrcMatchers: sourcesm,
 				Equal:       equal,
 				scache:      store.NewAlerts(),
@@ -322,7 +322,7 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 			equal[model.LabelName(ln)] = struct{}{}
 		}
 
-		sources = append(sources, &Source{
+		sources = append(sources, Source{
 			SrcMatchers: sourcem,
 			Equal:       equal,
 			scache:      store.NewAlerts(),
