@@ -16,7 +16,6 @@ package inhibit
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -76,7 +75,6 @@ func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, mk types.Ale
 			ruleNames[cr.Name] = struct{}{}
 		}
 	}
-
 	return ih
 }
 
@@ -212,9 +210,6 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		)
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-
-		// If we are here, the target side matches. If the source side matches, too, we
-		// need to exclude inhibiting alerts for which the same is true.
 		var inhibitorIDs []string
 		sourceHasNoEqual := false
 		for _, source := range r.Sources {
@@ -226,11 +221,10 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			}
 		}
 		if !sourceHasNoEqual {
-			compositeInhibitorID := strings.Join(inhibitorIDs, ",")
-			ih.marker.SetInhibited(fp, compositeInhibitorID)
+			ih.marker.SetInhibited(fp, inhibitorIDs...)
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
-					attribute.String("alerting.inhibit_rule.source.fingerprint", compositeInhibitorID),
+					attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitorIDs),
 				),
 			)
 			return true
