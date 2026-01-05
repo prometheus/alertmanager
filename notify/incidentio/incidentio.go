@@ -73,11 +73,10 @@ func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, ht
 		}
 	}
 
-	client, err := commoncfg.NewClientFromConfig(httpConfig, "incidentio", httpOpts...)
+	client, err := notify.NewClientWithTracing(httpConfig, "incidentio", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
-	notify.WrapWithTracing(client)
 
 	return &Notifier{
 		conf:   conf,
