@@ -1552,6 +1552,116 @@ func TestNilRegexp(t *testing.T) {
 	}
 }
 
+func TestSecretTemplURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid http URL",
+			input:       `"http://example.com/webhook"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid URL missing scheme",
+			input:       `"example.com/webhook"`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name:        "invalid URL unsupported scheme",
+			input:       `"ftp://example.com/webhook"`,
+			expectError: true,
+			errorMsg:    "unsupported scheme",
+		},
+		{
+			name:        "templated URL is not validated",
+			input:       `"http://example.com/{{ .GroupLabels.alertname }}"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid URL with template is not validated",
+			input:       `"not-a-url-{{ .GroupLabels.alertname }}"`,
+			expectError: false,
+		},
+		{
+			name:        "invalid template syntax",
+			input:       `"http://example.com/{{ .Invalid"`,
+			expectError: true,
+			errorMsg:    "invalid template syntax",
+		},
+		{
+			name:        "empty string",
+			input:       `""`,
+			expectError: false,
+		},
+		{
+			name:        "secret token",
+			input:       `"<secret>"`,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var u SecretTemplateURL
+			err := yaml.Unmarshal([]byte(tc.input), &u)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSecretTemplURLMarshaling(t *testing.T) {
+	t.Run("marshals to secret token by default", func(t *testing.T) {
+		u := SecretTemplateURL("http://example.com/secret")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "<secret>\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		require.JSONEq(t, `"<secret>"`, string(jsonOut))
+	})
+
+	t.Run("marshals actual value when MarshalSecretValue is true", func(t *testing.T) {
+		MarshalSecretValue = true
+		defer func() { MarshalSecretValue = false }()
+
+		u := SecretTemplateURL("http://example.com/secret")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "http://example.com/secret\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		require.JSONEq(t, `"http://example.com/secret"`, string(jsonOut))
+	})
+
+	t.Run("empty URL marshals to empty", func(t *testing.T) {
+		u := SecretTemplateURL("")
+
+		yamlOut, err := yaml.Marshal(&u)
+		require.NoError(t, err)
+		require.YAMLEq(t, "null\n", string(yamlOut))
+
+		jsonOut, err := json.Marshal(&u)
+		require.NoError(t, err)
+		require.JSONEq(t, `""`, string(jsonOut))
+	})
+}
+
 func TestInhibitRuleEqual(t *testing.T) {
 	c, err := LoadFile("testdata/conf.inhibit-equal.yml")
 	require.NoError(t, err)
@@ -1592,4 +1702,49 @@ func TestInhibitRuleEqual(t *testing.T) {
 	require.Len(t, c.InhibitRules, 1)
 	r = c.InhibitRules[0]
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
+}
+
+func TestWechatNoAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.wechat-no-api-secret.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.wechat-no-api-url.yml", err)
+	}
+	if err.Error() != "no global Wechat Api Secret set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Wechat Api Secret set either inline or in a file", err.Error())
+	}
+}
+
+func TestWechatBothAPIURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.wechat-both-file-and-secret.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.wechat-both-file-and-secret.yml", err)
+	}
+	if err.Error() != "at most one of wechat_api_secret & wechat_api_secret_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of wechat_api_secret & wechat_api_secret_file must be configured", err.Error())
+	}
+}
+
+func TestWechatGlobalAPISecretFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.wechat-default-api-secret-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.wechat-default-api-secret-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].WechatConfigs[0]
+	if firstConfig.APISecretFile != "/global_file" || string(firstConfig.APISecret) != "" {
+		t.Fatalf("Invalid Wechat API Secret file: %s\nExpected: %s", firstConfig.APISecretFile, "/global_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].WechatConfigs[1]
+	if secondConfig.APISecretFile != "/override_file" || string(secondConfig.APISecret) != "" {
+		t.Fatalf("Invalid Wechat API Secret file: %s\nExpected: %s", secondConfig.APISecretFile, "/override_file")
+	}
+
+	// override the global file with an inline URL
+	thirdConfig := conf.Receivers[0].WechatConfigs[2]
+	if string(thirdConfig.APISecret) != "my_inline_secret" || thirdConfig.APISecretFile != "" {
+		t.Fatalf("Invalid Wechat API Secret: %s\nExpected: %s", string(thirdConfig.APISecret), "my_inline_secret")
+	}
 }

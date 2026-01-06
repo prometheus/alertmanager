@@ -19,7 +19,6 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
-	"text/template"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -630,8 +629,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     *SecretURL `yaml:"url" json:"url"`
-	URLFile string     `yaml:"url_file" json:"url_file"`
+	URL     SecretTemplateURL `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string            `yaml:"url_file" json:"url_file"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -650,10 +649,10 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil && c.URLFile == "" {
+	if c.URL == "" && c.URLFile == "" {
 		return errors.New("one of url or url_file must be configured")
 	}
-	if c.URL != nil && c.URLFile != "" {
+	if c.URL != "" && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
 	}
 	return nil
@@ -665,15 +664,16 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret   Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID      string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
-	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	APISecret     Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	APISecretFile string `yaml:"api_secret_file,omitempty" json:"api_secret_file,omitempty"`
+	CorpID        string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser        string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty       string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag         string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID       string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType   string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
 
 const wechatValidTypesRe = `^(text|markdown)$`
@@ -694,6 +694,10 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if !wechatTypeMatcher.MatchString(c.MessageType) {
 		return fmt.Errorf("weChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
+	}
+
+	if c.APISecret != "" && len(c.APISecretFile) > 0 {
+		return errors.New("at most one of api_secret & api_secret_file must be configured")
 	}
 
 	return nil
@@ -742,12 +746,11 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			return fmt.Errorf("opsGenieConfig responder %v has to have at least one of id, username or name specified", r)
 		}
 
-		if strings.Contains(r.Type, "{{") {
-			_, err := template.New("").Parse(r.Type)
-			if err != nil {
-				return fmt.Errorf("opsGenieConfig responder %v type is not a valid template: %w", r, err)
-			}
-		} else {
+		isTemplated, err := containsTemplating(r.Type)
+		if err != nil {
+			return fmt.Errorf("opsGenieConfig responder %v type contains invalid template syntax: %w", r, err)
+		}
+		if !isTemplated {
 			r.Type = strings.ToLower(r.Type)
 			if !opsgenieTypeMatcher.MatchString(r.Type) {
 				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
