@@ -15,6 +15,8 @@ package slack
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"github.com/prometheus/alertmanager/template"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -285,5 +288,55 @@ func TestSlackTimeout(t *testing.T) {
 			_, err = notifier.Notify(ctx, alert)
 			require.Equal(t, tt.wantErr, err != nil)
 		})
+	}
+}
+func TestSlackMessageField(t *testing.T) {
+	// 1. Setup a fake Slack server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+
+		// 2. VERIFY: Check if 'text' matches our 'message' config
+		if body["text"] != "My Top Level Message" {
+			t.Errorf("Expected 'text' to be 'My Top Level Message', got %v", body["text"])
+		}
+
+		// [FIX] Set the correct headers so the client accepts the response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	// 3. Configure the Notifier
+	u, _ := url.Parse(server.URL)
+	conf := &config.SlackConfig{
+		APIURL:     &config.SecretURL{URL: u},
+		Message:    "My Top Level Message",
+		Channel:    "#test-channel",          // [FIX] Add a channel name
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+
+	tmpl, err := template.FromGlobs([]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl.ExternalURL = u
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	notifier, err := New(conf, tmpl, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group-key")
+
+	// 4. Send the notification
+	if _, err := notifier.Notify(ctx); err != nil {
+		t.Fatal("Notify failed:", err)
 	}
 }

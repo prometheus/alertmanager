@@ -532,6 +532,7 @@ type SlackConfig struct {
 	TitleLink   string         `yaml:"title_link,omitempty" json:"title_link,omitempty"`
 	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
 	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
+	Message     string         `yaml:"message,omitempty" json:"message,omitempty"`
 	Fields      []*SlackField  `yaml:"fields,omitempty" json:"fields,omitempty"`
 	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
