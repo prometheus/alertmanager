@@ -16,8 +16,8 @@ package slack
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/alertmanager/template"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-	"github.com/prometheus/alertmanager/template"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -293,7 +293,7 @@ func TestSlackTimeout(t *testing.T) {
 func TestSlackMessageField(t *testing.T) {
 	// 1. Setup a fake Slack server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
@@ -315,7 +315,7 @@ func TestSlackMessageField(t *testing.T) {
 	conf := &config.SlackConfig{
 		APIURL:     &config.SecretURL{URL: u},
 		Message:    "My Top Level Message",
-		Channel:    "#test-channel",          // [FIX] Add a channel name
+		Channel:    "#test-channel", // [FIX] Add a channel name
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 
@@ -325,7 +325,7 @@ func TestSlackMessageField(t *testing.T) {
 	}
 	tmpl.ExternalURL = u
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	notifier, err := New(conf, tmpl, logger)
 	if err != nil {
