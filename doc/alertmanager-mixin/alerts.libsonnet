@@ -64,8 +64,8 @@
                 rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               /
                 ignoring (reason) group_left rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
+                > 0.01
               )
-              > 0.01
             ||| % $._config,
             'for': '5m',
             labels: {
@@ -83,8 +83,8 @@
                 rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
               /
                 ignoring (reason) group_left rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[15m])
+                > 0.01
               )
-              > 0.01
             ||| % $._config,
             'for': '5m',
             labels: {
