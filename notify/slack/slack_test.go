@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/alertmanager/template"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -35,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -290,6 +290,7 @@ func TestSlackTimeout(t *testing.T) {
 		})
 	}
 }
+
 func TestSlackMessageField(t *testing.T) {
 	// 1. Setup a fake Slack server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
