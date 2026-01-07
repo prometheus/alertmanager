@@ -1720,6 +1720,8 @@ receivers:
 	require.Len(t, cfg.Route.GroupBy, 2)
 	require.NotNil(t, cfg.Route.Routes[0].GroupBy)
 	require.Empty(t, cfg.Route.Routes[0].GroupBy)
+}
+
 func TestWechatNoAPIURL(t *testing.T) {
 	_, err := LoadFile("testdata/conf.wechat-no-api-secret.yml")
 	if err == nil {
