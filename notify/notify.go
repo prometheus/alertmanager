@@ -370,6 +370,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 	for _, integration := range []string{
 		"email",
 		"pagerduty",
+		"signl4",
 		"wechat",
 		"pushover",
 		"slack",
