@@ -78,6 +78,13 @@ var (
 		"num_resolved": `{{ .Alerts.Resolved | len }}`,
 	}
 
+	// DefaultSignl4Config defines default values for SIGNL4 configurations.
+	DefaultSIGNL4Config = SIGNL4Config{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
 		NotifierConfig: NotifierConfig{
@@ -422,6 +429,34 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		if _, ok := c.Details[k]; !ok {
 			c.Details[k] = v
 		}
+	}
+	return nil
+}
+
+// SIGNL4Config configures notifications via a generic SIGNL4.
+type SIGNL4Config struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	TeamSecret          Secret `yaml:"team_secret,omitempty" json:"team_secret,omitempty"`
+	Title               string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message             string `yaml:"message,omitempty" json:"message,omitempty"`
+	XS4Service          string `yaml:"s4_service,omitempty" json:"s4_service,omitempty"`
+	XS4Location         string `yaml:"s4_location,omitempty" json:"s4_location,omitempty"`
+	XS4AlertingScenario string `yaml:"s4_alerting_scenario,omitempty" json:"s4_alerting_scenario,omitempty"`
+	XS4Filtering        bool   `yaml:"s4_filtering" json:"s4_filtering,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *SIGNL4Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSIGNL4Config
+	type plain SIGNL4Config
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.TeamSecret == "" {
+		return fmt.Errorf("Missing team or integration secret (team_secret) in SIGNL4 config.")
 	}
 	return nil
 }
