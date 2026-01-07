@@ -5,7 +5,7 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
-## 0.30.0-rc.0 / 2025-12-10
+## 0.30.0 / 2025-12-15
 
 * [CHANGE] Don't allow calling qids with an empty ids list. #4707
 * [FEATURE] Add mattermost integration. #4090
