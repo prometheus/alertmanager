@@ -606,9 +606,9 @@ Found:
 
 A UTF-8 matcher consists of three tokens:
 
-- An unquoted literal or a double-quoted string for the label name.
-- One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
-- An unquoted literal or a double-quoted string for the regular expression or label value.
+* An unquoted literal or a double-quoted string for the label name.
+* One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
+* An unquoted literal or a double-quoted string for the regular expression or label value.
 
 Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
@@ -618,9 +618,9 @@ Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals
 
 A classic matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a classic matcher consists of three tokens:
 
-- A valid Prometheus label name.
-- One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
-- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
+* A valid Prometheus label name.
+* One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+* A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
@@ -760,6 +760,8 @@ pushover_configs:
   [ - <pushover_config>, ... ]
 rocketchat_configs:
   [ - <rocketchat_config>, ... ]
+signl4_configs:
+  [ - <signl4_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
@@ -1057,6 +1059,7 @@ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
 #### `<attachment_config>`
 
 See [Mattermost documentation](https://developers.mattermost.com/integrate/reference/message-attachments/) for more info.
+
 ```yaml
 [ fallback: <string> | default = '' ]
 [ color: <string> | default = '' ]
@@ -1242,7 +1245,7 @@ labels:
 
 Jira issue field can have multiple types.
 Depends on the field type, the values must be provided differently.
-See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types for further examples.
+See <https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#setting-custom-field-data-for-other-field-types> for further examples.
 
 ```yaml
 fields:
@@ -1538,6 +1541,31 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ text: <tmpl_string> ]
 [ url: <tmpl_string> ]
 [ msg: <tmpl_string> ]
+```
+
+### `<signl4_config>`
+
+SIGNL4 notifications are sent out via the [SIGNL4 Webhook API](https://www.signl4.com/webhook-rest-smtp-api-integration/).
+
+```yaml
+# Whether or not to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+# The SIGNL4 team or integration secret. This is the last part of your SIGNL4 webhook URL.
+[ team_secret: <secret> ]
+# The alert title.
+[ title: <string> | default = '' ]
+# The alert message.
+[ message: <string> | default = '' ]
+# Assigns the alert to the service/system category with the specified name.
+[ s4_service: <string> | default = '' ]
+# Transmit location information ('latitude, longitude') with your event and display a map in the mobile app.
+[ s4_location: <string> | default = '' ]
+# Pass 'single_ack' if only one person needs to confirm this alert. Pass 'multi_ack' in case this alert must be confirmed by the number of people who are on duty at the time this alert is raised.
+[ s4_alerting_scenario: <string> | default = '' ]
+# Specify a boolean value of true or false to apply event filtering for this event, or not. If set to true, the event will only trigger a notification to the team, if it contains at least one keyword from one of your services and system categories (i.e. it is whitelisted).
+[ s4_filtering: <boolean> | default = false ]
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 ### `<slack_config>`
@@ -1917,6 +1945,7 @@ room_id: <tmpl_string>
 ```
 
 ## Tracing Configuration
+
 ### `<tracing_config>`
 
 ```yaml
@@ -1945,4 +1974,3 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
-
