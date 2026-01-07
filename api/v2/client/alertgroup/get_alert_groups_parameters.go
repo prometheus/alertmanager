@@ -78,7 +78,7 @@ type GetAlertGroupsParams struct {
 
 	/* Active.
 
-	   Show active alerts
+	   Include active alerts within the returned groups. If false, excludes active alerts from groups and only shows suppressed (silenced or inhibited) alerts.
 
 	   Default: true
 	*/
@@ -92,7 +92,7 @@ type GetAlertGroupsParams struct {
 
 	/* Inhibited.
 
-	   Show inhibited alerts
+	   Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.
 
 	   Default: true
 	*/
@@ -100,7 +100,7 @@ type GetAlertGroupsParams struct {
 
 	/* Muted.
 
-	   Show muted alerts
+	   Include muted (silenced or inhibited) alert groups in results. If false, excludes entire groups where all alerts are muted.
 
 	   Default: true
 	*/
@@ -114,7 +114,7 @@ type GetAlertGroupsParams struct {
 
 	/* Silenced.
 
-	   Show silenced alerts
+	   Include silenced alerts within the returned groups. If false, excludes silenced alerts from groups. Note that true (default) shows both silenced and non-silenced alerts.
 
 	   Default: true
 	*/

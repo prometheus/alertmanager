@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -196,6 +197,85 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 		return errors.New(strings.ReplaceAll(err.Error(), string(data), "[REDACTED]"))
 	}
 
+	return nil
+}
+
+// containsTemplating checks if the string contains template syntax.
+func containsTemplating(s string) (bool, error) {
+	if !strings.Contains(s, "{{") {
+		return false, nil
+	}
+	// If it contains template syntax, validate it's actually a valid templ.
+	_, err := template.New("").Parse(s)
+	if err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// SecretTemplateURL is a Secret string that represents a URL which may contain
+// Go template syntax. Unlike SecretURL, it allows templated values and only
+// validates non-templated URLs at unmarshal time.
+type SecretTemplateURL Secret
+
+// MarshalYAML implements the yaml.Marshaler interface for SecretTemplateURL.
+func (s SecretTemplateURL) MarshalYAML() (any, error) {
+	if s != "" {
+		if MarshalSecretValue {
+			return string(s), nil
+		}
+		return secretToken, nil
+	}
+	return nil, nil
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SecretTemplateURL.
+func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain Secret
+	if err := unmarshal((*plain)(s)); err != nil {
+		return err
+	}
+
+	urlStr := string(*s)
+
+	// Skip validation for empty strings or secret token
+	if urlStr == "" || urlStr == secretToken {
+		return nil
+	}
+
+	// Check if the URL contains template syntax
+	isTemplated, err := containsTemplating(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid template syntax: %w", err)
+	}
+
+	// Only validate as URL if it's not templated
+	if !isTemplated {
+		if _, err := parseURL(urlStr); err != nil {
+			return fmt.Errorf("invalid URL: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for SecretTemplateURL.
+func (s SecretTemplateURL) MarshalJSON() ([]byte, error) {
+	return Secret(s).MarshalJSON()
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for SecretTemplateURL.
+func (s *SecretTemplateURL) UnmarshalJSON(data []byte) error {
+	if string(data) == secretToken || string(data) == secretTokenJSON {
+		*s = ""
+		return nil
+	}
+	// Just unmarshal as a string since Secret doesn't have UnmarshalJSON
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+	*s = SecretTemplateURL(str)
 	return nil
 }
 
@@ -419,6 +499,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of rocketchat_token_id & rocketchat_token_id_file must be configured")
 	}
 
+	if c.Global.WeChatAPISecret != "" && len(c.Global.WeChatAPISecretFile) > 0 {
+		return errors.New("at most one of wechat_api_secret & wechat_api_secret_file must be configured")
+	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -557,11 +641,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				wcc.APIURL = c.Global.WeChatAPIURL
 			}
 
-			if wcc.APISecret == "" {
-				if c.Global.WeChatAPISecret == "" {
-					return errors.New("no global Wechat ApiSecret set")
+			if wcc.APISecret == "" && len(wcc.APISecretFile) == 0 {
+				if c.Global.WeChatAPISecret == "" && len(c.Global.WeChatAPISecretFile) == 0 {
+					return errors.New("no global Wechat Api Secret set either inline or in a file")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
+				wcc.APISecretFile = c.Global.WeChatAPISecretFile
 			}
 
 			if wcc.CorpID == "" {
@@ -912,6 +997,7 @@ type GlobalConfig struct {
 	OpsGenieAPIKeyFile    string               `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
 	WeChatAPIURL          *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret       Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPISecretFile   string               `yaml:"wechat_api_secret_file,omitempty" json:"wechat_api_secret_file,omitempty"`
 	WeChatAPICorpID       string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL       *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
