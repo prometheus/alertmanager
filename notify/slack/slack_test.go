@@ -299,24 +299,35 @@ func TestSlackMessageField(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// 2. VERIFY: Check if 'text' matches our 'message' config
+		// 2. VERIFY: Top-level text exists
 		if body["text"] != "My Top Level Message" {
-			t.Errorf("Expected 'text' to be 'My Top Level Message', got %v", body["text"])
+			t.Errorf("Expected top-level 'text' to be 'My Top Level Message', got %v", body["text"])
 		}
 
-		// [FIX] Set the correct headers so the client accepts the response
+		// 3. VERIFY: Old attachments still exist
+		attachments, ok := body["attachments"].([]any)
+		if !ok || len(attachments) == 0 {
+			t.Errorf("Expected attachments to exist")
+		} else {
+			first := attachments[0].(map[string]any)
+			if first["title"] != "Old Attachment Title" {
+				t.Errorf("Expected attachment title 'Old Attachment Title', got %v", first["title"])
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"ok": true}`))
 	}))
 	defer server.Close()
 
-	// 3. Configure the Notifier
+	// 4. Configure Notifier with BOTH new and old fields
 	u, _ := url.Parse(server.URL)
 	conf := &config.SlackConfig{
 		APIURL:     &config.SecretURL{URL: u},
-		Message:    "My Top Level Message",
-		Channel:    "#test-channel", // [FIX] Add a channel name
+		Message:    "My Top Level Message", // Your NEW field
+		Title:      "Old Attachment Title", // An OLD field
+		Channel:    "#test-channel",
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 
@@ -327,7 +338,6 @@ func TestSlackMessageField(t *testing.T) {
 	tmpl.ExternalURL = u
 
 	logger := slog.New(slog.DiscardHandler)
-
 	notifier, err := New(conf, tmpl, logger)
 	if err != nil {
 		t.Fatal(err)
@@ -336,7 +346,6 @@ func TestSlackMessageField(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "test-group-key")
 
-	// 4. Send the notification
 	if _, err := notifier.Notify(ctx); err != nil {
 		t.Fatal("Notify failed:", err)
 	}
