@@ -333,8 +333,8 @@ type metrics struct {
 	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
-func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
-	return prometheus.NewGaugeFunc(
+func newSilenceMetricByState(r prometheus.Registerer, s *Silences, st types.SilenceState) prometheus.GaugeFunc {
+	return promauto.With(r).NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name:        "alertmanager_silences",
 			Help:        "How many silences by state.",
@@ -417,9 +417,9 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
 	if s != nil {
-		m.silencesActive = newSilenceMetricByState(s, types.SilenceStateActive)
-		m.silencesPending = newSilenceMetricByState(s, types.SilenceStatePending)
-		m.silencesExpired = newSilenceMetricByState(s, types.SilenceStateExpired)
+		m.silencesActive = newSilenceMetricByState(r, s, types.SilenceStateActive)
+		m.silencesPending = newSilenceMetricByState(r, s, types.SilenceStatePending)
+		m.silencesExpired = newSilenceMetricByState(r, s, types.SilenceStateExpired)
 		m.stateSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 			Name: "alertmanager_silences_state_size",
 			Help: "The number of silences in the state map.",
