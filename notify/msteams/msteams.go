@@ -61,7 +61,7 @@ type teamsMessage struct {
 
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
 func New(c *config.MSTeamsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteams", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "msteams", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

@@ -50,7 +50,7 @@ type Notifier struct {
 
 // New returns a new Mattermost notifier.
 func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "mattermost", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "mattermost", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
