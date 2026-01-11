@@ -26,6 +26,7 @@ const (
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
 	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
+	FeatureTSDB                  = "tsdb"
 )
 
 var AllowedFlags = []string{
@@ -34,6 +35,7 @@ var AllowedFlags = []string{
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
 	FeatureAutoGOMAXPROCS,
+	FeatureTSDB,
 }
 
 type Flagger interface {
@@ -42,6 +44,7 @@ type Flagger interface {
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
 	EnableAutoGOMAXPROCS() bool
+	EnableTSDB() bool
 }
 
 type Flags struct {
@@ -51,6 +54,7 @@ type Flags struct {
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
+	enableTSDB                   bool
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -71,6 +75,10 @@ func (f *Flags) EnableAutoGOMEMLIMIT() bool {
 
 func (f *Flags) EnableAutoGOMAXPROCS() bool {
 	return f.enableAutoGOMAXPROCS
+}
+
+func (f *Flags) EnableTSDB() bool {
+	return f.enableTSDB
 }
 
 type flagOption func(flags *Flags)
@@ -105,6 +113,12 @@ func enableAutoGOMAXPROCS() flagOption {
 	}
 }
 
+func enableTSDB() flagOption {
+	return func(configs *Flags) {
+		configs.enableTSDB = true
+	}
+}
+
 func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -130,6 +144,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			logger.Warn("Automatically set GOMAXPROCS to match Linux container CPU quota")
+		case FeatureTSDB:
+			opts = append(opts, enableTSDB())
+			logger.Warn("TSDB enabled")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
@@ -157,3 +174,5 @@ func (n NoopFlags) UTF8StrictMode() bool { return false }
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
+
+func (n NoopFlags) EnableTSDB() bool { return false }

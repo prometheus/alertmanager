@@ -60,6 +60,7 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
+	"github.com/prometheus/alertmanager/tsdb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
@@ -345,13 +346,51 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer)
+	// Alerts
+	alerts, err := mem.NewAlerts(
+		context.Background(),
+		marker,
+		*alertGCInterval,
+		nil,
+		logger,
+		prometheus.DefaultRegisterer,
+	)
 	if err != nil {
 		logger.Error("error creating memory provider", "err", err)
 		return 1
 	}
 	defer alerts.Close()
 
+	// TSDB
+	var db *tsdb.TSDB
+	if ff.EnableTSDB() {
+		db, err = tsdb.NewTSDB(*dataDir, 2*time.Hour, logger, prometheus.DefaultRegisterer)
+		if err != nil {
+			logger.Error("error creating TSDB", "err", err)
+			return 1
+		}
+		defer db.Close()
+
+		// Alerts TSDB
+		alertsTSDB, err := tsdb.NewAlerts(alerts, db, logger)
+		if err != nil {
+			logger.Error("error creating alerts TSDB", "err", err)
+			return 1
+		}
+		go alertsTSDB.Run()
+		defer alertsTSDB.Stop()
+
+		// Marker TSDB
+		tsdbMarker, err := tsdb.NewMarker(marker, db, logger)
+		if err != nil {
+			logger.Error("error creating marker", "err", err)
+			return 1
+		}
+		go tsdbMarker.Run()
+		defer tsdbMarker.Stop()
+	}
+
+	// Dispatcher
 	var disp *dispatch.Dispatcher
 	defer func() {
 		disp.Stop()
@@ -369,6 +408,7 @@ func run() int {
 		clusterPeer = peer
 	}
 
+	// API
 	api, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
@@ -381,6 +421,7 @@ func run() int {
 		Registry:        prometheus.DefaultRegisterer,
 		RequestDuration: requestDuration,
 		GroupFunc:       groupFn,
+		TSDB:            db,
 	})
 	if err != nil {
 		logger.Error("failed to create API", "err", err)
