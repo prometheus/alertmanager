@@ -82,7 +82,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 	}
 
-	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+	messageText, truncated := truncateMessage(tmpl(n.conf.Message), maxMessageLenRunes, n.conf.ParseMode)
 	if err != nil {
 		return false, err
 	}
@@ -132,4 +132,11 @@ func (n *Notifier) getBotToken() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.BotToken), nil
+}
+
+func truncateMessage(message string, maxMessageLenRunes int, parseMode string) (string, bool) {
+	if parseMode == "HTML" {
+		return notify.TruncateInRunesHTML(message, maxMessageLenRunes)
+	}
+	return notify.TruncateInRunes(message, maxMessageLenRunes)
 }

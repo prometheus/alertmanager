@@ -114,6 +114,96 @@ func TruncateInRunes(s string, n int) (string, bool) {
 	return string(r[:n-1]) + truncationMarker, true
 }
 
+// TruncateInRunesHTML truncates an HTML string to fit the given size in runes,
+// ensuring all open HTML tags are properly closed after truncation.
+func TruncateInRunesHTML(s string, n int) (string, bool) {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s, false
+	}
+
+	if n <= 1 {
+		return string(runes[:n]), true
+	}
+
+	const closingTagOverhead = 3 // len("</>")
+
+	var (
+		openTags     []string
+		inTag        bool
+		tagStart     int
+		lastSafePos  int
+		lastSafeTags []string
+	)
+
+	closingLen := func(tags []string) int {
+		total := 0
+		for _, tag := range tags {
+			total += closingTagOverhead + len([]rune(tag))
+		}
+		return total
+	}
+
+	markSafeCutPoint := func(pos int) {
+		needed := pos + 1 + closingLen(openTags) // +1 for truncation marker
+		if needed <= n {
+			lastSafePos = pos
+			lastSafeTags = slices.Clone(openTags)
+		}
+	}
+
+	for i, r := range runes {
+		switch {
+		case !inTag && r == '<':
+			inTag = true
+			tagStart = i
+
+		case inTag && r == '>':
+			inTag = false
+			tagContent := string(runes[tagStart+1 : i])
+
+			switch {
+			case strings.HasPrefix(tagContent, "/"):
+				closeName := strings.TrimSpace(strings.TrimPrefix(tagContent, "/"))
+				for j := len(openTags) - 1; j >= 0; j-- {
+					if openTags[j] == closeName {
+						openTags = append(openTags[:j], openTags[j+1:]...)
+						break
+					}
+				}
+			case strings.HasSuffix(strings.TrimSpace(tagContent), "/"):
+				// self-closing
+			default:
+				tagName := tagContent
+				if idx := strings.IndexAny(tagContent, " \t\n"); idx != -1 {
+					tagName = tagContent[:idx]
+				}
+				openTags = append(openTags, tagName)
+			}
+			markSafeCutPoint(i + 1)
+
+		case !inTag:
+			markSafeCutPoint(i + 1)
+		}
+	}
+
+	if lastSafePos == 0 {
+		return string(runes[:n-1]) + truncationMarker, true
+	}
+
+	var truncated strings.Builder
+	truncated.Grow(n)
+	truncated.WriteString(string(runes[:lastSafePos]))
+	truncated.WriteString(truncationMarker)
+	for i := len(lastSafeTags) - 1; i >= 0; i-- {
+		truncated.WriteString("</")
+		truncated.WriteString(lastSafeTags[i])
+		truncated.WriteRune('>')
+	}
+
+	return truncated.String(), true
+}
+
 // TruncateInBytes truncates a string to fit the given size in Bytes.
 func TruncateInBytes(s string, n int) (string, bool) {
 	// First, measure the string the w/o a to-rune conversion.
