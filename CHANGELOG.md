@@ -5,6 +5,10 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
+## 0.30.1 / 2026-01-12
+
+* [BUGFIX] Fix memory leak in tracing client. #4828
+
 ## 0.30.0 / 2025-12-15
 
 * [CHANGE] Don't allow calling qids with an empty ids list. #4707
