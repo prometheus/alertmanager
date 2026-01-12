@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
@@ -37,6 +38,18 @@ const truncationMarker = "…"
 
 // UserAgentHeader is the default User-Agent for notification requests.
 var UserAgentHeader = version.ComponentUserAgent("Alertmanager")
+
+// NewClientWithTracing creates a new HTTP client with tracing included
+// Clients are reused across requests, so tracing is configured once at creation
+// rather than on each request.
+func NewClientWithTracing(cfg commoncfg.HTTPClientConfig, name string, httpOpts ...commoncfg.HTTPClientOption) (*http.Client, error) {
+	client, err := commoncfg.NewClientFromConfig(cfg, name, httpOpts...)
+	if err != nil {
+		return nil, err
+	}
+	client.Transport = tracing.Transport(client.Transport)
+	return client, nil
+}
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
@@ -76,9 +89,6 @@ func request(ctx context.Context, client *http.Client, method, url, bodyType str
 	if bodyType != "" {
 		req.Header.Set("Content-Type", bodyType)
 	}
-
-	// Inject trancing transport
-	client.Transport = tracing.Transport(client.Transport)
 
 	return client.Do(req.WithContext(ctx))
 }

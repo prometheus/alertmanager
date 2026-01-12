@@ -60,7 +60,7 @@ type Notifier struct {
 
 // New returns a new Discord notifier.
 func New(c *config.DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "discord", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "discord", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

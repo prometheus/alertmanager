@@ -46,7 +46,7 @@ type Notifier struct {
 
 // New returns a new VictorOps notifier.
 func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
