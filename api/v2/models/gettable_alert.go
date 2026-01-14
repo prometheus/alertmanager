@@ -25,7 +25,8 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/jsonutils"
+	"github.com/go-openapi/swag/typeutils"
 	"github.com/go-openapi/validate"
 )
 
@@ -86,7 +87,7 @@ func (m *GettableAlert) UnmarshalJSON(raw []byte) error {
 
 		UpdatedAt *strfmt.DateTime `json:"updatedAt"`
 	}
-	if err := swag.ReadJSON(raw, &dataAO0); err != nil {
+	if err := jsonutils.ReadJSON(raw, &dataAO0); err != nil {
 		return err
 	}
 
@@ -106,7 +107,7 @@ func (m *GettableAlert) UnmarshalJSON(raw []byte) error {
 
 	// AO1
 	var aO1 Alert
-	if err := swag.ReadJSON(raw, &aO1); err != nil {
+	if err := jsonutils.ReadJSON(raw, &aO1); err != nil {
 		return err
 	}
 	m.Alert = aO1
@@ -148,18 +149,18 @@ func (m GettableAlert) MarshalJSON() ([]byte, error) {
 
 	dataAO0.UpdatedAt = m.UpdatedAt
 
-	jsonDataAO0, errAO0 := swag.WriteJSON(dataAO0)
+	jsonDataAO0, errAO0 := jsonutils.WriteJSON(dataAO0)
 	if errAO0 != nil {
 		return nil, errAO0
 	}
 	_parts = append(_parts, jsonDataAO0)
 
-	aO1, err := swag.WriteJSON(m.Alert)
+	aO1, err := jsonutils.WriteJSON(m.Alert)
 	if err != nil {
 		return nil, err
 	}
 	_parts = append(_parts, aO1)
-	return swag.ConcatJSON(_parts...), nil
+	return jsonutils.ConcatJSON(_parts...), nil
 }
 
 // Validate validates this gettable alert
@@ -254,7 +255,7 @@ func (m *GettableAlert) validateReceivers(formats strfmt.Registry) error {
 	}
 
 	for i := 0; i < len(m.Receivers); i++ {
-		if swag.IsZero(m.Receivers[i]) { // not required
+		if typeutils.IsZero(m.Receivers[i]) { // not required
 			continue
 		}
 
@@ -367,7 +368,7 @@ func (m *GettableAlert) contextValidateReceivers(ctx context.Context, formats st
 
 		if m.Receivers[i] != nil {
 
-			if swag.IsZero(m.Receivers[i]) { // not required
+			if typeutils.IsZero(m.Receivers[i]) { // not required
 				return nil
 			}
 
@@ -408,13 +409,13 @@ func (m *GettableAlert) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return swag.WriteJSON(m)
+	return jsonutils.WriteJSON(m)
 }
 
 // UnmarshalBinary interface implementation
 func (m *GettableAlert) UnmarshalBinary(b []byte) error {
 	var res GettableAlert
-	if err := swag.ReadJSON(b, &res); err != nil {
+	if err := jsonutils.ReadJSON(b, &res); err != nil {
 		return err
 	}
 	*m = res

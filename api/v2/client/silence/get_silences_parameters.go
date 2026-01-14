@@ -28,7 +28,7 @@ import (
 	"github.com/go-openapi/runtime"
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/stringutils"
 )
 
 // NewGetSilencesParams creates a new GetSilencesParams object,
@@ -183,7 +183,7 @@ func (o *GetSilencesParams) bindParamFilter(formats strfmt.Registry) []string {
 	}
 
 	// items.CollectionFormat: "multi"
-	filterIS := swag.JoinByFormat(filterIC, "multi")
+	filterIS := stringutils.JoinByFormat(filterIC, "multi")
 
 	return filterIS
 }

@@ -24,7 +24,8 @@ import (
 	"net/url"
 	golangswaggerpaths "path"
 
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
+	"github.com/go-openapi/swag/stringutils"
 )
 
 // GetAlertsURL generates an URL for the get alerts operation
@@ -72,7 +73,7 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	var activeQ string
 	if o.Active != nil {
-		activeQ = swag.FormatBool(*o.Active)
+		activeQ = conv.FormatBool(*o.Active)
 	}
 	if activeQ != "" {
 		qs.Set("active", activeQ)
@@ -86,7 +87,7 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 		}
 	}
 
-	filter := swag.JoinByFormat(filterIR, "multi")
+	filter := stringutils.JoinByFormat(filterIR, "multi")
 
 	for _, qsv := range filter {
 		qs.Add("filter", qsv)
@@ -94,7 +95,7 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	var inhibitedQ string
 	if o.Inhibited != nil {
-		inhibitedQ = swag.FormatBool(*o.Inhibited)
+		inhibitedQ = conv.FormatBool(*o.Inhibited)
 	}
 	if inhibitedQ != "" {
 		qs.Set("inhibited", inhibitedQ)
@@ -110,7 +111,7 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	var silencedQ string
 	if o.Silenced != nil {
-		silencedQ = swag.FormatBool(*o.Silenced)
+		silencedQ = conv.FormatBool(*o.Silenced)
 	}
 	if silencedQ != "" {
 		qs.Set("silenced", silencedQ)
@@ -118,7 +119,7 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	var unprocessedQ string
 	if o.Unprocessed != nil {
-		unprocessedQ = swag.FormatBool(*o.Unprocessed)
+		unprocessedQ = conv.FormatBool(*o.Unprocessed)
 	}
 	if unprocessedQ != "" {
 		qs.Set("unprocessed", unprocessedQ)

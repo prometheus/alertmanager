@@ -24,7 +24,7 @@ import (
 	"net/url"
 	golangswaggerpaths "path"
 
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/stringutils"
 )
 
 // GetSilencesURL generates an URL for the get silences operation
@@ -73,7 +73,7 @@ func (o *GetSilencesURL) Build() (*url.URL, error) {
 		}
 	}
 
-	filter := swag.JoinByFormat(filterIR, "multi")
+	filter := stringutils.JoinByFormat(filterIR, "multi")
 
 	for _, qsv := range filter {
 		qs.Add("filter", qsv)

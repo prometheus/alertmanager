@@ -25,7 +25,7 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/typeutils"
 )
 
 // PostableAlerts postable alerts
@@ -38,7 +38,7 @@ func (m PostableAlerts) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	for i := 0; i < len(m); i++ {
-		if swag.IsZero(m[i]) { // not required
+		if typeutils.IsZero(m[i]) { // not required
 			continue
 		}
 
@@ -69,7 +69,7 @@ func (m PostableAlerts) ContextValidate(ctx context.Context, formats strfmt.Regi
 
 		if m[i] != nil {
 
-			if swag.IsZero(m[i]) { // not required
+			if typeutils.IsZero(m[i]) { // not required
 				return nil
 			}
 

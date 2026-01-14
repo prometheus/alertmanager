@@ -28,7 +28,8 @@ import (
 	"github.com/go-openapi/runtime"
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
+	"github.com/go-openapi/swag/stringutils"
 )
 
 // NewGetAlertGroupsParams creates a new GetAlertGroupsParams object,
@@ -275,7 +276,7 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		if o.Active != nil {
 			qrActive = *o.Active
 		}
-		qActive := swag.FormatBool(qrActive)
+		qActive := conv.FormatBool(qrActive)
 		if qActive != "" {
 
 			if err := r.SetQueryParam("active", qActive); err != nil {
@@ -303,7 +304,7 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		if o.Inhibited != nil {
 			qrInhibited = *o.Inhibited
 		}
-		qInhibited := swag.FormatBool(qrInhibited)
+		qInhibited := conv.FormatBool(qrInhibited)
 		if qInhibited != "" {
 
 			if err := r.SetQueryParam("inhibited", qInhibited); err != nil {
@@ -320,7 +321,7 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		if o.Muted != nil {
 			qrMuted = *o.Muted
 		}
-		qMuted := swag.FormatBool(qrMuted)
+		qMuted := conv.FormatBool(qrMuted)
 		if qMuted != "" {
 
 			if err := r.SetQueryParam("muted", qMuted); err != nil {
@@ -354,7 +355,7 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		if o.Silenced != nil {
 			qrSilenced = *o.Silenced
 		}
-		qSilenced := swag.FormatBool(qrSilenced)
+		qSilenced := conv.FormatBool(qrSilenced)
 		if qSilenced != "" {
 
 			if err := r.SetQueryParam("silenced", qSilenced); err != nil {
@@ -381,7 +382,7 @@ func (o *GetAlertGroupsParams) bindParamFilter(formats strfmt.Registry) []string
 	}
 
 	// items.CollectionFormat: "multi"
-	filterIS := swag.JoinByFormat(filterIC, "multi")
+	filterIS := stringutils.JoinByFormat(filterIC, "multi")
 
 	return filterIS
 }

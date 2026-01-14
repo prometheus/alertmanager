@@ -35,7 +35,7 @@ import (
 //go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --principal interface{} --exclude-main
 
 func configureFlags(api *operations.AlertmanagerAPI) {
-	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
+	// api.CommandLineOptionsGroups = []cmdutils.CommandLineOptionsGroup{ ... }
 }
 
 func configureAPI(api *operations.AlertmanagerAPI) http.Handler {

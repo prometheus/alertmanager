@@ -26,7 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
 )
 
 // NewGetAlertGroupsParams creates a new GetAlertGroupsParams object
@@ -156,7 +156,7 @@ func (o *GetAlertGroupsParams) bindActive(rawData []string, hasKey bool, formats
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("active", "query", "bool", raw)
 	}
@@ -202,7 +202,7 @@ func (o *GetAlertGroupsParams) bindInhibited(rawData []string, hasKey bool, form
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("inhibited", "query", "bool", raw)
 	}
@@ -226,7 +226,7 @@ func (o *GetAlertGroupsParams) bindMuted(rawData []string, hasKey bool, formats 
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("muted", "query", "bool", raw)
 	}
@@ -268,7 +268,7 @@ func (o *GetAlertGroupsParams) bindSilenced(rawData []string, hasKey bool, forma
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("silenced", "query", "bool", raw)
 	}

@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/jsonutils"
 )
 
 // PostableSilence postable silence
@@ -44,7 +44,7 @@ func (m *PostableSilence) UnmarshalJSON(raw []byte) error {
 	var dataAO0 struct {
 		ID string `json:"id,omitempty"`
 	}
-	if err := swag.ReadJSON(raw, &dataAO0); err != nil {
+	if err := jsonutils.ReadJSON(raw, &dataAO0); err != nil {
 		return err
 	}
 
@@ -52,7 +52,7 @@ func (m *PostableSilence) UnmarshalJSON(raw []byte) error {
 
 	// AO1
 	var aO1 Silence
-	if err := swag.ReadJSON(raw, &aO1); err != nil {
+	if err := jsonutils.ReadJSON(raw, &aO1); err != nil {
 		return err
 	}
 	m.Silence = aO1
@@ -70,18 +70,18 @@ func (m PostableSilence) MarshalJSON() ([]byte, error) {
 
 	dataAO0.ID = m.ID
 
-	jsonDataAO0, errAO0 := swag.WriteJSON(dataAO0)
+	jsonDataAO0, errAO0 := jsonutils.WriteJSON(dataAO0)
 	if errAO0 != nil {
 		return nil, errAO0
 	}
 	_parts = append(_parts, jsonDataAO0)
 
-	aO1, err := swag.WriteJSON(m.Silence)
+	aO1, err := jsonutils.WriteJSON(m.Silence)
 	if err != nil {
 		return nil, err
 	}
 	_parts = append(_parts, aO1)
-	return swag.ConcatJSON(_parts...), nil
+	return jsonutils.ConcatJSON(_parts...), nil
 }
 
 // Validate validates this postable silence
@@ -119,13 +119,13 @@ func (m *PostableSilence) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return swag.WriteJSON(m)
+	return jsonutils.WriteJSON(m)
 }
 
 // UnmarshalBinary interface implementation
 func (m *PostableSilence) UnmarshalBinary(b []byte) error {
 	var res PostableSilence
-	if err := swag.ReadJSON(b, &res); err != nil {
+	if err := jsonutils.ReadJSON(b, &res); err != nil {
 		return err
 	}
 	*m = res

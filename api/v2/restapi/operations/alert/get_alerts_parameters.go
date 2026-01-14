@@ -26,7 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
 )
 
 // NewGetAlertsParams creates a new GetAlertsParams object
@@ -156,7 +156,7 @@ func (o *GetAlertsParams) bindActive(rawData []string, hasKey bool, formats strf
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("active", "query", "bool", raw)
 	}
@@ -202,7 +202,7 @@ func (o *GetAlertsParams) bindInhibited(rawData []string, hasKey bool, formats s
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("inhibited", "query", "bool", raw)
 	}
@@ -244,7 +244,7 @@ func (o *GetAlertsParams) bindSilenced(rawData []string, hasKey bool, formats st
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("silenced", "query", "bool", raw)
 	}
@@ -268,7 +268,7 @@ func (o *GetAlertsParams) bindUnprocessed(rawData []string, hasKey bool, formats
 		return nil
 	}
 
-	value, err := swag.ConvertBool(raw)
+	value, err := conv.ConvertBool(raw)
 	if err != nil {
 		return errors.InvalidType("unprocessed", "query", "bool", raw)
 	}
