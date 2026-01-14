@@ -20,7 +20,7 @@
     "@mantine/core": "8.3.12",
     "@mantine/hooks": "8.3.12",
     "@tanstack/react-query": "^5.90.16",
-    "react": "^19.1.0",
+    "react": "^19.2.3",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.12.0"
   },
@@ -32,7 +32,7 @@
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.0.6",
-    "@types/react": "^19.1.8",
+    "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.2",
