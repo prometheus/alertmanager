@@ -39,7 +39,6 @@ func NewGetReceiversParams() GetReceiversParams {
 //
 // swagger:parameters getReceivers
 type GetReceiversParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 }

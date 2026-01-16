@@ -41,7 +41,6 @@ func NewDeleteSilenceParams() DeleteSilenceParams {
 //
 // swagger:parameters deleteSilence
 type DeleteSilenceParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -95,7 +94,7 @@ func (o *DeleteSilenceParams) bindSilenceID(rawData []string, hasKey bool, forma
 	return nil
 }
 
-// validateSilenceID carries on validations for parameter SilenceID
+// validateSilenceID carries out validations for parameter SilenceID
 func (o *DeleteSilenceParams) validateSilenceID(formats strfmt.Registry) error {
 
 	if err := validate.FormatOf("silenceID", "path", "uuid", o.SilenceID.String(), formats); err != nil {
