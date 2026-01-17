@@ -7,8 +7,7 @@ jobs:
     name: Test alertmanager frontend
     runs-on: ubuntu-latest
     steps:
-      # Updated to official v4 hash
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - run: make clean
       - run: make all
         working-directory: ./ui/app
@@ -23,7 +22,7 @@ jobs:
       matrix:
         thread: [0, 1, 2]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: prometheus/promci@c0916f0a41f13444612a8f0f5e700ea34edd7c19 # v0.5.3
       - uses: ./.github/promci/actions/build
         with:
@@ -52,7 +51,7 @@ jobs:
       EMAIL_AUTH_CONFIG: testdata/auth.yml
     
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: prometheus/promci@c0916f0a41f13444612a8f0f5e700ea34edd7c19 # v0.5.3
       - uses: ./.github/promci/actions/setup_environment
       - name: Run tests
@@ -64,7 +63,7 @@ jobs:
     name: Test (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: prometheus/promci@c0916f0a41f13444612a8f0f5e700ea34edd7c19 # v0.5.3
       
       - name: Set up Go
