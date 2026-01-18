@@ -109,7 +109,11 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.VictorOpsConfig{
+<<<<<<< HEAD
 			APIURL:     &amcommoncfg.URL{URL: u},
+=======
+			APIURL:     &config.URL{URL: u},
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 			APIKey:     commoncfg.Secret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},

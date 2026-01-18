@@ -102,7 +102,11 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
+<<<<<<< HEAD
 			URL:        &amcommoncfg.URL{URL: u},
+=======
+			URL:        &config.URL{URL: u},
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 			RoutingKey: commoncfg.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -536,7 +540,11 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	pagerDutyConfig := config.PagerdutyConfig{
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
 		RoutingKey: commoncfg.Secret("01234567890123456789012345678901"),
+<<<<<<< HEAD
 		URL:        &amcommoncfg.URL{URL: url},
+=======
+		URL:        &config.URL{URL: url},
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 		Images:     images,
 		Links:      links,
 	}
@@ -604,7 +612,11 @@ func TestPagerDutyTimeout(t *testing.T) {
 			cfg := config.PagerdutyConfig{
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				RoutingKey: commoncfg.Secret("01234567890123456789012345678901"),
+<<<<<<< HEAD
 				URL:        &amcommoncfg.URL{URL: u},
+=======
+				URL:        &config.URL{URL: u},
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 				Timeout:    tt.timeout,
 			}
 

@@ -530,11 +530,19 @@ type SlackConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
+<<<<<<< HEAD
 	APIURL       *amcommoncfg.SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	APIURLFile   string                 `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
 	AppToken     commoncfg.Secret       `yaml:"app_token,omitempty" json:"app_token,omitempty"`
 	AppTokenFile string                 `yaml:"app_token_file,omitempty" json:"app_token_file,omitempty"`
 	AppURL       *amcommoncfg.URL       `yaml:"app_url,omitempty" json:"app_url,omitempty"`
+=======
+	APIURL       *SecretURL       `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURLFile   string           `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
+	AppToken     commoncfg.Secret `yaml:"app_token,omitempty" json:"app_token,omitempty"`
+	AppTokenFile string           `yaml:"app_token_file,omitempty" json:"app_token_file,omitempty"`
+	AppURL       *URL             `yaml:"app_url,omitempty" json:"app_url,omitempty"`
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -682,7 +690,11 @@ type WechatConfig struct {
 	APISecretFile string           `yaml:"api_secret_file,omitempty" json:"api_secret_file,omitempty"`
 	CorpID        string           `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message       string           `yaml:"message,omitempty" json:"message,omitempty"`
+<<<<<<< HEAD
 	APIURL        *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+=======
+	APIURL        *URL             `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 	ToUser        string           `yaml:"to_user,omitempty" json:"to_user,omitempty"`
 	ToParty       string           `yaml:"to_party,omitempty" json:"to_party,omitempty"`
 	ToTag         string           `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
@@ -923,7 +935,11 @@ type TelegramConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
+<<<<<<< HEAD
 	APIUrl               *amcommoncfg.URL `yaml:"api_url" json:"api_url,omitempty"`
+=======
+	APIUrl               *URL             `yaml:"api_url" json:"api_url,omitempty"`
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 	BotToken             commoncfg.Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
 	BotTokenFile         string           `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
 	ChatID               int64            `yaml:"chat_id,omitempty" json:"chat,omitempty"`
@@ -1117,7 +1133,11 @@ type RocketchatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
+<<<<<<< HEAD
 	APIURL      *amcommoncfg.URL  `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+=======
+	APIURL      *URL              `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+>>>>>>> 87c1d1c3 (refactor: replace config.Secret with commoncfg.Secret)
 	TokenID     *commoncfg.Secret `yaml:"token_id,omitempty" json:"token_id,omitempty"`
 	TokenIDFile string            `yaml:"token_id_file,omitempty" json:"token_id_file,omitempty"`
 	Token       *commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
