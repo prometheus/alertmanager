@@ -76,6 +76,87 @@ func QGroupKey(gk string) QueryParam {
 	}
 }
 
+type Store struct {
+	data map[string]*pb.ReceiverDataValue
+}
+
+func NewStore(entry *pb.Entry) *Store {
+	var receiverData map[string]*pb.ReceiverDataValue
+	if entry != nil {
+		receiverData = entry.ReceiverData
+	}
+	if receiverData == nil {
+		receiverData = make(map[string]*pb.ReceiverDataValue)
+	}
+	return &Store{
+		data: receiverData,
+	}
+}
+
+func (s *Store) GetInt(key string) (int64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	intVal, ok := dataValue.Value.(*pb.ReceiverDataValue_IntVal)
+	if !ok {
+		return 0, false
+	}
+	return intVal.IntVal, true
+}
+
+func (s *Store) GetFloat(key string) (float64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	floatVal, ok := dataValue.Value.(*pb.ReceiverDataValue_DoubleVal)
+	if !ok {
+		return 0, false
+	}
+	return floatVal.DoubleVal, true
+}
+
+func (s *Store) GetStr(key string) (string, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return "", false
+	}
+	strVal, ok := dataValue.Value.(*pb.ReceiverDataValue_StrVal)
+	if !ok {
+		return "", false
+	}
+	return strVal.StrVal, true
+}
+
+func (s *Store) SetInt(key string, i int64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_IntVal{
+			IntVal: i,
+		},
+	}
+}
+
+func (s *Store) SetFloat(key string, i float64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_DoubleVal{
+			DoubleVal: i,
+		},
+	}
+}
+
+func (s *Store) SetStr(key, i string) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_StrVal{
+			StrVal: i,
+		},
+	}
+}
+
+func (s *Store) Delete(key string) {
+	delete(s.data, key)
+}
+
 // Log holds the notification log state for alerts that have been notified.
 type Log struct {
 	clock quartz.Clock
@@ -368,7 +449,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *Store, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -389,6 +470,11 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		expiresAt = now.Add(expiry)
 	}
 
+	var receiverData map[string]*pb.ReceiverDataValue
+	if store != nil {
+		receiverData = store.data
+	}
+
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
@@ -396,6 +482,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 			Timestamp:      now,
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
+			ReceiverData:   receiverData,
 		},
 		ExpiresAt: expiresAt,
 	}

@@ -142,6 +142,7 @@ const (
 	keyMuteTimeIntervals
 	keyActiveTimeIntervals
 	keyRouteID
+	keyNflogStore
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -262,6 +263,15 @@ func RouteID(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
+func WithNflogStore(ctx context.Context, store *nflog.Store) context.Context {
+	return context.WithValue(ctx, keyNflogStore, store)
+}
+
+func NflogStore(ctx context.Context) (*nflog.Store, bool) {
+	v, ok := ctx.Value(keyNflogStore).(*nflog.Store)
+	return v, ok
+}
+
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
 	Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
@@ -276,7 +286,7 @@ func (f StageFunc) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Al
 }
 
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *nflog.Store, expiry time.Duration) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
@@ -788,6 +798,13 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
+	isFirstNotification := entry == nil || (len(entry.FiringAlerts) == 0 && len(entry.ResolvedAlerts) > 0 && len(firing) > 0)
+	if isFirstNotification {
+		ctx = WithNflogStore(ctx, nflog.NewStore(nil))
+	} else {
+		ctx = WithNflogStore(ctx, nflog.NewStore(entry))
+	}
+
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
 		span.AddEvent("notify.DedupStage.Exec nflog needs update")
 		return ctx, alerts, nil
@@ -1008,7 +1025,9 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*t
 		attribute.Int("alerting.alerts.resolved.count", len(resolved)),
 	)
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry)
+	// Extract receiver data from context if present (it's ok for it to be nil).
+	store, _ := NflogStore(ctx)
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, store, expiry)
 }
 
 type timeStage struct {
