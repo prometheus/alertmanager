@@ -87,7 +87,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 func TestVictorOpsRetry(t *testing.T) {
 	notifier, err := New(
 		&config.VictorOpsConfig{
-			APIKey:     config.Secret("secret"),
+			APIKey:     commoncfg.Secret("secret"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -108,7 +108,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	notifier, err := New(
 		&config.VictorOpsConfig{
 			APIURL:     &config.URL{URL: u},
-			APIKey:     config.Secret(secret),
+			APIKey:     commoncfg.Secret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
