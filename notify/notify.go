@@ -790,15 +790,19 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 	}
 
 	var entry *nflogpb.Entry
+	var isFirstNotification bool
 	switch len(entries) {
 	case 0:
+		isFirstNotification = true
 	case 1:
 		entry = entries[0]
+		// if this condition true, we're sending a notification for a new alert group, but the nflog entry for the previous alert
+		// group is still in log
+		isFirstNotification = len(entry.FiringAlerts) == 0 && len(firing) > 0
 	default:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	isFirstNotification := entry == nil || (len(entry.FiringAlerts) == 0 && len(entry.ResolvedAlerts) > 0 && len(firing) > 0)
 	if isFirstNotification {
 		ctx = WithNflogStore(ctx, nflog.NewStore(nil))
 	} else {
