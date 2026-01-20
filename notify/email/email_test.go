@@ -201,7 +201,7 @@ func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *config.Email
 	return e, retry, nil
 }
 
-func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) {
+func prepare(cfg *config.EmailConfig) (*template.Template, *types.AlertSnapshot, error) {
 	if cfg == nil {
 		panic("nil config passed")
 	}
@@ -219,13 +219,13 @@ func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) 
 	}
 	tmpl.ExternalURL, _ = url.Parse("http://am")
 
-	firingAlert := &types.Alert{
+	firingAlert := types.NewAlertSnapshot(&types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{},
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
 		},
-	}
+	}, time.Now())
 	return tmpl, firingAlert, nil
 }
 

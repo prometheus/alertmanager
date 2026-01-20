@@ -75,7 +75,7 @@ receivers:
 
 	alert1 := Alert("alertname", "test1").Active(1, 2)
 	am.AddAlertsAt(false, 0, alert1)
-	co.Want(Between(1, 2), Alert("alertname", "test1").Active(1))
+	co.Want(Between(1, 2), Alert("alertname", "test1").Active(1, 2))
 
 	at.Run()
 

@@ -273,6 +273,8 @@ func TestSendAlertsToUTF8Route(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: default
   routes:
@@ -294,10 +296,10 @@ receivers:
 	})
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	am.Push(At(1), Alert("foo🙂", "bar").Active(1))
-	co.Want(Between(2, 2.5), Alert("foo🙂", "bar").Active(1))
+	co.Want(Between(2, 2.5), Alert("foo🙂", "bar").Active(1, 1+resolveTimeout.Seconds()))
 	at.Run()
 	t.Log(co.Check())
 }
