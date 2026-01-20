@@ -16,6 +16,16 @@ parseMatcher =
         , test "should parse empty matcher value" <|
             \() ->
                 Expect.equal (Just (Matcher "alertname" Eq "")) (Utils.Filter.parseMatcher "alertname=\"\"")
+        , test "should unescape quoted matcher value" <|
+            \() ->
+                Expect.equal
+                    (Just (Matcher "alertname" Eq "foo\"bar"))
+                    (Utils.Filter.parseMatcher "alertname=\"foo\\\"bar\"")
+        , test "should unescape backslash matcher value" <|
+            \() ->
+                Expect.equal
+                    (Just (Matcher "alertname" Eq "foo\\bar"))
+                    (Utils.Filter.parseMatcher "alertname=\"foo\\\\bar\"")
         , fuzz (tuple ( string, string )) "should parse random matcher string" <|
             \( key, value ) ->
                 if List.map isNotEmptyTrimmedAlphabetWord [ key, value ] /= [ True, True ] then
@@ -82,5 +92,11 @@ stringifyFilter =
                         [ { key = "foo", op = Eq, value = "bar" }
                         , { key = "baz", op = RegexMatch, value = "quux.*" }
                         ]
+                    )
+        , test "escapes matcher values" <|
+            \() ->
+                Expect.equal "{foo=\"bar\\\"baz\\\\qux\"}"
+                    (Utils.Filter.stringifyFilter
+                        [ { key = "foo", op = Eq, value = "bar\"baz\\qux" } ]
                     )
         ]

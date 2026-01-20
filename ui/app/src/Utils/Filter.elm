@@ -279,7 +279,7 @@ stringifyMatcher { key, op, value } =
                 |> Maybe.withDefault ""
            )
         ++ "\""
-        ++ value
+        ++ escapeMatcherValue value
         ++ "\""
 
 
@@ -341,7 +341,7 @@ string separator =
         |. Parser.loop separator stringHelp
         |> Parser.getChompedString
         -- Remove quotes
-        |> Parser.map (String.dropLeft 1 >> String.dropRight 1)
+        |> Parser.map (String.dropLeft 1 >> String.dropRight 1 >> unescapeMatcherValue)
 
 
 stringHelp : Char -> Parser (Parser.Step Char ())
@@ -355,6 +355,66 @@ stringHelp separator =
         , Parser.succeed (Parser.Loop separator)
             |. Parser.chompIf (\char -> char /= '\\' && char /= separator)
         ]
+
+
+escapeMatcherValue : String -> String
+escapeMatcherValue value =
+    String.foldl
+        (\char acc ->
+            case char of
+                '\\' ->
+                    "\\\\" :: acc
+
+                '"' ->
+                    "\\\"" :: acc
+
+                '\n' ->
+                    "\\n" :: acc
+
+                _ ->
+                    String.fromChar char :: acc
+        )
+        []
+        value
+        |> List.reverse
+        |> String.concat
+
+
+unescapeMatcherValue : String -> String
+unescapeMatcherValue value =
+    let
+        step char ( isEscaped, acc ) =
+            if isEscaped then
+                case char of
+                    'n' ->
+                        ( False, '\n' :: acc )
+
+                    '"' ->
+                        ( False, '"' :: acc )
+
+                    '\\' ->
+                        ( False, '\\' :: acc )
+
+                    _ ->
+                        ( False, char :: '\\' :: acc )
+
+            else if char == '\\' then
+                ( True, acc )
+
+            else
+                ( False, char :: acc )
+
+        ( finalEscaped, finalAcc ) =
+            String.foldl step ( False, [] ) value
+    in
+    (if finalEscaped then
+        '\\' :: finalAcc
+
+     else
+        finalAcc
+    )
+        |> List.reverse
+        |> String.fromList
 
 
 isVarChar : Char -> Bool
