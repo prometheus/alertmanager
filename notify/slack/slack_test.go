@@ -325,7 +325,7 @@ func TestSlackMessageField(t *testing.T) {
 	u, _ := url.Parse(server.URL)
 	conf := &config.SlackConfig{
 		APIURL:     &config.SecretURL{URL: u},
-		Message:    "My Top Level Message", // Your NEW field
+		MessageText:    "My Top Level Message", // Your NEW field
 		Title:      "Old Attachment Title", // An OLD field
 		Channel:    "#test-channel",
 		HTTPConfig: &commoncfg.HTTPClientConfig{},

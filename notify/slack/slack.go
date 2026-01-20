@@ -187,7 +187,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
 		LinkNames:   n.conf.LinkNames,
-		Text:        tmplText(n.conf.Message),
+		Text:        tmplText(n.conf.MessageText),
 		Attachments: []attachment{*att},
 	}
 	if err != nil {
