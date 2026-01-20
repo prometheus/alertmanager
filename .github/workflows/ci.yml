@@ -35,7 +35,7 @@ jobs:
     name: Test (Linux)
     runs-on: ubuntu-latest
     container: quay.io/prometheus/golang-builder:1.25-base
-    
+
     # Services are valid here because it is Linux only
     services:
       maildev-noauth:
@@ -45,11 +45,11 @@ jobs:
         env:
           MAILDEV_INCOMING_USER: user
           MAILDEV_INCOMING_PASS: pass
-    
+
     env:
       EMAIL_NO_AUTH_CONFIG: testdata/noauth.yml
       EMAIL_AUTH_CONFIG: testdata/auth.yml
-    
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: prometheus/promci@c0916f0a41f13444612a8f0f5e700ea34edd7c19 # v0.5.3
@@ -65,15 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: prometheus/promci@c0916f0a41f13444612a8f0f5e700ea34edd7c19 # v0.5.3
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          
-      - uses: ./.github/promci/actions/setup_environment
-      
+
       - name: Run tests (no mail services)
         run: make test
-        
+
       - run: git diff --exit-code
