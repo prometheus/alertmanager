@@ -76,14 +76,20 @@ func QGroupKey(gk string) QueryParam {
 	}
 }
 
+// Store abstracts the NFLog's receiver data storage as a mutable key/value store. A store
+// can be generated from a nflogpb.Entry and then written via the call to Log.
+//
+// Every key in the Store is associated with either an int, float, or string value.
 type Store struct {
 	data map[string]*pb.ReceiverDataValue
 }
 
+// NewStore creates a Store from the entry's receiver data. If entry is nil, the resulting
+// Store is empty.
 func NewStore(entry *pb.Entry) *Store {
 	var receiverData map[string]*pb.ReceiverDataValue
 	if entry != nil {
-		receiverData = entry.ReceiverData
+		receiverData = maps.Clone(entry.ReceiverData)
 	}
 	if receiverData == nil {
 		receiverData = make(map[string]*pb.ReceiverDataValue)
@@ -93,6 +99,7 @@ func NewStore(entry *pb.Entry) *Store {
 	}
 }
 
+// GetInt finds the integer value associated with the key, if any, and returns it.
 func (s *Store) GetInt(key string) (int64, bool) {
 	dataValue, ok := s.data[key]
 	if !ok {
@@ -105,6 +112,7 @@ func (s *Store) GetInt(key string) (int64, bool) {
 	return intVal.IntVal, true
 }
 
+// GetFloat finds the float value associated with the key, if any, and returns it.
 func (s *Store) GetFloat(key string) (float64, bool) {
 	dataValue, ok := s.data[key]
 	if !ok {
@@ -117,6 +125,7 @@ func (s *Store) GetFloat(key string) (float64, bool) {
 	return floatVal.DoubleVal, true
 }
 
+// GetFloat finds the string value associated with the key, if any, and returns it.
 func (s *Store) GetStr(key string) (string, bool) {
 	dataValue, ok := s.data[key]
 	if !ok {
@@ -129,30 +138,34 @@ func (s *Store) GetStr(key string) (string, bool) {
 	return strVal.StrVal, true
 }
 
-func (s *Store) SetInt(key string, i int64) {
+// SetInt associates an integer value with the provided key, overwriting any existing value
+func (s *Store) SetInt(key string, v int64) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_IntVal{
-			IntVal: i,
+			IntVal: v,
 		},
 	}
 }
 
-func (s *Store) SetFloat(key string, i float64) {
+// SetFloat associates a float value with the provided key, overwriting any existing value
+func (s *Store) SetFloat(key string, v float64) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_DoubleVal{
-			DoubleVal: i,
+			DoubleVal: v,
 		},
 	}
 }
 
-func (s *Store) SetStr(key, i string) {
+// SetStr associates a string value with the provided key, overwriting any existing value
+func (s *Store) SetStr(key, v string) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_StrVal{
-			StrVal: i,
+			StrVal: v,
 		},
 	}
 }
 
+// Delete deletes any value associated with the key
 func (s *Store) Delete(key string) {
 	delete(s.data, key)
 }
