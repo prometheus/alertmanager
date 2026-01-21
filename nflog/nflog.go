@@ -138,7 +138,7 @@ func (s *Store) GetStr(key string) (string, bool) {
 	return strVal.StrVal, true
 }
 
-// SetInt associates an integer value with the provided key, overwriting any existing value
+// SetInt associates an integer value with the provided key, overwriting any existing value.
 func (s *Store) SetInt(key string, v int64) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_IntVal{
@@ -147,7 +147,7 @@ func (s *Store) SetInt(key string, v int64) {
 	}
 }
 
-// SetFloat associates a float value with the provided key, overwriting any existing value
+// SetFloat associates a float value with the provided key, overwriting any existing value.
 func (s *Store) SetFloat(key string, v float64) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_DoubleVal{
@@ -156,7 +156,7 @@ func (s *Store) SetFloat(key string, v float64) {
 	}
 }
 
-// SetStr associates a string value with the provided key, overwriting any existing value
+// SetStr associates a string value with the provided key, overwriting any existing value.
 func (s *Store) SetStr(key, v string) {
 	s.data[key] = &pb.ReceiverDataValue{
 		Value: &pb.ReceiverDataValue_StrVal{
@@ -165,7 +165,7 @@ func (s *Store) SetStr(key, v string) {
 	}
 }
 
-// Delete deletes any value associated with the key
+// Delete deletes any value associated with the key.
 func (s *Store) Delete(key string) {
 	delete(s.data, key)
 }
