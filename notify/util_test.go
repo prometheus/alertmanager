@@ -26,6 +26,137 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTruncateInRunesHTML(t *testing.T) {
+	testCases := []struct {
+		name  string
+		in    string
+		n     int
+		out   string
+		trunc bool
+	}{
+		{
+			name:  "no truncation needed",
+			in:    "<b>hello</b>",
+			n:     100,
+			out:   "<b>hello</b>",
+			trunc: false,
+		},
+		{
+			name:  "empty string",
+			in:    "",
+			n:     10,
+			out:   "",
+			trunc: false,
+		},
+		{
+			name:  "truncate plain text with single tag",
+			in:    "<b>hello world</b>",
+			n:     15,
+			out:   "<b>hello w…</b>",
+			trunc: true,
+		},
+		{
+			name:  "truncate with nested tags closes both",
+			in:    "<b>bold <i>italic</i> text</b>",
+			n:     20,
+			out:   "<b>bold <i>…</i></b>",
+			trunc: true,
+		},
+		{
+			name:  "nested tags with more space",
+			in:    "<b>bold <i>italic text</i></b>",
+			n:     27,
+			out:   "<b>bold <i>italic …</i></b>",
+			trunc: true,
+		},
+		{
+			name:  "tag with attributes needs room for closing",
+			in:    `<a href="http://example.com">link text</a>`,
+			n:     41,
+			out:   `<a href="http://example.com">link te…</a>`,
+			trunc: true,
+		},
+		{
+			name:  "self-closing tag not added to stack",
+			in:    "<b>hello<br/>world</b>",
+			n:     19,
+			out:   "<b>hello<br/>w…</b>",
+			trunc: true,
+		},
+		{
+			name:  "self-closing with space not added to stack",
+			in:    "<b>hello<br />world</b>",
+			n:     20,
+			out:   "<b>hello<br />w…</b>",
+			trunc: true,
+		},
+		{
+			name:  "sequential tags no open at cut point",
+			in:    "<b>one</b><i>two</i><u>three</u>",
+			n:     21,
+			out:   "<b>one</b><i>two</i>…",
+			trunc: true,
+		},
+		{
+			name:  "cut at tag boundary no open tags",
+			in:    "<b>ab</b>cdef",
+			n:     11,
+			out:   "<b>ab</b>c…",
+			trunc: true,
+		},
+		{
+			name:  "very small n falls back to simple truncation",
+			in:    "<b>text</b>",
+			n:     3,
+			out:   "<b…",
+			trunc: true,
+		},
+		{
+			name:  "unicode content",
+			in:    "<b>こんにちは世界</b>",
+			n:     13,
+			out:   "<b>こんにちは…</b>",
+			trunc: true,
+		},
+		{
+			name:  "emoji content",
+			in:    "<b>🔥 alert 🔥</b>",
+			n:     15,
+			out:   "<b>🔥 alert…</b>",
+			trunc: true,
+		},
+		{
+			name:  "deeply nested tags all closed",
+			in:    "<b><i><u>deep text</u></i></b>",
+			n:     25,
+			out:   "<b><i><u>dee…</u></i></b>",
+			trunc: true,
+		},
+		{
+			name:  "mismatched closing tag preserved",
+			in:    "<b>text</i>more</b>",
+			n:     17,
+			out:   "<b>text</i>m…</b>",
+			trunc: true,
+		},
+		{
+			name:  "real telegram template pattern",
+			in:    "🔥 <b>AlertName</b> 🔥\n<b>Labels:</b>\n<b>sev</b>: <i>crit</i>",
+			n:     52,
+			out:   "🔥 <b>AlertName</b> 🔥\n<b>Labels:</b>\n<b>sev</b>: …",
+			trunc: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, trunc := TruncateInRunesHTML(tc.in, tc.n)
+			require.Equal(t, tc.out, out)
+			require.Equal(t, tc.trunc, trunc)
+		})
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	type expect struct {
 		out   string
