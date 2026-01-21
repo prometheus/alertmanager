@@ -324,11 +324,11 @@ func TestSlackMessageField(t *testing.T) {
 	// 4. Configure Notifier with BOTH new and old fields
 	u, _ := url.Parse(server.URL)
 	conf := &config.SlackConfig{
-		APIURL:     &config.SecretURL{URL: u},
-		MessageText:    "My Top Level Message", // Your NEW field
-		Title:      "Old Attachment Title", // An OLD field
-		Channel:    "#test-channel",
-		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		APIURL:      &config.SecretURL{URL: u},
+		MessageText: "My Top Level Message", // Your NEW field
+		Title:       "Old Attachment Title", // An OLD field
+		Channel:     "#test-channel",
+		HTTPConfig:  &commoncfg.HTTPClientConfig{},
 	}
 
 	tmpl, err := template.FromGlobs([]string{})
