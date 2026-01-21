@@ -44,7 +44,7 @@ type Notifier struct {
 
 // New returns a new Webex notifier.
 func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "webex", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

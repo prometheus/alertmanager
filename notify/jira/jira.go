@@ -49,7 +49,7 @@ type Notifier struct {
 }
 
 func New(c *config.JiraConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "jira", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "jira", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

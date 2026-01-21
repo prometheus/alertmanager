@@ -10,6 +10,9 @@ updates:
         patterns:
           - "github.com/aws/*"
           - "github.com/go-openapi/*"
+      go.opentelemetry.io:
+        patterns:
+          - "go.opentelemetry.io/*"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

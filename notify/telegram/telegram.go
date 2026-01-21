@@ -44,7 +44,7 @@ type Notifier struct {
 
 // New returns a new Telegram notification handler.
 func New(conf *config.TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	httpclient, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "telegram", httpOpts...)
+	httpclient, err := notify.NewClientWithTracing(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

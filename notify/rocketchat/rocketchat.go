@@ -88,7 +88,7 @@ func (t *rocketchatRoundTripper) RoundTrip(req *http.Request) (res *http.Respons
 
 // New returns a new Rocketchat notification handler.
 func New(c *config.RocketchatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "rocketchat", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "rocketchat", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
