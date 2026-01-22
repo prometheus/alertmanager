@@ -27,7 +27,7 @@ import (
 )
 
 func TestRocketchatRetry(t *testing.T) {
-	secret := config.Secret("xxxxx")
+	secret := commoncfg.Secret("xxxxx")
 	notifier, err := New(
 		&config.RocketchatConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},

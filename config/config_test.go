@@ -525,22 +525,6 @@ func TestHideConfigSecrets(t *testing.T) {
 	}
 }
 
-func TestShowMarshalSecretValues(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	c, err := LoadFile("testdata/conf.good.yml")
-	if err != nil {
-		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
-	}
-
-	// String method must reveal authentication credentials.
-	s := c.String()
-	if strings.Count(s, "<secret>") > 0 || !strings.Contains(s, "mysecret") {
-		t.Fatal("config's String method must reveal authentication credentials when MarshalSecretValue = true.")
-	}
-}
-
 func TestJSONMarshal(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
@@ -551,38 +535,6 @@ func TestJSONMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal("JSON Marshaling failed:", err)
 	}
-}
-
-func TestJSONMarshalHideSecret(t *testing.T) {
-	test := struct {
-		S Secret
-	}{
-		S: Secret("test"),
-	}
-
-	c, err := json.Marshal(test)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.JSONEq(t, `{"S":"<secret>"}`, string(c), "Secret not properly elided.")
-}
-
-func TestJSONMarshalShowSecret(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	test := struct {
-		S Secret
-	}{
-		S: Secret("test"),
-	}
-
-	c, err := json.Marshal(test)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.JSONEq(t, `{"S":"test"}`, string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
 }
 
 func TestJSONMarshalHideSecretURL(t *testing.T) {
@@ -619,23 +571,6 @@ func TestJSONMarshalHideSecretURL(t *testing.T) {
 	}
 }
 
-func TestJSONMarshalShowSecretURL(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &SecretURL{urlp}
-
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
-}
-
 func TestUnmarshalSecretURL(t *testing.T) {
 	b := []byte(`"http://example.com/se cret"`)
 	var u SecretURL
@@ -664,8 +599,8 @@ func TestHideSecretURL(t *testing.T) {
 }
 
 func TestShowMarshalSecretURL(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
+	commoncfg.MarshalSecretValue = true
+	defer func() { commoncfg.MarshalSecretValue = false }()
 
 	b := []byte(`"://wrongurl/"`)
 	var u SecretURL
@@ -1073,10 +1008,10 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[1].AuthPassword, "password field should be empty when file provided")
 
-	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
+	require.Equal(t, commoncfg.Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
 
-	require.Equal(t, Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
+	require.Equal(t, commoncfg.Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
 
 	require.Equal(t, "/tmp/localuser4secret", config.Receivers[0].EmailConfigs[4].AuthSecretFile, "fifth email should use secret file /tmp/localuser4secret")
 }
@@ -1099,7 +1034,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	}
 
 	defaultKey := conf.Global.VictorOpsAPIKey
-	overrideKey := Secret("qwe456")
+	overrideKey := commoncfg.Secret("qwe456")
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
@@ -1273,7 +1208,7 @@ func TestSlackGlobalAppToken(t *testing.T) {
 		Credentials: commoncfg.Secret(inlineToken),
 	}
 	secondConfig := conf.Receivers[0].SlackConfigs[1]
-	if secondConfig.AppToken != Secret(inlineToken) {
+	if secondConfig.AppToken != commoncfg.Secret(inlineToken) {
 		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", secondConfig.AppToken, inlineToken)
 	}
 	if secondConfig.HTTPConfig == nil || secondConfig.HTTPConfig.Authorization == nil {
@@ -1380,7 +1315,7 @@ func TestRocketchatDefaultToken(t *testing.T) {
 	}
 
 	defaultToken := conf.Global.RocketchatToken
-	overrideToken := Secret("token456")
+	overrideToken := commoncfg.Secret("token456")
 	if defaultToken != conf.Receivers[0].RocketchatConfigs[0].Token {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(*defaultToken))
 	}
@@ -1396,7 +1331,7 @@ func TestRocketchatDefaultTokenID(t *testing.T) {
 	}
 
 	defaultTokenID := conf.Global.RocketchatTokenID
-	overrideTokenID := Secret("id456")
+	overrideTokenID := commoncfg.Secret("id456")
 	if defaultTokenID != conf.Receivers[0].RocketchatConfigs[0].TokenID {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(*defaultTokenID))
 	}
@@ -1639,8 +1574,8 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 	})
 
 	t.Run("marshals actual value when MarshalSecretValue is true", func(t *testing.T) {
-		MarshalSecretValue = true
-		defer func() { MarshalSecretValue = false }()
+		commoncfg.MarshalSecretValue = true
+		defer func() { commoncfg.MarshalSecretValue = false }()
 
 		u := SecretTemplateURL("http://example.com/secret")
 
