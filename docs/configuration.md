@@ -1296,7 +1296,7 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 # The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
 [ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
 
-# The host to send OpsGenie API requests to.
+# The base URL for OpsGenie API requests.
 [ api_url: <string> | default = global.opsgenie_api_url ]
 
 # Alert text limited to 130 characters.
@@ -1978,4 +1978,3 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
-
