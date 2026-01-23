@@ -1708,8 +1708,11 @@ attributes:
 # Read the Telegram bot token from a file. It is mutually exclusive with `bot_token`.
 [ bot_token_file: <filepath> ]
 
-# ID of the chat where to send the messages.
+# ID of the chat where to send the messages. It is mutually exclusive with `chat_id_file`.
 [ chat_id: <int> ]
+
+# Read the chat ID from a file. It is mutually exclusive with `chat_id`.
+[ chat_id_file: <filepath> ]
 
 # Optional ID of the message thread where to send the messages.
 [ message_thread_id: <int> ]
