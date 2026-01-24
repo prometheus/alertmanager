@@ -1,0 +1,37 @@
+{{define "silences-content"}}
+<article>
+    <header>
+        <h2>Silences</h2>
+        <button hx-get="/htmx/silences/form" hx-target="#silence-form-modal" hx-swap="innerHTML">
+            Create Silence
+        </button>
+    </header>
+
+    <!-- Filter bar -->
+    <form id="silences-filter-form" hx-get="/htmx/silences" hx-target="#silence-list" hx-trigger="keyup changed delay:500ms, submit" hx-include="[name='filter']">
+        <div class="grid">
+            <div>
+                <label for="silence-filter-input">Label Filter
+                    <input type="text" name="filter" id="silence-filter-input" placeholder='{alertname="TestAlert",severity="critical"}' value="{{.Filter}}">
+                </label>
+            </div>
+            <div>
+                <button type="submit">Apply Filters</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Tabbed interface for silence states -->
+    <div class="tabs">
+        <button class="tab-button" hx-get="/htmx/silences?state=active" hx-target="#silence-list" {{if or (eq .State "") (eq .State "active")}}aria-current="page"{{end}}>Active</button>
+        <button class="tab-button" hx-get="/htmx/silences?state=pending" hx-target="#silence-list" {{if eq .State "pending"}}aria-current="page"{{end}}>Pending</button>
+        <button class="tab-button" hx-get="/htmx/silences?state=expired" hx-target="#silence-list" {{if eq .State "expired"}}aria-current="page"{{end}}>Expired</button>
+    </div>
+
+    <div id="silence-form-modal"></div>
+
+    <div id="silence-list">
+        {{template "silence_list" .}}
+    </div>
+</article>
+{{end}}

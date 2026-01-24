@@ -1,0 +1,17 @@
+{{define "badge"}}
+{{if eq .State "active"}}
+    <mark class="active">Active</mark>
+{{else if eq .State "suppressed"}}
+    {{if and .SilencedBy (gt (len .SilencedBy) 0)}}
+        <mark class="silenced" title="Silenced by: {{range .SilencedBy}}{{.}} {{end}}">Silenced</mark>
+    {{else if and .InhibitedBy (gt (len .InhibitedBy) 0)}}
+        <mark class="inhibited" title="Inhibited by: {{range .InhibitedBy}}{{.}} {{end}}">Inhibited</mark>
+    {{else}}
+        <mark class="suppressed">Suppressed</mark>
+    {{end}}
+{{else if eq .State "unprocessed"}}
+    <mark class="unprocessed">Unprocessed</mark>
+{{else}}
+    <mark>{{.State}}</mark>
+{{end}}
+{{end}}

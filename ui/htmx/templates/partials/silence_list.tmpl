@@ -1,0 +1,70 @@
+{{define "silence_list"}}
+{{if .Silences}}
+{{range .Silences}}
+<article class="silence-item">
+    <header>
+        <h4>
+            ID: {{.ID}}
+            {{if .Status}}
+                {{if eq .Status.State "active"}}
+                    <mark class="active" title="Active">Active</mark>
+                {{else if eq .Status.State "pending"}}
+                    <mark class="pending" title="Pending">Pending</mark>
+                {{else}}
+                    <mark class="expired" title="Expired">Expired</mark>
+                {{end}}
+            {{end}}
+        </h4>
+    </header>
+
+    <details>
+        <summary>Show Details</summary>
+        <table>
+            <tbody>
+                {{if .Matchers}}
+                <tr>
+                    <td><strong>Matchers:</strong></td>
+                    <td>
+                        {{range .Matchers}}
+                            {{if .Name}}{{.Name}}{{end}}
+                            {{if .IsRegex}}=~{{else if .IsEqual}}={{else}}!=~{{end}}
+                            {{if .Value}}"{{.Value}}"{{end}}<br>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+                {{if .CreatedBy}}
+                <tr><td><strong>Created By:</strong></td><td>{{.CreatedBy}}</td></tr>
+                {{end}}
+                {{if .Comment}}
+                <tr><td><strong>Comment:</strong></td><td>{{.Comment}}</td></tr>
+                {{end}}
+                {{if .StartsAt}}
+                <tr><td><strong>Starts:</strong></td><td>{{.StartsAt}}</td></tr>
+                {{end}}
+                {{if .EndsAt}}
+                <tr><td><strong>Ends:</strong></td><td>{{.EndsAt}}</td></tr>
+                {{end}}
+                {{if .UpdatedAt}}
+                <tr><td><strong>Updated:</strong></td><td>{{.UpdatedAt}}</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </details>
+
+    {{if .Status}}
+    {{if ne .Status.State "expired"}}
+    <button class="secondary" 
+            hx-post="/htmx/silences/{{.ID}}/expire"
+            hx-target="#silence-list"
+            hx-confirm="Expire this silence?">
+        Expire
+    </button>
+    {{end}}
+    {{end}}
+</article>
+{{end}}
+{{else}}
+<p>No silences found.</p>
+{{end}}
+{{end}}

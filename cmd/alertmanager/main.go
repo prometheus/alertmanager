@@ -62,6 +62,7 @@ import (
 	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+	"github.com/prometheus/alertmanager/ui/htmx"
 )
 
 var (
@@ -558,6 +559,13 @@ func run() int {
 		return nil
 	})
 
+	// Subscribe to config changes to capture config string for HTMX UI
+	var configString string
+	configCoordinator.Subscribe(func(conf *config.Config) error {
+		configString = conf.String()
+		return nil
+	})
+
 	if err := configCoordinator.Reload(); err != nil {
 		return 1
 	}
@@ -579,7 +587,22 @@ func run() int {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	// Create HTMX handlers with direct provider access
+	htmxHandlers, err := htmx.NewHandlers(
+		alerts,
+		silences,
+		marker.Status,
+		api.AlertsGroups,
+		clusterPeer,
+		configString,
+		logger.With("component", "htmx-ui"),
+	)
+	if err != nil {
+		logger.Error("failed to create HTMX handlers", "err", err)
+		return 1
+	}
+
+	ui.Register(router, webReload, logger, htmxHandlers)
 
 	mux := api.Register(router, *routePrefix)
 

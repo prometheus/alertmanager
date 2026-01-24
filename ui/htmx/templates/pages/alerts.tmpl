@@ -1,0 +1,77 @@
+{{define "alerts-content"}}
+<article>
+    <header>
+        <h2>Alerts</h2>
+    </header>
+
+    <form id="alerts-filter-form" hx-get="/htmx/alerts" hx-target="#alert-list" hx-trigger="change, submit" hx-include="[name='filter']">
+        <div class="grid">
+            <div>
+                <label>
+                    <input type="checkbox" name="active" value="true" {{if .Filters.Active}}checked{{end}}>
+                    Active
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" name="silenced" value="true" {{if .Filters.Silenced}}checked{{end}}>
+                    Silenced
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" name="inhibited" value="true" {{if .Filters.Inhibited}}checked{{end}}>
+                    Inhibited
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" name="muted" value="true" {{if .Filters.Muted}}checked{{end}}>
+                    Muted
+                </label>
+            </div>
+        </div>
+
+        <div class="grid">
+            {{if .Receivers}}
+            <div>
+                <label for="receiver-select">Receiver
+                    <select name="receiver" id="receiver-select">
+                        <option value="">All Receivers</option>
+                        {{range .Receivers}}
+                        <option value="{{.}}" {{if eq $.Receiver .}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </label>
+            </div>
+            {{end}}
+
+            <div>
+                <label for="filter-input">Label Filter
+                    <input type="text" name="filter" id="filter-input" placeholder='{severity="critical",job=~"web.*"}' value="{{.Filter}}">
+                </label>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div>
+                <button type="submit">Apply Filters</button>
+            </div>
+            <div>
+                <button type="button" id="expand-all-btn" hx-get="/htmx/alerts?expandAll=true&active={{.Filters.Active}}&silenced={{.Filters.Silenced}}&inhibited={{.Filters.Inhibited}}&muted={{.Filters.Muted}}&receiver={{.Receiver}}&filter={{.Filter}}" hx-target="#alert-list">
+                    Expand All Groups
+                </button>
+            </div>
+            <div>
+                <button type="button" id="collapse-all-btn" hx-get="/htmx/alerts?expandAll=false&active={{.Filters.Active}}&silenced={{.Filters.Silenced}}&inhibited={{.Filters.Inhibited}}&muted={{.Filters.Muted}}&receiver={{.Receiver}}&filter={{.Filter}}" hx-target="#alert-list">
+                    Collapse All Groups
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <div id="alert-list">
+        {{template "alert_list" .}}
+    </div>
+</article>
+{{end}}

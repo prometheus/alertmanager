@@ -1,0 +1,40 @@
+{{define "silence_form"}}
+<dialog open>
+    <article>
+        <header>
+            <button aria-label="Close" rel="prev" onclick="this.closest('dialog').remove()"></button>
+            <h3>Create Silence</h3>
+        </header>
+
+        <form hx-post="/htmx/silences" hx-target="#silence-list" hx-on::after-request="if(event.detail.successful) this.closest('dialog').remove()">
+            <label>
+                Matchers (one per line: label=value or label=~regex)
+                <textarea name="matchers" rows="4" required placeholder="alertname=TestAlert&#10;severity=critical"></textarea>
+                <small>Format: label=value (exact) or label=~regex (regex match)</small>
+            </label>
+
+            <label>
+                Start Time
+                <input type="datetime-local" name="startsAt" required>
+            </label>
+
+            <label>
+                End Time
+                <input type="datetime-local" name="endsAt" required>
+            </label>
+
+            <label>
+                Created By
+                <input type="text" name="createdBy" required placeholder="your-name">
+            </label>
+
+            <label>
+                Comment
+                <textarea name="comment" rows="2" required placeholder="Reason for silence"></textarea>
+            </label>
+
+            <button type="submit">Create Silence</button>
+        </form>
+    </article>
+</dialog>
+{{end}}

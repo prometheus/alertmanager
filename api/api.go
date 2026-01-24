@@ -247,3 +247,8 @@ func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {
 		).ServeHTTP(w, r)
 	})
 }
+
+// AlertsGroups exposes the internal alertGroups function for external use
+func (api *API) AlertsGroups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	return api.v2.AlertsGroups(ctx, routeFilter, alertFilter)
+}

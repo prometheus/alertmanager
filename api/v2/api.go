@@ -58,6 +58,11 @@ import (
 
 var tracer = otel.Tracer("github.com/prometheus/alertmanager/api/v2")
 
+// AlertsGroups exposes the internal alertGroups function for external use
+func (api *API) AlertsGroups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error) {
+	return api.alertGroups(ctx, routeFilter, alertFilter)
+}
+
 // API represents an Alertmanager API v2.
 type API struct {
 	peer           cluster.ClusterPeer

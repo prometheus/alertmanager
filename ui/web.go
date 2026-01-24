@@ -24,44 +24,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 
-	"github.com/prometheus/alertmanager/asset"
+	"github.com/prometheus/alertmanager/ui/htmx"
 )
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger, htmxHandlers *htmx.Handlers) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-
-		req.URL.Path = "/static/"
-		fs := http.FileServer(asset.Assets)
-		fs.ServeHTTP(w, req)
-	})
-
-	r.Get("/script.js", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-
-		req.URL.Path = "/static/script.js"
-		fs := http.FileServer(asset.Assets)
-		fs.ServeHTTP(w, req)
-	})
-
-	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-
-		req.URL.Path = "/static/favicon.ico"
-		fs := http.FileServer(asset.Assets)
-		fs.ServeHTTP(w, req)
-	})
-
-	r.Get("/lib/*path", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-
-		req.URL.Path = path.Join("/static/lib", route.Param(req.Context(), "path"))
-		fs := http.FileServer(asset.Assets)
-		fs.ServeHTTP(w, req)
-	})
+	// Register HTMX UI routes
+	htmxHandlers.Register(r)
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		errc := make(chan error)

@@ -1,0 +1,78 @@
+{{define "alert_list"}}
+{{if .AlertGroups}}
+{{range $index, $group := .AlertGroups}}
+<details class="alert-group" {{if $.ExpandAll}}open{{end}}>
+    <summary class="alert-group-header">
+        <div class="grid">
+            <div>
+                <strong>Group:</strong>
+                {{range $key, $value := $group.Labels}}
+                    {{$key}}="{{$value}}" 
+                {{end}}
+            </div>
+            <div>
+                <strong>Receiver:</strong> {{$group.Receiver.Name}}
+            </div>
+            <div>
+                <strong>Alerts:</strong> {{len $group.Alerts}}
+            </div>
+        </div>
+    </summary>
+    
+    <div class="alert-group-content">
+        {{range $group.Alerts}}
+        <article class="alert-item">
+            <header>
+                <h4>
+                    {{range $key, $value := .Labels}}
+                        <strong>{{$key}}:</strong> {{$value}}
+                    {{end}}
+                    {{if .Status}}
+                        {{template "badge" .Status}}
+                    {{end}}
+                </h4>
+            </header>
+
+            <details>
+                <summary>Details</summary>
+                <table>
+                    <tbody>
+                        {{if .StartsAt}}
+                        <tr><td><strong>Starts At:</strong></td><td>{{.StartsAt}}</td></tr>
+                        {{end}}
+                        {{if .EndsAt}}
+                        <tr><td><strong>Ends At:</strong></td><td>{{.EndsAt}}</td></tr>
+                        {{end}}
+                        {{if .UpdatedAt}}
+                        <tr><td><strong>Updated At:</strong></td><td>{{.UpdatedAt}}</td></tr>
+                        {{end}}
+                        {{if .Annotations}}
+                        {{range $key, $value := .Annotations}}
+                            <tr><td><strong>{{$key}}:</strong></td><td>{{$value}}</td></tr>
+                        {{end}}
+                        {{end}}
+                        {{if .Receivers}}
+                        <tr>
+                            <td><strong>Receivers:</strong></td>
+                            <td>
+                                {{range .Receivers}}
+                                    {{if .Name}}{{.Name}} {{end}}
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{if .GeneratorURL}}
+                        <tr><td><strong>Generator URL:</strong></td><td><a href="{{.GeneratorURL}}" target="_blank">{{.GeneratorURL}}</a></td></tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </details>
+        </article>
+        {{end}}
+    </div>
+</details>
+{{end}}
+{{else}}
+<p>No alert groups found.</p>
+{{end}}
+{{end}}

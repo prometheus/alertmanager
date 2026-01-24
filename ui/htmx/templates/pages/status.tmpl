@@ -1,0 +1,70 @@
+{{define "status-content"}}
+<article>
+    <header>
+        <h2>Status</h2>
+    </header>
+
+    {{if .Status}}
+    <section>
+        <h3>Version Information</h3>
+        <table class="striped">
+            <tbody>
+                {{if .Status.VersionInfo}}
+                <tr><td><strong>Version:</strong></td><td>{{.Status.VersionInfo.Version}}</td></tr>
+                <tr><td><strong>Revision:</strong></td><td>{{.Status.VersionInfo.Revision}}</td></tr>
+                <tr><td><strong>Branch:</strong></td><td>{{.Status.VersionInfo.Branch}}</td></tr>
+                <tr><td><strong>Build Date:</strong></td><td>{{.Status.VersionInfo.BuildDate}}</td></tr>
+                <tr><td><strong>Go Version:</strong></td><td>{{.Status.VersionInfo.GoVersion}}</td></tr>
+                <tr><td><strong>Build User:</strong></td><td>{{.Status.VersionInfo.BuildUser}}</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </section>
+
+    {{if .Status.Cluster}}
+    <section>
+        <h3>Cluster Status</h3>
+        <table class="striped">
+            <tbody>
+                <tr><td><strong>Status:</strong></td><td>
+                    {{if eq .Status.Cluster.Status "ready"}}
+                        <mark class="active">Ready</mark>
+                    {{else if eq .Status.Cluster.Status "settling"}}
+                        <mark class="pending">Settling</mark>
+                    {{else}}
+                        <mark class="expired">{{.Status.Cluster.Status}}</mark>
+                    {{end}}
+                </td></tr>
+                <tr><td><strong>Name:</strong></td><td>{{.Status.Cluster.Name}}</td></tr>
+                {{if .Status.Cluster.Peers}}
+                <tr><td><strong>Peers:</strong></td><td>{{len .Status.Cluster.Peers}}</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+
+        {{if .Status.Cluster.Peers}}
+        <h4>Peer Details</h4>
+        <div class="grid">
+            {{range .Status.Cluster.Peers}}
+            <article class="peer-card">
+                <h5>{{.Name}}</h5>
+                <p><strong>Address:</strong> {{.Address}}</p>
+            </article>
+            {{end}}
+        </div>
+        {{end}}
+    </section>
+    {{end}}
+
+    {{if .Status.Config}}
+    <section>
+        <h3>Configuration</h3>
+        <details>
+            <summary>Click to view configuration</summary>
+            <pre><code>{{.Status.Config.Original}}</code></pre>
+        </details>
+    </section>
+    {{end}}
+    {{end}}
+</article>
+{{end}}

@@ -1,0 +1,70 @@
+# Multi-stage Dockerfile for Alertmanager with HTMX UI
+# Stage 1: Build the Go binary
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make bash curl
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Ensure HTMX UI files are present (critical for embed directive)
+# Verify that static files exist before building
+RUN ls -la ui/htmx/static/ && \
+    echo "HTMX static files found" && \
+    ls -la ui/htmx/templates/ && \
+    echo "HTMX template files found"
+
+# Generate email templates
+RUN cd template && make email.tmpl || true
+
+# Build the binary (embed directive will include ui/htmx files)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o alertmanager ./cmd/alertmanager
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o amtool ./cmd/amtool
+
+# Stage 2: Create minimal runtime image
+FROM alpine:latest
+
+LABEL maintainer="The Prometheus Authors <prometheus-developers@googlegroups.com>"
+LABEL org.opencontainers.image.source="https://github.com/prometheus/alertmanager"
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+# Copy binaries from builder
+COPY --from=builder /build/alertmanager /bin/alertmanager
+COPY --from=builder /build/amtool /bin/amtool
+
+# Copy example config
+COPY examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
+
+# Create directories with proper permissions
+RUN mkdir -p /alertmanager && \
+    adduser -D -u 1000 alertmanager && \
+    chown -R alertmanager:alertmanager /etc/alertmanager /alertmanager
+
+# Switch to non-root user
+USER alertmanager
+
+# Expose Alertmanager port
+EXPOSE 9093
+
+# Set volume for data persistence
+VOLUME ["/alertmanager"]
+
+# Set working directory
+WORKDIR /alertmanager
+
+# Set entrypoint and default command
+ENTRYPOINT ["/bin/alertmanager"]
+CMD ["--config.file=/etc/alertmanager/alertmanager.yml", \
+     "--storage.path=/alertmanager"]

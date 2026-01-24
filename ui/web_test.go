@@ -22,16 +22,21 @@ import (
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/ui/htmx"
 )
 
 func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	reloadCh := make(chan chan error)
+	
+	// Create a mock HTMX handler for testing
+	htmxHandlers := &htmx.Handlers{}
 
 	// Test with route prefix
 	routePrefix := "/prometheus/alertmanager"
 	router := route.New().WithPrefix(routePrefix)
-	Register(router, reloadCh, logger)
+	Register(router, reloadCh, logger, htmxHandlers)
 
 	// Test GET request to pprof index (note: pprof index returns text/html)
 	req := httptest.NewRequest("GET", routePrefix+"/debug/pprof/", nil)
@@ -50,7 +55,7 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 
 	// Test without route prefix (should also work)
 	router2 := route.New()
-	Register(router2, reloadCh, logger)
+	Register(router2, reloadCh, logger, htmxHandlers)
 
 	req = httptest.NewRequest("GET", "/debug/pprof/", nil)
 	w = httptest.NewRecorder()

@@ -1,0 +1,12 @@
+{{define "nav"}}
+<nav>
+    <ul>
+        <li><strong>Alertmanager</strong></li>
+    </ul>
+    <ul>
+        <li><a href="/" {{if eq .ActivePage "alerts"}}aria-current="page"{{end}}>Alerts</a></li>
+        <li><a href="/silences" {{if eq .ActivePage "silences"}}aria-current="page"{{end}}>Silences</a></li>
+        <li><a href="/status" {{if eq .ActivePage "status"}}aria-current="page"{{end}}>Status</a></li>
+    </ul>
+</nav>
+{{end}}

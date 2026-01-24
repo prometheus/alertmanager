@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Title}} - Alertmanager</title>
+    <link rel="stylesheet" href="/static/pico.min.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="/static/htmx.min.js"></script>
+    <style>
+        .alert-group {
+            margin-bottom: 1rem;
+        }
+        .alert-group-header {
+            padding: 0.5rem;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .alert-item {
+            margin: 0.5rem 0;
+            border-left: 3px solid #007bff;
+        }
+        .active {
+            background-color: #28a745 !important;
+            color: white;
+        }
+        .silenced {
+            background-color: #ffc107 !important;
+            color: black;
+        }
+        .inhibited {
+            background-color: #17a2b8 !important;
+            color: white;
+        }
+        .suppressed {
+            background-color: #6c757d !important;
+            color: white;
+        }
+        .unprocessed {
+            background-color: #dc3545 !important;
+            color: white;
+        }
+        .pending {
+            background-color: #ffc107 !important;
+            color: black;
+        }
+        .expired {
+            background-color: #6c757d !important;
+            color: white;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        details > summary {
+            cursor: pointer;
+        }
+        .tab-button {
+            margin-right: 0.5rem;
+        }
+        .tab-button[aria-current="page"] {
+            background-color: #007bff;
+            color: white;
+        }
+        .peer-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+        }
+        .peer-card h5 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        pre code {
+            max-height: 400px;
+            overflow: auto;
+        }
+        table.striped tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .error-message {
+            border-left: 5px solid #dc3545;
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+        .loading::after {
+            content: "⏳";
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 0.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header class="container">
+        {{template "nav" .}}
+    </header>
+    <main class="container">
+        {{if .Error}}
+            {{template "error" .}}
+        {{end}}
+        {{if eq .ActivePage "alerts"}}
+            {{template "alerts-content" .}}
+        {{else if eq .ActivePage "silences"}}
+            {{template "silences-content" .}}
+        {{else if eq .ActivePage "status"}}
+            {{template "status-content" .}}
+        {{end}}
+    </main>
+    <footer class="container">
+        <small>Alertmanager {{.Version}}</small>
+    </footer>
+    <script>
+        // Auto-close modal dialogs when forms are submitted successfully
+        document.addEventListener('htmx:afterOnLoad', function(evt) {
+            if (evt.detail.xhr.status === 200) {
+                const dialog = document.querySelector('#silence-form-modal dialog');
+                if (dialog) {
+                    dialog.remove();
+                }
+            }
+        });
+        
+        // Focus filter inputs when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterInput = document.getElementById('filter-input');
+            if (filterInput) {
+                filterInput.focus();
+            }
+        });
+        
+        // Show loading indicator during HTMX requests
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            // Add loading class to target element
+            const target = evt.detail.target;
+            if (target) {
+                target.classList.add('loading');
+            }
+        });
+        
+        document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+            // Remove loading class from target element
+            const target = evt.detail.target;
+            if (target) {
+                target.classList.remove('loading');
+            }
+        });
+    </script>
+</body>
+</html>
