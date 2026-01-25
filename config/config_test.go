@@ -1177,9 +1177,9 @@ func TestTelegramDefaultBotTokenFile(t *testing.T) {
 }
 
 func TestTelegramBothBotTokenAndFile(t *testing.T) {
-	_, err := LoadFile("testdata/conf.telegram-both-file-and-bot-token.yml")
+	_, err := LoadFile("testdata/conf.telegram-both-bot-token-and-file.yml")
 	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-both-file-and-bot-token.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-both-bot-token-and-file.yml", err)
 	}
 	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
 		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
