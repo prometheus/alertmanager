@@ -1,20 +1,13 @@
 global:
-  telegram_bot_token_file: '/global_file'
+  telegram_bot_token_file: /global_file
 route:
-  group_by: ['alertname', 'cluster', 'service']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 3h
-  receiver: team-Y-telegram
-  routes:
-    - match:
-        service: foo
-      receiver: team-X-telegram
+  receiver: team-X-telegram
+
 receivers:
-  - name: 'team-X-telegram'
+  - name: team-X-telegram
     telegram_configs:
       - chat_id: 123
-  - name: 'team-Y-telegram'
+  - name: team-Y-telegram
     telegram_configs:
       - chat_id: 456
         bot_token_file: /override_file
