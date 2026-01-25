@@ -1191,8 +1191,8 @@ func TestTelegramNoBotToken(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-no-bot-token.yml", err)
 	}
-	if err.Error() != "no global Telegram BotToken set either inline or in a file" {
-		t.Errorf("Expected: %s\nGot: %s", "no global Telegram BotToken set either inline or in a file", err.Error())
+	if err.Error() != "missing bot_token or bot_token_file on telegram_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing bot_token or bot_token_file on telegram_config", err.Error())
 	}
 }
 

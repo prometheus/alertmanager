@@ -658,7 +658,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			telegram.APIUrl = cmp.Or(telegram.APIUrl, c.Global.TelegramAPIUrl)
 			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
 				if c.Global.TelegramBotToken == "" && len(c.Global.TelegramBotTokenFile) == 0 {
-					return errors.New("no global Telegram BotToken set either inline or in a file")
+					return errors.New("missing bot_token or bot_token_file on telegram_config")
 				}
 				telegram.BotToken = c.Global.TelegramBotToken
 				telegram.BotTokenFile = c.Global.TelegramBotTokenFile
