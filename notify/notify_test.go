@@ -211,9 +211,38 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, now)
 		require.Equal(t, c.res, res)
 	}
+}
+
+func TestDedupStageUsesContextNow(t *testing.T) {
+	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	s := &DedupStage{
+		hash: func(*types.Alert) uint64 { return 1 },
+		now: func() time.Time {
+			return base.Add(time.Hour)
+		},
+		rs: sendResolved(false),
+		nflog: &testNflog{
+			qerr: nil,
+			qres: []*nflogpb.Entry{{
+				FiringAlerts: []uint64{1},
+				Timestamp:    base,
+			}},
+		},
+	}
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "group")
+	ctx = WithRepeatInterval(ctx, 30*time.Minute)
+	ctx = WithNow(ctx, base.Add(10*time.Minute))
+
+	alerts := []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}}}}
+
+	_, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Empty(t, res)
 }
 
 func TestDedupStage(t *testing.T) {
