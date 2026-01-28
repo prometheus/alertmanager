@@ -1,0 +1,13 @@
+global:
+  telegram_bot_token: asd132
+route:
+  receiver: team-X-telegram
+
+receivers:
+  - name: team-X-telegram
+    telegram_configs:
+      - chat_id: 123
+  - name: team-Y-telegram
+    telegram_configs:
+      - chat_id: 456
+        bot_token: qwe456
