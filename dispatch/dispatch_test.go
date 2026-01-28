@@ -387,7 +387,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +538,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,7 +660,7 @@ func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,7 +678,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -732,7 +732,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), r)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -971,7 +971,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
