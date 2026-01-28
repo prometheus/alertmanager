@@ -1,0 +1,20 @@
+name: 'Manage stale issues and PRs'
+on:
+  schedule:
+    - cron: '30 1 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v10
+        with:
+          days-before-close: -1
+          days-before-stale: 60
+          exempt-issue-labels: 'keepalive'
+          exempt-pr-labels: 'keepalive'
+          operations-per-run: 30
+          stale-issue-label: 'stale'
+          stale-issue-message: 'This issue is stale because it has been open 30 days with no activity.'
+          stale-pr-label: 'stale'
+          stale-pr-message: 'This pull request is stale because it has been open 30 days with no activity.'
