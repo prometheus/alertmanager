@@ -355,7 +355,7 @@ func TestQuery(t *testing.T) {
 	firingAlerts := []uint64{1, 2, 3}
 	resolvedAlerts := []uint64{4, 5}
 
-	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts, 0)
+	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts, nil, 0)
 	require.NoError(t, err, "logging notification failed")
 
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))

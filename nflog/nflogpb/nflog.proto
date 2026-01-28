@@ -39,6 +39,8 @@ message Entry {
   repeated uint64 firing_alerts = 6;
   // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
   repeated uint64 resolved_alerts = 7;
+  // Data specific to the receiver which sent the notification
+  map<string, ReceiverDataValue> receiver_data = 8;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log
@@ -49,4 +51,12 @@ message MeshEntry {
   // A timestamp indicating when the mesh peer should evict
   // the log entry from its state.
   google.protobuf.Timestamp expires_at = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message ReceiverDataValue {
+  oneof value {
+    string str_val = 1;
+    int64 int_val = 2;
+    double double_val = 3;
+  }
 }
