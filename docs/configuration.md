@@ -600,7 +600,7 @@ Found:
  - 0 templates
 ```
 
-### `<matcher>`
+### `<matcher>` (Shared)
 
 #### UTF-8 matchers
 
@@ -776,7 +776,7 @@ wechat_configs:
   [ - <wechat_config>, ... ]
 ```
 
-### `<http_config>`
+### `<http_config>` (Shared) 
 
 An `http_config` allows configuring the HTTP client that the receiver uses to
 communicate with HTTP-based API services.
@@ -835,7 +835,7 @@ http_headers:
   [ <http_header> ]
 ```
 
-#### `<http_header>`
+#### `<http_header>` (Shared)
 
 ```yaml
 # Header name.
@@ -848,7 +848,7 @@ http_headers:
     [ files: [<string>, ...] ]
 ```
 
-#### `<oauth2>`
+#### `<oauth2>` (Shared)
 
 OAuth 2.0 authentication using the client credentials grant type.
 Alertmanager fetches an access token from the specified endpoint with
@@ -890,7 +890,7 @@ tls_config:
   [ <string>: [<secret>, ...] ] ]
 ```
 
-#### `<tls_config>`
+#### `<tls_config>` (Shared)
 
 A `tls_config` allows configuring TLS connections.
 
@@ -1406,7 +1406,7 @@ links:
 [ timeout: <duration> | default = 0s ]
 ```
 
-#### `<image_config>`
+#### `<image_config>` (PagerDuty)
 
 The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-images-property).
 
@@ -1416,7 +1416,7 @@ src: <tmpl_string>
 alt: <tmpl_string>
 ```
 
-#### `<link_config>`
+#### `<link_config>` (PagerDuty)
 
 The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-links-property).
 
@@ -1595,7 +1595,7 @@ fields:
 [ timeout: <duration> | default = 0s ]
 ```
 
-#### `<action_config>`
+#### `<action_config>` (Slack)
 
 The fields are documented in the Slack API documentation for [message attachments](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/) and [interactive messages](https://docs.slack.dev/legacy/legacy-messaging/legacy-interactive-message-field-guide/#action_fields).
 
@@ -1611,7 +1611,7 @@ type: <tmpl_string>
 [ style: <tmpl_string> | default = '' ]
 ```
 
-##### `<action_confirm_field_config>`
+##### `<action_confirm_field_config>` (Slack)
 
 The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
 
@@ -1622,7 +1622,7 @@ text: <tmpl_string>
 [ title: <tmpl_string> | default '' ]
 ```
 
-#### `<field_config>`
+#### `<field_config>` (Slack)
 
 The fields are documented in the [Slack API documentation](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
@@ -1674,7 +1674,7 @@ attributes:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-#### `<sigv4_config>`
+#### `<sigv4_config>` (SNS)
 
 ```yaml
 # The AWS region. If blank, the region from the default credentials chain is used.
