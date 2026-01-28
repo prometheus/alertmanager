@@ -76,6 +76,100 @@ func QGroupKey(gk string) QueryParam {
 	}
 }
 
+// Store abstracts the NFLog's receiver data storage as a mutable key/value store. A store
+// can be generated from a nflogpb.Entry and then written via the call to Log.
+//
+// Every key in the Store is associated with either an int, float, or string value.
+type Store struct {
+	data map[string]*pb.ReceiverDataValue
+}
+
+// NewStore creates a Store from the entry's receiver data. If entry is nil, the resulting
+// Store is empty.
+func NewStore(entry *pb.Entry) *Store {
+	var receiverData map[string]*pb.ReceiverDataValue
+	if entry != nil {
+		receiverData = maps.Clone(entry.ReceiverData)
+	}
+	if receiverData == nil {
+		receiverData = make(map[string]*pb.ReceiverDataValue)
+	}
+	return &Store{
+		data: receiverData,
+	}
+}
+
+// GetInt finds the integer value associated with the key, if any, and returns it.
+func (s *Store) GetInt(key string) (int64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	intVal, ok := dataValue.Value.(*pb.ReceiverDataValue_IntVal)
+	if !ok {
+		return 0, false
+	}
+	return intVal.IntVal, true
+}
+
+// GetFloat finds the float value associated with the key, if any, and returns it.
+func (s *Store) GetFloat(key string) (float64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	floatVal, ok := dataValue.Value.(*pb.ReceiverDataValue_DoubleVal)
+	if !ok {
+		return 0, false
+	}
+	return floatVal.DoubleVal, true
+}
+
+// GetFloat finds the string value associated with the key, if any, and returns it.
+func (s *Store) GetStr(key string) (string, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return "", false
+	}
+	strVal, ok := dataValue.Value.(*pb.ReceiverDataValue_StrVal)
+	if !ok {
+		return "", false
+	}
+	return strVal.StrVal, true
+}
+
+// SetInt associates an integer value with the provided key, overwriting any existing value.
+func (s *Store) SetInt(key string, v int64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_IntVal{
+			IntVal: v,
+		},
+	}
+}
+
+// SetFloat associates a float value with the provided key, overwriting any existing value.
+func (s *Store) SetFloat(key string, v float64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_DoubleVal{
+			DoubleVal: v,
+		},
+	}
+}
+
+// SetStr associates a string value with the provided key, overwriting any existing value.
+func (s *Store) SetStr(key, v string) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_StrVal{
+			StrVal: v,
+		},
+	}
+}
+
+// Delete deletes any value associated with the key.
+func (s *Store) Delete(key string) {
+	delete(s.data, key)
+}
+
 // Log holds the notification log state for alerts that have been notified.
 type Log struct {
 	clock quartz.Clock
@@ -368,7 +462,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *Store, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -389,6 +483,11 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		expiresAt = now.Add(expiry)
 	}
 
+	var receiverData map[string]*pb.ReceiverDataValue
+	if store != nil {
+		receiverData = store.data
+	}
+
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
@@ -396,6 +495,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 			Timestamp:      now,
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
+			ReceiverData:   receiverData,
 		},
 		ExpiresAt: expiresAt,
 	}
