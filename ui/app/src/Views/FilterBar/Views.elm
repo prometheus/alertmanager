@@ -1,6 +1,6 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, i, input, small, span, text)
+import Html exposing (Html, a, button, div, i, input, small, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
 import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)
@@ -131,12 +131,12 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                                 , onInput UpdateMatcherText
                                 ]
                                 []
-                            , span
-                                [ class "input-group-btn" ]
+                            , div
+                                [ class "input-group-append" ]
                                 [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
                             ]
                         , if showSilenceButton then
-                            div [ class "col col-auto input-group-btn ml-2" ]
+                            div [ class "col col-auto ml-2" ]
                                 [ div [ class "input-group" ]
                                     [ a
                                         [ class "btn btn-outline-info"
