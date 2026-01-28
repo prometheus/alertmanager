@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -95,7 +96,12 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return true, err
 	}
 
-	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
+	chatID, err := n.getChatID()
+	if err != nil {
+		return true, err
+	}
+
+	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
 		ThreadID:              n.conf.MessageThreadID,
@@ -132,4 +138,19 @@ func (n *Notifier) getBotToken() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.BotToken), nil
+}
+
+func (n *Notifier) getChatID() (int64, error) {
+	if len(n.conf.ChatIDFile) > 0 {
+		content, err := os.ReadFile(n.conf.ChatIDFile)
+		if err != nil {
+			return 0, fmt.Errorf("could not read %s: %w", n.conf.ChatIDFile, err)
+		}
+		chatID, err := strconv.ParseInt(strings.TrimSpace(string(content)), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("could not parse chat_id from %s: %w", n.conf.ChatIDFile, err)
+		}
+		return chatID, nil
+	}
+	return n.conf.ChatID, nil
 }
