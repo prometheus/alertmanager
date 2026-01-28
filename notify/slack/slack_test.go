@@ -15,7 +15,9 @@ package slack
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -285,5 +288,65 @@ func TestSlackTimeout(t *testing.T) {
 			_, err = notifier.Notify(ctx, alert)
 			require.Equal(t, tt.wantErr, err != nil)
 		})
+	}
+}
+
+func TestSlackMessageField(t *testing.T) {
+	// 1. Setup a fake Slack server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+
+		// 2. VERIFY: Top-level text exists
+		if body["text"] != "My Top Level Message" {
+			t.Errorf("Expected top-level 'text' to be 'My Top Level Message', got %v", body["text"])
+		}
+
+		// 3. VERIFY: Old attachments still exist
+		attachments, ok := body["attachments"].([]any)
+		if !ok || len(attachments) == 0 {
+			t.Errorf("Expected attachments to exist")
+		} else {
+			first := attachments[0].(map[string]any)
+			if first["title"] != "Old Attachment Title" {
+				t.Errorf("Expected attachment title 'Old Attachment Title', got %v", first["title"])
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	// 4. Configure Notifier with BOTH new and old fields
+	u, _ := url.Parse(server.URL)
+	conf := &config.SlackConfig{
+		APIURL:      &config.SecretURL{URL: u},
+		MessageText: "My Top Level Message", // Your NEW field
+		Title:       "Old Attachment Title", // An OLD field
+		Channel:     "#test-channel",
+		HTTPConfig:  &commoncfg.HTTPClientConfig{},
+	}
+
+	tmpl, err := template.FromGlobs([]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl.ExternalURL = u
+
+	logger := slog.New(slog.DiscardHandler)
+	notifier, err := New(conf, tmpl, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "test-group-key")
+
+	if _, err := notifier.Notify(ctx); err != nil {
+		t.Fatal("Notify failed:", err)
 	}
 }
