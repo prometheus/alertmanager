@@ -55,7 +55,7 @@ failureView model err =
 renderCSS : String -> Html Msg
 renderCSS assetsUrl =
     div []
-        [ cssNode (assetsUrl ++ "lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css") BootstrapCSSLoaded
+        [ cssNode (assetsUrl ++ "lib/bootstrap-4.6.2-dist/css/bootstrap.min.css") BootstrapCSSLoaded
         , cssNode (assetsUrl ++ "lib/font-awesome-4.7.0/css/font-awesome.min.css") FontAwesomeCSSLoaded
         , cssNode (assetsUrl ++ "lib/elm-datepicker/css/elm-datepicker.css") ElmDatepickerCSSLoaded
         ]

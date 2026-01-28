@@ -942,18 +942,6 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
-			if iErr == nil {
-				iErr = ctx.Err()
-				if errors.Is(iErr, context.Canceled) {
-					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
-				} else if errors.Is(iErr, context.DeadlineExceeded) {
-					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
-				}
-			}
-			if iErr != nil {
-				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
-			}
-			return ctx, nil, nil
 		}
 	}
 }
