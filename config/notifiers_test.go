@@ -1130,11 +1130,27 @@ chat_id: 123
 `,
 		},
 		{
+			name: "with bot_token_file and chat_id_file set - it succeeds",
+			in: `
+bot_token_file: /file
+chat_id_file: /chat_id_file
+`,
+		},
+		{
 			name: "with no chat_id set - it fails",
 			in: `
 bot_token: xyz
 `,
-			expected: errors.New("missing chat_id on telegram_config"),
+			expected: errors.New("missing chat_id or chat_id_file on telegram_config"),
+		},
+		{
+			name: "with both chat_id and chat_id_file - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+chat_id_file: /file
+`,
+			expected: errors.New("at most one of chat_id & chat_id_file must be configured"),
 		},
 		{
 			name: "with unknown parse_mode - it fails",
