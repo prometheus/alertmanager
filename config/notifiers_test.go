@@ -265,6 +265,55 @@ source: 'alert-manager-source'
 	}
 }
 
+func TestSIGNL4Configuration(t *testing.T) {
+	t.Run("valid configuration", func(t *testing.T) {
+		in := `
+team_secret: aaaaaaaa
+`
+		var cfg SIGNL4Config
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err != nil {
+			t.Fatalf("no error was expected:\n%v", err)
+		}
+	})
+
+	t.Run("team or integration secret is missing", func(t *testing.T) {
+		in := `
+team_secret:
+`
+		var cfg SIGNL4Config
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "missing team or integration secret in SIGNL4 config"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+}
+
+func TestSIGNL4FieldsValidation(t *testing.T) {
+	in := `
+team_secret: aaaaaaaa
+title: Prometheus Alert
+message: Hello world.
+`
+	var cfg SIGNL4Config
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "SIGNL4 config contains title and message fields"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig

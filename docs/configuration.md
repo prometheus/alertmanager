@@ -760,6 +760,8 @@ pushover_configs:
   [ - <pushover_config>, ... ]
 rocketchat_configs:
   [ - <rocketchat_config>, ... ]
+signl4_configs:
+  [ - <signl4_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
@@ -1538,6 +1540,31 @@ The fields are documented in the [Rocketchat API api models](https://github.com/
 [ text: <tmpl_string> ]
 [ url: <tmpl_string> ]
 [ msg: <tmpl_string> ]
+```
+
+### `<signl4_config>`
+
+SIGNL4 notifications are sent out via the [SIGNL4 Webhook API](https://www.signl4.com/webhook-rest-smtp-api-integration/).
+
+```yaml
+# Whether or not to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+# The SIGNL4 team or integration secret. This is the last part of your SIGNL4 webhook URL.
+[ team_secret: <secret> ]
+# The alert title.
+[ title: <string> | default = '' ]
+# The alert message.
+[ message: <string> | default = '' ]
+# Assigns the alert to the service/system category with the specified name.
+[ s4_service: <string> | default = '' ]
+# Transmit location information ('latitude, longitude') with your event and display a map in the mobile app.
+[ s4_location: <string> | default = '' ]
+# Pass 'single_ack' if only one person needs to confirm this alert. Pass 'multi_ack' in case this alert must be confirmed by the number of people who are on duty at the time this alert is raised.
+[ s4_alerting_scenario: <string> | default = '' ]
+# Specify a boolean value of true or false to apply event filtering for this event, or not. If set to true, the event will only trigger a notification to the team, if it contains at least one keyword from one of your services and system categories (i.e. it is whitelisted).
+[ s4_filtering: <boolean> | default = false ]
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 ### `<slack_config>`
