@@ -283,7 +283,7 @@ func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 	}
 
 	if n.conf.APIType == "cloud" || n.conf.APIType == "auto" && strings.HasSuffix(n.conf.APIURL.Host, "atlassian.net") {
-		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/2", "/3", 1)
+		searchPath := strings.Replace(n.conf.APIURL.JoinPath("/search/jql").String(), "/rest/api/2/", "/rest/api/3/", 1)
 		return requestBody, searchPath
 	}
 
