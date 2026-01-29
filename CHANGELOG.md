@@ -5,6 +5,21 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
+## 0.31.0 / 2026-01-31
+
+* [FEATURE] smtp: Add support for authsecret from file. #3087
+* [FEATURE] telegram: Add `chat_id_file` configuration parameter. #4909
+* [FEATURE] webhook: Support templating in url fields. #4798
+* [FEATURE] wechat: Add config directive to pass api secret via file. #4734
+* [ENHANCEMENT] docs: Fix `max-silence-size-bytes`. #4805
+* [ENHANCEMENT] docs: Update expr for `AlertmanagerClusterFailedToSendAlerts` to exclude value 0. #4872
+* [ENHANCEMENT] docs: Use matchers for inhibit rules examples. #4131
+* [ENHANCEMENT] docs: add notification integrations. #4901
+* [ENHANCEMENT] docs: update `slack_config` attachments documentation links. #4802
+* [ENHANCEMENT] docs: update description of filter query params in openapi doc. #4810
+* [ENHANCEMENT] provider: Reduce lock contention. #4809
+* [BUGFIX] jira: Prevent hostname corruption in cloud api url replacement. #4892
+
 ## 0.30.1 / 2026-01-12
 
 * [BUGFIX] Fix memory leak in tracing client. #4828
