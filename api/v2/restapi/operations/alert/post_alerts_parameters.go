@@ -20,6 +20,7 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	stderrors "errors"
 	"io"
 	"net/http"
 
@@ -44,7 +45,6 @@ func NewPostAlertsParams() PostAlertsParams {
 //
 // swagger:parameters postAlerts
 type PostAlertsParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -65,10 +65,12 @@ func (o *PostAlertsParams) BindRequest(r *http.Request, route *middleware.Matche
 	o.HTTPRequest = r
 
 	if runtime.HasBody(r) {
-		defer r.Body.Close()
+		defer func() {
+			_ = r.Body.Close()
+		}()
 		var body models.PostableAlerts
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
-			if err == io.EOF {
+			if stderrors.Is(err, io.EOF) {
 				res = append(res, errors.Required("alerts", "body", ""))
 			} else {
 				res = append(res, errors.NewParseError("alerts", "body", "", err))
