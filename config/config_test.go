@@ -1016,6 +1016,31 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	}
 }
 
+func TestMattermostGlobalAPIURLDefaulting(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-default-api-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.mattermost-default-api-url-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].MattermostConfigs[0]
+	if firstConfig.WebhookURLFile != "/global_mm_file" || firstConfig.WebhookURL != nil {
+		t.Fatalf("Invalid Mattermost URL file: %s\nExpected: %s", firstConfig.WebhookURLFile, "/global_mm_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].MattermostConfigs[1]
+	if secondConfig.WebhookURLFile != "/override_mm_file" || secondConfig.WebhookURL != nil {
+		t.Fatalf("Invalid Mattermost URL file: %s\nExpected: %s", secondConfig.WebhookURLFile, "/override_mm_file")
+	}
+
+	// override the global file with an inline URL
+	thirdConfig := conf.Receivers[0].MattermostConfigs[2]
+	if thirdConfig.WebhookURL.String() != "http://mysecret.example.com/" || thirdConfig.WebhookURLFile != "" {
+		t.Fatalf("Invalid Mattermost URL: %s\nExpected: %s", thirdConfig.WebhookURL.String(), "http://mysecret.example.com/")
+	}
+}
+
 func TestGlobalAndLocalHTTPConfig(t *testing.T) {
 	config, err := LoadFile("testdata/conf.http-config.good.yml")
 	if err != nil {

@@ -102,6 +102,8 @@ global:
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
+  [ mattermost_api_url: <secret> ]
+  [ mattermost_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
@@ -1019,10 +1021,10 @@ Mattermost notifications are sent via the [Mattermost webhook API](https://devel
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The Mattermost webhook URL.
-# webhook_url and webhook_url_file are mutually exclusive.
-webhook_url: <secret>
-webhook_url_file: <filepath>
+# The Mattermost webhook URL. Either `webhook_url` or `webhook_url_file` should be set.
+# Defaults to global settings if none are set here.
+[ webhook_url: <secret> | default = global.mattermost_api_url ]
+[ webhook_url_file: <filepath> | default = global.mattermost_api_url_file ]
 
 # Overrides the channel the message posts in. Use the channel’s name and not the display name, e.g. use town-square, not Town Square.
 [ channel: <string> | default = '' ]

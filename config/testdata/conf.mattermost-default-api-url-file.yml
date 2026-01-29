@@ -1,0 +1,18 @@
+global:
+  mattermost_api_url_file: '/global_mm_file'
+route:
+  receiver: 'mm-notifications'
+receivers:
+  - name: 'mm-notifications'
+    mattermost_configs:
+      # Use global
+      - channel: 'alerts1'
+        text: 'test'
+      # Override global with other file
+      - channel: 'alerts2'
+        text: 'test'
+        webhook_url_file: '/override_mm_file'
+      # Override global with inline URL
+      - channel: 'alerts3'
+        text: 'test'
+        webhook_url: 'http://mysecret.example.com/'
