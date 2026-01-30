@@ -22,8 +22,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -32,8 +30,9 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -388,11 +387,11 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(any) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route        `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string      `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig                `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route                       `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []amcommonconfig.InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []Receiver                   `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string                     `yaml:"templates" json:"templates"`
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
@@ -943,12 +942,12 @@ type Route struct {
 	// Deprecated. Remove before v1.0 release.
 	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	// Deprecated. Remove before v1.0 release.
-	MatchRE             MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers            Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	MuteTimeIntervals   []string     `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
-	ActiveTimeIntervals []string     `yaml:"active_time_intervals,omitempty" json:"active_time_intervals,omitempty"`
-	Continue            bool         `yaml:"continue" json:"continue,omitempty"`
-	Routes              []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
+	MatchRE             amcommonconfig.MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers            amcommonconfig.Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	MuteTimeIntervals   []string                    `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	ActiveTimeIntervals []string                    `yaml:"active_time_intervals,omitempty" json:"active_time_intervals,omitempty"`
+	Continue            bool                        `yaml:"continue" json:"continue,omitempty"`
+	Routes              []*Route                    `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
@@ -1007,85 +1006,29 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// InhibitRule defines an inhibition rule that mutes alerts that match the
-// target labels if an alert matching the source labels exists.
-// Both alerts have to have a set of labels being equal.
-type InhibitRule struct {
-	// Name is an optional name for the inhibition rule.
-	Name string `yaml:"name,omitempty" json:"name,omitempty"`
-	// SourceMatch defines a set of labels that have to equal the given
-	// value for source alerts. Deprecated. Remove before v1.0 release.
-	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
-	// SourceMatchRE defines pairs like SourceMatch but does regular expression
-	// matching. Deprecated. Remove before v1.0 release.
-	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
-	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
-	SourceMatchers Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
-	// TargetMatch defines a set of labels that have to equal the given
-	// value for target alerts. Deprecated. Remove before v1.0 release.
-	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
-	// TargetMatchRE defines pairs like TargetMatch but does regular expression
-	// matching. Deprecated. Remove before v1.0 release.
-	TargetMatchRE MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
-	// TargetMatchers defines a set of label matchers that have to be fulfilled for target alerts.
-	TargetMatchers Matchers `yaml:"target_matchers,omitempty" json:"target_matchers,omitempty"`
-	// A set of labels that must be equal between the source and target alert
-	// for them to be a match.
-	Equal []string `yaml:"equal,omitempty" json:"equal,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
-func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain InhibitRule
-	if err := unmarshal((*plain)(r)); err != nil {
-		return err
-	}
-
-	for k := range r.SourceMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for k := range r.TargetMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for _, l := range r.Equal {
-		labelName := model.LabelName(l)
-		if !compat.IsValidLabelName(labelName) {
-			return fmt.Errorf("invalid label name %q in equal list", l)
-		}
-	}
-
-	return nil
-}
-
 // Receiver configuration provides configuration on how to contact a receiver.
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	IncidentioConfigs []*IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
-	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs        []*SNSConfig        `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs   []*TelegramConfig   `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig      `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs    []*MSTeamsConfig    `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
-	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
+	DiscordConfigs    []*DiscordConfig         `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs      []*EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	IncidentioConfigs []*IncidentioConfig      `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig       `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs      []*SlackConfig           `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*webhook.WebhookConfig `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig        `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs     []*WechatConfig          `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig        `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig       `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs        []*SNSConfig             `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs   []*TelegramConfig        `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs      []*WebexConfig           `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs    []*MSTeamsConfig         `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs  []*MSTeamsV2Config       `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	JiraConfigs       []*JiraConfig            `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	RocketchatConfigs []*RocketchatConfig      `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	MattermostConfigs []*MattermostConfig      `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -1098,135 +1041,4 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("missing name in receiver")
 	}
 	return nil
-}
-
-// MatchRegexps represents a map of Regexp.
-type MatchRegexps map[string]Regexp
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for MatchRegexps.
-func (m *MatchRegexps) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain MatchRegexps
-	if err := unmarshal((*plain)(m)); err != nil {
-		return err
-	}
-	for k, v := range *m {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-		if v.Regexp == nil {
-			return fmt.Errorf("invalid regexp value for %q", k)
-		}
-	}
-	return nil
-}
-
-// Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.
-type Regexp struct {
-	*regexp.Regexp
-	original string
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for Regexp.
-func (re *Regexp) UnmarshalYAML(unmarshal func(any) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-	regex, err := regexp.Compile("^(?:" + s + ")$")
-	if err != nil {
-		return err
-	}
-	re.Regexp = regex
-	re.original = s
-	return nil
-}
-
-// MarshalYAML implements the yaml.Marshaler interface for Regexp.
-func (re Regexp) MarshalYAML() (any, error) {
-	if re.original != "" {
-		return re.original, nil
-	}
-	return nil, nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface for Regexp.
-func (re *Regexp) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	regex, err := regexp.Compile("^(?:" + s + ")$")
-	if err != nil {
-		return err
-	}
-	re.Regexp = regex
-	re.original = s
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaler interface for Regexp.
-func (re Regexp) MarshalJSON() ([]byte, error) {
-	if re.original != "" {
-		return json.Marshal(re.original)
-	}
-	return []byte("null"), nil
-}
-
-// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface
-// and MarshalYAML to implement the yaml.Marshaler interface.
-type Matchers labels.Matchers
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
-func (m *Matchers) UnmarshalYAML(unmarshal func(any) error) error {
-	var lines []string
-	if err := unmarshal(&lines); err != nil {
-		return err
-	}
-	for _, line := range lines {
-		pm, err := compat.Matchers(line, "config")
-		if err != nil {
-			return err
-		}
-		*m = append(*m, pm...)
-	}
-	sort.Sort(labels.Matchers(*m))
-	return nil
-}
-
-// MarshalYAML implements the yaml.Marshaler interface for Matchers.
-func (m Matchers) MarshalYAML() (any, error) {
-	result := make([]string, len(m))
-	for i, matcher := range m {
-		result[i] = matcher.String()
-	}
-	return result, nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface for Matchers.
-func (m *Matchers) UnmarshalJSON(data []byte) error {
-	var lines []string
-	if err := json.Unmarshal(data, &lines); err != nil {
-		return err
-	}
-	for _, line := range lines {
-		pm, err := compat.Matchers(line, "config")
-		if err != nil {
-			return err
-		}
-		*m = append(*m, pm...)
-	}
-	sort.Sort(labels.Matchers(*m))
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaler interface for Matchers.
-func (m Matchers) MarshalJSON() ([]byte, error) {
-	if len(m) == 0 {
-		return []byte("[]"), nil
-	}
-	result := make([]string, len(m))
-	for i, matcher := range m {
-		result[i] = matcher.String()
-	}
-	return json.Marshal(result)
 }
