@@ -1,0 +1,7 @@
+route:
+  receiver: team-X-telegram
+
+receivers:
+  - name: team-X-telegram
+    telegram_configs:
+      - chat_id: 123

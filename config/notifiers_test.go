@@ -1100,14 +1100,6 @@ bot_token_file: /file
 			expected: errors.New("at most one of bot_token & bot_token_file must be configured"),
 		},
 		{
-			name: "with no bot_token & bot_token_file - it fails",
-			in: `
-bot_token: ''
-bot_token_file: ''
-`,
-			expected: errors.New("missing bot_token or bot_token_file on telegram_config"),
-		},
-		{
 			name: "with bot_token and chat_id set - it succeeds",
 			in: `
 bot_token: xyz
