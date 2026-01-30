@@ -7,10 +7,8 @@
 
 ## 0.31.0 / 2026-01-31
 
-* [FEATURE] smtp: Add support for authsecret from file. #3087
-* [FEATURE] telegram: Add `chat_id_file` configuration parameter. #4909
-* [FEATURE] webhook: Support templating in url fields. #4798
-* [FEATURE] wechat: Add config directive to pass api secret via file. #4734
+* [ENHANCEMENT] docs(opsgenie): Fix description of `api_url` field. #4908
+* [ENHANCEMENT] docs(slack): Document missing app configs. #4871
 * [ENHANCEMENT] docs: Fix `max-silence-size-bytes`. #4805
 * [ENHANCEMENT] docs: Update expr for `AlertmanagerClusterFailedToSendAlerts` to exclude value 0. #4872
 * [ENHANCEMENT] docs: Use matchers for inhibit rules examples. #4131
@@ -18,6 +16,17 @@
 * [ENHANCEMENT] docs: update `slack_config` attachments documentation links. #4802
 * [ENHANCEMENT] docs: update description of filter query params in openapi doc. #4810
 * [ENHANCEMENT] provider: Reduce lock contention. #4809
+* [FEATURE] slack: Add support for top-level text field in slack notification. #4867
+* [FEATURE] smtp: Add support for authsecret from file. #3087
+* [FEATURE] smtp: Customize the ssl/tls port support (#4757). #4818
+* [FEATURE] smtp: Enhance email notifier configuration validation. #4826
+* [FEATURE] telegram: Add `chat_id_file` configuration parameter. #4909
+* [FEATURE] telegram: Support global bot token. #4823
+* [FEATURE] webhook: Support templating in url fields. #4798
+* [FEATURE] wechat: Add config directive to pass api secret via file. #4734
+* [BUGFIX] Allow empty `group_by` to override parent route. #4825
+* [BUGFIX] Set `spellcheck=false` attribute on silence filter input. #4811
+* [BUGFIX] jira: Fix for handling api v3 with ADF. #4756
 * [BUGFIX] jira: Prevent hostname corruption in cloud api url replacement. #4892
 
 ## 0.30.1 / 2026-01-12
