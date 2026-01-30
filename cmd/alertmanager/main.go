@@ -548,7 +548,7 @@ func run() int {
 		newDisp.WaitForLoading()
 		disp = newDisp
 
-		err = tracingManager.ApplyConfig(conf)
+		err = tracingManager.ApplyConfig(conf.TracingConfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply tracing config: %w", err)
 		}
