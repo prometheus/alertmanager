@@ -1285,3 +1285,61 @@ attachments:
 		})
 	}
 }
+
+func TestEmailConfig_UnmarshalYAML(t *testing.T) {
+	testConfig := []struct {
+		name     string
+		in       string
+		expected error
+	}{
+		{
+			name: "with basic config - it succeeds",
+			in: `
+to: foobar@example.com
+headers: {X-Custom-Header: CustomValue}
+`,
+		},
+		{
+			name: "with empty to address - it fails",
+			in: `
+to: ''`,
+			expected: errors.New("missing to address in email config"),
+		},
+		{
+			name: "with correct threading - it succeeds",
+			in: `
+to: foobar@example.com
+threading:
+  enabled: true
+  thread_by_date: daily
+`,
+		},
+		{
+			name: "with invalid threading - it fails",
+			in: `
+to: foobar@example.com
+threading:
+  enabled: true
+  thread_by_date: weekly
+`,
+			expected: errors.New("threading.thread_by_date must be either 'none' or 'daily'"),
+		},
+		{
+			name: "with duplicate headers - it failes",
+			in: `
+to: foobar@example.com
+headers: {X-Custom-Header: CustomValue, X-CUSTOM-HEADER: AnotherValue}
+`,
+			expected: errors.New("duplicate header \"X-Custom-Header\" in email config"),
+		},
+	}
+
+	for _, tt := range testConfig {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg EmailConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
+	}
+}
