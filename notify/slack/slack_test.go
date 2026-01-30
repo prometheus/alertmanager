@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
@@ -195,7 +196,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			apiurl, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
 				&config.SlackConfig{
-					NotifierConfig: config.NotifierConfig{},
+					NotifierConfig: amcommonconfig.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &config.SecretURL{URL: apiurl},
 					Channel:        "channelname",
@@ -253,7 +254,7 @@ func TestSlackTimeout(t *testing.T) {
 			u, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
 				&config.SlackConfig{
-					NotifierConfig: config.NotifierConfig{},
+					NotifierConfig: amcommonconfig.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &config.SecretURL{URL: u},
 					Channel:        "channelname",
