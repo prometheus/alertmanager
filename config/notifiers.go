@@ -315,7 +315,12 @@ type EmailConfig struct {
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
-	Threading        ThreadingConfig      `yaml:"threading,omitempty" json:"threading,omitempty"`
+	// ForceImplicitTLS controls whether to use implicit TLS (direct TLS connection).
+	// true: force use of implicit TLS (direct TLS connection)
+	// false: force disable implicit TLS (use explicit TLS/STARTTLS if required)
+	// nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
+	ForceImplicitTLS *bool           `yaml:"force_implicit_tls,omitempty" json:"force_implicit_tls,omitempty"`
+	Threading        ThreadingConfig `yaml:"threading,omitempty" json:"threading,omitempty"`
 }
 
 // ThreadingConfig configures mail threading.

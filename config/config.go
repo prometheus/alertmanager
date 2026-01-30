@@ -540,6 +540,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if ec.ForceImplicitTLS == nil {
+				ec.ForceImplicitTLS = c.Global.SMTPForceImplicitTLS
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
@@ -919,6 +922,7 @@ type GlobalConfig struct {
 	SMTPAuthIdentity      string               `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS        bool                 `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
 	SMTPTLSConfig         *commoncfg.TLSConfig `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
+	SMTPForceImplicitTLS  *bool                `yaml:"smtp_force_implicit_tls,omitempty" json:"smtp_force_implicit_tls,omitempty"`
 	SlackAPIURL           *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile       string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
 	SlackAppToken         Secret               `yaml:"slack_app_token,omitempty" json:"slack_app_token,omitempty"`
