@@ -21,120 +21,104 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace/noop"
-
-	"github.com/prometheus/alertmanager/config"
 )
 
 func TestInstallingNewTracerProvider(t *testing.T) {
 	tpBefore := otel.GetTracerProvider()
 
 	m := NewManager(promslog.NewNopLogger())
-	cfg := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientGRPC,
-		},
+	cfg := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientGRPC,
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	require.NotEqual(t, tpBefore, otel.GetTracerProvider())
 }
 
 func TestReinstallingTracerProvider(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
-	cfg := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientGRPC,
-			Headers: &commoncfg.Headers{
-				Headers: map[string]commoncfg.Header{
-					"foo": {Values: []string{"bar"}},
-				},
+	cfg := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientGRPC,
+		Headers: &commoncfg.Headers{
+			Headers: map[string]commoncfg.Header{
+				"foo": {Values: []string{"bar"}},
 			},
 		},
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	tpFirstConfig := otel.GetTracerProvider()
 
 	// Trying to apply the same config should not reinstall provider.
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	require.Equal(t, tpFirstConfig, otel.GetTracerProvider())
 
-	cfg2 := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientHTTP,
-			Headers: &commoncfg.Headers{
-				Headers: map[string]commoncfg.Header{
-					"bar": {Values: []string{"foo"}},
-				},
+	cfg2 := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientHTTP,
+		Headers: &commoncfg.Headers{
+			Headers: map[string]commoncfg.Header{
+				"bar": {Values: []string{"foo"}},
 			},
 		},
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg2))
+	require.NoError(t, m.ApplyConfig(cfg2))
 	require.NotEqual(t, tpFirstConfig, otel.GetTracerProvider())
 	tpSecondConfig := otel.GetTracerProvider()
 
 	// Setting previously unset option should reinstall provider.
-	cfg2.TracingConfig.Compression = "gzip"
-	require.NoError(t, m.ApplyConfig(&cfg2))
+	cfg2.Compression = "gzip"
+	require.NoError(t, m.ApplyConfig(cfg2))
 	require.NotEqual(t, tpSecondConfig, otel.GetTracerProvider())
 }
 
 func TestReinstallingTracerProviderWithTLS(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
-	cfg := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientGRPC,
-			TLSConfig: &commoncfg.TLSConfig{
-				CAFile: "testdata/ca.cer",
-			},
+	cfg := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientGRPC,
+		TLSConfig: &commoncfg.TLSConfig{
+			CAFile: "testdata/ca.cer",
 		},
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	tpFirstConfig := otel.GetTracerProvider()
 
 	// Trying to apply the same config with TLS should reinstall provider.
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	require.NotEqual(t, tpFirstConfig, otel.GetTracerProvider())
 }
 
 func TestUninstallingTracerProvider(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
-	cfg := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientGRPC,
-		},
+	cfg := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientGRPC,
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	require.NotEqual(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 
 	// Uninstall by passing empty config.
-	cfg2 := config.Config{
-		TracingConfig: config.TracingConfig{},
-	}
+	cfg2 := TracingConfig{}
 
-	require.NoError(t, m.ApplyConfig(&cfg2))
+	require.NoError(t, m.ApplyConfig(cfg2))
 	// Make sure we get a no-op tracer provider after uninstallation.
 	require.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
 func TestTracerProviderShutdown(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
-	cfg := config.Config{
-		TracingConfig: config.TracingConfig{
-			Endpoint:   "localhost:1234",
-			ClientType: config.TracingClientGRPC,
-		},
+	cfg := TracingConfig{
+		Endpoint:   "localhost:1234",
+		ClientType: TracingClientGRPC,
 	}
 
-	require.NoError(t, m.ApplyConfig(&cfg))
+	require.NoError(t, m.ApplyConfig(cfg))
 	m.Stop()
 
 	// Check if we closed the done channel.
