@@ -480,6 +480,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 	}
 
+	if c.Global.MattermostAPIURL != nil && len(c.Global.MattermostAPIURLFile) > 0 {
+		return errors.New("at most one of mattermost_api_url & mattermost_api_url_file must be configured")
+	}
+
 	if c.Global.OpsGenieAPIKey != "" && len(c.Global.OpsGenieAPIKeyFile) > 0 {
 		return errors.New("at most one of opsgenie_api_key & opsgenie_api_key_file must be configured")
 	}
@@ -703,6 +707,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
 			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
+			if mattermost.WebhookURL == nil && len(mattermost.WebhookURLFile) == 0 {
+				mattermost.WebhookURL = c.Global.MattermostAPIURL
+				mattermost.WebhookURLFile = c.Global.MattermostAPIURLFile
+			}
 		}
 
 		names[rcv.Name] = struct{}{}
@@ -925,6 +933,8 @@ type GlobalConfig struct {
 	SMTPForceImplicitTLS  *bool                `yaml:"smtp_force_implicit_tls,omitempty" json:"smtp_force_implicit_tls,omitempty"`
 	SlackAPIURL           *SecretURL           `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile       string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	MattermostAPIURL      *SecretURL           `yaml:"mattermost_api_url,omitempty" json:"mattermost_api_url,omitempty"`
+	MattermostAPIURLFile  string               `yaml:"mattermost_api_url_file,omitempty" json:"mattermost_api_url_file,omitempty"`
 	SlackAppToken         Secret               `yaml:"slack_app_token,omitempty" json:"slack_app_token,omitempty"`
 	SlackAppTokenFile     string               `yaml:"slack_app_token_file,omitempty" json:"slack_app_token_file,omitempty"`
 	SlackAppURL           *URL                 `yaml:"slack_app_url,omitempty" json:"slack_app_url,omitempty"`
