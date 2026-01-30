@@ -1063,11 +1063,7 @@ webhook_url_file: <filepath>
 
 # Overrides the username the message posts as.
 # Defaults to the username set during webhook creation; if no username was set during creation, webhook is used.
-[ username: <string> | default = '' ]
-
-# Markdown-formatted message to display in the post.
-# To trigger notifications, use @<username>, @channel, and @here like you would in other Mattermost messages.
-text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
+[ username: <tmpl_string> | default = '{{ template "mattermost.default.username" . }}' ]
 
 # Overrides the profile picture the message posts with.
 [ icon_url: <string> | default = '' ]
@@ -1075,32 +1071,17 @@ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
 # Overrides the profile picture and icon_url parameter.
 [ icon_emoji: <string> | default = '' ]
 
-# Message attachments used for richer formatting options.
-# It is for compatibility with Slack.
-[ attachments: ]
-  [ <attachment_config> ... ]
-
-[ props: <prop_config> ]
-
-[ priority: <priority_config> ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-#### `<attachment_config>`
-
-See [Mattermost documentation](https://developers.mattermost.com/integrate/reference/message-attachments/) for more info.
-```yaml
-[ fallback: <string> | default = '' ]
-[ color: <string> | default = '' ]
+# Attachment fields for richer formatting options.
+# See [Mattermost documentation](https://developers.mattermost.com/integrate/reference/message-attachments/) for more info.
+[ fallback: <tmpl_string> | default = '{{ template "mattermost.default.fallback" . }}' ]
+[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ title: <tmpl_string> | default = '{{ template "mattermost.default.title" . }}' ]
+[ title_link: <tmpl_string> | default = '{{ template "mattermost.default.titlelink" . }}' ]
 [ pretext: <string> | default = '' ]
-[ text: <string> | default = '' ]
+[ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}' ]
 [ author_name: <string> | default = '' ]
 [ author_link: <string> | default = '' ]
 [ author_icon: <string> | default = '' ]
-[ title: <string> | default = '' ]
-[ title_link: <string> | default = '' ]
 # Same as Slack fields.
 [ fields: <string> | default = '' ]
   [ <field_config> ... ]
@@ -1108,6 +1089,13 @@ See [Mattermost documentation](https://developers.mattermost.com/integrate/refer
 [ footer: <string> | default = '' ]
 [ footer_icon: <string> | default = '' ]
 [ image_url: <string> | default = '' ]
+
+[ props: <prop_config> ]
+
+[ priority: <priority_config> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 #### `<prop_config>`

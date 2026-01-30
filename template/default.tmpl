@@ -218,6 +218,10 @@ Alerts Resolved:
 {{ define "rocketchat.default.iconurl" }}{{ end }}
 {{ define "rocketchat.default.text" }}{{ end }}
 
+{{ define "mattermost.default.username" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "mattermost.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "mattermost.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "mattermost.default.fallback" }}{{ template "mattermost.default.title" . }} | {{ template "mattermost.default.titlelink" . }}{{ end }}
 {{ define "mattermost.default.text" }}
 {{ if gt (len .Alerts.Firing) 0 }}
 # Alerts Firing:
