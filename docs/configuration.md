@@ -1592,6 +1592,10 @@ channel: <tmpl_string>
 [ icon_emoji: <tmpl_string> ]
 [ icon_url: <tmpl_string> ]
 [ link_names: <boolean> | default = false ]
+# The text content of the Slack message.
+# If set, this is sent as the top-level 'text' field in the Slack payload.
+# This is useful for simple notifications or compatibility with Slack Workflow Webhooks.
+[ message_text: <tmpl_string> ]
 [ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
 # The following parameters define the attachment.
 actions:

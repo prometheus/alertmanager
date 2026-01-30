@@ -70,6 +70,7 @@ type request struct {
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
+	Text        string       `json:"text,omitempty"`
 	Attachments []attachment `json:"attachments"`
 }
 
@@ -186,6 +187,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
 		LinkNames:   n.conf.LinkNames,
+		Text:        tmplText(n.conf.MessageText),
 		Attachments: []attachment{*att},
 	}
 	if err != nil {
