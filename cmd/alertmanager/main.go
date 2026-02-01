@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -143,6 +143,7 @@ func run() int {
 		maxSilences                 = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		perAlertNameLimit           = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
 		DispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
@@ -345,7 +346,16 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer)
+	alerts, err := mem.NewAlerts(
+		context.Background(),
+		marker,
+		*alertGCInterval,
+		*perAlertNameLimit,
+		nil,
+		logger,
+		prometheus.DefaultRegisterer,
+		ff,
+	)
 	if err != nil {
 		logger.Error("error creating memory provider", "err", err)
 		return 1
