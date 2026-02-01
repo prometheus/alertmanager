@@ -24,6 +24,7 @@
 * [FEATURE] telegram: Support global bot token. #4823
 * [FEATURE] webhook: Support templating in url fields. #4798
 * [FEATURE] wechat: Add config directive to pass api secret via file. #4734
+* [FEATURE] provider: Implement per alert limits. #4819
 * [BUGFIX] Allow empty `group_by` to override parent route. #4825
 * [BUGFIX] Set `spellcheck=false` attribute on silence filter input. #4811
 * [BUGFIX] jira: Fix for handling api v3 with ADF. #4756
