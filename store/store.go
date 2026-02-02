@@ -21,8 +21,12 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/limit"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// ErrLimited is returned if a Store has reached the per-alert limit.
+var ErrLimited = errors.New("alert limited")
 
 // ErrNotFound is returned if a Store cannot find the Alert.
 var ErrNotFound = errors.New("alert not found")
@@ -33,16 +37,30 @@ var ErrNotFound = errors.New("alert not found")
 // resolved alerts that have been removed.
 type Alerts struct {
 	sync.Mutex
-	c  map[model.Fingerprint]*types.Alert
-	cb func([]types.Alert)
+	alerts        map[model.Fingerprint]*types.Alert
+	gcCallback    func([]types.Alert)
+	limits        map[string]*limit.Bucket[model.Fingerprint]
+	perAlertLimit int
 }
 
 // NewAlerts returns a new Alerts struct.
 func NewAlerts() *Alerts {
 	a := &Alerts{
-		c:  make(map[model.Fingerprint]*types.Alert),
-		cb: func(_ []types.Alert) {},
+		alerts:        make(map[model.Fingerprint]*types.Alert),
+		gcCallback:    func(_ []types.Alert) {},
+		perAlertLimit: 0,
 	}
+
+	return a
+}
+
+// WithPerAlertLimit sets the per-alert limit for the Alerts struct.
+func (a *Alerts) WithPerAlertLimit(lim int) *Alerts {
+	a.Lock()
+	defer a.Unlock()
+
+	a.limits = make(map[string]*limit.Bucket[model.Fingerprint])
+	a.perAlertLimit = lim
 
 	return a
 }
@@ -52,7 +70,7 @@ func (a *Alerts) SetGCCallback(cb func([]types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
-	a.cb = cb
+	a.gcCallback = cb
 }
 
 // Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
@@ -73,9 +91,9 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 func (a *Alerts) GC() []types.Alert {
 	a.Lock()
 	var resolved []types.Alert
-	for fp, alert := range a.c {
+	for fp, alert := range a.alerts {
 		if alert.Resolved() {
-			delete(a.c, fp)
+			delete(a.alerts, fp)
 			resolved = append(resolved, types.Alert{
 				Alert: model.Alert{
 					Labels:       alert.Labels.Clone(),
@@ -89,8 +107,16 @@ func (a *Alerts) GC() []types.Alert {
 			})
 		}
 	}
+
+	// Remove stale alert limit buckets
+	for alertName, bucket := range a.limits {
+		if bucket.IsStale() {
+			delete(a.limits, alertName)
+		}
+	}
+
 	a.Unlock()
-	a.cb(resolved)
+	a.gcCallback(resolved)
 	return resolved
 }
 
@@ -100,7 +126,7 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
 
-	alert, prs := a.c[fp]
+	alert, prs := a.alerts[fp]
 	if !prs {
 		return nil, ErrNotFound
 	}
@@ -112,7 +138,22 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
 
-	a.c[alert.Fingerprint()] = alert
+	fp := alert.Fingerprint()
+	name := alert.Name()
+
+	// Apply per alert limits if necessary
+	if a.perAlertLimit > 0 {
+		bucket, ok := a.limits[name]
+		if !ok {
+			bucket = limit.NewBucket[model.Fingerprint](a.perAlertLimit)
+			a.limits[name] = bucket
+		}
+		if !bucket.Upsert(fp, alert.EndsAt) {
+			return ErrLimited
+		}
+	}
+
+	a.alerts[fp] = alert
 	return nil
 }
 
@@ -123,8 +164,8 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 	defer a.Unlock()
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
-		if other, ok := a.c[fp]; ok && alert.UpdatedAt.Equal(other.UpdatedAt) {
-			delete(a.c, fp)
+		if other, ok := a.alerts[fp]; ok && alert.UpdatedAt.Equal(other.UpdatedAt) {
+			delete(a.alerts, fp)
 		}
 	}
 	return nil
@@ -135,8 +176,8 @@ func (a *Alerts) List() []*types.Alert {
 	a.Lock()
 	defer a.Unlock()
 
-	alerts := make([]*types.Alert, 0, len(a.c))
-	for _, alert := range a.c {
+	alerts := make([]*types.Alert, 0, len(a.alerts))
+	for _, alert := range a.alerts {
 		alerts = append(alerts, alert)
 	}
 
@@ -148,7 +189,7 @@ func (a *Alerts) Empty() bool {
 	a.Lock()
 	defer a.Unlock()
 
-	return len(a.c) == 0
+	return len(a.alerts) == 0
 }
 
 // Len returns the number of alerts in the store.
@@ -156,5 +197,5 @@ func (a *Alerts) Len() int {
 	a.Lock()
 	defer a.Unlock()
 
-	return len(a.c)
+	return len(a.alerts)
 }

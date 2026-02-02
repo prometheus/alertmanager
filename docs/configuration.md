@@ -102,6 +102,10 @@ global:
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
+  [ slack_app_token: <secret> ]
+  [ slack_app_token_file: <filepath> ]
+  [ slack_app_url: <string> ]
+
   [ mattermost_api_url: <secret> ]
   [ mattermost_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
@@ -1298,7 +1302,7 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 # The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
 [ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
 
-# The host to send OpsGenie API requests to.
+# The base URL for OpsGenie API requests.
 [ api_url: <string> | default = global.opsgenie_api_url ]
 
 # Alert text limited to 130 characters.
@@ -1582,10 +1586,18 @@ The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-m
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The Slack webhook URL. Either api_url or api_url_file should be set.
+# The Slack webhook URL. Either api_url/api_url_file OR app_token/app_token_file should be set, but not both.
 # Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
 [ api_url_file: <filepath> | default = global.slack_api_url_file ]
+
+# Slack App token for OAuth authentication. Mutually exclusive with api_url/api_url_file.
+# Defaults to global settings if no local authorization or webhook URL is configured.
+[ app_token: <secret> | default = global.slack_app_token ]
+[ app_token_file: <filepath> | default = global.slack_app_token_file ]
+
+# The Slack App URL. Required when using app_token authentication.
+[ app_url: <string> | default = global.slack_app_url ]
 
 # The channel or user to send notifications to.
 channel: <tmpl_string>
@@ -1608,7 +1620,7 @@ actions:
 fields:
   [ <field_config> ... ]
 [ footer: <tmpl_string> | default = '{{ template "slack.default.footer" . }}' ]
-[ mrkdwn_in: '[' <string>, ... ']' | default = ["fallback", "pretext", "text"] ]
+[ mrkdwn_in: [ <string>, ... ] | default = ["fallback", "pretext", "text"] ]
 [ pretext: <tmpl_string> | default = '{{ template "slack.default.pretext" . }}' ]
 [ short_fields: <boolean> | default = false ]
 [ text: <tmpl_string> | default = '{{ template "slack.default.text" . }}' ]
@@ -1980,4 +1992,3 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
-
