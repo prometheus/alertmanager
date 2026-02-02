@@ -5,7 +5,7 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
-## 0.31.0 / 2026-01-31
+## 0.31.0 / 2026-02-02
 
 * [ENHANCEMENT] docs(opsgenie): Fix description of `api_url` field. #4908
 * [ENHANCEMENT] docs(slack): Document missing app configs. #4871
