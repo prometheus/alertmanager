@@ -22,6 +22,8 @@ module Utils.Filter exposing
 
 import Char
 import Data.Matcher
+import Json.Decode as Decode
+import Json.Encode as Encode
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set
 import Url exposing (percentEncode)
@@ -278,9 +280,7 @@ stringifyMatcher { key, op, value } =
                 |> Maybe.map Tuple.first
                 |> Maybe.withDefault ""
            )
-        ++ "\""
-        ++ value
-        ++ "\""
+        ++ Encode.encode 0 (Encode.string value)
 
 
 convertFilterMatcher : Matcher -> Data.Matcher.Matcher
@@ -340,8 +340,15 @@ string separator =
         |. Parser.token (String.fromChar separator)
         |. Parser.loop separator stringHelp
         |> Parser.getChompedString
-        -- Remove quotes
-        |> Parser.map (String.dropLeft 1 >> String.dropRight 1)
+        |> Parser.andThen
+            (\str ->
+                case Decode.decodeString Decode.string str of
+                    Ok value ->
+                        Parser.succeed value
+
+                    Err _ ->
+                        Parser.problem "Invalid string"
+            )
 
 
 stringHelp : Char -> Parser (Parser.Step Char ())
