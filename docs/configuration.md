@@ -778,6 +778,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+googlechat_configs:
+  [ - <googlechat_config>, ... ]
 ```
 
 ### `<http_config>`
@@ -1959,6 +1961,27 @@ room_id: <tmpl_string>
 
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<googlechat_config>`
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# Whether or not to enable threading.
+# Enabling this, will cause resolved notifications to be posted in the same thread as the original message.
+[ threading: <boolean> | default = true ]
+
+# The Webhook URL for the Google Chat space.
+# i.e. https://chat.googleapis.com/v1/spaces/XXXXXX/messages?key=YYYYYYY&token=ZZZZZZZ
+[ url: <secret> ]
+
+# Alternative to `url`. Allows the URL to be read from a file instead.
+[ url_file: <filepath> ]
+
+# Message template.
+[ message: <tmpl_string> | default = '{{ template "googlechat.default.message" . }}' ]
 ```
 
 ## Tracing Configuration

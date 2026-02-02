@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/email"
+	"github.com/prometheus/alertmanager/notify/googlechat"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
@@ -104,6 +105,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.MSTeamsV2Configs {
 		add("msteamsv2", i, c, func(l *slog.Logger) (notify.Notifier, error) { return msteamsv2.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.GoogleChatConfigs {
+		add("googlechat", i, c, func(l *slog.Logger) (notify.Notifier, error) { return googlechat.New(c, tmpl, l) })
 	}
 	for i, c := range nc.JiraConfigs {
 		add("jira", i, c, func(l *slog.Logger) (notify.Notifier, error) { return jira.New(c, tmpl, l, httpOpts...) })

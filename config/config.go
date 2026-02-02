@@ -373,6 +373,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.MSTeamsV2Configs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.GoogleChatConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.JiraConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -687,6 +690,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			msteamsv2.HTTPConfig = cmp.Or(msteamsv2.HTTPConfig, c.Global.HTTPConfig)
 			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
+			}
+		}
+		for _, googlechat := range rcv.GoogleChatConfigs {
+			if googlechat.HTTPConfig == nil {
+				googlechat.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
 		for _, jira := range rcv.JiraConfigs {
@@ -1118,6 +1126,7 @@ type Receiver struct {
 	WebexConfigs      []*WebexConfig      `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*MSTeamsConfig    `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	GoogleChatConfigs []*GoogleChatConfig `yaml:"googlechat_configs,omitempty" json:"googlechat_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
