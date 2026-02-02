@@ -45,7 +45,7 @@
     "postcss": "^8.5.5",
     "postcss-preset-mantine": "1.18.0",
     "postcss-simple-vars": "^7.0.1",
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.1",
     "prop-types": "^15.8.1",
     "stylelint": "^16.26.1",
     "stylelint-config-standard-scss": "^16.0.0",
