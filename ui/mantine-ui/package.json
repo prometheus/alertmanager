@@ -20,7 +20,7 @@
     "@mantine/code-highlight": "^8.3.14",
     "@mantine/core": "^8.3.13",
     "@mantine/hooks": "^8.3.13",
-    "@tanstack/react-query": "^5.90.16",
+    "@tanstack/react-query": "^5.90.20",
     "highlight.js": "^11.11.1",
     "react": "^19.1.0",
     "react-dom": "^19.2.3",
