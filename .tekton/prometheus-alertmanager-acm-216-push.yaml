@@ -43,12 +43,12 @@ spec:
   pipelineRef:
     resolver: git
     params:
-      - name: url
-        value: "https://github.com/stolostron/konflux-build-catalog.git"
-      - name: revision
-        value: main
-      - name: pathInRepo
-        value: pipelines/common.yaml
+    - name: url
+      value: "https://github.com/stolostron/konflux-build-catalog.git"
+    - name: revision
+      value: main
+    - name: pathInRepo
+      value: pipelines/common.yaml
   taskRunTemplate:
     serviceAccountName: build-pipeline-prometheus-alertmanager-acm-216
   workspaces:
