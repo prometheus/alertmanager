@@ -250,12 +250,17 @@ $(BUILD_DOCKER_ARCHS): common-docker-%:
 	@for variant in $(DOCKERFILE_VARIANTS_WITH_NAMES); do \
 		dockerfile=$${variant#*:}; \
 		variant_name=$${variant%%:*}; \
+		distroless_arch="$*"; \
+		if [ "$*" = "armv7" ]; then \
+			distroless_arch="arm"; \
+		fi; \
 		if [ "$$dockerfile" = "Dockerfile" ]; then \
 			echo "Building default variant ($$variant_name) for linux-$* using $$dockerfile"; \
 			docker build -t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(SANITIZED_DOCKER_IMAGE_TAG)" \
 				-f $$dockerfile \
 				--build-arg ARCH="$*" \
 				--build-arg OS="linux" \
+				--build-arg DISTROLESS_ARCH="$$distroless_arch" \
 				$(DOCKERBUILD_CONTEXT); \
 			if [ "$$variant_name" != "default" ]; then \
 				echo "Tagging default variant with $$variant_name suffix"; \
@@ -268,6 +273,7 @@ $(BUILD_DOCKER_ARCHS): common-docker-%:
 				-f $$dockerfile \
 				--build-arg ARCH="$*" \
 				--build-arg OS="linux" \
+				--build-arg DISTROLESS_ARCH="$$distroless_arch" \
 				$(DOCKERBUILD_CONTEXT); \
 		fi; \
 	done
@@ -285,6 +291,16 @@ $(PUBLISH_DOCKER_ARCHS): common-docker-publish-%:
 		if [ "$$dockerfile" = "Dockerfile" ]; then \
 			echo "Pushing default variant ($$variant_name) for linux-$*"; \
 			docker push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(SANITIZED_DOCKER_IMAGE_TAG)"; \
+		fi; \
+		if [ "$(DOCKER_IMAGE_TAG)" = "latest" ]; then \
+			if [ "$$dockerfile" != "Dockerfile" ] || [ "$$variant_name" != "default" ]; then \
+				echo "Pushing $$variant_name variant version tags for linux-$*"; \
+				docker push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:v$(DOCKER_MAJOR_VERSION_TAG)-$$variant_name"; \
+			fi; \
+			if [ "$$dockerfile" = "Dockerfile" ]; then \
+				echo "Pushing default variant version tag for linux-$*"; \
+				docker push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:v$(DOCKER_MAJOR_VERSION_TAG)"; \
+			fi; \
 		fi; \
 	done
 
@@ -321,6 +337,18 @@ common-docker-manifest:
 			echo "Creating default variant ($$variant_name) manifest"; \
 			DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create -a "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(SANITIZED_DOCKER_IMAGE_TAG)" $(foreach ARCH,$(DOCKER_ARCHS),$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$(ARCH):$(SANITIZED_DOCKER_IMAGE_TAG)); \
 			DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(SANITIZED_DOCKER_IMAGE_TAG)"; \
+		fi; \
+		if [ "$(DOCKER_IMAGE_TAG)" = "latest" ]; then \
+			if [ "$$dockerfile" != "Dockerfile" ] || [ "$$variant_name" != "default" ]; then \
+				echo "Creating manifest for $$variant_name variant version tag"; \
+				DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create -a "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):v$(DOCKER_MAJOR_VERSION_TAG)-$$variant_name" $(foreach ARCH,$(DOCKER_ARCHS),$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$(ARCH):v$(DOCKER_MAJOR_VERSION_TAG)-$$variant_name); \
+				DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):v$(DOCKER_MAJOR_VERSION_TAG)-$$variant_name"; \
+			fi; \
+			if [ "$$dockerfile" = "Dockerfile" ]; then \
+				echo "Creating default variant version tag manifest"; \
+				DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create -a "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):v$(DOCKER_MAJOR_VERSION_TAG)" $(foreach ARCH,$(DOCKER_ARCHS),$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$(ARCH):v$(DOCKER_MAJOR_VERSION_TAG)); \
+				DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):v$(DOCKER_MAJOR_VERSION_TAG)"; \
+			fi; \
 		fi; \
 	done
 

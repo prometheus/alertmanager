@@ -102,6 +102,10 @@ global:
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
+  [ slack_app_token: <secret> ]
+  [ slack_app_token_file: <filepath> ]
+  [ slack_app_url: <string> ]
+
   [ victorops_api_key: <secret> ]
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
@@ -988,6 +992,11 @@ to: <tmpl_string>
 # Note that Go does not support unencrypted connections to remote SMTP endpoints.
 [ require_tls: <bool> | default = global.smtp_require_tls ]
 
+# Force use of implicit TLS (direct TLS connection) for better security.
+# true: force use of implicit TLS (direct TLS connection on any port)
+# nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
+[ implicit_tls: <bool> | default = nil ]
+
 # TLS configuration.
 tls_config:
   [ <tls_config> | default = global.smtp_tls_config ]
@@ -1000,6 +1009,27 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+
+#### Email TLS Configuration Examples
+
+```yaml
+# Example 1: Force implicit TLS on any port (recommended for security)
+receivers:
+  - name: email-implicit-tls
+    email_configs:
+      - to: alerts@example.com
+        smarthost: smtp.example.com:8465
+        implicit_tls: true  # Use direct TLS connection on port 8465
+
+# Example 2: Backward compatible (no implicit_tls specified)
+receivers:
+  - name: email-default
+    email_configs:
+      - to: alerts@example.com
+        smarthost: smtp.example.com:465  # Auto-detects implicit TLS
+      - to: alerts@example.com
+        smarthost: smtp.example.com:587  # Auto-detects explicit TLS
+```
 
 # Email threading configuration.
 threading:
@@ -1270,7 +1300,7 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 # The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
 [ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
 
-# The host to send OpsGenie API requests to.
+# The base URL for OpsGenie API requests.
 [ api_url: <string> | default = global.opsgenie_api_url ]
 
 # Alert text limited to 130 characters.
@@ -1554,10 +1584,18 @@ The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-m
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The Slack webhook URL. Either api_url or api_url_file should be set.
+# The Slack webhook URL. Either api_url/api_url_file OR app_token/app_token_file should be set, but not both.
 # Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
 [ api_url_file: <filepath> | default = global.slack_api_url_file ]
+
+# Slack App token for OAuth authentication. Mutually exclusive with api_url/api_url_file.
+# Defaults to global settings if no local authorization or webhook URL is configured.
+[ app_token: <secret> | default = global.slack_app_token ]
+[ app_token_file: <filepath> | default = global.slack_app_token_file ]
+
+# The Slack App URL. Required when using app_token authentication.
+[ app_url: <string> | default = global.slack_app_url ]
 
 # The channel or user to send notifications to.
 channel: <tmpl_string>
@@ -1566,6 +1604,10 @@ channel: <tmpl_string>
 [ icon_emoji: <tmpl_string> ]
 [ icon_url: <tmpl_string> ]
 [ link_names: <boolean> | default = false ]
+# The text content of the Slack message.
+# If set, this is sent as the top-level 'text' field in the Slack payload.
+# This is useful for simple notifications or compatibility with Slack Workflow Webhooks.
+[ message_text: <tmpl_string> ]
 [ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
 # The following parameters define the attachment.
 actions:
@@ -1576,7 +1618,7 @@ actions:
 fields:
   [ <field_config> ... ]
 [ footer: <tmpl_string> | default = '{{ template "slack.default.footer" . }}' ]
-[ mrkdwn_in: '[' <string>, ... ']' | default = ["fallback", "pretext", "text"] ]
+[ mrkdwn_in: [ <string>, ... ] | default = ["fallback", "pretext", "text"] ]
 [ pretext: <tmpl_string> | default = '{{ template "slack.default.pretext" . }}' ]
 [ short_fields: <boolean> | default = false ]
 [ text: <tmpl_string> | default = '{{ template "slack.default.text" . }}' ]
@@ -1948,4 +1990,3 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
-

@@ -1144,6 +1144,68 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 	}
 }
 
+func TestTelegramDefaultBotToken(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotToken
+	overrideBotToken := Secret("qwe456")
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotToken {
+		t.Fatalf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotToken {
+		t.Errorf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, string(overrideBotToken))
+	}
+}
+
+func TestTelegramDefaultBotTokenFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token-file.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotTokenFile
+	overrideBotToken := "/override_file"
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotTokenFile {
+		t.Fatalf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotTokenFile {
+		t.Errorf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, overrideBotToken)
+	}
+}
+
+func TestTelegramBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramValidReceiverBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramNoBotToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-no-bot-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-no-bot-token.yml", err)
+	}
+	if err.Error() != "missing bot_token or bot_token_file on telegram_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing bot_token or bot_token_file on telegram_config", err.Error())
+	}
+}
+
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
@@ -1706,6 +1768,24 @@ func TestInhibitRuleEqual(t *testing.T) {
 	require.Len(t, c.InhibitRules, 1)
 	r = c.InhibitRules[0]
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
+}
+
+func TestGroupByEmptyOverride(t *testing.T) {
+	in := `
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster']
+  routes:
+    - group_by: []
+
+receivers:
+  - name: 'default'
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+	require.Len(t, cfg.Route.GroupBy, 2)
+	require.NotNil(t, cfg.Route.Routes[0].GroupBy)
+	require.Empty(t, cfg.Route.Routes[0].GroupBy)
 }
 
 func TestWechatNoAPIURL(t *testing.T) {

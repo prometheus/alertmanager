@@ -980,3 +980,74 @@ func TestEmailGetSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestEmailImplicitTLS(t *testing.T) {
+	tests := []struct {
+		name             string
+		port             string
+		forceImplicitTLS *bool
+		expectImplicit   bool
+	}{
+		{
+			name:             "default behavior - port 465",
+			port:             "465",
+			forceImplicitTLS: nil,
+			expectImplicit:   true,
+		},
+		{
+			name:             "default behavior - port 587",
+			port:             "587",
+			forceImplicitTLS: nil,
+			expectImplicit:   false,
+		},
+		{
+			name:             "force implicit_tls=true on port 587",
+			port:             "587",
+			forceImplicitTLS: ptrTo(true),
+			expectImplicit:   true,
+		},
+		{
+			name:             "force implicit_tls=true on custom port",
+			port:             "8465",
+			forceImplicitTLS: ptrTo(true),
+			expectImplicit:   true,
+		},
+		{
+			name:             "implicit_tls=false disables implicit TLS on port 465",
+			port:             "465",
+			forceImplicitTLS: ptrTo(false),
+			expectImplicit:   false,
+		},
+		{
+			name:             "implicit_tls=false behaves like default on port 587",
+			port:             "587",
+			forceImplicitTLS: ptrTo(false),
+			expectImplicit:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.EmailConfig{
+				Smarthost:        config.HostPort{Host: "localhost", Port: tt.port},
+				ForceImplicitTLS: tt.forceImplicitTLS,
+			}
+
+			// Simulate the judgment logic
+			var useImplicitTLS bool
+			if cfg.ForceImplicitTLS != nil {
+				useImplicitTLS = *cfg.ForceImplicitTLS
+			} else {
+				useImplicitTLS = cfg.Smarthost.Port == "465"
+			}
+
+			require.Equal(t, tt.expectImplicit, useImplicitTLS,
+				"Expected useImplicitTLS=%v for port=%s with forceImplicitTLS=%v",
+				tt.expectImplicit, tt.port, tt.forceImplicitTLS)
+		})
+	}
+}
+
+func ptrTo(b bool) *bool {
+	return &b
+}

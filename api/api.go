@@ -243,7 +243,7 @@ func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {
 		}
 		promhttp.InstrumentHandlerDuration(
 			api.requestDuration.MustCurryWith(prometheus.Labels{"handler": path}),
-			otelhttp.WithRouteTag(path, h),
+			otelhttp.NewHandler(h, path),
 		).ServeHTTP(w, r)
 	})
 }

@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	FeatureAlertNamesInMetrics   = "alert-names-in-metrics"
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
@@ -29,6 +30,7 @@ const (
 )
 
 var AllowedFlags = []string{
+	FeatureAlertNamesInMetrics,
 	FeatureReceiverNameInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
@@ -37,6 +39,7 @@ var AllowedFlags = []string{
 }
 
 type Flagger interface {
+	EnableAlertNamesInMetrics() bool
 	EnableReceiverNamesInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
@@ -46,11 +49,16 @@ type Flagger interface {
 
 type Flags struct {
 	logger                       *slog.Logger
+	enableAlertNamesInMetrics    bool
 	enableReceiverNamesInMetrics bool
 	classicMode                  bool
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
+}
+
+func (f *Flags) EnableAlertNamesInMetrics() bool {
+	return f.enableAlertNamesInMetrics
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
@@ -105,6 +113,12 @@ func enableAutoGOMAXPROCS() flagOption {
 	}
 }
 
+func enableAlertNamesInMetrics() flagOption {
+	return func(configs *Flags) {
+		configs.enableAlertNamesInMetrics = true
+	}
+}
+
 func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -115,6 +129,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 
 	for feature := range strings.SplitSeq(features, ",") {
 		switch feature {
+		case FeatureAlertNamesInMetrics:
+			opts = append(opts, enableAlertNamesInMetrics())
+			logger.Warn("Alert names in metrics enabled")
 		case FeatureReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			logger.Warn("Experimental receiver name in metrics enabled")
@@ -147,6 +164,8 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 }
 
 type NoopFlags struct{}
+
+func (n NoopFlags) EnableAlertNamesInMetrics() bool { return false }
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 
