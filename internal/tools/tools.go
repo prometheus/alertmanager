@@ -1,4 +1,4 @@
-// Copyright 2019 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -12,13 +12,13 @@
 // limitations under the License.
 
 //go:build tools
-// +build tools
 
 // Package tools tracks dependencies for tools that are required to generate the protobuf code.
 // See https://github.com/golang/go/issues/25922
 package tools
 
 import (
+	_ "github.com/bufbuild/buf/cmd/buf"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofast"
 	_ "golang.org/x/tools/cmd/goimports"
 )
