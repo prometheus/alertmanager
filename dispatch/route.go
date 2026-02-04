@@ -146,12 +146,7 @@ func newRoute(cr *config.Route, parent *Route, counter *int) *Route {
 	return route
 }
 
-// NewRoutes returns a slice of routes.
-func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
-	counter := 0
-	return newRoutes(croutes, parent, &counter)
-}
-
+// newRoutes returns a slice of routes.
 func newRoutes(croutes []*config.Route, parent *Route, counter *int) []*Route {
 	res := []*Route{}
 	for _, cr := range croutes {
