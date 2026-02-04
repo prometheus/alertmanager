@@ -920,3 +920,90 @@ routes:
 	})
 	require.ElementsMatch(t, actual, expected)
 }
+
+func TestRouteIndices(t *testing.T) {
+	in := `
+receiver: 'notify-def'
+
+routes:
+- match:
+    owner: 'team-A'
+
+  receiver: 'notify-A'
+
+  routes:
+  - match:
+      env: 'testing'
+
+    receiver: 'notify-testing'
+    group_by: [...]
+
+  - match:
+      env: "production"
+
+    receiver: 'notify-productionA'
+    group_wait: 1m
+
+    continue: true
+
+  - match_re:
+      env: "produ.*"
+      job: ".*"
+
+    receiver: 'notify-productionB'
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h
+    group_by: ['job']
+
+- match_re:
+    owner: 'team-(B|C)'
+
+  group_by: ['foo', 'bar']
+  group_wait: 2m
+  receiver: 'notify-BC'
+
+- match:
+    group_by: 'role'
+  group_by: ['role']
+
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'notify-testing'
+    routes:
+    - match:
+        wait: 'long'
+      group_wait: 2m
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+	tree := NewRoute(&ctree, nil)
+
+	// Collect all indices
+	var indices []int
+	var totalNodes int
+	tree.Walk(func(r *Route) {
+		indices = append(indices, r.Idx)
+		totalNodes++
+	})
+
+	// All indices are unique
+	seenIndices := make(map[int]bool)
+	for _, idx := range indices {
+		require.False(t, seenIndices[idx], "Index %d appears more than once", idx)
+		seenIndices[idx] = true
+	}
+
+	// Root index equals total nodes - 1
+	require.Equal(t, totalNodes-1, tree.Idx, "Root index should equal total nodes - 1")
+
+	// All indices are in range [0, totalNodes)
+	for _, idx := range indices {
+		require.GreaterOrEqual(t, idx, 0, "Index should be >= 0")
+		require.Less(t, idx, totalNodes, "Index should be < total nodes")
+	}
+}
