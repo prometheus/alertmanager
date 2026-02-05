@@ -34,10 +34,11 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 	state := string(types.CalcSilenceState(s.StartsAt, s.EndsAt))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
-			StartsAt:  &start,
-			EndsAt:    &end,
-			Comment:   &s.Comment,
-			CreatedBy: &s.CreatedBy,
+			StartsAt:    &start,
+			EndsAt:      &end,
+			Comment:     &s.Comment,
+			CreatedBy:   &s.CreatedBy,
+			Annotations: s.Annotations,
 		},
 		ID:        &s.Id,
 		UpdatedAt: &updated,
@@ -82,11 +83,12 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 // PostableSilenceToProto converts *open_api_models.PostableSilenc to *silencepb.Silence.
 func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
-		Id:        s.ID,
-		StartsAt:  time.Time(*s.StartsAt),
-		EndsAt:    time.Time(*s.EndsAt),
-		Comment:   *s.Comment,
-		CreatedBy: *s.CreatedBy,
+		Id:          s.ID,
+		StartsAt:    time.Time(*s.StartsAt),
+		EndsAt:      time.Time(*s.EndsAt),
+		Comment:     *s.Comment,
+		CreatedBy:   *s.CreatedBy,
+		Annotations: map[string]string{},
 	}
 	for _, m := range s.Matchers {
 		matcher := &silencepb.Matcher{
@@ -113,6 +115,9 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
+	}
+	if s.Annotations != nil {
+		sil.Annotations = s.Annotations
 	}
 	return sil, nil
 }
