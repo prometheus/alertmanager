@@ -64,7 +64,7 @@ message Silence {
 
   // Multiple matcher sets with OR logic between them.
   // At least one matcher set must match for the silence to apply.
-  repeated MatcherSet matcher_sets = 10;
+  repeated MatcherSet matcher_sets = 11;
 }
 
 // MeshSilence wraps a regular silence with an expiration timestamp

@@ -270,7 +270,7 @@ type Silence struct {
 	Comment   string `protobuf:"bytes,9,opt,name=comment,proto3" json:"comment,omitempty"`
 	// Multiple matcher sets with OR logic between them.
 	// At least one matcher set must match for the silence to apply.
-	MatcherSets   []*MatcherSet `protobuf:"bytes,10,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
+	MatcherSets   []*MatcherSet `protobuf:"bytes,11,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -456,8 +456,7 @@ const file_silence_proto_rawDesc = "" +
 	"\n" +
 	"created_by\x18\b \x01(\tR\tcreatedBy\x12\x18\n" +
 	"\acomment\x18\t \x01(\tR\acomment\x128\n" +
-	"\fmatcher_sets\x18\n" +
-	" \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\"v\n" +
+	"\fmatcher_sets\x18\v \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\"v\n" +
 	"\vMeshSilence\x12,\n" +
 	"\asilence\x18\x01 \x01(\v2\x12.silencepb.SilenceR\asilence\x129\n" +
 	"\n" +
