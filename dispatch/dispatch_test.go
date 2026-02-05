@@ -754,14 +754,36 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	// Manually create the routeAggrGroups structure since we are not calling Run().
 	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
 	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
-		route:  route,
-		groups: make(map[model.Fingerprint]*aggrGroup),
+		route: route,
 	}
 
-	// Insert an aggregation group with no alerts.
+	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
 	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
-	dispatcher.routeGroupsSlice[route.Idx].groups[aggrGroup1.fingerprint()] = aggrGroup1
+	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
+
+	// Add a resolved alert
+	resolvedAlert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   labels,
+			StartsAt: time.Now().Add(-2 * time.Hour),
+			EndsAt:   time.Now().Add(-1 * time.Hour), // Already resolved
+		},
+		UpdatedAt: time.Now().Add(-1 * time.Hour),
+	}
+	aggrGroup1.alerts.Set(resolvedAlert)
+
+	// Flush will detect the resolved alert and delete it via DeleteIfNotModified
+	// This is the actual production code path
+	notified := false
+	aggrGroup1.flush(func(alerts ...*types.Alert) bool {
+		require.Len(t, alerts, 1)
+		require.Equal(t, labels, alerts[0].Labels)
+		notified = true
+		return true // Simulate successful notification
+	})
+	require.True(t, notified, "flush should have called notify function")
+
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
