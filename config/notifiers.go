@@ -1237,10 +1237,6 @@ func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
-	}
-
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
