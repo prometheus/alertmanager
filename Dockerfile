@@ -1,4 +1,4 @@
-FROM google-go.pkg.dev/golang:1.24.12@sha256:a2a2c582213a44e1b8617bfa310e7a3aa8712f5480793b58aa53e57711ea111f AS gobase
+FROM google-go.pkg.dev/golang:1.24.13@sha256:2ea380febc64f22355a66fd6141eb6575276b3ec45c97c1594f657bc47b60e60 AS gobase
 WORKDIR /app
 COPY . ./
 RUN mkdir /etc/alertmanager
