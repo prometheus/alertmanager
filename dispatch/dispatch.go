@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -122,9 +121,9 @@ type Limits interface {
 }
 
 type routeAggrGroups struct {
-	mtx    sync.RWMutex
+	mtx    sync.Mutex
 	route  *Route
-	groups map[model.Fingerprint]*aggrGroup
+	groups sync.Map // map[string]*aggrGroup
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -175,8 +174,7 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.routeGroupsSlice = make([]routeAggrGroups, d.route.Idx+1)
 	d.route.Walk(func(r *Route) {
 		d.routeGroupsSlice[r.Idx] = routeAggrGroups{
-			route:  r,
-			groups: make(map[model.Fingerprint]*aggrGroup),
+			route: r,
 		}
 	})
 
@@ -227,11 +225,10 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				d.logger.Debug("started", "state", "running")
 				d.logger.Debug("Starting all existing aggregation groups")
 				for rg := range d.routeGroupsSlice {
-					d.routeGroupsSlice[rg].mtx.Lock()
-					for _, ag := range d.routeGroupsSlice[rg].groups {
-						d.runAG(ag)
-					}
-					d.routeGroupsSlice[rg].mtx.Unlock()
+					d.routeGroupsSlice[rg].groups.Range(func(_, ag any) bool {
+						d.runAG(ag.(*aggrGroup))
+						return true
+					})
 				}
 			}
 
@@ -269,17 +266,16 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alert *types.Alert) {
 
 func (d *Dispatcher) doMaintenance() {
 	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].mtx.Lock()
-		for _, ag := range d.routeGroupsSlice[i].groups {
-			if ag.empty() {
-				ag.stop()
-				d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
-				delete(d.routeGroupsSlice[i].groups, ag.fingerprint())
+		d.routeGroupsSlice[i].groups.Range(func(_, ag any) bool {
+			if ag.(*aggrGroup).destroyed() {
+				ag.(*aggrGroup).stop()
+				d.marker.DeleteByGroupKey(ag.(*aggrGroup).routeID, ag.(*aggrGroup).GroupKey())
+				d.routeGroupsSlice[i].groups.CompareAndDelete(ag.(*aggrGroup).fingerprint(), ag)
 				d.aggrGroupsNum.Add(-1)
 				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 			}
-		}
-		d.routeGroupsSlice[i].mtx.Unlock()
+			return true
+		})
 	}
 }
 
@@ -330,14 +326,10 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		if !routeFilter(d.routeGroupsSlice[i].route) {
 			continue
 		}
+		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
 
-		// Clone the map while locking it, to hold the lock for as little time as possible.
-		d.routeGroupsSlice[i].mtx.RLock()
-		ags := maps.Clone(d.routeGroupsSlice[i].groups)
-		d.routeGroupsSlice[i].mtx.RUnlock()
-
-		for _, ag := range ags {
-			receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
+		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+			ag := el.(*aggrGroup)
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
 				Receiver: receiver,
@@ -366,12 +358,13 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				filteredAlerts = append(filteredAlerts, a)
 			}
 			if len(filteredAlerts) == 0 {
-				continue
+				return true
 			}
 			alertGroup.Alerts = filteredAlerts
 
 			groups = append(groups, alertGroup)
-		}
+			return true
+		})
 	}
 	sort.Sort(groups)
 	for i := range groups {
@@ -417,13 +410,29 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 
 	fp := groupLabels.Fingerprint()
 
+	el, ok := d.routeGroupsSlice[route.Idx].groups.Load(fp)
+	if ok {
+		ag := el.(*aggrGroup)
+		// Try to insert into the aggrgroup.
+		// If it's destroyed insert will return false.
+		if ag.insert(ctx, alert) {
+			return
+		}
+	}
+
+	// Create a new aggregation group, but for this we need the lock as we
+	// might be creating it concurrently from multiple goroutines.
 	d.routeGroupsSlice[route.Idx].mtx.Lock()
 	defer d.routeGroupsSlice[route.Idx].mtx.Unlock()
 
-	ag, ok := d.routeGroupsSlice[route.Idx].groups[fp]
+	// Double-check: another goroutine might have created the group while we were waiting for the lock
+	el, ok = d.routeGroupsSlice[route.Idx].groups.Load(fp)
 	if ok {
-		ag.insert(ctx, alert)
-		return
+		ag := el.(*aggrGroup)
+		if ag != nil && !ag.destroyed() {
+			ag.insert(ctx, alert)
+			return
+		}
 	}
 
 	// If the group does not exist, create it. But check the limit first.
@@ -444,8 +453,8 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
-	d.routeGroupsSlice[route.Idx].groups[fp] = ag
+	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
+	d.routeGroupsSlice[route.Idx].groups.Store(fp, ag)
 	d.aggrGroupsNum.Add(1)
 	d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 	span.AddEvent("new AggregationGroup created",
@@ -647,7 +656,8 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 }
 
 // insert inserts the alert into the aggregation group.
-func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) {
+// Returns false if the aggregation group has been destroyed.
+func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) bool {
 	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
 		trace.WithAttributes(
 			attribute.String("alerting.alert.name", alert.Name()),
@@ -658,15 +668,23 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) {
 	)
 	defer span.End()
 	if err := ag.alerts.Set(alert); err != nil {
+		if errors.Is(err, store.ErrDestroyed) {
+			return false
+		}
 		message := "error on set alert"
 		span.SetStatus(codes.Error, message)
 		span.RecordError(err)
 		ag.logger.Error(message, "err", err)
 	}
+	return true
 }
 
 func (ag *aggrGroup) empty() bool {
 	return ag.alerts.Empty()
+}
+
+func (ag *aggrGroup) destroyed() bool {
+	return ag.alerts.Destroyed()
 }
 
 // flush sends notifications for all new alerts.
