@@ -667,7 +667,8 @@ func TestDispatcherRace(t *testing.T) {
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	route := &Route{}
+	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(time.Now())
 	dispatcher.Stop()
 }
@@ -743,20 +744,24 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 			GroupWait:     0,
 			GroupInterval: 5 * time.Minute, // Should never hit in this test.
 		},
+		Idx: 0,
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
-	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
-	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+	// Manually create the routeAggrGroups structure since we are not calling Run().
+	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
+	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
+		route:  route,
+		groups: make(map[model.Fingerprint]*aggrGroup),
+	}
 
 	// Insert an aggregation group with no alerts.
 	labels := model.LabelSet{"alertname": "1"}
 	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
-	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
-	dispatcher.aggrGroupsPerRoute = aggrGroups
+	dispatcher.routeGroupsSlice[route.Idx].groups[aggrGroup1.fingerprint()] = aggrGroup1
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
