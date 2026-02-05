@@ -164,7 +164,9 @@ func TestDeleteSilenceHandler(t *testing.T) {
 	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
 	unexpiredSil := &silencepb.Silence{
-		Matchers:  []*silencepb.Matcher{m},
+		MatcherSets: []*silencepb.MatcherSet{{
+			Matchers: []*silencepb.Matcher{m},
+		}},
 		StartsAt:  now,
 		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
@@ -172,7 +174,9 @@ func TestDeleteSilenceHandler(t *testing.T) {
 	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
-		Matchers:  []*silencepb.Matcher{m},
+		MatcherSets: []*silencepb.MatcherSet{{
+			Matchers: []*silencepb.Matcher{m},
+		}},
 		StartsAt:  timestamppb.New(now.AsTime().Add(-time.Hour)),
 		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
@@ -226,7 +230,9 @@ func TestPostSilencesHandler(t *testing.T) {
 	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
 	unexpiredSil := &silencepb.Silence{
-		Matchers:  []*silencepb.Matcher{m},
+		MatcherSets: []*silencepb.MatcherSet{{
+			Matchers: []*silencepb.Matcher{m},
+		}},
 		StartsAt:  now,
 		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
@@ -234,7 +240,9 @@ func TestPostSilencesHandler(t *testing.T) {
 	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
-		Matchers:  []*silencepb.Matcher{m},
+		MatcherSets: []*silencepb.MatcherSet{{
+			Matchers: []*silencepb.Matcher{m},
+		}},
 		StartsAt:  timestamppb.New(now.AsTime().Add(-time.Hour)),
 		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
@@ -462,7 +470,9 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 
 	for _, test := range tests {
 		silence := silencepb.Silence{
-			Matchers: test.silenceMatchers,
+			MatcherSets: []*silencepb.MatcherSet{{
+				Matchers: test.silenceMatchers,
+			}},
 		}
 		actual := CheckSilenceMatchesFilterLabels(&silence, test.filterMatchers)
 		if test.expected != actual {

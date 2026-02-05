@@ -32,6 +32,12 @@ message Comment {
   google.protobuf.Timestamp timestamp = 3;
 }
 
+// MatcherSet is a set of matchers all of which have to be true
+// for a silence to affect a given label set.
+message MatcherSet {
+  repeated Matcher matchers = 1;
+}
+
 // Silence specifies an object that ignores alerts based
 // on a set of matchers during a given time frame.
 message Silence {
@@ -39,7 +45,8 @@ message Silence {
   string id = 1;
 
   // A set of matchers all of which have to be true for a silence
-  // to affect a given label set.
+  // to affect a given label set. For silences with matcher_sets,
+  // this is expected to be equal to the first entry in matcher_sets
   repeated Matcher matchers = 2;
 
   // The time range during which the silence is active.
@@ -54,6 +61,10 @@ message Silence {
   // Comment for the silence.
   string created_by = 8;
   string comment = 9;
+
+  // Multiple matcher sets with OR logic between them.
+  // At least one matcher set must match for the silence to apply.
+  repeated MatcherSet matcher_sets = 10;
 }
 
 // MeshSilence wraps a regular silence with an expiration timestamp

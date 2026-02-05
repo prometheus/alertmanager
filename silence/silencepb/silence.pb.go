@@ -202,6 +202,52 @@ func (x *Comment) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
+// MatcherSet is a set of matchers all of which have to be true
+// for a silence to affect a given label set.
+type MatcherSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Matchers      []*Matcher             `protobuf:"bytes,1,rep,name=matchers,proto3" json:"matchers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatcherSet) Reset() {
+	*x = MatcherSet{}
+	mi := &file_silence_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatcherSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatcherSet) ProtoMessage() {}
+
+func (x *MatcherSet) ProtoReflect() protoreflect.Message {
+	mi := &file_silence_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatcherSet.ProtoReflect.Descriptor instead.
+func (*MatcherSet) Descriptor() ([]byte, []int) {
+	return file_silence_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MatcherSet) GetMatchers() []*Matcher {
+	if x != nil {
+		return x.Matchers
+	}
+	return nil
+}
+
 // Silence specifies an object that ignores alerts based
 // on a set of matchers during a given time frame.
 type Silence struct {
@@ -209,7 +255,8 @@ type Silence struct {
 	// A globally unique identifier.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// A set of matchers all of which have to be true for a silence
-	// to affect a given label set.
+	// to affect a given label set. For silences with matcher_sets,
+	// this is expected to be equal to the first entry in matcher_sets
 	Matchers []*Matcher `protobuf:"bytes,2,rep,name=matchers,proto3" json:"matchers,omitempty"`
 	// The time range during which the silence is active.
 	StartsAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
@@ -219,15 +266,18 @@ type Silence struct {
 	// DEPRECATED: A set of comments made on the silence.
 	Comments []*Comment `protobuf:"bytes,7,rep,name=comments,proto3" json:"comments,omitempty"`
 	// Comment for the silence.
-	CreatedBy     string `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	Comment       string `protobuf:"bytes,9,opt,name=comment,proto3" json:"comment,omitempty"`
+	CreatedBy string `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	Comment   string `protobuf:"bytes,9,opt,name=comment,proto3" json:"comment,omitempty"`
+	// Multiple matcher sets with OR logic between them.
+	// At least one matcher set must match for the silence to apply.
+	MatcherSets   []*MatcherSet `protobuf:"bytes,10,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Silence) Reset() {
 	*x = Silence{}
-	mi := &file_silence_proto_msgTypes[2]
+	mi := &file_silence_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -239,7 +289,7 @@ func (x *Silence) String() string {
 func (*Silence) ProtoMessage() {}
 
 func (x *Silence) ProtoReflect() protoreflect.Message {
-	mi := &file_silence_proto_msgTypes[2]
+	mi := &file_silence_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -252,7 +302,7 @@ func (x *Silence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Silence.ProtoReflect.Descriptor instead.
 func (*Silence) Descriptor() ([]byte, []int) {
-	return file_silence_proto_rawDescGZIP(), []int{2}
+	return file_silence_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Silence) GetId() string {
@@ -311,6 +361,13 @@ func (x *Silence) GetComment() string {
 	return ""
 }
 
+func (x *Silence) GetMatcherSets() []*MatcherSet {
+	if x != nil {
+		return x.MatcherSets
+	}
+	return nil
+}
+
 // MeshSilence wraps a regular silence with an expiration timestamp
 // after which the silence may be garbage collected.
 type MeshSilence struct {
@@ -323,7 +380,7 @@ type MeshSilence struct {
 
 func (x *MeshSilence) Reset() {
 	*x = MeshSilence{}
-	mi := &file_silence_proto_msgTypes[3]
+	mi := &file_silence_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +392,7 @@ func (x *MeshSilence) String() string {
 func (*MeshSilence) ProtoMessage() {}
 
 func (x *MeshSilence) ProtoReflect() protoreflect.Message {
-	mi := &file_silence_proto_msgTypes[3]
+	mi := &file_silence_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +405,7 @@ func (x *MeshSilence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeshSilence.ProtoReflect.Descriptor instead.
 func (*MeshSilence) Descriptor() ([]byte, []int) {
-	return file_silence_proto_rawDescGZIP(), []int{3}
+	return file_silence_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MeshSilence) GetSilence() *Silence {
@@ -384,7 +441,10 @@ const file_silence_proto_rawDesc = "" +
 	"\aComment\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x18\n" +
 	"\acomment\x18\x02 \x01(\tR\acomment\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xdb\x02\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"<\n" +
+	"\n" +
+	"MatcherSet\x12.\n" +
+	"\bmatchers\x18\x01 \x03(\v2\x12.silencepb.MatcherR\bmatchers\"\x95\x03\n" +
 	"\aSilence\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
 	"\bmatchers\x18\x02 \x03(\v2\x12.silencepb.MatcherR\bmatchers\x127\n" +
@@ -395,7 +455,9 @@ const file_silence_proto_rawDesc = "" +
 	"\bcomments\x18\a \x03(\v2\x12.silencepb.CommentR\bcomments\x12\x1d\n" +
 	"\n" +
 	"created_by\x18\b \x01(\tR\tcreatedBy\x12\x18\n" +
-	"\acomment\x18\t \x01(\tR\acomment\"v\n" +
+	"\acomment\x18\t \x01(\tR\acomment\x128\n" +
+	"\fmatcher_sets\x18\n" +
+	" \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\"v\n" +
 	"\vMeshSilence\x12,\n" +
 	"\asilence\x18\x01 \x01(\v2\x12.silencepb.SilenceR\asilence\x129\n" +
 	"\n" +
@@ -414,30 +476,33 @@ func file_silence_proto_rawDescGZIP() []byte {
 }
 
 var file_silence_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_silence_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_silence_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_silence_proto_goTypes = []any{
 	(Matcher_Type)(0),             // 0: silencepb.Matcher.Type
 	(*Matcher)(nil),               // 1: silencepb.Matcher
 	(*Comment)(nil),               // 2: silencepb.Comment
-	(*Silence)(nil),               // 3: silencepb.Silence
-	(*MeshSilence)(nil),           // 4: silencepb.MeshSilence
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*MatcherSet)(nil),            // 3: silencepb.MatcherSet
+	(*Silence)(nil),               // 4: silencepb.Silence
+	(*MeshSilence)(nil),           // 5: silencepb.MeshSilence
+	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
 }
 var file_silence_proto_depIdxs = []int32{
-	0, // 0: silencepb.Matcher.type:type_name -> silencepb.Matcher.Type
-	5, // 1: silencepb.Comment.timestamp:type_name -> google.protobuf.Timestamp
-	1, // 2: silencepb.Silence.matchers:type_name -> silencepb.Matcher
-	5, // 3: silencepb.Silence.starts_at:type_name -> google.protobuf.Timestamp
-	5, // 4: silencepb.Silence.ends_at:type_name -> google.protobuf.Timestamp
-	5, // 5: silencepb.Silence.updated_at:type_name -> google.protobuf.Timestamp
-	2, // 6: silencepb.Silence.comments:type_name -> silencepb.Comment
-	3, // 7: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
-	5, // 8: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	0,  // 0: silencepb.Matcher.type:type_name -> silencepb.Matcher.Type
+	6,  // 1: silencepb.Comment.timestamp:type_name -> google.protobuf.Timestamp
+	1,  // 2: silencepb.MatcherSet.matchers:type_name -> silencepb.Matcher
+	1,  // 3: silencepb.Silence.matchers:type_name -> silencepb.Matcher
+	6,  // 4: silencepb.Silence.starts_at:type_name -> google.protobuf.Timestamp
+	6,  // 5: silencepb.Silence.ends_at:type_name -> google.protobuf.Timestamp
+	6,  // 6: silencepb.Silence.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 7: silencepb.Silence.comments:type_name -> silencepb.Comment
+	3,  // 8: silencepb.Silence.matcher_sets:type_name -> silencepb.MatcherSet
+	4,  // 9: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
+	6,  // 10: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_silence_proto_init() }
@@ -451,7 +516,7 @@ func file_silence_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_silence_proto_rawDesc), len(file_silence_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

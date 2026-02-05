@@ -731,8 +731,10 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 	sil := &silencepb.Silence{
-		EndsAt:   timestamppb.New(utcNow().Add(time.Hour)),
-		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
+		EndsAt: timestamppb.New(utcNow().Add(time.Hour)),
+		MatcherSets: []*silencepb.MatcherSet{{
+			Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
+		}},
 	}
 	if err = silences.Set(t.Context(), sil); err != nil {
 		t.Fatal(err)
