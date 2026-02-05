@@ -267,6 +267,8 @@ type Silence struct {
 	// Comment for the silence.
 	CreatedBy string `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	Comment   string `protobuf:"bytes,9,opt,name=comment,proto3" json:"comment,omitempty"`
+	// Additional structured information about the silence
+	Annotations map[string]string `protobuf:"bytes,10,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Multiple matcher sets with OR logic between them.
 	// At least one matcher set must match for the silence to apply.
 	MatcherSets   []*MatcherSet `protobuf:"bytes,11,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
@@ -360,6 +362,13 @@ func (x *Silence) GetComment() string {
 	return ""
 }
 
+func (x *Silence) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
 func (x *Silence) GetMatcherSets() []*MatcherSet {
 	if x != nil {
 		return x.MatcherSets
@@ -443,7 +452,7 @@ const file_silence_proto_rawDesc = "" +
 	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"<\n" +
 	"\n" +
 	"MatcherSet\x12.\n" +
-	"\bmatchers\x18\x01 \x03(\v2\x12.silencepb.MatcherR\bmatchers\"\x95\x03\n" +
+	"\bmatchers\x18\x01 \x03(\v2\x12.silencepb.MatcherR\bmatchers\"\x9c\x04\n" +
 	"\aSilence\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
 	"\bmatchers\x18\x02 \x03(\v2\x12.silencepb.MatcherR\bmatchers\x127\n" +
@@ -454,8 +463,13 @@ const file_silence_proto_rawDesc = "" +
 	"\bcomments\x18\a \x03(\v2\x12.silencepb.CommentR\bcomments\x12\x1d\n" +
 	"\n" +
 	"created_by\x18\b \x01(\tR\tcreatedBy\x12\x18\n" +
-	"\acomment\x18\t \x01(\tR\acomment\x128\n" +
-	"\fmatcher_sets\x18\v \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\"v\n" +
+	"\acomment\x18\t \x01(\tR\acomment\x12E\n" +
+	"\vannotations\x18\n" +
+	" \x03(\v2#.silencepb.Silence.AnnotationsEntryR\vannotations\x128\n" +
+	"\fmatcher_sets\x18\v \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"v\n" +
 	"\vMeshSilence\x12,\n" +
 	"\asilence\x18\x01 \x01(\v2\x12.silencepb.SilenceR\asilence\x129\n" +
 	"\n" +
@@ -474,7 +488,7 @@ func file_silence_proto_rawDescGZIP() []byte {
 }
 
 var file_silence_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_silence_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_silence_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_silence_proto_goTypes = []any{
 	(Matcher_Type)(0),             // 0: silencepb.Matcher.Type
 	(*Matcher)(nil),               // 1: silencepb.Matcher
@@ -482,25 +496,27 @@ var file_silence_proto_goTypes = []any{
 	(*MatcherSet)(nil),            // 3: silencepb.MatcherSet
 	(*Silence)(nil),               // 4: silencepb.Silence
 	(*MeshSilence)(nil),           // 5: silencepb.MeshSilence
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	nil,                           // 6: silencepb.Silence.AnnotationsEntry
+	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
 }
 var file_silence_proto_depIdxs = []int32{
 	0,  // 0: silencepb.Matcher.type:type_name -> silencepb.Matcher.Type
-	6,  // 1: silencepb.Comment.timestamp:type_name -> google.protobuf.Timestamp
+	7,  // 1: silencepb.Comment.timestamp:type_name -> google.protobuf.Timestamp
 	1,  // 2: silencepb.MatcherSet.matchers:type_name -> silencepb.Matcher
 	1,  // 3: silencepb.Silence.matchers:type_name -> silencepb.Matcher
-	6,  // 4: silencepb.Silence.starts_at:type_name -> google.protobuf.Timestamp
-	6,  // 5: silencepb.Silence.ends_at:type_name -> google.protobuf.Timestamp
-	6,  // 6: silencepb.Silence.updated_at:type_name -> google.protobuf.Timestamp
+	7,  // 4: silencepb.Silence.starts_at:type_name -> google.protobuf.Timestamp
+	7,  // 5: silencepb.Silence.ends_at:type_name -> google.protobuf.Timestamp
+	7,  // 6: silencepb.Silence.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 7: silencepb.Silence.comments:type_name -> silencepb.Comment
-	3,  // 8: silencepb.Silence.matcher_sets:type_name -> silencepb.MatcherSet
-	4,  // 9: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
-	6,  // 10: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	6,  // 8: silencepb.Silence.annotations:type_name -> silencepb.Silence.AnnotationsEntry
+	3,  // 9: silencepb.Silence.matcher_sets:type_name -> silencepb.MatcherSet
+	4,  // 10: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
+	7,  // 11: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_silence_proto_init() }
@@ -514,7 +530,7 @@ func file_silence_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_silence_proto_rawDesc), len(file_silence_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
