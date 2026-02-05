@@ -63,6 +63,10 @@ api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
 	$(SWAGGER) generate server -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --exclude-main -A alertmanager --target api/v2/
 	$(SWAGGER) generate client -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --skip-models --target api/v2
 
+.PHONY: fuzz-config
+fuzz-config:
+	go test -fuzz=^Fuzz -fuzztime=5s ./config
+
 .PHONY: clean
 clean:
 	- @rm -rf asset/assets_vfsdata.go \
