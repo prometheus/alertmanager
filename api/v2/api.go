@@ -696,13 +696,13 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 		)
 	}
 
-	if sil.StartsAt.After(sil.EndsAt) || sil.StartsAt.Equal(sil.EndsAt) {
+	if sil.StartsAt.AsTime().After(sil.EndsAt.AsTime()) || sil.StartsAt.AsTime().Equal(sil.EndsAt.AsTime()) {
 		msg := "Failed to create silence: start time must be before end time"
 		logger.Error(msg, "starts_at", sil.StartsAt, "ends_at", sil.EndsAt)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
 	}
 
-	if sil.EndsAt.Before(time.Now()) {
+	if sil.EndsAt.AsTime().Before(time.Now()) {
 		msg := "Failed to create silence: end time can't be in the past"
 		logger.Error(msg, "ends_at", sil.EndsAt)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
