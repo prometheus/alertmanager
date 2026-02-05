@@ -17,10 +17,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 )
@@ -196,7 +196,7 @@ func (d *delegate) LocalState(_ bool) []byte {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 	all := &clusterpb.FullState{
-		Parts: make([]clusterpb.Part, 0, len(d.states)),
+		Parts: make([]*clusterpb.Part, 0, len(d.states)),
 	}
 
 	for key, s := range d.states {
@@ -205,7 +205,7 @@ func (d *delegate) LocalState(_ bool) []byte {
 			d.logger.Warn("encode local state", "err", err, "key", key)
 			return nil
 		}
-		all.Parts = append(all.Parts, clusterpb.Part{Key: key, Data: b})
+		all.Parts = append(all.Parts, &clusterpb.Part{Key: key, Data: b})
 	}
 	b, err := proto.Marshal(all)
 	if err != nil {

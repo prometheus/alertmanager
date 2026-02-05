@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 )
@@ -159,13 +159,13 @@ func (conn *tlsConn) read() (*memberlist.Packet, error) {
 	case clusterpb.MemberlistMessage_STREAM:
 		return nil, nil
 	case clusterpb.MemberlistMessage_PACKET:
-		return toPacket(pb)
+		return toPacket(&pb)
 	default:
 		return nil, errors.New("could not read from either stream or packet channel")
 	}
 }
 
-func toPacket(pb clusterpb.MemberlistMessage) (*memberlist.Packet, error) {
+func toPacket(pb *clusterpb.MemberlistMessage) (*memberlist.Packet, error) {
 	addr, err := net.ResolveTCPAddr(network, pb.FromAddr)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing packet sender address: %w", err)

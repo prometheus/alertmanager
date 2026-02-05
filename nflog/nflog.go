@@ -18,6 +18,7 @@
 package nflog
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -30,10 +31,11 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/promslog"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -261,13 +263,13 @@ func (s state) clone() state {
 // merge returns true or false whether the MeshEntry was merged or
 // not. This information is used to decide to gossip the message further.
 func (s state) merge(e *pb.MeshEntry, now time.Time) bool {
-	if e.ExpiresAt.Before(now) {
+	if e.ExpiresAt.AsTime().Before(now) {
 		return false
 	}
 	k := stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)
 
 	prev, ok := s[k]
-	if !ok || prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
+	if !ok || prev.Entry.Timestamp.AsTime().Before(e.Entry.Timestamp.AsTime()) {
 		s[k] = e
 		return true
 	}
@@ -278,7 +280,7 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 			return nil, err
 		}
 	}
@@ -287,9 +289,10 @@ func (s state) MarshalBinary() ([]byte, error) {
 
 func decodeState(r io.Reader) (state, error) {
 	st := state{}
+	br := bufio.NewReader(r)
 	for {
 		var e pb.MeshEntry
-		_, err := pbutil.ReadDelimited(r, &e)
+		err := protodelim.UnmarshalFrom(br, &e)
 		if err == nil {
 			if e.Entry == nil || e.Entry.Receiver == nil {
 				return nil, ErrInvalidState
@@ -307,7 +310,7 @@ func decodeState(r io.Reader) (state, error) {
 
 func marshalMeshEntry(e *pb.MeshEntry) ([]byte, error) {
 	var buf bytes.Buffer
-	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+	if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -473,7 +476,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 	if prevle, ok := l.st[key]; ok {
 		// Entry already exists, only overwrite if timestamp is newer.
 		// This may happen with raciness or clock-drift across AM nodes.
-		if prevle.Entry.Timestamp.After(now) {
+		if prevle.Entry.Timestamp.AsTime().After(now) {
 			return nil
 		}
 	}
@@ -492,12 +495,12 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		Entry: &pb.Entry{
 			Receiver:       r,
 			GroupKey:       []byte(gkey),
-			Timestamp:      now,
+			Timestamp:      timestamppb.New(now),
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
 			ReceiverData:   receiverData,
 		},
-		ExpiresAt: expiresAt,
+		ExpiresAt: timestamppb.New(expiresAt),
 	}
 
 	b, err := marshalMeshEntry(e)
@@ -522,10 +525,10 @@ func (l *Log) GC() (int, error) {
 	defer l.mtx.Unlock()
 
 	for k, le := range l.st {
-		if le.ExpiresAt.IsZero() {
+		if le.ExpiresAt.AsTime().IsZero() {
 			return n, errors.New("unexpected zero expiration timestamp")
 		}
-		if !le.ExpiresAt.After(now) {
+		if !le.ExpiresAt.AsTime().After(now) {
 			delete(l.st, k)
 			n++
 		}
