@@ -725,19 +725,39 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-type NotifyReason int8
+type NotifyReason int
 
 const (
-	DoNotNotify NotifyReason = iota
-	FirstNotification
-	NewAlertsInGroup
-	NewResolvedAlerts
-	AllAlertsResolved
-	RepeatIntervalElapsed
+	ReasonDoNotNotify NotifyReason = iota
+	ReasonFirstNotification
+	ReasonNewAlertsInGroup
+	ReasonNewResolvedAlerts
+	ReasonAllAlertsResolved
+	ReasonRepeatIntervalElapsed
+	ReasonUnknown
 )
 
 func (r NotifyReason) shouldNotify() bool {
-	return r != DoNotNotify
+	return r != ReasonDoNotNotify
+}
+
+func (r NotifyReason) String() string {
+	switch r {
+	case ReasonDoNotNotify:
+		return "none"
+	case ReasonFirstNotification:
+		return "first notification"
+	case ReasonNewAlertsInGroup:
+		return "new alerts added"
+	case ReasonNewResolvedAlerts:
+		return "some alerts resolved"
+	case ReasonAllAlertsResolved:
+		return "all alerts resolved"
+	case ReasonRepeatIntervalElapsed:
+		return "repeat interval elapsed"
+	default:
+		return "unknown"
+	}
 }
 
 func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) NotifyReason {
@@ -746,14 +766,19 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	if entry == nil {
 		newAlerts := len(firing) > 0
 		if newAlerts {
-			return FirstNotification
+			return ReasonFirstNotification
 		}
-		return DoNotNotify
+		return ReasonDoNotNotify
 	}
 
 	// new alerts in the group
 	if !entry.IsFiringSubset(firing) {
-		return NewAlertsInGroup
+		// If the previous entry has no firing alerts, it was a reason and we
+		// should treat thisas the first notification for the group.
+		if len(entry.FiringAlerts) == 0 {
+			return ReasonFirstNotification
+		}
+		return ReasonNewAlertsInGroup
 	}
 
 	// Notify about all alerts being resolved.
@@ -765,21 +790,21 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		// last interval. In this case, there is no need to notify the receiver
 		// since it doesn't know about them.
 		if len(entry.FiringAlerts) > 0 {
-			return AllAlertsResolved
+			return ReasonAllAlertsResolved
 		}
-		return DoNotNotify
+		return ReasonDoNotNotify
 	}
 
 	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
-		return NewResolvedAlerts
+		return ReasonNewResolvedAlerts
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
 	isRepeatIntervalElapsed := entry.Timestamp.Before(n.now().Add(-repeat))
 	if isRepeatIntervalElapsed {
-		return RepeatIntervalElapsed
+		return ReasonRepeatIntervalElapsed
 	}
-	return DoNotNotify
+	return ReasonDoNotNotify
 }
 
 // Exec implements the Stage interface.
@@ -837,7 +862,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 
 	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
 
-	if updateReason == FirstNotification {
+	if updateReason == ReasonFirstNotification {
 		ctx = WithNflogStore(ctx, nflog.NewStore(nil))
 	} else {
 		ctx = WithNflogStore(ctx, nflog.NewStore(entry))
