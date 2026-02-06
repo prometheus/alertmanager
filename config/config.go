@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 const secretToken = "<secret>"
@@ -432,7 +433,7 @@ type Config struct {
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
-	TracingConfig TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
+	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
