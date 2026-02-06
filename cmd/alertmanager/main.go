@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -362,13 +363,13 @@ func run() int {
 	}
 	defer alerts.Close()
 
-	var disp *dispatch.Dispatcher
+	var disp atomic.Pointer[dispatch.Dispatcher]
 	defer func() {
-		disp.Stop()
+		disp.Load().Stop()
 	}()
 
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Groups(ctx, routeFilter, alertFilter)
+		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -475,7 +476,7 @@ func run() int {
 		intervener := timeinterval.NewIntervener(timeIntervals)
 
 		inhibitor.Stop()
-		disp.Stop()
+		disp.Load().Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
@@ -556,7 +557,7 @@ func run() int {
 		// the aggrGroups
 		go newDisp.Run(startTime.Add(*DispatchStartDelay))
 		newDisp.WaitForLoading()
-		disp = newDisp
+		disp.Store(newDisp)
 
 		err = tracingManager.ApplyConfig(conf.TracingConfig)
 		if err != nil {
