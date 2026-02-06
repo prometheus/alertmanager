@@ -55,7 +55,7 @@ receivers:
 	require.Len(t, c.Receivers[0].TelegramConfigs, 1)
 
 	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
-	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
+	require.Equal(t, commoncfg.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
 	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
 	require.Equal(t, 1357, c.Receivers[0].TelegramConfigs[0].MessageThreadID)
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
@@ -103,7 +103,7 @@ func TestTelegramNotify(t *testing.T) {
 			cfg: config.TelegramConfig{
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
-				BotToken:   config.Secret(token),
+				BotToken:   commoncfg.Secret(token),
 			},
 			expText: "<code>x < y</code>",
 		},
@@ -113,7 +113,7 @@ func TestTelegramNotify(t *testing.T) {
 				ParseMode:  "HTML",
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
-				BotToken:   config.Secret(token),
+				BotToken:   commoncfg.Secret(token),
 			},
 			expText: "<code>x &lt; y</code>",
 		},
