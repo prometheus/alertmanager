@@ -97,14 +97,15 @@ type Dispatcher struct {
 
 	timeout func(time.Duration) time.Duration
 
-	loadingFinished  sync.WaitGroup
+	loaded   chan struct{}
+	finished sync.WaitGroup
+	ctx      context.Context
+	cancel   func()
+
 	routeGroupsSlice []routeAggrGroups
 	aggrGroupsNum    atomic.Int32
 
 	maintenanceInterval time.Duration
-	finished            sync.WaitGroup
-	ctx                 context.Context
-	cancel              func()
 
 	logger *slog.Logger
 
@@ -155,7 +156,7 @@ func NewDispatcher(
 		propagator:          otel.GetTextMapPropagator(),
 	}
 	disp.state.Store(DispatcherStateUnknown)
-	disp.loadingFinished.Add(1)
+	disp.loaded = make(chan struct{})
 	disp.ctx, disp.cancel = context.WithCancel(context.Background())
 	return disp
 }
@@ -186,7 +187,7 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	for _, alert := range initalAlerts {
 		d.routeAlert(d.ctx, alert)
 	}
-	d.loadingFinished.Done()
+	close(d.loaded)
 
 	d.run(it)
 }
@@ -283,17 +284,11 @@ func (d *Dispatcher) doMaintenance() {
 }
 
 func (d *Dispatcher) WaitForLoading() {
-	d.loadingFinished.Wait()
+	<-d.loaded
 }
 
 func (d *Dispatcher) LoadingDone() <-chan struct{} {
-	doneChan := make(chan struct{})
-	go func() {
-		d.WaitForLoading()
-		close(doneChan)
-	}()
-
-	return doneChan
+	return d.loaded
 }
 
 // AlertGroup represents how alerts exist within an aggrGroup.
