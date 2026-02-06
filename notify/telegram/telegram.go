@@ -64,7 +64,7 @@ func New(conf *config.TelegramConfig, t *template.Template, l *slog.Logger, http
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.AlertSnapshot) (bool, error) {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return false, fmt.Errorf("group key missing")

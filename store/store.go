@@ -159,7 +159,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
 // modified.
-func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertsSnapshot) error {
 	a.Lock()
 	defer a.Unlock()
 	for _, alert := range alerts {

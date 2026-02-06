@@ -99,7 +99,7 @@ type attachment struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.AlertSnapshot) (bool, error) {
 	var (
 		err  error
 		url  string

@@ -21,6 +21,10 @@ import (
 	. "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
+const (
+	resolveTimeout = time.Duration(120 * time.Second)
+)
+
 // This file contains acceptance tests around the basic sending logic
 // for notifications, which includes batching and ensuring that each
 // notification is eventually sent at least once and ideally exactly
@@ -31,12 +35,14 @@ func testMergeAlerts(t *testing.T, endsAt bool) {
 
 	timerange := func(ts float64) []float64 {
 		if !endsAt {
-			return []float64{ts}
+			return []float64{ts, ts + resolveTimeout.Seconds()}
 		}
 		return []float64{ts, ts + 3.0}
 	}
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: [alertname]
@@ -58,7 +64,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	// Refresh an alert several times. The starting time must remain at the earliest
 	// point in time.
@@ -66,16 +72,16 @@ receivers:
 	// Another Prometheus server might be sending later but with an earlier start time.
 	am.Push(At(1.2), Alert("alertname", "test").Active(1))
 
-	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
+	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(timerange(1)...))
 
 	am.Push(At(2.1), Alert("alertname", "test").Annotate("ann", "v1").Active(timerange(2)...))
 
-	co.Want(Between(3, 3.5), Alert("alertname", "test").Annotate("ann", "v1").Active(1))
+	co.Want(Between(3, 3.5), Alert("alertname", "test").Annotate("ann", "v1").Active(timerange(2)...))
 
 	// Annotations are always overwritten by the alert that arrived most recently.
 	am.Push(At(3.6), Alert("alertname", "test").Annotate("ann", "v2").Active(timerange(1.5)...))
 
-	co.Want(Between(4, 4.5), Alert("alertname", "test").Annotate("ann", "v2").Active(1))
+	co.Want(Between(4, 4.5), Alert("alertname", "test").Annotate("ann", "v2").Active(timerange(1)...))
 
 	// If an alert is marked resolved twice, the latest point in time must be
 	// set as the eventual resolve time.
@@ -89,7 +95,7 @@ receivers:
 	// No overlap, no merge must occur.
 	am.Push(At(5.3), Alert("alertname", "test").Active(timerange(5)...))
 
-	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(5))
+	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(timerange(5)...))
 
 	at.Run()
 
@@ -111,6 +117,8 @@ func TestRepeat(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: [alertname]
@@ -139,7 +147,7 @@ receivers:
 	wh := NewWebhook(t, co)
 
 	// Create a new Alertmanager process listening to a random port
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	// Declare pushes to be made to the Alertmanager at the given time.
 	// Times are provided in fractions of seconds.
@@ -154,8 +162,8 @@ receivers:
 
 	// Declare which alerts are expected to arrive at the collector within
 	// the defined time intervals.
-	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
-	co.Want(Between(3, 3.5), Alert("alertname", "test").Active(1))
+	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1, 1+resolveTimeout.Seconds()))
+	co.Want(Between(3, 3.5), Alert("alertname", "test").Active(1, 1+resolveTimeout.Seconds()))
 	co.Want(Between(4, 4.5), Alert("alertname", "test").Active(1, 3))
 
 	// Start the flow as defined above and run the checks afterwards.
@@ -172,6 +180,8 @@ func TestRetry(t *testing.T) {
 	// The succeeding one must still only receive the first successful
 	// notifications. Sending to the succeeding one must eventually succeed.
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: [alertname]
@@ -202,14 +212,14 @@ receivers:
 		return ts < 4.5
 	}
 
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh1.Address(), wh2.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh1.Address(), wh2.Address()), 1)
 
 	am.Push(At(1), Alert("alertname", "test1"))
 
-	co1.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
-	co1.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
+	co1.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
+	co1.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
 
-	co2.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
+	co2.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
 
 	at.Run()
 
@@ -222,6 +232,8 @@ func TestBatching(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -243,14 +255,14 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	am.Push(At(1.1), Alert("alertname", "test1").Active(1))
 	am.Push(At(1.7), Alert("alertname", "test5").Active(1))
 
 	co.Want(Between(2.0, 2.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test5").Active(1),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test5").Active(1, 1+resolveTimeout.Seconds()),
 	)
 
 	am.Push(At(3.3),
@@ -260,22 +272,22 @@ receivers:
 	)
 
 	co.Want(Between(4.1, 4.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test5").Active(1),
-		Alert("alertname", "test2").Active(1.5),
-		Alert("alertname", "test3").Active(1.5),
-		Alert("alertname", "test4").Active(1.6),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test5").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(1.5, 1.5+resolveTimeout.Seconds()),
+		Alert("alertname", "test3").Active(1.5, 1.5+resolveTimeout.Seconds()),
+		Alert("alertname", "test4").Active(1.6, 1.6+resolveTimeout.Seconds()),
 	)
 
 	// While no changes happen expect no additional notifications
 	// until the 5s repeat interval has ended.
 
 	co.Want(Between(9.1, 9.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test5").Active(1),
-		Alert("alertname", "test2").Active(1.5),
-		Alert("alertname", "test3").Active(1.5),
-		Alert("alertname", "test4").Active(1.6),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test5").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(1.5, 1.5+resolveTimeout.Seconds()),
+		Alert("alertname", "test3").Active(1.5, 1.5+resolveTimeout.Seconds()),
+		Alert("alertname", "test4").Active(1.6, 1.6+resolveTimeout.Seconds()),
 	)
 
 	at.Run()
@@ -319,9 +331,9 @@ receivers:
 		)
 
 		co.Want(Between(2, 2.5),
-			Alert("alertname", "test", "lbl", "v1").Active(1),
-			Alert("alertname", "test", "lbl", "v2").Active(1),
-			Alert("alertname", "test", "lbl", "v3").Active(1),
+			Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+			Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+			Alert("alertname", "test", "lbl", "v3").Active(1, 11),
 		)
 		co.Want(Between(12, 13),
 			Alert("alertname", "test", "lbl", "v1").Active(1, 11),
@@ -387,27 +399,27 @@ receivers:
 	)
 
 	co1.Want(Between(2, 2.5),
-		Alert("alertname", "test", "lbl", "v1").Active(1),
-		Alert("alertname", "test", "lbl", "v2").Active(1),
+		Alert("alertname", "test", "lbl", "v1").Active(1, 4),
+		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
 	)
 	co1.Want(Between(7, 7.5),
 		Alert("alertname", "test", "lbl", "v1").Active(1, 4),
-		Alert("alertname", "test", "lbl", "v2").Active(1),
-		Alert("alertname", "test", "lbl", "v3").Active(3),
+		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+		Alert("alertname", "test", "lbl", "v3").Active(3, 13),
 	)
 	// Notification should be sent because the v2 alert is resolved due to the time-out.
 	co1.Want(Between(12, 12.5),
 		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-		Alert("alertname", "test", "lbl", "v3").Active(3),
+		Alert("alertname", "test", "lbl", "v3").Active(3, 13),
 	)
 
 	co2.Want(Between(2, 2.5),
-		Alert("alertname", "test", "lbl", "v1").Active(1),
-		Alert("alertname", "test", "lbl", "v2").Active(1),
+		Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
 	)
 	co2.Want(Between(7, 7.5),
-		Alert("alertname", "test", "lbl", "v2").Active(1),
-		Alert("alertname", "test", "lbl", "v3").Active(3),
+		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+		Alert("alertname", "test", "lbl", "v3").Active(3, 13),
 	)
 	// No notification should be sent after group_interval because no new alert has been fired.
 	co2.Want(Between(12, 12.5))
@@ -425,6 +437,8 @@ func TestColdStart(t *testing.T) {
 	// This integration test ensures that the first alert isn't notified before
 	// the AlertManager process has started considering the resend delay.
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -445,7 +459,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	amc.Push(At(1), Alert("alertname", "test1").Active(-100))
 	amc.Push(At(2), Alert("alertname", "test2"))
@@ -455,8 +469,8 @@ receivers:
 	// first alert received at: 1s
 	// first alert dispatched at: 5s - 1s = 4s
 	co.Want(Between(4, 5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(4),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(4, 4+resolveTimeout.Seconds()),
 	)
 
 	// Reload AlertManager process.
@@ -470,10 +484,10 @@ receivers:
 	// group interval: 6s
 	// alerts dispatched at: 5s + 6s = 11s
 	co.Want(Between(11, 11.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(4),
-		Alert("alertname", "test3").Active(6),
-		Alert("alertname", "test4").Active(7),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(4, 4+resolveTimeout.Seconds()),
+		Alert("alertname", "test3").Active(6, 6+resolveTimeout.Seconds()),
+		Alert("alertname", "test4").Active(7, 7+resolveTimeout.Seconds()),
 	)
 
 	at.Run("--dispatch.start-delay", "5s")
@@ -488,6 +502,8 @@ func TestReload(t *testing.T) {
 	// and repeat_interval applies after the AlertManager process has been
 	// reloaded.
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -508,18 +524,18 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	amc.Push(At(1), Alert("alertname", "test1"))
 	at.Do(At(3), amc.Reload)
 	amc.Push(At(4), Alert("alertname", "test2"))
 
-	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
+	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
 	// Timers are reset on reload regardless, so we count the 6 second group
 	// interval from 3 onwards.
 	co.Want(Between(9, 9.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(4),
+		Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()),
+		Alert("alertname", "test2").Active(4, 4+resolveTimeout.Seconds()),
 	)
 
 	at.Run()
@@ -534,6 +550,8 @@ func TestWebhookTimeout(t *testing.T) {
 	// the webhook level timeout has the desired effect, and that notification
 	// sending is retried in this case.
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: [alertname]
@@ -565,11 +583,11 @@ receivers:
 		return false
 	}
 
-	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 1)
 
 	am.Push(At(1), Alert("alertname", "test1"))
 
-	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1))
+	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
 
 	at.Run()
 

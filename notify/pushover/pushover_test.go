@@ -133,6 +133,6 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
 
-	_, err = notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.Alert{})
+	_, err = notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.AlertSnapshot{})
 	require.NoError(t, err)
 }

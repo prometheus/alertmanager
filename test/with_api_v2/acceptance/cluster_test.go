@@ -28,6 +28,8 @@ func TestClusterDeduplication(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: []
@@ -47,11 +49,11 @@ receivers:
 	co := at.Collector("webhook")
 	wh := a.NewWebhook(t, co)
 
-	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 3)
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, wh.Address()), 3)
 
 	amc.Push(a.At(1), a.Alert("alertname", "test1"))
 
-	co.Want(a.Between(2, 3), a.Alert("alertname", "test1").Active(1))
+	co.Want(a.Between(2, 3), a.Alert("alertname", "test1").Active(1, 1+resolveTimeout.Seconds()))
 
 	at.Run()
 
@@ -64,6 +66,8 @@ func TestClusterVSInstance(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: %v
 route:
   receiver: "default"
   group_by: [ "alertname" ]
@@ -98,16 +102,16 @@ receivers:
 		collectors = append(collectors, tc.Collector("webhook"))
 		webhook := a.NewWebhook(t, collectors[i])
 
-		amClusters = append(amClusters, tc.AlertmanagerCluster(fmt.Sprintf(conf, webhook.Address()), clusterSizes[i]))
+		amClusters = append(amClusters, tc.AlertmanagerCluster(fmt.Sprintf(conf, resolveTimeout, webhook.Address()), clusterSizes[i]))
 
 		wg.Add(1)
 	}
 
-	for _, alertTime := range []float64{0, 2, 4, 6, 8} {
+	for _, alertTime := range []float64{1, 2, 4, 6, 8} {
 		for i, amc := range amClusters {
 			alert := a.Alert("alertname", fmt.Sprintf("test1-%v", alertTime))
 			amc.Push(a.At(alertTime), alert)
-			collectors[i].Want(a.Between(alertTime, alertTime+5), alert.Active(alertTime))
+			collectors[i].Want(a.Between(alertTime, alertTime+5), alert.Active(alertTime, alertTime+resolveTimeout.Seconds()))
 		}
 	}
 
@@ -123,5 +127,9 @@ receivers:
 	_, err := a.CompareCollectors(collectors[0], collectors[1], acceptanceOpts())
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	for _, co := range collectors {
+		t.Log(co.Check())
 	}
 }

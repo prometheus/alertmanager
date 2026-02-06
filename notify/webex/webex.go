@@ -66,7 +66,7 @@ type webhook struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return false, err

@@ -89,7 +89,7 @@ type webhookEmbed struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return false, err
@@ -98,7 +98,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
 
-	alerts := types.Alerts(as...)
+	alerts := types.AlertsSnapshot(as)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {

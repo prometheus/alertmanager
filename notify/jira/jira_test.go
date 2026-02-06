@@ -159,8 +159,8 @@ func TestSearchExistingIssue(t *testing.T) {
 			tc.cfg.APIURL = &config.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
-			as := []*types.Alert{
-				{
+			as := []*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"project": "PROJ",
@@ -168,7 +168,7 @@ func TestSearchExistingIssue(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			}
 
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -433,8 +433,8 @@ func TestJiraTemplating(t *testing.T) {
 				"hostname": "host1.example.com",
 			})
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
+			ok, err := pd.Notify(ctx, []*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1":     "val1",
@@ -443,7 +443,7 @@ func TestJiraTemplating(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, err)
@@ -1024,7 +1024,7 @@ func TestJiraNotify(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"alertname": "test"})
 
-			_, err = notifier.Notify(ctx, tc.alert)
+			_, err = notifier.Notify(ctx, types.NewAlertSnapshot(tc.alert, time.Now()))
 			if tc.errMsg == "" {
 				require.NoError(t, err)
 			} else {
@@ -1040,14 +1040,14 @@ func TestJiraPriority(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 
-		alerts []*types.Alert
+		alerts []*types.AlertSnapshot
 
 		expectedPriority string
 	}{
 		{
 			"empty",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1056,14 +1056,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"",
 		},
 		{
 			"critical",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1073,14 +1073,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"High",
 		},
 		{
 			"warning",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1090,14 +1090,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"Medium",
 		},
 		{
 			"info",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1107,14 +1107,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"Low",
 		},
 		{
 			"critical+warning+info",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1124,8 +1124,8 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
-				{
+				}, time.Now()),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1135,8 +1135,8 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
-				{
+				}, time.Now()),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1146,14 +1146,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"High",
 		},
 		{
 			"warning+info",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1163,8 +1163,8 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
-				{
+				}, time.Now()),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1174,14 +1174,14 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"Medium",
 		},
 		{
 			"critical(resolved)+warning+info",
-			[]*types.Alert{
-				{
+			[]*types.AlertSnapshot{
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1191,8 +1191,8 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now().Add(-time.Hour),
 						EndsAt:   time.Now().Add(-time.Hour),
 					},
-				},
-				{
+				}, time.Now()),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1202,8 +1202,8 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
-				{
+				}, time.Now()),
+				types.NewAlertSnapshot(&types.Alert{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"alertname": "test",
@@ -1213,7 +1213,7 @@ func TestJiraPriority(t *testing.T) {
 						StartsAt: time.Now(),
 						EndsAt:   time.Now().Add(time.Hour),
 					},
-				},
+				}, time.Now()),
 			},
 			"Medium",
 		},
