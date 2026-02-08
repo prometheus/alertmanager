@@ -205,6 +205,22 @@ func (ms Matchers) String() string {
 	return buf.String()
 }
 
+// MatcherSet is a slice of Matchers pointers that implements OR logic across
+// multiple matcher sets. At least one matcher set must match for the MatcherSet
+// to match.
+type MatcherSet []*Matchers
+
+// Matches checks whether at least one matcher set is fulfilled against the given
+// label set (OR logic across matcher sets, AND logic within each set).
+func (ms MatcherSet) Matches(lset model.LabelSet) bool {
+	for _, matchers := range ms {
+		if (*matchers).Matches(lset) {
+			return true
+		}
+	}
+	return false
+}
+
 // This is copied from matcher/parse/lexer.go. It will be removed when
 // the transition window from classic matchers to UTF-8 matchers is complete,
 // as then we can use double quotes when printing the label name for all
