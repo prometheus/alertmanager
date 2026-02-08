@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 )
 
 type ByEndAt []models.GettableSilence
@@ -51,4 +52,12 @@ func (s ByAddress) Less(i, j int) bool {
 		return p1 < p2
 	}
 	return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
+}
+
+type SMatcher []*silencepb.Matcher
+
+func (m SMatcher) Len() int      { return len(m) }
+func (m SMatcher) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+func (m SMatcher) Less(i, j int) bool {
+	return m[i].Name < m[j].Name
 }

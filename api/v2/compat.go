@@ -16,12 +16,14 @@ package v2
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 	prometheus_model "github.com/prometheus/common/model"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -45,7 +47,7 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 			State: &state,
 		},
 	}
-
+	sort.Sort(format.SMatcher(s.Matchers))
 	for _, m := range s.Matchers {
 		matcher := &open_api_models.Matcher{
 			Name:  &m.Name,
