@@ -30,7 +30,7 @@ STATICCHECK_IGNORE =
 build-all: assets apiv2 build
 
 .PHONY: build
-build: common-build
+build: assets-compress common-build
 
 .PHONY: lint
 lint: common-lint
@@ -48,9 +48,9 @@ ui-lint:
 	cd $(MANTINE_PATH) && npm run lint
 
 .PHONY: assets
-assets: ui-install  ui-build asset/assets_vfsdata.go ui/embed.go
+assets: ui-install  ui-build asset/assets_vfsdata.go assets-compress
 
-ui/embed.go: ui/static ui/embed.go.tmpl
+assets-compress: ui/static ui/embed.go.tmpl
 	- @echo '>> compressing assets'
 	- scripts/compress_assets.sh
 
