@@ -150,13 +150,14 @@ func TestData(t *testing.T) {
 		{
 			receiver: "webhook",
 			exp: &Data{
-				Receiver:          "webhook",
-				Status:            "resolved",
-				Alerts:            Alerts{},
-				GroupLabels:       KV{},
-				CommonLabels:      KV{},
-				CommonAnnotations: KV{},
-				ExternalURL:       u.String(),
+				Receiver:           "webhook",
+				Status:             "resolved",
+				Alerts:             Alerts{},
+				NotificationReason: "first notification",
+				GroupLabels:        KV{},
+				CommonLabels:       KV{},
+				CommonAnnotations:  KV{},
+				ExternalURL:        u.String(),
 			},
 		},
 		{
@@ -213,10 +214,11 @@ func TestData(t *testing.T) {
 						Fingerprint: "3b15fd163d36582e",
 					},
 				},
-				GroupLabels:       KV{"job": "foo"},
-				CommonLabels:      KV{"job": "foo"},
-				CommonAnnotations: KV{"runbook": "foo"},
-				ExternalURL:       u.String(),
+				NotificationReason: "first notification",
+				GroupLabels:        KV{"job": "foo"},
+				CommonLabels:       KV{"job": "foo"},
+				CommonAnnotations:  KV{"runbook": "foo"},
+				ExternalURL:        u.String(),
 			},
 		},
 		{
@@ -271,15 +273,16 @@ func TestData(t *testing.T) {
 						Fingerprint: "c7e68cb08e3e67f9",
 					},
 				},
-				GroupLabels:       KV{},
-				CommonLabels:      KV{},
-				CommonAnnotations: KV{},
-				ExternalURL:       u.String(),
+				NotificationReason: "first notification",
+				GroupLabels:        KV{},
+				CommonLabels:       KV{},
+				CommonAnnotations:  KV{},
+				ExternalURL:        u.String(),
 			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.alerts...)
+			got := tmpl.Data(tc.receiver, tc.groupLabels, "first notification", tc.alerts...)
 			require.Equal(t, tc.exp, got)
 		})
 	}
