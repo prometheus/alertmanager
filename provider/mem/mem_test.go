@@ -341,7 +341,7 @@ func TestAlertsGC(t *testing.T) {
 	}
 
 	for _, a := range insert {
-		marker.SetActiveOrSilenced(a.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(a.Fingerprint(), nil)
 		marker.SetInhibited(a.Fingerprint())
 		if !marker.Active(a.Fingerprint()) {
 			t.Errorf("error setting status: %v", a)
@@ -477,7 +477,7 @@ func TestAlerts_CountByState(t *testing.T) {
 
 	// When insert an alert, and then silence it. It shows up with the correct filter.
 	alerts.Put(ctx, a2)
-	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	marker.SetActiveOrSilenced(a2.Fingerprint(), []string{"1"})
 	_, suppressed, _ := alerts.countByState()
 	require.Equal(t, 1, suppressed)
 	require.Equal(t, 1, countTotal())
