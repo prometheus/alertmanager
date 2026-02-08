@@ -50,7 +50,8 @@ ui-lint:
 .PHONY: assets
 assets: ui-install  ui-build asset/assets_vfsdata.go assets-compress
 
-assets-compress: ui/static ui/embed.go.tmpl
+.PHONY: assets-compress
+assets-compress: assets
 	- @echo '>> compressing assets'
 	- scripts/compress_assets.sh
 
