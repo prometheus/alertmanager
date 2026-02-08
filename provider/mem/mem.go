@@ -136,7 +136,7 @@ func NewAlerts(
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
 		marker:     m,
-		alerts:     store.NewAlerts().WithPerAlertLimit(perAlertNameLimit),
+		alerts:     store.NewAlerts().WithDontDestroy().WithPerAlertLimit(perAlertNameLimit),
 		cancel:     cancel,
 		listeners:  map[int]listeningAlerts{},
 		next:       0,
