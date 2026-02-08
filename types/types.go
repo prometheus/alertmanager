@@ -516,6 +516,8 @@ type Silence struct {
 	Comment   string `json:"comment,omitempty"`
 
 	Status SilenceStatus `json:"status"`
+
+	Annotations model.LabelSet `json:"annotations"`
 }
 
 // Expired return if the silence is expired

@@ -33,6 +33,9 @@ import (
 // swagger:model silence
 type Silence struct {
 
+	// annotations
+	Annotations LabelSet `json:"annotations,omitempty"`
+
 	// comment
 	// Required: true
 	Comment *string `json:"comment"`
@@ -60,6 +63,10 @@ type Silence struct {
 func (m *Silence) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateAnnotations(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateComment(formats); err != nil {
 		res = append(res, err)
 	}
@@ -83,6 +90,25 @@ func (m *Silence) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Silence) validateAnnotations(formats strfmt.Registry) error {
+	if swag.IsZero(m.Annotations) { // not required
+		return nil
+	}
+
+	if m.Annotations != nil {
+		if err := m.Annotations.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("annotations")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("annotations")
+			}
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -152,6 +178,10 @@ func (m *Silence) validateStartsAt(formats strfmt.Registry) error {
 func (m *Silence) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.contextValidateAnnotations(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.contextValidateMatchers(ctx, formats); err != nil {
 		res = append(res, err)
 	}
@@ -159,6 +189,24 @@ func (m *Silence) ContextValidate(ctx context.Context, formats strfmt.Registry) 
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Silence) contextValidateAnnotations(ctx context.Context, formats strfmt.Registry) error {
+
+	if swag.IsZero(m.Annotations) { // not required
+		return nil
+	}
+
+	if err := m.Annotations.ContextValidate(ctx, formats); err != nil {
+		if ve, ok := err.(*errors.Validation); ok {
+			return ve.ValidateName("annotations")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("annotations")
+		}
+		return err
+	}
+
 	return nil
 }
 

@@ -58,6 +58,9 @@ message Silence {
   // Comment for the silence.
   string created_by = 8;
   string comment = 9;
+
+  // Additional structured information about the silence
+  map<string, string> annotations = 10;
 }
 
 // MeshSilence wraps a regular silence with an expiration timestamp
