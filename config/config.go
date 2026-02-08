@@ -341,6 +341,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.PagerdutyConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.SIGNL4Configs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.PushoverConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -591,6 +594,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			pdc.URL = cmp.Or(pdc.URL, c.Global.PagerdutyURL)
 			if pdc.URL == nil {
 				return errors.New("no global PagerDuty URL set")
+			}
+		}
+		for _, s4 := range rcv.SIGNL4Configs {
+			if s4.HTTPConfig == nil {
+				s4.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
 		for _, iio := range rcv.IncidentioConfigs {
@@ -1108,6 +1116,7 @@ type Receiver struct {
 	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SIGNL4Configs     []*SIGNL4Config     `yaml:"signl4_configs,omitempty" json:"signl4_configs,omitempty"`
 	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
