@@ -1,4 +1,4 @@
-# Copyright 2015 The Prometheus Authors
+# Copyright The Prometheus Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,6 +16,9 @@ DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 
 include Makefile.common
 
+UI_PATH = ui
+MANTINE_PATH = $(UI_PATH)/mantine-ui
+# deprecated, use UI_PATH instead
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
 TEMPLATE_DIR             = $(BIN_DIR)/template
 DOCKER_IMAGE_NAME       ?= alertmanager
@@ -32,8 +35,24 @@ build: common-build
 .PHONY: lint
 lint: common-lint
 
+.PHONY: ui-install
+ui-install:
+	cd $(MANTINE_PATH) && npm install
+
+.PHONY: ui-build
+ui-build:
+	cd $(UI_PATH) && bash ./build_ui.sh
+
+.PHONY: ui-lint
+ui-lint:
+	cd $(MANTINE_PATH) && npm run lint
+
 .PHONY: assets
-assets: asset/assets_vfsdata.go
+assets: ui-install  ui-build asset/assets_vfsdata.go ui/embed.go
+
+ui/embed.go: ui/static ui/embed.go.tmpl
+	- @echo '>> compressing assets'
+	- scripts/compress_assets.sh
 
 .PHONY: assets-tarball
 assets-tarball: ui/app/script.js ui/app/index.html

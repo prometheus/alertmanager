@@ -31,7 +31,7 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	// Test with route prefix
 	routePrefix := "/prometheus/alertmanager"
 	router := route.New().WithPrefix(routePrefix)
-	Register(router, reloadCh, logger)
+	Register(router, reloadCh, logger, false)
 
 	// Test GET request to pprof index (note: pprof index returns text/html)
 	req := httptest.NewRequest("GET", routePrefix+"/debug/pprof/", nil)
@@ -50,7 +50,7 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 
 	// Test without route prefix (should also work)
 	router2 := route.New()
-	Register(router2, reloadCh, logger)
+	Register(router2, reloadCh, logger, false)
 
 	req = httptest.NewRequest("GET", "/debug/pprof/", nil)
 	w = httptest.NewRecorder()
