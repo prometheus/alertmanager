@@ -48,7 +48,7 @@ ui-lint:
 	cd $(MANTINE_PATH) && npm run lint
 
 .PHONY: assets
-assets: ui-install  ui-build asset/assets_vfsdata.go assets-compress
+assets: ui-install ui-build asset/assets_vfsdata.go
 
 .PHONY: assets-compress
 assets-compress: assets
