@@ -25,26 +25,21 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/sigv4"
+
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 )
 
 var (
 	// DefaultIncidentioConfig defines default values for Incident.io configurations.
 	DefaultIncidentioConfig = IncidentioConfig{
-		NotifierConfig: NotifierConfig{
-			VSendResolved: true,
-		},
-	}
-
-	// DefaultWebhookConfig defines default values for Webhook configurations.
-	DefaultWebhookConfig = WebhookConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 	}
 
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Message: `{{ template "webex.default.message" . }}`,
@@ -52,7 +47,7 @@ var (
 
 	// DefaultDiscordConfig defines default values for Discord configurations.
 	DefaultDiscordConfig = DiscordConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Title:   `{{ template "discord.default.title" . }}`,
@@ -61,7 +56,7 @@ var (
 
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: false,
 		},
 		HTML: `{{ template "email.default.html" . }}`,
@@ -81,7 +76,7 @@ var (
 
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Description: `{{ template "pagerduty.default.description" .}}`,
@@ -91,7 +86,7 @@ var (
 
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: false,
 		},
 		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
@@ -108,7 +103,7 @@ var (
 	}
 	// DefaultRocketchatConfig defines default values for Rocketchat configurations.
 	DefaultRocketchatConfig = RocketchatConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: false,
 		},
 		Color:     `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
@@ -121,7 +116,7 @@ var (
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Message:     `{{ template "opsgenie.default.message" . }}`,
@@ -132,7 +127,7 @@ var (
 
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: false,
 		},
 		Message: `{{ template "wechat.default.message" . }}`,
@@ -144,7 +139,7 @@ var (
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		MessageType:       `CRITICAL`,
@@ -155,7 +150,7 @@ var (
 
 	// DefaultPushoverConfig defines default values for Pushover configurations.
 	DefaultPushoverConfig = PushoverConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Title:    `{{ template "pushover.default.title" . }}`,
@@ -169,7 +164,7 @@ var (
 
 	// DefaultSNSConfig defines default values for SNS configurations.
 	DefaultSNSConfig = SNSConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Subject: `{{ template "sns.default.subject" . }}`,
@@ -177,7 +172,7 @@ var (
 	}
 
 	DefaultTelegramConfig = TelegramConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		DisableNotifications: false,
@@ -186,7 +181,7 @@ var (
 	}
 
 	DefaultMSTeamsConfig = MSTeamsConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Title:   `{{ template "msteams.default.title" . }}`,
@@ -195,7 +190,7 @@ var (
 	}
 
 	DefaultMSTeamsV2Config = MSTeamsV2Config{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Title: `{{ template "msteamsv2.default.title" . }}`,
@@ -203,7 +198,7 @@ var (
 	}
 
 	DefaultJiraConfig = JiraConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		APIType: "auto",
@@ -217,27 +212,18 @@ var (
 	}
 
 	DefaultMattermostConfig = MattermostConfig{
-		NotifierConfig: NotifierConfig{
+		NotifierConfig: amcommonconfig.NotifierConfig{
 			VSendResolved: true,
 		},
 		Text: `{{ template "mattermost.default.text" . }}`,
 	}
 )
 
-// NotifierConfig contains base options common across all notifier configurations.
-type NotifierConfig struct {
-	VSendResolved bool `yaml:"send_resolved" json:"send_resolved"`
-}
-
-func (nc *NotifierConfig) SendResolved() bool {
-	return nc.VSendResolved
-}
-
 // WebexConfig configures notifications via Webex.
 type WebexConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig                    *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	APIURL                        *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
 	Message string `yaml:"message,omitempty" json:"message,omitempty"`
 	RoomID  string `yaml:"room_id" json:"room_id"`
@@ -264,7 +250,7 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // DiscordConfig configures notifications via Discord.
 type DiscordConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
@@ -298,7 +284,7 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
 	To               string               `yaml:"to,omitempty" json:"to,omitempty"`
@@ -368,7 +354,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -523,7 +509,7 @@ func (c *SlackField) UnmarshalYAML(unmarshal func(any) error) error {
 
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -583,7 +569,7 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // IncidentioConfig configures notifications via incident.io.
 type IncidentioConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -633,45 +619,9 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// WebhookConfig configures notifications via a generic webhook.
-type WebhookConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	// URL to send POST request to.
-	URL     SecretTemplateURL `yaml:"url,omitempty" json:"url,omitempty"`
-	URLFile string            `yaml:"url_file" json:"url_file"`
-
-	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
-	// Alerts exceeding this threshold will be truncated. Setting this to 0
-	// allows an unlimited number of alerts.
-	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
-
-	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
-	// does not impose a timeout.
-	Timeout time.Duration `yaml:"timeout" json:"timeout"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultWebhookConfig
-	type plain WebhookConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.URL == "" && c.URLFile == "" {
-		return errors.New("one of url or url_file must be configured")
-	}
-	if c.URL != "" && c.URLFile != "" {
-		return errors.New("at most one of url & url_file must be configured")
-	}
-	return nil
-}
-
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -716,7 +666,7 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -784,7 +734,7 @@ type OpsGenieConfigResponder struct {
 
 // VictorOpsConfig configures notifications via VictorOps.
 type VictorOpsConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -839,7 +789,7 @@ func (d duration) MarshalText() ([]byte, error) {
 }
 
 type PushoverConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -887,7 +837,7 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type SNSConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -916,7 +866,7 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // TelegramConfig configures notifications via Telegram.
 type TelegramConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -957,10 +907,10 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type MSTeamsConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig                    *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL                    *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile                string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
 	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -986,10 +936,10 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 type MSTeamsV2Config struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig                    *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL                    *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile                string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Title string `yaml:"title,omitempty" json:"title,omitempty"`
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
@@ -1021,8 +971,8 @@ type JiraFieldConfig struct {
 }
 
 type JiraConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig                    *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	APIType string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
@@ -1110,7 +1060,7 @@ type RocketchatAttachmentAction struct {
 
 // RocketchatConfig configures notifications via Rocketchat.
 type RocketchatConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
@@ -1211,7 +1161,7 @@ type MattermostAttachment struct {
 // MattermostConfig configures notifications via Mattermost.
 // See https://developers.mattermost.com/integrate/webhooks/incoming/ for more information.
 type MattermostConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
+	amcommonconfig.NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
