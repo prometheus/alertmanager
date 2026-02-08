@@ -162,7 +162,6 @@ func RegisterUIV2(router *route.Router, logger *slog.Logger) {
 		fs := server.StaticFileServer(Assets)
 		fs.ServeHTTP(w, r)
 	})
-
 }
 
 func disableCaching(w http.ResponseWriter) {
