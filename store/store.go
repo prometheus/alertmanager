@@ -31,6 +31,9 @@ var ErrLimited = errors.New("alert limited")
 // ErrNotFound is returned if a Store cannot find the Alert.
 var ErrNotFound = errors.New("alert not found")
 
+// ErrDestroyed is returned if a Store has been destroyed.
+var ErrDestroyed = errors.New("alert store destroyed")
+
 // Alerts provides lock-coordinated to an in-memory map of alerts, keyed by
 // their fingerprint. Resolved alerts are removed from the map based on
 // gcInterval. An optional callback can be set which receives a slice of all
@@ -41,6 +44,8 @@ type Alerts struct {
 	gcCallback    func([]types.Alert)
 	limits        map[string]*limit.Bucket[model.Fingerprint]
 	perAlertLimit int
+	dontdestroy   bool
+	destroyed     bool
 }
 
 // NewAlerts returns a new Alerts struct.
@@ -61,6 +66,16 @@ func (a *Alerts) WithPerAlertLimit(lim int) *Alerts {
 
 	a.limits = make(map[string]*limit.Bucket[model.Fingerprint])
 	a.perAlertLimit = lim
+
+	return a
+}
+
+// WithDontDestroy sets the dont destroy flag for the Alerts struct.
+func (a *Alerts) WithDontDestroy() *Alerts {
+	a.Lock()
+	defer a.Unlock()
+
+	a.dontdestroy = true
 
 	return a
 }
@@ -115,6 +130,10 @@ func (a *Alerts) GC() []types.Alert {
 		}
 	}
 
+	if len(a.alerts) == 0 && !a.dontdestroy {
+		a.destroyed = true
+	}
+
 	a.Unlock()
 	a.gcCallback(resolved)
 	return resolved
@@ -137,6 +156,10 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
+
+	if a.destroyed {
+		return ErrDestroyed
+	}
 
 	fp := alert.Fingerprint()
 	name := alert.Name()
@@ -168,6 +191,12 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 			delete(a.alerts, fp)
 		}
 	}
+
+	// If the store is now empty, mark it as destroyed (unless dontdestroy is set)
+	if len(a.alerts) == 0 && !a.dontdestroy {
+		a.destroyed = true
+	}
+
 	return nil
 }
 
@@ -190,6 +219,14 @@ func (a *Alerts) Empty() bool {
 	defer a.Unlock()
 
 	return len(a.alerts) == 0
+}
+
+// Empty returns true if the store is empty.
+func (a *Alerts) Destroyed() bool {
+	a.Lock()
+	defer a.Unlock()
+
+	return a.destroyed
 }
 
 // Len returns the number of alerts in the store.
