@@ -380,6 +380,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.RocketchatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.RootlyConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.MattermostConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -595,6 +598,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, iio := range rcv.IncidentioConfigs {
 			iio.HTTPConfig = cmp.Or(iio.HTTPConfig, c.Global.HTTPConfig)
+		}
+		for _, rootly := range rcv.RootlyConfigs {
+			rootly.HTTPConfig = cmp.Or(rootly.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
@@ -1121,6 +1127,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	RootlyConfigs     []*RootlyConfig     `yaml:"rootly_configs,omitempty" json:"rootly_configs,omitempty"`
 	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 

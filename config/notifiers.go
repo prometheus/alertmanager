@@ -35,6 +35,13 @@ var (
 		},
 	}
 
+	// DefaultRootlyConfig defines default values for Rootly configurations.
+	DefaultRootlyConfig = RootlyConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultWebhookConfig defines default values for Webhook configurations.
 	DefaultWebhookConfig = WebhookConfig{
 		NotifierConfig: NotifierConfig{
@@ -629,6 +636,55 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
 		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
+	}
+	return nil
+}
+
+// RootlyConfig configures notifications via Rootly.
+type RootlyConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     *URL   `yaml:"url" json:"url"`
+	URLFile string `yaml:"url_file" json:"url_file"`
+
+	// RootlyToken is the Bearer token used to authenticate with Rootly.
+	RootlyToken     Secret `yaml:"rootly_token,omitempty" json:"rootly_token,omitempty"`
+	RootlyTokenFile string `yaml:"rootly_token_file,omitempty" json:"rootly_token_file,omitempty"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per Rootly message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke Rootly. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *RootlyConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultRootlyConfig
+	type plain RootlyConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	if c.RootlyToken != "" && c.RootlyTokenFile != "" {
+		return errors.New("at most one of rootly_token & rootly_token_file must be configured")
+	}
+	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.RootlyToken != "" || c.RootlyTokenFile != "") {
+		return errors.New("cannot specify rootly_token or rootly_token_file when using http_config.authorization")
+	}
+	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.RootlyToken == "" && c.RootlyTokenFile == "" {
+		return errors.New("at least one of rootly_token, rootly_token_file or http_config.authorization must be configured")
 	}
 	return nil
 }
