@@ -54,10 +54,18 @@ type Route struct {
 
 	// Children routes of this route.
 	Routes []*Route
+
+	// Idx contains the index of this route in the config
+	Idx int
 }
 
 // NewRoute returns a new route.
 func NewRoute(cr *config.Route, parent *Route) *Route {
+	counter := 0
+	return newRoute(cr, parent, &counter)
+}
+
+func newRoute(cr *config.Route, parent *Route, counter *int) *Route {
 	// Create default and overwrite with configured settings.
 	opts := DefaultRouteOpts
 	if parent != nil {
@@ -128,16 +136,21 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		Continue:  cr.Continue,
 	}
 
-	route.Routes = NewRoutes(cr.Routes, route)
+	// Create child routes first (they get lower indices)
+	route.Routes = newRoutes(cr.Routes, route, counter)
+
+	// Assign index to this route after all children have been indexed
+	route.Idx = *counter
+	*counter++
 
 	return route
 }
 
-// NewRoutes returns a slice of routes.
-func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
+// newRoutes returns a slice of routes.
+func newRoutes(croutes []*config.Route, parent *Route, counter *int) []*Route {
 	res := []*Route{}
 	for _, cr := range croutes {
-		res = append(res, NewRoute(cr, parent))
+		res = append(res, newRoute(cr, parent, counter))
 	}
 	return res
 }
