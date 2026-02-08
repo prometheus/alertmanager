@@ -1,4 +1,4 @@
-// Copyright 2023 Prometheus Team
+// Copyright Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -27,6 +27,7 @@ const (
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
 	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
+	FeatureUIV2                  = "ui-v2"
 )
 
 var AllowedFlags = []string{
@@ -36,6 +37,7 @@ var AllowedFlags = []string{
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
 	FeatureAutoGOMAXPROCS,
+	FeatureUIV2,
 }
 
 type Flagger interface {
@@ -45,6 +47,7 @@ type Flagger interface {
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
 	EnableAutoGOMAXPROCS() bool
+	EnableUIV2() bool
 }
 
 type Flags struct {
@@ -55,6 +58,7 @@ type Flags struct {
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
+	enableUIV2                   bool
 }
 
 func (f *Flags) EnableAlertNamesInMetrics() bool {
@@ -79,6 +83,10 @@ func (f *Flags) EnableAutoGOMEMLIMIT() bool {
 
 func (f *Flags) EnableAutoGOMAXPROCS() bool {
 	return f.enableAutoGOMAXPROCS
+}
+
+func (f *Flags) EnableUIV2() bool {
+	return f.enableUIV2
 }
 
 type flagOption func(flags *Flags)
@@ -119,6 +127,12 @@ func enableAlertNamesInMetrics() flagOption {
 	}
 }
 
+func enableUIV2() flagOption {
+	return func(configs *Flags) {
+		configs.enableUIV2 = true
+	}
+}
+
 func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 	fc := &Flags{logger: logger}
 	opts := []flagOption{}
@@ -147,6 +161,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			logger.Warn("Automatically set GOMAXPROCS to match Linux container CPU quota")
+		case FeatureUIV2:
+			opts = append(opts, enableUIV2())
+			logger.Warn("Enable the new UI (UIv2) and disable the old UI (UIv1)")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
@@ -176,3 +193,5 @@ func (n NoopFlags) UTF8StrictMode() bool { return false }
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
+
+func (n NoopFlags) EnableUIV2() bool { return false }
