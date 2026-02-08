@@ -19,6 +19,6 @@ package tools
 
 import (
 	_ "github.com/bufbuild/buf/cmd/buf"
-	_ "github.com/gogo/protobuf/protoc-gen-gogofast"
 	_ "golang.org/x/tools/cmd/goimports"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 )

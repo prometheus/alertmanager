@@ -11,7 +11,7 @@ if ! [[ "$0" =~ "scripts/genproto.sh" ]]; then
 fi
 
 pushd "internal/tools"
-INSTALL_PKGS="github.com/bufbuild/buf/cmd/buf golang.org/x/tools/cmd/goimports github.com/gogo/protobuf/protoc-gen-gogofast"
+INSTALL_PKGS="github.com/bufbuild/buf/cmd/buf golang.org/x/tools/cmd/goimports google.golang.org/protobuf/cmd/protoc-gen-go"
 for pkg in ${INSTALL_PKGS}; do
     go install "$pkg"
 done
@@ -24,10 +24,6 @@ for dir in ${DIRS}; do
   pushd ${dir}
   buf dep update
   buf generate
-  sed -i.bak -E 's/import _ \"gogoproto\"//g' *.pb.go
-  sed -i.bak -E 's/import _ \"google\/protobuf\"//g' *.pb.go
-  sed -i.bak -E 's/\t_ \"google\/protobuf\"//g' -- *.pb.go
-  rm -f *.bak
   goimports -w *.pb.go
   popd
 done

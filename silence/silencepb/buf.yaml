@@ -1,5 +1,2 @@
 version: v1
 name: buf.build/prometheus/prometheus
-lint:
-deps:
-  - buf.build/gogo/protobuf

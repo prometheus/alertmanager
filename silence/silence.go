@@ -16,6 +16,7 @@
 package silence
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -24,7 +25,6 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -33,7 +33,6 @@ import (
 
 	"github.com/coder/quartz"
 	uuid "github.com/google/uuid"
-	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
@@ -42,6 +41,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/matcher/compat"
@@ -632,13 +634,13 @@ func (s *Silences) GC() (int, error) {
 			// not adding to targetVi effectively removes it
 			continue
 		}
-		if sil.ExpiresAt.IsZero() {
+		if sil.ExpiresAt == nil || sil.ExpiresAt.AsTime().IsZero() {
 			// Invalid expiration timestamp - remove silence and count error
 			s.metrics.gcErrorsTotal.Inc()
 			errs = errors.Join(errs, fmt.Errorf("silence %s has zero expiration timestamp", sil.Silence.Id))
 			expire = true
 		}
-		if expire || !sil.ExpiresAt.After(now) {
+		if expire || !sil.ExpiresAt.AsTime().After(now) {
 			delete(s.st, sil.Silence.Id)
 			delete(s.mi, sil.Silence.Id)
 			n++
@@ -703,27 +705,26 @@ func validateSilence(s *pb.Silence) error {
 	if allMatchEmpty {
 		return errors.New("at least one matcher must not match the empty string")
 	}
-	if s.StartsAt.IsZero() {
+	if s.StartsAt == nil || s.StartsAt.AsTime().IsZero() {
 		return errors.New("invalid zero start timestamp")
 	}
-	if s.EndsAt.IsZero() {
+	if s.EndsAt == nil || s.EndsAt.AsTime().IsZero() {
 		return errors.New("invalid zero end timestamp")
 	}
-	if s.EndsAt.Before(s.StartsAt) {
+	if s.EndsAt.AsTime().Before(s.StartsAt.AsTime()) {
 		return errors.New("end time must not be before start time")
 	}
 	return nil
 }
 
-// cloneSilence returns a shallow copy of a silence.
+// cloneSilence returns a copy of a silence.
 func cloneSilence(sil *pb.Silence) *pb.Silence {
-	s := *sil
-	return &s
+	return proto.Clone(sil).(*pb.Silence)
 }
 
 func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	if s.limits.MaxSilenceSizeBytes != nil {
-		n := msil.Size()
+		n := proto.Size(msil)
 		if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m {
 			return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
 		}
@@ -752,7 +753,7 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
 	return &pb.MeshSilence{
 		Silence:   sil,
-		ExpiresAt: sil.EndsAt.Add(s.retention),
+		ExpiresAt: timestamppb.New(sil.EndsAt.AsTime().Add(s.retention)),
 	}
 }
 
@@ -777,8 +778,8 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	defer span.End()
 
 	now := s.nowUTC()
-	if sil.StartsAt.IsZero() {
-		sil.StartsAt = now
+	if sil.StartsAt == nil || sil.StartsAt.AsTime().IsZero() {
+		sil.StartsAt = timestamppb.New(now)
 	}
 
 	if err := validateSilence(sil); err != nil {
@@ -794,7 +795,7 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	}
 
 	if ok && canUpdate(prev, sil, now) {
-		sil.UpdatedAt = now
+		sil.UpdatedAt = timestamppb.New(now)
 		msil := s.toMeshSilence(sil)
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
@@ -817,10 +818,10 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	}
 	sil.Id = uid.String()
 
-	if sil.StartsAt.Before(now) {
-		sil.StartsAt = now
+	if sil.StartsAt.AsTime().Before(now) {
+		sil.StartsAt = timestamppb.New(now)
 	}
-	sil.UpdatedAt = now
+	sil.UpdatedAt = timestamppb.New(now)
 
 	msil := s.toMeshSilence(sil)
 	if err := s.checkSizeLimits(msil); err != nil {
@@ -841,20 +842,23 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 // canUpdate returns true if silence a can be updated to b without
 // affecting the historic view of silencing.
 func canUpdate(a, b *pb.Silence, now time.Time) bool {
-	if !reflect.DeepEqual(a.Matchers, b.Matchers) {
+	// reflect.DeepEqual()
+	if !slices.EqualFunc(a.Matchers, b.Matchers, func(x, y *pb.Matcher) bool {
+		return proto.Equal(x, y)
+	}) {
 		return false
 	}
 	// Allowed timestamp modifications depend on the current time.
 	switch st := getState(a, now); st {
 	case types.SilenceStateActive:
-		if b.StartsAt.Unix() != a.StartsAt.Unix() {
+		if a.StartsAt.AsTime().Unix() != b.StartsAt.AsTime().Unix() {
 			return false
 		}
-		if b.EndsAt.Before(now) {
+		if b.EndsAt.AsTime().Before(now) {
 			return false
 		}
 	case types.SilenceStatePending:
-		if b.StartsAt.Before(now) {
+		if b.StartsAt.AsTime().Before(now) {
 			return false
 		}
 	case types.SilenceStateExpired:
@@ -893,13 +897,13 @@ func (s *Silences) expire(id string) error {
 	case types.SilenceStateExpired:
 		return nil
 	case types.SilenceStateActive:
-		sil.EndsAt = now
+		sil.EndsAt = timestamppb.New(now)
 	case types.SilenceStatePending:
 		// Set both to now to make Silence move to "expired" state
-		sil.StartsAt = now
-		sil.EndsAt = now
+		sil.StartsAt = timestamppb.New(now)
+		sil.EndsAt = timestamppb.New(now)
 	}
-	sil.UpdatedAt = now
+	sil.UpdatedAt = timestamppb.New(now)
 	return s.setSilence(s.toMeshSilence(sil), now)
 }
 
@@ -960,10 +964,10 @@ func QMatches(set model.LabelSet) QueryParam {
 
 // getState returns a silence's SilenceState at the given timestamp.
 func getState(sil *pb.Silence, ts time.Time) types.SilenceState {
-	if ts.Before(sil.StartsAt) {
+	if ts.Before(sil.StartsAt.AsTime()) {
 		return types.SilenceStatePending
 	}
-	if ts.After(sil.EndsAt) {
+	if ts.After(sil.EndsAt.AsTime()) {
 		return types.SilenceStateExpired
 	}
 	return types.SilenceStateActive
@@ -1236,7 +1240,7 @@ type state map[string]*pb.MeshSilence
 // true whenever a silence with a new ID has been added to the state as a result of merge.
 func (s state) merge(e *pb.MeshSilence, now time.Time) (bool, bool) {
 	id := e.Silence.Id
-	if e.ExpiresAt.Before(now) {
+	if e.ExpiresAt.AsTime().Before(now) {
 		return false, false
 	}
 	// Comments list was moved to a single comment. Apply upgrade
@@ -1248,7 +1252,7 @@ func (s state) merge(e *pb.MeshSilence, now time.Time) (bool, bool) {
 	}
 
 	prev, ok := s[id]
-	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
+	if !ok || prev.Silence.UpdatedAt.AsTime().Before(e.Silence.UpdatedAt.AsTime()) {
 		s[id] = e
 		return true, !ok
 	}
@@ -1259,7 +1263,7 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 			return nil, err
 		}
 	}
@@ -1268,9 +1272,10 @@ func (s state) MarshalBinary() ([]byte, error) {
 
 func decodeState(r io.Reader) (state, error) {
 	st := state{}
+	br := bufio.NewReader(r)
 	for {
 		var s pb.MeshSilence
-		_, err := pbutil.ReadDelimited(r, &s)
+		err := protodelim.UnmarshalFrom(br, &s)
 		if err == nil {
 			if s.Silence == nil {
 				return nil, ErrInvalidState
@@ -1288,7 +1293,7 @@ func decodeState(r io.Reader) (state, error) {
 
 func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
 	var buf bytes.Buffer
-	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+	if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

@@ -742,7 +742,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.Timestamp.AsTime().Before(n.now().Add(-repeat))
 }
 
 // Exec implements the Stage interface.
