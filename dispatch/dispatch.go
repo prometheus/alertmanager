@@ -144,8 +144,8 @@ func NewDispatcher(
 		limits = nilLimits{}
 	}
 
-	// Calculate concurrency: GOMAXPROC/2, minimum 4, maximum 64
-	concurrency := min(max(runtime.GOMAXPROCS(0)/2, 4), 64)
+	// Calculate concurrency for ingestion.
+	concurrency := min(max(runtime.GOMAXPROCS(0)/2, 2), 8)
 
 	disp := &Dispatcher{
 		alerts:              alerts,
