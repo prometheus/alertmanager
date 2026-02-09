@@ -32,11 +32,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const (
-	// MaxPayloadSize is the maximum size of the JSON payload Rootly accepts (256KB).
-	maxPayloadSize = 256 * 1024
-)
-
 // Notifier implements a Notifier for Rootly.
 type Notifier struct {
 	conf    *config.RootlyConfig
@@ -109,45 +104,12 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 	return alerts, 0
 }
 
-// encodeMessage encodes the message and drops all alerts except the first one if it exceeds maxPayloadSize.
-func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
+// encodeMessage encodes the message as JSON.
+func encodeMessage(msg *Message) (bytes.Buffer, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return buf, fmt.Errorf("failed to encode rootly message: %w", err)
 	}
-
-	if buf.Len() <= maxPayloadSize {
-		return buf, nil
-	}
-
-	originalSize := buf.Len()
-
-	// Drop all but the first alert in the message. For most use cases, a single
-	// alert will be created in Rootly for the group, so including more than
-	// one alert in that group is useful but non-essential.
-	msg.Alerts = msg.Alerts[:1]
-
-	// Re-encode after annotation truncation
-	buf.Reset()
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return buf, fmt.Errorf("failed to encode rootly message after annotation truncation: %w", err)
-	}
-
-	if buf.Len() <= maxPayloadSize {
-		n.logger.Warn("Truncated alert content due to rootly payload size limit",
-			"original_size", originalSize,
-			"final_size", buf.Len(),
-			"max_size", maxPayloadSize)
-
-		return buf, nil
-	}
-
-	// Still attempt to send the message even if it exceeds the limit, but log an
-	// error to explain why this is likely to fail.
-	n.logger.Error("Truncated alert content due to rootly payload size limit, but still exceeds limit",
-		"original_size", originalSize,
-		"final_size", buf.Len(),
-		"max_size", maxPayloadSize)
 
 	return buf, nil
 }
@@ -171,7 +133,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		TruncatedAlerts: numTruncated,
 	}
 
-	buf, err := n.encodeMessage(msg)
+	buf, err := encodeMessage(msg)
 	if err != nil {
 		return false, err
 	}

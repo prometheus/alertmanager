@@ -325,77 +325,54 @@ func TestRootlyErrDetails(t *testing.T) {
 	}
 }
 
-func TestRootlyPayloadTruncation(t *testing.T) {
-	logger := promslog.NewNopLogger()
+func TestRootlyAllAlertsSent(t *testing.T) {
+	var receivedAlerts int
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			var msg Message
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&msg))
+
+			receivedAlerts = len(msg.Alerts)
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
 
 	notifier, err := New(
 		&config.RootlyConfig{
-			URL:         &config.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
+			URL:         &config.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			RootlyToken: "test-token",
 		},
 		test.CreateTmpl(t),
-		logger,
+		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
 
-	// Create a large annotation that will push payload over 256KB
-	largeAnnotation := make([]byte, 50*1024) // 50KB per annotation
-	for i := range largeAnnotation {
-		largeAnnotation[i] = 'a' + byte(i%26)
-	}
-	largeAnnotationStr := string(largeAnnotation)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
 
-	// Create alerts with large annotations
+	// Create 5 alerts to verify all are sent in the payload.
 	var alerts []*types.Alert
-	for i := range 10 { // 10 alerts * 50KB = 500KB total in annotations alone
-		alert := &types.Alert{
+	for i := range 5 {
+		alerts = append(alerts, &types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
 					"severity":  "critical",
-					"job":       "test-job",
-					"instance":  "test-instance",
-					"env":       "production",
-					"team":      "sre",
-				},
-				Annotations: model.LabelSet{
-					"description": model.LabelValue(largeAnnotationStr),
-					"runbook":     model.LabelValue(largeAnnotationStr),
-					"summary":     model.LabelValue("This is a test alert with very large annotations"),
 				},
 				StartsAt: time.Now(),
 				EndsAt:   time.Now().Add(time.Hour),
 			},
-		}
-		alerts = append(alerts, alert)
+		})
 	}
 
-	// Create template data
-	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "test-group")
-	data := notify.GetTemplateData(ctx, test.CreateTmpl(t), alerts, logger)
-
-	// Create message
-	msg := &Message{
-		Version:         "1",
-		Data:            data,
-		GroupKey:        "test-group",
-		TruncatedAlerts: 0,
-	}
-
-	// Test encoding with truncation
-	buf, err := notifier.encodeMessage(msg)
+	retry, err := notifier.Notify(ctx, alerts...)
 	require.NoError(t, err)
-
-	// Verify the encoded message is under the size limit
-	require.LessOrEqual(t, buf.Len(), maxPayloadSize, "Encoded message should be under maxPayloadSize after truncation")
-
-	// Decode the message to verify truncation happened
-	var decodedMsg Message
-	err = json.NewDecoder(&buf).Decode(&decodedMsg)
-	require.NoError(t, err)
-
-	// Check that all but the first alert was dropped
-	require.Len(t, decodedMsg.Alerts, 1, "Only the first alert should be included after truncation")
+	require.False(t, retry)
+	require.Equal(t, 5, receivedAlerts, "All alerts should be sent in the payload")
 }
