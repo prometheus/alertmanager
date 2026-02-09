@@ -121,7 +121,6 @@ type Limits interface {
 }
 
 type routeAggrGroups struct {
-	mtx    sync.Mutex
 	route  *Route
 	groups sync.Map // map[string]*aggrGroup
 }
@@ -420,8 +419,8 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 
 	fp := groupLabels.Fingerprint()
 
-	el, ok := d.routeGroupsSlice[route.Idx].groups.Load(fp)
-	if ok {
+	el, loaded := d.routeGroupsSlice[route.Idx].groups.Load(fp)
+	if loaded {
 		ag := el.(*aggrGroup)
 		// Try to insert into the aggrgroup.
 		// If it's destroyed insert will return false.
@@ -430,20 +429,9 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		}
 	}
 
-	// Create a new aggregation group, but for this we need the lock as we
-	// might be creating it concurrently from multiple goroutines.
-	d.routeGroupsSlice[route.Idx].mtx.Lock()
-	defer d.routeGroupsSlice[route.Idx].mtx.Unlock()
-
-	// Double-check: another goroutine might have created the group while we were waiting for the lock
-	el, ok = d.routeGroupsSlice[route.Idx].groups.Load(fp)
-	if ok {
-		ag := el.(*aggrGroup)
-		if ag != nil && !ag.destroyed() {
-			ag.insert(ctx, alert)
-			return
-		}
-	}
+	// If we couldn't insert, we need to create a new aggregation group.
+	// Since multiple goroutines might be trying to create the same group concurrently
+	// we will use the sync map swap to ensure only one of them creates it.
 
 	// If the group does not exist, create it. But check the limit first.
 	limit := d.limits.MaxNumberOfAggregationGroups()
@@ -464,7 +452,52 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 	}
 
 	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
-	d.routeGroupsSlice[route.Idx].groups.Store(fp, ag)
+	// Insert the 1st alert in the group before starting the group's run()
+	// function, to make sure that when the run() will be executed the 1st
+	// alert is already there.
+	ag.insert(ctx, alert)
+
+	retries := 0
+	for {
+		if loaded {
+			// Try to store the new group in the map. If another goroutine has already created the same group, use the existing one.
+			swapped := d.routeGroupsSlice[route.Idx].groups.CompareAndSwap(fp, el, ag)
+			if swapped {
+				// We swapped the new group in, we can break and start it.
+				break
+			}
+		} else {
+			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
+			if !loaded {
+				// We stored the new group, we can break and start it.
+				break
+			}
+			if el == nil {
+				continue
+			}
+			// we found an existing group, try to insert the alert into it. If it's destroyed, we will retry the whole process with the updated el.
+			agExisting := el.(*aggrGroup)
+			if agExisting.insert(ctx, alert) {
+				return // if we inserted we return to avoid incrementing the aggrgroup count and starting the group.
+			}
+		}
+
+		// If we failed to swap, it means another goroutine has created/modified the group
+		retries++
+		if retries > 100 {
+			// This shouldn't happen - indicates a bug or extreme contention
+			d.logger.Error("excessive retries creating aggregation group",
+				"fingerprint", fp,
+				"route", route.Key(),
+				"alert", alert.Name(),
+				"retries", retries,
+			)
+			// Give up and accept potential alert loss rather than infinite loop
+			return
+		}
+	}
+
+	// swapped == true, we created the group and added it to the map: we can start it.
 	d.aggrGroupsNum.Add(1)
 	d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 	span.AddEvent("new AggregationGroup created",
@@ -473,11 +506,6 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 			attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
 		),
 	)
-
-	// Insert the 1st alert in the group before starting the group's run()
-	// function, to make sure that when the run() will be executed the 1st
-	// alert is already there.
-	ag.insert(ctx, alert)
 
 	if alert.StartsAt.Add(ag.opts.GroupWait).Before(now) {
 		message := "Alert is old enough for immediate flush, resetting timer to zero"
