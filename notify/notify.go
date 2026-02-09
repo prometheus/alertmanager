@@ -143,6 +143,7 @@ const (
 	keyActiveTimeIntervals
 	keyRouteID
 	keyNflogStore
+	keyNotificationReason
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -191,6 +192,10 @@ func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 
 func WithRouteID(ctx context.Context, routeID string) context.Context {
 	return context.WithValue(ctx, keyRouteID, routeID)
+}
+
+func WithNotificationReason(ctx context.Context, reason NotifyReason) context.Context {
+	return context.WithValue(ctx, keyNotificationReason, reason)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -260,6 +265,11 @@ func ActiveTimeIntervalNames(ctx context.Context) ([]string, bool) {
 // // second argument is false.
 func RouteID(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(keyRouteID).(string)
+	return v, ok
+}
+
+func NotificationReason(ctx context.Context) (NotifyReason, bool) {
+	v, ok := ctx.Value(keyNotificationReason).(NotifyReason)
 	return v, ok
 }
 
@@ -715,15 +725,59 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+type NotifyReason int
+
+const (
+	ReasonDoNotNotify NotifyReason = iota
+	ReasonFirstNotification
+	ReasonNewAlertsInGroup
+	ReasonNewResolvedAlerts
+	ReasonAllAlertsResolved
+	ReasonRepeatIntervalElapsed
+	ReasonUnknown
+)
+
+func (r NotifyReason) shouldNotify() bool {
+	return r != ReasonDoNotNotify
+}
+
+func (r NotifyReason) String() string {
+	switch r {
+	case ReasonDoNotNotify:
+		return "none"
+	case ReasonFirstNotification:
+		return "first notification"
+	case ReasonNewAlertsInGroup:
+		return "new alerts added"
+	case ReasonNewResolvedAlerts:
+		return "some alerts resolved"
+	case ReasonAllAlertsResolved:
+		return "all alerts resolved"
+	case ReasonRepeatIntervalElapsed:
+		return "repeat interval elapsed"
+	default:
+		return "unknown"
+	}
+}
+
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) NotifyReason {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		return len(firing) > 0
+		if len(firing) > 0 {
+			return ReasonFirstNotification
+		}
+		return ReasonDoNotNotify
 	}
 
+	// new alerts in the group
 	if !entry.IsFiringSubset(firing) {
-		return true
+		// If the previous entry has no firing alerts, it was a resolution and we
+		// should treat this as the first notification for the group.
+		if len(entry.FiringAlerts) == 0 {
+			return ReasonFirstNotification
+		}
+		return ReasonNewAlertsInGroup
 	}
 
 	// Notify about all alerts being resolved.
@@ -734,15 +788,22 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		// alert, it means that some alerts have been fired and resolved during the
 		// last interval. In this case, there is no need to notify the receiver
 		// since it doesn't know about them.
-		return len(entry.FiringAlerts) > 0
+		if len(entry.FiringAlerts) > 0 {
+			return ReasonAllAlertsResolved
+		}
+		return ReasonDoNotNotify
 	}
 
 	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
-		return true
+		return ReasonNewResolvedAlerts
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	isRepeatIntervalElapsed := entry.Timestamp.Before(n.now().Add(-repeat))
+	if isRepeatIntervalElapsed {
+		return ReasonRepeatIntervalElapsed
+	}
+	return ReasonDoNotNotify
 }
 
 // Exec implements the Stage interface.
@@ -790,26 +851,24 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 	}
 
 	var entry *nflogpb.Entry
-	var isFirstNotification bool
 	switch len(entries) {
 	case 0:
-		isFirstNotification = true
 	case 1:
 		entry = entries[0]
-		// if this condition true, we're sending a notification for a new alert group, but the nflog entry for the previous alert
-		// group is still in log
-		isFirstNotification = len(entry.FiringAlerts) == 0 && len(firing) > 0
 	default:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if isFirstNotification {
+	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
+	ctx = WithNotificationReason(ctx, updateReason)
+
+	if updateReason == ReasonFirstNotification {
 		ctx = WithNflogStore(ctx, nflog.NewStore(nil))
 	} else {
 		ctx = WithNflogStore(ctx, nflog.NewStore(entry))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if updateReason.shouldNotify() {
 		span.AddEvent("notify.DedupStage.Exec nflog needs update")
 		return ctx, alerts, nil
 	}
