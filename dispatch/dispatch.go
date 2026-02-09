@@ -328,8 +328,19 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		}
 		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
 
+		// Make a snapshot of the aggregation groups in each route to avoid holding
+		// sync.Map locks while we process alerts or acquiring leaf locks in the alert
+		// store.
+
+		// Estimate capacity based on total groups and number of routes.
+		snapshot := make([]*aggrGroup, 0, max(int(d.aggrGroupsNum.Load())*2/len(d.routeGroupsSlice), 256))
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
-			ag := el.(*aggrGroup)
+			snapshot = append(snapshot, el.(*aggrGroup))
+			return true
+		})
+
+		// Process the snapshot without holding sync.Map locks
+		for _, ag := range snapshot {
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
 				Receiver: receiver,
@@ -358,13 +369,12 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				filteredAlerts = append(filteredAlerts, a)
 			}
 			if len(filteredAlerts) == 0 {
-				return true
+				continue
 			}
 			alertGroup.Alerts = filteredAlerts
 
 			groups = append(groups, alertGroup)
-			return true
-		})
+		}
 	}
 	sort.Sort(groups)
 	for i := range groups {
