@@ -264,8 +264,8 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	if err != nil {
 		logger.Debug("Failed to parse matchers", "err", err)
 		errorMsg := err.Error()
-		body := &alert_ops.GetAlertsBadRequestBody{Error: &errorMsg}
-		return alert_ops.NewGetAlertsBadRequest().WithPayload(body)
+		body := &silence_ops.GetSilencesBadRequestBody{Error: &errorMsg}
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(body)
 	}
 
 	if params.Receiver != nil {
@@ -445,7 +445,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		logger.Error(message, "err", err)
 		span.SetStatus(codes.Error, message)
 		span.RecordError(err)
-		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
+		errorMsg := err.Error()
+		body := &alertgroup_ops.GetAlertGroupsInternalServerErrorBody{Error: &errorMsg}
+		return alertgroup_ops.NewGetAlertGroupsInternalServerError().WithPayload(body)
 	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
