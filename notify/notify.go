@@ -764,8 +764,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		newAlerts := len(firing) > 0
-		if newAlerts {
+		if len(firing) > 0 {
 			return ReasonFirstNotification
 		}
 		return ReasonDoNotNotify
@@ -773,8 +772,8 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 
 	// new alerts in the group
 	if !entry.IsFiringSubset(firing) {
-		// If the previous entry has no firing alerts, it was a reason and we
-		// should treat thisas the first notification for the group.
+		// If the previous entry has no firing alerts, it was a resolution and we
+		// should treat this as the first notification for the group.
 		if len(entry.FiringAlerts) == 0 {
 			return ReasonFirstNotification
 		}
@@ -861,6 +860,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 	}
 
 	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
+	ctx = WithNotificationReason(ctx, updateReason)
 
 	if updateReason == ReasonFirstNotification {
 		ctx = WithNflogStore(ctx, nflog.NewStore(nil))

@@ -259,6 +259,9 @@ func TestDedupStage(t *testing.T) {
 	ctx, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err, "unexpected error on not found log entry")
 	require.Equal(t, alerts, res, "input alerts differ from result alerts")
+	reason, ok := NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonFirstNotification, reason, "should be first notification")
 
 	s.nflog = &testNflog{
 		qerr: nil,
@@ -284,6 +287,9 @@ func TestDedupStage(t *testing.T) {
 	ctx, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Nil(t, res, "unexpected alerts returned")
+	reason, ok = NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonDoNotNotify, reason, "should not notify when nothing changed")
 
 	// Must return no error and all input alerts on changes.
 	i = 0
@@ -296,9 +302,12 @@ func TestDedupStage(t *testing.T) {
 			},
 		},
 	}
-	_, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	ctx, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
+	reason, ok = NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonNewAlertsInGroup, reason, "should notify when alerts change")
 }
 
 func TestMultiStage(t *testing.T) {
