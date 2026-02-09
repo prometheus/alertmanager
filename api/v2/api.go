@@ -264,8 +264,8 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	if err != nil {
 		logger.Debug("Failed to parse matchers", "err", err)
 		errorMsg := err.Error()
-		body := &silence_ops.GetSilencesBadRequestBody{Error: &errorMsg}
-		return silence_ops.NewGetSilencesBadRequest().WithPayload(body)
+		body := &alert_ops.GetAlertsBadRequestBody{Error: &errorMsg}
+		return alert_ops.NewGetAlertsBadRequest().WithPayload(body)
 	}
 
 	if params.Receiver != nil {
@@ -558,8 +558,8 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	if err != nil {
 		logger.Debug("Failed to parse matchers", "err", err)
 		errorMsg := err.Error()
-		body := &alertgroup_ops.GetAlertGroupsBadRequestBody{Error: &errorMsg}
-		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(body)
+		body := &silence_ops.GetSilencesBadRequestBody{Error: &errorMsg}
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(body)
 	}
 
 	psils, _, err := api.silences.Query(ctx)
