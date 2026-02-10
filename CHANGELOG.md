@@ -5,6 +5,10 @@
 * [ENHANCEMENT] ...
 * [BUGFIX] ...
 
+## 0.31.1 / 2026-02-11
+
+* [BUGFIX] docs: Fix email TLS configuration example. #4976
+
 ## 0.31.0 / 2026-02-02
 
 * [ENHANCEMENT] docs(opsgenie): Fix description of `api_url` field. #4908
