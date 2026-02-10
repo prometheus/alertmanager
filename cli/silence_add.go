@@ -151,16 +151,19 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return errors.New("comment required by config")
 	}
 
-	annotations := make(models.LabelSet, len(c.annotations))
-	for _, a := range c.annotations {
-		matcher, err := compat.Matcher(a, "cli")
-		if err != nil {
-			return err
+	var annotations models.LabelSet
+	if len(c.annotations) > 0 {
+		annotations = make(models.LabelSet, len(c.annotations))
+		for _, a := range c.annotations {
+			matcher, err := compat.Matcher(a, "cli")
+			if err != nil {
+				return err
+			}
+			if matcher.Type != labels.MatchEqual {
+				return errors.New("annotations must be specified as key=value pairs")
+			}
+			annotations[matcher.Name] = matcher.Value
 		}
-		if matcher.Type != labels.MatchEqual {
-			return errors.New("annotations must be specified as key=value pairs")
-		}
-		annotations[matcher.Name] = matcher.Value
 	}
 
 	start := strfmt.DateTime(startsAt)
