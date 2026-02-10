@@ -195,11 +195,12 @@ func TestMattermost_Notify(t *testing.T) {
 	}
 
 	type testcase struct {
-		name     string
-		text     string
-		props    *config.MattermostProps
-		priority *config.MattermostPriority
-		result   string
+		name        string
+		text        string
+		props       *config.MattermostProps
+		priority    *config.MattermostPriority
+		attachments []*config.MattermostAttachment
+		result      string
 	}
 	tests := []testcase{
 		{
@@ -228,6 +229,22 @@ func TestMattermost_Notify(t *testing.T) {
 			priority: &config.MattermostPriority{Priority: "urgent"},
 			result:   "{\"text\":\"Test Text\",\"props\":{\"card\":\"Test Card\"},\"priority\":{\"priority\":\"urgent\"}}\n",
 		},
+		{
+			name:   "with empty text - should omit text field",
+			text:   "",
+			result: "{}\n",
+		},
+		{
+			name: "with empty text and attachments - should omit text field",
+			text: "",
+			attachments: []*config.MattermostAttachment{
+				{
+					Title: "Test Attachment",
+					Text:  "Attachment Text",
+				},
+			},
+			result: "{\"attachments\":[{\"text\":\"Attachment Text\",\"title\":\"Test Attachment\"}]}\n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -239,6 +256,7 @@ func TestMattermost_Notify(t *testing.T) {
 				Text:           tc.text,
 				Props:          tc.props,
 				Priority:       tc.priority,
+				Attachments:    tc.attachments,
 			}
 
 			// Create a new Mattermost notifier
