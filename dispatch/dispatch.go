@@ -121,8 +121,9 @@ type Limits interface {
 }
 
 type routeAggrGroups struct {
-	route  *Route
-	groups sync.Map // map[string]*aggrGroup
+	route     *Route
+	groups    sync.Map // map[string]*aggrGroup
+	groupsLen atomic.Int64
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -269,9 +270,12 @@ func (d *Dispatcher) doMaintenance() {
 			if ag.(*aggrGroup).destroyed() {
 				ag.(*aggrGroup).stop()
 				d.marker.DeleteByGroupKey(ag.(*aggrGroup).routeID, ag.(*aggrGroup).GroupKey())
-				d.routeGroupsSlice[i].groups.CompareAndDelete(ag.(*aggrGroup).fingerprint(), ag)
-				d.aggrGroupsNum.Add(-1)
-				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.(*aggrGroup).fingerprint(), ag)
+				if deleted {
+					d.routeGroupsSlice[i].groupsLen.Add(-1)
+					d.aggrGroupsNum.Add(-1)
+					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+				}
 			}
 			return true
 		})
@@ -332,7 +336,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		// store.
 
 		// Estimate capacity based on total groups and number of routes.
-		snapshot := make([]*aggrGroup, 0, max(int(d.aggrGroupsNum.Load())*2/len(d.routeGroupsSlice), 256))
+		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+int64(d.concurrency))
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 			snapshot = append(snapshot, el.(*aggrGroup))
 			return true
@@ -469,6 +473,9 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		} else {
 			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
 			if !loaded {
+				d.routeGroupsSlice[route.Idx].groupsLen.Add(1)
+				d.aggrGroupsNum.Add(1)
+				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 				// We stored the new group, we can break and start it.
 				break
 			}
@@ -497,9 +504,6 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		}
 	}
 
-	// swapped == true, we created the group and added it to the map: we can start it.
-	d.aggrGroupsNum.Add(1)
-	d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 	span.AddEvent("new AggregationGroup created",
 		trace.WithAttributes(
 			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
