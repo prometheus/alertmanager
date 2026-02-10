@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	prometheus_model "github.com/prometheus/common/model"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -28,10 +29,10 @@ import (
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
 func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
-	start := strfmt.DateTime(s.StartsAt)
-	end := strfmt.DateTime(s.EndsAt)
-	updated := strfmt.DateTime(s.UpdatedAt)
-	state := string(types.CalcSilenceState(s.StartsAt, s.EndsAt))
+	start := strfmt.DateTime(s.StartsAt.AsTime())
+	end := strfmt.DateTime(s.EndsAt.AsTime())
+	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
+	state := string(types.CalcSilenceState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
 			StartsAt:  &start,
@@ -83,8 +84,8 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
 		Id:        s.ID,
-		StartsAt:  time.Time(*s.StartsAt),
-		EndsAt:    time.Time(*s.EndsAt),
+		StartsAt:  timestamppb.New(time.Time(*s.StartsAt)),
+		EndsAt:    timestamppb.New(time.Time(*s.EndsAt)),
 		Comment:   *s.Comment,
 		CreatedBy: *s.CreatedBy,
 	}

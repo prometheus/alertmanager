@@ -29,6 +29,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestLogGC(t *testing.T) {
@@ -37,7 +39,7 @@ func TestLogGC(t *testing.T) {
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
-			ExpiresAt: ts,
+			ExpiresAt: timestamppb.New(ts),
 		}
 	}
 
@@ -76,27 +78,27 @@ func TestLogSnapshot(t *testing.T) {
 						Receiver:  &pb.Receiver{GroupName: "abc", Integration: "test1", Idx: 1},
 						GroupHash: []byte("126a8a51b9d1bbd07fddc65819a542c3"),
 						Resolved:  false,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				}, {
 					Entry: &pb.Entry{
 						GroupKey:  []byte("d8e8fca2dc0f8abce7cb4cb0031ba249"),
 						Receiver:  &pb.Receiver{GroupName: "def", Integration: "test2", Idx: 29},
 						GroupHash: []byte("122c2331b9d1bbd07fddc65819a542c3"),
 						Resolved:  true,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				}, {
 					Entry: &pb.Entry{
 						GroupKey:  []byte("aaaaaca2dc0f896fd7cb4cb0031ba249"),
 						Receiver:  &pb.Receiver{GroupName: "ghi", Integration: "test3", Idx: 0},
 						GroupHash: []byte("126a8a51b9d1bbd07fddc6e3e3e542c3"),
 						Resolved:  false,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				},
 			},
 		},
@@ -125,7 +127,12 @@ func TestLogSnapshot(t *testing.T) {
 		l2 := &Log{}
 		err = l2.loadSnapshot(f)
 		require.NoError(t, err, "error loading snapshot")
-		require.Equal(t, l1.st, l2.st, "state after loading snapshot did not match snapshotted state")
+
+		for id, expected := range l1.st {
+			actual, ok := l2.st[id]
+			require.True(t, ok, "silence %s missing from decoded state", id)
+			require.True(t, proto.Equal(expected, actual), "silence %s mismatch after decoding", id)
+		}
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
@@ -220,7 +227,7 @@ func TestStateMerge(t *testing.T) {
 	newEntry := func(name string, ts, exp time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
 			Entry: &pb.Entry{
-				Timestamp: ts,
+				Timestamp: timestamppb.New(ts),
 				GroupKey:  []byte("key"),
 				Receiver: &pb.Receiver{
 					GroupName:   name,
@@ -228,7 +235,7 @@ func TestStateMerge(t *testing.T) {
 					Integration: "integr",
 				},
 			},
-			ExpiresAt: exp,
+			ExpiresAt: timestamppb.New(exp),
 		}
 	}
 
@@ -288,27 +295,27 @@ func TestStateDataCoding(t *testing.T) {
 						Receiver:  &pb.Receiver{GroupName: "abc", Integration: "test1", Idx: 1},
 						GroupHash: []byte("126a8a51b9d1bbd07fddc65819a542c3"),
 						Resolved:  false,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				}, {
 					Entry: &pb.Entry{
 						GroupKey:  []byte("d8e8fca2dc0f8abce7cb4cb0031ba249"),
 						Receiver:  &pb.Receiver{GroupName: "def", Integration: "test2", Idx: 29},
 						GroupHash: []byte("122c2331b9d1bbd07fddc65819a542c3"),
 						Resolved:  true,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				}, {
 					Entry: &pb.Entry{
 						GroupKey:  []byte("aaaaaca2dc0f896fd7cb4cb0031ba249"),
 						Receiver:  &pb.Receiver{GroupName: "ghi", Integration: "test3", Idx: 0},
 						GroupHash: []byte("126a8a51b9d1bbd07fddc6e3e3e542c3"),
 						Resolved:  false,
-						Timestamp: now,
+						Timestamp: timestamppb.New(now),
 					},
-					ExpiresAt: now,
+					ExpiresAt: timestamppb.New(now),
 				},
 			},
 		},
@@ -326,7 +333,11 @@ func TestStateDataCoding(t *testing.T) {
 		out, err := decodeState(bytes.NewReader(msg))
 		require.NoError(t, err, "decoding message failed")
 
-		require.Equal(t, in, out, "decoded data doesn't match encoded data")
+		for id, expected := range in {
+			actual, ok := out[id]
+			require.True(t, ok, "silence %s missing from decoded state", id)
+			require.True(t, proto.Equal(expected, actual), "silence %s mismatch after decoding", id)
+		}
 	}
 }
 

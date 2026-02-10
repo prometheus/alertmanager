@@ -799,7 +799,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	isRepeatIntervalElapsed := entry.Timestamp.Before(n.now().Add(-repeat))
+	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(n.now().Add(-repeat))
 	if isRepeatIntervalElapsed {
 		return ReasonRepeatIntervalElapsed
 	}

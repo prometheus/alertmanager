@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
@@ -122,7 +123,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    time.Time{},
+				Timestamp:    &timestamppb.Timestamp{},
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
@@ -130,7 +131,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-9 * time.Minute),
+				Timestamp:    timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -139,7 +140,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-11 * time.Minute),
+				Timestamp:    timestamppb.New(now.Add(-11 * time.Minute)),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -148,7 +149,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
 				ResolvedAlerts: []uint64{1, 2, 3},
-				Timestamp:      now.Add(-11 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-11 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			resolvedAlerts: alertHashSet(3, 4, 5),
@@ -159,7 +160,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -171,7 +172,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -183,7 +184,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -195,7 +196,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -280,7 +281,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{0, 1, 2},
-				Timestamp:    now,
+				Timestamp:    timestamppb.New(now),
 			},
 		},
 	}
@@ -298,7 +299,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{1, 2, 3, 4},
-				Timestamp:    now,
+				Timestamp:    timestamppb.New(now),
 			},
 		},
 	}
@@ -730,7 +731,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 	sil := &silencepb.Silence{
-		EndsAt:   utcNow().Add(time.Hour),
+		EndsAt:   timestamppb.New(utcNow().Add(time.Hour)),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}
 	if err = silences.Set(t.Context(), sil); err != nil {
