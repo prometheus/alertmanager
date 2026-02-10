@@ -13,17 +13,10 @@ fi
 pushd "internal/tools"
 INSTALL_PKGS="github.com/bufbuild/buf/cmd/buf golang.org/x/tools/cmd/goimports google.golang.org/protobuf/cmd/protoc-gen-go"
 for pkg in ${INSTALL_PKGS}; do
-    go install "$pkg"
+  go install "$pkg"
 done
 popd
 
-DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
-
 echo "generating files"
-for dir in ${DIRS}; do
-  pushd ${dir}
-  buf dep update
-  buf generate
-  goimports -w *.pb.go
-  popd
-done
+buf dep update
+buf generate
