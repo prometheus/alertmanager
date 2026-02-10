@@ -7,9 +7,3 @@ modules:
     name: prometheus/alertmanager/cluster
   - path: silence/silencepb
     name: prometheus/alertmanager/silence
-lint:
-  use:
-    - STANDARD
-breaking:
-  use:
-    - FILE
