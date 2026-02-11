@@ -555,6 +555,11 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+
+	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
+	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
+
+	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
