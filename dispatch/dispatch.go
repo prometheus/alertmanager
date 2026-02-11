@@ -762,7 +762,9 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		// and we don't want to send another one. However, we need to make sure
 		// that each resolved alert has not fired again during the flush as then
 		// we would delete an active alert thinking it was resolved.
-		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
+		// Since we are passing DestroyIfEmpty=true the group will be marked as
+		// destroyed if there are no more alerts after the deletion.
+		if err := ag.alerts.DeleteIfNotModified(resolvedSlice, true); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
 		} else {
 			// Delete markers for resolved alerts that are not in the store.

@@ -44,7 +44,6 @@ type Alerts struct {
 	gcCallback    func([]types.Alert)
 	limits        map[string]*limit.Bucket[model.Fingerprint]
 	perAlertLimit int
-	dontdestroy   bool
 	destroyed     bool
 }
 
@@ -66,16 +65,6 @@ func (a *Alerts) WithPerAlertLimit(lim int) *Alerts {
 
 	a.limits = make(map[string]*limit.Bucket[model.Fingerprint])
 	a.perAlertLimit = lim
-
-	return a
-}
-
-// WithDontDestroy sets the dont destroy flag for the Alerts struct.
-func (a *Alerts) WithDontDestroy() *Alerts {
-	a.Lock()
-	defer a.Unlock()
-
-	a.dontdestroy = true
 
 	return a
 }
@@ -130,9 +119,7 @@ func (a *Alerts) GC() []types.Alert {
 		}
 	}
 
-	if len(a.alerts) == 0 && !a.dontdestroy {
-		a.destroyed = true
-	}
+	// GC doesn't destroy the alerts store if it's empty.
 
 	a.Unlock()
 	a.gcCallback(resolved)
@@ -182,7 +169,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
 // modified.
-func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice, destroyIfEmpty bool) error {
 	a.Lock()
 	defer a.Unlock()
 	for _, alert := range alerts {
@@ -192,8 +179,8 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 		}
 	}
 
-	// If the store is now empty, mark it as destroyed (unless dontdestroy is set)
-	if len(a.alerts) == 0 && !a.dontdestroy {
+	// If the store is now empty, mark it as destroyed
+	if len(a.alerts) == 0 && destroyIfEmpty {
 		a.destroyed = true
 	}
 
