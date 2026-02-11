@@ -31,6 +31,9 @@ var ErrLimited = errors.New("alert limited")
 // ErrNotFound is returned if a Store cannot find the Alert.
 var ErrNotFound = errors.New("alert not found")
 
+// ErrDestroyed is returned if a Store has been destroyed.
+var ErrDestroyed = errors.New("alert store destroyed")
+
 // Alerts provides lock-coordinated to an in-memory map of alerts, keyed by
 // their fingerprint. Resolved alerts are removed from the map based on
 // gcInterval. An optional callback can be set which receives a slice of all
@@ -41,6 +44,7 @@ type Alerts struct {
 	gcCallback    func([]types.Alert)
 	limits        map[string]*limit.Bucket[model.Fingerprint]
 	perAlertLimit int
+	destroyed     bool
 }
 
 // NewAlerts returns a new Alerts struct.
@@ -115,6 +119,8 @@ func (a *Alerts) GC() []types.Alert {
 		}
 	}
 
+	// GC doesn't destroy the alerts store if it's empty.
+
 	a.Unlock()
 	a.gcCallback(resolved)
 	return resolved
@@ -138,6 +144,10 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
 
+	if a.destroyed {
+		return ErrDestroyed
+	}
+
 	fp := alert.Fingerprint()
 	name := alert.Name()
 
@@ -159,7 +169,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
 // modified.
-func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice, destroyIfEmpty bool) error {
 	a.Lock()
 	defer a.Unlock()
 	for _, alert := range alerts {
@@ -168,6 +178,12 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) error {
 			delete(a.alerts, fp)
 		}
 	}
+
+	// If the store is now empty, mark it as destroyed
+	if len(a.alerts) == 0 && destroyIfEmpty {
+		a.destroyed = true
+	}
+
 	return nil
 }
 
@@ -190,6 +206,14 @@ func (a *Alerts) Empty() bool {
 	defer a.Unlock()
 
 	return len(a.alerts) == 0
+}
+
+// Empty returns true if the store is empty.
+func (a *Alerts) Destroyed() bool {
+	a.Lock()
+	defer a.Unlock()
+
+	return a.destroyed
 }
 
 // Len returns the number of alerts in the store.

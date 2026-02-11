@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -122,9 +121,9 @@ type Limits interface {
 }
 
 type routeAggrGroups struct {
-	mtx    sync.RWMutex
-	route  *Route
-	groups map[model.Fingerprint]*aggrGroup
+	route     *Route
+	groups    sync.Map // map[string]*aggrGroup
+	groupsLen atomic.Int64
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -175,8 +174,7 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.routeGroupsSlice = make([]routeAggrGroups, d.route.Idx+1)
 	d.route.Walk(func(r *Route) {
 		d.routeGroupsSlice[r.Idx] = routeAggrGroups{
-			route:  r,
-			groups: make(map[model.Fingerprint]*aggrGroup),
+			route: r,
 		}
 	})
 
@@ -227,11 +225,10 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				d.logger.Debug("started", "state", "running")
 				d.logger.Debug("Starting all existing aggregation groups")
 				for rg := range d.routeGroupsSlice {
-					d.routeGroupsSlice[rg].mtx.Lock()
-					for _, ag := range d.routeGroupsSlice[rg].groups {
-						d.runAG(ag)
-					}
-					d.routeGroupsSlice[rg].mtx.Unlock()
+					d.routeGroupsSlice[rg].groups.Range(func(_, ag any) bool {
+						d.runAG(ag.(*aggrGroup))
+						return true
+					})
 				}
 			}
 
@@ -269,17 +266,20 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alert *types.Alert) {
 
 func (d *Dispatcher) doMaintenance() {
 	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].mtx.Lock()
-		for _, ag := range d.routeGroupsSlice[i].groups {
-			if ag.empty() {
+		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+			ag := el.(*aggrGroup)
+			if ag.destroyed() {
 				ag.stop()
 				d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
-				delete(d.routeGroupsSlice[i].groups, ag.fingerprint())
-				d.aggrGroupsNum.Add(-1)
-				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
+				if deleted {
+					d.routeGroupsSlice[i].groupsLen.Add(-1)
+					d.aggrGroupsNum.Add(-1)
+					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+				}
 			}
-		}
-		d.routeGroupsSlice[i].mtx.Unlock()
+			return true
+		})
 	}
 }
 
@@ -330,14 +330,22 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		if !routeFilter(d.routeGroupsSlice[i].route) {
 			continue
 		}
+		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
 
-		// Clone the map while locking it, to hold the lock for as little time as possible.
-		d.routeGroupsSlice[i].mtx.RLock()
-		ags := maps.Clone(d.routeGroupsSlice[i].groups)
-		d.routeGroupsSlice[i].mtx.RUnlock()
+		// Make a snapshot of the aggregation groups in each route to avoid holding
+		// sync.Map locks while we process alerts or acquiring leaf locks in the alert
+		// store.
 
-		for _, ag := range ags {
-			receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
+		// Estimate capacity based on total groups and number of routes.
+		// We overallocate a bit to avoid copying in most cases.
+		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+32)
+		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+			snapshot = append(snapshot, el.(*aggrGroup))
+			return true
+		})
+
+		// Process the snapshot without holding sync.Map locks
+		for _, ag := range snapshot {
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
 				Receiver: receiver,
@@ -417,14 +425,19 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 
 	fp := groupLabels.Fingerprint()
 
-	d.routeGroupsSlice[route.Idx].mtx.Lock()
-	defer d.routeGroupsSlice[route.Idx].mtx.Unlock()
-
-	ag, ok := d.routeGroupsSlice[route.Idx].groups[fp]
-	if ok {
-		ag.insert(ctx, alert)
-		return
+	el, loaded := d.routeGroupsSlice[route.Idx].groups.Load(fp)
+	if loaded {
+		ag := el.(*aggrGroup)
+		// Try to insert into the aggrgroup.
+		// If it's destroyed insert will return false.
+		if ag.insert(ctx, alert) {
+			return
+		}
 	}
+
+	// If we couldn't insert, we need to create a new aggregation group.
+	// Since multiple goroutines might be trying to create the same group concurrently
+	// we will use the sync map swap to ensure only one of them creates it.
 
 	// If the group does not exist, create it. But check the limit first.
 	limit := d.limits.MaxNumberOfAggregationGroups()
@@ -444,21 +457,61 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
-	d.routeGroupsSlice[route.Idx].groups[fp] = ag
-	d.aggrGroupsNum.Add(1)
-	d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
+	// Insert the 1st alert in the group before starting the group's run()
+	// function, to make sure that when the run() will be executed the 1st
+	// alert is already there.
+	ag.insert(ctx, alert)
+
+	retries := 0
+	for {
+		if loaded {
+			// Try to store the new group in the map. If another goroutine has already created the same group, use the existing one.
+			swapped := d.routeGroupsSlice[route.Idx].groups.CompareAndSwap(fp, el, ag)
+			if swapped {
+				// We swapped the new group in, we can break and start it.
+				break
+			}
+		} else {
+			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
+			if !loaded {
+				d.routeGroupsSlice[route.Idx].groupsLen.Add(1)
+				d.aggrGroupsNum.Add(1)
+				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
+				// We stored the new group, we can break and start it.
+				break
+			}
+			if el == nil {
+				continue
+			}
+			// we found an existing group, try to insert the alert into it. If it's destroyed, we will retry the whole process with the updated el.
+			agExisting := el.(*aggrGroup)
+			if agExisting.insert(ctx, alert) {
+				return // if we inserted we return to avoid incrementing the aggrgroup count and starting the group.
+			}
+		}
+
+		// If we failed to swap, it means another goroutine has created/modified the group
+		retries++
+		if retries > 100 {
+			// This shouldn't happen - indicates a bug or extreme contention
+			d.logger.Error("excessive retries creating aggregation group",
+				"fingerprint", fp,
+				"route", route.Key(),
+				"alert", alert.Name(),
+				"retries", retries,
+			)
+			// Give up and accept potential alert loss rather than infinite loop
+			return
+		}
+	}
+
 	span.AddEvent("new AggregationGroup created",
 		trace.WithAttributes(
 			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
 			attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
 		),
 	)
-
-	// Insert the 1st alert in the group before starting the group's run()
-	// function, to make sure that when the run() will be executed the 1st
-	// alert is already there.
-	ag.insert(ctx, alert)
 
 	if alert.StartsAt.Add(ag.opts.GroupWait).Before(now) {
 		message := "Alert is old enough for immediate flush, resetting timer to zero"
@@ -647,7 +700,8 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 }
 
 // insert inserts the alert into the aggregation group.
-func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) {
+// Returns false if the aggregation group has been destroyed.
+func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) bool {
 	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
 		trace.WithAttributes(
 			attribute.String("alerting.alert.name", alert.Name()),
@@ -658,15 +712,23 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) {
 	)
 	defer span.End()
 	if err := ag.alerts.Set(alert); err != nil {
+		if errors.Is(err, store.ErrDestroyed) {
+			return false
+		}
 		message := "error on set alert"
 		span.SetStatus(codes.Error, message)
 		span.RecordError(err)
 		ag.logger.Error(message, "err", err)
 	}
+	return true
 }
 
 func (ag *aggrGroup) empty() bool {
 	return ag.alerts.Empty()
+}
+
+func (ag *aggrGroup) destroyed() bool {
+	return ag.alerts.Destroyed()
 }
 
 // flush sends notifications for all new alerts.
@@ -700,7 +762,9 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		// and we don't want to send another one. However, we need to make sure
 		// that each resolved alert has not fired again during the flush as then
 		// we would delete an active alert thinking it was resolved.
-		if err := ag.alerts.DeleteIfNotModified(resolvedSlice); err != nil {
+		// Since we are passing DestroyIfEmpty=true the group will be marked as
+		// destroyed if there are no more alerts after the deletion.
+		if err := ag.alerts.DeleteIfNotModified(resolvedSlice, true); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
 		} else {
 			// Delete markers for resolved alerts that are not in the store.
