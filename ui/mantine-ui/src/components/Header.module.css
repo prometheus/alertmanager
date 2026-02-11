@@ -1,3 +1,9 @@
+.header {
+  background-color: rgb(65, 73, 81);
+  color: #fff;
+  border-bottom: 1px solid var(--mantine-color-gray-6);
+}
+
 .navMain {
   flex: 1;
 }

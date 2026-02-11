@@ -1,5 +1,6 @@
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AppShell, Button, Group, Menu, Text } from '@mantine/core';
+import { ThemeSelector } from '@/components/ThemeSelector';
 import { AlertsPage } from '@/pages/Alerts.page';
 import { SilencesPage } from '@/pages/Silences.page';
 import classes from './Header.module.css';
@@ -116,6 +117,9 @@ export const Header = () => {
             <Group gap={12} visibleFrom="sm" wrap="nowrap">
               {navLinks}
             </Group>
+          </Group>
+          <Group visibleFrom="xs" wrap="nowrap" gap="xs">
+            <ThemeSelector />
           </Group>
         </Group>
       </Group>
