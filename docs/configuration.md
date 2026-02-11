@@ -123,6 +123,8 @@ global:
   [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ telegram_bot_token: <secret> ]
+  [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
