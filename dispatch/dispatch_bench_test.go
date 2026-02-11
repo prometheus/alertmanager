@@ -200,7 +200,7 @@ func BenchmarkGroups(b *testing.B) {
 	b.Run("500 routes, 5000 groups", func(b *testing.B) {
 		benchmarkGroups(b, 5000, 3, 25, 4, 5)
 	})
-	b.Run("120 routes, 10000 groups", func(b *testing.B) {
+	b.Run("400 routes, 10000 groups", func(b *testing.B) {
 		benchmarkGroups(b, 10000, 3, 20, 4, 5)
 	})
 }
