@@ -1039,7 +1039,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
 	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKey {
-		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, string(overrideKey))
+		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[1].VictorOpsConfigs[0].APIKey, string(overrideKey))
 	}
 }
 
@@ -1055,7 +1055,7 @@ func TestVictorOpsDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, defaultKey)
 	}
 	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKeyFile {
-		t.Errorf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, overrideKey)
+		t.Errorf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[1].VictorOpsConfigs[0].APIKeyFile, overrideKey)
 	}
 }
 
@@ -1091,7 +1091,7 @@ func TestTelegramDefaultBotToken(t *testing.T) {
 		t.Fatalf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, defaultBotToken)
 	}
 	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotToken {
-		t.Errorf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, string(overrideBotToken))
+		t.Errorf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotToken, string(overrideBotToken))
 	}
 }
 
@@ -1107,7 +1107,7 @@ func TestTelegramDefaultBotTokenFile(t *testing.T) {
 		t.Fatalf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, defaultBotToken)
 	}
 	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotTokenFile {
-		t.Errorf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, overrideBotToken)
+		t.Errorf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotTokenFile, overrideBotToken)
 	}
 }
 
@@ -1152,7 +1152,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKey {
-		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, "qwe456")
+		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[1].OpsGenieConfigs[0].APIKey, "qwe456")
 	}
 }
 
@@ -1167,7 +1167,7 @@ func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile {
-		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, "/override_file")
+		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile, "/override_file")
 	}
 }
 
@@ -1382,7 +1382,7 @@ func TestRocketchatDefaultToken(t *testing.T) {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(*defaultToken))
 	}
 	if overrideToken != *conf.Receivers[1].RocketchatConfigs[0].Token {
-		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(overrideToken))
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[1].RocketchatConfigs[0].Token), string(overrideToken))
 	}
 }
 
@@ -1398,7 +1398,7 @@ func TestRocketchatDefaultTokenID(t *testing.T) {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(*defaultTokenID))
 	}
 	if overrideTokenID != *conf.Receivers[1].RocketchatConfigs[0].TokenID {
-		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(overrideTokenID))
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[1].RocketchatConfigs[0].TokenID), string(overrideTokenID))
 	}
 }
 
@@ -1414,7 +1414,7 @@ func TestRocketchatDefaultTokenFile(t *testing.T) {
 		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, defaultTokenFile)
 	}
 	if overrideTokenFile != conf.Receivers[1].RocketchatConfigs[0].TokenFile {
-		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, overrideTokenFile)
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[1].RocketchatConfigs[0].TokenFile, overrideTokenFile)
 	}
 }
 
@@ -1430,7 +1430,7 @@ func TestRocketchatDefaultIDTokenFile(t *testing.T) {
 		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, defaultTokenIDFile)
 	}
 	if overrideTokenIDFile != conf.Receivers[1].RocketchatConfigs[0].TokenIDFile {
-		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, overrideTokenIDFile)
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[1].RocketchatConfigs[0].TokenIDFile, overrideTokenIDFile)
 	}
 }
 
