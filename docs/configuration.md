@@ -124,6 +124,8 @@ global:
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
+  [ mattermost_webhook_url: <secret> ]
+  [ mattermost_webhook_url_file: <string> ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
