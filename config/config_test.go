@@ -1767,3 +1767,65 @@ func TestWechatGlobalAPISecretFile(t *testing.T) {
 		t.Fatalf("Invalid Wechat API Secret: %s\nExpected: %s", string(thirdConfig.APISecret), "my_inline_secret")
 	}
 }
+
+func TestMattermostDefaultWebhookURL(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-default-webhook-url.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.mattermost-default-webhook-url.yml", err)
+	}
+
+	defaultWebhookURL := conf.Global.MattermostWebhookURL
+	overrideWebhookURL := "https://fakemattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
+	if defaultWebhookURL != conf.Receivers[0].MattermostConfigs[0].WebhookURL {
+		t.Fatalf("Invalid mattermost webhook url: %s\nExpected: %s", conf.Receivers[0].MattermostConfigs[0].WebhookURL, defaultWebhookURL)
+	}
+	if overrideWebhookURL != conf.Receivers[1].MattermostConfigs[0].WebhookURL.String() {
+		t.Errorf("Invalid mattermost webhook url: %s\nExpected: %s", conf.Receivers[1].MattermostConfigs[0].WebhookURL, overrideWebhookURL)
+	}
+}
+
+func TestMattermostDefaultWebhookURLFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-default-webhook-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.mattermost-default-webhook-url-file.yml", err)
+	}
+
+	defaultWebhookURLFile := conf.Global.MattermostWebhookURLFile
+	overrideWebhookURLFile := "/override_file"
+	if defaultWebhookURLFile != conf.Receivers[0].MattermostConfigs[0].WebhookURLFile {
+		t.Fatalf("Invalid mattermost webhook url file: %s\nExpected: %s", conf.Receivers[0].MattermostConfigs[0].WebhookURLFile, defaultWebhookURLFile)
+	}
+	if overrideWebhookURLFile != conf.Receivers[1].MattermostConfigs[0].WebhookURLFile {
+		t.Errorf("Invalid mattermost webhook url file: %s\nExpected: %s", conf.Receivers[1].MattermostConfigs[0].WebhookURLFile, overrideWebhookURLFile)
+	}
+}
+
+func TestMattermostBothWebhookURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-both-webhook-url-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-both-webhook-url-and-file.yml", err)
+	}
+	if err.Error() != "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured", err.Error())
+	}
+}
+
+func TestMattermostValidReceiverBothWebhookURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-valid-receiver-both-webhook-url-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-valid-receiver-both-webhook-url-and-file.yml", err)
+	}
+	if err.Error() != "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured", err.Error())
+	}
+}
+
+func TestMattermostNoWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-no-webhook-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-no-webhook-url.yml", err)
+	}
+	if err.Error() != "missing webhook_url or webhook_url_file on mattermost_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing webhook_url or webhook_url_file on mattermost_config", err.Error())
+	}
+}

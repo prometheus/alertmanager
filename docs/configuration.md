@@ -126,6 +126,8 @@ global:
   [ telegram_bot_token: <secret> ]
   [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
+  [ mattermost_webhook_url: <secret> ]
+  [ mattermost_webhook_url_file: <string> ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
