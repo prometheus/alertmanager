@@ -1840,6 +1840,15 @@ url_file: <filepath>
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
+
+# Define custom payload to be sent to the webhook endpoint.
+# USE AT YOUR OWN RISK: This is an advanced configuration option that allows you
+# to define a custom payload using Go templates. Be aware that the Alertmanager does not
+# perform any validation on the resulting payload, and it is your responsibility to
+# ensure that the generated payload is in the desired format expected by the receiving endpoint.
+# The payload has to be valid JSON. You can use the `toJson` function to help with this.
+# THE ALERTMANAGER TEAM WILL NOT PROVIDE ANY SUPPORT FOR ISSUES ARISING FROM THE USE OF THIS OPTION.
+[ payload: { <string>: <tmpl_string>, ... } ]
 ```
 
 The Alertmanager
