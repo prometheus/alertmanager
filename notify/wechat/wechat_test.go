@@ -23,6 +23,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
@@ -34,7 +36,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	secret := "secret_key"
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
 			APISecret:  commoncfg.Secret(secret),
@@ -56,7 +58,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
 			APISecret:  commoncfg.Secret(secret),
@@ -78,7 +80,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:      &config.URL{URL: u},
+			APIURL:      &amcommoncfg.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			CorpID:      "corpid",
 			APISecret:   commoncfg.Secret(secret),
