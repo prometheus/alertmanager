@@ -35,16 +35,12 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 const secretToken = "<secret>"
 
 var secretTokenJSON string
-
-// MarshalSecretValue if set to true will expose Secret type
-// through the marshal interfaces. Useful for outside projects
-// that load and marshal the Alertmanager config.
-var MarshalSecretValue bool = commoncfg.MarshalSecretValue
 
 func init() {
 	b, err := json.Marshal(secretToken)
@@ -52,37 +48,6 @@ func init() {
 		panic(err)
 	}
 	secretTokenJSON = string(b)
-}
-
-// Secret is a string that must not be revealed on marshaling.
-type Secret string
-
-// MarshalYAML implements the yaml.Marshaler interface for Secret.
-func (s Secret) MarshalYAML() (any, error) {
-	if MarshalSecretValue {
-		return string(s), nil
-	}
-	if s != "" {
-		return secretToken, nil
-	}
-	return nil, nil
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for Secret.
-func (s *Secret) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain Secret
-	return unmarshal((*plain)(s))
-}
-
-// MarshalJSON implements the json.Marshaler interface for Secret.
-func (s Secret) MarshalJSON() ([]byte, error) {
-	if MarshalSecretValue {
-		return json.Marshal(string(s))
-	}
-	if len(s) == 0 {
-		return json.Marshal("")
-	}
-	return json.Marshal(secretToken)
 }
 
 // URL is a custom type that represents an HTTP or HTTPS URL and allows validation at configuration load time.
@@ -146,7 +111,7 @@ type SecretURL URL
 // MarshalYAML implements the yaml.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalYAML() (any, error) {
 	if s.URL != nil {
-		if MarshalSecretValue {
+		if commoncfg.MarshalSecretValue {
 			return s.String(), nil
 		}
 		return secretToken, nil
@@ -175,7 +140,7 @@ func (s SecretURL) MarshalJSON() ([]byte, error) {
 	if s.URL == nil {
 		return json.Marshal("")
 	}
-	if MarshalSecretValue {
+	if commoncfg.MarshalSecretValue {
 		return json.Marshal(s.String())
 	}
 	return json.Marshal(secretToken)
@@ -192,7 +157,7 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	}
 	// Redact the secret URL in case of errors
 	if err := json.Unmarshal(data, (*URL)(s)); err != nil {
-		if MarshalSecretValue {
+		if commoncfg.MarshalSecretValue {
 			return err
 		}
 		return errors.New(strings.ReplaceAll(err.Error(), string(data), "[REDACTED]"))
@@ -217,12 +182,12 @@ func containsTemplating(s string) (bool, error) {
 // SecretTemplateURL is a Secret string that represents a URL which may contain
 // Go template syntax. Unlike SecretURL, it allows templated values and only
 // validates non-templated URLs at unmarshal time.
-type SecretTemplateURL Secret
+type SecretTemplateURL commoncfg.Secret
 
 // MarshalYAML implements the yaml.Marshaler interface for SecretTemplateURL.
 func (s SecretTemplateURL) MarshalYAML() (any, error) {
 	if s != "" {
-		if MarshalSecretValue {
+		if commoncfg.MarshalSecretValue {
 			return string(s), nil
 		}
 		return secretToken, nil
@@ -232,7 +197,7 @@ func (s SecretTemplateURL) MarshalYAML() (any, error) {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SecretTemplateURL.
 func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain Secret
+	type plain commoncfg.Secret
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
 	}
@@ -262,7 +227,7 @@ func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
 
 // MarshalJSON implements the json.Marshaler interface for SecretTemplateURL.
 func (s SecretTemplateURL) MarshalJSON() ([]byte, error) {
-	return Secret(s).MarshalJSON()
+	return commoncfg.Secret(s).MarshalJSON()
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface for SecretTemplateURL.
@@ -432,7 +397,7 @@ type Config struct {
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
-	TracingConfig TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
+	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -934,9 +899,9 @@ type GlobalConfig struct {
 	SMTPHello             string               `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost         HostPort             `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername      string               `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword      Secret               `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthPassword      commoncfg.Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile  string               `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
-	SMTPAuthSecret        Secret               `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthSecret        commoncfg.Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthSecretFile    string               `yaml:"smtp_auth_secret_file,omitempty" json:"smtp_auth_secret_file,omitempty"`
 	SMTPAuthIdentity      string               `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS        bool                 `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
@@ -946,28 +911,28 @@ type GlobalConfig struct {
 	SlackAPIURLFile       string               `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
 	MattermostAPIURL      *SecretURL           `yaml:"mattermost_api_url,omitempty" json:"mattermost_api_url,omitempty"`
 	MattermostAPIURLFile  string               `yaml:"mattermost_api_url_file,omitempty" json:"mattermost_api_url_file,omitempty"`
-	SlackAppToken         Secret               `yaml:"slack_app_token,omitempty" json:"slack_app_token,omitempty"`
+	SlackAppToken         commoncfg.Secret     `yaml:"slack_app_token,omitempty" json:"slack_app_token,omitempty"`
 	SlackAppTokenFile     string               `yaml:"slack_app_token_file,omitempty" json:"slack_app_token_file,omitempty"`
 	SlackAppURL           *URL                 `yaml:"slack_app_url,omitempty" json:"slack_app_url,omitempty"`
 	PagerdutyURL          *URL                 `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	OpsGenieAPIURL        *URL                 `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey        Secret               `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	OpsGenieAPIKey        commoncfg.Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	OpsGenieAPIKeyFile    string               `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
 	WeChatAPIURL          *URL                 `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret       Secret               `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPISecret       commoncfg.Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPISecretFile   string               `yaml:"wechat_api_secret_file,omitempty" json:"wechat_api_secret_file,omitempty"`
 	WeChatAPICorpID       string               `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL       *URL                 `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey       Secret               `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	VictorOpsAPIKey       commoncfg.Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile   string               `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl        *URL                 `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
-	TelegramBotToken      Secret               `yaml:"telegram_bot_token,omitempty" json:"telegram_bot_token,omitempty"`
+	TelegramBotToken      commoncfg.Secret     `yaml:"telegram_bot_token,omitempty" json:"telegram_bot_token,omitempty"`
 	TelegramBotTokenFile  string               `yaml:"telegram_bot_token_file,omitempty" json:"telegram_bot_token_file,omitempty"`
 	WebexAPIURL           *URL                 `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 	RocketchatAPIURL      *URL                 `yaml:"rocketchat_api_url,omitempty" json:"rocketchat_api_url,omitempty"`
-	RocketchatToken       *Secret              `yaml:"rocketchat_token,omitempty" json:"rocketchat_token,omitempty"`
+	RocketchatToken       *commoncfg.Secret    `yaml:"rocketchat_token,omitempty" json:"rocketchat_token,omitempty"`
 	RocketchatTokenFile   string               `yaml:"rocketchat_token_file,omitempty" json:"rocketchat_token_file,omitempty"`
-	RocketchatTokenID     *Secret              `yaml:"rocketchat_token_id,omitempty" json:"rocketchat_token_id,omitempty"`
+	RocketchatTokenID     *commoncfg.Secret    `yaml:"rocketchat_token_id,omitempty" json:"rocketchat_token_id,omitempty"`
 	RocketchatTokenIDFile string               `yaml:"rocketchat_token_id_file,omitempty" json:"rocketchat_token_id_file,omitempty"`
 }
 

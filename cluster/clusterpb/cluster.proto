@@ -1,12 +1,8 @@
 syntax = "proto3";
 
 package clusterpb;
-import "gogoproto/gogo.proto";
 
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
+option go_package = "github.com/prometheus/alertmanager/cluster/clusterpb";
 
 message Part {
   string key = 1;
@@ -14,7 +10,7 @@ message Part {
 }
   
 message FullState {
-  repeated Part parts = 1 [(gogoproto.nullable) = false];
+  repeated Part parts = 1;
 }
 
 message MemberlistMessage {

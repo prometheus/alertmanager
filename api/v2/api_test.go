@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
@@ -157,7 +158,7 @@ func TestGetSilencesHandler(t *testing.T) {
 }
 
 func TestDeleteSilenceHandler(t *testing.T) {
-	now := time.Now()
+	now := timestamppb.Now()
 	silences := newSilences(t)
 
 	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
@@ -165,15 +166,15 @@ func TestDeleteSilenceHandler(t *testing.T) {
 	unexpiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
 		StartsAt:  now,
-		EndsAt:    now.Add(time.Hour),
+		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
 	}
 	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
-		StartsAt:  now.Add(-time.Hour),
-		EndsAt:    now.Add(time.Hour),
+		StartsAt:  timestamppb.New(now.AsTime().Add(-time.Hour)),
+		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
 	}
 	require.NoError(t, silences.Set(t.Context(), expiredSil))
@@ -219,7 +220,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 }
 
 func TestPostSilencesHandler(t *testing.T) {
-	now := time.Now()
+	now := timestamppb.Now()
 	silences := newSilences(t)
 
 	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
@@ -227,15 +228,15 @@ func TestPostSilencesHandler(t *testing.T) {
 	unexpiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
 		StartsAt:  now,
-		EndsAt:    now.Add(time.Hour),
+		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
 	}
 	require.NoError(t, silences.Set(t.Context(), unexpiredSil))
 
 	expiredSil := &silencepb.Silence{
 		Matchers:  []*silencepb.Matcher{m},
-		StartsAt:  now.Add(-time.Hour),
-		EndsAt:    now.Add(time.Hour),
+		StartsAt:  timestamppb.New(now.AsTime().Add(-time.Hour)),
+		EndsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
 		UpdatedAt: now,
 	}
 	require.NoError(t, silences.Set(t.Context(), expiredSil))
@@ -251,29 +252,29 @@ func TestPostSilencesHandler(t *testing.T) {
 			{
 				"with an non-existent silence ID - it returns 404",
 				"unknownSid",
-				now.Add(time.Hour),
-				now.Add(time.Hour * 2),
+				now.AsTime().Add(time.Hour),
+				now.AsTime().Add(time.Hour * 2),
 				404,
 			},
 			{
 				"with no silence ID - it creates the silence",
 				"",
-				now.Add(time.Hour),
-				now.Add(time.Hour * 2),
+				now.AsTime().Add(time.Hour),
+				now.AsTime().Add(time.Hour * 2),
 				200,
 			},
 			{
 				"with an active silence ID - it extends the silence",
 				unexpiredSil.Id,
-				now.Add(time.Hour),
-				now.Add(time.Hour * 2),
+				now.AsTime().Add(time.Hour),
+				now.AsTime().Add(time.Hour * 2),
 				200,
 			},
 			{
 				"with an expired silence ID - it re-creates the silence",
 				expiredSil.Id,
-				now.Add(time.Hour),
-				now.Add(time.Hour * 2),
+				now.AsTime().Add(time.Hour),
+				now.AsTime().Add(time.Hour * 2),
 				200,
 			},
 		} {

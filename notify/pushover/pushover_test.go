@@ -50,8 +50,8 @@ func TestPushoverRedactedURL(t *testing.T) {
 	key, token := "user_key", "token"
 	notifier, err := New(
 		&config.PushoverConfig{
-			UserKey:    config.Secret(key),
-			Token:      config.Secret(token),
+			UserKey:    commoncfg.Secret(key),
+			Token:      commoncfg.Secret(token),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -76,7 +76,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 	notifier, err := New(
 		&config.PushoverConfig{
 			UserKeyFile: f.Name(),
-			Token:       config.Secret("token"),
+			Token:       commoncfg.Secret("token"),
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -100,7 +100,7 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 
 	notifier, err := New(
 		&config.PushoverConfig{
-			UserKey:    config.Secret("user key"),
+			UserKey:    commoncfg.Secret("user key"),
 			TokenFile:  f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -122,8 +122,8 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 
 	notifier, err := New(
 		&config.PushoverConfig{
-			UserKey:    config.Secret("user_key"),
-			Token:      config.Secret("token"),
+			UserKey:    commoncfg.Secret("user_key"),
+			Token:      commoncfg.Secret("token"),
 			Monospace:  true,
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},

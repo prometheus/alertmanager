@@ -204,7 +204,12 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 	if !ok {
 		l.Error("Missing group labels")
 	}
-	return tmpl.Data(recv, groupLabels, alerts...)
+	notificationReason, ok := NotificationReason(ctx)
+	if !ok {
+		l.Error("Missing notification reason")
+		notificationReason = ReasonUnknown
+	}
+	return tmpl.Data(recv, groupLabels, notificationReason.String(), alerts...)
 }
 
 func readAll(r io.Reader) string {

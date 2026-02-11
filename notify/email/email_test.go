@@ -477,7 +477,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "email with authentication",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 			},
 		},
 		{
@@ -491,7 +491,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "HTML-only email",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Text = ""
 			},
 		},
@@ -499,7 +499,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "text-only email",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.HTML = ""
 			},
 		},
@@ -507,7 +507,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "multiple To addresses",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.To = strings.Join([]string{emailTo, emailFrom}, ",")
 			},
 		},
@@ -515,7 +515,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "no more than one From address",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.From = strings.Join([]string{emailFrom, emailTo}, ",")
 			},
 
@@ -526,7 +526,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "wrong credentials",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password + "wrong")
+				cfg.AuthPassword = commoncfg.Secret(c.Password + "wrong")
 			},
 
 			errMsg: "Invalid username or password",
@@ -571,7 +571,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "invalid Hello string",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Hello = "invalid hello string"
 			},
 
