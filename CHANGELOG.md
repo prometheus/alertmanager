@@ -8,6 +8,7 @@
 ## 0.31.1 / 2026-02-11
 
 * [BUGFIX] docs: Fix email TLS configuration example. #4976
+* [BUGFIX] docs: Add telegram bot token options to global config docs. #4999
 
 ## 0.31.0 / 2026-02-02
 
