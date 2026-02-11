@@ -98,7 +98,7 @@ type slackResponse struct {
 	OK      bool   `json:"ok"`
 	Error   string `json:"error,omitempty"`
 	Channel string `json:"channel,omitempty"`
-	TS      string `json:"ts,omitempty"` // Message timestamp, used for updates
+	TS      string `json:"ts,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -292,8 +292,8 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
 
-	// If store exists, store the threadTS and channelId
-	if store != nil {
+	// If store, TS and Channel are set, store the threadTS and channelId
+	if store != nil && data.TS != "" && data.Channel != "" {
 		store.SetStr("threadTs", data.TS)
 		store.SetStr("channelId", data.Channel)
 		n.logger.With("threadTs", data.TS).With("channelId", data.Channel).Debug("stored threadTs and channelId")
