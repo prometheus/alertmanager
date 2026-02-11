@@ -47,7 +47,16 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 		},
 	}
 
-	for _, m := range s.Matchers {
+	// For backward compatibility, only return silences with a single matcher set
+	if len(s.MatcherSets) > 1 {
+		return sil, fmt.Errorf("silence '%v' has multiple matcher sets which is not supported by this API version", s.Id)
+	}
+
+	if len(s.MatcherSets) == 0 {
+		return sil, nil
+	}
+
+	for _, m := range s.MatcherSets[0].Matchers {
 		matcher := &open_api_models.Matcher{
 			Name:  &m.Name,
 			Value: &m.Pattern,
@@ -89,6 +98,8 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		Comment:   *s.Comment,
 		CreatedBy: *s.CreatedBy,
 	}
+
+	matcherSet := &silencepb.MatcherSet{}
 	for _, m := range s.Matchers {
 		matcher := &silencepb.Matcher{
 			Name:    *m.Name,
@@ -113,8 +124,9 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		case !isEqual && isRegex:
 			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
-		sil.Matchers = append(sil.Matchers, matcher)
+		matcherSet.Matchers = append(matcherSet.Matchers, matcher)
 	}
+	sil.MatcherSets = append(sil.MatcherSets, matcherSet)
 	return sil, nil
 }
 

@@ -618,9 +618,19 @@ func SortSilences(sils open_api_models.GettableSilences) {
 // for all matchers in the filter, there exists a matcher in the silence
 // such that their names, types, and values are equivalent.
 func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
+	// Check if any matcher set matches (OR logic)
+	for _, ms := range s.MatcherSets {
+		if checkMatcherSetMatchesFilterLabels(ms, matchers) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkMatcherSetMatchesFilterLabels(ms *silencepb.MatcherSet, matchers []*labels.Matcher) bool {
 	for _, matcher := range matchers {
 		found := false
-		for _, m := range s.Matchers {
+		for _, m := range ms.Matchers {
 			if matcher.Name == m.Name &&
 				(matcher.Type == labels.MatchEqual && m.Type == silencepb.Matcher_EQUAL ||
 					matcher.Type == labels.MatchRegexp && m.Type == silencepb.Matcher_REGEXP ||

@@ -131,10 +131,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 		clock := quartz.NewMock(t)
 		s.clock = clock
 		sil1 := &pb.Silence{
-			Matchers: []*pb.Matcher{{
-				Type:    pb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
 			}},
 			StartsAt: timestamppb.New(clock.Now()),
 			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
@@ -158,10 +160,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 		clock := quartz.NewMock(t)
 		s.clock = clock
 		sil1 := &pb.Silence{
-			Matchers: []*pb.Matcher{{
-				Type:    pb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
 			}},
 			StartsAt: timestamppb.New(clock.Now()),
 			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
@@ -171,10 +175,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 		require.Len(t, s.mi, 1)
 		// must clone sil1 before replacing it.
 		sil2 := cloneSilence(sil1)
-		sil2.Matchers = []*pb.Matcher{{
-			Type:    pb.Matcher_EQUAL,
-			Name:    "bar",
-			Pattern: "baz",
+		sil2.MatcherSets = []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{
+				Type:    pb.Matcher_EQUAL,
+				Name:    "bar",
+				Pattern: "baz",
+			}},
 		}}
 		require.NoError(t, s.Set(t.Context(), sil2))
 		require.Len(t, s.st, 2)
@@ -198,10 +204,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 		s.clock = clock
 		sil1 := &pb.Silence{
 			Id: "1",
-			Matchers: []*pb.Matcher{{
-				Type:    pb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
 			}},
 			StartsAt: timestamppb.New(clock.Now()),
 			EndsAt:   timestamppb.New(clock.Now().Add(time.Minute)),
@@ -254,8 +262,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 		sils := make([]*pb.Silence, 0, 60)
 		for i := range 10 {
 			sil := &pb.Silence{
-				Id:        fmt.Sprintf("group1-%d", i),
-				Matchers:  []*pb.Matcher{matcher},
+				Id: fmt.Sprintf("group1-%d", i),
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{matcher},
+				}},
 				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 				EndsAt:    timestamppb.New(now.Add(30 * time.Minute)),
 				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -265,8 +275,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 		for i := range 10 {
 			sil := &pb.Silence{
-				Id:        fmt.Sprintf("group2-%d", i),
-				Matchers:  []*pb.Matcher{matcher},
+				Id: fmt.Sprintf("group2-%d", i),
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{matcher},
+				}},
 				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 				EndsAt:    timestamppb.New(now.Add(45 * time.Minute)),
 				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -276,8 +288,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 		for i := range 10 {
 			sil := &pb.Silence{
-				Id:        fmt.Sprintf("group3-%d", i),
-				Matchers:  []*pb.Matcher{matcher},
+				Id: fmt.Sprintf("group3-%d", i),
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{matcher},
+				}},
 				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 				EndsAt:    timestamppb.New(now.Add(60 * time.Minute)),
 				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -287,8 +301,10 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 		for i := range 30 {
 			sil := &pb.Silence{
-				Id:        fmt.Sprintf("active-%d", i),
-				Matchers:  []*pb.Matcher{matcher},
+				Id: fmt.Sprintf("active-%d", i),
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{matcher},
+				}},
 				StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 				EndsAt:    timestamppb.New(now.Add(3 * time.Hour)),
 				UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -356,10 +372,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 
 		// Create a valid silence
 		validSil := &pb.Silence{
-			Matchers: []*pb.Matcher{{
-				Type:    pb.Matcher_EQUAL,
-				Name:    "foo",
-				Pattern: "bar",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{
+					Type:    pb.Matcher_EQUAL,
+					Name:    "foo",
+					Pattern: "bar",
+				}},
 			}},
 			StartsAt: timestamppb.New(now),
 			EndsAt:   timestamppb.New(now.Add(time.Minute)),
@@ -371,10 +389,12 @@ func TestSilenceGCOverTime(t *testing.T) {
 		erroneousSil := &pb.MeshSilence{
 			Silence: &pb.Silence{
 				Id: "erroneous",
-				Matchers: []*pb.Matcher{{
-					Type:    pb.Matcher_EQUAL,
-					Name:    "bar",
-					Pattern: "baz",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{
+						Type:    pb.Matcher_EQUAL,
+						Name:    "bar",
+						Pattern: "baz",
+					}},
 				}},
 				StartsAt: timestamppb.New(now),
 				EndsAt:   timestamppb.New(now.Add(time.Minute)),
@@ -422,11 +442,13 @@ func TestSilencesSnapshot(t *testing.T) {
 			entries: []*pb.MeshSilence{
 				{
 					Silence: &pb.Silence{
-						Id: "active",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
-						},
+						Id: "3be80475-e219-4ee7-b6fc-4b65114e362f",
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						}},
 						StartsAt:  timestamppb.New(now),
 						EndsAt:    timestamppb.New(now),
 						UpdatedAt: timestamppb.New(now),
@@ -435,11 +457,13 @@ func TestSilencesSnapshot(t *testing.T) {
 				},
 				{
 					Silence: &pb.Silence{
-						Id: "active2",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
-							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
-						},
+						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+							},
+						}},
 						StartsAt:  timestamppb.New(now),
 						EndsAt:    timestamppb.New(now),
 						UpdatedAt: timestamppb.New(now),
@@ -448,10 +472,12 @@ func TestSilencesSnapshot(t *testing.T) {
 				},
 				{
 					Silence: &pb.Silence{
-						Id: "pending",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-						},
+						Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+							},
+						}},
 						StartsAt:  timestamppb.New(now.Add(time.Hour)),
 						EndsAt:    timestamppb.New(now.Add(2 * time.Hour)),
 						UpdatedAt: timestamppb.New(now),
@@ -575,8 +601,10 @@ func TestSilencesSetSilence(t *testing.T) {
 	nowpb := s.nowUTC()
 
 	sil := &pb.Silence{
-		Id:       "some_id",
-		Matchers: []*pb.Matcher{{Name: "abc", Pattern: "def"}},
+		Id: "some_id",
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "abc", Pattern: "def"}},
+		}},
 		StartsAt: timestamppb.New(nowpb),
 		EndsAt:   timestamppb.New(nowpb),
 	}
@@ -588,6 +616,19 @@ func TestSilencesSetSilence(t *testing.T) {
 		},
 	}
 
+	wantBroadcast := &pb.MeshSilence{
+		Silence: &pb.Silence{
+			Id:       "some_id",
+			Matchers: sil.MatcherSets[0].Matchers, // Backward compatibility
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{{Name: "abc", Pattern: "def"}},
+			}},
+			StartsAt: timestamppb.New(nowpb),
+			EndsAt:   timestamppb.New(nowpb),
+		},
+		ExpiresAt: timestamppb.New(nowpb.Add(time.Minute)),
+	}
+
 	done := make(chan struct{})
 	s.broadcast = func(b []byte) {
 		var e pb.MeshSilence
@@ -595,7 +636,7 @@ func TestSilencesSetSilence(t *testing.T) {
 		err := protodelim.UnmarshalFrom(r, &e)
 		require.NoError(t, err)
 
-		require.True(t, proto.Equal(&e, want["some_id"]), "broadcast message mismatch")
+		require.True(t, proto.Equal(&e, wantBroadcast), "broadcast message mismatch")
 		close(done)
 	}
 
@@ -627,7 +668,9 @@ func TestSilenceSet(t *testing.T) {
 
 	// Insert silence with fixed start time.
 	sil1 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		}},
 		StartsAt: timestamppb.New(start1.Add(2 * time.Minute)),
 		EndsAt:   timestamppb.New(start1.Add(5 * time.Minute)),
 	}
@@ -639,8 +682,10 @@ func TestSilenceSet(t *testing.T) {
 	want := state{
 		sil1.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil1.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil1.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(start1.Add(2 * time.Minute)),
 				EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
 				UpdatedAt: timestamppb.New(start1),
@@ -655,8 +700,10 @@ func TestSilenceSet(t *testing.T) {
 	start2 := s.nowUTC()
 
 	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		EndsAt:   timestamppb.New(start2.Add(1 * time.Minute)),
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		}},
+		EndsAt: timestamppb.New(start2.Add(1 * time.Minute)),
 	}
 	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(t.Context(), sil2))
@@ -667,8 +714,10 @@ func TestSilenceSet(t *testing.T) {
 		sil1.Id: want[sil1.Id],
 		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil2.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(start2),
 				EndsAt:    timestamppb.New(start2.Add(1 * time.Minute)),
 				UpdatedAt: timestamppb.New(start2),
@@ -708,8 +757,10 @@ func TestSilenceSet(t *testing.T) {
 		sil1.Id: want[sil1.Id],
 		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil2.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(start2),
 				EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
 				UpdatedAt: timestamppb.New(start5),
@@ -730,7 +781,9 @@ func TestSilenceSet(t *testing.T) {
 	start6 := s.nowUTC()
 
 	sil6 := cloneSilence(sil5)
-	sil6.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
+	sil6.MatcherSets = []*pb.MatcherSet{{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
+	}}
 	versionBeforeOp = s.Version()
 	require.NoError(t, s.Set(t.Context(), sil6))
 	require.NotEqual(t, sil5.Id, sil6.Id)
@@ -738,8 +791,10 @@ func TestSilenceSet(t *testing.T) {
 		sil1.Id: want[sil1.Id],
 		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil2.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil2.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(start2),
 				EndsAt:    timestamppb.New(start6), // Expired
 				UpdatedAt: timestamppb.New(start6),
@@ -749,8 +804,10 @@ func TestSilenceSet(t *testing.T) {
 		},
 		sil6.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil6.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
+				Id: sil6.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "c"}},
+				}},
 				StartsAt:  timestamppb.New(start6),
 				EndsAt:    timestamppb.New(start5.Add(100 * time.Minute)),
 				UpdatedAt: timestamppb.New(start6),
@@ -779,8 +836,10 @@ func TestSilenceSet(t *testing.T) {
 		sil6.Id: want[sil6.Id],
 		sil7.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil7.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil7.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(start7), // New silences have their start time set to "now" when created.
 				EndsAt:    timestamppb.New(start1.Add(5 * time.Minute)),
 				UpdatedAt: timestamppb.New(start7),
@@ -820,7 +879,9 @@ func TestSilenceLimits(t *testing.T) {
 
 	// Insert sil1 should succeed without error.
 	sil1 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		}},
 		StartsAt: timestamppb.New(time.Now()),
 		EndsAt:   timestamppb.New(time.Now().Add(5 * time.Minute)),
 	}
@@ -829,7 +890,9 @@ func TestSilenceLimits(t *testing.T) {
 	// Insert sil2 should fail because maximum number of silences has been
 	// exceeded.
 	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "c", Pattern: "d"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "c", Pattern: "d"}},
+		}},
 		StartsAt: timestamppb.New(time.Now()),
 		EndsAt:   timestamppb.New(time.Now().Add(5 * time.Minute)),
 	}
@@ -850,16 +913,18 @@ func TestSilenceLimits(t *testing.T) {
 
 	// Insert sil3 should fail because it exceeds maximum size.
 	sil3 := &pb.Silence{
-		Matchers: []*pb.Matcher{
-			{
-				Name:    strings.Repeat("e", 2<<9),
-				Pattern: strings.Repeat("f", 2<<9),
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{
+				{
+					Name:    strings.Repeat("e", 2<<9),
+					Pattern: strings.Repeat("f", 2<<9),
+				},
+				{
+					Name:    strings.Repeat("g", 2<<9),
+					Pattern: strings.Repeat("h", 2<<9),
+				},
 			},
-			{
-				Name:    strings.Repeat("g", 2<<9),
-				Pattern: strings.Repeat("h", 2<<9),
-			},
-		},
+		}},
 		CreatedBy: strings.Repeat("i", 2<<9),
 		Comment:   strings.Repeat("j", 2<<9),
 		StartsAt:  timestamppb.New(time.Now()),
@@ -869,7 +934,9 @@ func TestSilenceLimits(t *testing.T) {
 
 	// Should be able to insert sil4.
 	sil4 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "k", Pattern: "l"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "k", Pattern: "l"}},
+		}},
 		StartsAt: timestamppb.New(time.Now()),
 		EndsAt:   timestamppb.New(time.Now().Add(5 * time.Minute)),
 	}
@@ -939,7 +1006,9 @@ func TestSilenceNoLimits(t *testing.T) {
 
 	// Insert sil should succeed without error.
 	sil := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		}},
 		StartsAt: timestamppb.New(time.Now()),
 		EndsAt:   timestamppb.New(time.Now().Add(5 * time.Minute)),
 		Comment:  strings.Repeat("c", 2<<9),
@@ -963,7 +1032,9 @@ func TestSetActiveSilence(t *testing.T) {
 	endsAt := now.Add(5 * time.Minute)
 	// Insert silence with fixed start time.
 	sil1 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		}},
 		StartsAt: timestamppb.New(startsAt),
 		EndsAt:   timestamppb.New(endsAt),
 	}
@@ -987,8 +1058,10 @@ func TestSetActiveSilence(t *testing.T) {
 	want := state{
 		sil2.Id: &pb.MeshSilence{
 			Silence: &pb.Silence{
-				Id:        sil1.Id,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				Id: sil1.Id,
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
 				StartsAt:  timestamppb.New(newStartsAt),
 				EndsAt:    timestamppb.New(newEndsAt),
 				UpdatedAt: timestamppb.New(now),
@@ -1012,9 +1085,11 @@ func TestSilencesSetFail(t *testing.T) {
 	}{
 		{
 			s: &pb.Silence{
-				Id:       "some_id",
-				Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				EndsAt:   timestamppb.New(clock.Now().Add(5 * time.Minute)),
+				Id: "some_id",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				}},
+				EndsAt: timestamppb.New(clock.Now().Add(5 * time.Minute)),
 			},
 			err: ErrNotFound.Error(),
 		}, {
@@ -1089,59 +1164,133 @@ func TestQMatches(t *testing.T) {
 	}{
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
-				},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					},
+				}},
 			},
 			drop: true,
 		},
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
+					},
+				}},
+			},
+			drop: false,
+		},
+		{
+			sil: &pb.Silence{
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+						{Name: "method", Pattern: "POST", Type: pb.Matcher_EQUAL},
+					},
+				}},
+			},
+			drop: false,
+		},
+		{
+			sil: &pb.Silence{
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+						{Name: "method", Pattern: "POST", Type: pb.Matcher_NOT_EQUAL},
+					},
+				}},
+			},
+			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
+					},
+				}},
+			},
+			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				MatcherSets: []*pb.MatcherSet{
+					{
+						Matchers: []*pb.Matcher{
+							{
+								Name: "path", Pattern: "/user/.+", Type: pb.Matcher_NOT_REGEXP,
+							},
+						},
+					},
 				},
 			},
 			drop: false,
 		},
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
-					{Name: "method", Pattern: "POST", Type: pb.Matcher_EQUAL},
+				MatcherSets: []*pb.MatcherSet{
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
+							{Name: "path", Pattern: "/nothing/.+", Type: pb.Matcher_REGEXP},
+						},
+					},
 				},
 			},
 			drop: false,
 		},
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
-					{Name: "method", Pattern: "POST", Type: pb.Matcher_NOT_EQUAL},
+				MatcherSets: []*pb.MatcherSet{
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET", Type: pb.Matcher_NOT_EQUAL},
+						},
+					},
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET|POST", Type: pb.Matcher_REGEXP},
+							{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+						},
+					},
 				},
 			},
 			drop: true,
 		},
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
+				MatcherSets: []*pb.MatcherSet{
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET", Type: pb.Matcher_EQUAL},
+						},
+					},
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET|POST", Type: pb.Matcher_REGEXP},
+							{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+						},
+					},
 				},
 			},
 			drop: true,
 		},
 		{
 			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_NOT_REGEXP},
-				},
-			},
-			drop: false,
-		},
-		{
-			sil: &pb.Silence{
-				Matchers: []*pb.Matcher{
-					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
-					{Name: "path", Pattern: "/nothing/.+", Type: pb.Matcher_REGEXP},
+				MatcherSets: []*pb.MatcherSet{
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET", Type: pb.Matcher_NOT_EQUAL},
+						},
+					},
+					{
+						Matchers: []*pb.Matcher{
+							{Name: "method", Pattern: "GET|POST", Type: pb.Matcher_REGEXP},
+							{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
+						},
+					},
 				},
 			},
 			drop: false,
@@ -1153,6 +1302,368 @@ func TestQMatches(t *testing.T) {
 		drop, err := f(c.sil, silences, time.Time{})
 		require.NoError(t, err)
 		require.Equal(t, c.drop, drop, "unexpected filter result")
+	}
+}
+
+func TestSilenceBackwardCompatibility(t *testing.T) {
+	t.Run("postprocessUnmarshalledSilence converts old format to new", func(t *testing.T) {
+		// Create a silence with only the old Matchers field (simulating old format)
+		oldSilence := &pb.Silence{
+			Id: "test-id",
+			Matchers: []*pb.Matcher{
+				{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+				{Name: "instance", Pattern: "web-1", Type: pb.Matcher_EQUAL},
+			},
+			StartsAt: timestamppb.New(time.Now()),
+			EndsAt:   timestamppb.New(time.Now().Add(time.Hour)),
+		}
+
+		// Process as if unmarshalled from old version
+		postprocessUnmarshalledSilence(oldSilence)
+
+		// Verify conversion to MatcherSets
+		require.Len(t, oldSilence.MatcherSets, 1, "should have exactly one matcher set")
+		require.Len(t, oldSilence.MatcherSets[0].Matchers, 2, "matcher set should have 2 matchers")
+		require.Equal(t, "job", oldSilence.MatcherSets[0].Matchers[0].Name)
+		require.Equal(t, "test", oldSilence.MatcherSets[0].Matchers[0].Pattern)
+		require.Equal(t, "instance", oldSilence.MatcherSets[0].Matchers[1].Name)
+		require.Equal(t, "web-1", oldSilence.MatcherSets[0].Matchers[1].Pattern)
+
+		// Verify old Matchers field is cleared
+		require.Nil(t, oldSilence.Matchers, "old Matchers field should be cleared")
+	})
+
+	t.Run("prepareSilenceForMarshalling populates old format from new", func(t *testing.T) {
+		// Create a silence with new MatcherSets field
+		newSilence := &pb.Silence{
+			Id: "test-id",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					{Name: "instance", Pattern: "web-1", Type: pb.Matcher_EQUAL},
+				},
+			}},
+			StartsAt: timestamppb.New(time.Now()),
+			EndsAt:   timestamppb.New(time.Now().Add(time.Hour)),
+		}
+
+		// Prepare for marshalling (for backward compatibility)
+		prepareSilenceForMarshalling(newSilence)
+
+		// Verify old Matchers field is populated from first matcher set
+		require.Len(t, newSilence.Matchers, 2, "old Matchers field should be populated")
+		require.Equal(t, "job", newSilence.Matchers[0].Name)
+		require.Equal(t, "test", newSilence.Matchers[0].Pattern)
+		require.Equal(t, "instance", newSilence.Matchers[1].Name)
+		require.Equal(t, "web-1", newSilence.Matchers[1].Pattern)
+
+		// Verify MatcherSets is still intact
+		require.Len(t, newSilence.MatcherSets, 1)
+	})
+
+	t.Run("round-trip conversion preserves data", func(t *testing.T) {
+		// Start with new format
+		original := &pb.Silence{
+			Id: "test-id",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					{Name: "method", Pattern: "GET", Type: pb.Matcher_REGEXP},
+				},
+			}},
+			StartsAt:  timestamppb.New(time.Now().Truncate(time.Second)),
+			EndsAt:    timestamppb.New(time.Now().Add(time.Hour).Truncate(time.Second)),
+			CreatedBy: "test-user",
+			Comment:   "test comment",
+		}
+
+		// Marshal (prepare for backward compatibility)
+		prepareSilenceForMarshalling(original)
+		require.Len(t, original.Matchers, 2, "should populate old Matchers field")
+
+		// Simulate round-trip by creating a new silence with only Matchers field
+		// (as if received from old client)
+		received := &pb.Silence{
+			Id:        original.Id,
+			Matchers:  original.Matchers,
+			StartsAt:  original.StartsAt,
+			EndsAt:    original.EndsAt,
+			CreatedBy: original.CreatedBy,
+			Comment:   original.Comment,
+		}
+
+		// Unmarshal (convert to new format)
+		postprocessUnmarshalledSilence(received)
+
+		// Verify data is preserved
+		require.Len(t, received.MatcherSets, 1)
+		require.Len(t, received.MatcherSets[0].Matchers, 2)
+		require.Equal(t, original.MatcherSets[0].Matchers[0].Name, received.MatcherSets[0].Matchers[0].Name)
+		require.Equal(t, original.MatcherSets[0].Matchers[0].Pattern, received.MatcherSets[0].Matchers[0].Pattern)
+		require.Equal(t, original.MatcherSets[0].Matchers[0].Type, received.MatcherSets[0].Matchers[0].Type)
+		require.Nil(t, received.Matchers, "old Matchers field should be cleared after postprocess")
+	})
+
+	t.Run("postprocess handles empty Matchers gracefully", func(t *testing.T) {
+		// Silence with no matchers at all
+		silence := &pb.Silence{
+			Id:       "test-id",
+			StartsAt: timestamppb.New(time.Now()),
+			EndsAt:   timestamppb.New(time.Now().Add(time.Hour)),
+		}
+
+		postprocessUnmarshalledSilence(silence)
+
+		require.Nil(t, silence.Matchers)
+		require.Nil(t, silence.MatcherSets)
+	})
+
+	t.Run("postprocess prefers MatcherSets when both fields set", func(t *testing.T) {
+		// Silence with both old and new fields (can happen during migration)
+		silence := &pb.Silence{
+			Id: "test-id",
+			Matchers: []*pb.Matcher{
+				{Name: "job", Pattern: "old-value", Type: pb.Matcher_EQUAL},
+			},
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "new-value", Type: pb.Matcher_EQUAL},
+				},
+			}},
+			StartsAt: timestamppb.New(time.Now()),
+			EndsAt:   timestamppb.New(time.Now().Add(time.Hour)),
+		}
+
+		postprocessUnmarshalledSilence(silence)
+
+		// MatcherSets field should be preserved when already set
+		require.Len(t, silence.MatcherSets, 1)
+		require.Equal(t, "new-value", silence.MatcherSets[0].Matchers[0].Pattern)
+		require.Nil(t, silence.Matchers)
+	})
+
+	t.Run("multi-matcher silence backward compat populates only first set", func(t *testing.T) {
+		// Create a silence with multiple matcher sets
+		multiSilence := &pb.Silence{
+			Id: "test-id",
+			MatcherSets: []*pb.MatcherSet{
+				{
+					Matchers: []*pb.Matcher{
+						{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					},
+				},
+				{
+					Matchers: []*pb.Matcher{
+						{Name: "method", Pattern: "GET", Type: pb.Matcher_EQUAL},
+					},
+				},
+			},
+			StartsAt: timestamppb.New(time.Now()),
+			EndsAt:   timestamppb.New(time.Now().Add(time.Hour)),
+		}
+
+		// Prepare for marshalling
+		prepareSilenceForMarshalling(multiSilence)
+
+		// Only first matcher set should be in old Matchers field
+		require.Len(t, multiSilence.Matchers, 1, "should only populate first matcher set")
+		require.Equal(t, "job", multiSilence.Matchers[0].Name)
+		require.Equal(t, "test", multiSilence.Matchers[0].Pattern)
+
+		// All matcher sets should still be intact
+		require.Len(t, multiSilence.MatcherSets, 2)
+	})
+}
+
+func TestStateUnmarshalling(t *testing.T) {
+	// test that we can decode silences with the old format (without MatcherSets field)
+	now := time.Now().UTC()
+
+	testCases := []struct {
+		name     string
+		silence  *pb.MeshSilence
+		expected *pb.MeshSilence
+	}{
+		{
+			name: "empty silence",
+			silence: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+			expected: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+		},
+		{
+			name: "silence with matcher sets",
+			silence: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+			expected: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+		},
+		{
+			name: "silence with multiple matcher sets",
+			silence: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val2", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val2.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+			expected: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val2", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val2.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+		},
+		{
+			name: "silence with both classic matchers and matcher sets",
+			silence: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					Matchers: []*pb.Matcher{
+						{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+						{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+					},
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val2", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val2.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+			expected: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val2", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val2.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+		},
+		{
+			name: "silence with classic matchers",
+			silence: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					Matchers: []*pb.Matcher{
+						{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+						{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+			expected: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id: "silence1",
+					MatcherSets: []*pb.MatcherSet{
+						{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						},
+					},
+				},
+				ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// Marshal the silence to binary format
+			in := state{
+				tt.silence.Silence.Id: tt.silence,
+			}
+
+			msg, err := in.MarshalBinary()
+			require.NoError(t, err)
+
+			decoded, err := decodeState(bytes.NewReader(msg))
+			require.NoError(t, err, "decoding message failed")
+
+			require.True(t, proto.Equal(tt.expected, decoded[tt.silence.Silence.Id]), "decoded data doesn't match encoded data")
+		})
 	}
 }
 
@@ -1517,22 +2028,28 @@ func TestSilenceExpire(t *testing.T) {
 
 	s.st = state{
 		"pending": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "pending",
-			Matchers:  []*pb.Matcher{m},
+			Id: "pending",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(time.Minute)),
 			EndsAt:    timestamppb.New(now.Add(time.Hour)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}},
 		"active": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "active",
-			Matchers:  []*pb.Matcher{m},
+			Id: "active",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
 			EndsAt:    timestamppb.New(now.Add(time.Hour)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}},
 		"expired": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "expired",
-			Matchers:  []*pb.Matcher{m},
+			Id: "expired",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 			EndsAt:    timestamppb.New(now.Add(-time.Minute)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -1559,8 +2076,10 @@ func TestSilenceExpire(t *testing.T) {
 	sil, err := s.QueryOne(t.Context(), QIDs("pending"))
 	require.NoError(t, err)
 	expectedPending := &pb.Silence{
-		Id:        "pending",
-		Matchers:  []*pb.Matcher{m},
+		Id: "pending",
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{m},
+		}},
 		StartsAt:  timestamppb.New(now),
 		EndsAt:    timestamppb.New(now),
 		UpdatedAt: timestamppb.New(now),
@@ -1586,8 +2105,10 @@ func TestSilenceExpire(t *testing.T) {
 	sil, err = s.QueryOne(t.Context(), QIDs("active"))
 	require.NoError(t, err)
 	expectedActive := &pb.Silence{
-		Id:        "active",
-		Matchers:  []*pb.Matcher{m},
+		Id: "active",
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{m},
+		}},
 		StartsAt:  timestamppb.New(now.Add(-time.Minute)),
 		EndsAt:    timestamppb.New(now),
 		UpdatedAt: timestamppb.New(now),
@@ -1597,8 +2118,10 @@ func TestSilenceExpire(t *testing.T) {
 	sil, err = s.QueryOne(t.Context(), QIDs("expired"))
 	require.NoError(t, err)
 	expectedExpired := &pb.Silence{
-		Id:        "expired",
-		Matchers:  []*pb.Matcher{m},
+		Id: "expired",
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{m},
+		}},
 		StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 		EndsAt:    timestamppb.New(now.Add(-time.Minute)),
 		UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -1621,22 +2144,28 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 
 	s.st = state{
 		"pending": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "pending",
-			Matchers:  []*pb.Matcher{m},
+			Id: "pending",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(time.Minute)),
 			EndsAt:    timestamppb.New(now.Add(time.Hour)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}},
 		"active": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "active",
-			Matchers:  []*pb.Matcher{m},
+			Id: "active",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
 			EndsAt:    timestamppb.New(now.Add(time.Hour)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 		}},
 		"expired": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "expired",
-			Matchers:  []*pb.Matcher{m},
+			Id: "expired",
+			MatcherSets: []*pb.MatcherSet{{
+				Matchers: []*pb.Matcher{m},
+			}},
 			StartsAt:  timestamppb.New(now.Add(-time.Hour)),
 			EndsAt:    timestamppb.New(now.Add(-time.Minute)),
 			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
@@ -1699,14 +2228,16 @@ func TestSilenceExpireInvalid(t *testing.T) {
 
 	// In this test the matcher has an invalid type.
 	silence := pb.Silence{
-		Id:        "active",
-		Matchers:  []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+		Id: "active",
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Type: -1, Name: "a", Pattern: "b"}},
+		}},
 		StartsAt:  timestamppb.New(now.Add(-time.Minute)),
 		EndsAt:    timestamppb.New(now.Add(time.Hour)),
 		UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
 	}
 	// Assert that this silence is invalid.
-	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0: unknown matcher type \"-1\"")
+	require.EqualError(t, validateSilence(&silence), "invalid label matcher 0 in set 0: unknown matcher type \"-1\"")
 
 	s.st = state{"active": &pb.MeshSilence{Silence: &silence}}
 	s.vi = versionIndex{silenceVersion{id: "active"}}
@@ -1743,7 +2274,9 @@ func TestSilencer(t *testing.T) {
 	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
 	sil1 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
+		}},
 		StartsAt: timestamppb.New(now.Add(-time.Hour)),
 		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
 	}
@@ -1752,7 +2285,9 @@ func TestSilencer(t *testing.T) {
 	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
 
 	sil2 := &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		}},
 		StartsAt: timestamppb.New(now.Add(-time.Hour)),
 		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
 	}
@@ -1769,8 +2304,10 @@ func TestSilencer(t *testing.T) {
 
 	// Update silence to start in the future.
 	err = ss.Set(t.Context(), &pb.Silence{
-		Id:       sil2.Id,
-		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		Id: sil2.Id,
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		}},
 		StartsAt: timestamppb.New(now.Add(time.Hour)),
 		EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
 	})
@@ -1786,7 +2323,9 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
 
 	err = ss.Set(t.Context(), &pb.Silence{
-		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
+		}},
 		StartsAt: timestamppb.New(now.Add(time.Hour)),
 		EndsAt:   timestamppb.New(now.Add(3 * time.Hour)),
 	})
@@ -2005,9 +2544,11 @@ func TestValidateSilence(t *testing.T) {
 		{
 			s: &pb.Silence{
 				Id: "some_id",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "a", Pattern: "b"},
+					},
+				}},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
@@ -2016,13 +2557,15 @@ func TestValidateSilence(t *testing.T) {
 		},
 		{
 			s: &pb.Silence{
-				Id:        "some_id",
-				Matchers:  []*pb.Matcher{},
+				Id: "some_id",
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{},
+				}},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
 			},
-			err: "at least one matcher required",
+			err: "matcher set 0 is empty",
 		},
 		{
 			s: &pb.Silence{
@@ -2053,9 +2596,11 @@ func TestValidateSilence(t *testing.T) {
 		{
 			s: &pb.Silence{
 				Id: "some_id",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "a", Pattern: "b"},
+					},
+				}},
 				StartsAt:  timestamppb.New(now),
 				EndsAt:    timestamppb.New(now.Add(-time.Second)),
 				UpdatedAt: validTimestamp,
@@ -2065,9 +2610,11 @@ func TestValidateSilence(t *testing.T) {
 		{
 			s: &pb.Silence{
 				Id: "some_id",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "a", Pattern: "b"},
+					},
+				}},
 				StartsAt:  zeroTimestamp,
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
@@ -2077,9 +2624,11 @@ func TestValidateSilence(t *testing.T) {
 		{
 			s: &pb.Silence{
 				Id: "some_id",
-				Matchers: []*pb.Matcher{
-					{Name: "a", Pattern: "b"},
-				},
+				MatcherSets: []*pb.MatcherSet{{
+					Matchers: []*pb.Matcher{
+						{Name: "a", Pattern: "b"},
+					},
+				}},
 				StartsAt:  validTimestamp,
 				EndsAt:    zeroTimestamp,
 				UpdatedAt: validTimestamp,
@@ -2152,10 +2701,12 @@ func TestStateCoding(t *testing.T) {
 				{
 					Silence: &pb.Silence{
 						Id: "3be80475-e219-4ee7-b6fc-4b65114e362f",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
-						},
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_REGEXP},
+							},
+						}},
 						StartsAt:  timestamppb.New(now),
 						EndsAt:    timestamppb.New(now),
 						UpdatedAt: timestamppb.New(now),
@@ -2165,9 +2716,11 @@ func TestStateCoding(t *testing.T) {
 				{
 					Silence: &pb.Silence{
 						Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
-						},
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
+							},
+						}},
 						StartsAt:  timestamppb.New(now.Add(time.Hour)),
 						EndsAt:    timestamppb.New(now.Add(2 * time.Hour)),
 						UpdatedAt: timestamppb.New(now),
@@ -2177,10 +2730,12 @@ func TestStateCoding(t *testing.T) {
 				{
 					Silence: &pb.Silence{
 						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
-						Matchers: []*pb.Matcher{
-							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
-							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
-						},
+						MatcherSets: []*pb.MatcherSet{{
+							Matchers: []*pb.Matcher{
+								{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+								{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+							},
+						}},
 						StartsAt:  timestamppb.New(now),
 						EndsAt:    timestamppb.New(now),
 						UpdatedAt: timestamppb.New(now),

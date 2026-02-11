@@ -60,10 +60,10 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherIndex map[string]labels.Matchers
+type matcherIndex map[string]labels.MatcherSet
 
-// get retrieves the matchers for a given silence.
-func (c matcherIndex) get(s *pb.Silence) (labels.Matchers, error) {
+// get retrieves the matcher set for a given silence.
+func (c matcherIndex) get(s *pb.Silence) (labels.MatcherSet, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
@@ -71,34 +71,40 @@ func (c matcherIndex) get(s *pb.Silence) (labels.Matchers, error) {
 }
 
 // add compiles a silences' matchers and adds them to the cache.
-// It returns the compiled matchers.
-func (c matcherIndex) add(s *pb.Silence) (labels.Matchers, error) {
-	ms := make(labels.Matchers, len(s.Matchers))
+// It returns the compiled matcher set.
+func (c matcherIndex) add(s *pb.Silence) (labels.MatcherSet, error) {
+	matcherSet := make(labels.MatcherSet, 0, len(s.MatcherSets))
 
-	for i, m := range s.Matchers {
-		var mt labels.MatchType
-		switch m.Type {
-		case pb.Matcher_EQUAL:
-			mt = labels.MatchEqual
-		case pb.Matcher_NOT_EQUAL:
-			mt = labels.MatchNotEqual
-		case pb.Matcher_REGEXP:
-			mt = labels.MatchRegexp
-		case pb.Matcher_NOT_REGEXP:
-			mt = labels.MatchNotRegexp
-		default:
-			return nil, fmt.Errorf("unknown matcher type %q", m.Type)
-		}
-		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
-		if err != nil {
-			return nil, err
+	for _, ms := range s.MatcherSets {
+		matchers := make(labels.Matchers, len(ms.Matchers))
+
+		for i, m := range ms.Matchers {
+			var mt labels.MatchType
+			switch m.Type {
+			case pb.Matcher_EQUAL:
+				mt = labels.MatchEqual
+			case pb.Matcher_NOT_EQUAL:
+				mt = labels.MatchNotEqual
+			case pb.Matcher_REGEXP:
+				mt = labels.MatchRegexp
+			case pb.Matcher_NOT_REGEXP:
+				mt = labels.MatchNotRegexp
+			default:
+				return nil, fmt.Errorf("unknown matcher type %q", m.Type)
+			}
+			matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
+			if err != nil {
+				return nil, err
+			}
+
+			matchers[i] = matcher
 		}
 
-		ms[i] = matcher
+		matcherSet = append(matcherSet, &matchers)
 	}
 
-	c[s.Id] = ms
-	return ms, nil
+	c[s.Id] = matcherSet
+	return matcherSet, nil
 }
 
 // silenceVersion associates a silence with the Silences version when it was created.
@@ -691,20 +697,30 @@ func matchesEmpty(m *pb.Matcher) bool {
 }
 
 func validateSilence(s *pb.Silence) error {
-	if len(s.Matchers) == 0 {
-		return errors.New("at least one matcher required")
-	}
-	allMatchEmpty := true
+	// Convert old-style Matchers to MatcherSets for backward compatibility
+	postprocessUnmarshalledSilence(s)
 
-	for i, m := range s.Matchers {
-		if err := validateMatcher(m); err != nil {
-			return fmt.Errorf("invalid label matcher %d: %w", i, err)
+	if len(s.MatcherSets) == 0 {
+		return errors.New("at least one matcher set required")
+	}
+
+	for setIdx, ms := range s.MatcherSets {
+		if len(ms.Matchers) == 0 {
+			return fmt.Errorf("matcher set %d is empty", setIdx)
 		}
-		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
+		allMatchEmpty := true
+
+		for i, m := range ms.Matchers {
+			if err := validateMatcher(m); err != nil {
+				return fmt.Errorf("invalid label matcher %d in set %d: %w", i, setIdx, err)
+			}
+			allMatchEmpty = allMatchEmpty && matchesEmpty(m)
+		}
+		if allMatchEmpty {
+			return fmt.Errorf("matcher set %d: at least one matcher must not match the empty string", setIdx)
+		}
 	}
-	if allMatchEmpty {
-		return errors.New("at least one matcher must not match the empty string")
-	}
+
 	if s.StartsAt == nil || s.StartsAt.AsTime().IsZero() {
 		return errors.New("invalid zero start timestamp")
 	}
@@ -842,8 +858,7 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 // canUpdate returns true if silence a can be updated to b without
 // affecting the historic view of silencing.
 func canUpdate(a, b *pb.Silence, now time.Time) bool {
-	// reflect.DeepEqual()
-	if !slices.EqualFunc(a.Matchers, b.Matchers, func(x, y *pb.Matcher) bool {
+	if !slices.EqualFunc(a.MatcherSets, b.MatcherSets, func(x, y *pb.MatcherSet) bool {
 		return proto.Equal(x, y)
 	}) {
 		return false
@@ -1280,6 +1295,7 @@ func decodeState(r io.Reader) (state, error) {
 			if s.Silence == nil {
 				return nil, ErrInvalidState
 			}
+			postprocessUnmarshalledSilence(s.Silence)
 			st[s.Silence.Id] = &s
 			continue
 		}
@@ -1291,9 +1307,36 @@ func decodeState(r io.Reader) (state, error) {
 	return st, nil
 }
 
+// prepareSilenceForMarshalling prepares a silence for marshalling by copying
+// the first matcher set to the matchers field for backward compatibility with
+// older alertmanager versions.
+func prepareSilenceForMarshalling(sil *pb.Silence) {
+	if len(sil.MatcherSets) > 0 {
+		sil.Matchers = sil.MatcherSets[0].Matchers
+	}
+}
+
+// postprocessUnmarshalledSilence processes a silence after unmarshalling by
+// moving matchers to MatcherSets if needed for backward compatibility.
+func postprocessUnmarshalledSilence(sil *pb.Silence) {
+	// maintain compatibility with older versions of Alertmanager
+	// if the silence was serialized with the old format we need to move the matchers from sil.Matchers
+	// to sil.MatcherSets
+	if len(sil.MatcherSets) == 0 && len(sil.Matchers) > 0 {
+		sil.MatcherSets = append(sil.MatcherSets, &pb.MatcherSet{Matchers: sil.Matchers})
+	}
+	sil.Matchers = nil
+}
+
 func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
+	// Make a copy to avoid modifying the original silence
+	meshCopy := &pb.MeshSilence{
+		Silence:   cloneSilence(e.Silence),
+		ExpiresAt: e.ExpiresAt,
+	}
+	prepareSilenceForMarshalling(meshCopy.Silence)
 	var buf bytes.Buffer
-	if _, err := protodelim.MarshalTo(&buf, e); err != nil {
+	if _, err := protodelim.MarshalTo(&buf, meshCopy); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
