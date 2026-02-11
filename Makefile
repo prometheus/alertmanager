@@ -48,12 +48,16 @@ ui-lint:
 	cd $(MANTINE_PATH) && npm run lint
 
 .PHONY: assets
-assets: ui-install ui-build asset/assets_vfsdata.go
+assets: ui-install ui-build
 
 .PHONY: assets-compress
 assets-compress: assets
 	- @echo '>> compressing assets'
 	- scripts/compress_assets.sh
+
+# This target is used in CI to generate the Go file with the embedded elm UI assets.
+.PHONY: elm-assets
+elm-assets: asset/assets_vfsdata.go
 
 .PHONY: assets-tarball
 assets-tarball: ui/app/script.js ui/app/index.html

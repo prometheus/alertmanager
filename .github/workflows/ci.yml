@@ -4,7 +4,7 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
   workflow_call:
 jobs:
-  test_frontend:
+  test_elm_frontend:
     name: Test alertmanager frontend
     runs-on: ubuntu-latest
     steps:
@@ -12,7 +12,7 @@ jobs:
       - run: make clean
       - run: make all
         working-directory: ./ui/app
-      - run: make assets
+      - run: make elm-assets
       - run: make apiv2
       - run: git diff --exit-code
 
