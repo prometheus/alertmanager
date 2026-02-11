@@ -336,7 +336,8 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		// store.
 
 		// Estimate capacity based on total groups and number of routes.
-		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+int64(d.concurrency))
+		// We overallocate a bit to avoid copying in most cases.
+		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+32)
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 			snapshot = append(snapshot, el.(*aggrGroup))
 			return true
