@@ -266,11 +266,12 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alert *types.Alert) {
 
 func (d *Dispatcher) doMaintenance() {
 	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].groups.Range(func(_, ag any) bool {
-			if ag.(*aggrGroup).destroyed() {
-				ag.(*aggrGroup).stop()
-				d.marker.DeleteByGroupKey(ag.(*aggrGroup).routeID, ag.(*aggrGroup).GroupKey())
-				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.(*aggrGroup).fingerprint(), ag)
+		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+			ag := el.(*aggrGroup)
+			if ag.destroyed() {
+				ag.stop()
+				d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
+				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
 				if deleted {
 					d.routeGroupsSlice[i].groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
