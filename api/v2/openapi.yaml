@@ -89,9 +89,9 @@ paths:
         '400':
           $ref: '#/responses/BadRequest'
         '404':
-          description: A silence with the specified ID was not found
-          schema:
-            type: string
+          $ref: '#/responses/NotFound'
+        '500':
+          $ref: '#/responses/InternalServerError'
   /silence/{silenceID}:
     parameters:
       - in: path
@@ -111,7 +111,7 @@ paths:
           schema:
             $ref: '#/definitions/gettableSilence'
         '404':
-          description: A silence with the specified ID was not found
+          $ref: '#/responses/NotFound'
         '500':
           $ref: '#/responses/InternalServerError'
     delete:
@@ -130,7 +130,7 @@ paths:
         '200':
           description: Delete silence response
         '404':
-          description: A silence with the specified ID was not found
+          $ref: '#/responses/NotFound'
         '500':
           $ref: '#/responses/InternalServerError'
   /alerts:
@@ -255,11 +255,48 @@ responses:
   BadRequest:
     description: Bad request
     schema:
-      type: string
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["error"]
+        errorType:
+          type: string
+        error:
+          type: string
+      required:
+        - status
+        - error
   InternalServerError:
     description: Internal server error
     schema:
-      type: string
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["error"]
+        errorType:
+          type: string
+        error:
+          type: string
+      required:
+        - status
+        - error
+  NotFound:
+    description: Resource not found
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["error"]
+        errorType:
+          type: string
+        error:
+          type: string
+      required:
+        - status
+        - error
 
 
 definitions:

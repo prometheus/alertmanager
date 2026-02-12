@@ -54,11 +54,16 @@ func (o *DeleteSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime
 const DeleteSilenceNotFoundCode int = 404
 
 /*
-DeleteSilenceNotFound A silence with the specified ID was not found
+DeleteSilenceNotFound Resource not found
 
 swagger:response deleteSilenceNotFound
 */
 type DeleteSilenceNotFound struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *DeleteSilenceNotFoundBody `json:"body,omitempty"`
 }
 
 // NewDeleteSilenceNotFound creates DeleteSilenceNotFound with default headers values
@@ -67,12 +72,27 @@ func NewDeleteSilenceNotFound() *DeleteSilenceNotFound {
 	return &DeleteSilenceNotFound{}
 }
 
+// WithPayload adds the payload to the delete silence not found response
+func (o *DeleteSilenceNotFound) WithPayload(payload *DeleteSilenceNotFoundBody) *DeleteSilenceNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the delete silence not found response
+func (o *DeleteSilenceNotFound) SetPayload(payload *DeleteSilenceNotFoundBody) {
+	o.Payload = payload
+}
+
 // WriteResponse to the client
 func (o *DeleteSilenceNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
-
 	rw.WriteHeader(404)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
 }
 
 // DeleteSilenceInternalServerErrorCode is the HTTP code returned for type DeleteSilenceInternalServerError
@@ -88,7 +108,7 @@ type DeleteSilenceInternalServerError struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *DeleteSilenceInternalServerErrorBody `json:"body,omitempty"`
 }
 
 // NewDeleteSilenceInternalServerError creates DeleteSilenceInternalServerError with default headers values
@@ -98,13 +118,13 @@ func NewDeleteSilenceInternalServerError() *DeleteSilenceInternalServerError {
 }
 
 // WithPayload adds the payload to the delete silence internal server error response
-func (o *DeleteSilenceInternalServerError) WithPayload(payload string) *DeleteSilenceInternalServerError {
+func (o *DeleteSilenceInternalServerError) WithPayload(payload *DeleteSilenceInternalServerErrorBody) *DeleteSilenceInternalServerError {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the delete silence internal server error response
-func (o *DeleteSilenceInternalServerError) SetPayload(payload string) {
+func (o *DeleteSilenceInternalServerError) SetPayload(payload *DeleteSilenceInternalServerErrorBody) {
 	o.Payload = payload
 }
 
@@ -112,8 +132,10 @@ func (o *DeleteSilenceInternalServerError) SetPayload(payload string) {
 func (o *DeleteSilenceInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(500)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }

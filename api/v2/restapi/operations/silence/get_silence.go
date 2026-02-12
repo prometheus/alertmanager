@@ -20,9 +20,15 @@ package silence
 // Editing this file might prove futile when you re-run the generate command
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // GetSilenceHandlerFunc turns a function with the right signature into a get silence handler
@@ -67,4 +73,220 @@ func (o *GetSilence) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	res := o.Handler.Handle(Params) // actually handle the request
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
+}
+
+// GetSilenceInternalServerErrorBody get silence internal server error body
+//
+// swagger:model GetSilenceInternalServerErrorBody
+type GetSilenceInternalServerErrorBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this get silence internal server error body
+func (o *GetSilenceInternalServerErrorBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *GetSilenceInternalServerErrorBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("getSilenceInternalServerError"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var getSilenceInternalServerErrorBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		getSilenceInternalServerErrorBodyTypeStatusPropEnum = append(getSilenceInternalServerErrorBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// GetSilenceInternalServerErrorBodyStatusError captures enum value "error"
+	GetSilenceInternalServerErrorBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *GetSilenceInternalServerErrorBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, getSilenceInternalServerErrorBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *GetSilenceInternalServerErrorBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("getSilenceInternalServerError"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("getSilenceInternalServerError"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this get silence internal server error body based on context it is used
+func (o *GetSilenceInternalServerErrorBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *GetSilenceInternalServerErrorBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *GetSilenceInternalServerErrorBody) UnmarshalBinary(b []byte) error {
+	var res GetSilenceInternalServerErrorBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+// GetSilenceNotFoundBody get silence not found body
+//
+// swagger:model GetSilenceNotFoundBody
+type GetSilenceNotFoundBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this get silence not found body
+func (o *GetSilenceNotFoundBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *GetSilenceNotFoundBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("getSilenceNotFound"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var getSilenceNotFoundBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		getSilenceNotFoundBodyTypeStatusPropEnum = append(getSilenceNotFoundBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// GetSilenceNotFoundBodyStatusError captures enum value "error"
+	GetSilenceNotFoundBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *GetSilenceNotFoundBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, getSilenceNotFoundBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *GetSilenceNotFoundBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("getSilenceNotFound"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("getSilenceNotFound"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this get silence not found body based on context it is used
+func (o *GetSilenceNotFoundBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *GetSilenceNotFoundBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *GetSilenceNotFoundBody) UnmarshalBinary(b []byte) error {
+	var res GetSilenceNotFoundBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
 }

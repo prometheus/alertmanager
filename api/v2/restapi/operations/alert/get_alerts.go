@@ -20,9 +20,15 @@ package alert
 // Editing this file might prove futile when you re-run the generate command
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // GetAlertsHandlerFunc turns a function with the right signature into a get alerts handler
@@ -67,4 +73,220 @@ func (o *GetAlerts) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	res := o.Handler.Handle(Params) // actually handle the request
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
+}
+
+// GetAlertsBadRequestBody get alerts bad request body
+//
+// swagger:model GetAlertsBadRequestBody
+type GetAlertsBadRequestBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this get alerts bad request body
+func (o *GetAlertsBadRequestBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *GetAlertsBadRequestBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("getAlertsBadRequest"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var getAlertsBadRequestBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		getAlertsBadRequestBodyTypeStatusPropEnum = append(getAlertsBadRequestBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// GetAlertsBadRequestBodyStatusError captures enum value "error"
+	GetAlertsBadRequestBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *GetAlertsBadRequestBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, getAlertsBadRequestBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *GetAlertsBadRequestBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("getAlertsBadRequest"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("getAlertsBadRequest"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this get alerts bad request body based on context it is used
+func (o *GetAlertsBadRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *GetAlertsBadRequestBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *GetAlertsBadRequestBody) UnmarshalBinary(b []byte) error {
+	var res GetAlertsBadRequestBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+// GetAlertsInternalServerErrorBody get alerts internal server error body
+//
+// swagger:model GetAlertsInternalServerErrorBody
+type GetAlertsInternalServerErrorBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this get alerts internal server error body
+func (o *GetAlertsInternalServerErrorBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *GetAlertsInternalServerErrorBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("getAlertsInternalServerError"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var getAlertsInternalServerErrorBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		getAlertsInternalServerErrorBodyTypeStatusPropEnum = append(getAlertsInternalServerErrorBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// GetAlertsInternalServerErrorBodyStatusError captures enum value "error"
+	GetAlertsInternalServerErrorBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *GetAlertsInternalServerErrorBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, getAlertsInternalServerErrorBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *GetAlertsInternalServerErrorBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("getAlertsInternalServerError"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("getAlertsInternalServerError"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this get alerts internal server error body based on context it is used
+func (o *GetAlertsInternalServerErrorBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *GetAlertsInternalServerErrorBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *GetAlertsInternalServerErrorBody) UnmarshalBinary(b []byte) error {
+	var res GetAlertsInternalServerErrorBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
 }

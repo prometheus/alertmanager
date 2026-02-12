@@ -83,7 +83,7 @@ type PostSilencesBadRequest struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *PostSilencesBadRequestBody `json:"body,omitempty"`
 }
 
 // NewPostSilencesBadRequest creates PostSilencesBadRequest with default headers values
@@ -93,13 +93,13 @@ func NewPostSilencesBadRequest() *PostSilencesBadRequest {
 }
 
 // WithPayload adds the payload to the post silences bad request response
-func (o *PostSilencesBadRequest) WithPayload(payload string) *PostSilencesBadRequest {
+func (o *PostSilencesBadRequest) WithPayload(payload *PostSilencesBadRequestBody) *PostSilencesBadRequest {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the post silences bad request response
-func (o *PostSilencesBadRequest) SetPayload(payload string) {
+func (o *PostSilencesBadRequest) SetPayload(payload *PostSilencesBadRequestBody) {
 	o.Payload = payload
 }
 
@@ -107,9 +107,11 @@ func (o *PostSilencesBadRequest) SetPayload(payload string) {
 func (o *PostSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(400)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
 
@@ -117,7 +119,7 @@ func (o *PostSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer 
 const PostSilencesNotFoundCode int = 404
 
 /*
-PostSilencesNotFound A silence with the specified ID was not found
+PostSilencesNotFound Resource not found
 
 swagger:response postSilencesNotFound
 */
@@ -126,7 +128,7 @@ type PostSilencesNotFound struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *PostSilencesNotFoundBody `json:"body,omitempty"`
 }
 
 // NewPostSilencesNotFound creates PostSilencesNotFound with default headers values
@@ -136,13 +138,13 @@ func NewPostSilencesNotFound() *PostSilencesNotFound {
 }
 
 // WithPayload adds the payload to the post silences not found response
-func (o *PostSilencesNotFound) WithPayload(payload string) *PostSilencesNotFound {
+func (o *PostSilencesNotFound) WithPayload(payload *PostSilencesNotFoundBody) *PostSilencesNotFound {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the post silences not found response
-func (o *PostSilencesNotFound) SetPayload(payload string) {
+func (o *PostSilencesNotFound) SetPayload(payload *PostSilencesNotFoundBody) {
 	o.Payload = payload
 }
 
@@ -150,8 +152,55 @@ func (o *PostSilencesNotFound) SetPayload(payload string) {
 func (o *PostSilencesNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(404)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
+// PostSilencesInternalServerErrorCode is the HTTP code returned for type PostSilencesInternalServerError
+const PostSilencesInternalServerErrorCode int = 500
+
+/*
+PostSilencesInternalServerError Internal server error
+
+swagger:response postSilencesInternalServerError
+*/
+type PostSilencesInternalServerError struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *PostSilencesInternalServerErrorBody `json:"body,omitempty"`
+}
+
+// NewPostSilencesInternalServerError creates PostSilencesInternalServerError with default headers values
+func NewPostSilencesInternalServerError() *PostSilencesInternalServerError {
+
+	return &PostSilencesInternalServerError{}
+}
+
+// WithPayload adds the payload to the post silences internal server error response
+func (o *PostSilencesInternalServerError) WithPayload(payload *PostSilencesInternalServerErrorBody) *PostSilencesInternalServerError {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the post silences internal server error response
+func (o *PostSilencesInternalServerError) SetPayload(payload *PostSilencesInternalServerErrorBody) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *PostSilencesInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(500)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }

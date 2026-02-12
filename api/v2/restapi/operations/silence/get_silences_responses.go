@@ -88,7 +88,7 @@ type GetSilencesBadRequest struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *GetSilencesBadRequestBody `json:"body,omitempty"`
 }
 
 // NewGetSilencesBadRequest creates GetSilencesBadRequest with default headers values
@@ -98,13 +98,13 @@ func NewGetSilencesBadRequest() *GetSilencesBadRequest {
 }
 
 // WithPayload adds the payload to the get silences bad request response
-func (o *GetSilencesBadRequest) WithPayload(payload string) *GetSilencesBadRequest {
+func (o *GetSilencesBadRequest) WithPayload(payload *GetSilencesBadRequestBody) *GetSilencesBadRequest {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get silences bad request response
-func (o *GetSilencesBadRequest) SetPayload(payload string) {
+func (o *GetSilencesBadRequest) SetPayload(payload *GetSilencesBadRequestBody) {
 	o.Payload = payload
 }
 
@@ -112,9 +112,11 @@ func (o *GetSilencesBadRequest) SetPayload(payload string) {
 func (o *GetSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(400)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
 
@@ -131,7 +133,7 @@ type GetSilencesInternalServerError struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *GetSilencesInternalServerErrorBody `json:"body,omitempty"`
 }
 
 // NewGetSilencesInternalServerError creates GetSilencesInternalServerError with default headers values
@@ -141,13 +143,13 @@ func NewGetSilencesInternalServerError() *GetSilencesInternalServerError {
 }
 
 // WithPayload adds the payload to the get silences internal server error response
-func (o *GetSilencesInternalServerError) WithPayload(payload string) *GetSilencesInternalServerError {
+func (o *GetSilencesInternalServerError) WithPayload(payload *GetSilencesInternalServerErrorBody) *GetSilencesInternalServerError {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get silences internal server error response
-func (o *GetSilencesInternalServerError) SetPayload(payload string) {
+func (o *GetSilencesInternalServerError) SetPayload(payload *GetSilencesInternalServerErrorBody) {
 	o.Payload = payload
 }
 
@@ -155,8 +157,10 @@ func (o *GetSilencesInternalServerError) SetPayload(payload string) {
 func (o *GetSilencesInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(500)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
