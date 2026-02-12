@@ -192,6 +192,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var threadTs string
 	var channelId string
+	updatableMessage := n.conf.UpdateMessage
 
 	store, ok := notify.NflogStore(ctx)
 	if !ok {
@@ -200,6 +201,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		threadTs, _ = store.GetStr("threadTs")
 		channelId, _ = store.GetStr("channelId")
 		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId")
+		if threadTs == "" || channelId == "" {
+			updatableMessage = false
+		}
 	}
 
 	var u string
@@ -231,7 +235,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	// If a notification for this alert group has already been sent and `update_message` config is set
 	// edit API endpoint and payload to update notification instead of sending a new one.
-	if n.conf.UpdateMessage && threadTs != "" && channelId != "" {
+	if updatableMessage {
 		u = strings.Replace(u, "chat.postMessage", "chat.update", 1)
 		req.Timestamp = threadTs
 		req.Channel = channelId
