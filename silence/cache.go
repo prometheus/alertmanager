@@ -43,21 +43,21 @@ func (e *cacheEntry) count() int {
 // result is based on.
 type cache struct {
 	entries map[model.Fingerprint]*cacheEntry
-	mu      sync.RWMutex
+	mtx     sync.RWMutex
 }
 
 // delete removes the cacheEntry for the given fingerprint.
 func (c *cache) delete(fp model.Fingerprint) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	delete(c.entries, fp)
 }
 
 // get returns the cacheEntry for the given fingerprint.
 // The returned entry is not a copy, so it should not be modified.
 func (c *cache) get(fp model.Fingerprint) *cacheEntry {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 	if e, found := c.entries[fp]; found {
 		return e
 	}
@@ -66,7 +66,7 @@ func (c *cache) get(fp model.Fingerprint) *cacheEntry {
 
 // set sets the cacheEntry for the given fingerprint.
 func (c *cache) set(fp model.Fingerprint, entry *cacheEntry) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	c.entries[fp] = entry
 }
