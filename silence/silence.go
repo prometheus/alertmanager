@@ -198,7 +198,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		// there were old silences for this lset, we need to find them to check if they
 		// are still active/pending, or have ended.
 		var err error
-		allIDs := append(append(make([]string, 0, cachedEntry.count()), cachedEntry.activeIDs...), cachedEntry.pendingIDs...)
+		allIDs := append(make([]string, 0, cachedEntry.count()), cachedEntry.silenceIDs...)
 		oldSils, _, err = s.silences.Query(
 			ctx,
 			QIDs(allIDs...),
@@ -242,7 +242,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	totalSilences := len(oldSils) + len(newSils)
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
-		s.cache.set(fp, newCacheEntry(nil, nil, newVersion))
+		s.cache.set(fp, newCacheEntry(newVersion))
 		s.marker.SetActiveOrSilenced(fp, nil)
 		span.AddEvent("No silences to match", trace.WithAttributes(
 			attribute.Int("alerting.silences.count", totalSilences),
@@ -255,7 +255,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	// result. So let's do it in any case. Note that we cannot reuse the
 	// current ID slices for concurrency reasons.
 	activeIDs := make([]string, 0, totalSilences)
-	pendingIDs := make([]string, 0, totalSilences)
+	allIDs := make([]string, 0, totalSilences)
 	now := s.silences.nowUTC()
 
 	// Categorize old and new silences by their current state
@@ -263,9 +263,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		for _, sil := range sils {
 			switch getState(sil, now) {
 			case types.SilenceStatePending:
-				pendingIDs = append(pendingIDs, sil.Id)
+				allIDs = append(allIDs, sil.Id)
 			case types.SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
+				allIDs = append(allIDs, sil.Id)
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -274,20 +275,28 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	s.logger.Debug(
 		"determined current silences state",
 		"now", now,
-		"total", totalSilences,
+		"total", len(allIDs),
 		"active", len(activeIDs),
-		"pending", len(pendingIDs),
+		"pending", len(allIDs)-len(activeIDs),
 	)
+	// TODO: remove this sort once the marker is removed.
 	sort.Strings(activeIDs)
-	sort.Strings(pendingIDs)
 
-	s.cache.set(fp, newCacheEntry(activeIDs, pendingIDs, newVersion))
+	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
 	s.marker.SetActiveOrSilenced(fp, activeIDs)
-	mutes := len(activeIDs) > 0
-	span.AddEvent("Silencer mutes alert", trace.WithAttributes(
+
+	t := trace.WithAttributes(
 		attribute.Int("alerting.silences.active.count", len(activeIDs)),
-		attribute.Int("alerting.silences.pending.count", len(pendingIDs)),
-	))
+		attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
+		attribute.Int("alerting.silences.total.count", len(allIDs)),
+	)
+
+	mutes := len(activeIDs) > 0
+	if mutes {
+		span.AddEvent("Silencer mutes alert", t)
+	} else {
+		span.AddEvent("Silencer does not mute alert", t)
+	}
 	return mutes
 }
 

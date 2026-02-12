@@ -32,28 +32,18 @@ func TestCacheEntryCount(t *testing.T) {
 		expected int
 	}{
 		{
-			name:     "zero for nil slices",
-			entry:    newCacheEntry(nil, nil, 0),
+			name:     "zero for no silence IDs",
+			entry:    newCacheEntry(1),
 			expected: 0,
 		},
 		{
-			name:     "zero for empty slices",
-			entry:    newCacheEntry([]string{}, []string{}, 0),
-			expected: 0,
-		},
-		{
-			name:     "active only",
-			entry:    newCacheEntry([]string{"a", "b"}, nil, 1),
-			expected: 2,
-		},
-		{
-			name:     "pending only",
-			entry:    newCacheEntry(nil, []string{"a"}, 1),
+			name:     "one entry",
+			entry:    newCacheEntry(2, "a"),
 			expected: 1,
 		},
 		{
-			name:     "active and pending",
-			entry:    newCacheEntry([]string{"a"}, []string{"b", "c"}, 1),
+			name:     "multiple entries",
+			entry:    newCacheEntry(3, "a", "b", "c"),
 			expected: 3,
 		},
 	}
@@ -65,12 +55,9 @@ func TestCacheEntryCount(t *testing.T) {
 }
 
 func TestNewCacheEntry(t *testing.T) {
-	active := []string{"s1", "s2"}
-	pending := []string{"s3"}
-	e := newCacheEntry(active, pending, 42)
+	e := newCacheEntry(42, "s1", "s2")
 
-	require.Equal(t, active, e.activeIDs)
-	require.Equal(t, pending, e.pendingIDs)
+	require.Equal(t, []string{"s1", "s2"}, e.silenceIDs)
 	require.Equal(t, 42, e.version)
 }
 
@@ -84,10 +71,9 @@ func TestCacheSetAndGet(t *testing.T) {
 	require.Equal(t, 0, entry.version)
 
 	// Set and retrieve.
-	c.set(fp, newCacheEntry([]string{"s1"}, []string{"s2"}, 5))
+	c.set(fp, newCacheEntry(5, "s1"))
 	entry = c.get(fp)
-	require.Equal(t, []string{"s1"}, entry.activeIDs)
-	require.Equal(t, []string{"s2"}, entry.pendingIDs)
+	require.Equal(t, []string{"s1"}, entry.silenceIDs)
 	require.Equal(t, 5, entry.version)
 }
 
@@ -95,15 +81,15 @@ func TestCacheGetReturnsCopy(t *testing.T) {
 	c := newTestCache()
 	fp := model.Fingerprint(1)
 
-	c.set(fp, newCacheEntry([]string{"s1"}, nil, 1))
+	c.set(fp, newCacheEntry(1, "s1"))
 
 	// Mutating the returned entry should not affect the cache.
 	entry := c.get(fp)
-	entry.activeIDs = append(entry.activeIDs, "s2")
+	entry.silenceIDs = append(entry.silenceIDs, "s2")
 	entry.version = 99
 
 	original := c.get(fp)
-	require.Equal(t, []string{"s1"}, original.activeIDs)
+	require.Equal(t, []string{"s1"}, original.silenceIDs)
 	require.Equal(t, 1, original.version)
 }
 
@@ -111,12 +97,11 @@ func TestCacheOverwrite(t *testing.T) {
 	c := newTestCache()
 	fp := model.Fingerprint(1)
 
-	c.set(fp, newCacheEntry([]string{"s1"}, nil, 1))
-	c.set(fp, newCacheEntry([]string{"s2", "s3"}, []string{"s4"}, 2))
+	c.set(fp, newCacheEntry(1, "s1"))
+	c.set(fp, newCacheEntry(2, "s2", "s3"))
 
 	entry := c.get(fp)
-	require.Equal(t, []string{"s2", "s3"}, entry.activeIDs)
-	require.Equal(t, []string{"s4"}, entry.pendingIDs)
+	require.Equal(t, []string{"s2", "s3"}, entry.silenceIDs)
 	require.Equal(t, 2, entry.version)
 }
 
@@ -124,7 +109,7 @@ func TestCacheDelete(t *testing.T) {
 	c := newTestCache()
 	fp := model.Fingerprint(1)
 
-	c.set(fp, newCacheEntry([]string{"s1"}, nil, 1))
+	c.set(fp, newCacheEntry(1, "s1"))
 	before := c.get(fp)
 	require.Positive(t, before.count())
 
@@ -149,8 +134,8 @@ func TestCacheDeleteIsolation(t *testing.T) {
 	fp1 := model.Fingerprint(1)
 	fp2 := model.Fingerprint(2)
 
-	c.set(fp1, newCacheEntry([]string{"s1"}, nil, 1))
-	c.set(fp2, newCacheEntry([]string{"s2"}, nil, 2))
+	c.set(fp1, newCacheEntry(1, "s1"))
+	c.set(fp2, newCacheEntry(2, "s2"))
 
 	c.delete(fp1)
 
@@ -159,7 +144,7 @@ func TestCacheDeleteIsolation(t *testing.T) {
 	require.Equal(t, 0, entry1.count())
 	// fp2 should be untouched.
 	entry2 := c.get(fp2)
-	require.Equal(t, []string{"s2"}, entry2.activeIDs)
+	require.Equal(t, []string{"s2"}, entry2.silenceIDs)
 }
 
 func TestCacheMultipleFingerprints(t *testing.T) {
@@ -167,7 +152,7 @@ func TestCacheMultipleFingerprints(t *testing.T) {
 
 	for i := range 100 {
 		fp := model.Fingerprint(i)
-		c.set(fp, newCacheEntry([]string{"s"}, nil, i))
+		c.set(fp, newCacheEntry(i, "s"))
 	}
 
 	for i := range 100 {
@@ -181,7 +166,7 @@ func TestCacheMultipleFingerprints(t *testing.T) {
 func TestCacheConcurrentAccess(t *testing.T) {
 	c := newTestCache()
 	fp := model.Fingerprint(1)
-	c.set(fp, newCacheEntry([]string{"initial"}, nil, 0))
+	c.set(fp, newCacheEntry(0, "initial"))
 
 	var wg sync.WaitGroup
 	const goroutines = 50
@@ -203,7 +188,7 @@ func TestCacheConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := range 100 {
-				c.set(fp, newCacheEntry([]string{"w"}, nil, i*100+j))
+				c.set(fp, newCacheEntry(i*100+j, "w"))
 			}
 		}()
 	}

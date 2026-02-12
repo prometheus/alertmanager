@@ -19,49 +19,54 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// cacheEntry stores the IDs of silences that match an alert and the version of the silences state the
+// result is based on.
 type cacheEntry struct {
-	activeIDs  []string
-	pendingIDs []string
+	silenceIDs []string
 	version    int
 }
 
-func newCacheEntry(activeIDs, pendingIDs []string, version int) *cacheEntry {
+// newCacheEntry creates a new cacheEntry.
+func newCacheEntry(version int, silenceIDs ...string) *cacheEntry {
 	return &cacheEntry{
-		activeIDs:  activeIDs,
-		pendingIDs: pendingIDs,
+		silenceIDs: silenceIDs,
 		version:    version,
 	}
 }
 
+// count returns the number of silence IDs in the cacheEntry.
 func (e *cacheEntry) count() int {
-	return len(e.activeIDs) + len(e.pendingIDs)
+	return len(e.silenceIDs)
 }
 
+// cache stores the IDs of silences that match an alert and the version of the silences state the
+// result is based on.
 type cache struct {
 	entries map[model.Fingerprint]*cacheEntry
 	mu      sync.RWMutex
 }
 
+// delete removes the cacheEntry for the given fingerprint.
 func (c *cache) delete(fp model.Fingerprint) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.entries, fp)
 }
 
+// get returns the cacheEntry for the given fingerprint.
 func (c *cache) get(fp model.Fingerprint) cacheEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	entry := cacheEntry{}
 	if e, found := c.entries[fp]; found {
 		entry.version = e.version
-		entry.activeIDs = make([]string, len(e.activeIDs))
-		copy(entry.activeIDs, e.activeIDs)
-		entry.pendingIDs = make([]string, len(e.pendingIDs))
-		copy(entry.pendingIDs, e.pendingIDs)
+		entry.silenceIDs = make([]string, len(e.silenceIDs))
+		copy(entry.silenceIDs, e.silenceIDs)
 	}
 	return entry
 }
 
+// set sets the cacheEntry for the given fingerprint.
 func (c *cache) set(fp model.Fingerprint, entry *cacheEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
