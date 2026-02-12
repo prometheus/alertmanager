@@ -54,16 +54,14 @@ func (c *cache) delete(fp model.Fingerprint) {
 }
 
 // get returns the cacheEntry for the given fingerprint.
-func (c *cache) get(fp model.Fingerprint) cacheEntry {
+// The returned entry is not a copy, so it should not be modified.
+func (c *cache) get(fp model.Fingerprint) *cacheEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	entry := cacheEntry{}
 	if e, found := c.entries[fp]; found {
-		entry.version = e.version
-		entry.silenceIDs = make([]string, len(e.silenceIDs))
-		copy(entry.silenceIDs, e.silenceIDs)
+		return e
 	}
-	return entry
+	return &cacheEntry{}
 }
 
 // set sets the cacheEntry for the given fingerprint.

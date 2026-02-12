@@ -77,22 +77,6 @@ func TestCacheSetAndGet(t *testing.T) {
 	require.Equal(t, 5, entry.version)
 }
 
-func TestCacheGetReturnsCopy(t *testing.T) {
-	c := newTestCache()
-	fp := model.Fingerprint(1)
-
-	c.set(fp, newCacheEntry(1, "s1"))
-
-	// Mutating the returned entry should not affect the cache.
-	entry := c.get(fp)
-	entry.silenceIDs = append(entry.silenceIDs, "s2")
-	entry.version = 99
-
-	original := c.get(fp)
-	require.Equal(t, []string{"s1"}, original.silenceIDs)
-	require.Equal(t, 1, original.version)
-}
-
 func TestCacheOverwrite(t *testing.T) {
 	c := newTestCache()
 	fp := model.Fingerprint(1)
