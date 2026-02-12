@@ -197,14 +197,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if !ok {
 		logger.Error("cannot create NflogStore")
 	} else {
-		threadTs, ok = store.GetStr("threadTs")
-		if !ok {
-			logger.Debug("no associated threadTs")
-		}
-		channelId, ok = store.GetStr("channelId")
-		if !ok {
-			logger.Debug("no associated channelId")
-		}
+		threadTs, _ = store.GetStr("threadTs")
+		channelId, _ = store.GetStr("channelId")
 		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId")
 	}
 
