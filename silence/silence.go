@@ -309,8 +309,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 // The following methods implement mem.AlertStoreCallback.
 func (s *Silencer) PreStore(_ *types.Alert, _ bool) error { return nil }
 func (s *Silencer) PostStore(_ *types.Alert, _ bool)      {}
-func (s *Silencer) PostDelete(alert *types.Alert) {
-	s.cache.delete(alert.Fingerprint())
+func (s *Silencer) PostDelete(alerts ...*types.Alert) {
+	for _, a := range alerts {
+		s.cache.delete(a.Fingerprint())
+	}
 }
 
 // Silences holds a silence state that can be modified, queried, and snapshot.

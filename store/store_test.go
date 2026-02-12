@@ -164,7 +164,7 @@ func TestGC(t *testing.T) {
 		done        = make(chan struct{})
 		ctx, cancel = context.WithCancel(context.Background())
 	)
-	s.SetGCCallback(func(a []types.Alert) {
+	s.SetGCCallback(func(a []*types.Alert) {
 		n += len(a)
 		if n >= len(resolved) {
 			cancel()
