@@ -95,10 +95,10 @@ type attachment struct {
 
 // slackResponse represents the response from Slack API.
 type slackResponse struct {
-	OK      bool   `json:"ok"`
-	Error   string `json:"error,omitempty"`
-	Channel string `json:"channel,omitempty"`
-	TS      string `json:"ts,omitempty"`
+	OK        bool   `json:"ok"`
+	Error     string `json:"error,omitempty"`
+	Channel   string `json:"channel,omitempty"`
+	Timestamp string `json:"ts,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -293,10 +293,10 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 	}
 
 	// If store, TS and Channel are set, store the threadTS and channelId
-	if store != nil && data.TS != "" && data.Channel != "" {
-		store.SetStr("threadTs", data.TS)
+	if store != nil && data.Timestamp != "" && data.Channel != "" {
+		store.SetStr("threadTs", data.Timestamp)
 		store.SetStr("channelId", data.Channel)
-		n.logger.With("threadTs", data.TS).With("channelId", data.Channel).Debug("stored threadTs and channelId")
+		n.logger.With("threadTs", data.Timestamp).With("channelId", data.Channel).Debug("stored threadTs and channelId")
 	}
 	return false, nil
 }
