@@ -236,7 +236,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// If a notification for this alert group has already been sent and `update_message` config is set
 	// edit API endpoint and payload to update notification instead of sending a new one.
 	if updatableMessage {
-		u = strings.Replace(u, "chat.postMessage", "chat.update", 1)
+		u = "https://slack.com/api/chat.update"
 		req.Timestamp = threadTs
 		req.Channel = channelId
 		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("updating previously sent message")
