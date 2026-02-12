@@ -198,10 +198,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		// there were old silences for this lset, we need to find them to check if they
 		// are still active/pending, or have ended.
 		var err error
-		allIDs := append(make([]string, 0, cachedEntry.count()), cachedEntry.silenceIDs...)
 		oldSils, _, err = s.silences.Query(
 			ctx,
-			QIDs(allIDs...),
+			QIDs(cachedEntry.silenceIDs...),
 			QState(types.SilenceStateActive, types.SilenceStatePending),
 		)
 		if err != nil {
@@ -256,11 +255,18 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	// current ID slices for concurrency reasons.
 	activeIDs := make([]string, 0, totalSilences)
 	allIDs := make([]string, 0, totalSilences)
+	seen := make(map[string]struct{}, totalSilences)
 	now := s.silences.nowUTC()
 
-	// Categorize old and new silences by their current state
+	// Categorize old and new silences by their current state.
+	// oldSils and newSils may overlap if a cached silence was updated
+	// (receiving a new version), so we deduplicate by ID.
 	for _, sils := range [...][]*pb.Silence{oldSils, newSils} {
 		for _, sil := range sils {
+			if _, ok := seen[sil.Id]; ok {
+				continue
+			}
+			seen[sil.Id] = struct{}{}
 			switch getState(sil, now) {
 			case types.SilenceStatePending:
 				allIDs = append(allIDs, sil.Id)
@@ -1027,7 +1033,7 @@ func QState(states ...types.SilenceState) QueryParam {
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
 func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Silence, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.QueryOne",
+	_, span := tracer.Start(ctx, "silence.Silences.QueryOne",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -1044,7 +1050,7 @@ func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Sile
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silence, int, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.Query",
+	_, span := tracer.Start(ctx, "silence.Silences.Query",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -1074,7 +1080,7 @@ func (s *Silences) Version() int {
 
 // CountState counts silences by state.
 func (s *Silences) CountState(ctx context.Context, states ...types.SilenceState) (int, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.CountState",
+	_, span := tracer.Start(ctx, "silence.Silences.CountState",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
