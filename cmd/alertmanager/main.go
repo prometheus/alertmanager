@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -362,13 +363,13 @@ func run() int {
 	}
 	defer alerts.Close()
 
-	var disp *dispatch.Dispatcher
+	var disp atomic.Pointer[dispatch.Dispatcher]
 	defer func() {
-		disp.Stop()
+		disp.Load().Stop()
 	}()
 
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Groups(ctx, routeFilter, alertFilter)
+		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -418,7 +419,7 @@ func run() int {
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 
 	var (
-		inhibitor *inhibit.Inhibitor
+		inhibitor atomic.Pointer[inhibit.Inhibitor]
 		tmpl      *template.Template
 	)
 
@@ -474,10 +475,11 @@ func run() int {
 
 		intervener := timeinterval.NewIntervener(timeIntervals)
 
-		inhibitor.Stop()
-		disp.Stop()
+		inhibitor.Load().Stop()
+		disp.Load().Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		inhibitor.Store(newInhibitor)
 		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
@@ -491,7 +493,7 @@ func run() int {
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
-			inhibitor,
+			newInhibitor,
 			silencer,
 			intervener,
 			marker,
@@ -504,7 +506,7 @@ func run() int {
 		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
 		api.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-			inhibitor.Mutes(ctx, labels)
+			inhibitor.Load().Mutes(ctx, labels)
 			silencer.Mutes(ctx, labels)
 		})
 
@@ -548,17 +550,17 @@ func run() int {
 		// first, start the inhibitor so the inhibition cache can populate
 		// wait for this to load alerts before starting the dispatcher so
 		// we don't accidentially notify for an alert that will be inhibited
-		go inhibitor.Run()
-		inhibitor.WaitForLoading()
+		go newInhibitor.Run()
+		newInhibitor.WaitForLoading()
 
 		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
 		// This ensures that the API doesn't see the new dispatcher before it finishes populating
 		// the aggrGroups
 		go newDisp.Run(startTime.Add(*DispatchStartDelay))
 		newDisp.WaitForLoading()
-		disp = newDisp
+		disp.Store(newDisp)
 
-		err = tracingManager.ApplyConfig(conf)
+		err = tracingManager.ApplyConfig(conf.TracingConfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply tracing config: %w", err)
 		}

@@ -1,4 +1,4 @@
-// Copyright 2019 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,14 +11,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build tools
-// +build tools
+package config
 
-// Package tools tracks dependencies for tools that are required to generate the protobuf code.
-// See https://github.com/golang/go/issues/25922
-package tools
+import "testing"
 
-import (
-	_ "github.com/gogo/protobuf/protoc-gen-gogofast"
-	_ "golang.org/x/tools/cmd/goimports"
-)
+func FuzzLoad(f *testing.F) {
+	f.Add(`
+global:
+  resolve_timeout: 5m
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+`)
+
+	f.Fuzz(func(t *testing.T, configText string) {
+		_, _ = Load(configText)
+	})
+}

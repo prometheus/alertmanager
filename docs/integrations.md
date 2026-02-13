@@ -28,3 +28,4 @@ Alertmanager supports a number of notification integrations via the [configurati
 | [Webhook](https://en.wikipedia.org/wiki/Webhook) | [webhook_config](configuration.md#webhook_config) | [Webhook Integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) | - |
 | [WeChat](https://www.wechat.com/) | [wechat_config](configuration.md#wechat_config) | [WeChat Work Documentation](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html) | [WeChat Work API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html) |
 
+For notification mechanisms not natively supported by the Alertmanager, the webhook receiver allows for integration. An incomplete list can be found [here](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver).

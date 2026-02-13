@@ -123,7 +123,11 @@ global:
   [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ telegram_bot_token: <secret> ]
+  [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
+  [ mattermost_webhook_url: <secret> ]
+  [ mattermost_webhook_url_file: <string> ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -1010,6 +1014,16 @@ tls_config:
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
 
+# Email threading configuration.
+threading:
+  # Whether to enable threading, which makes alert notifications in the same
+  # alert group show up in the same email thread.
+  [ enabled: <boolean> | default = false ]
+  # What granularity of current date to thread by. Accepted values: daily, none.
+  # (none means group by alert group key, no date).
+  [ thread_by_date: <string> | default = daily ]
+```
+
 #### Email TLS Configuration Examples
 
 ```yaml
@@ -1029,16 +1043,6 @@ receivers:
         smarthost: smtp.example.com:465  # Auto-detects implicit TLS
       - to: alerts@example.com
         smarthost: smtp.example.com:587  # Auto-detects explicit TLS
-```
-
-# Email threading configuration.
-threading:
-  # Whether to enable threading, which makes alert notifications in the same
-  # alert group show up in the same email thread.
-  [ enabled: <boolean> | default = false ]
-  # What granularity of current date to thread by. Accepted values: daily, none.
-  # (none means group by alert group key, no date).
-  [ thread_by_date: <string> | default = daily ]
 ```
 
 ### `<mattermost_config>`

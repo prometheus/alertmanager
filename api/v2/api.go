@@ -618,9 +618,19 @@ func SortSilences(sils open_api_models.GettableSilences) {
 // for all matchers in the filter, there exists a matcher in the silence
 // such that their names, types, and values are equivalent.
 func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
+	// Check if any matcher set matches (OR logic)
+	for _, ms := range s.MatcherSets {
+		if checkMatcherSetMatchesFilterLabels(ms, matchers) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkMatcherSetMatchesFilterLabels(ms *silencepb.MatcherSet, matchers []*labels.Matcher) bool {
 	for _, matcher := range matchers {
 		found := false
-		for _, m := range s.Matchers {
+		for _, m := range ms.Matchers {
 			if matcher.Name == m.Name &&
 				(matcher.Type == labels.MatchEqual && m.Type == silencepb.Matcher_EQUAL ||
 					matcher.Type == labels.MatchRegexp && m.Type == silencepb.Matcher_REGEXP ||
@@ -696,13 +706,13 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 		)
 	}
 
-	if sil.StartsAt.After(sil.EndsAt) || sil.StartsAt.Equal(sil.EndsAt) {
+	if sil.StartsAt.AsTime().After(sil.EndsAt.AsTime()) || sil.StartsAt.AsTime().Equal(sil.EndsAt.AsTime()) {
 		msg := "Failed to create silence: start time must be before end time"
 		logger.Error(msg, "starts_at", sil.StartsAt, "ends_at", sil.EndsAt)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
 	}
 
-	if sil.EndsAt.Before(time.Now()) {
+	if sil.EndsAt.AsTime().Before(time.Now()) {
 		msg := "Failed to create silence: end time can't be in the past"
 		logger.Error(msg, "ends_at", sil.EndsAt)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)

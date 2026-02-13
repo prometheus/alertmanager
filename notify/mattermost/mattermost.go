@@ -68,7 +68,7 @@ func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpO
 // request is the request for sending a Mattermost notification.
 // https://developers.mattermost.com/integrate/webhooks/incoming/#parameters
 type request struct {
-	Text        string                     `json:"text"`
+	Text        string                     `json:"text,omitempty"`
 	Channel     string                     `json:"channel,omitempty"`
 	Username    string                     `json:"username,omitempty"`
 	IconURL     string                     `json:"icon_url,omitempty"`

@@ -51,7 +51,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 		require.NoError(t, a.Set(a1))
 
 		// a1 should be deleted as it has not been modified.
-		a.DeleteIfNotModified(types.AlertSlice{a1})
+		a.DeleteIfNotModified(types.AlertSlice{a1}, false)
 		got, err := a.Get(a1.Fingerprint())
 		require.Equal(t, ErrNotFound, err)
 		require.Nil(t, got)
@@ -80,7 +80,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 			UpdatedAt: time.Now().Add(-time.Second),
 		}
 		require.True(t, a2.UpdatedAt.Before(a1.UpdatedAt))
-		a.DeleteIfNotModified(types.AlertSlice{a2})
+		a.DeleteIfNotModified(types.AlertSlice{a2}, false)
 		// a1 should not be deleted.
 		got, err := a.Get(a1.Fingerprint())
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 			UpdatedAt: time.Now().Add(time.Second),
 		}
 		require.True(t, a3.UpdatedAt.After(a1.UpdatedAt))
-		a.DeleteIfNotModified(types.AlertSlice{a3})
+		a.DeleteIfNotModified(types.AlertSlice{a3}, false)
 		// a1 should not be deleted.
 		got, err = a.Get(a1.Fingerprint())
 		require.NoError(t, err)
@@ -126,10 +126,11 @@ func TestDeleteIfNotModified(t *testing.T) {
 		require.NoError(t, a.Set(a2))
 
 		// Deleting a1 should not delete a2.
-		require.NoError(t, a.DeleteIfNotModified(types.AlertSlice{a1}))
+		require.NoError(t, a.DeleteIfNotModified(types.AlertSlice{a1}, true))
 		// a1 should be deleted.
 		got, err := a.Get(a1.Fingerprint())
 		require.Equal(t, ErrNotFound, err)
+		require.False(t, a.Destroyed())
 		require.Nil(t, got)
 		// a2 should not be deleted.
 		got, err = a.Get(a2.Fingerprint())

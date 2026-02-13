@@ -1,0 +1,6 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: .
+    opt:
+      - module=github.com/prometheus/alertmanager
