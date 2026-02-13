@@ -969,59 +969,59 @@ receivers:
 	}{
 		{
 			integration: "discord_configs",
-			expectedErr: "one of webhook_url or webhook_url_file must be configured",
+			expectedErr: "missing discord config",
 		},
 		{
 			integration: "email_configs",
-			expectedErr: "missing to address in email config",
+			expectedErr: "missing email config",
 		},
 		{
 			integration: "incidentio_configs",
-			expectedErr: "one of url or url_file must be configured",
+			expectedErr: "missing incidentio config",
 		},
 		{
 			integration: "pagerduty_configs",
-			expectedErr: "missing service or routing key in PagerDuty config",
+			expectedErr: "missing pagerduty config",
 		},
 		{
 			integration: "webhook_configs",
-			expectedErr: "one of url or url_file must be configured",
+			expectedErr: "missing webhook config",
 		},
 		{
 			integration: "pushover_configs",
-			expectedErr: "one of user_key or user_key_file must be configured",
+			expectedErr: "missing pushover config",
 		},
 		{
 			integration: "victorops_configs",
-			expectedErr: "missing Routing key in VictorOps config",
+			expectedErr: "missing victorops config",
 		},
 		{
 			integration: "sns_configs",
-			expectedErr: "must provide either a Target ARN, Topic ARN, or Phone Number",
+			expectedErr: "missing sns config",
 		},
 		{
 			integration: "telegram_configs",
-			expectedErr: "missing chat_id or chat_id_file on telegram_config",
+			expectedErr: "missing telegram config",
 		},
 		{
 			integration: "webex_configs",
-			expectedErr: "missing room_id",
+			expectedErr: "missing webex config",
 		},
 		{
 			integration: "msteams_configs",
-			expectedErr: "one of webhook_url or webhook_url_file must be configured",
+			expectedErr: "missing msteams config",
 		},
 		{
 			integration: "msteamsv2_configs",
-			expectedErr: "one of webhook_url or webhook_url_file must be configured",
+			expectedErr: "missing msteamsv2 config",
 		},
 		{
 			integration: "jira_configs",
-			expectedErr: "missing project in jira_config",
+			expectedErr: "missing jira config",
 		},
 		{
 			integration: "mattermost_configs",
-			expectedErr: "one of webhook_url or webhook_url_file must be configured",
+			expectedErr: "missing mattermost config",
 		},
 		{
 			integration: "slack_configs",
