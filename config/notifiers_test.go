@@ -1232,12 +1232,13 @@ text: some text
 `,
 		},
 		{
-			name: "with url_file, text and props - it succeeds",
+			name: "with url_file, attachments and props - it succeeds",
 			in: `
 webhook_url_file: /some/url.file
 channel: some_channel
 username: some_username
-text: some text
+attachments:
+- text: some text
 props:
   card: some text
 `,
@@ -1249,18 +1250,20 @@ webhook_url: http://some.url
 webhook_url_file: /some/url.file
 channel: some_channel
 username: some_username
-text: some text
+attachments:
+- text: some text
 `,
 			expected: errors.New("at most one of webhook_url & webhook_url_file must be configured"),
 		},
 		{
-			name: "with title and text - it succeeds",
+			name: "with text and attachments - it succeeds",
 			in: `
 webhook_url: http://some.url
 channel: some_channel
 username: some_username
 text: some text
-title: some title
+attachments:
+- text: some text
 `,
 		},
 	}

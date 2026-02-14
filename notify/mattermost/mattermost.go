@@ -175,37 +175,74 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 		}
 	}
 
-	// Create attachment from config fields
-	req.Attachments = make([]attachment, 1)
-	att := attachment{
-		Fallback:   tmpl(n.conf.Fallback),
-		Color:      tmpl(n.conf.Color),
-		Pretext:    tmpl(n.conf.Pretext),
-		Text:       tmpl(n.conf.Text),
-		AuthorName: tmpl(n.conf.AuthorName),
-		AuthorLink: tmpl(n.conf.AuthorLink),
-		AuthorIcon: tmpl(n.conf.AuthorIcon),
-		Title:      tmpl(n.conf.Title),
-		TitleLink:  tmpl(n.conf.TitleLink),
-		ThumbURL:   tmpl(n.conf.ThumbURL),
-		Footer:     tmpl(n.conf.Footer),
-		FooterIcon: tmpl(n.conf.FooterIcon),
-		ImageURL:   tmpl(n.conf.ImageURL),
-	}
+	lenAtt := len(n.conf.Attachments)
+	if lenAtt > 0 {
+		req.Attachments = make([]attachment, lenAtt)
+		for idxAtt, cfgAtt := range n.conf.Attachments {
+			att := attachment{
+				Fallback:   tmpl(cfgAtt.Fallback),
+				Color:      tmpl(cfgAtt.Color),
+				Pretext:    tmpl(cfgAtt.Pretext),
+				Text:       tmpl(cfgAtt.Text),
+				AuthorName: tmpl(cfgAtt.AuthorName),
+				AuthorLink: tmpl(cfgAtt.AuthorLink),
+				AuthorIcon: tmpl(cfgAtt.AuthorIcon),
+				Title:      tmpl(cfgAtt.Title),
+				TitleLink:  tmpl(cfgAtt.TitleLink),
+				ThumbURL:   tmpl(cfgAtt.ThumbURL),
+				Footer:     tmpl(cfgAtt.Footer),
+				FooterIcon: tmpl(cfgAtt.FooterIcon),
+				ImageURL:   tmpl(cfgAtt.ImageURL),
+			}
 
-	lenFields := len(n.conf.Fields)
-	if lenFields > 0 {
-		att.Fields = make([]config.MattermostField, lenFields)
-		for idxField, field := range n.conf.Fields {
-			att.Fields[idxField] = config.MattermostField{
-				Title: tmpl(field.Title),
-				Value: tmpl(field.Value),
-				Short: field.Short,
+			lenFields := len(cfgAtt.Fields)
+			if lenFields > 0 {
+				att.Fields = make([]config.MattermostField, lenFields)
+				for idxField, field := range cfgAtt.Fields {
+					att.Fields[idxField] = config.MattermostField{
+						Title: tmpl(field.Title),
+						Value: tmpl(field.Value),
+						Short: field.Short,
+					}
+				}
+			}
+
+			req.Attachments[idxAtt] = att
+			req.Text = tmpl(n.conf.Text)
+		}
+	} else {
+		req.Attachments = make([]attachment, 1)
+		att := attachment{
+			Fallback:   tmpl(n.conf.Fallback),
+			Color:      tmpl(n.conf.Color),
+			Pretext:    tmpl(n.conf.Pretext),
+			Text:       tmpl(n.conf.Text),
+			AuthorName: tmpl(n.conf.AuthorName),
+			AuthorLink: tmpl(n.conf.AuthorLink),
+			AuthorIcon: tmpl(n.conf.AuthorIcon),
+			Title:      tmpl(n.conf.Title),
+			TitleLink:  tmpl(n.conf.TitleLink),
+			ThumbURL:   tmpl(n.conf.ThumbURL),
+			Footer:     tmpl(n.conf.Footer),
+			FooterIcon: tmpl(n.conf.FooterIcon),
+			ImageURL:   tmpl(n.conf.ImageURL),
+		}
+
+		lenFields := len(n.conf.Fields)
+		if lenFields > 0 {
+			att.Fields = make([]config.MattermostField, lenFields)
+			for idxField, field := range n.conf.Fields {
+				att.Fields[idxField] = config.MattermostField{
+					Title: tmpl(field.Title),
+					Value: tmpl(field.Value),
+					Short: field.Short,
+				}
 			}
 		}
-	}
 
-	req.Attachments[0] = att
+		req.Attachments[0] = att
+
+	}
 
 	return req
 }
@@ -217,12 +254,12 @@ func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
 	}
 
 	// Truncate the text if it's too long.
-	text, truncated := notify.TruncateInRunes(r.Attachments[0].Text, maxTextLenRunes)
+	text, truncated := notify.TruncateInRunes(r.Text, maxTextLenRunes)
 	if truncated {
 		n.logger.Warn("Truncated text",
 			"key", key,
 			"max_runes", maxTextLenRunes)
-		r.Attachments[0].Text = text
+		r.Text = text
 	}
 
 	if r.Priority == nil {
