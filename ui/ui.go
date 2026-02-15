@@ -37,9 +37,6 @@ var Assets = func() http.FileSystem {
 	case "alertmanager":
 		// When running Alertmanager (without built-in assets) from the repo root.
 		assetsPrefix = "./ui"
-	case "web":
-		// When running web tests.
-		assetsPrefix = "./ui"
 	case "ui":
 		// When generating statically compiled-in assets.
 		assetsPrefix = "./"
