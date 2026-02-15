@@ -734,7 +734,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
 			if mattermost == nil {
-				mattermost = &MattermostConfig{}
 				return errors.New("missing mattermost config")
 			}
 			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
