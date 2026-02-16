@@ -123,22 +123,22 @@ func TestMemMarker_Count(t *testing.T) {
 	}
 
 	// Insert an active alert.
-	marker.SetActiveOrSilenced(a1.Fingerprint(), 1, nil, nil)
+	marker.SetActiveOrSilenced(a1.Fingerprint(), nil)
 	require.Equal(t, 1, countByState(AlertStateActive))
 	require.Equal(t, 1, countTotal())
 
 	// Insert a silenced alert.
-	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	marker.SetActiveOrSilenced(a2.Fingerprint(), []string{"1"})
 	require.Equal(t, 1, countByState(AlertStateSuppressed))
 	require.Equal(t, 2, countTotal())
 
 	// Insert a resolved silenced alert - it'll count as suppressed.
-	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, []string{"1"}, nil)
+	marker.SetActiveOrSilenced(a3.Fingerprint(), []string{"1"})
 	require.Equal(t, 2, countByState(AlertStateSuppressed))
 	require.Equal(t, 3, countTotal())
 
 	// Remove the silence from a3 - it'll count as active.
-	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, nil, nil)
+	marker.SetActiveOrSilenced(a3.Fingerprint(), nil)
 	require.Equal(t, 2, countByState(AlertStateActive))
 	require.Equal(t, 3, countTotal())
 }

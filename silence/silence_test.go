@@ -1,4 +1,4 @@
-// Copyright 2016 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -2339,6 +2339,60 @@ func TestSilencer(t *testing.T) {
 
 	// Another variant of issue #2426 (overlapping silences).
 	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
+}
+
+func TestSilencerPostDeleteEvictsCache(t *testing.T) {
+	ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+	require.NoError(t, err)
+
+	clock := quartz.NewMock(t)
+	ss.clock = clock
+	now := ss.nowUTC()
+
+	m := types.NewMarker(prometheus.NewRegistry())
+	s := NewSilencer(ss, m, promslog.NewNopLogger())
+
+	lset := model.LabelSet{"foo": "bar"}
+	fp := lset.Fingerprint()
+
+	// Create a matching silence.
+	sil := &pb.Silence{
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		}},
+		StartsAt: timestamppb.New(now.Add(-time.Hour)),
+		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
+	}
+	require.NoError(t, ss.Set(t.Context(), sil))
+
+	// Mutes populates the cache.
+	require.True(t, s.Mutes(t.Context(), lset))
+	entry := s.cache.get(fp)
+	require.Positive(t, entry.count(), "cache should have entries after Mutes()")
+
+	// PostDelete evicts the cache entry for this fingerprint.
+	s.PostDelete(&types.Alert{
+		Alert: model.Alert{Labels: lset},
+	})
+	entry = s.cache.get(fp)
+	require.Equal(t, 0, entry.count(), "cache should be empty after PostDelete()")
+	require.Equal(t, 0, entry.version, "version should be zero for evicted entry")
+
+	// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
+	require.True(t, s.Mutes(t.Context(), lset), "expected alert still silenced after cache eviction")
+	entry = s.cache.get(fp)
+	require.Positive(t, entry.count(), "cache should be repopulated after Mutes()")
+
+	// Expire the silence, advance time so it's truly expired.
+	clock.Advance(time.Hour)
+
+	// PostDelete for a different fingerprint should not affect this entry.
+	otherLset := model.LabelSet{"other": "alert"}
+	s.PostDelete(&types.Alert{
+		Alert: model.Alert{Labels: otherLset},
+	})
+	entry = s.cache.get(fp)
+	require.Positive(t, entry.count(), "unrelated PostDelete should not evict other entries")
 }
 
 func TestValidateClassicMatcher(t *testing.T) {

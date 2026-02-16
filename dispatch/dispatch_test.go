@@ -850,8 +850,8 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set markers for both alerts
-		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), 0, nil, nil)
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify markers exist before flush
 		require.True(t, marker.Active(activeAlert.Fingerprint()))
@@ -907,7 +907,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify marker exists before flush
 		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
@@ -961,7 +961,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify marker exists before flush
 		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
