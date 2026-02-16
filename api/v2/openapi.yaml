@@ -173,6 +173,11 @@ paths:
           description: A regex matching receivers to filter alerts by
           required: false
           type: string
+        - in: query
+          name: includeHidden
+          type: boolean
+          description: Include alerts routed to hidden receivers. If false (default), alerts to hidden receivers are excluded.
+          default: false
       responses:
         '200':
           description: Get alerts response
@@ -241,6 +246,11 @@ paths:
           description: A regex matching receivers to filter alerts by
           required: false
           type: string
+        - in: query
+          name: includeHidden
+          type: boolean
+          description: Include alert groups for hidden receivers. If false (default), groups for hidden receivers are excluded.
+          default: false
       responses:
         '200':
           description: Get alert groups response

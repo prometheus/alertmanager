@@ -27,4 +27,5 @@ alertsParser =
         <?> maybeBoolParam "inhibited"
         <?> maybeBoolParam "muted"
         <?> maybeBoolParam "active"
+        <?> maybeBoolParam "includeHidden"
         |> map Filter

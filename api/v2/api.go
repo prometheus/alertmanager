@@ -304,6 +304,15 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
+		// Filter hidden receivers unless explicitly requested
+		if params.IncludeHidden == nil || !*params.IncludeHidden {
+			var hasVisible bool
+			receivers, hasVisible = api.filterHiddenReceivers(receivers)
+			if !hasVisible {
+				continue // Skip alert entirely if all receivers are hidden
+			}
+		}
+
 		if !alertFilter(alert, now) {
 			continue
 		}
@@ -422,15 +431,21 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}
 
-	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
+	includeHidden := params.IncludeHidden != nil && *params.IncludeHidden
+	rf := func(receiverFilter *regexp.Regexp, includeHidden bool) func(r *dispatch.Route) bool {
 		return func(r *dispatch.Route) bool {
 			receiver := r.RouteOpts.Receiver
+			// Filter by hidden status
+			if !includeHidden && api.isReceiverHidden(receiver) {
+				return false
+			}
+			// Filter by receiver regex
 			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
 				return false
 			}
 			return true
 		}
-	}(receiverFilter)
+	}(receiverFilter, includeHidden)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
@@ -498,6 +513,28 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 
 		return alertMatchesFilterLabels(&a.Alert, matchers)
 	}
+}
+
+// isReceiverHidden checks if a receiver is marked as hidden in the config.
+func (api *API) isReceiverHidden(receiverName string) bool {
+	for _, r := range api.alertmanagerConfig.Receivers {
+		if r.Name == receiverName {
+			return r.Hidden
+		}
+	}
+	return false
+}
+
+// filterHiddenReceivers removes hidden receivers from a slice.
+// Returns filtered receivers and whether any visible receivers remain.
+func (api *API) filterHiddenReceivers(receivers []string) ([]string, bool) {
+	filtered := make([]string, 0, len(receivers))
+	for _, r := range receivers {
+		if !api.isReceiverHidden(r) {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, len(filtered) > 0
 }
 
 func removeEmptyLabels(ls prometheus_model.LabelSet) {
