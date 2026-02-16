@@ -38,14 +38,17 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 
 		activeDefault = bool(true)
 
-		inhibitedDefault = bool(true)
-		mutedDefault     = bool(true)
+		includeHiddenDefault = bool(false)
+		inhibitedDefault     = bool(true)
+		mutedDefault         = bool(true)
 
 		silencedDefault = bool(true)
 	)
 
 	return GetAlertGroupsParams{
 		Active: &activeDefault,
+
+		IncludeHidden: &includeHiddenDefault,
 
 		Inhibited: &inhibitedDefault,
 
@@ -74,6 +77,11 @@ type GetAlertGroupsParams struct {
 	  Collection Format: multi
 	*/
 	Filter []string
+	/*Include alert groups for hidden receivers. If false (default), groups for hidden receivers are excluded.
+	  In: query
+	  Default: false
+	*/
+	IncludeHidden *bool
 	/*Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.
 	  In: query
 	  Default: true
@@ -113,6 +121,11 @@ func (o *GetAlertGroupsParams) BindRequest(r *http.Request, route *middleware.Ma
 
 	qFilter, qhkFilter, _ := qs.GetOK("filter")
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qIncludeHidden, qhkIncludeHidden, _ := qs.GetOK("includeHidden")
+	if err := o.bindIncludeHidden(qIncludeHidden, qhkIncludeHidden, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -183,6 +196,30 @@ func (o *GetAlertGroupsParams) bindFilter(rawData []string, hasKey bool, formats
 	}
 
 	o.Filter = filterIR
+
+	return nil
+}
+
+// bindIncludeHidden binds and validates parameter IncludeHidden from query.
+func (o *GetAlertGroupsParams) bindIncludeHidden(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetAlertGroupsParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("includeHidden", "query", "bool", raw)
+	}
+	o.IncludeHidden = &value
 
 	return nil
 }

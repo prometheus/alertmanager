@@ -1080,6 +1080,8 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
+	// Hidden receivers are excluded from API responses and UI by default.
+	Hidden bool `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 
 	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`

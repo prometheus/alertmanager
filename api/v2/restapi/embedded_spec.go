@@ -101,6 +101,13 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": false,
+            "description": "Include alerts routed to hidden receivers. If false (default), alerts to hidden receivers are excluded.",
+            "name": "includeHidden",
+            "in": "query"
           }
         ],
         "responses": {
@@ -198,6 +205,13 @@ func init() {
             "type": "string",
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": false,
+            "description": "Include alert groups for hidden receivers. If false (default), groups for hidden receivers are excluded.",
+            "name": "includeHidden",
             "in": "query"
           }
         ],
@@ -905,6 +919,13 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": false,
+            "description": "Include alerts routed to hidden receivers. If false (default), alerts to hidden receivers are excluded.",
+            "name": "includeHidden",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1014,6 +1035,13 @@ func init() {
             "type": "string",
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": false,
+            "description": "Include alert groups for hidden receivers. If false (default), groups for hidden receivers are excluded.",
+            "name": "includeHidden",
             "in": "query"
           }
         ],

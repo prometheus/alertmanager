@@ -36,6 +36,7 @@ type alias Filter =
     , showInhibited : Maybe Bool
     , showMuted : Maybe Bool
     , showActive : Maybe Bool
+    , includeHidden : Maybe Bool
     }
 
 
@@ -49,6 +50,7 @@ nullFilter =
     , showInhibited = Nothing
     , showMuted = Nothing
     , showActive = Nothing
+    , includeHidden = Nothing
     }
 
 
@@ -58,13 +60,14 @@ generateQueryParam name =
 
 
 toUrl : String -> Filter -> String
-toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showMuted, showActive, text, group } =
+toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showMuted, showActive, includeHidden, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
             , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
             , ( "muted", Maybe.withDefault False showMuted |> boolToString |> Just )
             , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
+            , ( "includeHidden", boolToMaybeString (Maybe.withDefault False includeHidden) )
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
@@ -84,7 +87,7 @@ toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showMuted
 
 
 generateAPIQueryString : Filter -> String
-generateAPIQueryString { receiver, showSilenced, showInhibited, showMuted, showActive, text, group } =
+generateAPIQueryString { receiver, showSilenced, showInhibited, showMuted, showActive, includeHidden, text, group } =
     let
         filter_ =
             case parseFilter (Maybe.withDefault "" text) of
@@ -100,6 +103,7 @@ generateAPIQueryString { receiver, showSilenced, showInhibited, showMuted, showA
                    , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
                    , ( "muted", Maybe.withDefault False showMuted |> boolToString |> Just )
                    , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
+                   , ( "includeHidden", Maybe.map boolToString includeHidden )
                    , ( "receiver", emptyToNothing receiver )
                    , ( "group", group )
                    ]

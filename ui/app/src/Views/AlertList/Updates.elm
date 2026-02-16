@@ -125,6 +125,11 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
             , Navigation.pushUrl model.key (filteredUrl { filter | showMuted = Just showMuted })
             )
 
+        ToggleHidden includeHidden ->
+            ( model
+            , Navigation.pushUrl model.key (filteredUrl { filter | includeHidden = Just includeHidden })
+            )
+
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )
 

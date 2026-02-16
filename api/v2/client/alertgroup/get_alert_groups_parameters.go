@@ -90,6 +90,12 @@ type GetAlertGroupsParams struct {
 	*/
 	Filter []string
 
+	/* IncludeHidden.
+
+	   Include alert groups for hidden receivers. If false (default), groups for hidden receivers are excluded.
+	*/
+	IncludeHidden *bool
+
 	/* Inhibited.
 
 	   Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.
@@ -140,6 +146,8 @@ func (o *GetAlertGroupsParams) SetDefaults() {
 	var (
 		activeDefault = bool(true)
 
+		includeHiddenDefault = bool(false)
+
 		inhibitedDefault = bool(true)
 
 		mutedDefault = bool(true)
@@ -148,10 +156,11 @@ func (o *GetAlertGroupsParams) SetDefaults() {
 	)
 
 	val := GetAlertGroupsParams{
-		Active:    &activeDefault,
-		Inhibited: &inhibitedDefault,
-		Muted:     &mutedDefault,
-		Silenced:  &silencedDefault,
+		Active:        &activeDefault,
+		IncludeHidden: &includeHiddenDefault,
+		Inhibited:     &inhibitedDefault,
+		Muted:         &mutedDefault,
+		Silenced:      &silencedDefault,
 	}
 
 	val.timeout = o.timeout
@@ -213,6 +222,17 @@ func (o *GetAlertGroupsParams) WithFilter(filter []string) *GetAlertGroupsParams
 // SetFilter adds the filter to the get alert groups params
 func (o *GetAlertGroupsParams) SetFilter(filter []string) {
 	o.Filter = filter
+}
+
+// WithIncludeHidden adds the includeHidden to the get alert groups params
+func (o *GetAlertGroupsParams) WithIncludeHidden(includeHidden *bool) *GetAlertGroupsParams {
+	o.SetIncludeHidden(includeHidden)
+	return o
+}
+
+// SetIncludeHidden adds the includeHidden to the get alert groups params
+func (o *GetAlertGroupsParams) SetIncludeHidden(includeHidden *bool) {
+	o.IncludeHidden = includeHidden
 }
 
 // WithInhibited adds the inhibited to the get alert groups params
@@ -292,6 +312,23 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		// query array param filter
 		if err := r.SetQueryParam("filter", joinedFilter...); err != nil {
 			return err
+		}
+	}
+
+	if o.IncludeHidden != nil {
+
+		// query param includeHidden
+		var qrIncludeHidden bool
+
+		if o.IncludeHidden != nil {
+			qrIncludeHidden = *o.IncludeHidden
+		}
+		qIncludeHidden := swag.FormatBool(qrIncludeHidden)
+		if qIncludeHidden != "" {
+
+			if err := r.SetQueryParam("includeHidden", qIncludeHidden); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -38,7 +38,8 @@ func NewGetAlertsParams() GetAlertsParams {
 
 		activeDefault = bool(true)
 
-		inhibitedDefault = bool(true)
+		includeHiddenDefault = bool(false)
+		inhibitedDefault     = bool(true)
 
 		silencedDefault    = bool(true)
 		unprocessedDefault = bool(true)
@@ -46,6 +47,8 @@ func NewGetAlertsParams() GetAlertsParams {
 
 	return GetAlertsParams{
 		Active: &activeDefault,
+
+		IncludeHidden: &includeHiddenDefault,
 
 		Inhibited: &inhibitedDefault,
 
@@ -74,6 +77,11 @@ type GetAlertsParams struct {
 	  Collection Format: multi
 	*/
 	Filter []string
+	/*Include alerts routed to hidden receivers. If false (default), alerts to hidden receivers are excluded.
+	  In: query
+	  Default: false
+	*/
+	IncludeHidden *bool
 	/*Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.
 	  In: query
 	  Default: true
@@ -113,6 +121,11 @@ func (o *GetAlertsParams) BindRequest(r *http.Request, route *middleware.Matched
 
 	qFilter, qhkFilter, _ := qs.GetOK("filter")
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qIncludeHidden, qhkIncludeHidden, _ := qs.GetOK("includeHidden")
+	if err := o.bindIncludeHidden(qIncludeHidden, qhkIncludeHidden, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -183,6 +196,30 @@ func (o *GetAlertsParams) bindFilter(rawData []string, hasKey bool, formats strf
 	}
 
 	o.Filter = filterIR
+
+	return nil
+}
+
+// bindIncludeHidden binds and validates parameter IncludeHidden from query.
+func (o *GetAlertsParams) bindIncludeHidden(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetAlertsParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("includeHidden", "query", "bool", raw)
+	}
+	o.IncludeHidden = &value
 
 	return nil
 }

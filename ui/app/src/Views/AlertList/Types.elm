@@ -25,6 +25,7 @@ type AlertListMsg
     | ToggleSilenced Bool
     | ToggleInhibited Bool
     | ToggleMuted Bool
+    | ToggleHidden Bool
     | SetActive (Maybe String)
     | ActiveGroups Int
     | SetTab Tab

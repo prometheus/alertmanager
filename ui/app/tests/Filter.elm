@@ -36,35 +36,39 @@ toUrl =
         [ test "should not render keys with Nothing value except the silenced, inhibited, muted and active parameters, which default to false, false, false, true, respectively." <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
         , test "should not render filter key with empty value" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Just "", showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Just "", showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
         , test "should render filter key with values" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=true&filter=%7Bfoo%3D%22bar%22%2C%20baz%3D~%22quux.*%22%7D"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Just "{foo=\"bar\", baz=~\"quux.*\"}", showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Just "{foo=\"bar\", baz=~\"quux.*\"}", showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
         , test "should render silenced key with bool" <|
             \() ->
                 Expect.equal "/alerts?silenced=true&inhibited=false&muted=false&active=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Just True, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Just True, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
         , test "should render inhibited key with bool" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=true&muted=false&active=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Just True, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Just True, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
         , test "should render muted key with bool" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=true&active=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Just True, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Just True, showActive = Nothing, includeHidden = Nothing })
         , test "should render active key with bool" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=false"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Just False })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Just False, includeHidden = Nothing })
         , test "should add customGrouping key" <|
             \() ->
                 Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=true&customGrouping=true"
-                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = True, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing })
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = True, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Nothing })
+        , test "should render includeHidden key with bool" <|
+            \() ->
+                Expect.equal "/alerts?silenced=false&inhibited=false&muted=false&active=true&includeHidden=true"
+                    (Utils.Filter.toUrl "/alerts" { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showMuted = Nothing, showActive = Nothing, includeHidden = Just True })
         ]
 
 

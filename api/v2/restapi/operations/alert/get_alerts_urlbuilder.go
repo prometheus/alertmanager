@@ -29,12 +29,13 @@ import (
 
 // GetAlertsURL generates an URL for the get alerts operation
 type GetAlertsURL struct {
-	Active      *bool
-	Filter      []string
-	Inhibited   *bool
-	Receiver    *string
-	Silenced    *bool
-	Unprocessed *bool
+	Active        *bool
+	Filter        []string
+	IncludeHidden *bool
+	Inhibited     *bool
+	Receiver      *string
+	Silenced      *bool
+	Unprocessed   *bool
 
 	_basePath string
 	// avoid unkeyed usage
@@ -90,6 +91,14 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	for _, qsv := range filter {
 		qs.Add("filter", qsv)
+	}
+
+	var includeHiddenQ string
+	if o.IncludeHidden != nil {
+		includeHiddenQ = swag.FormatBool(*o.IncludeHidden)
+	}
+	if includeHiddenQ != "" {
+		qs.Set("includeHidden", includeHiddenQ)
 	}
 
 	var inhibitedQ string

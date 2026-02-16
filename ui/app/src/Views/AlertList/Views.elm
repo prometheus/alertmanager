@@ -60,6 +60,7 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
                     , renderCheckbox "Silenced" filter.showSilenced ToggleSilenced
                     , renderCheckbox "Inhibited" filter.showInhibited ToggleInhibited
                     , renderCheckbox "Muted" filter.showMuted ToggleMuted
+                    , renderCheckbox "Hidden" filter.includeHidden ToggleHidden
                     ]
                 ]
             , div [ class "card-body" ]

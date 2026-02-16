@@ -151,6 +151,30 @@ receivers:
 	}
 }
 
+func TestReceiverHiddenField(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  hidden: true
+- name: 'team-Y'
+  hidden: false
+- name: 'team-Z'
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Receivers, 3)
+	require.Equal(t, "team-X", cfg.Receivers[0].Name)
+	require.True(t, cfg.Receivers[0].Hidden, "team-X should be hidden")
+	require.Equal(t, "team-Y", cfg.Receivers[1].Name)
+	require.False(t, cfg.Receivers[1].Hidden, "team-Y should not be hidden")
+	require.Equal(t, "team-Z", cfg.Receivers[2].Name)
+	require.False(t, cfg.Receivers[2].Hidden, "team-Z should default to not hidden")
+}
+
 func TestMuteTimeExists(t *testing.T) {
 	in := `
 route:
