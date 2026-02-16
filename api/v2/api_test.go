@@ -603,3 +603,112 @@ receivers:
 		require.Equal(t, tc.body, string(body))
 	}
 }
+
+func TestIsReceiverHidden(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  hidden: true
+- name: 'team-Y'
+  hidden: false
+- name: 'team-Z'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	api := API{
+		alertmanagerConfig: cfg,
+	}
+
+	testCases := []struct {
+		receiver string
+		expected bool
+	}{
+		{"team-X", true},
+		{"team-Y", false},
+		{"team-Z", false},
+		{"nonexistent", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.receiver, func(t *testing.T) {
+			require.Equal(t, tc.expected, api.isReceiverHidden(tc.receiver))
+		})
+	}
+}
+
+func TestFilterHiddenReceivers(t *testing.T) {
+	in := `
+route:
+    receiver: visible
+
+receivers:
+- name: 'visible'
+- name: 'hidden-1'
+  hidden: true
+- name: 'hidden-2'
+  hidden: true
+- name: 'also-visible'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	api := API{
+		alertmanagerConfig: cfg,
+	}
+
+	testCases := []struct {
+		name             string
+		receivers        []string
+		expectedFiltered []string
+		expectedVisible  bool
+	}{
+		{
+			name:             "all visible",
+			receivers:        []string{"visible", "also-visible"},
+			expectedFiltered: []string{"visible", "also-visible"},
+			expectedVisible:  true,
+		},
+		{
+			name:             "all hidden",
+			receivers:        []string{"hidden-1", "hidden-2"},
+			expectedFiltered: []string{},
+			expectedVisible:  false,
+		},
+		{
+			name:             "mixed",
+			receivers:        []string{"visible", "hidden-1", "also-visible"},
+			expectedFiltered: []string{"visible", "also-visible"},
+			expectedVisible:  true,
+		},
+		{
+			name:             "empty input",
+			receivers:        []string{},
+			expectedFiltered: []string{},
+			expectedVisible:  false,
+		},
+		{
+			name:             "single hidden",
+			receivers:        []string{"hidden-1"},
+			expectedFiltered: []string{},
+			expectedVisible:  false,
+		},
+		{
+			name:             "single visible",
+			receivers:        []string{"visible"},
+			expectedFiltered: []string{"visible"},
+			expectedVisible:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			filtered, hasVisible := api.filterHiddenReceivers(tc.receivers)
+			require.Equal(t, tc.expectedFiltered, filtered)
+			require.Equal(t, tc.expectedVisible, hasVisible)
+		})
+	}
+}
