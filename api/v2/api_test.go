@@ -619,9 +619,8 @@ receivers:
 	cfg, err := config.Load(in)
 	require.NoError(t, err)
 
-	api := API{
-		alertmanagerConfig: cfg,
-	}
+	api := API{}
+	api.Update(cfg, nil)
 
 	testCases := []struct {
 		receiver string
@@ -656,9 +655,8 @@ receivers:
 	cfg, err := config.Load(in)
 	require.NoError(t, err)
 
-	api := API{
-		alertmanagerConfig: cfg,
-	}
+	api := API{}
+	api.Update(cfg, nil)
 
 	testCases := []struct {
 		name             string

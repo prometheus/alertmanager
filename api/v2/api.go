@@ -68,13 +68,16 @@ type API struct {
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
 
-	// mtx protects alertmanagerConfig, setAlertStatus and route.
+	// mtx protects alertmanagerConfig, setAlertStatus, route, and hiddenReceivers.
 	mtx sync.RWMutex
 	// resolveTimeout represents the default resolve timeout that an alert is
 	// assigned if no end time is specified.
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
 	setAlertStatus     setAlertStatusFn
+	// hiddenReceivers is a set of receiver names marked as hidden in config.
+	// Pre-computed on config reload for O(1) lookups.
+	hiddenReceivers map[string]struct{}
 
 	logger *slog.Logger
 	m      *metrics.Alerts
@@ -171,6 +174,14 @@ func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
+
+	// Pre-compute hidden receivers set for O(1) lookups.
+	api.hiddenReceivers = make(map[string]struct{})
+	for _, r := range cfg.Receivers {
+		if r.Hidden {
+			api.hiddenReceivers[r.Name] = struct{}{}
+		}
+	}
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -516,13 +527,10 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 }
 
 // isReceiverHidden checks if a receiver is marked as hidden in the config.
+// Uses pre-computed map for O(1) lookup.
 func (api *API) isReceiverHidden(receiverName string) bool {
-	for _, r := range api.alertmanagerConfig.Receivers {
-		if r.Name == receiverName {
-			return r.Hidden
-		}
-	}
-	return false
+	_, hidden := api.hiddenReceivers[receiverName]
+	return hidden
 }
 
 // filterHiddenReceivers removes hidden receivers from a slice.
@@ -530,7 +538,7 @@ func (api *API) isReceiverHidden(receiverName string) bool {
 func (api *API) filterHiddenReceivers(receivers []string) ([]string, bool) {
 	filtered := make([]string, 0, len(receivers))
 	for _, r := range receivers {
-		if !api.isReceiverHidden(r) {
+		if _, hidden := api.hiddenReceivers[r]; !hidden {
 			filtered = append(filtered, r)
 		}
 	}
