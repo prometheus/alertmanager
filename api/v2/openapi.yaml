@@ -348,6 +348,8 @@ definitions:
         type: string
       comment:
         type: string
+      annotations:
+        $ref: "#/definitions/labelSet"
     required:
       - matchers
       - startsAt
@@ -369,6 +371,7 @@ definitions:
           - id
           - status
           - updatedAt
+          - annotations
       - $ref: '#/definitions/silence'
   postableSilence:
     allOf:

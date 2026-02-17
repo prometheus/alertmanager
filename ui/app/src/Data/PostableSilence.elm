@@ -26,6 +26,7 @@ type alias PostableSilence =
     , endsAt : DateTime
     , createdBy : String
     , comment : String
+    , annotations : Maybe (Dict String String)
     , id : Maybe String
     }
 
@@ -38,6 +39,7 @@ decoder =
         |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
         |> required "comment" Decode.string
+        |> optional "annotations" (Decode.nullable (Decode.dict Decode.string)) Nothing
         |> optional "id" (Decode.nullable Decode.string) Nothing
 
 
@@ -49,5 +51,6 @@ encoder model =
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
+        , ( "annotations", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.annotations) )
         , ( "id", Maybe.withDefault Encode.null (Maybe.map Encode.string model.id) )
         ]

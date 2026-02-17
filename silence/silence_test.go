@@ -2837,3 +2837,128 @@ func TestStateDecodingError(t *testing.T) {
 func gosched() {
 	time.Sleep(1 * time.Millisecond)
 }
+
+func TestSilenceAnnotations(t *testing.T) {
+	s, err := New(Options{
+		Metrics:   prometheus.NewRegistry(),
+		Retention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	clock := quartz.NewMock(t)
+	s.clock = clock
+	now := s.nowUTC()
+
+	// Create a silence with annotations
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+		StartsAt: timestamppb.New(now),
+		EndsAt:   timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{
+			"ticket": "JIRA-123",
+			"type":   "planned",
+			"test":   "integration",
+		},
+	}
+
+	// Set the silence via the API
+	require.NoError(t, s.Set(t.Context(), sil1))
+	require.NotEmpty(t, sil1.Id)
+
+	// Query the silence back by ID
+	queriedSil, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+	require.NoError(t, err)
+
+	// Verify all annotations are returned correctly
+	require.NotNil(t, queriedSil.Annotations)
+	require.Equal(t, "JIRA-123", queriedSil.Annotations["ticket"])
+	require.Equal(t, "planned", queriedSil.Annotations["type"])
+	require.Equal(t, "integration", queriedSil.Annotations["test"])
+
+	// Test querying all silences
+	allSils, _, err := s.Query(t.Context())
+	require.NoError(t, err)
+	require.Len(t, allSils, 1)
+	require.Equal(t, queriedSil.Annotations, allSils[0].Annotations)
+
+	// Create a second silence with different annotations
+	sil2 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "frontend"}},
+		StartsAt: timestamppb.New(now),
+		EndsAt:   timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{
+			"ticket": "JIRA-456",
+		},
+	}
+	require.NoError(t, s.Set(t.Context(), sil2))
+
+	// Query by state and verify both silences have their annotations
+	activeSils, _, err := s.Query(t.Context(), QState(types.SilenceStateActive))
+	require.NoError(t, err)
+	require.Len(t, activeSils, 2)
+
+	for _, sil := range activeSils {
+		require.NotNil(t, sil.Annotations)
+		switch sil.Id {
+		case sil1.Id:
+			require.Len(t, sil.Annotations, 3)
+			require.Equal(t, "JIRA-123", sil.Annotations["ticket"])
+		case sil2.Id:
+			require.Len(t, sil.Annotations, 1)
+			require.Equal(t, "JIRA-456", sil.Annotations["ticket"])
+		default:
+			t.Fatalf("unexpected silence ID: %s", sil.Id)
+		}
+	}
+
+	// Test updating a silence with new annotations
+	clock.Advance(time.Minute)
+	sil1Updated := &pb.Silence{
+		Id:       sil1.Id,
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+		StartsAt: sil1.StartsAt,
+		EndsAt:   sil1.EndsAt,
+		Annotations: map[string]string{
+			"ticket": "JIRA-123",
+			"type":   "emergency", // changed
+			"test":   "load",      // changed
+		},
+	}
+	require.NoError(t, s.Set(t.Context(), sil1Updated))
+
+	// Query back and verify annotations were updated
+	queriedUpdated, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+	require.NoError(t, err)
+	require.Len(t, queriedUpdated.Annotations, 3)
+	require.Equal(t, "emergency", queriedUpdated.Annotations["type"])
+	require.Equal(t, "load", queriedUpdated.Annotations["test"])
+
+	// Test silence with nil annotations
+	sil3 := &pb.Silence{
+		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "backend"}},
+		StartsAt:    timestamppb.New(now),
+		EndsAt:      timestamppb.New(now.Add(time.Hour)),
+		Annotations: nil,
+	}
+	require.NoError(t, s.Set(t.Context(), sil3))
+	queriedSil3, err := s.QueryOne(t.Context(), QIDs(sil3.Id))
+	require.NoError(t, err)
+	// nil annotations should be preserved or converted to empty map
+	if queriedSil3.Annotations != nil {
+		require.Empty(t, queriedSil3.Annotations)
+	}
+
+	// Test silence with empty annotations map
+	sil4 := &pb.Silence{
+		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "database"}},
+		StartsAt:    timestamppb.New(now),
+		EndsAt:      timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{},
+	}
+	require.NoError(t, s.Set(t.Context(), sil4))
+	queriedSil4, err := s.QueryOne(t.Context(), QIDs(sil4.Id))
+	require.NoError(t, err)
+	if queriedSil4.Annotations != nil {
+		require.Empty(t, queriedSil4.Annotations)
+	}
+}
