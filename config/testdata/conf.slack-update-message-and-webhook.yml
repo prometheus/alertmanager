@@ -1,0 +1,17 @@
+global:
+  slack_app_token: 'xoxb-1234-abcdefgh'
+  # old workaround to use bot tokens
+  slack_api_url: 'https://slack.com/api/chat.postMessage'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # use global
+      - channel: '#alerts1'
+        text: 'test'
+        send_resolved: true
+        # trying to use webhook urls with update_message
+        api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+        update_message: true
