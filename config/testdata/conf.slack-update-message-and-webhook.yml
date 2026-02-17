@@ -1,10 +1,6 @@
-global:
-  slack_app_token: 'xoxb-1234-abcdefgh'
-  # old workaround to use bot tokens
-  slack_api_url: 'https://slack.com/api/chat.postMessage'
 route:
   receiver: 'slack-notifications'
-  group_by: [alertname, datacenter, app]
+  group_by: [alertname]
 receivers:
   - name: 'slack-notifications'
     slack_configs:
