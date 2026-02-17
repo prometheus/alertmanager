@@ -114,18 +114,8 @@ func (a *Alerts) gcAlerts() (deleted []*types.Alert) {
 	defer a.Unlock()
 	for fp, alert := range a.alerts {
 		if alert.Resolved() {
+			deleted = append(deleted, alert)
 			delete(a.alerts, fp)
-			deleted = append(deleted, &types.Alert{
-				Alert: model.Alert{
-					Labels:       alert.Labels.Clone(),
-					Annotations:  alert.Annotations.Clone(),
-					StartsAt:     alert.StartsAt,
-					EndsAt:       alert.EndsAt,
-					GeneratorURL: alert.GeneratorURL,
-				},
-				UpdatedAt: alert.UpdatedAt,
-				Timeout:   alert.Timeout,
-			})
 		}
 	}
 	return deleted
