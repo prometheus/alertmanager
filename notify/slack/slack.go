@@ -196,7 +196,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	store, ok := notify.NflogStore(ctx)
 	if !ok {
-		logger.Error("cannot create NflogStore")
+		updatableMessage = false
+		logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
 	} else {
 		threadTs, _ = store.GetStr("threadTs")
 		channelId, _ = store.GetStr("channelId")
