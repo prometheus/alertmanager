@@ -541,9 +541,7 @@ func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 }
 
 func (l *limitCountCallback) PostDelete(alerts ...*types.Alert) {
-	for range alerts {
-		l.alerts.Add(-1)
-	}
+	l.alerts.Add(-int32(len(alerts)))
 }
 
 func TestAlertsConcurrently(t *testing.T) {
