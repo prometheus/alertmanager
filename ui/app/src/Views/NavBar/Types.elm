@@ -29,7 +29,7 @@ settingsTab =
 
 helpTab : Tab
 helpTab =
-    { link = "https://prometheus.io/docs/alerting/alertmanager/", name = "Help" }
+    { link = "https://prometheus.io/docs/alerting/alertmanager/", name = "Documentation" }
 
 
 noneTab : Tab

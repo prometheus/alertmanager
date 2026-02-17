@@ -1,4 +1,4 @@
-// Copyright 2024 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -122,9 +122,8 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 	b.StopTimer()
 
 	// The alert should be marked as silenced for each matching silence.
-	activeIDs, pendingIDs, _, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
+	activeIDs, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
 	require.True(b, silenced || matchingSilences == 0)
-	require.Empty(b, pendingIDs)
 	require.Len(b, activeIDs, matchingSilences)
 }
 
@@ -191,7 +190,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 			marker := types.NewMarker(prometheus.NewRegistry())
 			silencer := NewSilencer(silences, marker, promslog.NewNopLogger())
 
-			// Warm up: Establish marker state (markerVersion = current version)
+			// Warm up: Establish cache state (cachedEntry.version = current version)
 			// This simulates a system that has been running for a while
 			lset := model.LabelSet{"service": "test", "instance": "instance1"}
 			silencer.Mutes(context.Background(), lset)
