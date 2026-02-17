@@ -199,12 +199,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		updatableMessage = false
 		logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
 	} else {
-		threadTs, _ = store.GetStr("threadTs")
-		channelId, _ = store.GetStr("channelId")
-		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId")
-		if threadTs == "" || channelId == "" {
-			updatableMessage = false
-		}
+		threadTs, updatableMessage = store.GetStr("threadTs")
+		channelId, updatableMessage = store.GetStr("channelId")
+		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId to update an existing message")
 	}
 
 	var u string
