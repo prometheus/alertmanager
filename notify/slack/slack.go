@@ -190,20 +190,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	var threadTs string
-	var channelId string
-	updatableMessage := n.conf.UpdateMessage
-
-	store, ok := notify.NflogStore(ctx)
-	if !ok {
-		updatableMessage = false
-		logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
-	} else {
-		threadTs, updatableMessage = store.GetStr("threadTs")
-		channelId, updatableMessage = store.GetStr("channelId")
-		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId to update an existing message")
-	}
-
 	var u string
 	if n.conf.APIURL != nil {
 		u = n.conf.APIURL.String()
@@ -233,13 +219,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	// If a notification for this alert group has already been sent and `update_message` config is set
 	// edit API endpoint and payload to update notification instead of sending a new one.
-	if updatableMessage {
-		u = "https://slack.com/api/chat.update"
-		req.Timestamp = threadTs
-		req.Channel = channelId
-		logger.With("threadTs", threadTs).With("channelId", channelId).Debug("updating previously sent message")
-	}
+	var store *nflog.Store
 
+	if n.conf.UpdateMessage {
+		var ok bool
+		store, ok = notify.NflogStore(ctx)
+		if !ok {
+			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+		} else {
+			threadTs, _ := store.GetStr("threadTs")
+			channelId, _ := store.GetStr("channelId")
+			logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId to update an existing message")
+			if threadTs != "" && channelId != "" {
+				u = "https://slack.com/api/chat.update"
+				req.Timestamp = threadTs
+				req.Channel = channelId
+				logger.With("threadTs", threadTs).With("channelId", channelId).Debug("updating previously sent message")
+			}
+		}
+	}
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
 		return false, err
@@ -287,7 +285,6 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 	if !data.OK {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
-
 	// If store, TS and Channel are set, store the threadTS and channelId
 	if store != nil && data.Timestamp != "" && data.Channel != "" {
 		store.SetStr("threadTs", data.Timestamp)
