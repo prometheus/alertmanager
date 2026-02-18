@@ -3,8 +3,9 @@ module Views.SilenceView.Views exposing (view)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus
+import Dict
 import Html exposing (Html, b, button, div, h1, label, span, text)
-import Html.Attributes exposing (class)
+import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
@@ -64,7 +65,39 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         , formGroup "State" <| text <| stateToString silence.status.state
         , formGroup "Matchers" <|
             div [] <|
-                List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
+                List.map
+                    (\matcher ->
+                        span
+                            [ class "btn btn-sm btn-light border mr-2 mb-2"
+                            , style "user-select" "text"
+                            , style "-moz-user-select" "text"
+                            , style "-webkit-user-select" "text"
+                            ]
+                            [ span [ class "text-muted" ] [ text (Utils.List.mstring matcher) ] ]
+                    )
+                    silence.matchers
+        , case silence.annotations of
+            Just annotations ->
+                if Dict.isEmpty annotations then
+                    text ""
+
+                else
+                    formGroup "Annotations" <|
+                        div [] <|
+                            List.map
+                                (\( k, v ) ->
+                                    span
+                                        [ class "btn btn-sm btn-light border mr-2 mb-2"
+                                        , style "user-select" "text"
+                                        , style "-moz-user-select" "text"
+                                        , style "-webkit-user-select" "text"
+                                        ]
+                                        [ span [ class "text-muted" ] [ text (k ++ "=" ++ v) ] ]
+                                )
+                                (Dict.toList annotations)
+
+            Nothing ->
+                text ""
         , affectedAlerts
         , Dialog.view
             (if showPromptDialog then
