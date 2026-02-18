@@ -20,12 +20,16 @@ package silence
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // DeleteSilenceReader is a Reader for the DeleteSilence structure.
@@ -123,9 +127,10 @@ func NewDeleteSilenceNotFound() *DeleteSilenceNotFound {
 /*
 DeleteSilenceNotFound describes a response with status code 404, with default header values.
 
-A silence with the specified ID was not found
+Resource not found
 */
 type DeleteSilenceNotFound struct {
+	Payload *DeleteSilenceNotFoundBody
 }
 
 // IsSuccess returns true when this delete silence not found response has a 2xx status code
@@ -159,14 +164,27 @@ func (o *DeleteSilenceNotFound) Code() int {
 }
 
 func (o *DeleteSilenceNotFound) Error() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound", 404)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound %s", 404, payload)
 }
 
 func (o *DeleteSilenceNotFound) String() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound", 404)
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound %s", 404, payload)
+}
+
+func (o *DeleteSilenceNotFound) GetPayload() *DeleteSilenceNotFoundBody {
+	return o.Payload
 }
 
 func (o *DeleteSilenceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(DeleteSilenceNotFoundBody)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
 
 	return nil
 }
@@ -182,7 +200,7 @@ DeleteSilenceInternalServerError describes a response with status code 500, with
 Internal server error
 */
 type DeleteSilenceInternalServerError struct {
-	Payload string
+	Payload *DeleteSilenceInternalServerErrorBody
 }
 
 // IsSuccess returns true when this delete silence internal server error response has a 2xx status code
@@ -225,16 +243,236 @@ func (o *DeleteSilenceInternalServerError) String() string {
 	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError %s", 500, payload)
 }
 
-func (o *DeleteSilenceInternalServerError) GetPayload() string {
+func (o *DeleteSilenceInternalServerError) GetPayload() *DeleteSilenceInternalServerErrorBody {
 	return o.Payload
 }
 
 func (o *DeleteSilenceInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(DeleteSilenceInternalServerErrorBody)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
+	return nil
+}
+
+/*
+DeleteSilenceInternalServerErrorBody delete silence internal server error body
+swagger:model DeleteSilenceInternalServerErrorBody
+*/
+type DeleteSilenceInternalServerErrorBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this delete silence internal server error body
+func (o *DeleteSilenceInternalServerErrorBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *DeleteSilenceInternalServerErrorBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("deleteSilenceInternalServerError"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var deleteSilenceInternalServerErrorBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		deleteSilenceInternalServerErrorBodyTypeStatusPropEnum = append(deleteSilenceInternalServerErrorBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// DeleteSilenceInternalServerErrorBodyStatusError captures enum value "error"
+	DeleteSilenceInternalServerErrorBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *DeleteSilenceInternalServerErrorBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, deleteSilenceInternalServerErrorBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *DeleteSilenceInternalServerErrorBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("deleteSilenceInternalServerError"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("deleteSilenceInternalServerError"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this delete silence internal server error body based on context it is used
+func (o *DeleteSilenceInternalServerErrorBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *DeleteSilenceInternalServerErrorBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *DeleteSilenceInternalServerErrorBody) UnmarshalBinary(b []byte) error {
+	var res DeleteSilenceInternalServerErrorBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+/*
+DeleteSilenceNotFoundBody delete silence not found body
+swagger:model DeleteSilenceNotFoundBody
+*/
+type DeleteSilenceNotFoundBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this delete silence not found body
+func (o *DeleteSilenceNotFoundBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *DeleteSilenceNotFoundBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("deleteSilenceNotFound"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var deleteSilenceNotFoundBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		deleteSilenceNotFoundBodyTypeStatusPropEnum = append(deleteSilenceNotFoundBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// DeleteSilenceNotFoundBodyStatusError captures enum value "error"
+	DeleteSilenceNotFoundBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *DeleteSilenceNotFoundBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, deleteSilenceNotFoundBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *DeleteSilenceNotFoundBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("deleteSilenceNotFound"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("deleteSilenceNotFound"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this delete silence not found body based on context it is used
+func (o *DeleteSilenceNotFoundBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *DeleteSilenceNotFoundBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *DeleteSilenceNotFoundBody) UnmarshalBinary(b []byte) error {
+	var res DeleteSilenceNotFoundBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
 	return nil
 }

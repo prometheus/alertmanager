@@ -252,7 +252,7 @@ func init() {
             }
           },
           "404": {
-            "description": "A silence with the specified ID was not found"
+            "$ref": "#/responses/NotFound"
           },
           "500": {
             "$ref": "#/responses/InternalServerError"
@@ -280,7 +280,7 @@ func init() {
             "description": "Delete silence response"
           },
           "404": {
-            "description": "A silence with the specified ID was not found"
+            "$ref": "#/responses/NotFound"
           },
           "500": {
             "$ref": "#/responses/InternalServerError"
@@ -365,10 +365,10 @@ func init() {
             "$ref": "#/responses/BadRequest"
           },
           "404": {
-            "description": "A silence with the specified ID was not found",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
           }
         }
       }
@@ -810,13 +810,73 @@ func init() {
     "BadRequest": {
       "description": "Bad request",
       "schema": {
-        "type": "string"
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
       }
     },
     "InternalServerError": {
       "description": "Internal server error",
       "schema": {
-        "type": "string"
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
+      }
+    },
+    "NotFound": {
+      "description": "Resource not found",
+      "schema": {
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
       }
     }
   },
@@ -921,13 +981,49 @@ func init() {
           "400": {
             "description": "Bad request",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -956,13 +1052,49 @@ func init() {
           "400": {
             "description": "Bad request",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1031,13 +1163,49 @@ func init() {
           "400": {
             "description": "Bad request",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1078,12 +1246,51 @@ func init() {
             }
           },
           "404": {
-            "description": "A silence with the specified ID was not found"
+            "description": "Resource not found",
+            "schema": {
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1109,12 +1316,51 @@ func init() {
             "description": "Delete silence response"
           },
           "404": {
-            "description": "A silence with the specified ID was not found"
+            "description": "Resource not found",
+            "schema": {
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1159,13 +1405,49 @@ func init() {
           "400": {
             "description": "Bad request",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           },
           "500": {
             "description": "Internal server error",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1202,13 +1484,73 @@ func init() {
           "400": {
             "description": "Bad request",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           },
           "404": {
-            "description": "A silence with the specified ID was not found",
+            "description": "Resource not found",
             "schema": {
-              "type": "string"
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "object",
+              "required": [
+                "status",
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "error"
+                  ]
+                }
+              }
             }
           }
         }
@@ -1651,13 +1993,73 @@ func init() {
     "BadRequest": {
       "description": "Bad request",
       "schema": {
-        "type": "string"
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
       }
     },
     "InternalServerError": {
       "description": "Internal server error",
       "schema": {
-        "type": "string"
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
+      }
+    },
+    "NotFound": {
+      "description": "Resource not found",
+      "schema": {
+        "type": "object",
+        "required": [
+          "status",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          }
+        }
       }
     }
   },

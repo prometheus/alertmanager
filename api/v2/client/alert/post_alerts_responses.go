@@ -20,12 +20,16 @@ package alert
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // PostAlertsReader is a Reader for the PostAlerts structure.
@@ -126,7 +130,7 @@ PostAlertsBadRequest describes a response with status code 400, with default hea
 Bad request
 */
 type PostAlertsBadRequest struct {
-	Payload string
+	Payload *PostAlertsBadRequestBody
 }
 
 // IsSuccess returns true when this post alerts bad request response has a 2xx status code
@@ -169,14 +173,16 @@ func (o *PostAlertsBadRequest) String() string {
 	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest %s", 400, payload)
 }
 
-func (o *PostAlertsBadRequest) GetPayload() string {
+func (o *PostAlertsBadRequest) GetPayload() *PostAlertsBadRequestBody {
 	return o.Payload
 }
 
 func (o *PostAlertsBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(PostAlertsBadRequestBody)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
@@ -194,7 +200,7 @@ PostAlertsInternalServerError describes a response with status code 500, with de
 Internal server error
 */
 type PostAlertsInternalServerError struct {
-	Payload string
+	Payload *PostAlertsInternalServerErrorBody
 }
 
 // IsSuccess returns true when this post alerts internal server error response has a 2xx status code
@@ -237,16 +243,236 @@ func (o *PostAlertsInternalServerError) String() string {
 	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError %s", 500, payload)
 }
 
-func (o *PostAlertsInternalServerError) GetPayload() string {
+func (o *PostAlertsInternalServerError) GetPayload() *PostAlertsInternalServerErrorBody {
 	return o.Payload
 }
 
 func (o *PostAlertsInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(PostAlertsInternalServerErrorBody)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
+	return nil
+}
+
+/*
+PostAlertsBadRequestBody post alerts bad request body
+swagger:model PostAlertsBadRequestBody
+*/
+type PostAlertsBadRequestBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this post alerts bad request body
+func (o *PostAlertsBadRequestBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *PostAlertsBadRequestBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("postAlertsBadRequest"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var postAlertsBadRequestBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		postAlertsBadRequestBodyTypeStatusPropEnum = append(postAlertsBadRequestBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// PostAlertsBadRequestBodyStatusError captures enum value "error"
+	PostAlertsBadRequestBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *PostAlertsBadRequestBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, postAlertsBadRequestBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *PostAlertsBadRequestBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("postAlertsBadRequest"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("postAlertsBadRequest"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this post alerts bad request body based on context it is used
+func (o *PostAlertsBadRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *PostAlertsBadRequestBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *PostAlertsBadRequestBody) UnmarshalBinary(b []byte) error {
+	var res PostAlertsBadRequestBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+/*
+PostAlertsInternalServerErrorBody post alerts internal server error body
+swagger:model PostAlertsInternalServerErrorBody
+*/
+type PostAlertsInternalServerErrorBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this post alerts internal server error body
+func (o *PostAlertsInternalServerErrorBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *PostAlertsInternalServerErrorBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("postAlertsInternalServerError"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var postAlertsInternalServerErrorBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		postAlertsInternalServerErrorBodyTypeStatusPropEnum = append(postAlertsInternalServerErrorBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// PostAlertsInternalServerErrorBodyStatusError captures enum value "error"
+	PostAlertsInternalServerErrorBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *PostAlertsInternalServerErrorBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, postAlertsInternalServerErrorBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *PostAlertsInternalServerErrorBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("postAlertsInternalServerError"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("postAlertsInternalServerError"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this post alerts internal server error body based on context it is used
+func (o *PostAlertsInternalServerErrorBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *PostAlertsInternalServerErrorBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *PostAlertsInternalServerErrorBody) UnmarshalBinary(b []byte) error {
+	var res PostAlertsInternalServerErrorBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
 	return nil
 }

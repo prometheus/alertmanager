@@ -25,9 +25,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // PostSilencesReader is a Reader for the PostSilences structure.
@@ -52,6 +54,12 @@ func (o *PostSilencesReader) ReadResponse(response runtime.ClientResponse, consu
 		return nil, result
 	case 404:
 		result := NewPostSilencesNotFound()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
+	case 500:
+		result := NewPostSilencesInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
@@ -142,7 +150,7 @@ PostSilencesBadRequest describes a response with status code 400, with default h
 Bad request
 */
 type PostSilencesBadRequest struct {
-	Payload string
+	Payload *PostSilencesBadRequestBody
 }
 
 // IsSuccess returns true when this post silences bad request response has a 2xx status code
@@ -185,14 +193,16 @@ func (o *PostSilencesBadRequest) String() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest %s", 400, payload)
 }
 
-func (o *PostSilencesBadRequest) GetPayload() string {
+func (o *PostSilencesBadRequest) GetPayload() *PostSilencesBadRequestBody {
 	return o.Payload
 }
 
 func (o *PostSilencesBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(PostSilencesBadRequestBody)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
@@ -207,10 +217,10 @@ func NewPostSilencesNotFound() *PostSilencesNotFound {
 /*
 PostSilencesNotFound describes a response with status code 404, with default header values.
 
-A silence with the specified ID was not found
+Resource not found
 */
 type PostSilencesNotFound struct {
-	Payload string
+	Payload *PostSilencesNotFoundBody
 }
 
 // IsSuccess returns true when this post silences not found response has a 2xx status code
@@ -253,17 +263,416 @@ func (o *PostSilencesNotFound) String() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound %s", 404, payload)
 }
 
-func (o *PostSilencesNotFound) GetPayload() string {
+func (o *PostSilencesNotFound) GetPayload() *PostSilencesNotFoundBody {
 	return o.Payload
 }
 
 func (o *PostSilencesNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
+	o.Payload = new(PostSilencesNotFoundBody)
+
 	// response payload
-	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && err != io.EOF {
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
 
+	return nil
+}
+
+// NewPostSilencesInternalServerError creates a PostSilencesInternalServerError with default headers values
+func NewPostSilencesInternalServerError() *PostSilencesInternalServerError {
+	return &PostSilencesInternalServerError{}
+}
+
+/*
+PostSilencesInternalServerError describes a response with status code 500, with default header values.
+
+Internal server error
+*/
+type PostSilencesInternalServerError struct {
+	Payload *PostSilencesInternalServerErrorBody
+}
+
+// IsSuccess returns true when this post silences internal server error response has a 2xx status code
+func (o *PostSilencesInternalServerError) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this post silences internal server error response has a 3xx status code
+func (o *PostSilencesInternalServerError) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this post silences internal server error response has a 4xx status code
+func (o *PostSilencesInternalServerError) IsClientError() bool {
+	return false
+}
+
+// IsServerError returns true when this post silences internal server error response has a 5xx status code
+func (o *PostSilencesInternalServerError) IsServerError() bool {
+	return true
+}
+
+// IsCode returns true when this post silences internal server error response a status code equal to that given
+func (o *PostSilencesInternalServerError) IsCode(code int) bool {
+	return code == 500
+}
+
+// Code gets the status code for the post silences internal server error response
+func (o *PostSilencesInternalServerError) Code() int {
+	return 500
+}
+
+func (o *PostSilencesInternalServerError) Error() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesInternalServerError %s", 500, payload)
+}
+
+func (o *PostSilencesInternalServerError) String() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesInternalServerError %s", 500, payload)
+}
+
+func (o *PostSilencesInternalServerError) GetPayload() *PostSilencesInternalServerErrorBody {
+	return o.Payload
+}
+
+func (o *PostSilencesInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(PostSilencesInternalServerErrorBody)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+/*
+PostSilencesBadRequestBody post silences bad request body
+swagger:model PostSilencesBadRequestBody
+*/
+type PostSilencesBadRequestBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this post silences bad request body
+func (o *PostSilencesBadRequestBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *PostSilencesBadRequestBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesBadRequest"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var postSilencesBadRequestBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		postSilencesBadRequestBodyTypeStatusPropEnum = append(postSilencesBadRequestBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// PostSilencesBadRequestBodyStatusError captures enum value "error"
+	PostSilencesBadRequestBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *PostSilencesBadRequestBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, postSilencesBadRequestBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *PostSilencesBadRequestBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesBadRequest"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("postSilencesBadRequest"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this post silences bad request body based on context it is used
+func (o *PostSilencesBadRequestBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *PostSilencesBadRequestBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *PostSilencesBadRequestBody) UnmarshalBinary(b []byte) error {
+	var res PostSilencesBadRequestBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+/*
+PostSilencesInternalServerErrorBody post silences internal server error body
+swagger:model PostSilencesInternalServerErrorBody
+*/
+type PostSilencesInternalServerErrorBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this post silences internal server error body
+func (o *PostSilencesInternalServerErrorBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *PostSilencesInternalServerErrorBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesInternalServerError"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var postSilencesInternalServerErrorBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		postSilencesInternalServerErrorBodyTypeStatusPropEnum = append(postSilencesInternalServerErrorBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// PostSilencesInternalServerErrorBodyStatusError captures enum value "error"
+	PostSilencesInternalServerErrorBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *PostSilencesInternalServerErrorBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, postSilencesInternalServerErrorBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *PostSilencesInternalServerErrorBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesInternalServerError"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("postSilencesInternalServerError"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this post silences internal server error body based on context it is used
+func (o *PostSilencesInternalServerErrorBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *PostSilencesInternalServerErrorBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *PostSilencesInternalServerErrorBody) UnmarshalBinary(b []byte) error {
+	var res PostSilencesInternalServerErrorBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+/*
+PostSilencesNotFoundBody post silences not found body
+swagger:model PostSilencesNotFoundBody
+*/
+type PostSilencesNotFoundBody struct {
+
+	// error
+	// Required: true
+	Error *string `json:"error"`
+
+	// error type
+	ErrorType string `json:"errorType,omitempty"`
+
+	// status
+	// Required: true
+	// Enum: ["error"]
+	Status *string `json:"status"`
+}
+
+// Validate validates this post silences not found body
+func (o *PostSilencesNotFoundBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateError(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateStatus(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *PostSilencesNotFoundBody) validateError(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesNotFound"+"."+"error", "body", o.Error); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var postSilencesNotFoundBodyTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["error"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		postSilencesNotFoundBodyTypeStatusPropEnum = append(postSilencesNotFoundBodyTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// PostSilencesNotFoundBodyStatusError captures enum value "error"
+	PostSilencesNotFoundBodyStatusError string = "error"
+)
+
+// prop value enum
+func (o *PostSilencesNotFoundBody) validateStatusEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, postSilencesNotFoundBodyTypeStatusPropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *PostSilencesNotFoundBody) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("postSilencesNotFound"+"."+"status", "body", o.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := o.validateStatusEnum("postSilencesNotFound"+"."+"status", "body", *o.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this post silences not found body based on context it is used
+func (o *PostSilencesNotFoundBody) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *PostSilencesNotFoundBody) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *PostSilencesNotFoundBody) UnmarshalBinary(b []byte) error {
+	var res PostSilencesNotFoundBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
 	return nil
 }
 

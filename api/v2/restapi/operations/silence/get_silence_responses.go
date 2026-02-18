@@ -76,11 +76,16 @@ func (o *GetSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime.Pr
 const GetSilenceNotFoundCode int = 404
 
 /*
-GetSilenceNotFound A silence with the specified ID was not found
+GetSilenceNotFound Resource not found
 
 swagger:response getSilenceNotFound
 */
 type GetSilenceNotFound struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *GetSilenceNotFoundBody `json:"body,omitempty"`
 }
 
 // NewGetSilenceNotFound creates GetSilenceNotFound with default headers values
@@ -89,12 +94,27 @@ func NewGetSilenceNotFound() *GetSilenceNotFound {
 	return &GetSilenceNotFound{}
 }
 
+// WithPayload adds the payload to the get silence not found response
+func (o *GetSilenceNotFound) WithPayload(payload *GetSilenceNotFoundBody) *GetSilenceNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get silence not found response
+func (o *GetSilenceNotFound) SetPayload(payload *GetSilenceNotFoundBody) {
+	o.Payload = payload
+}
+
 // WriteResponse to the client
 func (o *GetSilenceNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
-
 	rw.WriteHeader(404)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
 }
 
 // GetSilenceInternalServerErrorCode is the HTTP code returned for type GetSilenceInternalServerError
@@ -110,7 +130,7 @@ type GetSilenceInternalServerError struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *GetSilenceInternalServerErrorBody `json:"body,omitempty"`
 }
 
 // NewGetSilenceInternalServerError creates GetSilenceInternalServerError with default headers values
@@ -120,13 +140,13 @@ func NewGetSilenceInternalServerError() *GetSilenceInternalServerError {
 }
 
 // WithPayload adds the payload to the get silence internal server error response
-func (o *GetSilenceInternalServerError) WithPayload(payload string) *GetSilenceInternalServerError {
+func (o *GetSilenceInternalServerError) WithPayload(payload *GetSilenceInternalServerErrorBody) *GetSilenceInternalServerError {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get silence internal server error response
-func (o *GetSilenceInternalServerError) SetPayload(payload string) {
+func (o *GetSilenceInternalServerError) SetPayload(payload *GetSilenceInternalServerErrorBody) {
 	o.Payload = payload
 }
 
@@ -134,8 +154,10 @@ func (o *GetSilenceInternalServerError) SetPayload(payload string) {
 func (o *GetSilenceInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(500)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }

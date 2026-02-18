@@ -58,6 +58,34 @@ import (
 
 var tracer = otel.Tracer("github.com/prometheus/alertmanager/api/v2")
 
+const (
+	errorStatus       = "error"
+	errorTypeBadData  = "bad_data"
+	errorTypeInternal = "internal"
+)
+
+type errorBody struct {
+	status    string
+	errorType string
+	error     string
+}
+
+func badRequestError(message string, err error) errorBody {
+	return errorBody{
+		status:    errorStatus,
+		errorType: errorTypeBadData,
+		error:     fmt.Sprintf("%s: %v", message, err),
+	}
+}
+
+func internalError(message string, err error) errorBody {
+	return errorBody{
+		status:    errorStatus,
+		errorType: errorTypeInternal,
+		error:     fmt.Sprintf("%s: %v", message, err),
+	}
+}
+
 // API represents an Alertmanager API v2.
 type API struct {
 	peer           cluster.ClusterPeer
@@ -262,19 +290,29 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
-		logger.Debug("Failed to parse matchers", "err", err)
-		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
+		message := "Failed to parse matchers"
+		logger.Debug(message, "err", err)
+		eb := badRequestError(message, err)
+		body := &alert_ops.GetAlertsBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return alert_ops.NewGetAlertsBadRequest().WithPayload(body)
 	}
 
 	if params.Receiver != nil {
 		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
 		if err != nil {
-			logger.Debug("Failed to compile receiver regex", "err", err)
-			return alert_ops.
-				NewGetAlertsBadRequest().
-				WithPayload(
-					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
-				)
+			message := "Failed to compile receiver regex"
+			logger.Debug(message, "err", err)
+			eb := badRequestError(message, err)
+			body := &alert_ops.GetAlertsBadRequestBody{
+				Status:    &eb.status,
+				ErrorType: eb.errorType,
+				Error:     &eb.error,
+			}
+			return alert_ops.NewGetAlertsBadRequest().WithPayload(body)
 		}
 	}
 
@@ -315,8 +353,15 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	api.mtx.RUnlock()
 
 	if err != nil {
-		logger.Error("Failed to get alerts", "err", err)
-		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
+		message := "Failed to get alerts"
+		logger.Error(message, "err", err)
+		eb := internalError(message, err)
+		body := &alert_ops.GetAlertsInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return alert_ops.NewGetAlertsInternalServerError().WithPayload(body)
 	}
 	sort.Slice(res, func(i, j int) bool {
 		return *res[i].Fingerprint < *res[j].Fingerprint
@@ -383,7 +428,13 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		logger.Error(message, "err", err)
 		span.SetStatus(codes.Error, message)
 		span.RecordError(err)
-		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
+		eb := internalError(message, err)
+		body := &alert_ops.PostAlertsInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return alert_ops.NewPostAlertsInternalServerError().WithPayload(body)
 	}
 
 	if validationErrs.Len() > 0 {
@@ -391,7 +442,13 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		logger.Error(message, "err", validationErrs.Error())
 		span.SetStatus(codes.Error, message)
 		span.RecordError(validationErrs)
-		return alert_ops.NewPostAlertsBadRequest().WithPayload(validationErrs.Error())
+		eb := badRequestError(message, validationErrs)
+		body := &alert_ops.PostAlertsBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return alert_ops.NewPostAlertsBadRequest().WithPayload(body)
 	}
 
 	return alert_ops.NewPostAlertsOK()
@@ -405,20 +462,30 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
-		logger.Debug("Failed to parse matchers", "err", err)
-		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
+		message := "Failed to parse matchers"
+		logger.Debug(message, "err", err)
+		eb := badRequestError(message, err)
+		body := &alertgroup_ops.GetAlertGroupsBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(body)
 	}
 
 	var receiverFilter *regexp.Regexp
 	if params.Receiver != nil {
 		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
 		if err != nil {
-			logger.Error("Failed to compile receiver regex", "err", err)
-			return alertgroup_ops.
-				NewGetAlertGroupsBadRequest().
-				WithPayload(
-					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
-				)
+			message := "Failed to compile receiver regex"
+			logger.Debug(message, "err", err)
+			eb := badRequestError(message, err)
+			body := &alertgroup_ops.GetAlertGroupsBadRequestBody{
+				Status:    &eb.status,
+				ErrorType: eb.errorType,
+				Error:     &eb.error,
+			}
+			return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(body)
 		}
 	}
 
@@ -548,14 +615,28 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
-		logger.Debug("Failed to parse matchers", "err", err)
-		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
+		message := "Failed to parse matchers"
+		logger.Debug(message, "err", err)
+		eb := badRequestError(message, err)
+		body := &silence_ops.GetSilencesBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(body)
 	}
 
 	psils, _, err := api.silences.Query(ctx)
 	if err != nil {
-		logger.Error("Failed to get silences", "err", err)
-		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
+		message := "Failed to get silences"
+		logger.Error(message, "err", err)
+		eb := internalError(message, err)
+		body := &silence_ops.GetSilencesInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewGetSilencesInternalServerError().WithPayload(body)
 	}
 
 	sils := open_api_models.GettableSilences{}
@@ -565,8 +646,15 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		}
 		silence, err := GettableSilenceFromProto(ps)
 		if err != nil {
-			logger.Error("Failed to unmarshal silence from proto", "err", err)
-			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
+			message := "Failed to unmarshal silence from proto"
+			logger.Error(message, "err", err)
+			eb := internalError(message, err)
+			body := &silence_ops.GetSilencesInternalServerErrorBody{
+				Status:    &eb.status,
+				ErrorType: eb.errorType,
+				Error:     &eb.error,
+			}
+			return silence_ops.NewGetSilencesInternalServerError().WithPayload(body)
 		}
 		sils = append(sils, &silence)
 	}
@@ -657,8 +745,15 @@ func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middlewar
 
 	sils, _, err := api.silences.Query(ctx, silence.QIDs(params.SilenceID.String()))
 	if err != nil {
-		logger.Error("Failed to get silence by id", "err", err, "id", params.SilenceID.String())
-		return silence_ops.NewGetSilenceInternalServerError().WithPayload(err.Error())
+		message := "Failed to get silence by id"
+		logger.Error(message, "err", err, "id", params.SilenceID.String())
+		eb := internalError(message, err)
+		body := &silence_ops.GetSilenceInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewGetSilenceInternalServerError().WithPayload(body)
 	}
 
 	if len(sils) == 0 {
@@ -668,8 +763,15 @@ func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middlewar
 
 	sil, err := GettableSilenceFromProto(sils[0])
 	if err != nil {
-		logger.Error("Failed to convert unmarshal from proto", "err", err)
-		return silence_ops.NewGetSilenceInternalServerError().WithPayload(err.Error())
+		message := "Failed to convert unmarshal from proto"
+		logger.Error(message, "err", err)
+		eb := internalError(message, err)
+		body := &silence_ops.GetSilenceInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewGetSilenceInternalServerError().WithPayload(body)
 	}
 
 	return silence_ops.NewGetSilenceOK().WithPayload(&sil)
@@ -683,11 +785,18 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 
 	sid := params.SilenceID.String()
 	if err := api.silences.Expire(ctx, sid); err != nil {
-		logger.Error("Failed to expire silence", "err", err)
 		if errors.Is(err, silence.ErrNotFound) {
 			return silence_ops.NewDeleteSilenceNotFound()
 		}
-		return silence_ops.NewDeleteSilenceInternalServerError().WithPayload(err.Error())
+		message := "Failed to expire silence"
+		logger.Error(message, "err", err)
+		eb := internalError(message, err)
+		body := &silence_ops.DeleteSilenceInternalServerErrorBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewDeleteSilenceInternalServerError().WithPayload(body)
 	}
 	return silence_ops.NewDeleteSilenceOK()
 }
@@ -700,30 +809,52 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 
 	sil, err := PostableSilenceToProto(params.Silence)
 	if err != nil {
-		logger.Error("Failed to marshal silence to proto", "err", err)
-		return silence_ops.NewPostSilencesBadRequest().WithPayload(
-			fmt.Sprintf("failed to convert API silence to internal silence: %v", err.Error()),
-		)
+		message := "Failed to marshal silence to proto"
+		logger.Error(message, "err", err)
+		eb := badRequestError(message, err)
+		body := &silence_ops.PostSilencesBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewPostSilencesBadRequest().WithPayload(body)
 	}
 
 	if sil.StartsAt.AsTime().After(sil.EndsAt.AsTime()) || sil.StartsAt.AsTime().Equal(sil.EndsAt.AsTime()) {
-		msg := "Failed to create silence: start time must be before end time"
-		logger.Error(msg, "starts_at", sil.StartsAt, "ends_at", sil.EndsAt)
-		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
+		message := "Failed to create silence: start time must be before end time"
+		logger.Error(message, "starts_at", sil.StartsAt, "ends_at", sil.EndsAt)
+		status := errorStatus
+		body := &silence_ops.PostSilencesBadRequestBody{
+			Status: &status,
+			Error:  &message,
+		}
+		return silence_ops.NewPostSilencesBadRequest().WithPayload(body)
 	}
 
 	if sil.EndsAt.AsTime().Before(time.Now()) {
-		msg := "Failed to create silence: end time can't be in the past"
-		logger.Error(msg, "ends_at", sil.EndsAt)
-		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
+		message := "Failed to create silence: end time can't be in the past"
+		logger.Error(message, "ends_at", sil.EndsAt)
+		status := errorStatus
+		body := &silence_ops.PostSilencesBadRequestBody{
+			Status: &status,
+			Error:  &message,
+		}
+		return silence_ops.NewPostSilencesBadRequest().WithPayload(body)
 	}
 
 	if err = api.silences.Set(ctx, sil); err != nil {
-		logger.Error("Failed to create silence", "err", err)
 		if errors.Is(err, silence.ErrNotFound) {
-			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
+			return silence_ops.NewPostSilencesNotFound()
 		}
-		return silence_ops.NewPostSilencesBadRequest().WithPayload(err.Error())
+		message := "Failed to create silence"
+		logger.Error(message, "err", err)
+		eb := badRequestError(message, err)
+		body := &silence_ops.PostSilencesBadRequestBody{
+			Status:    &eb.status,
+			ErrorType: eb.errorType,
+			Error:     &eb.error,
+		}
+		return silence_ops.NewPostSilencesBadRequest().WithPayload(body)
 	}
 
 	return silence_ops.NewPostSilencesOK().WithPayload(&silence_ops.PostSilencesOKBody{

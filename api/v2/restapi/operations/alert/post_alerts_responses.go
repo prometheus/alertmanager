@@ -63,7 +63,7 @@ type PostAlertsBadRequest struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *PostAlertsBadRequestBody `json:"body,omitempty"`
 }
 
 // NewPostAlertsBadRequest creates PostAlertsBadRequest with default headers values
@@ -73,13 +73,13 @@ func NewPostAlertsBadRequest() *PostAlertsBadRequest {
 }
 
 // WithPayload adds the payload to the post alerts bad request response
-func (o *PostAlertsBadRequest) WithPayload(payload string) *PostAlertsBadRequest {
+func (o *PostAlertsBadRequest) WithPayload(payload *PostAlertsBadRequestBody) *PostAlertsBadRequest {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the post alerts bad request response
-func (o *PostAlertsBadRequest) SetPayload(payload string) {
+func (o *PostAlertsBadRequest) SetPayload(payload *PostAlertsBadRequestBody) {
 	o.Payload = payload
 }
 
@@ -87,9 +87,11 @@ func (o *PostAlertsBadRequest) SetPayload(payload string) {
 func (o *PostAlertsBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(400)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
 
@@ -106,7 +108,7 @@ type PostAlertsInternalServerError struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *PostAlertsInternalServerErrorBody `json:"body,omitempty"`
 }
 
 // NewPostAlertsInternalServerError creates PostAlertsInternalServerError with default headers values
@@ -116,13 +118,13 @@ func NewPostAlertsInternalServerError() *PostAlertsInternalServerError {
 }
 
 // WithPayload adds the payload to the post alerts internal server error response
-func (o *PostAlertsInternalServerError) WithPayload(payload string) *PostAlertsInternalServerError {
+func (o *PostAlertsInternalServerError) WithPayload(payload *PostAlertsInternalServerErrorBody) *PostAlertsInternalServerError {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the post alerts internal server error response
-func (o *PostAlertsInternalServerError) SetPayload(payload string) {
+func (o *PostAlertsInternalServerError) SetPayload(payload *PostAlertsInternalServerErrorBody) {
 	o.Payload = payload
 }
 
@@ -130,8 +132,10 @@ func (o *PostAlertsInternalServerError) SetPayload(payload string) {
 func (o *PostAlertsInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(500)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }

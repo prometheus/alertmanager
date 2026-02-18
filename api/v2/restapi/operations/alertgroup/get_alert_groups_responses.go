@@ -88,7 +88,7 @@ type GetAlertGroupsBadRequest struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *GetAlertGroupsBadRequestBody `json:"body,omitempty"`
 }
 
 // NewGetAlertGroupsBadRequest creates GetAlertGroupsBadRequest with default headers values
@@ -98,13 +98,13 @@ func NewGetAlertGroupsBadRequest() *GetAlertGroupsBadRequest {
 }
 
 // WithPayload adds the payload to the get alert groups bad request response
-func (o *GetAlertGroupsBadRequest) WithPayload(payload string) *GetAlertGroupsBadRequest {
+func (o *GetAlertGroupsBadRequest) WithPayload(payload *GetAlertGroupsBadRequestBody) *GetAlertGroupsBadRequest {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get alert groups bad request response
-func (o *GetAlertGroupsBadRequest) SetPayload(payload string) {
+func (o *GetAlertGroupsBadRequest) SetPayload(payload *GetAlertGroupsBadRequestBody) {
 	o.Payload = payload
 }
 
@@ -112,9 +112,11 @@ func (o *GetAlertGroupsBadRequest) SetPayload(payload string) {
 func (o *GetAlertGroupsBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(400)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
 
@@ -131,7 +133,7 @@ type GetAlertGroupsInternalServerError struct {
 	/*
 	  In: Body
 	*/
-	Payload string `json:"body,omitempty"`
+	Payload *GetAlertGroupsInternalServerErrorBody `json:"body,omitempty"`
 }
 
 // NewGetAlertGroupsInternalServerError creates GetAlertGroupsInternalServerError with default headers values
@@ -141,13 +143,13 @@ func NewGetAlertGroupsInternalServerError() *GetAlertGroupsInternalServerError {
 }
 
 // WithPayload adds the payload to the get alert groups internal server error response
-func (o *GetAlertGroupsInternalServerError) WithPayload(payload string) *GetAlertGroupsInternalServerError {
+func (o *GetAlertGroupsInternalServerError) WithPayload(payload *GetAlertGroupsInternalServerErrorBody) *GetAlertGroupsInternalServerError {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get alert groups internal server error response
-func (o *GetAlertGroupsInternalServerError) SetPayload(payload string) {
+func (o *GetAlertGroupsInternalServerError) SetPayload(payload *GetAlertGroupsInternalServerErrorBody) {
 	o.Payload = payload
 }
 
@@ -155,8 +157,10 @@ func (o *GetAlertGroupsInternalServerError) SetPayload(payload string) {
 func (o *GetAlertGroupsInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
 	rw.WriteHeader(500)
-	payload := o.Payload
-	if err := producer.Produce(rw, payload); err != nil {
-		panic(err) // let the recovery middleware deal with this
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
 	}
 }
