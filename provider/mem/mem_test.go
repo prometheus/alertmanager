@@ -542,7 +542,7 @@ func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 	}
 }
 
-func (l *limitCountCallback) PostDelete(alert *types.Alert) {
+func (l *limitCountCallback) PostDelete(_ *types.Alert) {
 	l.alerts.Add(-1)
 }
 
