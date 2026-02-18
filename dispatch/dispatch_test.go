@@ -1086,3 +1086,4 @@ func TestDispatchOnStartup(t *testing.T) {
 	require.True(t, fingerprints[alert1.Fingerprint()], "expected alert1 to be present")
 	require.True(t, fingerprints[alert2.Fingerprint()], "expected alert2 to be present")
 }
+

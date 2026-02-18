@@ -776,17 +776,18 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		alerts        = ag.alerts.List()
 		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
 		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
+		alertCopies   = make([]types.Alert, len(alerts))
 		now           = time.Now()
 	)
-	for _, alert := range alerts {
-		a := *alert
+	for i, alert := range alerts {
+		alertCopies[i] = *alert
 		// Ensure that alerts don't resolve as time move forwards.
-		if a.ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &a)
+		if alertCopies[i].ResolvedAt(now) {
+			resolvedSlice = append(resolvedSlice, &alertCopies[i])
 		} else {
-			a.EndsAt = time.Time{}
+			alertCopies[i].EndsAt = time.Time{}
 		}
-		alertsSlice = append(alertsSlice, &a)
+		alertsSlice = append(alertsSlice, &alertCopies[i])
 	}
 	sort.Stable(alertsSlice)
 
