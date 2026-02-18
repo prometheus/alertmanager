@@ -766,28 +766,32 @@ func (ag *aggrGroup) destroyed() bool {
 	return ag.alerts.Destroyed()
 }
 
+// prepareAlertsForFlush copies alerts and partitions them into all/resolved slices.
+func prepareAlertsForFlush(alerts []*types.Alert, now time.Time) (types.AlertSlice, types.AlertSlice) {
+	alertsSlice := make(types.AlertSlice, 0, len(alerts))
+	resolvedSlice := make(types.AlertSlice, 0, len(alerts))
+	alertCopies := make([]types.Alert, len(alerts))
+
+	for i, alert := range alerts {
+		alertCopies[i] = *alert
+		if alertCopies[i].ResolvedAt(now) {
+			resolvedSlice = append(resolvedSlice, &alertCopies[i])
+		} else {
+			alertCopies[i].EndsAt = time.Time{}
+		}
+		alertsSlice = append(alertsSlice, &alertCopies[i])
+	}
+	return alertsSlice, resolvedSlice
+}
+
 // flush sends notifications for all new alerts.
 func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	if ag.empty() {
 		return
 	}
 
-	var (
-		alerts        = ag.alerts.List()
-		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
-		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
-		now           = time.Now()
-	)
-	for _, alert := range alerts {
-		a := *alert
-		// Ensure that alerts don't resolve as time move forwards.
-		if a.ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &a)
-		} else {
-			a.EndsAt = time.Time{}
-		}
-		alertsSlice = append(alertsSlice, &a)
-	}
+	alerts := ag.alerts.List()
+	alertsSlice, resolvedSlice := prepareAlertsForFlush(alerts, time.Now())
 	sort.Stable(alertsSlice)
 
 	ag.logger.Debug("flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
