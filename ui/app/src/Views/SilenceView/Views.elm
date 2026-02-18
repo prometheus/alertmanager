@@ -3,6 +3,7 @@ module Views.SilenceView.Views exposing (view)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus
+import Dict
 import Html exposing (Html, b, button, div, h1, label, span, text)
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
@@ -11,7 +12,7 @@ import Types exposing (Msg(..))
 import Utils.Date exposing (dateTimeFormat)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
-import Utils.Views exposing (error, loading)
+import Utils.Views exposing (annotationButton, error, labelButton, loading)
 import Views.Shared.Dialog as Dialog
 import Views.Shared.SilencePreview
 import Views.SilenceList.SilenceView exposing (editButton)
@@ -64,7 +65,21 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         , formGroup "State" <| text <| stateToString silence.status.state
         , formGroup "Matchers" <|
             div [] <|
-                List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
+                List.map
+                    (\matcher -> labelButton Nothing (Utils.List.mstring matcher))
+                    silence.matchers
+        , case silence.annotations of
+            Just annotations ->
+                if Dict.isEmpty annotations then
+                    text ""
+
+                else
+                    formGroup "Annotations" <|
+                        div [] <|
+                            List.map annotationButton (Dict.toList annotations)
+
+            Nothing ->
+                text ""
         , affectedAlerts
         , Dialog.view
             (if showPromptDialog then
