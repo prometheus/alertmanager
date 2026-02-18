@@ -516,8 +516,9 @@ func alertDiff(left, right *types.Alert) error {
 }
 
 type limitCountCallback struct {
-	alerts atomic.Int32
-	limit  int
+	alerts  atomic.Int32
+	gcCount atomic.Int32
+	limit   int
 }
 
 var errTooManyAlerts = fmt.Errorf("too many alerts")
@@ -537,11 +538,16 @@ func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
 func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 	if !existing {
 		l.alerts.Add(1)
+		l.gcCount.Add(1)
 	}
 }
 
-func (l *limitCountCallback) PostDelete(alerts ...*types.Alert) {
-	l.alerts.Add(-int32(len(alerts)))
+func (l *limitCountCallback) PostDelete(alert *types.Alert) {
+	l.alerts.Add(-1)
+}
+
+func (l *limitCountCallback) PostGC(fingerprints model.Fingerprints) {
+	l.gcCount.Add(-int32(fingerprints.Len()))
 }
 
 func TestAlertsConcurrently(t *testing.T) {
@@ -602,6 +608,7 @@ func TestAlertsConcurrently(t *testing.T) {
 		return active == 0
 	}, 2*expire, expire)
 	require.Equal(t, int32(0), callback.alerts.Load())
+	require.Equal(t, int32(0), callback.gcCount.Load())
 }
 
 func TestSubscriberChannelMetrics(t *testing.T) {

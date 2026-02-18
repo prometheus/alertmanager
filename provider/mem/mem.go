@@ -71,8 +71,11 @@ type AlertStoreCallback interface {
 	// PostStore is called after alert has been put into store.
 	PostStore(alert *types.Alert, existing bool)
 
-	// PostDelete is called after alerts have been removed from the store due to alert garbage collection.
-	PostDelete(alerts ...*types.Alert)
+	// PostDelete is called after alert have been removed from the store due to alert garbage collection.
+	PostDelete(alert *types.Alert)
+
+	// PostGC is called after alerts have been removed from the store due to alert garbage collection.
+	PostGC(fingerprints model.Fingerprints)
 }
 
 type listeningAlerts struct {
@@ -183,14 +186,13 @@ func (a *Alerts) gc() {
 	}
 
 	// Delete markers for deleted alerts.
-	var ff model.Fingerprints
-	for _, alert := range deleted {
-		ff = append(ff, alert.Fingerprint())
+	ff := make(model.Fingerprints, len(deleted))
+	for i, alert := range deleted {
+		ff[i] = alert.Fingerprint()
+		a.callback.PostDelete(alert)
 	}
 	a.marker.Delete(ff...)
-
-	// Notify callback about deleted alerts.
-	a.callback.PostDelete(deleted...)
+	a.callback.PostGC(ff)
 }
 
 func (a *Alerts) gcAlerts() []*types.Alert {
@@ -411,4 +413,5 @@ type noopCallback struct{}
 
 func (n noopCallback) PreStore(_ *types.Alert, _ bool) error { return nil }
 func (n noopCallback) PostStore(_ *types.Alert, _ bool)      {}
-func (n noopCallback) PostDelete(_ ...*types.Alert)          {}
+func (n noopCallback) PostDelete(_ *types.Alert)             {}
+func (n noopCallback) PostGC(_ model.Fingerprints)           {}
