@@ -3,6 +3,7 @@ module Views.SilenceList.SilenceView exposing (editButton, view)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.SilenceStatus exposing (State(..))
+import Dict
 import Html exposing (Html, a, button, div, li, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
@@ -40,7 +41,23 @@ view showConfirmationDialog silence =
             , editButton silence
             , deleteButton silence
             ]
-        , div [ class "" ] (List.map matcherButton silence.matchers)
+        , div [ class "d-flex align-items-center" ]
+            [ span [ class "mr-2" ] [ text "Matchers:" ]
+            , div [ class "" ] (List.map matcherButton silence.matchers)
+            ]
+        , case silence.annotations of
+            Just annotations ->
+                if Dict.isEmpty annotations then
+                    text ""
+
+                else
+                    div [ class "d-flex align-items-center" ]
+                        [ span [ class "mr-2" ] [ text "Annotations:" ]
+                        , div [ class "" ] (List.map Utils.Views.annotationButton (Dict.toList annotations))
+                        ]
+
+            Nothing ->
+                text ""
         , Dialog.view
             (if showConfirmationDialog then
                 Just (confirmSilenceDeleteView silence False)
