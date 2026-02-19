@@ -593,7 +593,11 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 }
 
 func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
-	groupLabels := model.LabelSet{}
+	capacity := len(route.RouteOpts.GroupBy)
+	if route.RouteOpts.GroupByAll {
+		capacity = len(alert.Labels)
+	}
+	groupLabels := make(model.LabelSet, capacity)
 	for ln, lv := range alert.Labels {
 		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
 			groupLabels[ln] = lv
