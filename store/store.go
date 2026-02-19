@@ -41,7 +41,7 @@ var ErrDestroyed = errors.New("alert store destroyed")
 type Alerts struct {
 	sync.Mutex
 	alerts        map[model.Fingerprint]*types.Alert
-	gcCallback    func([]types.Alert)
+	gcCallback    func([]*types.Alert)
 	limits        map[string]*limit.Bucket[model.Fingerprint]
 	perAlertLimit int
 	destroyed     bool
@@ -51,7 +51,7 @@ type Alerts struct {
 func NewAlerts() *Alerts {
 	a := &Alerts{
 		alerts:        make(map[model.Fingerprint]*types.Alert),
-		gcCallback:    func(_ []types.Alert) {},
+		gcCallback:    func(_ []*types.Alert) {},
 		perAlertLimit: 0,
 	}
 
@@ -70,7 +70,7 @@ func (a *Alerts) WithPerAlertLimit(lim int) *Alerts {
 }
 
 // SetGCCallback sets a GC callback to be executed after each GC.
-func (a *Alerts) SetGCCallback(cb func([]types.Alert)) {
+func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -78,6 +78,7 @@ func (a *Alerts) SetGCCallback(cb func([]types.Alert)) {
 }
 
 // Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
+// Note: This is only used by inhibitor currently and potentially can be removed later.
 func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -92,38 +93,44 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 }
 
 // GC deletes resolved alerts and returns them.
-func (a *Alerts) GC() []types.Alert {
-	a.Lock()
-	var resolved []types.Alert
-	for fp, alert := range a.alerts {
-		if alert.Resolved() {
-			delete(a.alerts, fp)
-			resolved = append(resolved, types.Alert{
-				Alert: model.Alert{
-					Labels:       alert.Labels.Clone(),
-					Annotations:  alert.Annotations.Clone(),
-					StartsAt:     alert.StartsAt,
-					EndsAt:       alert.EndsAt,
-					GeneratorURL: alert.GeneratorURL,
-				},
-				UpdatedAt: alert.UpdatedAt,
-				Timeout:   alert.Timeout,
-			})
-		}
+func (a *Alerts) GC() (deleted []*types.Alert) {
+	// Remove stale alert limit buckets.
+	a.gcLimitBuckets()
+
+	// Delete resolved alerts.
+	deleted = a.gcAlerts()
+
+	// Execute GC callback if needed.
+	if len(deleted) > 0 {
+		a.gcCallback(deleted)
 	}
 
-	// Remove stale alert limit buckets
+	return deleted
+}
+
+// gcAlerts deletes resolved alerts and returns a copy of them.
+func (a *Alerts) gcAlerts() (deleted []*types.Alert) {
+	a.Lock()
+	defer a.Unlock()
+	for fp, alert := range a.alerts {
+		if alert.Resolved() {
+			deleted = append(deleted, alert)
+			delete(a.alerts, fp)
+		}
+	}
+	return deleted
+}
+
+// gcLimitBuckets removes stale alert limit buckets.
+func (a *Alerts) gcLimitBuckets() {
+	a.Lock()
+	defer a.Unlock()
+
 	for alertName, bucket := range a.limits {
 		if bucket.IsStale() {
 			delete(a.limits, alertName)
 		}
 	}
-
-	// GC doesn't destroy the alerts store if it's empty.
-
-	a.Unlock()
-	a.gcCallback(resolved)
-	return resolved
 }
 
 // Get returns the Alert with the matching fingerprint, or an error if it is
