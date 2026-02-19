@@ -806,6 +806,26 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	return ReasonDoNotNotify
 }
 
+// partitionAlertsByState separates alerts into firing and resolved, returning both slices and sets.
+func partitionAlertsByState(alerts []*types.Alert, hashFn func(*types.Alert) uint64) (firing, resolved []uint64, firingSet, resolvedSet map[uint64]struct{}) {
+	firingSet = make(map[uint64]struct{}, len(alerts))
+	resolvedSet = make(map[uint64]struct{}, len(alerts))
+	firing = make([]uint64, 0, len(alerts))
+	resolved = make([]uint64, 0, len(alerts))
+
+	for _, a := range alerts {
+		hash := hashFn(a)
+		if a.Resolved() {
+			resolved = append(resolved, hash)
+			resolvedSet[hash] = struct{}{}
+		} else {
+			firing = append(firing, hash)
+			firingSet[hash] = struct{}{}
+		}
+	}
+	return firing, resolved, firingSet, resolvedSet
+}
+
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
@@ -825,22 +845,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, errors.New("repeat interval missing")
 	}
 
-	firingSet := map[uint64]struct{}{}
-	resolvedSet := map[uint64]struct{}{}
-	firing := []uint64{}
-	resolved := []uint64{}
-
-	var hash uint64
-	for _, a := range alerts {
-		hash = n.hash(a)
-		if a.Resolved() {
-			resolved = append(resolved, hash)
-			resolvedSet[hash] = struct{}{}
-		} else {
-			firing = append(firing, hash)
-			firingSet[hash] = struct{}{}
-		}
-	}
+	firing, resolved, firingSet, resolvedSet := partitionAlertsByState(alerts, n.hash)
 
 	ctx = WithFiringAlerts(ctx, firing)
 	ctx = WithResolvedAlerts(ctx, resolved)
