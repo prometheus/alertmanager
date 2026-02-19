@@ -17,6 +17,7 @@ nullSilence =
     , startsAt = Time.millisToPosix 0
     , endsAt = Time.millisToPosix 0
     , matchers = nullMatchers
+    , annotations = Nothing
     }
 
 

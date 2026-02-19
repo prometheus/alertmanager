@@ -27,6 +27,7 @@ type alias GettableSilence =
     , endsAt : DateTime
     , createdBy : String
     , comment : String
+    , annotations : Maybe (Dict String String)
     , id : String
     , status : SilenceStatus
     , updatedAt : DateTime
@@ -41,6 +42,7 @@ decoder =
         |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
         |> required "comment" Decode.string
+        |> optional "annotations" (Decode.nullable (Decode.dict Decode.string)) Nothing
         |> required "id" Decode.string
         |> required "status" SilenceStatus.decoder
         |> required "updatedAt" DateTime.decoder
@@ -54,6 +56,7 @@ encoder model =
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
+        , ( "annotations", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.annotations) )
         , ( "id", Encode.string model.id )
         , ( "status", SilenceStatus.encoder model.status )
         , ( "updatedAt", DateTime.encoder model.updatedAt )

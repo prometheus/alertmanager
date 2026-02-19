@@ -328,6 +328,8 @@ func run() int {
 		wg.Wait()
 	}()
 
+	silencer := silence.NewSilencer(silences, marker, logger)
+
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
 		err = peer.Join(
@@ -352,7 +354,7 @@ func run() int {
 		marker,
 		*alertGCInterval,
 		*perAlertNameLimit,
-		nil,
+		silencer,
 		logger,
 		prometheus.DefaultRegisterer,
 		ff,
@@ -480,7 +482,6 @@ func run() int {
 
 		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		inhibitor.Store(newInhibitor)
-		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
 		// Therefore we explicly pass an empty interface, to detect if the

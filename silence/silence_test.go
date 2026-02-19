@@ -1,4 +1,4 @@
-// Copyright 2016 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -2341,6 +2341,60 @@ func TestSilencer(t *testing.T) {
 	require.True(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
+func TestSilencerPostDeleteEvictsCache(t *testing.T) {
+	ss, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+	require.NoError(t, err)
+
+	clock := quartz.NewMock(t)
+	ss.clock = clock
+	now := ss.nowUTC()
+
+	m := types.NewMarker(prometheus.NewRegistry())
+	s := NewSilencer(ss, m, promslog.NewNopLogger())
+
+	lset := model.LabelSet{"foo": "bar"}
+	fp := lset.Fingerprint()
+
+	// Create a matching silence.
+	sil := &pb.Silence{
+		MatcherSets: []*pb.MatcherSet{{
+			Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		}},
+		StartsAt: timestamppb.New(now.Add(-time.Hour)),
+		EndsAt:   timestamppb.New(now.Add(5 * time.Minute)),
+	}
+	require.NoError(t, ss.Set(t.Context(), sil))
+
+	// Mutes populates the cache.
+	require.True(t, s.Mutes(t.Context(), lset))
+	entry := s.cache.get(fp)
+	require.Positive(t, entry.count(), "cache should have entries after Mutes()")
+
+	// PostDelete evicts the cache entry for this fingerprint.
+	s.PostDelete(&types.Alert{
+		Alert: model.Alert{Labels: lset},
+	})
+	entry = s.cache.get(fp)
+	require.Equal(t, 0, entry.count(), "cache should be empty after PostDelete()")
+	require.Equal(t, 0, entry.version, "version should be zero for evicted entry")
+
+	// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
+	require.True(t, s.Mutes(t.Context(), lset), "expected alert still silenced after cache eviction")
+	entry = s.cache.get(fp)
+	require.Positive(t, entry.count(), "cache should be repopulated after Mutes()")
+
+	// Expire the silence, advance time so it's truly expired.
+	clock.Advance(time.Hour)
+
+	// PostDelete for a different fingerprint should not affect this entry.
+	otherLset := model.LabelSet{"other": "alert"}
+	s.PostDelete(&types.Alert{
+		Alert: model.Alert{Labels: otherLset},
+	})
+	entry = s.cache.get(fp)
+	require.Positive(t, entry.count(), "unrelated PostDelete should not evict other entries")
+}
+
 func TestValidateClassicMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher
@@ -2782,4 +2836,129 @@ func TestStateDecodingError(t *testing.T) {
 // be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
 func gosched() {
 	time.Sleep(1 * time.Millisecond)
+}
+
+func TestSilenceAnnotations(t *testing.T) {
+	s, err := New(Options{
+		Metrics:   prometheus.NewRegistry(),
+		Retention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	clock := quartz.NewMock(t)
+	s.clock = clock
+	now := s.nowUTC()
+
+	// Create a silence with annotations
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+		StartsAt: timestamppb.New(now),
+		EndsAt:   timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{
+			"ticket": "JIRA-123",
+			"type":   "planned",
+			"test":   "integration",
+		},
+	}
+
+	// Set the silence via the API
+	require.NoError(t, s.Set(t.Context(), sil1))
+	require.NotEmpty(t, sil1.Id)
+
+	// Query the silence back by ID
+	queriedSil, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+	require.NoError(t, err)
+
+	// Verify all annotations are returned correctly
+	require.NotNil(t, queriedSil.Annotations)
+	require.Equal(t, "JIRA-123", queriedSil.Annotations["ticket"])
+	require.Equal(t, "planned", queriedSil.Annotations["type"])
+	require.Equal(t, "integration", queriedSil.Annotations["test"])
+
+	// Test querying all silences
+	allSils, _, err := s.Query(t.Context())
+	require.NoError(t, err)
+	require.Len(t, allSils, 1)
+	require.Equal(t, queriedSil.Annotations, allSils[0].Annotations)
+
+	// Create a second silence with different annotations
+	sil2 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "frontend"}},
+		StartsAt: timestamppb.New(now),
+		EndsAt:   timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{
+			"ticket": "JIRA-456",
+		},
+	}
+	require.NoError(t, s.Set(t.Context(), sil2))
+
+	// Query by state and verify both silences have their annotations
+	activeSils, _, err := s.Query(t.Context(), QState(types.SilenceStateActive))
+	require.NoError(t, err)
+	require.Len(t, activeSils, 2)
+
+	for _, sil := range activeSils {
+		require.NotNil(t, sil.Annotations)
+		switch sil.Id {
+		case sil1.Id:
+			require.Len(t, sil.Annotations, 3)
+			require.Equal(t, "JIRA-123", sil.Annotations["ticket"])
+		case sil2.Id:
+			require.Len(t, sil.Annotations, 1)
+			require.Equal(t, "JIRA-456", sil.Annotations["ticket"])
+		default:
+			t.Fatalf("unexpected silence ID: %s", sil.Id)
+		}
+	}
+
+	// Test updating a silence with new annotations
+	clock.Advance(time.Minute)
+	sil1Updated := &pb.Silence{
+		Id:       sil1.Id,
+		Matchers: []*pb.Matcher{{Name: "job", Pattern: "test"}},
+		StartsAt: sil1.StartsAt,
+		EndsAt:   sil1.EndsAt,
+		Annotations: map[string]string{
+			"ticket": "JIRA-123",
+			"type":   "emergency", // changed
+			"test":   "load",      // changed
+		},
+	}
+	require.NoError(t, s.Set(t.Context(), sil1Updated))
+
+	// Query back and verify annotations were updated
+	queriedUpdated, err := s.QueryOne(t.Context(), QIDs(sil1.Id))
+	require.NoError(t, err)
+	require.Len(t, queriedUpdated.Annotations, 3)
+	require.Equal(t, "emergency", queriedUpdated.Annotations["type"])
+	require.Equal(t, "load", queriedUpdated.Annotations["test"])
+
+	// Test silence with nil annotations
+	sil3 := &pb.Silence{
+		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "backend"}},
+		StartsAt:    timestamppb.New(now),
+		EndsAt:      timestamppb.New(now.Add(time.Hour)),
+		Annotations: nil,
+	}
+	require.NoError(t, s.Set(t.Context(), sil3))
+	queriedSil3, err := s.QueryOne(t.Context(), QIDs(sil3.Id))
+	require.NoError(t, err)
+	// nil annotations should be preserved or converted to empty map
+	if queriedSil3.Annotations != nil {
+		require.Empty(t, queriedSil3.Annotations)
+	}
+
+	// Test silence with empty annotations map
+	sil4 := &pb.Silence{
+		Matchers:    []*pb.Matcher{{Name: "job", Pattern: "database"}},
+		StartsAt:    timestamppb.New(now),
+		EndsAt:      timestamppb.New(now.Add(time.Hour)),
+		Annotations: map[string]string{},
+	}
+	require.NoError(t, s.Set(t.Context(), sil4))
+	queriedSil4, err := s.QueryOne(t.Context(), QIDs(sil4.Id))
+	require.NoError(t, err)
+	if queriedSil4.Annotations != nil {
+		require.Empty(t, queriedSil4.Annotations)
+	}
 }

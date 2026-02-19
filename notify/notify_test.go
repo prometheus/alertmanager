@@ -772,7 +772,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	// Set the second alert as previously silenced with an old version
 	// number. This is expected to get unsilenced by the stage.
-	marker.SetActiveOrSilenced(inAlerts[1].Fingerprint(), 0, []string{"123"}, nil)
+	marker.SetActiveOrSilenced(inAlerts[1].Fingerprint(), []string{"123"})
 
 	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
