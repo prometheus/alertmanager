@@ -238,9 +238,9 @@ type WebexConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
-	RoomID  string `yaml:"room_id" json:"room_id"`
+	Message        string                      `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID         string                      `yaml:"room_id" json:"room_id"`
+	AdaptiveCard   string                      `yaml:"adaptive_card,omitempty" json:"adaptive_card,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
