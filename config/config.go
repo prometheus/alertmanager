@@ -488,9 +488,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
 		}
 		for _, wh := range rcv.WebhookConfigs {
+			if wh == nil {
+				return errors.New("missing webhook config")
+			}
 			wh.HTTPConfig = cmp.Or(wh.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, ec := range rcv.EmailConfigs {
+			if ec == nil {
+				return errors.New("missing email config")
+			}
 			ec.TLSConfig = cmp.Or(ec.TLSConfig, c.Global.SMTPTLSConfig)
 			ec.Smarthost = cmp.Or(ec.Smarthost, c.Global.SMTPSmarthost)
 			if ec.Smarthost.String() == "" {
@@ -518,6 +524,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
+			if sc == nil {
+				sc = &SlackConfig{}
+			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
 				return errors.New("no global Slack App URL set")
@@ -552,9 +561,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
+			if poc == nil {
+				return errors.New("missing pushover config")
+			}
 			poc.HTTPConfig = cmp.Or(poc.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, pdc := range rcv.PagerdutyConfigs {
+			if pdc == nil {
+				return errors.New("missing pagerduty config")
+			}
 			pdc.HTTPConfig = cmp.Or(pdc.HTTPConfig, c.Global.HTTPConfig)
 			pdc.URL = cmp.Or(pdc.URL, c.Global.PagerdutyURL)
 			if pdc.URL == nil {
@@ -562,9 +577,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, iio := range rcv.IncidentioConfigs {
+			if iio == nil {
+				return errors.New("missing incidentio config")
+			}
 			iio.HTTPConfig = cmp.Or(iio.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
+			if ogc == nil {
+				ogc = &OpsGenieConfig{}
+			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
 			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
 			if ogc.APIURL == nil {
@@ -580,6 +601,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
+			if wcc == nil {
+				wcc = &WechatConfig{}
+			}
 			wcc.HTTPConfig = cmp.Or(wcc.HTTPConfig, c.Global.HTTPConfig)
 			wcc.APIURL = cmp.Or(wcc.APIURL, c.Global.WeChatAPIURL)
 			if wcc.APIURL == nil {
@@ -604,6 +628,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
+			if voc == nil {
+				return errors.New("missing victorops config")
+			}
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
 			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
@@ -619,10 +646,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, sns := range rcv.SNSConfigs {
+			if sns == nil {
+				return errors.New("missing sns config")
+			}
 			sns.HTTPConfig = cmp.Or(sns.HTTPConfig, c.Global.HTTPConfig)
 		}
 
 		for _, telegram := range rcv.TelegramConfigs {
+			if telegram == nil {
+				return errors.New("missing telegram config")
+			}
 			telegram.HTTPConfig = cmp.Or(telegram.HTTPConfig, c.Global.HTTPConfig)
 			telegram.APIUrl = cmp.Or(telegram.APIUrl, c.Global.TelegramAPIUrl)
 			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
@@ -634,12 +667,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, discord := range rcv.DiscordConfigs {
+			if discord == nil {
+				return errors.New("missing discord config")
+			}
 			discord.HTTPConfig = cmp.Or(discord.HTTPConfig, c.Global.HTTPConfig)
 			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
 				return errors.New("no discord webhook URL or URLFile provided")
 			}
 		}
 		for _, webex := range rcv.WebexConfigs {
+			if webex == nil {
+				return errors.New("missing webex config")
+			}
 			webex.HTTPConfig = cmp.Or(webex.HTTPConfig, c.Global.HTTPConfig)
 			webex.APIURL = cmp.Or(webex.APIURL, c.Global.WebexAPIURL)
 			if webex.APIURL == nil {
@@ -647,18 +686,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, msteams := range rcv.MSTeamsConfigs {
+			if msteams == nil {
+				return errors.New("missing msteams config")
+			}
 			msteams.HTTPConfig = cmp.Or(msteams.HTTPConfig, c.Global.HTTPConfig)
 			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
 				return errors.New("no msteams webhook URL or URLFile provided")
 			}
 		}
 		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
+			if msteamsv2 == nil {
+				return errors.New("missing msteamsv2 config")
+			}
 			msteamsv2.HTTPConfig = cmp.Or(msteamsv2.HTTPConfig, c.Global.HTTPConfig)
 			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
 			}
 		}
 		for _, jira := range rcv.JiraConfigs {
+			if jira == nil {
+				return errors.New("missing jira config")
+			}
 			jira.HTTPConfig = cmp.Or(jira.HTTPConfig, c.Global.HTTPConfig)
 			jira.APIURL = cmp.Or(jira.APIURL, c.Global.JiraAPIURL)
 			if jira.APIURL == nil {
@@ -666,6 +714,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, rocketchat := range rcv.RocketchatConfigs {
+			if rocketchat == nil {
+				rocketchat = &RocketchatConfig{}
+			}
 			rocketchat.HTTPConfig = cmp.Or(rocketchat.HTTPConfig, c.Global.HTTPConfig)
 			rocketchat.APIURL = cmp.Or(rocketchat.APIURL, c.Global.RocketchatAPIURL)
 
@@ -682,6 +733,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
+			if mattermost == nil {
+				return errors.New("missing mattermost config")
+			}
 			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
 			if mattermost.WebhookURL == nil && len(mattermost.WebhookURLFile) == 0 {
 				if c.Global.MattermostWebhookURL == nil && len(c.Global.MattermostWebhookURLFile) == 0 {
