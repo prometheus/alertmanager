@@ -15,6 +15,7 @@ package inhibit
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -555,5 +556,66 @@ func TestInhibit(t *testing.T) {
 				t.Errorf("tc: %d, expected alert with labels %q to be %s", i, expected.lbls, mute)
 			}
 		}
+	}
+}
+
+func TestInhibitRule_fingerprintEquals(t *testing.T) {
+	rule := &InhibitRule{
+		Equal: map[model.LabelName]struct{}{
+			"cluster": {},
+			"service": {},
+		},
+	}
+
+	lset := model.LabelSet{
+		"cluster":  "prod",
+		"service":  "api",
+		"instance": "host1",
+	}
+
+	fp := rule.fingerprintEquals(lset)
+
+	// Same equal labels should produce same fingerprint
+	lset2 := model.LabelSet{
+		"cluster":  "prod",
+		"service":  "api",
+		"instance": "host2", // different non-equal label
+	}
+	require.Equal(t, fp, rule.fingerprintEquals(lset2))
+
+	// Different equal label value should produce different fingerprint
+	lset3 := model.LabelSet{
+		"cluster": "staging",
+		"service": "api",
+	}
+	require.NotEqual(t, fp, rule.fingerprintEquals(lset3))
+}
+
+func BenchmarkFingerprintEquals(b *testing.B) {
+	// Test fingerprintEquals with varying number of equal labels
+	for _, numLabels := range []int{1, 3, 5, 10} {
+		b.Run(fmt.Sprintf("%d_equal_labels", numLabels), func(b *testing.B) {
+			equalLabels := make(map[model.LabelName]struct{}, numLabels)
+			for i := range numLabels {
+				equalLabels[model.LabelName(fmt.Sprintf("label_%d", i))] = struct{}{}
+			}
+
+			rule := &InhibitRule{Equal: equalLabels}
+
+			// Create a label set with matching values
+			lset := make(model.LabelSet, numLabels+2)
+			lset["source"] = "true"
+			lset["target"] = "true"
+			for i := range numLabels {
+				lset[model.LabelName(fmt.Sprintf("label_%d", i))] = model.LabelValue(fmt.Sprintf("value_%d", i))
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for b.Loop() {
+				_ = rule.fingerprintEquals(lset)
+			}
+		})
 	}
 }

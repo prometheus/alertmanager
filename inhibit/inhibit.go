@@ -316,7 +316,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 
 // fingerprintEquals returns the fingerprint of the equal labels of the given label set.
 func (r *InhibitRule) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
-	equalSet := model.LabelSet{}
+	equalSet := make(model.LabelSet, len(r.Equal))
 	for n := range r.Equal {
 		equalSet[n] = lset[n]
 	}
