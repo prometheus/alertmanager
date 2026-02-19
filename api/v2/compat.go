@@ -195,9 +195,9 @@ func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.Postab
 	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
 	defer span.End()
 
-	alerts := []*types.Alert{}
+	alerts := make([]*types.Alert, 0, len(apiAlerts))
 	for _, apiAlert := range apiAlerts {
-		alert := types.Alert{
+		alerts = append(alerts, &types.Alert{
 			Alert: prometheus_model.Alert{
 				Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 				Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
@@ -205,8 +205,7 @@ func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.Postab
 				EndsAt:       time.Time(apiAlert.EndsAt),
 				GeneratorURL: string(apiAlert.GeneratorURL),
 			},
-		}
-		alerts = append(alerts, &alert)
+		})
 	}
 
 	return alerts

@@ -15,6 +15,7 @@ package v2
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -602,4 +603,43 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
+	now := strfmt.DateTime(time.Now())
+	apiAlerts := make(open_api_models.PostableAlerts, 100)
+	for i := range apiAlerts {
+		apiAlerts[i] = &open_api_models.PostableAlert{
+			Alert: open_api_models.Alert{
+				Labels: open_api_models.LabelSet{"alertname": "test", "i": strconv.Itoa(i)},
+			},
+			StartsAt: now,
+			EndsAt:   now,
+		}
+	}
+
+	b.Run("PreAllocated", func(b *testing.B) {
+		ctx := context.Background()
+		for i := 0; i < b.N; i++ {
+			OpenAPIAlertsToAlerts(ctx, apiAlerts)
+		}
+	})
+
+	b.Run("AppendGrowth", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			alerts := []*types.Alert{}
+			for _, apiAlert := range apiAlerts {
+				alerts = append(alerts, &types.Alert{
+					Alert: model.Alert{
+						Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
+						Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
+						StartsAt:     time.Time(apiAlert.StartsAt),
+						EndsAt:       time.Time(apiAlert.EndsAt),
+						GeneratorURL: string(apiAlert.GeneratorURL),
+					},
+				})
+			}
+			_ = alerts
+		}
+	})
 }
