@@ -740,3 +740,59 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkTemplateData(b *testing.B) {
+	u, _ := url.Parse("http://example.com/")
+	tmpl := &Template{ExternalURL: u}
+
+	now := time.Now()
+	alerts := make([]*types.Alert, 50)
+	for i := range alerts {
+		alerts[i] = &types.Alert{
+			Alert: model.Alert{
+				Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
+				Annotations: model.LabelSet{"summary": "test alert"},
+				StartsAt:    now,
+				EndsAt:      now.Add(time.Hour),
+			},
+		}
+	}
+	groupLabels := model.LabelSet{"alertname": "test"}
+
+	b.ResetTimer()
+	for b.Loop() {
+		tmpl.Data("receiver", groupLabels, "firing", alerts...)
+	}
+}
+
+func BenchmarkTypesAlerts(b *testing.B) {
+	now := time.Now()
+	alerts := make([]*types.Alert, 50)
+	for i := range alerts {
+		alerts[i] = &types.Alert{
+			Alert: model.Alert{
+				Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
+				Annotations: model.LabelSet{"summary": "test alert"},
+				StartsAt:    now,
+				EndsAt:      now.Add(time.Hour),
+			},
+		}
+	}
+
+	b.Run("SingleCall", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			typed := types.Alerts(alerts...)
+			_ = typed.Status()
+			for range typed {
+			}
+		}
+	})
+
+	b.Run("DuplicateCall", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = types.Alerts(alerts...).Status()
+			for range types.Alerts(alerts...) {
+			}
+		}
+	})
+}
