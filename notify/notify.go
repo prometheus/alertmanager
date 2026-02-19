@@ -419,14 +419,16 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 }
 
 type PipelineBuilder struct {
-	metrics *Metrics
-	ff      featurecontrol.Flagger
+	metrics            *Metrics
+	ff                 featurecontrol.Flagger
+	notificationLogger NotificationLogger
 }
 
-func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger) *PipelineBuilder {
+func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger, nl NotificationLogger) *PipelineBuilder {
 	return &PipelineBuilder{
-		metrics: NewMetrics(r, ff),
-		ff:      ff,
+		metrics:            NewMetrics(r, ff),
+		ff:                 ff,
+		notificationLogger: nl,
 	}
 }
 
@@ -450,7 +452,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.notificationLogger)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -466,6 +468,7 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	notificationLogger NotificationLogger,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -477,7 +480,7 @@ func createReceiverStage(
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewRetryStage(integrations[i], name, metrics, notificationLogger))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -878,14 +881,15 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
-	groupName   string
-	metrics     *Metrics
-	labelValues []string
+	integration        Integration
+	groupName          string
+	metrics            *Metrics
+	labelValues        []string
+	notificationLogger NotificationLogger
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics, nl NotificationLogger) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {
@@ -893,10 +897,11 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 	}
 
 	return &RetryStage{
-		integration: i,
-		groupName:   groupName,
-		metrics:     metrics,
-		labelValues: labelValues,
+		integration:        i,
+		groupName:          groupName,
+		metrics:            metrics,
+		labelValues:        labelValues,
+		notificationLogger: nl,
 	}
 }
 
@@ -1017,6 +1022,28 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					l.Debug("Notify success")
 				} else {
 					l.Info("Notify success")
+				}
+
+				if r.notificationLogger != nil {
+					gkey, _ := GroupKey(ctx)
+					firing, _ := FiringAlerts(ctx)
+					resolved, _ := ResolvedAlerts(ctx)
+					groupLabels, _ := GroupLabels(ctx)
+
+					entry := &NotificationLogEntry{
+						Timestamp:      time.Now().UTC(),
+						Integration:    r.integration.Name(),
+						IntegrationIdx: r.integration.Index(),
+						Receiver:       r.groupName,
+						GroupKey:       gkey,
+						AlertsCount:    len(sent),
+						FiringCount:    len(firing),
+						ResolvedCount:  len(resolved),
+						GroupLabels:    labelSetToMap(groupLabels),
+					}
+					if err := r.notificationLogger.Log(entry); err != nil {
+						l.Warn("Failed to log notification", "err", err)
+					}
 				}
 
 				return ctx, alerts, nil
@@ -1215,4 +1242,18 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 	}
 
 	return ctx, alerts, nil
+}
+
+// labelSetToMap converts a Prometheus model.LabelSet into a map[string]string.
+// If the provided label set is nil, labelSetToMap returns nil without
+// allocating a new map.
+func labelSetToMap(ls model.LabelSet) map[string]string {
+	if ls == nil {
+		return nil
+	}
+	m := make(map[string]string, len(ls))
+	for k, v := range ls {
+		m[string(k)] = string(v)
+	}
+	return m
 }

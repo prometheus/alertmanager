@@ -176,6 +176,7 @@ func run() int {
 		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
 		label                  = kingpin.Flag("cluster.label", "The cluster label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages.").Default("").String()
 		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Comma-separated experimental features to enable. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
+		notificationLogFile    = kingpin.Flag("notification-log.file", "File to log all successfully sent notifications in JSON format. If empty, notification logging is disabled.").Default("").String()
 	)
 
 	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
@@ -420,13 +421,25 @@ func run() int {
 
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 
+	var notificationLogger notify.NotificationLogger = notify.NoopNotificationLogger{}
+	if *notificationLogFile != "" {
+		nl, err := notify.NewFileNotificationLogger(*notificationLogFile)
+		if err != nil {
+			logger.Error("error creating notification log", "err", err)
+			return 1
+		}
+		defer nl.Close()
+		notificationLogger = nl
+		logger.Info("Notification logging enabled", "file", *notificationLogFile)
+	}
+
 	var (
 		inhibitor atomic.Pointer[inhibit.Inhibitor]
 		tmpl      *template.Template
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff, notificationLogger)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,
