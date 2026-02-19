@@ -1139,3 +1139,100 @@ func BenchmarkPrepareAlertsForFlush(b *testing.B) {
 		})
 	}
 }
+
+func TestGetGroupLabels(t *testing.T) {
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert",
+				"job":       "prometheus",
+				"instance":  "localhost:9090",
+				"severity":  "critical",
+			},
+		},
+	}
+
+	t.Run("specific labels", func(t *testing.T) {
+		route := &Route{
+			RouteOpts: RouteOpts{
+				GroupBy: map[model.LabelName]struct{}{
+					"alertname": {},
+					"job":       {},
+				},
+			},
+		}
+		labels := getGroupLabels(alert, route)
+		require.Len(t, labels, 2)
+		require.Equal(t, model.LabelValue("TestAlert"), labels["alertname"])
+		require.Equal(t, model.LabelValue("prometheus"), labels["job"])
+	})
+
+	t.Run("group by all", func(t *testing.T) {
+		route := &Route{
+			RouteOpts: RouteOpts{
+				GroupByAll: true,
+			},
+		}
+		labels := getGroupLabels(alert, route)
+		require.Len(t, labels, 4)
+		require.Equal(t, alert.Labels, labels)
+	})
+}
+
+func BenchmarkGetGroupLabels(b *testing.B) {
+	now := time.Now()
+
+	// Alert with many labels (typical production alert)
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname":  "TestAlert",
+				"severity":   "critical",
+				"job":        "prometheus",
+				"instance":   "localhost:9090",
+				"namespace":  "monitoring",
+				"cluster":    "prod-us-east-1",
+				"datacenter": "dc1",
+				"env":        "production",
+				"team":       "platform",
+				"service":    "alertmanager",
+			},
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+
+	b.Run("specific_labels", func(b *testing.B) {
+		route := &Route{
+			RouteOpts: RouteOpts{
+				GroupBy: map[model.LabelName]struct{}{
+					"alertname": {},
+					"job":       {},
+					"severity":  {},
+				},
+			},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			_ = getGroupLabels(alert, route)
+		}
+	})
+
+	b.Run("group_by_all", func(b *testing.B) {
+		route := &Route{
+			RouteOpts: RouteOpts{
+				GroupByAll: true,
+			},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			_ = getGroupLabels(alert, route)
+		}
+	})
+}
