@@ -108,12 +108,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}"},
@@ -125,12 +127,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}"},
@@ -141,12 +145,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-BC",
-					GroupBy:        lset("foo", "bar"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-BC",
+					GroupBy:             lset("foo", "bar"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
@@ -158,12 +164,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset(),
-					GroupByAll:     true,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset(),
+					GroupByAll:          true,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
@@ -175,20 +183,24 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-productionA",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      1 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-productionA",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           1 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 				{
-					Receiver:       "notify-productionB",
-					GroupBy:        lset("job"),
-					GroupByAll:     false,
-					GroupWait:      30 * time.Second,
-					GroupInterval:  5 * time.Minute,
-					RepeatInterval: 1 * time.Hour,
+					Receiver:            "notify-productionB",
+					GroupBy:             lset("job"),
+					GroupByAll:          false,
+					GroupWait:           30 * time.Second,
+					GroupInterval:       5 * time.Minute,
+					RepeatInterval:      1 * time.Hour,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{
@@ -202,12 +214,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-def",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-def",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -219,12 +233,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -237,12 +253,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
@@ -383,6 +401,68 @@ routes:
 	require.False(t, child2.RouteOpts.GroupByAll)
 }
 
+func TestInheritParentMuteTimeIntervals(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['...']
+  mute_time_intervals: ['weekend_mute']
+
+  routes:
+  - match:
+      env: 'child1'
+
+  - match:
+      env: 'child2'
+    mute_time_intervals: ['override_mute']
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child1 := parent.Routes[0]
+	child2 := parent.Routes[1]
+	require.Equal(t, []string{"weekend_mute"}, parent.RouteOpts.MuteTimeIntervals)
+	require.Equal(t, []string{"weekend_mute"}, child1.RouteOpts.MuteTimeIntervals)
+	require.Equal(t, []string{"override_mute"}, child2.RouteOpts.MuteTimeIntervals)
+}
+
+func TestInheritParentActiveTimeIntervals(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['...']
+  active_time_intervals: ['weekend_active']
+
+  routes:
+  - match:
+      env: 'child1'
+
+  - match:
+      env: 'child2'
+    active_time_intervals: ['override_active']
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child1 := parent.Routes[0]
+	child2 := parent.Routes[1]
+	require.Equal(t, []string{"weekend_active"}, parent.RouteOpts.ActiveTimeIntervals)
+	require.Equal(t, []string{"weekend_active"}, child1.RouteOpts.ActiveTimeIntervals)
+	require.Equal(t, []string{"override_active"}, child2.RouteOpts.ActiveTimeIntervals)
+}
+
 func TestRouteMatchers(t *testing.T) {
 	in := `
 receiver: 'notify-def'
@@ -458,12 +538,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -475,12 +557,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -491,12 +575,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-BC",
-					GroupBy:        lset("foo", "bar"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-BC",
+					GroupBy:             lset("foo", "bar"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=~\"team-(B|C)\"}"},
@@ -508,12 +594,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset(),
-					GroupByAll:     true,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset(),
+					GroupByAll:          true,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
@@ -525,20 +613,24 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-productionA",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      1 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-productionA",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           1 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 				{
-					Receiver:       "notify-productionB",
-					GroupBy:        lset("job"),
-					GroupByAll:     false,
-					GroupWait:      30 * time.Second,
-					GroupInterval:  5 * time.Minute,
-					RepeatInterval: 1 * time.Hour,
+					Receiver:            "notify-productionB",
+					GroupBy:             lset("job"),
+					GroupByAll:          false,
+					GroupWait:           30 * time.Second,
+					GroupInterval:       5 * time.Minute,
+					RepeatInterval:      1 * time.Hour,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{
@@ -552,12 +644,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-def",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-def",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -569,12 +663,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -587,12 +683,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
@@ -694,12 +792,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -711,12 +811,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-A",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-A",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -727,12 +829,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-BC",
-					GroupBy:        lset("foo", "bar"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-BC",
+					GroupBy:             lset("foo", "bar"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
@@ -744,12 +848,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset(),
-					GroupByAll:     true,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset(),
+					GroupByAll:          true,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
@@ -761,20 +867,24 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-productionA",
-					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      1 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-productionA",
+					GroupBy:             def.GroupBy,
+					GroupByAll:          false,
+					GroupWait:           1 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 				{
-					Receiver:       "notify-productionB",
-					GroupBy:        lset("job"),
-					GroupByAll:     false,
-					GroupWait:      30 * time.Second,
-					GroupInterval:  5 * time.Minute,
-					RepeatInterval: 1 * time.Hour,
+					Receiver:            "notify-productionB",
+					GroupBy:             lset("job"),
+					GroupByAll:          false,
+					GroupWait:           30 * time.Second,
+					GroupInterval:       5 * time.Minute,
+					RepeatInterval:      1 * time.Hour,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{
@@ -788,12 +898,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-def",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-def",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -805,12 +917,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      def.GroupWait,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           def.GroupWait,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -823,12 +937,14 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					Receiver:       "notify-testing",
-					GroupBy:        lset("role"),
-					GroupByAll:     false,
-					GroupWait:      2 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					Receiver:            "notify-testing",
+					GroupBy:             lset("role"),
+					GroupByAll:          false,
+					GroupWait:           2 * time.Minute,
+					GroupInterval:       def.GroupInterval,
+					RepeatInterval:      def.RepeatInterval,
+					MuteTimeIntervals:   def.MuteTimeIntervals,
+					ActiveTimeIntervals: def.ActiveTimeIntervals,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
