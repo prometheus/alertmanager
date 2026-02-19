@@ -1179,6 +1179,11 @@ Microsoft Teams v2 notifications using the new message format with adaptive card
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteamsv2.default.text" . }}' ]
 
+# Message body card.
+# If not null, it will override title and text values (no need to configure these values)
+# You can find a complete sample file template here 'examples/msteamsv2/card.tmpl' and provide '{{ template "msteams.card" . }}' in the card value to test.
+[ card: <tmpl_string> ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
