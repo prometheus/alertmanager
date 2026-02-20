@@ -1147,12 +1147,6 @@ DEPRECATION NOTICE: Microsoft is deprecating the creation and usage of [Microsof
 [ webhook_url: <secret> ]
 [ webhook_url_file: <filepath> ]
 
-# Message title template.
-[ title: <tmpl_string> | default = '{{ template "msteams.default.title" . }}' ]
-
-# Message summary template.
-[ summary: <tmpl_string> | default = '{{ template "msteams.default.summary" . }}' ]
-
 # Message body template.
 [ text: <tmpl_string> | default = '{{ template "msteams.default.text" . }}' ]
 
