@@ -2,6 +2,7 @@ module Utils.List exposing (groupBy, lastElem, mstring, nextElem, zip)
 
 import Data.Matcher exposing (Matcher)
 import Dict exposing (Dict)
+import Json.Encode as Encode
 
 
 nextElem : a -> List a -> Maybe a
@@ -47,7 +48,7 @@ mstring m =
             else
                 "!~"
     in
-    String.join sep [ m.name, m.value ]
+    String.join sep [ m.name, Encode.encode 0 (Encode.string m.value) ]
 
 
 {-| Takes a key-fn and a list.
