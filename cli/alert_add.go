@@ -128,8 +128,8 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 			Labels:       ls,
 		},
 		Annotations: annotations,
-		StartsAt:    strfmt.DateTime(startsAt),
-		EndsAt:      strfmt.DateTime(endsAt),
+		StartsAt:    strfmt.DateTime(startsAt.UTC()),
+		EndsAt:      strfmt.DateTime(endsAt.UTC()),
 	}
 	alertParams := alert.NewPostAlertsParams().WithContext(ctx).
 		WithAlerts(models.PostableAlerts{pa})
