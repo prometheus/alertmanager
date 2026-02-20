@@ -228,3 +228,172 @@ func mustNewMatcher(b *testing.B, op labels.MatchType, name, value string) *labe
 	require.NoError(b, err)
 	return m
 }
+
+func BenchmarkMutesScaling(b *testing.B) {
+	b.Run("different_targets", func(b *testing.B) {
+		for _, numRules := range []int{10, 100, 1000} {
+			b.Run("rules="+strconv.Itoa(numRules), func(b *testing.B) {
+				benchmarkDifferentTargets(b, numRules)
+			})
+		}
+	})
+
+	b.Run("same_target", func(b *testing.B) {
+		for _, numRules := range []int{10, 100, 1000} {
+			b.Run("rules="+strconv.Itoa(numRules), func(b *testing.B) {
+				benchmarkSameTarget(b, numRules)
+			})
+		}
+	})
+
+	b.Run("no_match", func(b *testing.B) {
+		for _, numRules := range []int{10, 100, 1000} {
+			b.Run("rules="+strconv.Itoa(numRules), func(b *testing.B) {
+				benchmarkNoMatch(b, numRules)
+			})
+		}
+	})
+}
+
+func benchmarkDifferentTargets(b *testing.B, numRules int) {
+	r := prometheus.NewRegistry()
+	m := types.NewMarker(r)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	require.NoError(b, err)
+	defer s.Close()
+
+	rules := make([]config.InhibitRule, numRules)
+	for i := 0; i < numRules; i++ {
+		rules[i] = config.InhibitRule{
+			SourceMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "alertname", "SourceAlert"),
+				mustNewMatcher(b, labels.MatchEqual, "cluster", strconv.Itoa(i)),
+			},
+			TargetMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "severity", "warning"),
+				mustNewMatcher(b, labels.MatchEqual, "cluster", strconv.Itoa(i)),
+			},
+		}
+	}
+
+	// Source alert for the LAST rule (worst case for linear scan)
+	lastCluster := strconv.Itoa(numRules - 1)
+	alert := types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "SourceAlert",
+				"cluster":   model.LabelValue(lastCluster),
+			},
+		},
+	}
+	require.NoError(b, s.Put(context.Background(), &alert))
+
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	defer ih.Stop()
+	go ih.Run()
+	<-time.After(time.Second)
+
+	targetLset := model.LabelSet{
+		"alertname": "TargetAlert",
+		"severity":  "warning",
+		"cluster":   model.LabelValue(lastCluster),
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if !ih.Mutes(ctx, targetLset) {
+			b.Fatal("expected alert to be muted")
+		}
+	}
+}
+
+func benchmarkSameTarget(b *testing.B, numRules int) {
+	r := prometheus.NewRegistry()
+	m := types.NewMarker(r)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	require.NoError(b, err)
+	defer s.Close()
+
+	rules := make([]config.InhibitRule, numRules)
+	for i := 0; i < numRules; i++ {
+		rules[i] = config.InhibitRule{
+			SourceMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(i)),
+			},
+			TargetMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+			},
+		}
+	}
+
+	// Source alert for the LAST rule only
+	alert := types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"src": model.LabelValue(strconv.Itoa(numRules - 1)),
+			},
+		},
+	}
+	require.NoError(b, s.Put(context.Background(), &alert))
+
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	defer ih.Stop()
+	go ih.Run()
+	<-time.After(time.Second)
+
+	targetLset := model.LabelSet{"dst": "0"}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if !ih.Mutes(ctx, targetLset) {
+			b.Fatal("expected alert to be muted")
+		}
+	}
+}
+
+func benchmarkNoMatch(b *testing.B, numRules int) {
+	r := prometheus.NewRegistry()
+	m := types.NewMarker(r)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	require.NoError(b, err)
+	defer s.Close()
+
+	rules := make([]config.InhibitRule, numRules)
+	for i := 0; i < numRules; i++ {
+		rules[i] = config.InhibitRule{
+			SourceMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "alertname", "SourceAlert"),
+			},
+			TargetMatchers: config.Matchers{
+				mustNewMatcher(b, labels.MatchEqual, "cluster", strconv.Itoa(i)),
+			},
+		}
+	}
+
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	defer ih.Stop()
+	go ih.Run()
+	<-time.After(time.Second)
+
+	// Alert with cluster that doesn't match any rule
+	targetLset := model.LabelSet{
+		"alertname": "TargetAlert",
+		"cluster":   "nonexistent",
+	}
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if ih.Mutes(ctx, targetLset) {
+			b.Fatal("expected alert to NOT be muted")
+		}
+	}
+}
