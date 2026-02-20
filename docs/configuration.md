@@ -1587,7 +1587,6 @@ The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-m
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
-
 # The Slack webhook URL. Either api_url/api_url_file OR app_token/app_token_file should be set, but not both.
 # Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
@@ -1639,6 +1638,10 @@ fields:
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
+
+# Enables updating existing Slack messages instead of creating new ones on alert state change.
+# Webhook URLs do not support updates.
+[ update_message: <boolean> | default = false ]
 ```
 
 #### `<action_config>`
