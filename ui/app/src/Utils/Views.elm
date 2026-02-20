@@ -1,5 +1,6 @@
 module Utils.Views exposing
-    ( apiData
+    ( annotationButton
+    , apiData
     , checkbox
     , error
     , labelButton
@@ -47,7 +48,7 @@ labelButton maybeMsg labelText =
                 , style "-moz-user-select" "text"
                 , style "-webkit-user-select" "text"
                 ]
-                [ text labelText ]
+                [ span [ class "text-muted" ] [ text labelText ] ]
 
         Just msg ->
             button
@@ -55,6 +56,17 @@ labelButton maybeMsg labelText =
                 , onClick msg
                 ]
                 [ span [ class "text-muted" ] [ text labelText ] ]
+
+
+annotationButton : ( String, String ) -> Html msg
+annotationButton ( key, value ) =
+    span
+        [ class "btn btn-sm btn-light border mr-2 mb-2"
+        , style "user-select" "text"
+        , style "-moz-user-select" "text"
+        , style "-webkit-user-select" "text"
+        ]
+        [ span [ class "text-muted" ] [ text (key ++ "=" ++ value) ] ]
 
 
 linkifyText : String -> List (Html msg)

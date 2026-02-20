@@ -6,9 +6,12 @@ module Views.SilenceForm.Types exposing
     , fromDateTimePicker
     , fromMatchersAndCommentAndTime
     , fromSilence
+    , hasAnnotationKey
     , initSilenceForm
+    , parseAnnotation
     , parseEndsAt
     , toSilence
+    , validateAnnotations
     , validateForm
     , validateMatchers
     )
@@ -19,6 +22,7 @@ import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher
 import Data.PostableSilence exposing (PostableSilence)
 import DateTime
+import Dict
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
@@ -41,6 +45,7 @@ type alias Model =
     { form : SilenceForm
     , filterBar : FilterBar.Model
     , filterBarValid : ValidationState
+    , annotationsValid : ValidationState
     , silenceId : ApiData String
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
@@ -58,6 +63,8 @@ type alias SilenceForm =
     , duration : ValidatedField
     , dateTimePicker : DateTimePicker
     , viewDateTimePicker : Bool
+    , annotations : List ( String, String )
+    , annotationText : String
     }
 
 
@@ -89,6 +96,10 @@ type SilenceFormFieldMsg
     | UpdateTimesFromPicker
     | OpenDateTimePicker
     | CloseDateTimePicker
+    | UpdateAnnotationText String
+    | AddAnnotation
+    | DeleteAnnotation Bool ( String, String )
+    | Noop
 
 
 initSilenceForm : Key -> FirstDayOfWeek -> Model
@@ -96,6 +107,7 @@ initSilenceForm key firstDayOfWeek =
     { form = empty firstDayOfWeek
     , filterBar = FilterBar.initFilterBar []
     , filterBarValid = Utils.FormValidation.Initial
+    , annotationsValid = Utils.FormValidation.Valid
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
@@ -105,7 +117,7 @@ initSilenceForm key firstDayOfWeek =
 
 
 toSilence : FilterBar.Model -> SilenceForm -> Maybe PostableSilence
-toSilence filterBar { id, comment, createdBy, startsAt, endsAt } =
+toSilence filterBar { id, comment, createdBy, startsAt, endsAt, annotations } =
     Result.map5
         (\nonEmptyMatchers nonEmptyComment nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
             { nullSilence
@@ -115,6 +127,12 @@ toSilence filterBar { id, comment, createdBy, startsAt, endsAt } =
                 , createdBy = nonEmptyCreatedBy
                 , startsAt = parsedStartsAt
                 , endsAt = parsedEndsAt
+                , annotations =
+                    if List.isEmpty annotations then
+                        Nothing
+
+                    else
+                        Just (Dict.fromList annotations)
             }
         )
         (validMatchers filterBar)
@@ -139,8 +157,53 @@ validMatchers { matchers, matcherText } =
                 Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
+parseAnnotation : String -> Maybe ( String, String )
+parseAnnotation text =
+    -- Split on the first equals sign only, allowing values to contain "="
+    case String.indices "=" text of
+        firstIndex :: _ ->
+            let
+                key =
+                    String.left firstIndex text
+
+                value =
+                    String.dropLeft (firstIndex + 1) text
+            in
+            if String.isEmpty (String.trim key) || String.isEmpty (String.trim value) then
+                Nothing
+
+            else
+                Just ( String.trim key, String.trim value )
+
+        [] ->
+            Nothing
+
+
+hasAnnotationKey : String -> List ( String, String ) -> Bool
+hasAnnotationKey key annotations =
+    List.any (\( k, _ ) -> k == key) annotations
+
+
+validateAnnotations : SilenceForm -> ValidationState
+validateAnnotations { annotationText, annotations } =
+    if annotationText == "" then
+        Utils.FormValidation.Valid
+
+    else
+        case parseAnnotation annotationText of
+            Just ( key, _ ) ->
+                if hasAnnotationKey key annotations then
+                    Utils.FormValidation.Invalid ("Key '" ++ key ++ "' already exists. Duplicate keys will result in only the last value being retained.")
+
+                else
+                    Utils.FormValidation.Valid
+
+            Nothing ->
+                Utils.FormValidation.Invalid "Please complete adding the annotation or clear the field"
+
+
 fromSilence : GettableSilence -> FirstDayOfWeek -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt } firstDayOfWeek =
+fromSilence { id, createdBy, comment, startsAt, endsAt, annotations } firstDayOfWeek =
     let
         startsPosix =
             Utils.Date.timeFromString (DateTime.toString startsAt)
@@ -158,11 +221,13 @@ fromSilence { id, createdBy, comment, startsAt, endsAt } firstDayOfWeek =
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , dateTimePicker = initFromStartAndEndTime startsPosix endsPosix firstDayOfWeek
     , viewDateTimePicker = False
+    , annotations = annotations |> Maybe.map Dict.toList |> Maybe.withDefault []
+    , annotationText = ""
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicker } =
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicker, annotations, annotationText } =
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
@@ -171,6 +236,8 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicke
     , duration = validate parseDuration duration
     , dateTimePicker = dateTimePicker
     , viewDateTimePicker = False
+    , annotations = annotations
+    , annotationText = annotationText
     }
 
 
@@ -208,6 +275,8 @@ empty firstDayOfWeek =
     , duration = initialField ""
     , dateTimePicker = initDateTimePicker firstDayOfWeek
     , viewDateTimePicker = False
+    , annotations = []
+    , annotationText = ""
     }
 
 
@@ -227,11 +296,13 @@ fromMatchersAndCommentAndTime defaultCreator comment now firstDayOfWeek =
     , comment = initialField comment
     , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now)) firstDayOfWeek
     , viewDateTimePicker = False
+    , annotations = []
+    , annotationText = ""
     }
 
 
 fromDateTimePicker : SilenceForm -> DateTimePicker -> SilenceForm
-fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration } newPicker =
+fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, annotations, annotationText } newPicker =
     { id = id
     , createdBy = createdBy
     , comment = comment
@@ -240,4 +311,6 @@ fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration } newPic
     , duration = duration
     , dateTimePicker = newPicker
     , viewDateTimePicker = True
+    , annotations = annotations
+    , annotationText = annotationText
     }

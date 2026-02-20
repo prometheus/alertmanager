@@ -1,22 +1,23 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, button, div, h1, i, input, label, strong, text)
-import Html.Attributes exposing (class, style)
-import Html.Events exposing (onClick)
+import Html exposing (Html, button, div, h1, i, input, label, small, strong, text)
+import Html.Attributes exposing (class, placeholder, style, value)
+import Html.Events exposing (onClick, onInput)
 import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 import Utils.Filter exposing (SilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
+import Utils.Keyboard exposing (onKeyDown)
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (loading, validatedField, validatedTextareaField)
 import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
-import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), hasAnnotationKey, parseAnnotation)
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
+view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, annotationsValid, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -42,6 +43,7 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
             (UpdateComment >> UpdateField)
             (ValidateComment |> UpdateField)
             form.comment
+        , annotationsInput annotationsValid form
         , div [ class inputSectionPadding ]
             [ informationBlock activeAlertId silenceId alerts
             , silenceActionButtons maybeId resetClick
@@ -158,6 +160,100 @@ matchersInput filterBarValid filterBar =
 
             _ ->
                 text ""
+        ]
+
+
+annotationsInput : Utils.FormValidation.ValidationState -> SilenceForm -> Html SilenceFormMsg
+annotationsInput annotationsValid form =
+    let
+        errorClass =
+            case annotationsValid of
+                Invalid _ ->
+                    " has-danger"
+
+                _ ->
+                    ""
+
+        isValid =
+            if form.annotationText == "" then
+                True
+
+            else
+                case parseAnnotation form.annotationText of
+                    Just ( key, _ ) ->
+                        not (hasAnnotationKey key form.annotations)
+
+                    Nothing ->
+                        False
+
+        addButtonEnabled =
+            form.annotationText /= "" && isValid
+
+        keyDown key =
+            if key == 13 then
+                -- Enter key
+                if addButtonEnabled then
+                    AddAnnotation |> UpdateField
+
+                else
+                    UpdateField Noop
+
+            else
+                UpdateField Noop
+    in
+    div [ class inputSectionPadding ]
+        [ label []
+            [ strong [] [ text "Annotations (Optional) " ]
+            , small [ class "text-muted" ] [ text "key=value pairs" ]
+            ]
+        , div [ class ("row no-gutters align-items-start" ++ errorClass) ]
+            (List.map viewAnnotation form.annotations
+                ++ [ div [ class "col" ]
+                        [ div [ class "input-group" ]
+                            [ input
+                                [ class "form-control"
+                                , placeholder "key=value"
+                                , value form.annotationText
+                                , onInput (UpdateAnnotationText >> UpdateField)
+                                , onKeyDown keyDown
+                                ]
+                                []
+                            , div [ class "input-group-append" ]
+                                [ button
+                                    [ class "btn btn-primary"
+                                    , onClick (AddAnnotation |> UpdateField)
+                                    , Html.Attributes.disabled (not addButtonEnabled)
+                                    ]
+                                    [ text "+" ]
+                                ]
+                            ]
+                        ]
+                   ]
+            )
+        , case annotationsValid of
+            Invalid error ->
+                div [ class "form-control-feedback" ] [ text error ]
+
+            _ ->
+                text ""
+        ]
+
+
+viewAnnotation : ( String, String ) -> Html SilenceFormMsg
+viewAnnotation annotation =
+    div [ class "col col-auto" ]
+        [ div [ class "btn-group mr-2 mb-2" ]
+            [ button
+                [ class "btn btn-outline-info"
+                , onClick (DeleteAnnotation True annotation |> UpdateField)
+                ]
+                [ text (Tuple.first annotation ++ "=" ++ Tuple.second annotation) ]
+            , button
+                [ class "btn btn-outline-danger"
+                , onClick (DeleteAnnotation False annotation |> UpdateField)
+                ]
+                [ text "×" ]
+            ]
         ]
 
 
