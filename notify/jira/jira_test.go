@@ -861,6 +861,55 @@ func TestJiraNotify(t *testing.T) {
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
 			errMsg:             "can't find transition REOPEN for issue OPS-3",
 		},
+		{
+			title: "skip update request when DisableFieldUpdates is true",
+			cfg: &config.JiraConfig{
+				Summary:             `{{ template "jira.default.summary" . }}`,
+				Description:         `{{ template "jira.default.description" . }}`,
+				IssueType:           "{{  .CommonLabels.issue_type }}",
+				Project:             "{{  .CommonLabels.project }}",
+				Priority:            `{{ template "jira.default.priority" . }}`,
+				Labels:              []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				DisableFieldUpdates: true,
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "DisableFieldUpdates",
+						"project":    "OPS",
+						"issue_type": "Bug",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Total: 1,
+				Issues: []issue{
+					{
+						Key: "OPS-3",
+						Fields: &issueFields{
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     "These issue fields don't match the issue in the search response above",
+					Description: "If the test checks these values, then it tried to update the fields and it should fail",
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

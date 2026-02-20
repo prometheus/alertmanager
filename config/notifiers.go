@@ -1034,10 +1034,11 @@ type JiraConfig struct {
 	Priority    string          `yaml:"priority,omitempty" json:"priority,omitempty"`
 	IssueType   string          `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
-	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
-	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
-	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
-	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
+	DisableFieldUpdates bool           `yaml:"disable_field_updates,omitempty" json:"disable_field_updates,omitempty"`
+	ReopenTransition    string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
+	ResolveTransition   string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
+	WontFixResolution   string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
+	ReopenDuration      model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
 
 	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
 }
