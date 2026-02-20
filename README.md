@@ -305,7 +305,11 @@ amtool template render --template.glob='/foo/bar/*.tmpl' --template.text='{{ tem
 
 ### Configuration
 
-`amtool` allows a configuration file to specify some options for convenience. The default configuration file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
+`amtool` allows a configuration file to specify some options for convenience. The default configuration file paths are, in order of precedence:
+
+1. The environment variable `AMTOOL_CONFIG_FILE`, if set.
+2. `$HOME/.config/amtool/config.yml`
+3. `/etc/amtool/config.yml`
 
 An example configuration file might look like the following:
 
