@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/xlab/treeprint"
@@ -26,9 +27,12 @@ import (
 )
 
 type routingShow struct {
-	configFile        string
-	labels            []string
-	expectedReceivers string
+	configFile             string
+	labels                 []string
+	expectedReceivers      string
+	expectedReceiversGroup string
+	// receiversGrouping maps receiver name to its expected grouping.
+	receiversGrouping map[string][]string
 	debugTree         bool
 }
 
@@ -90,6 +94,16 @@ func getRouteTreeSlug(route *dispatch.Route, showContinue, showReceiver bool) st
 		branchSlug.WriteString(branchSlugSeparator)
 		branchSlug.WriteString("receiver: ")
 		branchSlug.WriteString(route.RouteOpts.Receiver)
+		if len(route.RouteOpts.GroupBy) > 0 {
+			branchSlug.WriteString(branchSlugSeparator)
+			branchSlug.WriteString("grouping: [")
+			groupBySlice := make([]string, 0, len(route.RouteOpts.GroupBy))
+			for k := range route.RouteOpts.GroupBy {
+				groupBySlice = append(groupBySlice, string(k))
+			}
+			branchSlug.WriteString(strings.Join(groupBySlice, ","))
+			branchSlug.WriteString("]")
+		}
 	}
 	return branchSlug.String()
 }
