@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"reflect"
@@ -948,6 +949,105 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	if !reflect.DeepEqual(configGot, configExp) {
 		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
+	}
+}
+
+func TestEmptyConfigOfIntegration(t *testing.T) {
+	baseConfigTmpl := `
+global:
+route:
+  receiver: 'test-receiver'
+receivers:
+- name: 'test-receiver'
+  %s:
+  -
+`
+
+	tests := []struct {
+		integration string // The key name in YAML (e.g., webhook_configs)
+		expectedErr string // The unique error message expected for this integration
+	}{
+		{
+			integration: "discord_configs",
+			expectedErr: "missing discord config",
+		},
+		{
+			integration: "email_configs",
+			expectedErr: "missing email config",
+		},
+		{
+			integration: "incidentio_configs",
+			expectedErr: "missing incidentio config",
+		},
+		{
+			integration: "pagerduty_configs",
+			expectedErr: "missing pagerduty config",
+		},
+		{
+			integration: "webhook_configs",
+			expectedErr: "missing webhook config",
+		},
+		{
+			integration: "pushover_configs",
+			expectedErr: "missing pushover config",
+		},
+		{
+			integration: "victorops_configs",
+			expectedErr: "missing victorops config",
+		},
+		{
+			integration: "sns_configs",
+			expectedErr: "missing sns config",
+		},
+		{
+			integration: "telegram_configs",
+			expectedErr: "missing telegram config",
+		},
+		{
+			integration: "webex_configs",
+			expectedErr: "missing webex config",
+		},
+		{
+			integration: "msteams_configs",
+			expectedErr: "missing msteams config",
+		},
+		{
+			integration: "msteamsv2_configs",
+			expectedErr: "missing msteamsv2 config",
+		},
+		{
+			integration: "jira_configs",
+			expectedErr: "missing jira config",
+		},
+		{
+			integration: "mattermost_configs",
+			expectedErr: "missing mattermost config",
+		},
+		{
+			integration: "slack_configs",
+			expectedErr: "no Slack API URL nor App token set either inline or in a file",
+		},
+		{
+			integration: "opsgenie_configs",
+			expectedErr: "no global OpsGenie API Key set either inline or in a file",
+		},
+		{
+			integration: "wechat_configs",
+			expectedErr: "no global Wechat Api Secret set either inline or in a file",
+		},
+		{
+			integration: "rocketchat_configs",
+			expectedErr: "no global Rocketchat TokenID set either inline or in a file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.integration, func(t *testing.T) {
+			in := fmt.Sprintf(baseConfigTmpl, tc.integration)
+			_, err := Load(in)
+			require.Error(t, err, "Expected empty configuration to be an error for %s", tc.integration)
+			require.ErrorContains(t, err, tc.expectedErr)
+		})
 	}
 }
 
