@@ -35,15 +35,7 @@ var static http.FileSystem = filter.Keep(
 	},
 )
 
-var templates http.FileSystem = filter.Keep(
-	http.Dir("../template"),
-	func(path string, fi os.FileInfo) bool {
-		return path == "/" || path == "/default.tmpl" || path == "/email.tmpl"
-	},
-)
-
 // Assets contains the project's assets.
 var Assets http.FileSystem = union.New(map[string]http.FileSystem{
-	"/templates": templates,
-	"/static":    static,
+	"/static": static,
 })
