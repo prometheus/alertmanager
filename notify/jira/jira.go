@@ -219,7 +219,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		jql.WriteString(fmt.Sprintf(`resolution != %q and `, n.conf.WontFixResolution))
+		fmt.Fprintf(&jql, `resolution != %q and `, n.conf.WontFixResolution)
 	}
 
 	// If the group is firing, search for open issues. If a reopen transition is
@@ -227,7 +227,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	if firing {
 		reopenDuration := int64(time.Duration(n.conf.ReopenDuration).Minutes())
 		if n.conf.ReopenTransition != "" && reopenDuration > 0 {
-			jql.WriteString(fmt.Sprintf(`(resolutiondate is EMPTY OR resolutiondate >= -%dm) and `, reopenDuration))
+			fmt.Fprintf(&jql, `(resolutiondate is EMPTY OR resolutiondate >= -%dm) and `, reopenDuration)
 		} else {
 			jql.WriteString(`statusCategory != Done and `)
 		}
@@ -240,7 +240,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	if err != nil {
 		return nil, false, fmt.Errorf("invalid project template or value: %w", err)
 	}
-	jql.WriteString(fmt.Sprintf(`project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel))
+	fmt.Fprintf(&jql, `project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel)
 
 	requestBody, searchPath := n.prepareSearchRequest(jql.String())
 
