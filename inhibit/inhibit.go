@@ -189,33 +189,45 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
-	now := time.Now()
+	inhibitedByFP, inhibited := ih.checkInhibit(lset, time.Now(), span)
+	if inhibited {
+		ih.marker.SetInhibited(fp, inhibitedByFP.String())
+		span.AddEvent("alert inhibited",
+			trace.WithAttributes(
+				attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
+			),
+		)
+		return true
+	}
+
+	ih.marker.SetInhibited(fp)
+	span.AddEvent("alert not inhibited")
+	return false
+}
+
+// checkInhibit checks whether the given label set is inhibited by any rule.
+// Returns the fingerprint of the inhibiting alert and true if inhibited.
+// The span parameter is optional and used for per-rule tracing events.
+func (ih *Inhibitor) checkInhibit(lset model.LabelSet, now time.Time, span trace.Span) (model.Fingerprint, bool) {
 	for _, r := range ih.rules {
 		if !r.TargetMatchers.Matches(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
 		}
-		span.AddEvent("alert matched rule target",
-			trace.WithAttributes(
-				attribute.String("alerting.inhibit_rule.name", r.Name),
-			),
-		)
+		if span != nil {
+			span.AddEvent("alert matched rule target",
+				trace.WithAttributes(
+					attribute.String("alerting.inhibit_rule.name", r.Name),
+				),
+			)
+		}
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			span.AddEvent("alert inhibited",
-				trace.WithAttributes(
-					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
-				),
-			)
-			return true
+			return inhibitedByFP, true
 		}
 	}
-	ih.marker.SetInhibited(fp)
-	span.AddEvent("alert not inhibited")
-
-	return false
+	return 0, false
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
