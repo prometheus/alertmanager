@@ -1041,6 +1041,7 @@ type JiraConfig struct {
 	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
 	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
 	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
+	HashIdentifier    string         `yaml:"hash_identifier,omitempty" json:"hash_identifier,omitempty"`
 
 	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
 }

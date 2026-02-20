@@ -1228,6 +1228,10 @@ project: <string>
     [ enable_update: <boolean> | default = true ]
 ]
 
+# overrides the default ALERT{<group-hash>} jira label used to correlate issues.
+# Example: {{ .GroupLabels }}
+[ hash_identifier: <tmpl_string> ]
+
 # Labels to be added to the issue.
 labels:
   [ - <tmpl_string> ... ]
