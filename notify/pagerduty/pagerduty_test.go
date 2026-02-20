@@ -31,6 +31,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -100,7 +102,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			URL:        &config.URL{URL: u},
+			URL:        &amcommoncfg.URL{URL: u},
 			RoutingKey: commoncfg.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -148,7 +150,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			URL:            &config.URL{URL: u},
+			URL:            &amcommoncfg.URL{URL: u},
 			RoutingKeyFile: f.Name(),
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
@@ -308,7 +310,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
-			tc.cfg.URL = &config.URL{URL: u}
+			tc.cfg.URL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
@@ -534,7 +536,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	pagerDutyConfig := config.PagerdutyConfig{
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
 		RoutingKey: commoncfg.Secret("01234567890123456789012345678901"),
-		URL:        &config.URL{URL: url},
+		URL:        &amcommoncfg.URL{URL: url},
 		Images:     images,
 		Links:      links,
 	}
@@ -602,7 +604,7 @@ func TestPagerDutyTimeout(t *testing.T) {
 			cfg := config.PagerdutyConfig{
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				RoutingKey: commoncfg.Secret("01234567890123456789012345678901"),
-				URL:        &config.URL{URL: u},
+				URL:        &amcommoncfg.URL{URL: u},
 				Timeout:    tt.timeout,
 			}
 

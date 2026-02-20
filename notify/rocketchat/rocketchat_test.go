@@ -22,6 +22,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
@@ -56,7 +58,7 @@ func TestGettingRocketchatTokenFromFile(t *testing.T) {
 			TokenFile:   f.Name(),
 			TokenIDFile: f.Name(),
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
-			APIURL:      &config.URL{URL: &url.URL{Scheme: "http", Host: "example.com", Path: "/api/v1/"}},
+			APIURL:      &amcommoncfg.URL{URL: &url.URL{Scheme: "http", Host: "example.com", Path: "/api/v1/"}},
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
