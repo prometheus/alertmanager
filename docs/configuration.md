@@ -1344,6 +1344,9 @@ responders:
 # Comma separated list of actions that will be available for the alert.
 [ actions: <tmpl_string> ]
 
+# Optional prefix for opsgenie alert alias. Useful to control alert deduplication in opsgenie.
+[ alias_prefix: <tmpl_string> ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
