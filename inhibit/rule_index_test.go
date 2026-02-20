@@ -343,3 +343,55 @@ func newTestMatcher(t *testing.T, op labels.MatchType, name, value string) *labe
 	require.NoError(t, err)
 	return m
 }
+
+func TestRuleIndexOptions_MinRulesForIndex(t *testing.T) {
+	rules := []*InhibitRule{
+		{TargetMatchers: labels.Matchers{newTestMatcher(t, labels.MatchEqual, "cluster", "prod")}},
+	}
+
+	t.Run("threshold=1_uses_index", func(t *testing.T) {
+		opts := RuleIndexOptions{MinRulesForIndex: 1, MaxMatcherOverlapRatio: 0.5}
+		idx := newRuleIndexWithOptions(rules, opts)
+		require.False(t, idx.useLinearScan)
+	})
+
+	t.Run("threshold=2_uses_linear", func(t *testing.T) {
+		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 0.5}
+		idx := newRuleIndexWithOptions(rules, opts)
+		require.True(t, idx.useLinearScan)
+	})
+}
+
+func TestRuleIndexOptions_MaxMatcherOverlapRatio(t *testing.T) {
+	rules := []*InhibitRule{
+		{TargetMatchers: labels.Matchers{newTestMatcher(t, labels.MatchEqual, "severity", "warning")}},
+		{TargetMatchers: labels.Matchers{newTestMatcher(t, labels.MatchEqual, "severity", "warning")}},
+		{TargetMatchers: labels.Matchers{newTestMatcher(t, labels.MatchEqual, "severity", "warning")}},
+		{TargetMatchers: labels.Matchers{newTestMatcher(t, labels.MatchEqual, "cluster", "prod")}},
+	}
+
+	t.Run("ratio=0.5_excludes_high_overlap", func(t *testing.T) {
+		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 0.5}
+		idx := newRuleIndexWithOptions(rules, opts)
+
+		require.NotContains(t, idx.exactIndex, "severity")
+		require.Contains(t, idx.exactIndex, "cluster")
+		require.Len(t, idx.linearRules, 3)
+	})
+
+	t.Run("ratio=1.0_includes_all", func(t *testing.T) {
+		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 1.0}
+		idx := newRuleIndexWithOptions(rules, opts)
+
+		require.Contains(t, idx.exactIndex, "severity")
+		require.Contains(t, idx.exactIndex, "cluster")
+		require.Empty(t, idx.linearRules)
+	})
+}
+
+func TestDefaultRuleIndexOptions(t *testing.T) {
+	opts := DefaultRuleIndexOptions()
+
+	require.Equal(t, 2, opts.MinRulesForIndex)
+	require.Equal(t, 0.5, opts.MaxMatcherOverlapRatio)
+}

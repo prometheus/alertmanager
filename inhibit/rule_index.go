@@ -14,25 +14,12 @@
 package inhibit
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
-)
-
-const (
-	// minRulesForIndex is the minimum number of rules needed before indexing
-	// provides benefit over linear scan. Below this threshold, the overhead
-	// of map lookups and pool operations exceeds linear scan cost.
-	// Set very low (2) to enable indexing for most configurations, relying
-	// on high-overlap detection to avoid the pathological cases.
-	minRulesForIndex = 2
-
-	// maxMatcherOverlapRatio is the maximum fraction of rules a matcher can
-	// appear in before it's excluded from indexing. Matchers appearing in
-	// too many rules don't provide good filtering.
-	maxMatcherOverlapRatio = 0.5
 )
 
 // matcherKey is used as a map key to avoid string concatenation allocations.
@@ -41,8 +28,26 @@ type matcherKey struct {
 	value string
 }
 
+// RuleIndexOptions configures the rule index behavior.
+type RuleIndexOptions struct {
+	// MinRulesForIndex is the minimum number of rules before indexing is used.
+	MinRulesForIndex int
+
+	// MaxMatcherOverlapRatio is the maximum fraction of rules a matcher can
+	// appear in before being excluded from the index.
+	MaxMatcherOverlapRatio float64
+}
+
+// DefaultRuleIndexOptions returns the default options for rule indexing.
+func DefaultRuleIndexOptions() RuleIndexOptions {
+	return RuleIndexOptions{
+		MinRulesForIndex:       2,
+		MaxMatcherOverlapRatio: 0.5,
+	}
+}
+
 var visitedRulePool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make(map[*InhibitRule]struct{}, 16)
 	},
 }
@@ -75,6 +80,10 @@ type ruleIndex struct {
 }
 
 func newRuleIndex(rules []*InhibitRule) *ruleIndex {
+	return newRuleIndexWithOptions(rules, DefaultRuleIndexOptions())
+}
+
+func newRuleIndexWithOptions(rules []*InhibitRule, opts RuleIndexOptions) *ruleIndex {
 	idx := &ruleIndex{
 		exactIndex:         make(map[string]map[string][]*InhibitRule),
 		singleMatcherRules: make(map[*InhibitRule]struct{}),
@@ -84,7 +93,7 @@ func newRuleIndex(rules []*InhibitRule) *ruleIndex {
 	}
 
 	// For small rule sets, linear scan is faster than index overhead
-	if len(rules) < minRulesForIndex {
+	if len(rules) < opts.MinRulesForIndex {
 		idx.useLinearScan = true
 		return idx
 	}
@@ -100,7 +109,7 @@ func newRuleIndex(rules []*InhibitRule) *ruleIndex {
 	}
 
 	// Determine which matchers are high-overlap and should be excluded
-	maxOverlap := int(float64(len(rules)) * maxMatcherOverlapRatio)
+	maxOverlap := int(float64(len(rules)) * opts.MaxMatcherOverlapRatio)
 	highOverlapMatchers := make(map[matcherKey]struct{}, len(matcherCount))
 	for key, count := range matcherCount {
 		if count > maxOverlap {
@@ -158,12 +167,7 @@ func (idx *ruleIndex) forEachCandidate(lset model.LabelSet, fn func(*InhibitRule
 
 	// Fast path: if rule count is small or no index was built, iterate all rules
 	if idx.useLinearScan || len(idx.exactIndex) == 0 {
-		for _, rule := range idx.allRules {
-			if fn(rule) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(idx.allRules, fn)
 	}
 
 	visited := getVisitedRules()
@@ -196,11 +200,5 @@ func (idx *ruleIndex) forEachCandidate(lset model.LabelSet, fn func(*InhibitRule
 		}
 	}
 
-	for _, rule := range idx.linearRules {
-		if fn(rule) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(idx.linearRules, fn)
 }
