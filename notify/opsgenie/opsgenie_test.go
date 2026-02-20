@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -113,7 +114,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config without details",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommonconfig.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,
@@ -146,7 +147,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config with details",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommonconfig.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,
@@ -182,7 +183,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config with multiple teams",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommonconfig.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,

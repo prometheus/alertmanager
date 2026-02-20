@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
@@ -735,7 +736,7 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 }
 
 func TestMarshalRegexpWithNilValue(t *testing.T) {
-	r := &Regexp{}
+	r := &amcommonconfig.Regexp{}
 
 	out, err := json.Marshal(r)
 	require.NoError(t, err)
@@ -750,19 +751,19 @@ func TestUnmarshalEmptyRegexp(t *testing.T) {
 	b := []byte(`""`)
 
 	{
-		var re Regexp
+		var re amcommonconfig.Regexp
 		err := json.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Empty(t, re.original)
+		require.Empty(t, re.Original)
 	}
 
 	{
-		var re Regexp
+		var re amcommonconfig.Regexp
 		err := yaml.Unmarshal(b, &re)
 		require.NoError(t, err)
 		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Empty(t, re.original)
+		require.Empty(t, re.Original)
 	}
 }
 
@@ -770,23 +771,23 @@ func TestUnmarshalNullRegexp(t *testing.T) {
 	input := []byte(`null`)
 
 	{
-		var re Regexp
+		var re amcommonconfig.Regexp
 		err := json.Unmarshal(input, &re)
 		require.NoError(t, err)
-		require.Empty(t, re.original)
+		require.Empty(t, re.Original)
 	}
 
 	{
-		var re Regexp
+		var re amcommonconfig.Regexp
 		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
 		require.NoError(t, err)
 		require.Nil(t, re.Regexp)
-		require.Empty(t, re.original)
+		require.Empty(t, re.Original)
 	}
 }
 
 func TestMarshalEmptyMatchers(t *testing.T) {
-	r := Matchers{}
+	r := amcommonconfig.Matchers{}
 
 	out, err := json.Marshal(r)
 	require.NoError(t, err)
@@ -852,9 +853,9 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	regexpFoo := Regexp{
+	regexpFoo := amcommonconfig.Regexp{
 		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
-		original: "^(foo1|foo2|baz)$",
+		Original: "^(foo1|foo2|baz)$",
 	}
 
 	expectedConf := Config{
@@ -900,7 +901,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",
-					MatchRE: map[string]Regexp{
+					MatchRE: map[string]amcommonconfig.Regexp{
 						"service": regexpFoo,
 					},
 				},

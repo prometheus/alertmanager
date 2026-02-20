@@ -20,7 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/webhook"
 )
 
 type sendResolved bool
@@ -36,13 +38,13 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 					},
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
-						NotifierConfig: config.NotifierConfig{
+						NotifierConfig: amcommonconfig.NotifierConfig{
 							VSendResolved: true,
 						},
 					},
@@ -56,7 +58,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{
 							TLSConfig: commoncfg.TLSConfig{

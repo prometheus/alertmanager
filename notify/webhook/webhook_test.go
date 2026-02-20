@@ -29,7 +29,7 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/config/amcommonconfig"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -37,8 +37,8 @@ import (
 
 func TestWebhookRetry(t *testing.T) {
 	notifier, err := New(
-		&config.WebhookConfig{
-			URL:        config.SecretTemplateURL("http://example.com"),
+		&WebhookConfig{
+			URL:        amcommonconfig.SecretTemplateURL("http://example.com"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -106,8 +106,8 @@ func TestWebhookRedactedURL(t *testing.T) {
 
 	secret := "secret"
 	notifier, err := New(
-		&config.WebhookConfig{
-			URL:        config.SecretTemplateURL(u.String()),
+		&WebhookConfig{
+			URL:        amcommonconfig.SecretTemplateURL(u.String()),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -128,7 +128,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.WebhookConfig{
+		&WebhookConfig{
 			URLFile:    f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -188,8 +188,8 @@ func TestWebhookURLTemplating(t *testing.T) {
 			calledURL = "" // Reset for each test
 
 			notifier, err := New(
-				&config.WebhookConfig{
-					URL:        config.SecretTemplateURL(tc.url),
+				&WebhookConfig{
+					URL:        amcommonconfig.SecretTemplateURL(tc.url),
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 				},
 				test.CreateTmpl(t),
