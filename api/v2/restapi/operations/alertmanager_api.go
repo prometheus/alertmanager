@@ -63,30 +63,56 @@ func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
 		JSONProducer: runtime.JSONProducer(),
 
 		SilenceDeleteSilenceHandler: silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
 		}),
+
 		AlertgroupGetAlertGroupsHandler: alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
 		}),
+
 		AlertGetAlertsHandler: alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")
 		}),
+
 		ReceiverGetReceiversHandler: receiver.GetReceiversHandlerFunc(func(params receiver.GetReceiversParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation receiver.GetReceivers has not yet been implemented")
 		}),
+
 		SilenceGetSilenceHandler: silence.GetSilenceHandlerFunc(func(params silence.GetSilenceParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.GetSilence has not yet been implemented")
 		}),
+
 		SilenceGetSilencesHandler: silence.GetSilencesHandlerFunc(func(params silence.GetSilencesParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.GetSilences has not yet been implemented")
 		}),
+
 		GeneralGetStatusHandler: general.GetStatusHandlerFunc(func(params general.GetStatusParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation general.GetStatus has not yet been implemented")
 		}),
+
 		AlertPostAlertsHandler: alert.PostAlertsHandlerFunc(func(params alert.PostAlertsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alert.PostAlerts has not yet been implemented")
 		}),
+
 		SilencePostSilencesHandler: silence.PostSilencesHandlerFunc(func(params silence.PostSilencesParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.PostSilences has not yet been implemented")
 		}),
 	}
@@ -160,7 +186,7 @@ type AlertmanagerAPI struct {
 	CommandLineOptionsGroups []swag.CommandLineOptionsGroup
 
 	// User defined logger function.
-	Logger func(string, ...interface{})
+	Logger func(string, ...any)
 }
 
 // UseRedoc for documentation at /docs
@@ -271,12 +297,12 @@ func (o *AlertmanagerAPI) Authorizer() runtime.Authorizer {
 }
 
 // ConsumersFor gets the consumers for the specified media types.
+//
 // MIME type parameters are ignored here.
 func (o *AlertmanagerAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consumer {
 	result := make(map[string]runtime.Consumer, len(mediaTypes))
 	for _, mt := range mediaTypes {
-		switch mt {
-		case "application/json":
+		if mt == "application/json" {
 			result["application/json"] = o.JSONConsumer
 		}
 
@@ -284,16 +310,17 @@ func (o *AlertmanagerAPI) ConsumersFor(mediaTypes []string) map[string]runtime.C
 			result[mt] = c
 		}
 	}
+
 	return result
 }
 
 // ProducersFor gets the producers for the specified media types.
+//
 // MIME type parameters are ignored here.
 func (o *AlertmanagerAPI) ProducersFor(mediaTypes []string) map[string]runtime.Producer {
 	result := make(map[string]runtime.Producer, len(mediaTypes))
 	for _, mt := range mediaTypes {
-		switch mt {
-		case "application/json":
+		if mt == "application/json" {
 			result["application/json"] = o.JSONProducer
 		}
 
@@ -301,6 +328,7 @@ func (o *AlertmanagerAPI) ProducersFor(mediaTypes []string) map[string]runtime.P
 			result[mt] = p
 		}
 	}
+
 	return result
 }
 

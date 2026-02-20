@@ -45,7 +45,7 @@ func NewDeleteSilenceOK() *DeleteSilenceOK {
 // WriteResponse to the client
 func (o *DeleteSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
+	rw.Header().Del(runtime.HeaderContentType) // Remove Content-Type on empty responses
 
 	rw.WriteHeader(200)
 }
@@ -70,7 +70,7 @@ func NewDeleteSilenceNotFound() *DeleteSilenceNotFound {
 // WriteResponse to the client
 func (o *DeleteSilenceNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
+	rw.Header().Del(runtime.HeaderContentType) // Remove Content-Type on empty responses
 
 	rw.WriteHeader(404)
 }
