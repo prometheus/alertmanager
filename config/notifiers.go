@@ -221,7 +221,7 @@ var (
 			VSendResolved: true,
 		},
 		Username:  `{{ template "mattermost.default.username" . }}`,
-		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Color:     `{{ template "mattermost.default.color" . }}`,
 		Text:      `{{ template "mattermost.default.text" . }}`,
 		Title:     `{{ template "mattermost.default.title" . }}`,
 		TitleLink: `{{ template "mattermost.default.titlelink" . }}`,

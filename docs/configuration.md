@@ -1078,7 +1078,7 @@ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
 # Message attachments used for richer formatting options.
 # It is for compatibility with Slack.
 [ fallback: <tmpl_string> | default = '{{ template "mattermost.default.fallback" . }}' ]
-[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ color: <tmpl_string> | default = '{{ template "mattermost.default.color" . }}' ]
 [ title: <tmpl_string> | default = '{{ template "mattermost.default.title" . }}' ]
 [ title_link: <tmpl_string> | default = '{{ template "mattermost.default.titlelink" . }}' ]
 [ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}' ]
