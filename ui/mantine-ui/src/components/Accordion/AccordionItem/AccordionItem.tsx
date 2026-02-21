@@ -35,17 +35,15 @@ import {
   factory,
   Factory,
   useProps,
-} from "@mantine/core";
-import { useAccordionContext } from "../Accordion.context";
-import { AccordionItemProvider } from "../AccordionItem.context";
-import classes from "../Accordion.module.css";
+} from '@mantine/core';
+import { useAccordionContext } from '../Accordion.context';
+import { AccordionItemProvider } from '../AccordionItem.context';
+import classes from '../Accordion.module.css';
 
-export type AccordionItemStylesNames = "item";
+export type AccordionItemStylesNames = 'item';
 
 export interface AccordionItemProps
-  extends BoxProps,
-    CompoundStylesApiProps<AccordionItemFactory>,
-    ElementProps<"div"> {
+  extends BoxProps, CompoundStylesApiProps<AccordionItemFactory>, ElementProps<'div'> {
   /** Value that is used to manage the accordion state */
   value: string;
 }
@@ -58,8 +56,11 @@ export type AccordionItemFactory = Factory<{
 }>;
 
 export const AccordionItem = factory<AccordionItemFactory>((props, ref) => {
-  const { classNames, className, style, styles, vars, value, mod, ...others } =
-    useProps("AccordionItem", null, props);
+  const { classNames, className, style, styles, vars, value, mod, ...others } = useProps(
+    'AccordionItem',
+    null,
+    props
+  );
   const ctx = useAccordionContext();
 
   return (
@@ -67,7 +68,7 @@ export const AccordionItem = factory<AccordionItemFactory>((props, ref) => {
       <Box
         ref={ref}
         mod={[{ active: ctx.isItemActive(value) }, mod]}
-        {...ctx.getStyles("item", {
+        {...ctx.getStyles('item', {
           className,
           classNames,
           styles,
@@ -80,5 +81,5 @@ export const AccordionItem = factory<AccordionItemFactory>((props, ref) => {
   );
 });
 
-AccordionItem.displayName = "@mantine/core/AccordionItem";
+AccordionItem.displayName = '@mantine/core/AccordionItem';
 AccordionItem.classes = classes;

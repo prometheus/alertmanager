@@ -27,12 +27,9 @@
  * Modifications to this file are licensed under the Apache License, Version 2.0.
  */
 
-import { createSafeContext, GetStylesApi } from "@mantine/core";
-import type { AccordionFactory } from "./Accordion";
-import {
-  AccordionChevronPosition,
-  AccordionHeadingOrder,
-} from "./Accordion.types";
+import { createSafeContext, GetStylesApi } from '@mantine/core';
+import type { AccordionFactory } from './Accordion';
+import { AccordionChevronPosition, AccordionHeadingOrder } from './Accordion.types';
 
 interface AccordionContext {
   loop: boolean | undefined;
@@ -50,7 +47,6 @@ interface AccordionContext {
   unstyled: boolean | undefined;
 }
 
-export const [AccordionProvider, useAccordionContext] =
-  createSafeContext<AccordionContext>(
-    "Accordion component was not found in the tree"
-  );
+export const [AccordionProvider, useAccordionContext] = createSafeContext<AccordionContext>(
+  'Accordion component was not found in the tree'
+);

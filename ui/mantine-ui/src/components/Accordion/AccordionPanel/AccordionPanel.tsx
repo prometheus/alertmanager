@@ -27,6 +27,7 @@
  * Modifications to this file are licensed under the Apache License, Version 2.0.
  */
 
+import { useEffect, useState } from 'react';
 import {
   BoxProps,
   Collapse,
@@ -35,18 +36,15 @@ import {
   factory,
   Factory,
   useProps,
-} from "@mantine/core";
-import { useAccordionContext } from "../Accordion.context";
-import { useAccordionItemContext } from "../AccordionItem.context";
-import classes from "../Accordion.module.css";
-import { useEffect, useState } from "react";
+} from '@mantine/core';
+import { useAccordionContext } from '../Accordion.context';
+import { useAccordionItemContext } from '../AccordionItem.context';
+import classes from '../Accordion.module.css';
 
-export type AccordionPanelStylesNames = "panel" | "content";
+export type AccordionPanelStylesNames = 'panel' | 'content';
 
 export interface AccordionPanelProps
-  extends BoxProps,
-    CompoundStylesApiProps<AccordionPanelFactory>,
-    ElementProps<"div"> {
+  extends BoxProps, CompoundStylesApiProps<AccordionPanelFactory>, ElementProps<'div'> {
   /** Called when the panel animation completes */
   onTransitionEnd?: () => void;
 }
@@ -59,8 +57,11 @@ export type AccordionPanelFactory = Factory<{
 }>;
 
 export const AccordionPanel = factory<AccordionPanelFactory>((props, ref) => {
-  const { classNames, className, style, styles, vars, children, ...others } =
-    useProps("AccordionPanel", null, props);
+  const { classNames, className, style, styles, vars, children, ...others } = useProps(
+    'AccordionPanel',
+    null,
+    props
+  );
 
   const { value } = useAccordionItemContext();
   const ctx = useAccordionContext();
@@ -86,7 +87,7 @@ export const AccordionPanel = factory<AccordionPanelFactory>((props, ref) => {
   return (
     <Collapse
       ref={ref}
-      {...ctx.getStyles("panel", { className, classNames, style, styles })}
+      {...ctx.getStyles('panel', { className, classNames, style, styles })}
       {...others}
       in={isActive}
       transitionDuration={ctx.transitionDuration ?? 200}
@@ -94,7 +95,7 @@ export const AccordionPanel = factory<AccordionPanelFactory>((props, ref) => {
       id={ctx.getRegionId(value)}
       aria-labelledby={ctx.getControlId(value)}
     >
-      <div {...ctx.getStyles("content", { classNames, styles })}>
+      <div {...ctx.getStyles('content', { classNames, styles })}>
         {/* Prometheus-specific Accordion modification: unmount children when panel is closed. */}
         {showChildren && children}
       </div>
@@ -102,5 +103,5 @@ export const AccordionPanel = factory<AccordionPanelFactory>((props, ref) => {
   );
 });
 
-AccordionPanel.displayName = "@mantine/core/AccordionPanel";
+AccordionPanel.displayName = '@mantine/core/AccordionPanel';
 AccordionPanel.classes = classes;
