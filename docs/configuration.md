@@ -967,7 +967,7 @@ webhook_url_file: <filepath>
 
 ### `<email_config>`
 
-```text
+```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
