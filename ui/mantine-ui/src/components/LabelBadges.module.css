@@ -14,7 +14,7 @@
   border: calc(0.0625rem * var(--mantine-scale)) solid transparent;
   line-height: calc(calc(1.25rem * var(--mantine-scale)) - calc(0.125rem * var(--mantine-scale)));
   height: calc(1.25rem * var(--mantine-scale));
-  letter-spacing: calc(0.015625rem * var(--mantine-scale));
+  letter-spacing: calc(0.0156rem * var(--mantine-scale));
   white-space: nowrap;
   width: fit-content;
   display: inline-flex;
