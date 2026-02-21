@@ -24,10 +24,10 @@ STATICCHECK_IGNORE =
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
-build-all: assets apiv2 build
+build-all: apiv2 build
 
 .PHONY: build
-build: common-build
+build: assets common-build
 
 .PHONY: lint
 lint: common-lint
