@@ -27,7 +27,6 @@
  * Modifications to this file are licensed under the Apache License, Version 2.0.
  */
 
-import { useId, useUncontrolled } from "@mantine/hooks";
 import {
   Box,
   BoxProps,
@@ -44,42 +43,37 @@ import {
   StylesApiProps,
   useProps,
   useStyles,
-} from "@mantine/core";
-import { AccordionProvider } from "./Accordion.context";
-import {
-  AccordionChevronPosition,
-  AccordionHeadingOrder,
-  AccordionValue,
-} from "./Accordion.types";
-import { AccordionChevron } from "./AccordionChevron";
-import { AccordionControl } from "./AccordionControl/AccordionControl";
-import { AccordionItem } from "./AccordionItem/AccordionItem";
-import { AccordionPanel } from "./AccordionPanel/AccordionPanel";
-import classes from "./Accordion.module.css";
+} from '@mantine/core';
+import { useId, useUncontrolled } from '@mantine/hooks';
+import { AccordionProvider } from './Accordion.context';
+import { AccordionChevronPosition, AccordionHeadingOrder, AccordionValue } from './Accordion.types';
+import { AccordionChevron } from './AccordionChevron';
+import { AccordionControl } from './AccordionControl/AccordionControl';
+import { AccordionItem } from './AccordionItem/AccordionItem';
+import { AccordionPanel } from './AccordionPanel/AccordionPanel';
+import classes from './Accordion.module.css';
 
 export type AccordionStylesNames =
-  | "root"
-  | "content"
-  | "item"
-  | "panel"
-  | "icon"
-  | "chevron"
-  | "label"
-  | "itemTitle"
-  | "control";
+  | 'root'
+  | 'content'
+  | 'item'
+  | 'panel'
+  | 'icon'
+  | 'chevron'
+  | 'label'
+  | 'itemTitle'
+  | 'control';
 
-export type AccordionVariant = "default" | "contained" | "filled" | "separated";
+export type AccordionVariant = 'default' | 'contained' | 'filled' | 'separated';
 export type AccordionCssVariables = {
-  root:
-    | "--accordion-transition-duration"
-    | "--accordion-chevron-size"
-    | "--accordion-radius";
+  root: '--accordion-transition-duration' | '--accordion-chevron-size' | '--accordion-radius';
 };
 
 export interface AccordionProps<Multiple extends boolean = false>
-  extends BoxProps,
+  extends
+    BoxProps,
     StylesApiProps<AccordionFactory>,
-    ElementProps<"div", "value" | "defaultValue" | "onChange"> {
+    ElementProps<'div', 'value' | 'defaultValue' | 'onChange'> {
   /** If set, multiple items can be opened at the same time */
   multiple?: Multiple;
 
@@ -131,35 +125,25 @@ export type AccordionFactory = Factory<{
 const defaultProps = {
   multiple: false,
   disableChevronRotation: false,
-  chevronPosition: "right",
-  variant: "default",
-  chevronSize: "auto",
+  chevronPosition: 'right',
+  variant: 'default',
+  chevronSize: 'auto',
   chevronIconSize: 16,
 } satisfies Partial<AccordionProps>;
 
 const varsResolver = createVarsResolver<AccordionFactory>(
   (_, { transitionDuration, chevronSize, radius }) => ({
     root: {
-      "--accordion-transition-duration":
-        transitionDuration === undefined
-          ? undefined
-          : `${transitionDuration}ms`,
-      "--accordion-chevron-size":
-        chevronSize === undefined ? undefined : rem(chevronSize),
-      "--accordion-radius":
-        radius === undefined ? undefined : getRadius(radius),
+      '--accordion-transition-duration':
+        transitionDuration === undefined ? undefined : `${transitionDuration}ms`,
+      '--accordion-chevron-size': chevronSize === undefined ? undefined : rem(chevronSize),
+      '--accordion-radius': radius === undefined ? undefined : getRadius(radius),
     },
   })
 );
 
-export function Accordion<Multiple extends boolean = false>(
-  _props: AccordionProps<Multiple>
-) {
-  const props = useProps(
-    "Accordion",
-    defaultProps as AccordionProps<Multiple>,
-    _props
-  );
+export function Accordion<Multiple extends boolean = false>(_props: AccordionProps<Multiple>) {
+  const props = useProps('Accordion', defaultProps as AccordionProps<Multiple>, _props);
   const {
     classNames,
     className,
@@ -211,7 +195,7 @@ export function Accordion<Multiple extends boolean = false>(
   };
 
   const getStyles = useStyles<AccordionFactory>({
-    name: "Accordion",
+    name: 'Accordion',
     classes,
     props: props as AccordionProps,
     className,
@@ -231,16 +215,13 @@ export function Accordion<Multiple extends boolean = false>(
         onChange: handleItemChange,
         getControlId: getSafeId(
           `${uid}-control`,
-          "Accordion.Item component was rendered with invalid value or without value"
+          'Accordion.Item component was rendered with invalid value or without value'
         ),
         getRegionId: getSafeId(
           `${uid}-panel`,
-          "Accordion.Item component was rendered with invalid value or without value"
+          'Accordion.Item component was rendered with invalid value or without value'
         ),
-        chevron:
-          chevron === null
-            ? null
-            : chevron || <AccordionChevron size={chevronIconSize} />,
+        chevron: chevron === null ? null : chevron || <AccordionChevron size={chevronIconSize} />,
         transitionDuration,
         disableChevronRotation,
         chevronPosition,
@@ -251,29 +232,19 @@ export function Accordion<Multiple extends boolean = false>(
         unstyled,
       }}
     >
-      <Box
-        {...getStyles("root")}
-        id={uid}
-        {...others}
-        variant={variant}
-        data-accordion
-      >
+      <Box {...getStyles('root')} id={uid} {...others} variant={variant} data-accordion>
         {children}
       </Box>
     </AccordionProvider>
   );
 }
 
-const extendAccordion = (
-  c: ExtendComponent<AccordionFactory>
-): MantineThemeComponent => c;
+const extendAccordion = (c: ExtendComponent<AccordionFactory>): MantineThemeComponent => c;
 
 Accordion.extend = extendAccordion;
-Accordion.withProps = getWithProps<AccordionProps, AccordionProps>(
-  Accordion as any
-);
+Accordion.withProps = getWithProps<AccordionProps, AccordionProps>(Accordion as any);
 Accordion.classes = classes;
-Accordion.displayName = "@mantine/core/Accordion";
+Accordion.displayName = '@mantine/core/Accordion';
 Accordion.Item = AccordionItem;
 Accordion.Panel = AccordionPanel;
 Accordion.Control = AccordionControl;

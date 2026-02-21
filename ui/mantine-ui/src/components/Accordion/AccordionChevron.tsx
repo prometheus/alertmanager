@@ -27,19 +27,14 @@
  * Modifications to this file are licensed under the Apache License, Version 2.0.
  */
 
-import { rem } from "@mantine/core";
+import { rem } from '@mantine/core';
 
-export interface AccordionChevronProps
-  extends React.ComponentPropsWithoutRef<"svg"> {
+export interface AccordionChevronProps extends React.ComponentPropsWithoutRef<'svg'> {
   /** Controls `width` and `height` of the icon, `16` by default */
   size?: number | string;
 }
 
-export function AccordionChevron({
-  style,
-  size = 16,
-  ...others
-}: AccordionChevronProps) {
+export function AccordionChevron({ style, size = 16, ...others }: AccordionChevronProps) {
   return (
     <svg
       viewBox="0 0 15 15"
@@ -49,7 +44,7 @@ export function AccordionChevron({
         ...style,
         width: rem(size),
         height: rem(size),
-        display: "block",
+        display: 'block',
       }}
       {...others}
     >
@@ -63,4 +58,4 @@ export function AccordionChevron({
   );
 }
 
-AccordionChevron.displayName = "@mantine/core/AccordionChevron";
+AccordionChevron.displayName = '@mantine/core/AccordionChevron';

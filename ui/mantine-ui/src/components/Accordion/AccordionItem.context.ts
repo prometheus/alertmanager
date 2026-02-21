@@ -27,13 +27,11 @@
  * Modifications to this file are licensed under the Apache License, Version 2.0.
  */
 
-import { createSafeContext } from "@mantine/core";
+import { createSafeContext } from '@mantine/core';
 
 interface AccordionItemContext {
   value: string;
 }
 
 export const [AccordionItemProvider, useAccordionItemContext] =
-  createSafeContext<AccordionItemContext>(
-    "Accordion.Item component was not found in the tree"
-  );
+  createSafeContext<AccordionItemContext>('Accordion.Item component was not found in the tree');
