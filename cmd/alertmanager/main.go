@@ -592,7 +592,7 @@ func run() int {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	ui.Register(router, webReload, logger, ff.EnableUIV2())
 
 	mux := api.Register(router, *routePrefix)
 

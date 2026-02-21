@@ -33,6 +33,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/exporter-toolkit v0.15.1
 	github.com/prometheus/sigv4 v0.4.0
 	github.com/rs/cors v1.11.1

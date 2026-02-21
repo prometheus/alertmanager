@@ -8,6 +8,9 @@
 /.tarballs
 /vendor
 
+# Static assets for UI
+/ui/static
+
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
