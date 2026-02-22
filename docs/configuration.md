@@ -1611,8 +1611,8 @@ The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-m
 channel: <tmpl_string>
 
 # API request data as defined by the Slack webhook API.
-[ icon_emoji: <tmpl_string> ]
-[ icon_url: <tmpl_string> ]
+[ icon_emoji: <tmpl_string> | default = '{{ template "slack.default.iconemoji" . }}' ]
+[ icon_url: <tmpl_string> | default = '{{ template "slack.default.iconurl" . }}' ]
 [ link_names: <boolean> | default = false ]
 # The text content of the Slack message.
 # If set, this is sent as the top-level 'text' field in the Slack payload.
@@ -1623,7 +1623,7 @@ channel: <tmpl_string>
 actions:
   [ <action_config> ... ]
 [ callback_id: <tmpl_string> | default = '{{ template "slack.default.callbackid" . }}' ]
-[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ color: <tmpl_string> | default = '{{ template "slack.default.color" . }}' ]
 [ fallback: <tmpl_string> | default = '{{ template "slack.default.fallback" . }}' ]
 fields:
   [ <field_config> ... ]

@@ -32,6 +32,7 @@ Source: {{ .GeneratorURL }}
 {{ define "slack.default.iconurl" }}{{ end }}
 {{ define "slack.default.text" }}{{ end }}
 {{ define "slack.default.footer" }}{{ end }}
+{{ define "slack.default.color" }}{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}{{ end }}
 
 
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
