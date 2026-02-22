@@ -1,23 +1,23 @@
-import { useSuspenseAPIQuery } from '@/data/api';
+import { useAPIQuery } from '@/data/api';
 
-type Group = {
+export type Group = {
   alerts: Alert[];
   labels: Record<string, string>;
   receiver: Receiver;
 };
 
-type Receiver = {
+export type Receiver = {
   name: string;
 };
 
-type AlertStatus = {
+export type AlertStatus = {
   inhibitedBy: string[];
   silencedBy: string[];
   mutedBy: string[];
   state: 'active';
 };
 
-type Alert = {
+export type Alert = {
   annotations: Record<string, string>;
   endsAt: string;
   fingerprint: string;
@@ -28,8 +28,22 @@ type Alert = {
   labels: Record<string, string>;
 };
 
-export const useGroups = () => {
-  return useSuspenseAPIQuery<Array<Group>>({
+export type useGroupParams = {
+  silenced?: 'true' | 'false';
+  inhibited?: 'true' | 'false';
+  filter?: Record<string, string>;
+};
+
+export const useGroups = (params?: useGroupParams) => {
+  const filterEntries = params?.filter
+    ? Object.entries(params.filter).map(([key, value]) => `${key}="${value}"`)
+    : [];
+  return useAPIQuery<Array<Group>>({
     path: '/alerts/groups',
+    params: {
+      silenced: params?.silenced ?? 'false',
+      inhibited: params?.inhibited ?? 'false',
+      ...(filterEntries.length > 0 ? { filter: filterEntries } : {}),
+    },
   });
 };
