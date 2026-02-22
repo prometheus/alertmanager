@@ -287,11 +287,9 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
@@ -317,11 +315,9 @@ func run() int {
 	}
 
 	// Start providers before router potentially sends updates.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	defer func() {
 		close(stopc)

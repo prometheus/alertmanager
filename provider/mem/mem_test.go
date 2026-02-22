@@ -564,10 +564,7 @@ func TestAlertsConcurrently(t *testing.T) {
 	expire := 10 * time.Millisecond
 	wg := sync.WaitGroup{}
 	for range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			j := 0
 			for {
 				select {
@@ -592,7 +589,7 @@ func TestAlertsConcurrently(t *testing.T) {
 				}
 				j++
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	select {
