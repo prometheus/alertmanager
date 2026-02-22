@@ -14,7 +14,9 @@
 package ui
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
@@ -23,40 +25,37 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
-
-	"github.com/prometheus/alertmanager/asset"
 )
+
+//go:embed app/script.js app/index.html app/favicon.ico app/lib
+var asset embed.FS
 
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-	fs := http.FileServer(asset.Assets)
+	appFS, err := fs.Sub(asset, "app")
+	if err != nil {
+		panic(err) // During build step, we did not embed a directory named `app`.
+	}
+	fs := http.FileServerFS(appFS)
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		disableCaching(w)
-
-		req.URL.Path = "/static/"
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/script.js", func(w http.ResponseWriter, req *http.Request) {
 		disableCaching(w)
-
-		req.URL.Path = "/static/script.js"
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
 		disableCaching(w)
-
-		req.URL.Path = "/static/favicon.ico"
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/lib/*path", func(w http.ResponseWriter, req *http.Request) {
 		disableCaching(w)
-
-		req.URL.Path = path.Join("/static/lib", route.Param(req.Context(), "path"))
 		fs.ServeHTTP(w, req)
 	})
 
