@@ -90,6 +90,8 @@ global:
   [ smtp_auth_identity: <string> ]
   # SMTP Auth using CRAM-MD5.
   [ smtp_auth_secret: <secret> ]
+  # SMTP Auth using CRAM-MD5.
+  [ smtp_auth_secret_file: <string> ]
   # The default SMTP TLS requirement.
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
@@ -986,10 +988,12 @@ to: <tmpl_string>
 
 # SMTP authentication information.
 # auth_password and auth_password_file are mutually exclusive.
+# auth_secret and auth_secret_file are mutually exclusive.
 [ auth_username: <string> | default = global.smtp_auth_username ]
 [ auth_password: <secret> | default = global.smtp_auth_password ]
 [ auth_password_file: <string> | default = global.smtp_auth_password_file ]
 [ auth_secret: <secret> | default = global.smtp_auth_secret ]
+[ auth_secret_file: <secret> | default = global.smtp_auth_secret_file ]
 [ auth_identity: <string> | default = global.smtp_auth_identity ]
 
 # The SMTP TLS requirement.
