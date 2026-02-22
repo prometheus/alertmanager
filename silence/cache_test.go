@@ -157,35 +157,29 @@ func TestCacheConcurrentAccess(t *testing.T) {
 
 	// Concurrent readers.
 	for range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 100 {
 				_ = c.get(fp)
 			}
-		}()
+		})
 	}
 
 	// Concurrent writers.
 	for i := range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range 100 {
 				c.set(fp, newCacheEntry(i*100+j, "w"))
 			}
-		}()
+		})
 	}
 
 	// Concurrent deleters.
 	for range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 100 {
 				c.delete(fp)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
