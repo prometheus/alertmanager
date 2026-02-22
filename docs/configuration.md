@@ -97,6 +97,8 @@ global:
   [ smtp_require_tls: <bool> | default = true ]
   # The default TLS configuration for SMTP receivers
   [ smtp_tls_config: <tls_config> ]
+  # Force implicit TLS regardless of SMTP port
+  [ smtp_force_implicit_tls: <bool>]
 
   # Default settings for the JIRA integration.
   [ jira_api_url: <string> ]
@@ -1003,7 +1005,7 @@ to: <tmpl_string>
 # Force use of implicit TLS (direct TLS connection) for better security.
 # true: force use of implicit TLS (direct TLS connection on any port)
 # nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
-[ implicit_tls: <bool> | default = nil ]
+[ force_implicit_tls: <bool> | default = nil ]
 
 # TLS configuration.
 tls_config:
@@ -1037,9 +1039,9 @@ receivers:
     email_configs:
       - to: alerts@example.com
         smarthost: smtp.example.com:8465
-        implicit_tls: true  # Use direct TLS connection on port 8465
+        force_implicit_tls: true  # Use direct TLS connection on port 8465
 
-# Example 2: Backward compatible (no implicit_tls specified)
+# Example 2: Backward compatible (no force_implicit_tls specified)
 receivers:
   - name: email-default
     email_configs:
