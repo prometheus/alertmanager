@@ -1083,6 +1083,22 @@ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
 
 # Message attachments used for richer formatting options.
 # It is for compatibility with Slack.
+[ fallback: <tmpl_string> | default = '{{ template "mattermost.default.fallback" . }}' ]
+[ color: <tmpl_string> | default = '{{ template "mattermost.default.color" . }}' ]
+[ title: <tmpl_string> | default = '{{ template "mattermost.default.title" . }}' ]
+[ title_link: <tmpl_string> | default = '{{ template "mattermost.default.titlelink" . }}' ]
+[ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}' ]
+[ pretext: <string> | default = '' ]
+[ author_name: <string> | default = '' ]
+[ author_link: <string> | default = '' ]
+[ author_icon: <string> | default = '' ]
+[ fields: <string> | default = '' ]
+  [ <field_config> ... ]
+[ thumb_url: <string> | default = '' ]
+[ footer: <string> | default = '' ]
+[ footer_icon: <string> | default = '' ]
+[ image_url: <string> | default = '' ]
+# Deprecated: use top-level fields instead; `attachments` will be removed in a future.
 [ attachments: ]
   [ <attachment_config> ... ]
 
