@@ -42,6 +42,7 @@ var tracer = otel.Tracer("github.com/prometheus/alertmanager/inhibit")
 type Inhibitor struct {
 	alerts     provider.Alerts
 	rules      []*InhibitRule
+	ruleIdx    *ruleIndex
 	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
@@ -74,6 +75,7 @@ func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMar
 			ruleNames[cr.Name] = struct{}{}
 		}
 	}
+	ih.ruleIdx = newRuleIndex(ih.rules)
 	return ih
 }
 
@@ -189,33 +191,49 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
-	now := time.Now()
-	for _, r := range ih.rules {
-		if !r.TargetMatchers.Matches(lset) {
-			// If target side of rule doesn't match, we don't need to look any further.
-			continue
-		}
-		span.AddEvent("alert matched rule target",
+	inhibitedByFP, inhibited := ih.checkInhibit(lset, time.Now(), span)
+	if inhibited {
+		ih.marker.SetInhibited(fp, inhibitedByFP.String())
+		span.AddEvent("alert inhibited",
 			trace.WithAttributes(
-				attribute.String("alerting.inhibit_rule.name", r.Name),
+				attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
 			),
 		)
-		// If we are here, the target side matches. If the source side matches, too, we
-		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
-			span.AddEvent("alert inhibited",
-				trace.WithAttributes(
-					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
-				),
-			)
-			return true
-		}
+		return true
 	}
+
 	ih.marker.SetInhibited(fp)
 	span.AddEvent("alert not inhibited")
-
 	return false
+}
+
+// checkInhibit checks whether the given label set is inhibited by any rule.
+// Returns the fingerprint of the inhibiting alert and true if inhibited.
+// The span parameter is optional and used for per-rule tracing events.
+func (ih *Inhibitor) checkInhibit(lset model.LabelSet, now time.Time, span trace.Span) (model.Fingerprint, bool) {
+	var inhibitedByFP model.Fingerprint
+
+	inhibited := ih.ruleIdx.forEachCandidate(lset, func(r *InhibitRule) bool {
+		if !r.TargetMatchers.Matches(lset) {
+			return false
+		}
+		if span != nil {
+			span.AddEvent("alert matched rule target",
+				trace.WithAttributes(
+					attribute.String("alerting.inhibit_rule.name", r.Name),
+				),
+			)
+		}
+		// If we are here, the target side matches. If the source side matches, too, we
+		// need to exclude inhibiting alerts for which the same is true.
+		if foundFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
+			inhibitedByFP = foundFP
+			return true
+		}
+		return false
+	})
+
+	return inhibitedByFP, inhibited
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
