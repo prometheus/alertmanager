@@ -660,9 +660,7 @@ func TestTemplateFuncs(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
 			for range 10 {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					got, err := tmpl.ExecuteTextString(tc.in, tc.data)
 					if tc.expErr == "" {
 						require.NoError(t, err)
@@ -671,7 +669,7 @@ func TestTemplateFuncs(t *testing.T) {
 						require.EqualError(t, err, tc.expErr)
 						require.Empty(t, got)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 		})

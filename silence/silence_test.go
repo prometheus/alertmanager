@@ -553,14 +553,12 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	var calls atomic.Int32
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
 			calls.Add(1)
 			return 0, nil
 		})
-	}()
+	})
 	gosched()
 
 	// Before the first tick, no maintenance executed.
