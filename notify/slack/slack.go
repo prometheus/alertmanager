@@ -229,12 +229,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		} else {
 			threadTs, _ := store.GetStr("threadTs")
 			channelId, _ := store.GetStr("channelId")
-			logger.With("threadTs", threadTs).With("channelId", channelId).Debug("attempt recovering threadTs and channelId to update an existing message")
+			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
 			if threadTs != "" && channelId != "" {
 				u = "https://slack.com/api/chat.update"
 				req.Timestamp = threadTs
 				req.Channel = channelId
-				logger.With("threadTs", threadTs).With("channelId", channelId).Debug("updating previously sent message")
+				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
 			}
 		}
 	}
@@ -289,7 +289,7 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 	if store != nil && data.Timestamp != "" && data.Channel != "" {
 		store.SetStr("threadTs", data.Timestamp)
 		store.SetStr("channelId", data.Channel)
-		n.logger.With("threadTs", data.Timestamp).With("channelId", data.Channel).Debug("stored threadTs and channelId")
+		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
 	}
 	return false, nil
 }
