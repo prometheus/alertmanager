@@ -124,12 +124,12 @@ func (c *Collector) Add(alerts ...*models.GettableAlert) {
 
 func (c *Collector) Check() string {
 	var report strings.Builder
-	report.WriteString(fmt.Sprintf("\ncollector %q:\n\n", c))
+	fmt.Fprintf(&report, "\ncollector %q:\n\n", c)
 
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 	for iv, expected := range c.expected {
-		report.WriteString(fmt.Sprintf("interval %v\n", iv))
+		fmt.Fprintf(&report, "interval %v\n", iv)
 
 		var alerts []models.GettableAlerts
 		for at, got := range c.collected {
@@ -144,7 +144,7 @@ func (c *Collector) Check() string {
 			report.WriteString("---\n")
 
 			for _, e := range exp {
-				report.WriteString(fmt.Sprintf("- %v\n", c.opts.AlertString(e)))
+				fmt.Fprintf(&report, "- %v\n", c.opts.AlertString(e))
 			}
 
 			for _, a := range alerts {
@@ -180,7 +180,7 @@ func (c *Collector) Check() string {
 	}
 	if totalExp != totalAct {
 		c.t.Fail()
-		report.WriteString(fmt.Sprintf("\nExpected total of %d alerts, got %d", totalExp, totalAct))
+		fmt.Fprintf(&report, "\nExpected total of %d alerts, got %d", totalExp, totalAct)
 	}
 
 	if c.t.Failed() {
@@ -188,9 +188,9 @@ func (c *Collector) Check() string {
 
 		for at, col := range c.collected {
 			for _, alerts := range col {
-				report.WriteString(fmt.Sprintf("@ %v\n", at))
+				fmt.Fprintf(&report, "@ %v\n", at)
 				for _, a := range alerts {
-					report.WriteString(fmt.Sprintf("- %v\n", c.opts.AlertString(a)))
+					fmt.Fprintf(&report, "- %v\n", c.opts.AlertString(a))
 				}
 			}
 		}

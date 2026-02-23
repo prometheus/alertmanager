@@ -83,7 +83,7 @@ type AlertMarker interface {
 	// Status of the given alert.
 	Status(model.Fingerprint) AlertStatus
 	// Delete the given alert.
-	Delete(model.Fingerprint)
+	Delete(...model.Fingerprint)
 
 	// Various methods to inquire if the given alert is in a certain
 	// AlertState. Silenced also returns all the active silences,
@@ -266,11 +266,13 @@ func (m *MemMarker) Status(alert model.Fingerprint) AlertStatus {
 }
 
 // Delete implements AlertMarker.
-func (m *MemMarker) Delete(alert model.Fingerprint) {
+func (m *MemMarker) Delete(alerts ...model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	delete(m.alerts, alert)
+	for _, alert := range alerts {
+		delete(m.alerts, alert)
+	}
 }
 
 // Unprocessed implements AlertMarker.

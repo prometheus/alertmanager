@@ -2370,12 +2370,10 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 	entry := s.cache.get(fp)
 	require.Positive(t, entry.count(), "cache should have entries after Mutes()")
 
-	// PostDelete evicts the cache entry for this fingerprint.
-	s.PostDelete(&types.Alert{
-		Alert: model.Alert{Labels: lset},
-	})
+	// PostGC evicts the cache entry for this fingerprint.
+	s.PostGC(model.Fingerprints{fp})
 	entry = s.cache.get(fp)
-	require.Equal(t, 0, entry.count(), "cache should be empty after PostDelete()")
+	require.Equal(t, 0, entry.count(), "cache should be empty after PostGC()")
 	require.Equal(t, 0, entry.version, "version should be zero for evicted entry")
 
 	// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
@@ -2386,13 +2384,11 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 	// Expire the silence, advance time so it's truly expired.
 	clock.Advance(time.Hour)
 
-	// PostDelete for a different fingerprint should not affect this entry.
+	// PostGC for a different fingerprint should not affect this entry.
 	otherLset := model.LabelSet{"other": "alert"}
-	s.PostDelete(&types.Alert{
-		Alert: model.Alert{Labels: otherLset},
-	})
+	s.PostGC(model.Fingerprints{otherLset.Fingerprint()})
 	entry = s.cache.get(fp)
-	require.Positive(t, entry.count(), "unrelated PostDelete should not evict other entries")
+	require.Positive(t, entry.count(), "unrelated PostGC should not evict other entries")
 }
 
 func TestValidateClassicMatcher(t *testing.T) {

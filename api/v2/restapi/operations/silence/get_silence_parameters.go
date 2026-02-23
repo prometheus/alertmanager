@@ -41,7 +41,6 @@ func NewGetSilenceParams() GetSilenceParams {
 //
 // swagger:parameters getSilence
 type GetSilenceParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -95,7 +94,7 @@ func (o *GetSilenceParams) bindSilenceID(rawData []string, hasKey bool, formats 
 	return nil
 }
 
-// validateSilenceID carries on validations for parameter SilenceID
+// validateSilenceID carries out validations for parameter SilenceID
 func (o *GetSilenceParams) validateSilenceID(formats strfmt.Registry) error {
 
 	if err := validate.FormatOf("silenceID", "path", "uuid", o.SilenceID.String(), formats); err != nil {

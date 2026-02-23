@@ -29,6 +29,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -51,7 +53,7 @@ func boolPtr(v bool) *bool {
 func TestJiraRetry(t *testing.T) {
 	notifier, err := New(
 		&config.JiraConfig{
-			APIURL: &config.URL{
+			APIURL: &amcommoncfg.URL{
 				URL: &url.URL{
 					Scheme: "https",
 					Host:   "example.atlassian.net",
@@ -156,7 +158,7 @@ func TestSearchExistingIssue(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			expectedJQL = tc.expectedJQL
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
 			as := []*types.Alert{
@@ -209,7 +211,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "cloud API type",
 			cfg: &config.JiraConfig{
 				APIType: "cloud",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -230,7 +232,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "auto API type with atlassian.net url",
 			cfg: &config.JiraConfig{
 				APIType: "auto",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -251,7 +253,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "auto API type without atlassian.net url",
 			cfg: &config.JiraConfig{
 				APIType: "auto",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "jira.example.com",
@@ -272,7 +274,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "atlassian.net URL suffix but datacenter api type",
 			cfg: &config.JiraConfig{
 				APIType: "datacenter",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -293,7 +295,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "datacenter API type",
 			cfg: &config.JiraConfig{
 				APIType: "datacenter",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "jira.example.com",
@@ -415,7 +417,7 @@ func TestJiraTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			capturedBody = nil
 
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
@@ -1014,7 +1016,7 @@ func TestJiraNotify(t *testing.T) {
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
 
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
 			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -1270,7 +1272,7 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 				Project:     "OPS",
 				Labels:      []string{"alertmanager"},
 				Priority:    `{{ template "jira.default.priority" . }}`,
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",

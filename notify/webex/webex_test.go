@@ -27,6 +27,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -40,7 +42,7 @@ func TestWebexRetry(t *testing.T) {
 	notifier, err := New(
 		&config.WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			APIURL:     &config.URL{URL: testWebhookURL},
+			APIURL:     &amcommoncfg.URL{URL: testWebhookURL},
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -120,7 +122,7 @@ func TestWebexTemplating(t *testing.T) {
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
 
-			tt.cfg.APIURL = &config.URL{URL: u}
+			tt.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tt.cfg.HTTPConfig = tt.commonCfg
 			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
