@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
@@ -159,8 +158,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		Equal:       []string{"e"},
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, nopLogger)
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -260,8 +258,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		Equal:          []string{"e"},
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, nopLogger)
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -531,8 +528,7 @@ func TestInhibit(t *testing.T) {
 		},
 	} {
 		ap := newFakeAlerts(tc.alerts)
-		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger)
+		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, nopLogger)
 
 		go func() {
 			for ap.finished != nil {
