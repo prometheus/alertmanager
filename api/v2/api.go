@@ -366,13 +366,13 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	// Make a best effort to insert all alerts that are valid.
 	var (
 		validAlerts    = make([]*types.Alert, 0, len(alerts))
-		validationErrs = &types.MultiError{}
+		validationErrs error
 	)
 	for _, a := range alerts {
 		removeEmptyLabels(a.Labels)
 
 		if err := a.Validate(); err != nil {
-			validationErrs.Add(err)
+			validationErrs = errors.Join(validationErrs, err)
 			api.m.Invalid().Inc()
 			continue
 		}
@@ -386,7 +386,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
 	}
 
-	if validationErrs.Len() > 0 {
+	if validationErrs != nil {
 		message := "Failed to validate alerts"
 		logger.Error(message, "err", validationErrs.Error())
 		span.SetStatus(codes.Error, message)

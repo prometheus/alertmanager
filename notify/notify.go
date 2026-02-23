@@ -536,28 +536,28 @@ func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.
 type FanoutStage []Stage
 
 // Exec attempts to execute all stages concurrently and discards the results.
-// It returns its input alerts and a types.MultiError if one or more stages fail.
+// It returns its input alerts and an error if one or more stages fail.
 func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var (
-		wg sync.WaitGroup
-		me types.MultiError
+		wg   sync.WaitGroup
+		mtx  sync.Mutex
+		errs error
 	)
 	wg.Add(len(fs))
 
 	for _, s := range fs {
 		go func(s Stage) {
 			if _, _, err := s.Exec(ctx, l, alerts...); err != nil {
-				me.Add(err)
+				mtx.Lock()
+				errs = errors.Join(errs, err)
+				mtx.Unlock()
 			}
 			wg.Done()
 		}(s)
 	}
 	wg.Wait()
 
-	if me.Len() > 0 {
-		return ctx, alerts, &me
-	}
-	return ctx, alerts, nil
+	return ctx, alerts, errs
 }
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
