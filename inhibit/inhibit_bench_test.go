@@ -183,8 +183,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 
 func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	r := prometheus.NewRegistry()
-	m := types.NewMarker(r)
-	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	s, err := mem.NewAlerts(context.TODO(), time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -198,7 +197,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	ih := NewInhibitor(s, rules, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
 

@@ -39,7 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func checkErr(t *testing.T, expected string, got error) {
@@ -2266,8 +2265,7 @@ func TestSilencer(t *testing.T) {
 	ss.clock = clock
 	now := ss.nowUTC()
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, promslog.NewNopLogger())
+	s := NewSilencer(ss, promslog.NewNopLogger())
 
 	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
@@ -2347,8 +2345,7 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 	ss.clock = clock
 	now := ss.nowUTC()
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, promslog.NewNopLogger())
+	s := NewSilencer(ss, promslog.NewNopLogger())
 
 	lset := model.LabelSet{"foo": "bar"}
 	fp := lset.Fingerprint()

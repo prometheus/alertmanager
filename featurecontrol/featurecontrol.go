@@ -23,6 +23,7 @@ import (
 const (
 	FeatureAlertNamesInMetrics   = "alert-names-in-metrics"
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
+	FeatureGroupKeyInMetrics     = "group-key-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
@@ -32,6 +33,7 @@ const (
 var AllowedFlags = []string{
 	FeatureAlertNamesInMetrics,
 	FeatureReceiverNameInMetrics,
+	FeatureGroupKeyInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
@@ -41,6 +43,7 @@ var AllowedFlags = []string{
 type Flagger interface {
 	EnableAlertNamesInMetrics() bool
 	EnableReceiverNamesInMetrics() bool
+	EnableGroupKeyInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
@@ -51,6 +54,7 @@ type Flags struct {
 	logger                       *slog.Logger
 	enableAlertNamesInMetrics    bool
 	enableReceiverNamesInMetrics bool
+	enableGroupKeyInMetrics      bool
 	classicMode                  bool
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
@@ -63,6 +67,10 @@ func (f *Flags) EnableAlertNamesInMetrics() bool {
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
 	return f.enableReceiverNamesInMetrics
+}
+
+func (f *Flags) EnableGroupKeyInMetrics() bool {
+	return f.enableGroupKeyInMetrics
 }
 
 func (f *Flags) ClassicMode() bool {
@@ -86,6 +94,12 @@ type flagOption func(flags *Flags)
 func enableReceiverNameInMetrics() flagOption {
 	return func(configs *Flags) {
 		configs.enableReceiverNamesInMetrics = true
+	}
+}
+
+func enableGroupKeyInMetrics() flagOption {
+	return func(configs *Flags) {
+		configs.enableGroupKeyInMetrics = true
 	}
 }
 
@@ -135,6 +149,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			logger.Warn("Experimental receiver name in metrics enabled")
+		case FeatureGroupKeyInMetrics:
+			opts = append(opts, enableGroupKeyInMetrics())
+			logger.Warn("Experimental group key in metrics enabled")
 		case FeatureClassicMode:
 			opts = append(opts, enableClassicMode())
 			logger.Warn("Classic mode enabled")
@@ -168,6 +185,8 @@ type NoopFlags struct{}
 func (n NoopFlags) EnableAlertNamesInMetrics() bool { return false }
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
+
+func (n NoopFlags) EnableGroupKeyInMetrics() bool { return false }
 
 func (n NoopFlags) ClassicMode() bool { return false }
 

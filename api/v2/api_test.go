@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
@@ -41,7 +42,6 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -495,7 +495,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		fp        = "0223b772b51c29e1"
 		receivers = []string{"receiver1", "receiver2"}
 
-		alert = &types.Alert{
+		a = &alert.Alert{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
 				StartsAt: start,
@@ -503,7 +503,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
+	openAPIAlert := AlertToOpenAPIAlert(a, alert.AlertStatus{State: alert.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
