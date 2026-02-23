@@ -31,11 +31,11 @@ import (
 func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
+	fs := http.FileServer(asset.Assets)
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		disableCaching(w)
 
 		req.URL.Path = "/static/"
-		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
@@ -43,7 +43,6 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) 
 		disableCaching(w)
 
 		req.URL.Path = "/static/script.js"
-		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
@@ -51,7 +50,6 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) 
 		disableCaching(w)
 
 		req.URL.Path = "/static/favicon.ico"
-		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
@@ -59,7 +57,6 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) 
 		disableCaching(w)
 
 		req.URL.Path = path.Join("/static/lib", route.Param(req.Context(), "path"))
-		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 

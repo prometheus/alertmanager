@@ -27,6 +27,8 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -55,7 +57,7 @@ type Notifier struct {
 	logger     *slog.Logger
 	client     *http.Client
 	retrier    *notify.Retrier
-	webhookURL *config.SecretURL
+	webhookURL *amcommoncfg.SecretURL
 }
 
 // New returns a new Discord notifier.

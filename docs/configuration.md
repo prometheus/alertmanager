@@ -90,11 +90,15 @@ global:
   [ smtp_auth_identity: <string> ]
   # SMTP Auth using CRAM-MD5.
   [ smtp_auth_secret: <secret> ]
+  # SMTP Auth using CRAM-MD5.
+  [ smtp_auth_secret_file: <string> ]
   # The default SMTP TLS requirement.
   # Note that Go does not support unencrypted connections to remote SMTP endpoints.
   [ smtp_require_tls: <bool> | default = true ]
   # The default TLS configuration for SMTP receivers
   [ smtp_tls_config: <tls_config> ]
+  # Force implicit TLS regardless of SMTP port
+  [ smtp_force_implicit_tls: <bool>]
 
   # Default settings for the JIRA integration.
   [ jira_api_url: <string> ]
@@ -986,10 +990,12 @@ to: <tmpl_string>
 
 # SMTP authentication information.
 # auth_password and auth_password_file are mutually exclusive.
+# auth_secret and auth_secret_file are mutually exclusive.
 [ auth_username: <string> | default = global.smtp_auth_username ]
 [ auth_password: <secret> | default = global.smtp_auth_password ]
 [ auth_password_file: <string> | default = global.smtp_auth_password_file ]
 [ auth_secret: <secret> | default = global.smtp_auth_secret ]
+[ auth_secret_file: <secret> | default = global.smtp_auth_secret_file ]
 [ auth_identity: <string> | default = global.smtp_auth_identity ]
 
 # The SMTP TLS requirement.
@@ -999,7 +1005,7 @@ to: <tmpl_string>
 # Force use of implicit TLS (direct TLS connection) for better security.
 # true: force use of implicit TLS (direct TLS connection on any port)
 # nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
-[ implicit_tls: <bool> | default = nil ]
+[ force_implicit_tls: <bool> | default = nil ]
 
 # TLS configuration.
 tls_config:
@@ -1033,9 +1039,9 @@ receivers:
     email_configs:
       - to: alerts@example.com
         smarthost: smtp.example.com:8465
-        implicit_tls: true  # Use direct TLS connection on port 8465
+        force_implicit_tls: true  # Use direct TLS connection on port 8465
 
-# Example 2: Backward compatible (no implicit_tls specified)
+# Example 2: Backward compatible (no force_implicit_tls specified)
 receivers:
   - name: email-default
     email_configs:
