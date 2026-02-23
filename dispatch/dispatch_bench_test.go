@@ -24,10 +24,11 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/provider/mem"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // buildDeepRouteTree creates a multi-level hierarchical route tree:
@@ -96,9 +97,9 @@ func buildDeepRouteTree(numTeams, numClusters, numPriorities int) *Route {
 }
 
 // newBenchAlert creates a simple alert with given labels for benchmarking.
-func newBenchAlert(labels model.LabelSet) *types.Alert {
+func newBenchAlert(labels model.LabelSet) *alert.Alert {
 	now := time.Now()
-	return &types.Alert{
+	return &alert.Alert{
 		Alert: model.Alert{
 			Labels:       labels,
 			Annotations:  model.LabelSet{"description": "benchmark alert"},
@@ -114,8 +115,8 @@ func newBenchAlert(labels model.LabelSet) *types.Alert {
 //   - offset is added to the index to create unique alerts across multiple batches,
 //     exercising the whole route tree.
 //   - numTeams, numClusters, numPriorities define the route tree structure.
-func makeBenchAlertBatch(size, offset, numTeams, numClusters, numPriorities int) []*types.Alert {
-	batch := make([]*types.Alert, size)
+func makeBenchAlertBatch(size, offset, numTeams, numClusters, numPriorities int) []*alert.Alert {
+	batch := make([]*alert.Alert, size)
 	for i := range size {
 		idx := offset + i
 		labels := model.LabelSet{
@@ -140,15 +141,15 @@ func makeBenchAlertBatch(size, offset, numTeams, numClusters, numPriorities int)
 func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *recordStage) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	marker := types.NewMarker(reg)
+	marker := marker.NewGroupMarker()
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	require.NoError(b, err)
 	b.Cleanup(func() { alerts.Close() })
 
-	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	metrics := NewDispatcherMetrics(false, reg)
+	metrics := NewDispatcherMetrics(false, reg, nil)
 
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics)
 
@@ -162,7 +163,7 @@ func populateGroups(b *testing.B, d *Dispatcher, alerts *mem.Alerts, numGroups, 
 	ctx := context.Background()
 
 	for i := range numGroups {
-		groupAlerts := make([]*types.Alert, 0, alertsPerGroup)
+		groupAlerts := make([]*alert.Alert, 0, alertsPerGroup)
 		for j := range alertsPerGroup {
 			labels := model.LabelSet{
 				"alertname": model.LabelValue(fmt.Sprintf("alert-%d", i)),
@@ -183,7 +184,7 @@ func populateGroups(b *testing.B, d *Dispatcher, alerts *mem.Alerts, numGroups, 
 	require.Eventually(b, func() bool {
 		groups, _, _ := d.Groups(ctx,
 			func(*Route) bool { return true },
-			func(*types.Alert, time.Time) bool { return true },
+			func(*alert.Alert, time.Time) bool { return true },
 		)
 		return len(groups) >= expectedMinGroups
 	}, 30*time.Second, 10*time.Millisecond, "expected %d groups to be created", expectedMinGroups)
@@ -221,7 +222,7 @@ func benchmarkGroups(b *testing.B, numGroups, alertsPerGroup, numTeams, numClust
 	ctx := context.Background()
 
 	routeFilter := func(*Route) bool { return true }
-	alertFilter := func(*types.Alert, time.Time) bool { return true }
+	alertFilter := func(*alert.Alert, time.Time) bool { return true }
 
 	b.ResetTimer()
 
@@ -290,7 +291,7 @@ func benchmarkIngestionUnderGroupsLoad(b *testing.B, numGroupsCallers int, group
 				case <-ticker.C:
 					dispatcher.Groups(ctx,
 						func(*Route) bool { return true },
-						func(*types.Alert, time.Time) bool { return true })
+						func(*alert.Alert, time.Time) bool { return true })
 				case <-stopCh:
 					return
 				}

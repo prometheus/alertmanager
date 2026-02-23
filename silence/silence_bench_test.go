@@ -31,7 +31,6 @@ import (
 
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface for
@@ -114,18 +113,12 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(silences, m, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+	s := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	for b.Loop() {
 		s.Mutes(context.Background(), model.LabelSet{"foo": "bar"})
 	}
 	b.StopTimer()
-
-	// The alert should be marked as silenced for each matching silence.
-	activeIDs, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
-	require.True(b, silenced || matchingSilences == 0)
-	require.Len(b, activeIDs, matchingSilences)
 }
 
 // BenchmarkMutesIncremental tests the incremental query optimization when a small
@@ -188,8 +181,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 				require.NoError(b, silences.Set(b.Context(), s))
 			}
 
-			marker := types.NewMarker(prometheus.NewRegistry())
-			silencer := NewSilencer(silences, marker, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+			silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 			// Warm up: Establish cache state (cachedEntry.version = current version)
 			// This simulates a system that has been running for a while
@@ -534,8 +526,7 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	silencer := NewSilencer(silences, m, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+	silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	b.ResetTimer()
 

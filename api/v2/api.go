@@ -35,6 +35,7 @@ import (
 	"github.com/rs/cors"
 	"go.opentelemetry.io/otel/codes"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
@@ -48,13 +49,13 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
@@ -65,7 +66,6 @@ type API struct {
 	silences       *silence.Silences
 	alerts         provider.Alerts
 	alertGroups    groupsFn
-	getAlertStatus getAlertStatusFn
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
 
@@ -84,9 +84,8 @@ type API struct {
 }
 
 type (
-	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
+	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
-	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
 )
 
@@ -94,7 +93,6 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	asf getAlertStatusFn,
 	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
@@ -103,7 +101,6 @@ func NewAPI(
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
-		getAlertStatus: asf,
 		alertGroups:    gf,
 		groupMutedFunc: gmf,
 		peer:           peer,
@@ -282,7 +279,8 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	tempMarker := marker.NewAlertMarker()
+	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
 	now := time.Now()
 
 	api.mtx.RLock()
@@ -309,7 +307,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alert, tempMarker.Status(alert.Fingerprint()), receivers, nil)
 
 		res = append(res, openAlert)
 	}
@@ -366,7 +364,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 
 	// Make a best effort to insert all alerts that are valid.
 	var (
-		validAlerts    = make([]*types.Alert, 0, len(alerts))
+		validAlerts    = make([]*alert.Alert, 0, len(alerts))
 		validationErrs error
 	)
 	for _, a := range alerts {
@@ -433,7 +431,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter)
 
-	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, marker.NewAlertMarker())
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
@@ -460,7 +458,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
-			status := api.getAlertStatus(fp)
+			status := alertGroup.AlertStatuses[fp]
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
@@ -470,9 +468,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
-	return func(a *types.Alert, now time.Time) bool {
-		ctx, span := tracer.Start(context.Background(), "alertFilter")
+func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
+	return func(a *alert.Alert, now time.Time) bool {
+		ctx, span := tracer.Start(parent, "alertFilter")
 		defer span.End()
 
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
@@ -480,12 +478,14 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 		}
 
 		// Set alert's current status based on its label set.
+		// The inhibitor and silencer write to m via the context.
+		ctx = marker.WithAlertMarker(ctx, m)
 		api.setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
-		status := api.getAlertStatus(a.Fingerprint())
+		status := m.Status(a.Fingerprint())
 
-		if !active && status.State == types.AlertStateActive {
+		if !active && status.State == alert.AlertStateActive {
 			return false
 		}
 
