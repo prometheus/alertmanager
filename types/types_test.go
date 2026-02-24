@@ -136,37 +136,6 @@ func TestMemMarker_Count(t *testing.T) {
 	require.Equal(t, 3, countTotal())
 }
 
-func TestCalcSilenceState(t *testing.T) {
-	var (
-		pastStartTime = time.Now()
-		pastEndTime   = time.Now()
-
-		futureStartTime = time.Now().Add(time.Hour)
-		futureEndTime   = time.Now().Add(time.Hour)
-	)
-
-	expected := CalcSilenceState(futureStartTime, futureEndTime)
-	require.Equal(t, SilenceStatePending, expected)
-
-	expected = CalcSilenceState(pastStartTime, futureEndTime)
-	require.Equal(t, SilenceStateActive, expected)
-
-	expected = CalcSilenceState(pastStartTime, pastEndTime)
-	require.Equal(t, SilenceStateExpired, expected)
-}
-
-func TestSilenceExpired(t *testing.T) {
-	now := time.Now()
-	silence := Silence{StartsAt: now, EndsAt: now}
-	require.True(t, silence.Expired())
-
-	silence = Silence{StartsAt: now.Add(time.Hour), EndsAt: now.Add(time.Hour)}
-	require.True(t, silence.Expired())
-
-	silence = Silence{StartsAt: now, EndsAt: now.Add(time.Hour)}
-	require.False(t, silence.Expired())
-}
-
 type fakeRegisterer struct {
 	registeredCollectors []prometheus.Collector
 }

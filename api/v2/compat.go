@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -32,7 +33,7 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
-	state := string(types.CalcSilenceState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
+	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
 			StartsAt:    &start,

@@ -861,7 +861,7 @@ func TestSilenceSet(t *testing.T) {
 	clock.Advance(time.Millisecond)
 	sil7, err = s.QueryOne(t.Context(), QIDs(sil7.Id))
 	require.NoError(t, err)
-	require.Equal(t, types.SilenceStateActive, getState(sil7, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, getState(sil7, s.nowUTC()))
 	require.Equal(t, versionBeforeOp, s.Version())
 }
 
@@ -965,7 +965,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
 
 	// Should not be able to update with a comment that exceeds maximum size.
 	// Need to increase the maximum number of silences to test this.
@@ -977,7 +977,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
 
 	// Should not be able to replace with a silence that exceeds maximum size.
 	// This is different from the previous assertion as unlike when adding or
@@ -992,7 +992,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, types.SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
 }
 
 func TestSilenceNoLimits(t *testing.T) {
@@ -1105,7 +1105,7 @@ func TestQState(t *testing.T) {
 
 	cases := []struct {
 		sil    *pb.Silence
-		states []types.SilenceState
+		states []SilenceState
 		keep   bool
 	}{
 		{
@@ -1113,7 +1113,7 @@ func TestQState(t *testing.T) {
 				StartsAt: timestamppb.New(now.Add(time.Minute)),
 				EndsAt:   timestamppb.New(now.Add(time.Hour)),
 			},
-			states: []types.SilenceState{types.SilenceStateActive, types.SilenceStateExpired},
+			states: []SilenceState{SilenceStateActive, SilenceStateExpired},
 			keep:   false,
 		},
 		{
@@ -1121,7 +1121,7 @@ func TestQState(t *testing.T) {
 				StartsAt: timestamppb.New(now.Add(time.Minute)),
 				EndsAt:   timestamppb.New(now.Add(time.Hour)),
 			},
-			states: []types.SilenceState{types.SilenceStatePending},
+			states: []SilenceState{SilenceStatePending},
 			keep:   true,
 		},
 		{
@@ -1129,7 +1129,7 @@ func TestQState(t *testing.T) {
 				StartsAt: timestamppb.New(now.Add(time.Minute)),
 				EndsAt:   timestamppb.New(now.Add(time.Hour)),
 			},
-			states: []types.SilenceState{types.SilenceStateExpired, types.SilenceStatePending},
+			states: []SilenceState{SilenceStateExpired, SilenceStatePending},
 			keep:   true,
 		},
 	}
@@ -2058,11 +2058,11 @@ func TestSilenceExpire(t *testing.T) {
 		silenceVersion{id: "active"},
 		silenceVersion{id: "expired"},
 	}
-	count, err := s.CountState(t.Context(), types.SilenceStatePending)
+	count, err := s.CountState(t.Context(), SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
@@ -2087,18 +2087,18 @@ func TestSilenceExpire(t *testing.T) {
 	// Let time pass...
 	clock.Advance(time.Second)
 
-	count, err = s.CountState(t.Context(), types.SilenceStatePending)
+	count, err = s.CountState(t.Context(), SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
 
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
-	silenceState := types.CalcSilenceState(sil.StartsAt.AsTime(), sil.EndsAt.AsTime())
-	require.Equal(t, types.SilenceStateExpired, silenceState)
+	silenceState := CurrentState(sil.StartsAt.AsTime(), sil.EndsAt.AsTime())
+	require.Equal(t, SilenceStateExpired, silenceState)
 
 	sil, err = s.QueryOne(t.Context(), QIDs("active"))
 	require.NoError(t, err)
@@ -2175,15 +2175,15 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 		silenceVersion{id: "expired"},
 	}
 
-	count, err := s.CountState(t.Context(), types.SilenceStatePending)
+	count, err := s.CountState(t.Context(), SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
@@ -2202,15 +2202,15 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	clock.Advance(1 * time.Millisecond)
 
 	// Verify all silences have expired.
-	count, err = s.CountState(t.Context(), types.SilenceStatePending)
+	count, err = s.CountState(t.Context(), SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
-	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
 }
@@ -2241,7 +2241,7 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	s.vi = versionIndex{silenceVersion{id: "active"}}
 
 	// The silence should be active.
-	count, err := s.CountState(t.Context(), types.SilenceStateActive)
+	count, err := s.CountState(t.Context(), SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
@@ -2250,10 +2250,10 @@ func TestSilenceExpireInvalid(t *testing.T) {
 	clock.Advance(time.Millisecond)
 
 	// The silence should be expired.
-	count, err = s.CountState(t.Context(), types.SilenceStateActive)
+	count, err = s.CountState(t.Context(), SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
-	count, err = s.CountState(t.Context(), types.SilenceStateExpired)
+	count, err = s.CountState(t.Context(), SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
@@ -2887,7 +2887,7 @@ func TestSilenceAnnotations(t *testing.T) {
 	require.NoError(t, s.Set(t.Context(), sil2))
 
 	// Query by state and verify both silences have their annotations
-	activeSils, _, err := s.Query(t.Context(), QState(types.SilenceStateActive))
+	activeSils, _, err := s.Query(t.Context(), QState(SilenceStateActive))
 	require.NoError(t, err)
 	require.Len(t, activeSils, 2)
 

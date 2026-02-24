@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 // Deprecated: Use alert.Alert directly.
@@ -320,69 +319,3 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
-
-// A Silence determines whether a given label set is muted.
-type Silence struct {
-	// A unique identifier across all connected instances.
-	ID string `json:"id"`
-	// A set of matchers determining if a label set is affected
-	// by the silence.
-	Matchers labels.Matchers `json:"matchers"`
-
-	// Time range of the silence.
-	//
-	// * StartsAt must not be before creation time
-	// * EndsAt must be after StartsAt
-	// * Deleting a silence means to set EndsAt to now
-	// * Time range must not be modified in different ways
-	//
-	// TODO(fabxc): this may potentially be extended by
-	// creation and update timestamps.
-	StartsAt time.Time `json:"startsAt"`
-	EndsAt   time.Time `json:"endsAt"`
-
-	// The last time the silence was updated.
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Information about who created the silence for which reason.
-	CreatedBy string `json:"createdBy"`
-	Comment   string `json:"comment,omitempty"`
-
-	Status SilenceStatus `json:"status"`
-
-	Annotations model.LabelSet `json:"annotations"`
-}
-
-// Expired return if the silence is expired
-// meaning that both StartsAt and EndsAt are equal.
-func (s *Silence) Expired() bool {
-	return s.StartsAt.Equal(s.EndsAt)
-}
-
-// SilenceStatus stores the state of a silence.
-type SilenceStatus struct {
-	State SilenceState `json:"state"`
-}
-
-// SilenceState is used as part of SilenceStatus.
-type SilenceState string
-
-// Possible values for SilenceState.
-const (
-	SilenceStateExpired SilenceState = "expired"
-	SilenceStateActive  SilenceState = "active"
-	SilenceStatePending SilenceState = "pending"
-)
-
-// CalcSilenceState returns the SilenceState that a silence with the given start
-// and end time would have right now.
-func CalcSilenceState(start, end time.Time) SilenceState {
-	current := time.Now()
-	if current.Before(start) {
-		return SilenceStatePending
-	}
-	if current.Before(end) {
-		return SilenceStateActive
-	}
-	return SilenceStateExpired
-}
