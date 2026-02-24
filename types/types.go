@@ -14,9 +14,7 @@
 package types
 
 import (
-	"context"
 	"sync"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -299,23 +297,3 @@ func (m *MemMarker) Silenced(alert model.Fingerprint) (activeIDs []string, silen
 	return s.SilencedBy,
 		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
 }
-
-// A Muter determines whether a given label set is muted. Implementers that
-// maintain an underlying AlertMarker are expected to update it during a call of
-// Mutes.
-type Muter interface {
-	Mutes(ctx context.Context, lset model.LabelSet) bool
-}
-
-// A TimeMuter determines if the time is muted by one or more active or mute
-// time intervals. If the time is muted, it returns true and the names of the
-// time intervals that muted it. Otherwise, it returns false and a nil slice.
-type TimeMuter interface {
-	Mutes(timeIntervalNames []string, now time.Time) (bool, []string, error)
-}
-
-// A MuteFunc is a function that implements the Muter interface.
-type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
-
-// Mutes implements the Muter interface.
-func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
