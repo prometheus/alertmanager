@@ -98,6 +98,9 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	if d == nil {
 		return
 	}
+	if d.state.Load() != DispatcherStateRunning {
+		return
+	}
 
 	if c.enableGroupKey {
 		for i := range d.routeGroupsSlice {
