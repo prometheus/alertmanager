@@ -38,8 +38,8 @@ type groupMarker struct {
 
 // Muted implements GroupMarker.
 func (m *groupMarker) Muted(routeID, groupKey string) ([]string, bool) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
 	status, ok := m.groups[routeID+groupKey]
 	if !ok {
 		return nil, false
