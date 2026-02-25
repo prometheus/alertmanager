@@ -141,8 +141,7 @@ func (s versionIndex) findVersionGreaterThan(version int) (index int, found bool
 	return startIdx, startIdx < len(s)
 }
 
-// Silencer binds together a Silences and a per-group AlertMarker to implement
-// the Muter interface.
+// Silencer holds Silences and implements the Muter interface.
 type Silencer struct {
 	silences *Silences
 	cache    *cache
