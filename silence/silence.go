@@ -169,6 +169,13 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
+	// Track the silences to set on marker
+	var markedSilences []string
+	defer func() {
+		// Get the marker from context and set the silences on it if any.
+		marker.GetAlertMarker(ctx).SetSilenced(fp, markedSilences)
+	}()
+
 	// Get the cached entry for this fingerprint.
 	cachedEntry := s.cache.get(fp)
 
@@ -241,7 +248,6 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.cache.set(fp, newCacheEntry(newVersion))
-		marker.GetAlertMarker(ctx).SetSilenced(fp, nil)
 		span.AddEvent("No silences to match", trace.WithAttributes(
 			attribute.Int("alerting.silences.count", totalSilences),
 		))
@@ -284,11 +290,8 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		"active", len(activeIDs),
 		"pending", len(allIDs)-len(activeIDs),
 	)
-	// TODO: remove this sort once the marker is removed.
-	sort.Strings(activeIDs)
 
 	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
-	marker.GetAlertMarker(ctx).SetSilenced(fp, activeIDs)
 
 	t := trace.WithAttributes(
 		attribute.Int("alerting.silences.active.count", len(activeIDs)),
@@ -298,6 +301,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 	mutes := len(activeIDs) > 0
 	if mutes {
+		markedSilences = activeIDs
 		span.AddEvent("Silencer mutes alert", t)
 	} else {
 		span.AddEvent("Silencer does not mute alert", t)
