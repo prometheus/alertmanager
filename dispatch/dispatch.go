@@ -812,6 +812,11 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			}
 		}
 	}
+	// Enforce the contract that after notification the alerts pointed by alertsSlice
+	// cannot be retained as a pointer (to avoid leaking the whole slice in memory).
+	// A notifier that needs to keep a hold of an alert needs to copy it, or just
+	// keep enough information to recognize it again, in case.
+	clear(alertCopies)
 }
 
 type nilLimits struct{}
