@@ -660,7 +660,7 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
-	require.Equal(t, "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism", err.Error())
+	require.Equal(t, "missing password for PLAIN auth mechanism\nmissing password for LOGIN auth mechanism", err.Error())
 }
 
 func TestEmailNoUsernameStillOk(t *testing.T) {

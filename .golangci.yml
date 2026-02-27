@@ -81,6 +81,9 @@ linters:
       - linters:
           - modernize
         text: "omitzero: Omitempty has no effect on nested struct fields"
+      - linters:
+          - staticcheck
+        text: "SA1019:.*types\\.Alert.*"
     warn-unused: true
 issues:
   max-issues-per-linter: 0

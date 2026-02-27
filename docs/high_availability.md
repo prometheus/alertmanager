@@ -4,8 +4,6 @@ sort_rank: 4
 nav_icon: network
 ---
 
-# High Availability
-
 Alertmanager supports configuration to create a cluster for high availability. This document describes how the HA mechanism works, its design goals, and operational considerations.
 
 ## Design Goals

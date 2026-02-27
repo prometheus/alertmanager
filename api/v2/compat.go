@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -32,13 +33,14 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
-	state := string(types.CalcSilenceState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
+	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
-			StartsAt:  &start,
-			EndsAt:    &end,
-			Comment:   &s.Comment,
-			CreatedBy: &s.CreatedBy,
+			StartsAt:    &start,
+			EndsAt:      &end,
+			Comment:     &s.Comment,
+			CreatedBy:   &s.CreatedBy,
+			Annotations: s.Annotations,
 		},
 		ID:        &s.Id,
 		UpdatedAt: &updated,
@@ -92,11 +94,12 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 // PostableSilenceToProto converts *open_api_models.PostableSilenc to *silencepb.Silence.
 func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
-		Id:        s.ID,
-		StartsAt:  timestamppb.New(time.Time(*s.StartsAt)),
-		EndsAt:    timestamppb.New(time.Time(*s.EndsAt)),
-		Comment:   *s.Comment,
-		CreatedBy: *s.CreatedBy,
+		Id:          s.ID,
+		StartsAt:    timestamppb.New(time.Time(*s.StartsAt)),
+		EndsAt:      timestamppb.New(time.Time(*s.EndsAt)),
+		Comment:     *s.Comment,
+		CreatedBy:   *s.CreatedBy,
+		Annotations: map[string]string{},
 	}
 
 	matcherSet := &silencepb.MatcherSet{}
@@ -127,6 +130,11 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		matcherSet.Matchers = append(matcherSet.Matchers, matcher)
 	}
 	sil.MatcherSets = append(sil.MatcherSets, matcherSet)
+
+	if s.Annotations != nil {
+		sil.Annotations = s.Annotations
+	}
+
 	return sil, nil
 }
 

@@ -10,15 +10,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+package silence
 
-//go:build tools
+import "time"
 
-// Package tools tracks dependencies for tools that are required to generate the protobuf code.
-// See https://github.com/golang/go/issues/25922
-package tools
+type SilenceState string
 
-import (
-	_ "github.com/bufbuild/buf/cmd/buf"
-	_ "golang.org/x/tools/cmd/goimports"
-	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
+const (
+	SilenceStateExpired SilenceState = "expired"
+	SilenceStateActive  SilenceState = "active"
+	SilenceStatePending SilenceState = "pending"
 )
+
+// CurrentState returns the SilenceState that a silence with the given start
+// and end time would have right now.
+func CurrentState(start, end time.Time) SilenceState {
+	current := time.Now()
+	if current.Before(start) {
+		return SilenceStatePending
+	}
+	if current.Before(end) {
+		return SilenceStateActive
+	}
+	return SilenceStateExpired
+}

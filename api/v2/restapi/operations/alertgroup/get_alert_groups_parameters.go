@@ -60,7 +60,6 @@ func NewGetAlertGroupsParams() GetAlertGroupsParams {
 //
 // swagger:parameters getAlertGroups
 type GetAlertGroupsParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -69,25 +68,30 @@ type GetAlertGroupsParams struct {
 	  Default: true
 	*/
 	Active *bool
+
 	/*A matcher expression to filter alert groups. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	  In: query
 	  Collection Format: multi
 	*/
 	Filter []string
+
 	/*Include inhibited alerts within the returned groups. If false, excludes inhibited alerts from groups. Note that true (default) shows both inhibited and non-inhibited alerts.
 	  In: query
 	  Default: true
 	*/
 	Inhibited *bool
+
 	/*Include muted (silenced or inhibited) alert groups in results. If false, excludes entire groups where all alerts are muted.
 	  In: query
 	  Default: true
 	*/
 	Muted *bool
+
 	/*A regex matching receivers to filter alerts by
 	  In: query
 	*/
 	Receiver *string
+
 	/*Include silenced alerts within the returned groups. If false, excludes silenced alerts from groups. Note that true (default) shows both silenced and non-silenced alerts.
 	  In: query
 	  Default: true
@@ -103,7 +107,6 @@ func (o *GetAlertGroupsParams) BindRequest(r *http.Request, route *middleware.Ma
 	var res []error
 
 	o.HTTPRequest = r
-
 	qs := runtime.Values(r.URL.Query())
 
 	qActive, qhkActive, _ := qs.GetOK("active")

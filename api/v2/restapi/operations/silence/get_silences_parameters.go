@@ -41,7 +41,6 @@ func NewGetSilencesParams() GetSilencesParams {
 //
 // swagger:parameters getSilences
 type GetSilencesParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -60,7 +59,6 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 	var res []error
 
 	o.HTTPRequest = r
-
 	qs := runtime.Values(r.URL.Query())
 
 	qFilter, qhkFilter, _ := qs.GetOK("filter")

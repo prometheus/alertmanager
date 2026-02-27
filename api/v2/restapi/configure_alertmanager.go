@@ -32,10 +32,11 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 )
 
-//go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --principal interface{} --exclude-main
+//go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --principal any --exclude-main
 
 func configureFlags(api *operations.AlertmanagerAPI) {
 	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
+	_ = api
 }
 
 func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
@@ -43,7 +44,7 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 	api.ServeError = errors.ServeError
 
 	// Set your custom logger if needed. Default one is log.Printf
-	// Expected interface func(string, ...interface{})
+	// Expected interface func(string, ...any)
 	//
 	// Example:
 	// api.Logger = log.Printf
@@ -58,46 +59,64 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 
 	if api.SilenceDeleteSilenceHandler == nil {
 		api.SilenceDeleteSilenceHandler = silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
 		})
 	}
 	if api.AlertgroupGetAlertGroupsHandler == nil {
 		api.AlertgroupGetAlertGroupsHandler = alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
 		})
 	}
 	if api.AlertGetAlertsHandler == nil {
 		api.AlertGetAlertsHandler = alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")
 		})
 	}
 	if api.ReceiverGetReceiversHandler == nil {
 		api.ReceiverGetReceiversHandler = receiver.GetReceiversHandlerFunc(func(params receiver.GetReceiversParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation receiver.GetReceivers has not yet been implemented")
 		})
 	}
 	if api.SilenceGetSilenceHandler == nil {
 		api.SilenceGetSilenceHandler = silence.GetSilenceHandlerFunc(func(params silence.GetSilenceParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.GetSilence has not yet been implemented")
 		})
 	}
 	if api.SilenceGetSilencesHandler == nil {
 		api.SilenceGetSilencesHandler = silence.GetSilencesHandlerFunc(func(params silence.GetSilencesParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.GetSilences has not yet been implemented")
 		})
 	}
 	if api.GeneralGetStatusHandler == nil {
 		api.GeneralGetStatusHandler = general.GetStatusHandlerFunc(func(params general.GetStatusParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation general.GetStatus has not yet been implemented")
 		})
 	}
 	if api.AlertPostAlertsHandler == nil {
 		api.AlertPostAlertsHandler = alert.PostAlertsHandlerFunc(func(params alert.PostAlertsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation alert.PostAlerts has not yet been implemented")
 		})
 	}
 	if api.SilencePostSilencesHandler == nil {
 		api.SilencePostSilencesHandler = silence.PostSilencesHandlerFunc(func(params silence.PostSilencesParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation silence.PostSilences has not yet been implemented")
 		})
 	}
@@ -112,13 +131,17 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 // The TLS configuration before HTTPS server starts.
 func configureTLS(tlsConfig *tls.Config) {
 	// Make all necessary changes to the TLS configuration here.
+	_ = tlsConfig
 }
 
 // As soon as server is initialized but not run yet, this function will be called.
 // If you need to modify a config, store server instance to stop it individually later, this is the place.
 // This function can be called multiple times, depending on the number of serving schemes.
 // scheme value will be set accordingly: "http", "https" or "unix".
-func configureServer(s *http.Server, scheme, addr string) {
+func configureServer(server *http.Server, scheme, addr string) {
+	_ = server
+	_ = scheme
+	_ = addr
 }
 
 // The middleware configuration is for the handler executors. These do not apply to the swagger.json document.

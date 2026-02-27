@@ -287,11 +287,9 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
@@ -317,16 +315,16 @@ func run() int {
 	}
 
 	// Start providers before router potentially sends updates.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	defer func() {
 		close(stopc)
 		wg.Wait()
 	}()
+
+	silencer := silence.NewSilencer(silences, marker, logger)
 
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
@@ -352,7 +350,7 @@ func run() int {
 		marker,
 		*alertGCInterval,
 		*perAlertNameLimit,
-		nil,
+		silencer,
 		logger,
 		prometheus.DefaultRegisterer,
 		ff,
@@ -480,7 +478,6 @@ func run() int {
 
 		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		inhibitor.Store(newInhibitor)
-		silencer := silence.NewSilencer(silences, marker, logger)
 
 		// An interface value that holds a nil concrete value is non-nil.
 		// Therefore we explicly pass an empty interface, to detect if the

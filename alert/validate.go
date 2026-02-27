@@ -1,4 +1,4 @@
-// Copyright 2018 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,28 +11,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build ignore
-
-package main
+package alert
 
 import (
-	"log"
-	"time"
+	"fmt"
 
-	"github.com/shurcooL/vfsgen"
+	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/asset"
-	"github.com/prometheus/alertmanager/pkg/modtimevfs"
+	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
-func main() {
-	fs := modtimevfs.New(asset.Assets, time.Unix(1, 0))
-	err := vfsgen.Generate(fs, vfsgen.Options{
-		PackageName:  "asset",
-		BuildTags:    "!dev",
-		VariableName: "Assets",
-	})
-	if err != nil {
-		log.Fatalln(err)
+func validateLs(ls model.LabelSet) error {
+	for ln, lv := range ls {
+		if !compat.IsValidLabelName(ln) {
+			return fmt.Errorf("invalid name %q", ln)
+		}
+		if !lv.IsValid() {
+			return fmt.Errorf("invalid value %q", lv)
+		}
 	}
+	return nil
 }

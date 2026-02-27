@@ -366,13 +366,13 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	// Make a best effort to insert all alerts that are valid.
 	var (
 		validAlerts    = make([]*types.Alert, 0, len(alerts))
-		validationErrs = &types.MultiError{}
+		validationErrs error
 	)
 	for _, a := range alerts {
 		removeEmptyLabels(a.Labels)
 
 		if err := a.Validate(); err != nil {
-			validationErrs.Add(err)
+			validationErrs = errors.Join(validationErrs, err)
 			api.m.Invalid().Inc()
 			continue
 		}
@@ -386,7 +386,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
 	}
 
-	if validationErrs.Len() > 0 {
+	if validationErrs != nil {
 		message := "Failed to validate alerts"
 		logger.Error(message, "err", validationErrs.Error())
 		span.SetStatus(codes.Error, message)
@@ -576,10 +576,10 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
 }
 
-var silenceStateOrder = map[types.SilenceState]int{
-	types.SilenceStateActive:  1,
-	types.SilenceStatePending: 2,
-	types.SilenceStateExpired: 3,
+var silenceStateOrder = map[silence.SilenceState]int{
+	silence.SilenceStateActive:  1,
+	silence.SilenceStatePending: 2,
+	silence.SilenceStateExpired: 3,
 }
 
 // SortSilences sorts first according to the state "active, pending, expired"
@@ -589,21 +589,21 @@ var silenceStateOrder = map[types.SilenceState]int{
 // expired are ordered based on which one expired most recently.
 func SortSilences(sils open_api_models.GettableSilences) {
 	sort.Slice(sils, func(i, j int) bool {
-		state1 := types.SilenceState(*sils[i].Status.State)
-		state2 := types.SilenceState(*sils[j].Status.State)
+		state1 := silence.SilenceState(*sils[i].Status.State)
+		state2 := silence.SilenceState(*sils[j].Status.State)
 		if state1 != state2 {
 			return silenceStateOrder[state1] < silenceStateOrder[state2]
 		}
 		switch state1 {
-		case types.SilenceStateActive:
+		case silence.SilenceStateActive:
 			endsAt1 := time.Time(*sils[i].EndsAt)
 			endsAt2 := time.Time(*sils[j].EndsAt)
 			return endsAt1.Before(endsAt2)
-		case types.SilenceStatePending:
+		case silence.SilenceStatePending:
 			startsAt1 := time.Time(*sils[i].StartsAt)
 			startsAt2 := time.Time(*sils[j].StartsAt)
 			return startsAt1.Before(startsAt2)
-		case types.SilenceStateExpired:
+		case silence.SilenceStateExpired:
 			endsAt1 := time.Time(*sils[i].EndsAt)
 			endsAt2 := time.Time(*sils[j].EndsAt)
 			return endsAt1.After(endsAt2)
