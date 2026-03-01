@@ -34,7 +34,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/exporter-toolkit v0.15.1
-	github.com/prometheus/sigv4 v0.4.0
+	github.com/prometheus/sigv4 v0.4.1
 	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.11.1
 	github.com/xlab/treeprint v1.2.0
