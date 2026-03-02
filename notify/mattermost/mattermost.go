@@ -153,6 +153,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 }
 
 func (n *Notifier) createRequest(tmpl func(string) string) *request {
+	text := tmpl(n.conf.Text)
 	req := &request{
 		Channel:   tmpl(n.conf.Channel),
 		Username:  tmpl(n.conf.Username),
@@ -208,15 +209,15 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 			}
 
 			req.Attachments[idxAtt] = att
-			req.Text = tmpl(n.conf.Text)
+			req.Text = text
 		}
 	} else {
 		req.Attachments = make([]attachment, 1)
 		att := attachment{
+			Text:       text,
 			Fallback:   tmpl(n.conf.Fallback),
 			Color:      tmpl(n.conf.Color),
 			Pretext:    tmpl(n.conf.Pretext),
-			Text:       tmpl(n.conf.Text),
 			AuthorName: tmpl(n.conf.AuthorName),
 			AuthorLink: tmpl(n.conf.AuthorLink),
 			AuthorIcon: tmpl(n.conf.AuthorIcon),

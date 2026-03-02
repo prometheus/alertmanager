@@ -1071,10 +1071,6 @@ webhook_url_file: <filepath>
 # Defaults to the username set during webhook creation; if no username was set during creation, webhook is used.
 [ username: <string> | default = '' ]
 
-# Markdown-formatted message to display in the post.
-# To trigger notifications, use @<username>, @channel, and @here like you would in other Mattermost messages.
-text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
-
 # Overrides the profile picture the message posts with.
 [ icon_url: <string> | default = '' ]
 
