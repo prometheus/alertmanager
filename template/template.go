@@ -376,9 +376,11 @@ func (as Alerts) Resolved() []Alert {
 
 // Data assembles data for template expansion.
 func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
+	typedAlerts := types.Alerts(alerts...)
+
 	data := &Data{
 		Receiver:           regexp.QuoteMeta(recv),
-		Status:             string(types.Alerts(alerts...).Status()),
+		Status:             string(typedAlerts.Status()),
 		Alerts:             make(Alerts, 0, len(alerts)),
 		NotificationReason: notificationReason,
 		GroupLabels:        KV{},
@@ -389,7 +391,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 
 	// The call to types.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
-	for _, a := range types.Alerts(alerts...) {
+	for _, a := range typedAlerts {
 		alert := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),

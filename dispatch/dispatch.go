@@ -589,7 +589,11 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 }
 
 func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
-	groupLabels := model.LabelSet{}
+	capacity := len(route.RouteOpts.GroupBy)
+	if route.RouteOpts.GroupByAll {
+		capacity = len(alert.Labels)
+	}
+	groupLabels := make(model.LabelSet, capacity)
 	for ln, lv := range alert.Labels {
 		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
 			groupLabels[ln] = lv
@@ -772,17 +776,18 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		alerts        = ag.alerts.List()
 		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
 		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
+		alertCopies   = make([]types.Alert, len(alerts))
 		now           = time.Now()
 	)
-	for _, alert := range alerts {
-		a := *alert
+	for i, alert := range alerts {
+		alertCopies[i] = *alert
 		// Ensure that alerts don't resolve as time move forwards.
-		if a.ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &a)
+		if alertCopies[i].ResolvedAt(now) {
+			resolvedSlice = append(resolvedSlice, &alertCopies[i])
 		} else {
-			a.EndsAt = time.Time{}
+			alertCopies[i].EndsAt = time.Time{}
 		}
-		alertsSlice = append(alertsSlice, &a)
+		alertsSlice = append(alertsSlice, &alertCopies[i])
 	}
 	sort.Stable(alertsSlice)
 
@@ -807,6 +812,11 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			}
 		}
 	}
+	// Enforce the contract that after notification the alerts pointed by alertsSlice
+	// cannot be retained as a pointer (to avoid leaking the whole slice in memory).
+	// A notifier that needs to keep a hold of an alert needs to copy it, or just
+	// keep enough information to recognize it again, in case.
+	clear(alertCopies)
 }
 
 type nilLimits struct{}
