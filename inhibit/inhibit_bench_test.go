@@ -201,9 +201,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
-
-	// Wait some time for the inhibitor to seed its cache.
-	<-time.After(time.Second)
+	ih.WaitForLoading()
 
 	for b.Loop() {
 		require.NoError(b, opts.benchFunc(ih.Mutes))
@@ -291,7 +289,7 @@ func benchmarkDifferentTargets(b *testing.B, numRules int) {
 	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
-	<-time.After(time.Second)
+	ih.WaitForLoading()
 
 	targetLset := model.LabelSet{
 		"alertname": "TargetAlert",
@@ -342,7 +340,7 @@ func benchmarkSameTarget(b *testing.B, numRules int) {
 	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
-	<-time.After(time.Second)
+	ih.WaitForLoading()
 
 	targetLset := model.LabelSet{"dst": "0"}
 	ctx := context.Background()
@@ -379,7 +377,7 @@ func benchmarkNoMatch(b *testing.B, numRules int) {
 	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
 	defer ih.Stop()
 	go ih.Run()
-	<-time.After(time.Second)
+	ih.WaitForLoading()
 
 	// Alert with cluster that doesn't match any rule
 	targetLset := model.LabelSet{
@@ -431,7 +429,7 @@ func benchmarkRuleIndexThreshold(b *testing.B, numRules int) {
 	lset := model.LabelSet{"cluster": "0"}
 
 	b.Run("linear", func(b *testing.B) {
-		opts := RuleIndexOptions{MinRulesForIndex: numRules + 1, MaxMatcherOverlapRatio: 0.5}
+		opts := ruleIndexOptions{minRulesForIndex: numRules + 1, maxMatcherOverlapRatio: 0.5}
 		idx := newRuleIndexWithOptions(rules, opts)
 
 		b.ResetTimer()
@@ -444,7 +442,7 @@ func benchmarkRuleIndexThreshold(b *testing.B, numRules int) {
 	})
 
 	b.Run("indexed", func(b *testing.B) {
-		opts := RuleIndexOptions{MinRulesForIndex: 1, MaxMatcherOverlapRatio: 0.5}
+		opts := ruleIndexOptions{minRulesForIndex: 1, maxMatcherOverlapRatio: 0.5}
 		idx := newRuleIndexWithOptions(rules, opts)
 
 		b.ResetTimer()
@@ -503,7 +501,7 @@ func benchmarkOverlapRatio(b *testing.B, ratio float64) {
 		}
 	}
 
-	opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: ratio}
+	opts := ruleIndexOptions{minRulesForIndex: 2, maxMatcherOverlapRatio: ratio}
 	idx := newRuleIndexWithOptions(rules, opts)
 
 	lset := model.LabelSet{"severity": "warning", "cluster": model.LabelValue(strconv.Itoa(highOverlapCount))}
