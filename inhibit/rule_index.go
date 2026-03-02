@@ -28,21 +28,21 @@ type matcherKey struct {
 	value string
 }
 
-// RuleIndexOptions configures the rule index behavior.
-type RuleIndexOptions struct {
-	// MinRulesForIndex is the minimum number of rules before indexing is used.
-	MinRulesForIndex int
+// ruleIndexOptions configures the rule index behavior.
+type ruleIndexOptions struct {
+	// minRulesForIndex is the minimum number of rules before indexing is used.
+	minRulesForIndex int
 
-	// MaxMatcherOverlapRatio is the maximum fraction of rules a matcher can
+	// maxMatcherOverlapRatio is the maximum fraction of rules a matcher can
 	// appear in before being excluded from the index.
-	MaxMatcherOverlapRatio float64
+	maxMatcherOverlapRatio float64
 }
 
-// DefaultRuleIndexOptions returns the default options for rule indexing.
-func DefaultRuleIndexOptions() RuleIndexOptions {
-	return RuleIndexOptions{
-		MinRulesForIndex:       2,
-		MaxMatcherOverlapRatio: 0.5,
+// defaultRuleIndexOptions returns the default options for rule indexing.
+func defaultRuleIndexOptions() ruleIndexOptions {
+	return ruleIndexOptions{
+		minRulesForIndex:       2,
+		maxMatcherOverlapRatio: 0.5,
 	}
 }
 
@@ -80,10 +80,10 @@ type ruleIndex struct {
 }
 
 func newRuleIndex(rules []*InhibitRule) *ruleIndex {
-	return newRuleIndexWithOptions(rules, DefaultRuleIndexOptions())
+	return newRuleIndexWithOptions(rules, defaultRuleIndexOptions())
 }
 
-func newRuleIndexWithOptions(rules []*InhibitRule, opts RuleIndexOptions) *ruleIndex {
+func newRuleIndexWithOptions(rules []*InhibitRule, opts ruleIndexOptions) *ruleIndex {
 	idx := &ruleIndex{
 		exactIndex:         make(map[string]map[string][]*InhibitRule),
 		singleMatcherRules: make(map[*InhibitRule]struct{}),
@@ -93,7 +93,7 @@ func newRuleIndexWithOptions(rules []*InhibitRule, opts RuleIndexOptions) *ruleI
 	}
 
 	// For small rule sets, linear scan is faster than index overhead
-	if len(rules) < opts.MinRulesForIndex {
+	if len(rules) < opts.minRulesForIndex {
 		idx.useLinearScan = true
 		return idx
 	}
@@ -109,7 +109,7 @@ func newRuleIndexWithOptions(rules []*InhibitRule, opts RuleIndexOptions) *ruleI
 	}
 
 	// Determine which matchers are high-overlap and should be excluded
-	maxOverlap := int(float64(len(rules)) * opts.MaxMatcherOverlapRatio)
+	maxOverlap := int(float64(len(rules)) * opts.maxMatcherOverlapRatio)
 	highOverlapMatchers := make(map[matcherKey]struct{}, len(matcherCount))
 	for key, count := range matcherCount {
 		if count > maxOverlap {

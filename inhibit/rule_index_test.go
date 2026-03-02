@@ -221,6 +221,8 @@ func TestForEachCandidate_IndexedLookup(t *testing.T) {
 }
 
 func TestForEachCandidate_EarlyTermination(t *testing.T) {
+	// Use more than 2 rules to ensure we're testing index-based iteration,
+	// not linear scan (default minRulesForIndex=2)
 	rules := []*InhibitRule{
 		{
 			Name: "rule-1",
@@ -232,6 +234,18 @@ func TestForEachCandidate_EarlyTermination(t *testing.T) {
 			Name: "rule-2",
 			TargetMatchers: labels.Matchers{
 				newTestMatcher(t, labels.MatchEqual, "cluster", "prod"),
+			},
+		},
+		{
+			Name: "rule-3",
+			TargetMatchers: labels.Matchers{
+				newTestMatcher(t, labels.MatchEqual, "cluster", "prod"),
+			},
+		},
+		{
+			Name: "rule-4",
+			TargetMatchers: labels.Matchers{
+				newTestMatcher(t, labels.MatchEqual, "cluster", "staging"),
 			},
 		},
 	}
@@ -350,13 +364,13 @@ func TestRuleIndexOptions_MinRulesForIndex(t *testing.T) {
 	}
 
 	t.Run("threshold=1_uses_index", func(t *testing.T) {
-		opts := RuleIndexOptions{MinRulesForIndex: 1, MaxMatcherOverlapRatio: 0.5}
+		opts := ruleIndexOptions{minRulesForIndex: 1, maxMatcherOverlapRatio: 0.5}
 		idx := newRuleIndexWithOptions(rules, opts)
 		require.False(t, idx.useLinearScan)
 	})
 
 	t.Run("threshold=2_uses_linear", func(t *testing.T) {
-		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 0.5}
+		opts := ruleIndexOptions{minRulesForIndex: 2, maxMatcherOverlapRatio: 0.5}
 		idx := newRuleIndexWithOptions(rules, opts)
 		require.True(t, idx.useLinearScan)
 	})
@@ -371,7 +385,7 @@ func TestRuleIndexOptions_MaxMatcherOverlapRatio(t *testing.T) {
 	}
 
 	t.Run("ratio=0.5_excludes_high_overlap", func(t *testing.T) {
-		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 0.5}
+		opts := ruleIndexOptions{minRulesForIndex: 2, maxMatcherOverlapRatio: 0.5}
 		idx := newRuleIndexWithOptions(rules, opts)
 
 		require.NotContains(t, idx.exactIndex, "severity")
@@ -380,7 +394,7 @@ func TestRuleIndexOptions_MaxMatcherOverlapRatio(t *testing.T) {
 	})
 
 	t.Run("ratio=1.0_includes_all", func(t *testing.T) {
-		opts := RuleIndexOptions{MinRulesForIndex: 2, MaxMatcherOverlapRatio: 1.0}
+		opts := ruleIndexOptions{minRulesForIndex: 2, maxMatcherOverlapRatio: 1.0}
 		idx := newRuleIndexWithOptions(rules, opts)
 
 		require.Contains(t, idx.exactIndex, "severity")
@@ -390,8 +404,8 @@ func TestRuleIndexOptions_MaxMatcherOverlapRatio(t *testing.T) {
 }
 
 func TestDefaultRuleIndexOptions(t *testing.T) {
-	opts := DefaultRuleIndexOptions()
+	opts := defaultRuleIndexOptions()
 
-	require.Equal(t, 2, opts.MinRulesForIndex)
-	require.Equal(t, 0.5, opts.MaxMatcherOverlapRatio)
+	require.Equal(t, 2, opts.minRulesForIndex)
+	require.Equal(t, 0.5, opts.maxMatcherOverlapRatio)
 }
