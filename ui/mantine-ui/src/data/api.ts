@@ -37,11 +37,21 @@ const createQueryFn =
   }: {
     pathPrefix: string;
     path: string;
-    params?: Record<string, string>;
+    params?: Record<string, string | string[]>;
     recordResponseTime?: (time: number) => void;
   }) =>
   async ({ signal }: { signal: AbortSignal }) => {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : '';
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((v) => queryParams.append(key, v));
+        } else {
+          queryParams.set(key, value);
+        }
+      });
+    }
+    const queryString = params ? `?${queryParams.toString()}` : '';
 
     try {
       const startTime = Date.now();
@@ -95,7 +105,7 @@ const createQueryFn =
 type QueryOptions = {
   key?: QueryKey;
   path: string;
-  params?: Record<string, string>;
+  params?: Record<string, string | string[]>;
   enabled?: boolean;
   refetchInterval?: false | number;
   recordResponseTime?: (time: number) => void;

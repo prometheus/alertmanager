@@ -1,0 +1,14 @@
+global:
+  mattermost_webhook_url: https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx
+  mattermost_webhook_url_file: /global_file
+route:
+  receiver: team-X-mattermost
+
+receivers:
+  - name: team-X-mattermost
+    mattermost_configs:
+      - channel: team-X
+  - name: team-Y-mattermost
+    mattermost_configs:
+      - channel: team-Y
+        webhook_url: https://fakemattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx

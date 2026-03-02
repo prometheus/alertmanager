@@ -387,7 +387,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +538,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,14 +660,15 @@ func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	route := &Route{}
+	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(time.Now())
 	dispatcher.Stop()
 }
@@ -678,7 +679,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -732,7 +733,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, nil, promslog.NewNopLogger(), r)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -743,20 +744,46 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 			GroupWait:     0,
 			GroupInterval: 5 * time.Minute, // Should never hit in this test.
 		},
+		Idx: 0,
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
-	aggrGroups := make(map[*Route]map[model.Fingerprint]*aggrGroup)
-	aggrGroups[route] = make(map[model.Fingerprint]*aggrGroup)
+	// Manually create the routeAggrGroups structure since we are not calling Run().
+	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
+	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
+		route: route,
+	}
 
-	// Insert an aggregation group with no alerts.
+	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
 	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
-	aggrGroups[route][aggrGroup1.fingerprint()] = aggrGroup1
-	dispatcher.aggrGroupsPerRoute = aggrGroups
+	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
+
+	// Add a resolved alert
+	resolvedAlert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   labels,
+			StartsAt: time.Now().Add(-2 * time.Hour),
+			EndsAt:   time.Now().Add(-1 * time.Hour), // Already resolved
+		},
+		UpdatedAt: time.Now().Add(-1 * time.Hour),
+	}
+	aggrGroup1.alerts.Set(resolvedAlert)
+
+	// Flush will detect the resolved alert and delete it via DeleteIfNotModified
+	// This is the actual production code path
+	notified := false
+	aggrGroup1.flush(func(alerts ...*types.Alert) bool {
+		require.Len(t, alerts, 1)
+		require.Equal(t, labels, alerts[0].Labels)
+		notified = true
+		return true // Simulate successful notification
+	})
+	require.True(t, notified, "flush should have called notify function")
+
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*types.Alert) bool { return true })
 
@@ -823,8 +850,8 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set markers for both alerts
-		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), 0, nil, nil)
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(activeAlert.Fingerprint(), nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify markers exist before flush
 		require.True(t, marker.Active(activeAlert.Fingerprint()))
@@ -880,7 +907,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify marker exists before flush
 		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
@@ -934,7 +961,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		ag.insert(ctx, resolvedAlert)
 
 		// Set marker for the alert
-		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(resolvedAlert.Fingerprint(), nil)
 
 		// Verify marker exists before flush
 		require.True(t, marker.Active(resolvedAlert.Fingerprint()))
@@ -971,7 +998,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ package config
 
 import (
 	"encoding/json"
-	"net/url"
+	"fmt"
 	"os"
 	"reflect"
 	"regexp"
@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
@@ -525,22 +526,6 @@ func TestHideConfigSecrets(t *testing.T) {
 	}
 }
 
-func TestShowMarshalSecretValues(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	c, err := LoadFile("testdata/conf.good.yml")
-	if err != nil {
-		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
-	}
-
-	// String method must reveal authentication credentials.
-	s := c.String()
-	if strings.Count(s, "<secret>") > 0 || !strings.Contains(s, "mysecret") {
-		t.Fatal("config's String method must reveal authentication credentials when MarshalSecretValue = true.")
-	}
-}
-
 func TestJSONMarshal(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
@@ -550,251 +535,6 @@ func TestJSONMarshal(t *testing.T) {
 	_, err = json.Marshal(c)
 	if err != nil {
 		t.Fatal("JSON Marshaling failed:", err)
-	}
-}
-
-func TestJSONMarshalHideSecret(t *testing.T) {
-	test := struct {
-		S Secret
-	}{
-		S: Secret("test"),
-	}
-
-	c, err := json.Marshal(test)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.JSONEq(t, `{"S":"<secret>"}`, string(c), "Secret not properly elided.")
-}
-
-func TestJSONMarshalShowSecret(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	test := struct {
-		S Secret
-	}{
-		S: Secret("test"),
-	}
-
-	c, err := json.Marshal(test)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.JSONEq(t, `{"S":"test"}`, string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
-}
-
-func TestJSONMarshalHideSecretURL(t *testing.T) {
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &SecretURL{urlp}
-
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// u003c -> "<"
-	// u003e -> ">"
-	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
-	// Check that the marshaled data can be unmarshaled again.
-	out := &SecretURL{}
-	err = json.Unmarshal(c, out)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	c, err = yaml.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
-	// Check that the marshaled data can be unmarshaled again.
-	out = &SecretURL{}
-	err = yaml.Unmarshal(c, &out)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestJSONMarshalShowSecretURL(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &SecretURL{urlp}
-
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "config's String method must reveal authentication credentials when MarshalSecretValue = true.")
-}
-
-func TestUnmarshalSecretURL(t *testing.T) {
-	b := []byte(`"http://example.com/se cret"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in JSON.")
-
-	err = yaml.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
-}
-
-func TestHideSecretURL(t *testing.T) {
-	b := []byte(`"://wrongurl/"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	require.Error(t, err)
-	require.NotContains(t, err.Error(), "wrongurl")
-}
-
-func TestShowMarshalSecretURL(t *testing.T) {
-	MarshalSecretValue = true
-	defer func() { MarshalSecretValue = false }()
-
-	b := []byte(`"://wrongurl/"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "wrongurl")
-}
-
-func TestMarshalURL(t *testing.T) {
-	for name, tc := range map[string]struct {
-		input        *URL
-		expectedJSON string
-		expectedYAML string
-	}{
-		"url": {
-			input:        mustParseURL("http://example.com/"),
-			expectedJSON: "\"http://example.com/\"",
-			expectedYAML: "http://example.com/\n",
-		},
-
-		"wrapped nil value": {
-			input:        &URL{},
-			expectedJSON: "null",
-			expectedYAML: "null\n",
-		},
-
-		"wrapped empty URL": {
-			input:        &URL{&url.URL{}},
-			expectedJSON: "\"\"",
-			expectedYAML: "\"\"\n",
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			j, err := json.Marshal(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
-
-			y, err := yaml.Marshal(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
-		})
-	}
-}
-
-func TestUnmarshalNilURL(t *testing.T) {
-	b := []byte(`null`)
-
-	{
-		var u URL
-		err := json.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-	}
-
-	{
-		var u URL
-		err := yaml.Unmarshal(b, &u)
-		require.NoError(t, err)
-	}
-}
-
-func TestUnmarshalEmptyURL(t *testing.T) {
-	b := []byte(`""`)
-
-	{
-		var u URL
-		err := json.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-		require.Equal(t, (*url.URL)(nil), u.URL)
-	}
-
-	{
-		var u URL
-		err := yaml.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-		require.Equal(t, (*url.URL)(nil), u.URL)
-	}
-}
-
-func TestUnmarshalURL(t *testing.T) {
-	b := []byte(`"http://example.com/a b"`)
-	var u URL
-
-	err := json.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in JSON.")
-
-	err = yaml.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in YAML.")
-}
-
-func TestUnmarshalInvalidURL(t *testing.T) {
-	for _, b := range [][]byte{
-		[]byte(`"://example.com"`),
-		[]byte(`"http:example.com"`),
-		[]byte(`"telnet://example.com"`),
-	} {
-		var u URL
-
-		err := json.Unmarshal(b, &u)
-		if err == nil {
-			t.Errorf("Expected an error unmarshaling %q from JSON", string(b))
-		}
-
-		err = yaml.Unmarshal(b, &u)
-		if err == nil {
-			t.Errorf("Expected an error unmarshaling %q from YAML", string(b))
-		}
-		t.Logf("%s", err)
-	}
-}
-
-func TestUnmarshalRelativeURL(t *testing.T) {
-	b := []byte(`"/home"`)
-	var u URL
-
-	err := json.Unmarshal(b, &u)
-	if err == nil {
-		t.Errorf("Expected an error parsing URL")
-	}
-
-	err = yaml.Unmarshal(b, &u)
-	if err == nil {
-		t.Errorf("Expected an error parsing URL")
 	}
 }
 
@@ -933,16 +673,16 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPTLSConfig: &commoncfg.TLSConfig{
 				InsecureSkipVerify: false,
 			},
-			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			SlackAppURL:      mustParseURL("https://slack.com/api/chat.postMessage"),
+			SlackAPIURL:      (*amcommoncfg.SecretURL)(amcommoncfg.MustParseURL("http://slack.example.com/")),
+			SlackAppURL:      amcommoncfg.MustParseURL("https://slack.com/api/chat.postMessage"),
 			SMTPRequireTLS:   true,
-			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-			TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
-			WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
-			RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
+			PagerdutyURL:     amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:   amcommoncfg.MustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:     amcommoncfg.MustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL:  amcommoncfg.MustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
+			WebexAPIURL:      amcommoncfg.MustParseURL("https://webexapis.com/v1/messages"),
+			RocketchatAPIURL: amcommoncfg.MustParseURL("https://open.rocket.chat/"),
 		},
 
 		Templates: []string{
@@ -1016,6 +756,105 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	}
 }
 
+func TestEmptyConfigOfIntegration(t *testing.T) {
+	baseConfigTmpl := `
+global:
+route:
+  receiver: 'test-receiver'
+receivers:
+- name: 'test-receiver'
+  %s:
+  -
+`
+
+	tests := []struct {
+		integration string // The key name in YAML (e.g., webhook_configs)
+		expectedErr string // The unique error message expected for this integration
+	}{
+		{
+			integration: "discord_configs",
+			expectedErr: "missing discord config",
+		},
+		{
+			integration: "email_configs",
+			expectedErr: "missing email config",
+		},
+		{
+			integration: "incidentio_configs",
+			expectedErr: "missing incidentio config",
+		},
+		{
+			integration: "pagerduty_configs",
+			expectedErr: "missing pagerduty config",
+		},
+		{
+			integration: "webhook_configs",
+			expectedErr: "missing webhook config",
+		},
+		{
+			integration: "pushover_configs",
+			expectedErr: "missing pushover config",
+		},
+		{
+			integration: "victorops_configs",
+			expectedErr: "missing victorops config",
+		},
+		{
+			integration: "sns_configs",
+			expectedErr: "missing sns config",
+		},
+		{
+			integration: "telegram_configs",
+			expectedErr: "missing telegram config",
+		},
+		{
+			integration: "webex_configs",
+			expectedErr: "missing webex config",
+		},
+		{
+			integration: "msteams_configs",
+			expectedErr: "missing msteams config",
+		},
+		{
+			integration: "msteamsv2_configs",
+			expectedErr: "missing msteamsv2 config",
+		},
+		{
+			integration: "jira_configs",
+			expectedErr: "missing jira config",
+		},
+		{
+			integration: "mattermost_configs",
+			expectedErr: "missing mattermost config",
+		},
+		{
+			integration: "slack_configs",
+			expectedErr: "no Slack API URL nor App token set either inline or in a file",
+		},
+		{
+			integration: "opsgenie_configs",
+			expectedErr: "no global OpsGenie API Key set either inline or in a file",
+		},
+		{
+			integration: "wechat_configs",
+			expectedErr: "no global Wechat Api Secret set either inline or in a file",
+		},
+		{
+			integration: "rocketchat_configs",
+			expectedErr: "no global Rocketchat TokenID set either inline or in a file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.integration, func(t *testing.T) {
+			in := fmt.Sprintf(baseConfigTmpl, tc.integration)
+			_, err := Load(in)
+			require.Error(t, err, "Expected empty configuration to be an error for %s", tc.integration)
+			require.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
+}
+
 func TestGlobalAndLocalHTTPConfig(t *testing.T) {
 	config, err := LoadFile("testdata/conf.http-config.good.yml")
 	if err != nil {
@@ -1073,10 +912,10 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[1].AuthPassword, "password field should be empty when file provided")
 
-	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
+	require.Equal(t, commoncfg.Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
 
-	require.Equal(t, Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
+	require.Equal(t, commoncfg.Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
 
 	require.Equal(t, "/tmp/localuser4secret", config.Receivers[0].EmailConfigs[4].AuthSecretFile, "fifth email should use secret file /tmp/localuser4secret")
 }
@@ -1099,12 +938,12 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	}
 
 	defaultKey := conf.Global.VictorOpsAPIKey
-	overrideKey := Secret("qwe456")
+	overrideKey := commoncfg.Secret("qwe456")
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
 	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKey {
-		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, string(overrideKey))
+		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[1].VictorOpsConfigs[0].APIKey, string(overrideKey))
 	}
 }
 
@@ -1120,7 +959,7 @@ func TestVictorOpsDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, defaultKey)
 	}
 	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKeyFile {
-		t.Errorf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, overrideKey)
+		t.Errorf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[1].VictorOpsConfigs[0].APIKeyFile, overrideKey)
 	}
 }
 
@@ -1144,6 +983,68 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 	}
 }
 
+func TestTelegramDefaultBotToken(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotToken
+	overrideBotToken := commoncfg.Secret("qwe456")
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotToken {
+		t.Fatalf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotToken {
+		t.Errorf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotToken, string(overrideBotToken))
+	}
+}
+
+func TestTelegramDefaultBotTokenFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token-file.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotTokenFile
+	overrideBotToken := "/override_file"
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotTokenFile {
+		t.Fatalf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotTokenFile {
+		t.Errorf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotTokenFile, overrideBotToken)
+	}
+}
+
+func TestTelegramBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramValidReceiverBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramNoBotToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-no-bot-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-no-bot-token.yml", err)
+	}
+	if err.Error() != "missing bot_token or bot_token_file on telegram_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing bot_token or bot_token_file on telegram_config", err.Error())
+	}
+}
+
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
@@ -1155,7 +1056,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKey {
-		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, "qwe456")
+		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[1].OpsGenieConfigs[0].APIKey, "qwe456")
 	}
 }
 
@@ -1170,7 +1071,7 @@ func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile {
-		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, "/override_file")
+		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile, "/override_file")
 	}
 }
 
@@ -1237,6 +1138,16 @@ func TestSlackBothAppTokenAndAPIURL(t *testing.T) {
 	}
 }
 
+func TestSlackUpdateMessageWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-update-message-and-webhook.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
+	}
+	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
+		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
@@ -1273,7 +1184,7 @@ func TestSlackGlobalAppToken(t *testing.T) {
 		Credentials: commoncfg.Secret(inlineToken),
 	}
 	secondConfig := conf.Receivers[0].SlackConfigs[1]
-	if secondConfig.AppToken != Secret(inlineToken) {
+	if secondConfig.AppToken != commoncfg.Secret(inlineToken) {
 		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", secondConfig.AppToken, inlineToken)
 	}
 	if secondConfig.HTTPConfig == nil || secondConfig.HTTPConfig.Authorization == nil {
@@ -1380,12 +1291,12 @@ func TestRocketchatDefaultToken(t *testing.T) {
 	}
 
 	defaultToken := conf.Global.RocketchatToken
-	overrideToken := Secret("token456")
+	overrideToken := commoncfg.Secret("token456")
 	if defaultToken != conf.Receivers[0].RocketchatConfigs[0].Token {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(*defaultToken))
 	}
 	if overrideToken != *conf.Receivers[1].RocketchatConfigs[0].Token {
-		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].Token), string(overrideToken))
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[1].RocketchatConfigs[0].Token), string(overrideToken))
 	}
 }
 
@@ -1396,12 +1307,12 @@ func TestRocketchatDefaultTokenID(t *testing.T) {
 	}
 
 	defaultTokenID := conf.Global.RocketchatTokenID
-	overrideTokenID := Secret("id456")
+	overrideTokenID := commoncfg.Secret("id456")
 	if defaultTokenID != conf.Receivers[0].RocketchatConfigs[0].TokenID {
 		t.Fatalf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(*defaultTokenID))
 	}
 	if overrideTokenID != *conf.Receivers[1].RocketchatConfigs[0].TokenID {
-		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[0].RocketchatConfigs[0].TokenID), string(overrideTokenID))
+		t.Errorf("Invalid rocketchat key: %s\nExpected: %s", string(*conf.Receivers[1].RocketchatConfigs[0].TokenID), string(overrideTokenID))
 	}
 }
 
@@ -1417,7 +1328,7 @@ func TestRocketchatDefaultTokenFile(t *testing.T) {
 		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, defaultTokenFile)
 	}
 	if overrideTokenFile != conf.Receivers[1].RocketchatConfigs[0].TokenFile {
-		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenFile, overrideTokenFile)
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[1].RocketchatConfigs[0].TokenFile, overrideTokenFile)
 	}
 }
 
@@ -1433,7 +1344,7 @@ func TestRocketchatDefaultIDTokenFile(t *testing.T) {
 		t.Fatalf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, defaultTokenIDFile)
 	}
 	if overrideTokenIDFile != conf.Receivers[1].RocketchatConfigs[0].TokenIDFile {
-		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[0].RocketchatConfigs[0].TokenIDFile, overrideTokenIDFile)
+		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[1].RocketchatConfigs[0].TokenIDFile, overrideTokenIDFile)
 	}
 }
 
@@ -1504,6 +1415,13 @@ func TestUnmarshalHostPort(t *testing.T) {
 		{
 			in:  `"localhost:"`,
 			err: true,
+		},
+		{
+			in:  `"[fd12:3456:789a::1]:25"`,
+			exp: HostPort{Host: "fd12:3456:789a::1", Port: "25"},
+			yamlOut: `'[fd12:3456:789a::1]:25'
+`,
+			jsonOut: `"[fd12:3456:789a::1]:25"`,
 		},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
@@ -1639,8 +1557,8 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 	})
 
 	t.Run("marshals actual value when MarshalSecretValue is true", func(t *testing.T) {
-		MarshalSecretValue = true
-		defer func() { MarshalSecretValue = false }()
+		commoncfg.MarshalSecretValue = true
+		defer func() { commoncfg.MarshalSecretValue = false }()
 
 		u := SecretTemplateURL("http://example.com/secret")
 
@@ -1708,6 +1626,24 @@ func TestInhibitRuleEqual(t *testing.T) {
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
 
+func TestGroupByEmptyOverride(t *testing.T) {
+	in := `
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster']
+  routes:
+    - group_by: []
+
+receivers:
+  - name: 'default'
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+	require.Len(t, cfg.Route.GroupBy, 2)
+	require.NotNil(t, cfg.Route.Routes[0].GroupBy)
+	require.Empty(t, cfg.Route.Routes[0].GroupBy)
+}
+
 func TestWechatNoAPIURL(t *testing.T) {
 	_, err := LoadFile("testdata/conf.wechat-no-api-secret.yml")
 	if err == nil {
@@ -1750,5 +1686,67 @@ func TestWechatGlobalAPISecretFile(t *testing.T) {
 	thirdConfig := conf.Receivers[0].WechatConfigs[2]
 	if string(thirdConfig.APISecret) != "my_inline_secret" || thirdConfig.APISecretFile != "" {
 		t.Fatalf("Invalid Wechat API Secret: %s\nExpected: %s", string(thirdConfig.APISecret), "my_inline_secret")
+	}
+}
+
+func TestMattermostDefaultWebhookURL(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-default-webhook-url.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.mattermost-default-webhook-url.yml", err)
+	}
+
+	defaultWebhookURL := conf.Global.MattermostWebhookURL
+	overrideWebhookURL := "https://fakemattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx"
+	if defaultWebhookURL != conf.Receivers[0].MattermostConfigs[0].WebhookURL {
+		t.Fatalf("Invalid mattermost webhook url: %s\nExpected: %s", conf.Receivers[0].MattermostConfigs[0].WebhookURL, defaultWebhookURL)
+	}
+	if overrideWebhookURL != conf.Receivers[1].MattermostConfigs[0].WebhookURL.String() {
+		t.Errorf("Invalid mattermost webhook url: %s\nExpected: %s", conf.Receivers[1].MattermostConfigs[0].WebhookURL, overrideWebhookURL)
+	}
+}
+
+func TestMattermostDefaultWebhookURLFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-default-webhook-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.mattermost-default-webhook-url-file.yml", err)
+	}
+
+	defaultWebhookURLFile := conf.Global.MattermostWebhookURLFile
+	overrideWebhookURLFile := "/override_file"
+	if defaultWebhookURLFile != conf.Receivers[0].MattermostConfigs[0].WebhookURLFile {
+		t.Fatalf("Invalid mattermost webhook url file: %s\nExpected: %s", conf.Receivers[0].MattermostConfigs[0].WebhookURLFile, defaultWebhookURLFile)
+	}
+	if overrideWebhookURLFile != conf.Receivers[1].MattermostConfigs[0].WebhookURLFile {
+		t.Errorf("Invalid mattermost webhook url file: %s\nExpected: %s", conf.Receivers[1].MattermostConfigs[0].WebhookURLFile, overrideWebhookURLFile)
+	}
+}
+
+func TestMattermostBothWebhookURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-both-webhook-url-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-both-webhook-url-and-file.yml", err)
+	}
+	if err.Error() != "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured", err.Error())
+	}
+}
+
+func TestMattermostValidReceiverBothWebhookURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-valid-receiver-both-webhook-url-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-valid-receiver-both-webhook-url-and-file.yml", err)
+	}
+	if err.Error() != "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured", err.Error())
+	}
+}
+
+func TestMattermostNoWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-no-webhook-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.mattermost-no-webhook-url.yml", err)
+	}
+	if err.Error() != "missing webhook_url or webhook_url_file on mattermost_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing webhook_url or webhook_url_file on mattermost_config", err.Error())
 	}
 }

@@ -18,6 +18,7 @@
 package nflog
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -30,10 +31,11 @@ import (
 	"time"
 
 	"github.com/coder/quartz"
-	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/promslog"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -74,6 +76,100 @@ func QGroupKey(gk string) QueryParam {
 		q.groupKey = gk
 		return nil
 	}
+}
+
+// Store abstracts the NFLog's receiver data storage as a mutable key/value store. A store
+// can be generated from a nflogpb.Entry and then written via the call to Log.
+//
+// Every key in the Store is associated with either an int, float, or string value.
+type Store struct {
+	data map[string]*pb.ReceiverDataValue
+}
+
+// NewStore creates a Store from the entry's receiver data. If entry is nil, the resulting
+// Store is empty.
+func NewStore(entry *pb.Entry) *Store {
+	var receiverData map[string]*pb.ReceiverDataValue
+	if entry != nil {
+		receiverData = maps.Clone(entry.ReceiverData)
+	}
+	if receiverData == nil {
+		receiverData = make(map[string]*pb.ReceiverDataValue)
+	}
+	return &Store{
+		data: receiverData,
+	}
+}
+
+// GetInt finds the integer value associated with the key, if any, and returns it.
+func (s *Store) GetInt(key string) (int64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	intVal, ok := dataValue.Value.(*pb.ReceiverDataValue_IntVal)
+	if !ok {
+		return 0, false
+	}
+	return intVal.IntVal, true
+}
+
+// GetFloat finds the float value associated with the key, if any, and returns it.
+func (s *Store) GetFloat(key string) (float64, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return 0, false
+	}
+	floatVal, ok := dataValue.Value.(*pb.ReceiverDataValue_DoubleVal)
+	if !ok {
+		return 0, false
+	}
+	return floatVal.DoubleVal, true
+}
+
+// GetFloat finds the string value associated with the key, if any, and returns it.
+func (s *Store) GetStr(key string) (string, bool) {
+	dataValue, ok := s.data[key]
+	if !ok {
+		return "", false
+	}
+	strVal, ok := dataValue.Value.(*pb.ReceiverDataValue_StrVal)
+	if !ok {
+		return "", false
+	}
+	return strVal.StrVal, true
+}
+
+// SetInt associates an integer value with the provided key, overwriting any existing value.
+func (s *Store) SetInt(key string, v int64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_IntVal{
+			IntVal: v,
+		},
+	}
+}
+
+// SetFloat associates a float value with the provided key, overwriting any existing value.
+func (s *Store) SetFloat(key string, v float64) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_DoubleVal{
+			DoubleVal: v,
+		},
+	}
+}
+
+// SetStr associates a string value with the provided key, overwriting any existing value.
+func (s *Store) SetStr(key, v string) {
+	s.data[key] = &pb.ReceiverDataValue{
+		Value: &pb.ReceiverDataValue_StrVal{
+			StrVal: v,
+		},
+	}
+}
+
+// Delete deletes any value associated with the key.
+func (s *Store) Delete(key string) {
+	delete(s.data, key)
 }
 
 // Log holds the notification log state for alerts that have been notified.
@@ -167,13 +263,13 @@ func (s state) clone() state {
 // merge returns true or false whether the MeshEntry was merged or
 // not. This information is used to decide to gossip the message further.
 func (s state) merge(e *pb.MeshEntry, now time.Time) bool {
-	if e.ExpiresAt.Before(now) {
+	if e.ExpiresAt.AsTime().Before(now) {
 		return false
 	}
 	k := stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)
 
 	prev, ok := s[k]
-	if !ok || prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
+	if !ok || prev.Entry.Timestamp.AsTime().Before(e.Entry.Timestamp.AsTime()) {
 		s[k] = e
 		return true
 	}
@@ -184,7 +280,7 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 			return nil, err
 		}
 	}
@@ -193,9 +289,10 @@ func (s state) MarshalBinary() ([]byte, error) {
 
 func decodeState(r io.Reader) (state, error) {
 	st := state{}
+	br := bufio.NewReader(r)
 	for {
 		var e pb.MeshEntry
-		_, err := pbutil.ReadDelimited(r, &e)
+		err := protodelim.UnmarshalFrom(br, &e)
 		if err == nil {
 			if e.Entry == nil || e.Entry.Receiver == nil {
 				return nil, ErrInvalidState
@@ -213,7 +310,7 @@ func decodeState(r io.Reader) (state, error) {
 
 func marshalMeshEntry(e *pb.MeshEntry) ([]byte, error) {
 	var buf bytes.Buffer
-	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+	if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -368,7 +465,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *Store, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -379,7 +476,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 	if prevle, ok := l.st[key]; ok {
 		// Entry already exists, only overwrite if timestamp is newer.
 		// This may happen with raciness or clock-drift across AM nodes.
-		if prevle.Entry.Timestamp.After(now) {
+		if prevle.Entry.Timestamp.AsTime().After(now) {
 			return nil
 		}
 	}
@@ -389,15 +486,21 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		expiresAt = now.Add(expiry)
 	}
 
+	var receiverData map[string]*pb.ReceiverDataValue
+	if store != nil {
+		receiverData = store.data
+	}
+
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
 			GroupKey:       []byte(gkey),
-			Timestamp:      now,
+			Timestamp:      timestamppb.New(now),
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
+			ReceiverData:   receiverData,
 		},
-		ExpiresAt: expiresAt,
+		ExpiresAt: timestamppb.New(expiresAt),
 	}
 
 	b, err := marshalMeshEntry(e)
@@ -422,10 +525,10 @@ func (l *Log) GC() (int, error) {
 	defer l.mtx.Unlock()
 
 	for k, le := range l.st {
-		if le.ExpiresAt.IsZero() {
+		if le.ExpiresAt.AsTime().IsZero() {
 			return n, errors.New("unexpected zero expiration timestamp")
 		}
-		if !le.ExpiresAt.After(now) {
+		if !le.ExpiresAt.AsTime().After(now) {
 			delete(l.st, k)
 			n++
 		}

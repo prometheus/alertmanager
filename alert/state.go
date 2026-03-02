@@ -1,4 +1,4 @@
-// Copyright 2018 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,28 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build ignore
+package alert
 
-package main
+// AlertState is used as part of AlertStatus.
+type AlertState string
 
-import (
-	"log"
-	"time"
-
-	"github.com/shurcooL/vfsgen"
-
-	"github.com/prometheus/alertmanager/asset"
-	"github.com/prometheus/alertmanager/pkg/modtimevfs"
+// Possible values for AlertState.
+const (
+	AlertStateUnprocessed AlertState = "unprocessed"
+	AlertStateActive      AlertState = "active"
+	AlertStateSuppressed  AlertState = "suppressed"
 )
-
-func main() {
-	fs := modtimevfs.New(asset.Assets, time.Unix(1, 0))
-	err := vfsgen.Generate(fs, vfsgen.Options{
-		PackageName:  "asset",
-		BuildTags:    "!dev",
-		VariableName: "Assets",
-	})
-	if err != nil {
-		log.Fatalln(err)
-	}
-}

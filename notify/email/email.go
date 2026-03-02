@@ -79,51 +79,47 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 		return nil, nil
 	}
 
-	err := &types.MultiError{}
+	var errs error
 	for mech := range strings.SplitSeq(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
 			secret, secretErr := n.getAuthSecret()
 			if secretErr != nil {
-				err.Add(secretErr)
+				errs = errors.Join(errs, secretErr)
 				continue
 			}
 			if secret == "" {
-				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
 			}
 			return smtp.CRAMMD5Auth(username, secret), nil
-
 		case "PLAIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for PLAIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for PLAIN auth mechanism"))
 				continue
 			}
-			identity := n.conf.AuthIdentity
-
-			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
+			return smtp.PlainAuth(n.conf.AuthIdentity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for LOGIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for LOGIN auth mechanism"))
 				continue
 			}
 			return LoginAuth(username, password), nil
+		default:
+			errs = errors.Join(errs, errors.New("unknown auth mechanism: "+mech))
 		}
 	}
-	if err.Len() == 0 {
-		err.Add(errors.New("unknown auth mechanism: " + mechs))
-	}
-	return nil, err
+	return nil, errs
 }
 
 // Notify implements the Notifier interface.
@@ -134,7 +130,16 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		err     error
 		success = false
 	)
-	if n.conf.Smarthost.Port == "465" {
+	// Determine whether to use Implicit TLS
+	var useImplicitTLS bool
+	if n.conf.ForceImplicitTLS != nil {
+		useImplicitTLS = *n.conf.ForceImplicitTLS
+	} else {
+		// Default logic: port 465 uses implicit TLS (backward compatibility)
+		useImplicitTLS = n.conf.Smarthost.Port == "465"
+	}
+
+	if useImplicitTLS {
 		tlsConfig, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
@@ -177,7 +182,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
-	if *n.conf.RequireTLS {
+	if *n.conf.RequireTLS && !useImplicitTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}

@@ -59,3 +59,47 @@ func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "/debug/pprof/", "pprof page did not load with expected content")
 }
+
+func TestWebRoutes(t *testing.T) {
+	router := route.New()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	Register(router, make(chan chan error), logger)
+
+	tests := []struct {
+		name         string
+		path         string
+		expectedCode int
+	}{
+		{
+			name: "root",
+			path: "/",
+		},
+		{
+			name: "script.js",
+			path: "/script.js",
+		},
+		{
+			name: "favicon.ico",
+			path: "/favicon.ico",
+		},
+		{
+			name: "Lib wildcard path",
+			// Replace with any path under `lib`, in case you want to remove elm-datepicker.
+			path: "/lib/elm-datepicker/css/elm-datepicker.css",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			require.Equal(t, http.StatusOK, res.StatusCode)
+		})
+	}
+}

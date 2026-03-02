@@ -20,8 +20,6 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,13 +28,11 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
-	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -62,15 +58,15 @@ type testNflog struct {
 	qres []*nflogpb.Entry
 	qerr error
 
-	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error
 }
 
 func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
 	return l.qres, l.qerr
 }
 
-func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
-	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, expiry)
+func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, receiverData, expiry)
 }
 
 func (l *testNflog) GC() (int, error) {
@@ -122,7 +118,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    time.Time{},
+				Timestamp:    &timestamppb.Timestamp{},
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
@@ -130,7 +126,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-9 * time.Minute),
+				Timestamp:    timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -139,7 +135,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    now.Add(-11 * time.Minute),
+				Timestamp:    timestamppb.New(now.Add(-11 * time.Minute)),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -148,7 +144,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
 				ResolvedAlerts: []uint64{1, 2, 3},
-				Timestamp:      now.Add(-11 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-11 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			resolvedAlerts: alertHashSet(3, 4, 5),
@@ -159,7 +155,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -171,7 +167,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
@@ -183,7 +179,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -195,7 +191,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-9 * time.Minute),
+				Timestamp:      timestamppb.New(now.Add(-9 * time.Minute)),
 			},
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
@@ -211,7 +207,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat).shouldNotify()
 		require.Equal(t, c.res, res)
 	}
 }
@@ -259,6 +255,9 @@ func TestDedupStage(t *testing.T) {
 	ctx, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err, "unexpected error on not found log entry")
 	require.Equal(t, alerts, res, "input alerts differ from result alerts")
+	reason, ok := NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonFirstNotification, reason, "should be first notification")
 
 	s.nflog = &testNflog{
 		qerr: nil,
@@ -277,13 +276,16 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{0, 1, 2},
-				Timestamp:    now,
+				Timestamp:    timestamppb.New(now),
 			},
 		},
 	}
 	ctx, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Nil(t, res, "unexpected alerts returned")
+	reason, ok = NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonDoNotNotify, reason, "should not notify when nothing changed")
 
 	// Must return no error and all input alerts on changes.
 	i = 0
@@ -292,13 +294,16 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{1, 2, 3, 4},
-				Timestamp:    now,
+				Timestamp:    timestamppb.New(now),
 			},
 		},
 	}
-	_, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	ctx, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
+	reason, ok = NotificationReason(ctx)
+	require.True(t, ok, "NotificationReason should be in context")
+	require.Equal(t, ReasonNewAlertsInGroup, reason, "should notify when alerts change")
 }
 
 func TestMultiStage(t *testing.T) {
@@ -632,7 +637,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithResolvedAlerts(ctx, []uint64{})
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{0, 1, 2}, firingAlerts)
@@ -648,7 +653,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{})
 	ctx = WithResolvedAlerts(ctx, []uint64{0, 1, 2})
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{}, firingAlerts)
@@ -662,412 +667,327 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.NotNil(t, resctx)
 }
 
-func TestMuteStage(t *testing.T) {
-	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(ctx context.Context, lset model.LabelSet) bool {
-		_, ok := lset["mute"]
-		return ok
+func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
+	var storedData *nflog.Store
+	callCount := 0
+
+	tnflog := &testNflog{
+		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+			storedData = receiverData
+			return nil
+		},
+	}
+
+	tnflog.qres = []*nflogpb.Entry{}
+
+	recv := &nflogpb.Receiver{GroupName: "test"}
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
+
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		callCount++
+
+		if callCount == 1 {
+			// First call - store some data
+			if store, ok := NflogStore(ctx); ok {
+				store.SetStr("threadTs", "1234.5678")
+			}
+			return false, nil
+		}
+		// Second call - notifier doesn't update ReceiverData
+		// Does NOT call StoreStr - just returns success
+		return false, nil
 	})
 
-	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
-	stage := NewMuteStage(muter, metrics)
+	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
-	in := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"mute": "me"},
-		{"foo": "bar", "test": "set"},
-		{"foo": "bar", "mute": "me"},
-		{},
-		{"not": "muted"},
-	}
-	out := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"foo": "bar", "test": "set"},
-		{},
-		{"not": "muted"},
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "test"},
+			},
+		},
 	}
 
-	var inAlerts []*types.Alert
-	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
+	// First notification
+	ctx, _, err := dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	ctx, _, err = retryStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	_, _, err = setNotifiesStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	// Verify first notification stored data
+	require.NotNil(t, storedData)
+	threadTs, found := storedData.GetStr("threadTs")
+	require.True(t, found, "threadTs should be in stored data")
+	require.Equal(t, "1234.5678", threadTs)
+
+	firstReceiverData := map[string]*nflogpb.ReceiverDataValue{
+		"threadTs": {
+			Value: &nflogpb.ReceiverDataValue_StrVal{StrVal: "1234.5678"},
+		},
 	}
 
-	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
+	// Second notification - load previous state
+	tnflog.qres = []*nflogpb.Entry{
+		{
+			Receiver:       recv,
+			GroupKey:       []byte("testkey"),
+			FiringAlerts:   []uint64{1},
+			ResolvedAlerts: []uint64{},
+			ReceiverData:   firstReceiverData,
+		},
 	}
 
-	var got []model.LabelSet
-	for _, a := range alerts {
-		got = append(got, a.Labels)
-	}
+	ctx = context.Background()
+	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	if !reflect.DeepEqual(got, out) {
-		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
-	}
-	suppressed := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if (len(in) - len(got)) != suppressed {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressed)
-	}
-}
+	ctx, _, err = dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
 
-func TestMuteStageWithSilences(t *testing.T) {
-	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sil := &silencepb.Silence{
-		EndsAt:   utcNow().Add(time.Hour),
-		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
-	}
-	if err = silences.Set(t.Context(), sil); err != nil {
-		t.Fatal(err)
-	}
+	ctx, _, err = retryStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
 
-	reg := prometheus.NewRegistry()
-	marker := types.NewMarker(reg)
-	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger())
-	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
-	stage := NewMuteStage(silencer, metrics)
+	_, _, err = setNotifiesStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
 
-	in := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"mute": "me"},
-		{"foo": "bar", "test": "set"},
-		{"foo": "bar", "mute": "me"},
-		{},
-		{"not": "muted"},
-	}
-	out := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"foo": "bar", "test": "set"},
-		{},
-		{"not": "muted"},
-	}
-
-	var inAlerts []*types.Alert
-	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
-	}
-
-	// Set the second alert as previously silenced with an old version
-	// number. This is expected to get unsilenced by the stage.
-	marker.SetActiveOrSilenced(inAlerts[1].Fingerprint(), 0, []string{"123"}, nil)
-
-	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
-	}
-
-	var got []model.LabelSet
-	for _, a := range alerts {
-		got = append(got, a.Labels)
-	}
-
-	if !reflect.DeepEqual(got, out) {
-		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
-	}
-	suppressedRoundOne := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if (len(in) - len(got)) != suppressedRoundOne {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundOne)
-	}
-
-	// Do it again to exercise the version tracking of silences.
-	_, alerts, err = stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
-	}
-
-	got = got[:0]
-	for _, a := range alerts {
-		got = append(got, a.Labels)
-	}
-
-	if !reflect.DeepEqual(got, out) {
-		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
-	}
-
-	suppressedRoundTwo := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if (len(in) - len(got) + suppressedRoundOne) != suppressedRoundTwo {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundTwo)
-	}
-
-	// Expire the silence and verify that no alerts are silenced now.
-	if err := silences.Expire(t.Context(), sil.Id); err != nil {
-		t.Fatal(err)
-	}
-
-	_, alerts, err = stage.Exec(t.Context(), promslog.NewNopLogger(), inAlerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
-	}
-	got = got[:0]
-	for _, a := range alerts {
-		got = append(got, a.Labels)
-	}
-
-	if !reflect.DeepEqual(got, in) {
-		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
-	}
-	suppressedRoundThree := int(prom_testutil.ToFloat64(metrics.numNotificationSuppressedTotal))
-	if (len(in) - len(got) + suppressedRoundTwo) != suppressedRoundThree {
-		t.Fatalf("Expected %d alerts counted in suppressed metric but got %d", (len(in) - len(got)), suppressedRoundThree)
+	if storedData == nil {
+		t.Error("ReceiverData was lost! Second notification has nil data")
+	} else {
+		if threadTs, exists := storedData.GetStr("threadTs"); !exists {
+			t.Error("ReceiverData 'threadTs' was lost! Second notification doesn't have it")
+		} else {
+			t.Logf("threadTs value: %s", threadTs)
+		}
 	}
 }
 
-func TestTimeMuteStage(t *testing.T) {
-	sydney, err := time.LoadLocation("Australia/Sydney")
-	if err != nil {
-		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
-	}
-	eveningsAndWeekends := map[string][]timeinterval.TimeInterval{
-		"evenings": {{
-			Times: []timeinterval.TimeRange{{
-				StartMinute: 0,   // 00:00
-				EndMinute:   540, // 09:00
-			}, {
-				StartMinute: 1020, // 17:00
-				EndMinute:   1440, // 24:00
-			}},
-			Location: &timeinterval.Location{Location: sydney},
-		}},
-		"weekends": {{
-			Weekdays: []timeinterval.WeekdayRange{{
-				InclusiveRange: timeinterval.InclusiveRange{Begin: 6, End: 6}, // Saturday
-			}, {
-				InclusiveRange: timeinterval.InclusiveRange{Begin: 0, End: 0}, // Sunday
-			}},
-			Location: &timeinterval.Location{Location: sydney},
-		}},
+func TestDedupStageExtractsReceiverData_DataPresent(t *testing.T) {
+	receiverData := map[string]*nflogpb.ReceiverDataValue{
+		"threadTs": {
+			Value: &nflogpb.ReceiverDataValue_StrVal{StrVal: "1234.5678"},
+		},
+		"counter": {
+			Value: &nflogpb.ReceiverDataValue_IntVal{IntVal: 42},
+		},
 	}
 
-	tests := []struct {
-		name      string
-		intervals map[string][]timeinterval.TimeInterval
-		now       time.Time
-		alerts    []*types.Alert
-		mutedBy   []string
-	}{{
-		name:      "Should be muted outside working hours",
-		intervals: eveningsAndWeekends,
-		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"evenings"},
-	}, {
-		name:      "Should not be muted during workings hours",
-		intervals: eveningsAndWeekends,
-		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   nil,
-	}, {
-		name:      "Should be muted during weekends",
-		intervals: eveningsAndWeekends,
-		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"weekends"},
-	}, {
-		name:      "Should be muted at 12pm UTC on a weekday",
-		intervals: eveningsAndWeekends,
-		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"evenings"},
-	}, {
-		name:      "Should be muted at 12pm UTC on a weekend",
-		intervals: eveningsAndWeekends,
-		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"evenings", "weekends"},
-	}}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			r := prometheus.NewRegistry()
-			marker := types.NewMarker(r)
-			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
-			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeMuteStage(intervener, marker, metrics)
-
-			// Get the names of all time intervals for the context.
-			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
-			for name := range test.intervals {
-				muteTimeIntervalNames = append(muteTimeIntervalNames, name)
-			}
-			// Sort the names so we can compare mutedBy with test.mutedBy.
-			sort.Strings(muteTimeIntervalNames)
-
-			ctx := context.Background()
-			ctx = WithNow(ctx, test.now)
-			ctx = WithGroupKey(ctx, "group1")
-			ctx = WithActiveTimeIntervals(ctx, nil)
-			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
-			ctx = WithRouteID(ctx, "route1")
-
-			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
-			require.NoError(t, err)
-
-			if len(test.mutedBy) == 0 {
-				// All alerts should be active.
-				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
-				require.Empty(t, mutedBy)
-				// The metric for total suppressed notifications should not
-				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-`)))
-			} else {
-				// All alerts should be muted.
-				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
-				require.Equal(t, test.mutedBy, mutedBy)
-				// Gets the metric for total suppressed notifications.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-# HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
-# TYPE alertmanager_notifications_suppressed_total counter
-alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
-`, len(test.alerts)))))
-			}
-		})
+	entry := &nflogpb.Entry{
+		Receiver:     &nflogpb.Receiver{GroupName: "test"},
+		GroupKey:     []byte("key"),
+		FiringAlerts: []uint64{1, 2, 3},
+		ReceiverData: receiverData,
 	}
+
+	tnflog := &testNflog{
+		qres: []*nflogpb.Entry{entry},
+	}
+
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "key")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "test"},
+			},
+		},
+	}
+
+	resCtx, _, err := stage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	store, ok := NflogStore(resCtx)
+	require.True(t, ok, "NflogStore should be in context")
+	require.NotNil(t, store)
+
+	threadTs, found := store.GetStr("threadTs")
+	require.True(t, found)
+	require.Equal(t, "1234.5678", threadTs)
+
+	counter, found := store.GetInt("counter")
+	require.True(t, found)
+	require.Equal(t, int64(42), counter)
 }
 
-func TestTimeActiveStage(t *testing.T) {
-	sydney, err := time.LoadLocation("Australia/Sydney")
-	if err != nil {
-		t.Fatalf("Failed to load location Australia/Sydney: %s", err)
-	}
-	weekdays := map[string][]timeinterval.TimeInterval{
-		"weekdays": {{
-			Weekdays: []timeinterval.WeekdayRange{{
-				InclusiveRange: timeinterval.InclusiveRange{
-					Begin: 1, // Monday
-					End:   5, // Friday
-				},
-			}},
-			Times: []timeinterval.TimeRange{{
-				StartMinute: 540,  // 09:00
-				EndMinute:   1020, // 17:00
-			}},
-			Location: &timeinterval.Location{Location: sydney},
-		}},
+func TestDedupStageExtractsReceiverData_NilReceiverData(t *testing.T) {
+	entry := &nflogpb.Entry{
+		Receiver:     &nflogpb.Receiver{GroupName: "test"},
+		GroupKey:     []byte("key"),
+		FiringAlerts: []uint64{1, 2, 3},
+		ReceiverData: nil,
 	}
 
-	tests := []struct {
-		name      string
-		intervals map[string][]timeinterval.TimeInterval
-		now       time.Time
-		alerts    []*types.Alert
-		mutedBy   []string
-	}{{
-		name:      "Should be muted outside working hours",
-		intervals: weekdays,
-		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"weekdays"},
-	}, {
-		name:      "Should not be muted during workings hours",
-		intervals: weekdays,
-		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   nil,
-	}, {
-		name:      "Should be muted during weekends",
-		intervals: weekdays,
-		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"weekdays"},
-	}, {
-		name:      "Should be muted at 12pm UTC",
-		intervals: weekdays,
-		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
-		mutedBy:   []string{"weekdays"},
-	}}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			r := prometheus.NewRegistry()
-			marker := types.NewMarker(r)
-			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
-			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeActiveStage(intervener, marker, metrics)
-
-			// Get the names of all time intervals for the context.
-			activeTimeIntervalNames := make([]string, 0, len(test.intervals))
-			for name := range test.intervals {
-				activeTimeIntervalNames = append(activeTimeIntervalNames, name)
-			}
-			// Sort the names so we can compare mutedBy with test.mutedBy.
-			sort.Strings(activeTimeIntervalNames)
-
-			ctx := context.Background()
-			ctx = WithNow(ctx, test.now)
-			ctx = WithGroupKey(ctx, "group1")
-			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
-			ctx = WithMuteTimeIntervals(ctx, nil)
-			ctx = WithRouteID(ctx, "route1")
-
-			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
-			require.NoError(t, err)
-
-			if len(test.mutedBy) == 0 {
-				// All alerts should be active.
-				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
-				require.Empty(t, mutedBy)
-				// The metric for total suppressed notifications should not
-				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-`)))
-			} else {
-				// All alerts should be muted.
-				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
-				require.Equal(t, test.mutedBy, mutedBy)
-				// Gets the metric for total suppressed notifications.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-# HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
-# TYPE alertmanager_notifications_suppressed_total counter
-alertmanager_notifications_suppressed_total{reason="active_time_interval"} %d
-`, len(test.alerts)))))
-			}
-		})
+	tnflog := &testNflog{
+		qres: []*nflogpb.Entry{entry},
 	}
+
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "key")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "test"},
+			},
+		},
+	}
+
+	resCtx, _, err := stage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	store, ok := NflogStore(resCtx)
+	require.True(t, ok, "NflogStore should be in context even when ReceiverData is nil")
+	require.NotNil(t, store)
+}
+
+func TestDedupStageExtractsReceiverData_NoEntry(t *testing.T) {
+	tnflog := &testNflog{
+		qres: []*nflogpb.Entry{},
+	}
+
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "key")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "test"},
+			},
+		},
+	}
+
+	resCtx, _, err := stage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	store, ok := NflogStore(resCtx)
+	require.True(t, ok, "NflogStore should be in context even when no entry exists")
+	require.NotNil(t, store)
+}
+
+func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
+	var storedData *nflog.Store
+	callCount := 0
+	var capturedStoreValues []map[string]string
+
+	tnflog := &testNflog{
+		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+			storedData = receiverData
+			return nil
+		},
+	}
+
+	recv := &nflogpb.Receiver{GroupName: "test"}
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
+
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		callCount++
+		store, ok := NflogStore(ctx)
+		require.True(t, ok, "Store should be available in context")
+
+		storeSnapshot := make(map[string]string)
+		if val, found := store.GetStr("session_data"); found {
+			storeSnapshot["session_data"] = val
+		}
+		capturedStoreValues = append(capturedStoreValues, storeSnapshot)
+
+		store.SetStr("session_data", fmt.Sprintf("session_%d", callCount))
+		return false, nil
+	})
+
+	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "test"},
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	// Scenario 1: First notification ever (no previous nflog entry)
+	tnflog.qres = []*nflogpb.Entry{}
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	ctx, _, err := dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	ctx, _, err = retryStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	_, _, err = setNotifiesStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, callCount)
+	require.Empty(t, capturedStoreValues[0], "First notification should see empty Store")
+
+	require.NotNil(t, storedData)
+	sessionData, found := storedData.GetStr("session_data")
+	require.True(t, found)
+	require.Equal(t, "session_1", sessionData)
+
+	// Scenario 2: Alert resolves, then fires again (new firing sequence)
+	firstSessionData := map[string]*nflogpb.ReceiverDataValue{
+		"session_data": {
+			Value: &nflogpb.ReceiverDataValue_StrVal{StrVal: "session_1"},
+		},
+	}
+
+	tnflog.qres = []*nflogpb.Entry{
+		{
+			Receiver:       recv,
+			GroupKey:       []byte("testkey"),
+			FiringAlerts:   []uint64{},
+			ResolvedAlerts: []uint64{1},
+			ReceiverData:   firstSessionData,
+		},
+	}
+
+	ctx = context.Background()
+	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	ctx, _, err = dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	ctx, _, err = retryStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	_, _, err = setNotifiesStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, callCount)
+	require.Len(t, capturedStoreValues, 2)
+	require.Empty(t, capturedStoreValues[1], "New firing sequence should see empty Store (no leak from resolved entry)")
+
+	require.NotNil(t, storedData)
+	sessionData, found = storedData.GetStr("session_data")
+	require.True(t, found)
+	require.Equal(t, "session_2", sessionData)
 }
 
 func BenchmarkHashAlert(b *testing.B) {

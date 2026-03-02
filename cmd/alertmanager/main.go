@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -143,6 +144,7 @@ func run() int {
 		maxSilences                 = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		perAlertNameLimit           = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
 		DispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
@@ -285,11 +287,9 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
@@ -315,16 +315,16 @@ func run() int {
 	}
 
 	// Start providers before router potentially sends updates.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
-		wg.Done()
-	}()
+	})
 
 	defer func() {
 		close(stopc)
 		wg.Wait()
 	}()
+
+	silencer := silence.NewSilencer(silences, marker, logger)
 
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
@@ -345,20 +345,29 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer)
+	alerts, err := mem.NewAlerts(
+		context.Background(),
+		marker,
+		*alertGCInterval,
+		*perAlertNameLimit,
+		silencer,
+		logger,
+		prometheus.DefaultRegisterer,
+		ff,
+	)
 	if err != nil {
 		logger.Error("error creating memory provider", "err", err)
 		return 1
 	}
 	defer alerts.Close()
 
-	var disp *dispatch.Dispatcher
+	var disp atomic.Pointer[dispatch.Dispatcher]
 	defer func() {
-		disp.Stop()
+		disp.Load().Stop()
 	}()
 
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Groups(ctx, routeFilter, alertFilter)
+		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -408,7 +417,7 @@ func run() int {
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 
 	var (
-		inhibitor *inhibit.Inhibitor
+		inhibitor atomic.Pointer[inhibit.Inhibitor]
 		tmpl      *template.Template
 	)
 
@@ -464,11 +473,11 @@ func run() int {
 
 		intervener := timeinterval.NewIntervener(timeIntervals)
 
-		inhibitor.Stop()
-		disp.Stop()
+		inhibitor.Load().Stop()
+		disp.Load().Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
-		silencer := silence.NewSilencer(silences, marker, logger)
+		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		inhibitor.Store(newInhibitor)
 
 		// An interface value that holds a nil concrete value is non-nil.
 		// Therefore we explicly pass an empty interface, to detect if the
@@ -481,7 +490,7 @@ func run() int {
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
-			inhibitor,
+			newInhibitor,
 			silencer,
 			intervener,
 			marker,
@@ -494,7 +503,7 @@ func run() int {
 		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
 		api.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-			inhibitor.Mutes(ctx, labels)
+			inhibitor.Load().Mutes(ctx, labels)
 			silencer.Mutes(ctx, labels)
 		})
 
@@ -538,17 +547,17 @@ func run() int {
 		// first, start the inhibitor so the inhibition cache can populate
 		// wait for this to load alerts before starting the dispatcher so
 		// we don't accidentially notify for an alert that will be inhibited
-		go inhibitor.Run()
-		inhibitor.WaitForLoading()
+		go newInhibitor.Run()
+		newInhibitor.WaitForLoading()
 
 		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
 		// This ensures that the API doesn't see the new dispatcher before it finishes populating
 		// the aggrGroups
 		go newDisp.Run(startTime.Add(*DispatchStartDelay))
 		newDisp.WaitForLoading()
-		disp = newDisp
+		disp.Store(newDisp)
 
-		err = tracingManager.ApplyConfig(conf)
+		err = tracingManager.ApplyConfig(conf.TracingConfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply tracing config: %w", err)
 		}

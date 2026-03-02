@@ -22,16 +22,16 @@ import Views.ReceiverBar.Views as ReceiverBar
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
 renderCheckbox textLabel maybeChecked toggleMsg =
     li [ class "nav-item" ]
-        [ label [ class "mt-1 ml-1 custom-control custom-checkbox" ]
+        [ div [ class "mt-1 ml-1 custom-control custom-checkbox" ]
             [ input
                 [ type_ "checkbox"
+                , id textLabel
                 , class "custom-control-input"
                 , checked (Maybe.withDefault False maybeChecked)
                 , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
-            , span [ class "custom-control-indicator" ] []
-            , span [ class "custom-control-description" ] [ text textLabel ]
+            , label [ class "custom-control-label", for textLabel ] [ text textLabel ]
             ]
         ]
 
@@ -62,7 +62,7 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
                     , renderCheckbox "Muted" filter.showMuted ToggleMuted
                     ]
                 ]
-            , div [ class "card-block" ]
+            , div [ class "card-body" ]
                 [ case tab of
                     FilterTab ->
                         Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view { showSilenceButton = True } filterBar)

@@ -20,24 +20,27 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	prometheus_model "github.com/prometheus/common/model"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
 func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
-	start := strfmt.DateTime(s.StartsAt)
-	end := strfmt.DateTime(s.EndsAt)
-	updated := strfmt.DateTime(s.UpdatedAt)
-	state := string(types.CalcSilenceState(s.StartsAt, s.EndsAt))
+	start := strfmt.DateTime(s.StartsAt.AsTime())
+	end := strfmt.DateTime(s.EndsAt.AsTime())
+	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
+	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
-			StartsAt:  &start,
-			EndsAt:    &end,
-			Comment:   &s.Comment,
-			CreatedBy: &s.CreatedBy,
+			StartsAt:    &start,
+			EndsAt:      &end,
+			Comment:     &s.Comment,
+			CreatedBy:   &s.CreatedBy,
+			Annotations: s.Annotations,
 		},
 		ID:        &s.Id,
 		UpdatedAt: &updated,
@@ -46,7 +49,16 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 		},
 	}
 
-	for _, m := range s.Matchers {
+	// For backward compatibility, only return silences with a single matcher set
+	if len(s.MatcherSets) > 1 {
+		return sil, fmt.Errorf("silence '%v' has multiple matcher sets which is not supported by this API version", s.Id)
+	}
+
+	if len(s.MatcherSets) == 0 {
+		return sil, nil
+	}
+
+	for _, m := range s.MatcherSets[0].Matchers {
 		matcher := &open_api_models.Matcher{
 			Name:  &m.Name,
 			Value: &m.Pattern,
@@ -82,12 +94,15 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 // PostableSilenceToProto converts *open_api_models.PostableSilenc to *silencepb.Silence.
 func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
-		Id:        s.ID,
-		StartsAt:  time.Time(*s.StartsAt),
-		EndsAt:    time.Time(*s.EndsAt),
-		Comment:   *s.Comment,
-		CreatedBy: *s.CreatedBy,
+		Id:          s.ID,
+		StartsAt:    timestamppb.New(time.Time(*s.StartsAt)),
+		EndsAt:      timestamppb.New(time.Time(*s.EndsAt)),
+		Comment:     *s.Comment,
+		CreatedBy:   *s.CreatedBy,
+		Annotations: map[string]string{},
 	}
+
+	matcherSet := &silencepb.MatcherSet{}
 	for _, m := range s.Matchers {
 		matcher := &silencepb.Matcher{
 			Name:    *m.Name,
@@ -112,8 +127,14 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		case !isEqual && isRegex:
 			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
-		sil.Matchers = append(sil.Matchers, matcher)
+		matcherSet.Matchers = append(matcherSet.Matchers, matcher)
 	}
+	sil.MatcherSets = append(sil.MatcherSets, matcherSet)
+
+	if s.Annotations != nil {
+		sil.Annotations = s.Annotations
+	}
+
 	return sil, nil
 }
 

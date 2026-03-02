@@ -18,10 +18,14 @@ import (
 	"fmt"
 	"net/textproto"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/sigv4"
 )
@@ -236,7 +240,7 @@ func (nc *NotifierConfig) SendResolved() bool {
 type WebexConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL         *amcommoncfg.URL            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
 	Message string `yaml:"message,omitempty" json:"message,omitempty"`
 	RoomID  string `yaml:"room_id" json:"room_id"`
@@ -266,7 +270,7 @@ type DiscordConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
@@ -305,9 +309,9 @@ type EmailConfig struct {
 	Hello            string               `yaml:"hello,omitempty" json:"hello,omitempty"`
 	Smarthost        HostPort             `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername     string               `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword     Secret               `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthPassword     commoncfg.Secret     `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
 	AuthPasswordFile string               `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
-	AuthSecret       Secret               `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthSecret       commoncfg.Secret     `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
 	AuthSecretFile   string               `yaml:"auth_secret_file,omitempty" json:"auth_secret_file,omitempty"`
 	AuthIdentity     string               `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
 	Headers          map[string]string    `yaml:"headers,omitempty" json:"headers,omitempty"`
@@ -315,7 +319,12 @@ type EmailConfig struct {
 	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
-	Threading        ThreadingConfig      `yaml:"threading,omitempty" json:"threading,omitempty"`
+	// ForceImplicitTLS controls whether to use implicit TLS (direct TLS connection).
+	// true: force use of implicit TLS (direct TLS connection)
+	// false: force disable implicit TLS (use explicit TLS/STARTTLS if required)
+	// nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
+	ForceImplicitTLS *bool           `yaml:"force_implicit_tls,omitempty" json:"force_implicit_tls,omitempty"`
+	Threading        ThreadingConfig `yaml:"threading,omitempty" json:"threading,omitempty"`
 }
 
 // ThreadingConfig configures mail threading.
@@ -352,6 +361,9 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		if _, ok := normalizedHeaders["In-Reply-To"]; ok {
 			return errors.New("conflicting configuration: threading.enabled conflicts with custom In-Reply-To header")
 		}
+		if !slices.Contains([]string{"none", "daily"}, c.Threading.ThreadByDate) {
+			return errors.New("threading.thread_by_date must be either 'none' or 'daily'")
+		}
 	}
 
 	return nil
@@ -363,11 +375,11 @@ type PagerdutyConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	ServiceKey     Secret           `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	ServiceKey     commoncfg.Secret `yaml:"service_key,omitempty" json:"service_key,omitempty"`
 	ServiceKeyFile string           `yaml:"service_key_file,omitempty" json:"service_key_file,omitempty"`
-	RoutingKey     Secret           `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
+	RoutingKey     commoncfg.Secret `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	RoutingKeyFile string           `yaml:"routing_key_file,omitempty" json:"routing_key_file,omitempty"`
-	URL            *URL             `yaml:"url,omitempty" json:"url,omitempty"`
+	URL            *amcommoncfg.URL `yaml:"url,omitempty" json:"url,omitempty"`
 	Client         string           `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL      string           `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description    string           `yaml:"description,omitempty" json:"description,omitempty"`
@@ -518,11 +530,11 @@ type SlackConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL       *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIURLFile   string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
-	AppToken     Secret     `yaml:"app_token,omitempty" json:"app_token,omitempty"`
-	AppTokenFile string     `yaml:"app_token_file,omitempty" json:"app_token_file,omitempty"`
-	AppURL       *URL       `yaml:"app_url,omitempty" json:"app_url,omitempty"`
+	APIURL       *amcommoncfg.SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURLFile   string                 `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
+	AppToken     commoncfg.Secret       `yaml:"app_token,omitempty" json:"app_token,omitempty"`
+	AppTokenFile string                 `yaml:"app_token_file,omitempty" json:"app_token_file,omitempty"`
+	AppURL       *amcommoncfg.URL       `yaml:"app_url,omitempty" json:"app_url,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -533,6 +545,7 @@ type SlackConfig struct {
 	TitleLink   string         `yaml:"title_link,omitempty" json:"title_link,omitempty"`
 	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
 	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
+	MessageText string         `yaml:"message_text,omitempty" json:"message_text,omitempty"`
 	Fields      []*SlackField  `yaml:"fields,omitempty" json:"fields,omitempty"`
 	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
@@ -545,6 +558,11 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+
+	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
+	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
+
+	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -568,6 +586,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
+	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
+		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+	}
+
 	return nil
 }
 
@@ -578,12 +600,12 @@ type IncidentioConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     *URL   `yaml:"url" json:"url"`
-	URLFile string `yaml:"url_file" json:"url_file"`
+	URL     *amcommoncfg.URL `yaml:"url" json:"url"`
+	URLFile string           `yaml:"url_file" json:"url_file"`
 
 	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
-	AlertSourceToken     Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
-	AlertSourceTokenFile string `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
+	AlertSourceToken     commoncfg.Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
+	AlertSourceTokenFile string           `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -669,16 +691,16 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret     Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	APISecretFile string `yaml:"api_secret_file,omitempty" json:"api_secret_file,omitempty"`
-	CorpID        string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser        string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty       string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag         string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID       string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
-	MessageType   string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	APISecret     commoncfg.Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	APISecretFile string           `yaml:"api_secret_file,omitempty" json:"api_secret_file,omitempty"`
+	CorpID        string           `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message       string           `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL        *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser        string           `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty       string           `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag         string           `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID       string           `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType   string           `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
 
 const wechatValidTypesRe = `^(text|markdown)$`
@@ -714,9 +736,9 @@ type OpsGenieConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey       Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKey       commoncfg.Secret          `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIKeyFile   string                    `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
-	APIURL       *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL       *amcommoncfg.URL          `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message      string                    `yaml:"message,omitempty" json:"message,omitempty"`
 	Description  string                    `yaml:"description,omitempty" json:"description,omitempty"`
 	Source       string                    `yaml:"source,omitempty" json:"source,omitempty"`
@@ -782,9 +804,9 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKey            commoncfg.Secret  `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIKeyFile        string            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
-	APIURL            *URL              `yaml:"api_url" json:"api_url"`
+	APIURL            *amcommoncfg.URL  `yaml:"api_url" json:"api_url"`
 	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
 	MessageType       string            `yaml:"message_type" json:"message_type"`
 	StateMessage      string            `yaml:"state_message" json:"state_message"`
@@ -837,22 +859,22 @@ type PushoverConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserKey     Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	UserKeyFile string   `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
-	Token       Secret   `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string   `yaml:"token_file,omitempty" json:"token_file,omitempty"`
-	Title       string   `yaml:"title,omitempty" json:"title,omitempty"`
-	Message     string   `yaml:"message,omitempty" json:"message,omitempty"`
-	URL         string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle    string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
-	Device      string   `yaml:"device,omitempty" json:"device,omitempty"`
-	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
-	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
-	HTML        bool     `yaml:"html,omitempty" json:"html,omitempty"`
-	Monospace   bool     `yaml:"monospace,omitempty" json:"monospace,omitempty"`
+	UserKey     commoncfg.Secret `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	UserKeyFile string           `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
+	Token       commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile   string           `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+	Title       string           `yaml:"title,omitempty" json:"title,omitempty"`
+	Message     string           `yaml:"message,omitempty" json:"message,omitempty"`
+	URL         string           `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle    string           `yaml:"url_title,omitempty" json:"url_title,omitempty"`
+	Device      string           `yaml:"device,omitempty" json:"device,omitempty"`
+	Sound       string           `yaml:"sound,omitempty" json:"sound,omitempty"`
+	Priority    string           `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Retry       duration         `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire      duration         `yaml:"expire,omitempty" json:"expire,omitempty"`
+	TTL         duration         `yaml:"ttl,omitempty" json:"ttl,omitempty"`
+	HTML        bool             `yaml:"html,omitempty" json:"html,omitempty"`
+	Monospace   bool             `yaml:"monospace,omitempty" json:"monospace,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -914,14 +936,15 @@ type TelegramConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
-	BotToken             Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
-	BotTokenFile         string `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
-	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
-	MessageThreadID      int    `yaml:"message_thread_id,omitempty" json:"message_thread_id,omitempty"`
-	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
-	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
-	ParseMode            string `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+	APIUrl               *amcommoncfg.URL `yaml:"api_url" json:"api_url,omitempty"`
+	BotToken             commoncfg.Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	BotTokenFile         string           `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
+	ChatID               int64            `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	ChatIDFile           string           `yaml:"chat_id_file,omitempty" json:"chat_file,omitempty"`
+	MessageThreadID      int              `yaml:"message_thread_id,omitempty" json:"message_thread_id,omitempty"`
+	Message              string           `yaml:"message,omitempty" json:"message,omitempty"`
+	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
+	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -931,14 +954,14 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.BotToken == "" && c.BotTokenFile == "" {
-		return errors.New("missing bot_token or bot_token_file on telegram_config")
-	}
 	if c.BotToken != "" && c.BotTokenFile != "" {
 		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}
-	if c.ChatID == 0 {
-		return errors.New("missing chat_id on telegram_config")
+	if c.ChatID == 0 && c.ChatIDFile == "" {
+		return errors.New("missing chat_id or chat_id_file on telegram_config")
+	}
+	if c.ChatID != 0 && c.ChatIDFile != "" {
+		return errors.New("at most one of chat_id & chat_id_file must be configured")
 	}
 	if c.ParseMode != "" &&
 		c.ParseMode != "Markdown" &&
@@ -952,7 +975,7 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 type MSTeamsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
@@ -981,7 +1004,7 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 type MSTeamsV2Config struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Title string `yaml:"title,omitempty" json:"title,omitempty"`
@@ -1017,8 +1040,8 @@ type JiraConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL  *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIType string `yaml:"api_type,omitempty" json:"api_type,omitempty"`
+	APIURL  *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIType string           `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
 	Project     string          `yaml:"project,omitempty" json:"project,omitempty"`
 	Summary     JiraFieldConfig `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -1107,11 +1130,11 @@ type RocketchatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL      *URL    `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	TokenID     *Secret `yaml:"token_id,omitempty" json:"token_id,omitempty"`
-	TokenIDFile string  `yaml:"token_id_file,omitempty" json:"token_id_file,omitempty"`
-	Token       *Secret `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string  `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+	APIURL      *amcommoncfg.URL  `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	TokenID     *commoncfg.Secret `yaml:"token_id,omitempty" json:"token_id,omitempty"`
+	TokenIDFile string            `yaml:"token_id_file,omitempty" json:"token_id_file,omitempty"`
+	Token       *commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile   string            `yaml:"token_file,omitempty" json:"token_file,omitempty"`
 
 	// RocketChat channel override, (like #other-channel or @username).
 	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -1207,7 +1230,7 @@ type MattermostConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -1228,10 +1251,6 @@ func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain MattermostConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
 	}
 
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {

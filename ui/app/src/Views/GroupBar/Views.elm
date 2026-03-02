@@ -1,6 +1,6 @@
 module Views.GroupBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, input, small, span, text)
+import Html exposing (Html, a, button, div, input, small, text)
 import Html.Attributes exposing (class, disabled, id, style, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput, onMouseEnter, onMouseLeave)
 import Set
@@ -140,8 +140,8 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
             , onBlur (Focus False)
             ]
             []
-        , span
-            [ class "input-group-btn" ]
+        , div
+            [ class "input-group-append" ]
             [ button [ class "btn btn-primary", disabled isDisabled, onClick onClickMsg ] [ text "+" ] ]
         ]
 

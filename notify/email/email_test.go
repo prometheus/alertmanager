@@ -477,7 +477,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "email with authentication",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 			},
 		},
 		{
@@ -491,7 +491,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "HTML-only email",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Text = ""
 			},
 		},
@@ -499,7 +499,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "text-only email",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.HTML = ""
 			},
 		},
@@ -507,7 +507,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "multiple To addresses",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.To = strings.Join([]string{emailTo, emailFrom}, ",")
 			},
 		},
@@ -515,7 +515,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "no more than one From address",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.From = strings.Join([]string{emailFrom, emailTo}, ",")
 			},
 
@@ -526,7 +526,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "wrong credentials",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password + "wrong")
+				cfg.AuthPassword = commoncfg.Secret(c.Password + "wrong")
 			},
 
 			errMsg: "Invalid username or password",
@@ -571,7 +571,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			title: "invalid Hello string",
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Hello = "invalid hello string"
 			},
 
@@ -660,7 +660,7 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
-	require.Equal(t, "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism", err.Error())
+	require.Equal(t, "missing password for PLAIN auth mechanism\nmissing password for LOGIN auth mechanism", err.Error())
 }
 
 func TestEmailNoUsernameStillOk(t *testing.T) {
@@ -979,4 +979,75 @@ func TestEmailGetSecret(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEmailImplicitTLS(t *testing.T) {
+	tests := []struct {
+		name             string
+		port             string
+		forceImplicitTLS *bool
+		expectImplicit   bool
+	}{
+		{
+			name:             "default behavior - port 465",
+			port:             "465",
+			forceImplicitTLS: nil,
+			expectImplicit:   true,
+		},
+		{
+			name:             "default behavior - port 587",
+			port:             "587",
+			forceImplicitTLS: nil,
+			expectImplicit:   false,
+		},
+		{
+			name:             "force implicit_tls=true on port 587",
+			port:             "587",
+			forceImplicitTLS: ptrTo(true),
+			expectImplicit:   true,
+		},
+		{
+			name:             "force implicit_tls=true on custom port",
+			port:             "8465",
+			forceImplicitTLS: ptrTo(true),
+			expectImplicit:   true,
+		},
+		{
+			name:             "implicit_tls=false disables implicit TLS on port 465",
+			port:             "465",
+			forceImplicitTLS: ptrTo(false),
+			expectImplicit:   false,
+		},
+		{
+			name:             "implicit_tls=false behaves like default on port 587",
+			port:             "587",
+			forceImplicitTLS: ptrTo(false),
+			expectImplicit:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.EmailConfig{
+				Smarthost:        config.HostPort{Host: "localhost", Port: tt.port},
+				ForceImplicitTLS: tt.forceImplicitTLS,
+			}
+
+			// Simulate the judgment logic
+			var useImplicitTLS bool
+			if cfg.ForceImplicitTLS != nil {
+				useImplicitTLS = *cfg.ForceImplicitTLS
+			} else {
+				useImplicitTLS = cfg.Smarthost.Port == "465"
+			}
+
+			require.Equal(t, tt.expectImplicit, useImplicitTLS,
+				"Expected useImplicitTLS=%v for port=%s with forceImplicitTLS=%v",
+				tt.expectImplicit, tt.port, tt.forceImplicitTLS)
+		})
+	}
+}
+
+func ptrTo(b bool) *bool {
+	return &b
 }

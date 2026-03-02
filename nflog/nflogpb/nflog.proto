@@ -2,13 +2,9 @@ syntax = "proto3";
 
 package nflogpb;
 
-import "google/protobuf/timestamp.proto";
-import "gogoproto/gogo.proto";
+option go_package = "github.com/prometheus/alertmanager/nflog/nflogpb";
 
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
+import "google/protobuf/timestamp.proto";
 
 message Receiver {
   // Configured name of the receiver group.
@@ -34,11 +30,13 @@ message Entry {
   // Deprecated in favor of ResolvedAlerts field, but kept for compatibility.
   bool resolved = 4;
   // Timestamp of the succeeding notification.
-  google.protobuf.Timestamp timestamp = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp timestamp = 5;
   // FiringAlerts list of hashes of firing alerts at the last notification time.
   repeated uint64 firing_alerts = 6;
   // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
   repeated uint64 resolved_alerts = 7;
+  // Data specific to the receiver which sent the notification
+  map<string, ReceiverDataValue> receiver_data = 8;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log
@@ -48,5 +46,13 @@ message MeshEntry {
   Entry entry = 1;
   // A timestamp indicating when the mesh peer should evict
   // the log entry from its state.
-  google.protobuf.Timestamp expires_at = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message ReceiverDataValue {
+  oneof value {
+    string str_val = 1;
+    int64 int_val = 2;
+    double double_val = 3;
+  }
 }

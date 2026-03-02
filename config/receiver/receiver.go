@@ -14,6 +14,7 @@
 package receiver
 
 import (
+	"errors"
 	"log/slog"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -40,7 +41,6 @@ import (
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
@@ -51,12 +51,12 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 
 	var (
-		errs         types.MultiError
+		errs         error
 		integrations []notify.Integration
 		add          = func(name string, i int, rs notify.ResolvedSender, f func(l *slog.Logger) (notify.Notifier, error)) {
 			n, err := f(logger.With("integration", name))
 			if err != nil {
-				errs.Add(err)
+				errs = errors.Join(errs, err)
 				return
 			}
 			integrations = append(integrations, notify.NewIntegration(n, rs, name, i, nc.Name))
@@ -118,8 +118,5 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 		add("mattermost", i, c, func(l *slog.Logger) (notify.Notifier, error) { return mattermost.New(c, tmpl, l, httpOpts...) })
 	}
 
-	if errs.Len() > 0 {
-		return nil, &errs
-	}
-	return integrations, nil
+	return integrations, errs
 }

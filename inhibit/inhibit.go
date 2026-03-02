@@ -377,7 +377,7 @@ func (r *InhibitRule) findEqualSourceAlert(lset model.LabelSet, now time.Time) (
 	return nil, false
 }
 
-func (r *InhibitRule) gcCallback(alerts []types.Alert) {
+func (r *InhibitRule) gcCallback(alerts []*types.Alert) {
 	for _, a := range alerts {
 		fp := r.fingerprintEquals(a.Labels)
 		r.sindex.Delete(fp)

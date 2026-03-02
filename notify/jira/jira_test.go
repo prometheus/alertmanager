@@ -29,12 +29,18 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+func jiraStringDescription(v string) *jiraDescription {
+	return &jiraDescription{StringDescription: stringPtr(v)}
+}
 
 func stringPtr(v string) *string {
 	return &v
@@ -47,7 +53,7 @@ func boolPtr(v bool) *bool {
 func TestJiraRetry(t *testing.T) {
 	notifier, err := New(
 		&config.JiraConfig{
-			APIURL: &config.URL{
+			APIURL: &amcommoncfg.URL{
 				URL: &url.URL{
 					Scheme: "https",
 					Host:   "example.atlassian.net",
@@ -152,7 +158,7 @@ func TestSearchExistingIssue(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			expectedJQL = tc.expectedJQL
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
 			as := []*types.Alert{
@@ -205,7 +211,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "cloud API type",
 			cfg: &config.JiraConfig{
 				APIType: "cloud",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -226,7 +232,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "auto API type with atlassian.net url",
 			cfg: &config.JiraConfig{
 				APIType: "auto",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -247,7 +253,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "auto API type without atlassian.net url",
 			cfg: &config.JiraConfig{
 				APIType: "auto",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "jira.example.com",
@@ -268,7 +274,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "atlassian.net URL suffix but datacenter api type",
 			cfg: &config.JiraConfig{
 				APIType: "datacenter",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "example.atlassian.net",
@@ -289,7 +295,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 			title: "datacenter API type",
 			cfg: &config.JiraConfig{
 				APIType: "datacenter",
-				APIURL: &config.URL{
+				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
 						Scheme: "https",
 						Host:   "jira.example.com",
@@ -411,7 +417,7 @@ func TestJiraTemplating(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 			capturedBody = nil
 
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
@@ -504,7 +510,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -553,7 +559,7 @@ func TestJiraNotify(t *testing.T) {
 						Key: "MONITORING-1",
 						Fields: &issueFields{
 							Summary:     stringPtr("Original Summary"),
-							Description: stringPtr("Original Description"),
+							Description: jiraStringDescription("Original Description"),
 							Status: &issueStatus{
 								Name: "Open",
 								StatusCategory: struct {
@@ -619,7 +625,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1 MINOR MONITORING critical)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "MINOR"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "MONITORING"},
@@ -673,7 +679,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr(strings.Repeat("A", maxSummaryLenRunes-1) + "…"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -739,7 +745,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -794,7 +800,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[RESOLVED] test (vm1)"),
-					Description: stringPtr("\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n"),
+					Description: jiraStringDescription("\n\n\n# Alerts Resolved:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -848,7 +854,7 @@ func TestJiraNotify(t *testing.T) {
 				Key: "",
 				Fields: &issueFields{
 					Summary:     stringPtr("[FIRING:1] test (vm1)"),
-					Description: stringPtr("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
 					Issuetype:   &idNameValue{Name: "Incident"},
 					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
 					Project:     &issueProject{Key: "OPS"},
@@ -1010,7 +1016,7 @@ func TestJiraNotify(t *testing.T) {
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
 
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
 			notifier, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -1225,7 +1231,7 @@ func TestJiraPriority(t *testing.T) {
 			tmpl.ExternalURL = u
 
 			var (
-				data = tmpl.Data("jira", model.LabelSet{}, tc.alerts...)
+				data = tmpl.Data("jira", model.LabelSet{}, notify.ReasonFirstNotification.String(), tc.alerts...)
 
 				tmplTextErr  error
 				tmplText     = notify.TmplText(tmpl, data, &tmplTextErr)
@@ -1238,6 +1244,86 @@ func TestJiraPriority(t *testing.T) {
 			priority, err := tmplTextFunc(`{{ template "jira.default.priority" . }}`)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedPriority, priority)
+		})
+	}
+}
+
+func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		descriptionTemplate string
+		expectErrSubstring  string
+	}{
+		{
+			name:                "valid JSON description",
+			descriptionTemplate: `{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"hello"}]}]}`,
+		},
+		{
+			name:                "invalid JSON description",
+			descriptionTemplate: `not-json`,
+			expectErrSubstring:  "invalid JSON for API v3",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.JiraConfig{
+				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: config.JiraFieldConfig{Template: tc.descriptionTemplate},
+				IssueType:   "Incident",
+				Project:     "OPS",
+				Labels:      []string{"alertmanager"},
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				APIURL: &amcommoncfg.URL{
+					URL: &url.URL{
+						Scheme: "https",
+						Host:   "example.atlassian.net",
+						Path:   "/rest/api/3",
+					},
+				},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			}
+
+			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			ctx := context.Background()
+			groupID := "1"
+			ctx = notify.WithGroupKey(ctx, groupID)
+			ctx = notify.WithGroupLabels(ctx, alert.Labels)
+
+			alerts := []*types.Alert{alert}
+			logger := notifier.logger.With("group_key", groupID)
+			data := notify.GetTemplateData(ctx, notifier.tmpl, alerts, logger)
+
+			var tmplErr error
+			tmplText := notify.TmplText(notifier.tmpl, data, &tmplErr)
+			tmplTextFunc := func(tmpl string) (string, error) {
+				return tmplText(tmpl), tmplErr
+			}
+
+			issue, err := notifier.prepareIssueRequestBody(ctx, logger, groupID, tmplTextFunc)
+			if tc.expectErrSubstring != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectErrSubstring)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, issue.Fields)
+
+			require.NotNil(t, issue.Fields.Description)
+			require.JSONEq(t, tc.descriptionTemplate, string(issue.Fields.Description.RawJSONDescription))
 		})
 	}
 }

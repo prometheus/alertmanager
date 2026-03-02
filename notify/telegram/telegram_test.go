@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -55,7 +57,7 @@ receivers:
 	require.Len(t, c.Receivers[0].TelegramConfigs, 1)
 
 	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
-	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
+	require.Equal(t, commoncfg.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
 	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
 	require.Equal(t, 1357, c.Receivers[0].TelegramConfigs[0].MessageThreadID)
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
@@ -63,7 +65,7 @@ receivers:
 
 func TestTelegramRetry(t *testing.T) {
 	// Fake url for testing purposes
-	fakeURL := config.URL{
+	fakeURL := amcommoncfg.URL{
 		URL: &url.URL{
 			Scheme: "https",
 			Host:   "FAKE_API",
@@ -103,7 +105,7 @@ func TestTelegramNotify(t *testing.T) {
 			cfg: config.TelegramConfig{
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
-				BotToken:   config.Secret(token),
+				BotToken:   commoncfg.Secret(token),
 			},
 			expText: "<code>x < y</code>",
 		},
@@ -113,7 +115,7 @@ func TestTelegramNotify(t *testing.T) {
 				ParseMode:  "HTML",
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
-				BotToken:   config.Secret(token),
+				BotToken:   commoncfg.Secret(token),
 			},
 			expText: "<code>x &lt; y</code>",
 		},
@@ -139,7 +141,7 @@ func TestTelegramNotify(t *testing.T) {
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
 
-			tc.cfg.APIUrl = &config.URL{URL: u}
+			tc.cfg.APIUrl = &amcommoncfg.URL{URL: u}
 
 			notifier, err := New(&tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)

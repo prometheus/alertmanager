@@ -33,15 +33,7 @@ build: common-build
 lint: common-lint
 
 .PHONY: assets
-assets: asset/assets_vfsdata.go
-
-.PHONY: assets-tarball
-assets-tarball: ui/app/script.js ui/app/index.html
-	scripts/package_assets.sh
-
-asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
-	$(GO) generate $(GOOPTS) ./asset
-	@$(GOFMT) -w ./asset
+assets: ui/app/script.js template/email.tmpl
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
@@ -52,20 +44,16 @@ template/email.tmpl: template/email.html
 .PHONY: apiv2
 apiv2: api/v2/models api/v2/restapi api/v2/client
 
-SWAGGER = docker run \
-	--user=$(shell id -u $(USER)):$(shell id -g $(USER)) \
-	--rm \
-	-v $(shell pwd):/go/src/github.com/prometheus/alertmanager \
-	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:v0.31.0
 
-api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
-	-rm -r api/v2/{client,models,restapi}
-	$(SWAGGER) generate server -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --exclude-main -A alertmanager --target api/v2/
-	$(SWAGGER) generate client -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --skip-models --target api/v2
+api/v2/models api/v2/restapi api/v2/client:  api/v2/openapi.yaml
+	scripts/swagger.sh
+
+.PHONY: fuzz-config
+fuzz-config:
+	go test -fuzz=^Fuzz -fuzztime=5s ./config
 
 .PHONY: clean
 clean:
-	- @rm -rf asset/assets_vfsdata.go \
-                  template/email.tmpl \
+	- @rm -rf template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean

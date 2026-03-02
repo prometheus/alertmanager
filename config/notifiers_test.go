@@ -1100,14 +1100,6 @@ bot_token_file: /file
 			expected: errors.New("at most one of bot_token & bot_token_file must be configured"),
 		},
 		{
-			name: "with no bot_token & bot_token_file - it fails",
-			in: `
-bot_token: ''
-bot_token_file: ''
-`,
-			expected: errors.New("missing bot_token or bot_token_file on telegram_config"),
-		},
-		{
 			name: "with bot_token and chat_id set - it succeeds",
 			in: `
 bot_token: xyz
@@ -1130,11 +1122,27 @@ chat_id: 123
 `,
 		},
 		{
+			name: "with bot_token_file and chat_id_file set - it succeeds",
+			in: `
+bot_token_file: /file
+chat_id_file: /chat_id_file
+`,
+		},
+		{
 			name: "with no chat_id set - it fails",
 			in: `
 bot_token: xyz
 `,
-			expected: errors.New("missing chat_id on telegram_config"),
+			expected: errors.New("missing chat_id or chat_id_file on telegram_config"),
+		},
+		{
+			name: "with both chat_id and chat_id_file - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+chat_id_file: /file
+`,
+			expected: errors.New("at most one of chat_id & chat_id_file must be configured"),
 		},
 		{
 			name: "with unknown parse_mode - it fails",
@@ -1263,6 +1271,64 @@ attachments:
 	for _, tt := range mc {
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg MattermostConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
+	}
+}
+
+func TestEmailConfig_UnmarshalYAML(t *testing.T) {
+	testConfig := []struct {
+		name     string
+		in       string
+		expected error
+	}{
+		{
+			name: "with basic config - it succeeds",
+			in: `
+to: foobar@example.com
+headers: {X-Custom-Header: CustomValue}
+`,
+		},
+		{
+			name: "with empty to address - it fails",
+			in: `
+to: ''`,
+			expected: errors.New("missing to address in email config"),
+		},
+		{
+			name: "with correct threading - it succeeds",
+			in: `
+to: foobar@example.com
+threading:
+  enabled: true
+  thread_by_date: daily
+`,
+		},
+		{
+			name: "with invalid threading - it fails",
+			in: `
+to: foobar@example.com
+threading:
+  enabled: true
+  thread_by_date: weekly
+`,
+			expected: errors.New("threading.thread_by_date must be either 'none' or 'daily'"),
+		},
+		{
+			name: "with duplicate headers - it failes",
+			in: `
+to: foobar@example.com
+headers: {X-Custom-Header: CustomValue, X-CUSTOM-HEADER: AnotherValue}
+`,
+			expected: errors.New("duplicate header \"X-Custom-Header\" in email config"),
+		},
+	}
+
+	for _, tt := range testConfig {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg EmailConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
 			require.Equal(t, tt.expected, err)

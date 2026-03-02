@@ -1,0 +1,6 @@
+version: v2
+plugins:
+  - local: ['go', 'tool', '-modfile=internal/tools/go.mod', 'protoc-gen-go']
+    out: .
+    opt:
+      - module=github.com/prometheus/alertmanager

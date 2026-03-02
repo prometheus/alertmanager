@@ -1,7 +1,7 @@
-import { Link, NavLink } from 'react-router-dom';
-import { AppShell, Button, Group, Text } from '@mantine/core';
-import { AlertsPage } from '../pages/Alerts.page';
-import { SilencesPage } from '../pages/Silences.page';
+import { Link, NavLink, Route, Routes } from 'react-router-dom';
+import { AppShell, Button, Group, Menu, Text } from '@mantine/core';
+import { AlertsPage } from '@/pages/Alerts.page';
+import { SilencesPage } from '@/pages/Silences.page';
 import classes from './Header.module.css';
 
 const navLinkXPadding = 'md';
@@ -36,6 +36,64 @@ export const Header = () => {
           {page.title}
         </Button>
       ))}
+      <Menu>
+        <Routes>
+          <Route
+            path="/status"
+            element={
+              <Menu.Target>
+                <Button
+                  component={NavLink}
+                  to="/status"
+                  className={classes.navLink}
+                  px={navLinkXPadding}
+                >
+                  Status {'>'} Runtime & Build Information
+                </Button>
+              </Menu.Target>
+            }
+          />
+          <Route
+            path="/config"
+            element={
+              <Menu.Target>
+                <Button
+                  component={NavLink}
+                  to="/config"
+                  className={classes.navLink}
+                  px={navLinkXPadding}
+                >
+                  Status {'>'} Configuration
+                </Button>
+              </Menu.Target>
+            }
+          />
+          {/* Default menu item when no status pages are selected */}
+          <Route
+            path="*"
+            element={
+              <Menu.Target>
+                <Button
+                  className={classes.navLink}
+                  // leftSection={<IconServer style={navIconStyle} />}
+                  // rightSection={<IconChevronDown style={navIconStyle} />}
+                  px={navLinkXPadding}
+                >
+                  Status
+                </Button>
+              </Menu.Target>
+            }
+          />
+        </Routes>
+        <Menu.Dropdown>
+          <Menu.Item key="runtime" component={NavLink} to="/status">
+            Runtime & Build Information
+          </Menu.Item>
+          <Menu.Item key="config" component={NavLink} to="/config">
+            Configuration
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
     </>
   );
 

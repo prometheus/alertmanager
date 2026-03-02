@@ -33,8 +33,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc/credentials"
-
-	"github.com/prometheus/alertmanager/config"
 )
 
 const serviceName = "alertmanager"
@@ -44,7 +42,7 @@ const serviceName = "alertmanager"
 type Manager struct {
 	logger       *slog.Logger
 	done         chan struct{}
-	config       config.TracingConfig
+	config       TracingConfig
 	shutdownFunc func() error
 }
 
@@ -68,12 +66,12 @@ func (m *Manager) Run() {
 
 // ApplyConfig takes care of refreshing the tracing configuration by shutting down
 // the current tracer provider (if any is registered) and installing a new one.
-func (m *Manager) ApplyConfig(cfg *config.Config) error {
+func (m *Manager) ApplyConfig(cfg TracingConfig) error {
 	// Update only if a config change is detected. If TLS configuration is
 	// set, we have to restart the manager to make sure that new TLS
 	// certificates are picked up.
 	var blankTLSConfig commoncfg.TLSConfig
-	if reflect.DeepEqual(m.config, cfg.TracingConfig) && (m.config.TLSConfig == nil || *m.config.TLSConfig == blankTLSConfig) {
+	if reflect.DeepEqual(m.config, cfg) && (m.config.TLSConfig == nil || *m.config.TLSConfig == blankTLSConfig) {
 		return nil
 	}
 
@@ -84,21 +82,21 @@ func (m *Manager) ApplyConfig(cfg *config.Config) error {
 	}
 
 	// If no endpoint is set, assume tracing should be disabled.
-	if cfg.TracingConfig.Endpoint == "" {
-		m.config = cfg.TracingConfig
+	if cfg.Endpoint == "" {
+		m.config = cfg
 		m.shutdownFunc = nil
 		otel.SetTracerProvider(noop.NewTracerProvider())
 		m.logger.Info("Tracing provider uninstalled.")
 		return nil
 	}
 
-	tp, shutdownFunc, err := buildTracerProvider(context.Background(), cfg.TracingConfig)
+	tp, shutdownFunc, err := buildTracerProvider(context.Background(), cfg)
 	if err != nil {
 		return fmt.Errorf("failed to install a new tracer provider: %w", err)
 	}
 
 	m.shutdownFunc = shutdownFunc
-	m.config = cfg.TracingConfig
+	m.config = cfg
 	otel.SetTracerProvider(tp)
 
 	m.logger.Info("Successfully installed a new tracer provider.")
@@ -128,7 +126,7 @@ func (o otelErrHandler) Handle(err error) {
 
 // buildTracerProvider return a new tracer provider ready for installation, together
 // with a shutdown function.
-func buildTracerProvider(ctx context.Context, tracingCfg config.TracingConfig) (trace.TracerProvider, func() error, error) {
+func buildTracerProvider(ctx context.Context, tracingCfg TracingConfig) (trace.TracerProvider, func() error, error) {
 	client, err := getClient(tracingCfg)
 	if err != nil {
 		return nil, nil, err
@@ -198,10 +196,10 @@ func headersToMap(headers *commoncfg.Headers) (map[string]string, error) {
 
 // getClient returns an appropriate OTLP client (either gRPC or HTTP), based
 // on the provided tracing configuration.
-func getClient(tracingCfg config.TracingConfig) (otlptrace.Client, error) {
+func getClient(tracingCfg TracingConfig) (otlptrace.Client, error) {
 	var client otlptrace.Client
 	switch tracingCfg.ClientType {
-	case config.TracingClientGRPC:
+	case TracingClientGRPC:
 		opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(tracingCfg.Endpoint)}
 
 		switch {
@@ -234,7 +232,7 @@ func getClient(tracingCfg config.TracingConfig) (otlptrace.Client, error) {
 		}
 
 		client = otlptracegrpc.NewClient(opts...)
-	case config.TracingClientHTTP:
+	case TracingClientHTTP:
 		opts := []otlptracehttp.Option{otlptracehttp.WithEndpoint(tracingCfg.Endpoint)}
 
 		switch {
@@ -248,7 +246,7 @@ func getClient(tracingCfg config.TracingConfig) (otlptrace.Client, error) {
 			opts = append(opts, otlptracehttp.WithTLSClientConfig(tlsConf))
 		}
 
-		if tracingCfg.Compression == config.GzipCompression {
+		if tracingCfg.Compression == GzipCompression {
 			opts = append(opts, otlptracehttp.WithCompression(otlptracehttp.GzipCompression))
 		}
 

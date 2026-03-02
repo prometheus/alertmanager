@@ -15,11 +15,11 @@ package template
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
-	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -34,9 +34,11 @@ import (
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v2"
 
-	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
 )
+
+//go:embed default.tmpl email.tmpl
+var asset embed.FS
 
 // Template bundles a text and a html template instance.
 type Template struct {
@@ -79,7 +81,7 @@ func FromGlobs(paths []string, options ...Option) (*Template, error) {
 	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
 
 	for _, file := range defaultTemplates {
-		f, err := asset.Assets.Open(path.Join("/templates", file))
+		f, err := asset.Open(file)
 		if err != nil {
 			return nil, err
 		}
@@ -327,6 +329,8 @@ type Data struct {
 	Status   string `json:"status"`
 	Alerts   Alerts `json:"alerts"`
 
+	NotificationReason string `json:"notification_reason"`
+
 	GroupLabels       KV `json:"groupLabels"`
 	CommonLabels      KV `json:"commonLabels"`
 	CommonAnnotations KV `json:"commonAnnotations"`
@@ -371,15 +375,16 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
+func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
 	data := &Data{
-		Receiver:          regexp.QuoteMeta(recv),
-		Status:            string(types.Alerts(alerts...).Status()),
-		Alerts:            make(Alerts, 0, len(alerts)),
-		GroupLabels:       KV{},
-		CommonLabels:      KV{},
-		CommonAnnotations: KV{},
-		ExternalURL:       t.ExternalURL.String(),
+		Receiver:           regexp.QuoteMeta(recv),
+		Status:             string(types.Alerts(alerts...).Status()),
+		Alerts:             make(Alerts, 0, len(alerts)),
+		NotificationReason: notificationReason,
+		GroupLabels:        KV{},
+		CommonLabels:       KV{},
+		CommonAnnotations:  KV{},
+		ExternalURL:        t.ExternalURL.String(),
 	}
 
 	// The call to types.Alert is necessary to correctly resolve the internal

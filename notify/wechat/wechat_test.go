@@ -23,6 +23,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
@@ -34,10 +36,10 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	secret := "secret_key"
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  commoncfg.Secret(secret),
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -56,10 +58,10 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  commoncfg.Secret(secret),
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -78,10 +80,10 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 
 	notifier, err := New(
 		&config.WechatConfig{
-			APIURL:      &config.URL{URL: u},
+			APIURL:      &amcommoncfg.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			CorpID:      "corpid",
-			APISecret:   config.Secret(secret),
+			APISecret:   commoncfg.Secret(secret),
 			MessageType: "markdown",
 		},
 		test.CreateTmpl(t),
@@ -93,7 +95,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 }
 
 func TestGetApiSecretFromSecret(t *testing.T) {
-	n := &Notifier{conf: &config.WechatConfig{APISecret: config.Secret("shhh")}}
+	n := &Notifier{conf: &config.WechatConfig{APISecret: commoncfg.Secret("shhh")}}
 	s, err := n.getApiSecret()
 	require.NoError(t, err)
 	require.Equal(t, "shhh", s)

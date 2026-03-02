@@ -1,7 +1,7 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Html, a, button, div, i, input, small, span, text)
-import Html.Attributes exposing (class, disabled, href, id, style, value)
+import Html exposing (Html, a, button, div, i, input, small, text)
+import Html.Attributes exposing (class, disabled, href, id, spellcheck, style, value)
 import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)
 import Utils.Keyboard exposing (onKeyDown, onKeyUp)
@@ -125,18 +125,21 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                             [ input
                                 [ id "filter-bar-matcher"
                                 , class "form-control"
+
+                                -- Setting spellcheck=false on an input element will disable smartquotes in iOS.
+                                , spellcheck False
                                 , value matcherText
                                 , onKeyDown keyDown
                                 , onKeyUp keyUp
                                 , onInput UpdateMatcherText
                                 ]
                                 []
-                            , span
-                                [ class "input-group-btn" ]
+                            , div
+                                [ class "input-group-append" ]
                                 [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
                             ]
                         , if showSilenceButton then
-                            div [ class "col col-auto input-group-btn ml-2" ]
+                            div [ class "col col-auto ml-2" ]
                                 [ div [ class "input-group" ]
                                     [ a
                                         [ class "btn btn-outline-info"

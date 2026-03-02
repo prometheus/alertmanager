@@ -1,4 +1,4 @@
-// Copyright 2016 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 package silence
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -24,7 +25,6 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -33,7 +33,6 @@ import (
 
 	"github.com/coder/quartz"
 	uuid "github.com/google/uuid"
-	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
@@ -42,6 +41,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/matcher/compat"
@@ -58,10 +60,10 @@ var ErrNotFound = errors.New("silence not found")
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = errors.New("invalid state")
 
-type matcherIndex map[string]labels.Matchers
+type matcherIndex map[string]labels.MatcherSet
 
-// get retrieves the matchers for a given silence.
-func (c matcherIndex) get(s *pb.Silence) (labels.Matchers, error) {
+// get retrieves the matcher set for a given silence.
+func (c matcherIndex) get(s *pb.Silence) (labels.MatcherSet, error) {
 	if m, ok := c[s.Id]; ok {
 		return m, nil
 	}
@@ -69,34 +71,40 @@ func (c matcherIndex) get(s *pb.Silence) (labels.Matchers, error) {
 }
 
 // add compiles a silences' matchers and adds them to the cache.
-// It returns the compiled matchers.
-func (c matcherIndex) add(s *pb.Silence) (labels.Matchers, error) {
-	ms := make(labels.Matchers, len(s.Matchers))
+// It returns the compiled matcher set.
+func (c matcherIndex) add(s *pb.Silence) (labels.MatcherSet, error) {
+	matcherSet := make(labels.MatcherSet, 0, len(s.MatcherSets))
 
-	for i, m := range s.Matchers {
-		var mt labels.MatchType
-		switch m.Type {
-		case pb.Matcher_EQUAL:
-			mt = labels.MatchEqual
-		case pb.Matcher_NOT_EQUAL:
-			mt = labels.MatchNotEqual
-		case pb.Matcher_REGEXP:
-			mt = labels.MatchRegexp
-		case pb.Matcher_NOT_REGEXP:
-			mt = labels.MatchNotRegexp
-		default:
-			return nil, fmt.Errorf("unknown matcher type %q", m.Type)
-		}
-		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
-		if err != nil {
-			return nil, err
+	for _, ms := range s.MatcherSets {
+		matchers := make(labels.Matchers, len(ms.Matchers))
+
+		for i, m := range ms.Matchers {
+			var mt labels.MatchType
+			switch m.Type {
+			case pb.Matcher_EQUAL:
+				mt = labels.MatchEqual
+			case pb.Matcher_NOT_EQUAL:
+				mt = labels.MatchNotEqual
+			case pb.Matcher_REGEXP:
+				mt = labels.MatchRegexp
+			case pb.Matcher_NOT_REGEXP:
+				mt = labels.MatchNotRegexp
+			default:
+				return nil, fmt.Errorf("unknown matcher type %q", m.Type)
+			}
+			matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
+			if err != nil {
+				return nil, err
+			}
+
+			matchers[i] = matcher
 		}
 
-		ms[i] = matcher
+		matcherSet = append(matcherSet, &matchers)
 	}
 
-	c[s.Id] = ms
-	return ms, nil
+	c[s.Id] = matcherSet
+	return matcherSet, nil
 }
 
 // silenceVersion associates a silence with the Silences version when it was created.
@@ -136,24 +144,24 @@ func (s versionIndex) findVersionGreaterThan(version int) (index int, found bool
 // interface.
 type Silencer struct {
 	silences *Silences
+	cache    *cache
 	marker   types.AlertMarker
 	logger   *slog.Logger
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(s *Silences, m types.AlertMarker, l *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
 	return &Silencer{
-		silences: s,
-		marker:   m,
-		logger:   l,
+		silences: silences,
+		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
+		marker:   marker,
+		logger:   logger,
 	}
 }
 
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
-	activeIDs, pendingIDs, markerVersion, _ := s.marker.Silenced(fp)
-
 	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
 		trace.WithAttributes(
 			attribute.String("alerting.alert.fingerprint", fp.String()),
@@ -162,20 +170,22 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
+	// Get the cached entry for this fingerprint.
+	cachedEntry := s.cache.get(fp)
+
 	var (
 		oldSils    []*pb.Silence
 		newSils    []*pb.Silence
-		newVersion = markerVersion
+		newVersion = cachedEntry.version
 	)
-	totalMarkerSilences := len(activeIDs) + len(pendingIDs)
-	markerIsUpToDate := markerVersion == s.silences.Version()
+	cacheIsUpToDate := cachedEntry.version == s.silences.Version()
 
-	if markerIsUpToDate && totalMarkerSilences == 0 {
+	if cacheIsUpToDate && cachedEntry.count() == 0 {
 		// Very fast path: no new silences have been added and this lset was not
 		// silenced last time we checked.
 		span.AddEvent("No new silences to match since last check",
 			trace.WithAttributes(
-				attribute.Int("alerting.silences.count", totalMarkerSilences),
+				attribute.Int("alerting.silences.cache.count", cachedEntry.count()),
 			),
 		)
 		return false
@@ -184,15 +194,14 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	// silences last time we queried so we need to see if those are still active/have become
 	// active. It's possible for there to be both old and new silences.
 
-	if totalMarkerSilences > 0 {
+	if cachedEntry.count() > 0 {
 		// there were old silences for this lset, we need to find them to check if they
 		// are still active/pending, or have ended.
 		var err error
-		allIDs := append(append(make([]string, 0, totalMarkerSilences), activeIDs...), pendingIDs...)
 		oldSils, _, err = s.silences.Query(
 			ctx,
-			QIDs(allIDs...),
-			QState(types.SilenceStateActive, types.SilenceStatePending),
+			QIDs(cachedEntry.silenceIDs...),
+			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
@@ -204,7 +213,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		}
 	}
 
-	if !markerIsUpToDate {
+	if !cacheIsUpToDate {
 		// New silences have been added since the last time the marker was updated. Do a full
 		// query for any silences newer than the markerVersion that match the lset.
 		// On this branch we WILL update newVersion since we can be sure we've seen any silences
@@ -212,8 +221,8 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		var err error
 		newSils, newVersion, err = s.silences.Query(
 			ctx,
-			QSince(markerVersion),
-			QState(types.SilenceStateActive, types.SilenceStatePending),
+			QSince(cachedEntry.version),
+			QState(SilenceStateActive, SilenceStatePending),
 			QMatches(lset),
 		)
 		if err != nil {
@@ -225,14 +234,15 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			)
 		}
 	}
-	// Note: if markerIsUpToDate, newVersion is left at markerVersion because the Query call
+	// Note: if cacheIsUpToDate, newVersion is left at cachedEntry.version because the Query call
 	// might already return a newer version, which is not the version our old list of
 	// applicable silences is based on.
 
 	totalSilences := len(oldSils) + len(newSils)
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
-		s.marker.SetActiveOrSilenced(fp, newVersion, nil, nil)
+		s.cache.set(fp, newCacheEntry(newVersion))
+		s.marker.SetActiveOrSilenced(fp, nil)
 		span.AddEvent("No silences to match", trace.WithAttributes(
 			attribute.Int("alerting.silences.count", totalSilences),
 		))
@@ -243,18 +253,26 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	// much less effort than just recreating the IDs from the query
 	// result. So let's do it in any case. Note that we cannot reuse the
 	// current ID slices for concurrency reasons.
-	activeIDs = make([]string, 0, totalSilences)
-	pendingIDs = make([]string, 0, totalSilences)
+	activeIDs := make([]string, 0, totalSilences)
+	allIDs := make([]string, 0, totalSilences)
+	seen := make(map[string]struct{}, totalSilences)
 	now := s.silences.nowUTC()
 
-	// Categorize old and new silences by their current state
+	// Categorize old and new silences by their current state.
+	// oldSils and newSils may overlap if a cached silence was updated
+	// (receiving a new version), so we deduplicate by ID.
 	for _, sils := range [...][]*pb.Silence{oldSils, newSils} {
 		for _, sil := range sils {
+			if _, ok := seen[sil.Id]; ok {
+				continue
+			}
+			seen[sil.Id] = struct{}{}
 			switch getState(sil, now) {
-			case types.SilenceStatePending:
-				pendingIDs = append(pendingIDs, sil.Id)
-			case types.SilenceStateActive:
+			case SilenceStatePending:
+				allIDs = append(allIDs, sil.Id)
+			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
+				allIDs = append(allIDs, sil.Id)
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -263,20 +281,39 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	s.logger.Debug(
 		"determined current silences state",
 		"now", now,
-		"total", totalSilences,
+		"total", len(allIDs),
 		"active", len(activeIDs),
-		"pending", len(pendingIDs),
+		"pending", len(allIDs)-len(activeIDs),
 	)
+	// TODO: remove this sort once the marker is removed.
 	sort.Strings(activeIDs)
-	sort.Strings(pendingIDs)
 
-	s.marker.SetActiveOrSilenced(fp, newVersion, activeIDs, pendingIDs)
-	mutes := len(activeIDs) > 0
-	span.AddEvent("Silencer mutes alert", trace.WithAttributes(
+	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
+	s.marker.SetActiveOrSilenced(fp, activeIDs)
+
+	t := trace.WithAttributes(
 		attribute.Int("alerting.silences.active.count", len(activeIDs)),
-		attribute.Int("alerting.silences.pending.count", len(pendingIDs)),
-	))
+		attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
+		attribute.Int("alerting.silences.total.count", len(allIDs)),
+	)
+
+	mutes := len(activeIDs) > 0
+	if mutes {
+		span.AddEvent("Silencer mutes alert", t)
+	} else {
+		span.AddEvent("Silencer does not mute alert", t)
+	}
 	return mutes
+}
+
+// The following methods implement mem.AlertStoreCallback.
+func (s *Silencer) PreStore(_ *types.Alert, _ bool) error { return nil }
+func (s *Silencer) PostStore(_ *types.Alert, _ bool)      {}
+func (s *Silencer) PostDelete(alert *types.Alert)         {}
+func (s *Silencer) PostGC(ff model.Fingerprints) {
+	for _, fp := range ff {
+		s.cache.delete(fp)
+	}
 }
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
@@ -333,7 +370,7 @@ type metrics struct {
 	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
-func newSilenceMetricByState(r prometheus.Registerer, s *Silences, st types.SilenceState) prometheus.GaugeFunc {
+func newSilenceMetricByState(r prometheus.Registerer, s *Silences, st SilenceState) prometheus.GaugeFunc {
 	return promauto.With(r).NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name:        "alertmanager_silences",
@@ -417,9 +454,9 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
 	if s != nil {
-		m.silencesActive = newSilenceMetricByState(r, s, types.SilenceStateActive)
-		m.silencesPending = newSilenceMetricByState(r, s, types.SilenceStatePending)
-		m.silencesExpired = newSilenceMetricByState(r, s, types.SilenceStateExpired)
+		m.silencesActive = newSilenceMetricByState(r, s, SilenceStateActive)
+		m.silencesPending = newSilenceMetricByState(r, s, SilenceStatePending)
+		m.silencesExpired = newSilenceMetricByState(r, s, SilenceStateExpired)
 		m.stateSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 			Name: "alertmanager_silences_state_size",
 			Help: "The number of silences in the state map.",
@@ -632,13 +669,13 @@ func (s *Silences) GC() (int, error) {
 			// not adding to targetVi effectively removes it
 			continue
 		}
-		if sil.ExpiresAt.IsZero() {
+		if sil.ExpiresAt == nil || sil.ExpiresAt.AsTime().IsZero() {
 			// Invalid expiration timestamp - remove silence and count error
 			s.metrics.gcErrorsTotal.Inc()
 			errs = errors.Join(errs, fmt.Errorf("silence %s has zero expiration timestamp", sil.Silence.Id))
 			expire = true
 		}
-		if expire || !sil.ExpiresAt.After(now) {
+		if expire || !sil.ExpiresAt.AsTime().After(now) {
 			delete(s.st, sil.Silence.Id)
 			delete(s.mi, sil.Silence.Id)
 			n++
@@ -689,41 +726,50 @@ func matchesEmpty(m *pb.Matcher) bool {
 }
 
 func validateSilence(s *pb.Silence) error {
-	if len(s.Matchers) == 0 {
-		return errors.New("at least one matcher required")
-	}
-	allMatchEmpty := true
+	// Convert old-style Matchers to MatcherSets for backward compatibility
+	postprocessUnmarshalledSilence(s)
 
-	for i, m := range s.Matchers {
-		if err := validateMatcher(m); err != nil {
-			return fmt.Errorf("invalid label matcher %d: %w", i, err)
+	if len(s.MatcherSets) == 0 {
+		return errors.New("at least one matcher set required")
+	}
+
+	for setIdx, ms := range s.MatcherSets {
+		if len(ms.Matchers) == 0 {
+			return fmt.Errorf("matcher set %d is empty", setIdx)
 		}
-		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
+		allMatchEmpty := true
+
+		for i, m := range ms.Matchers {
+			if err := validateMatcher(m); err != nil {
+				return fmt.Errorf("invalid label matcher %d in set %d: %w", i, setIdx, err)
+			}
+			allMatchEmpty = allMatchEmpty && matchesEmpty(m)
+		}
+		if allMatchEmpty {
+			return fmt.Errorf("matcher set %d: at least one matcher must not match the empty string", setIdx)
+		}
 	}
-	if allMatchEmpty {
-		return errors.New("at least one matcher must not match the empty string")
-	}
-	if s.StartsAt.IsZero() {
+
+	if s.StartsAt == nil || s.StartsAt.AsTime().IsZero() {
 		return errors.New("invalid zero start timestamp")
 	}
-	if s.EndsAt.IsZero() {
+	if s.EndsAt == nil || s.EndsAt.AsTime().IsZero() {
 		return errors.New("invalid zero end timestamp")
 	}
-	if s.EndsAt.Before(s.StartsAt) {
+	if s.EndsAt.AsTime().Before(s.StartsAt.AsTime()) {
 		return errors.New("end time must not be before start time")
 	}
 	return nil
 }
 
-// cloneSilence returns a shallow copy of a silence.
+// cloneSilence returns a copy of a silence.
 func cloneSilence(sil *pb.Silence) *pb.Silence {
-	s := *sil
-	return &s
+	return proto.Clone(sil).(*pb.Silence)
 }
 
 func (s *Silences) checkSizeLimits(msil *pb.MeshSilence) error {
 	if s.limits.MaxSilenceSizeBytes != nil {
-		n := msil.Size()
+		n := proto.Size(msil)
 		if m := s.limits.MaxSilenceSizeBytes(); m > 0 && n > m {
 			return fmt.Errorf("silence exceeded maximum size: %d bytes (limit: %d bytes)", n, m)
 		}
@@ -752,7 +798,7 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
 	return &pb.MeshSilence{
 		Silence:   sil,
-		ExpiresAt: sil.EndsAt.Add(s.retention),
+		ExpiresAt: timestamppb.New(sil.EndsAt.AsTime().Add(s.retention)),
 	}
 }
 
@@ -777,8 +823,8 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	defer span.End()
 
 	now := s.nowUTC()
-	if sil.StartsAt.IsZero() {
-		sil.StartsAt = now
+	if sil.StartsAt == nil || sil.StartsAt.AsTime().IsZero() {
+		sil.StartsAt = timestamppb.New(now)
 	}
 
 	if err := validateSilence(sil); err != nil {
@@ -794,7 +840,7 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	}
 
 	if ok && canUpdate(prev, sil, now) {
-		sil.UpdatedAt = now
+		sil.UpdatedAt = timestamppb.New(now)
 		msil := s.toMeshSilence(sil)
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
@@ -817,17 +863,17 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	}
 	sil.Id = uid.String()
 
-	if sil.StartsAt.Before(now) {
-		sil.StartsAt = now
+	if sil.StartsAt.AsTime().Before(now) {
+		sil.StartsAt = timestamppb.New(now)
 	}
-	sil.UpdatedAt = now
+	sil.UpdatedAt = timestamppb.New(now)
 
 	msil := s.toMeshSilence(sil)
 	if err := s.checkSizeLimits(msil); err != nil {
 		return err
 	}
 
-	if ok && getState(prev, s.nowUTC()) != types.SilenceStateExpired {
+	if ok && getState(prev, s.nowUTC()) != SilenceStateExpired {
 		// We cannot update the silence, expire the old one to leave a history of
 		// the silence before modification.
 		if err := s.expire(prev.Id); err != nil {
@@ -841,23 +887,25 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 // canUpdate returns true if silence a can be updated to b without
 // affecting the historic view of silencing.
 func canUpdate(a, b *pb.Silence, now time.Time) bool {
-	if !reflect.DeepEqual(a.Matchers, b.Matchers) {
+	if !slices.EqualFunc(a.MatcherSets, b.MatcherSets, func(x, y *pb.MatcherSet) bool {
+		return proto.Equal(x, y)
+	}) {
 		return false
 	}
 	// Allowed timestamp modifications depend on the current time.
 	switch st := getState(a, now); st {
-	case types.SilenceStateActive:
-		if b.StartsAt.Unix() != a.StartsAt.Unix() {
+	case SilenceStateActive:
+		if a.StartsAt.AsTime().Unix() != b.StartsAt.AsTime().Unix() {
 			return false
 		}
-		if b.EndsAt.Before(now) {
+		if b.EndsAt.AsTime().Before(now) {
 			return false
 		}
-	case types.SilenceStatePending:
-		if b.StartsAt.Before(now) {
+	case SilenceStatePending:
+		if b.StartsAt.AsTime().Before(now) {
 			return false
 		}
-	case types.SilenceStateExpired:
+	case SilenceStateExpired:
 		return false
 	default:
 		panic("unknown silence state")
@@ -890,16 +938,16 @@ func (s *Silences) expire(id string) error {
 	now := s.nowUTC()
 
 	switch getState(sil, now) {
-	case types.SilenceStateExpired:
+	case SilenceStateExpired:
 		return nil
-	case types.SilenceStateActive:
-		sil.EndsAt = now
-	case types.SilenceStatePending:
+	case SilenceStateActive:
+		sil.EndsAt = timestamppb.New(now)
+	case SilenceStatePending:
 		// Set both to now to make Silence move to "expired" state
-		sil.StartsAt = now
-		sil.EndsAt = now
+		sil.StartsAt = timestamppb.New(now)
+		sil.EndsAt = timestamppb.New(now)
 	}
-	sil.UpdatedAt = now
+	sil.UpdatedAt = timestamppb.New(now)
 	return s.setSilence(s.toMeshSilence(sil), now)
 }
 
@@ -959,18 +1007,18 @@ func QMatches(set model.LabelSet) QueryParam {
 }
 
 // getState returns a silence's SilenceState at the given timestamp.
-func getState(sil *pb.Silence, ts time.Time) types.SilenceState {
-	if ts.Before(sil.StartsAt) {
-		return types.SilenceStatePending
+func getState(sil *pb.Silence, ts time.Time) SilenceState {
+	if ts.Before(sil.StartsAt.AsTime()) {
+		return SilenceStatePending
 	}
-	if ts.After(sil.EndsAt) {
-		return types.SilenceStateExpired
+	if ts.After(sil.EndsAt.AsTime()) {
+		return SilenceStateExpired
 	}
-	return types.SilenceStateActive
+	return SilenceStateActive
 }
 
 // QState filters queried silences by the given states.
-func QState(states ...types.SilenceState) QueryParam {
+func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, _ *Silences, now time.Time) (bool, error) {
 			s := getState(sil, now)
@@ -988,7 +1036,7 @@ func QState(states ...types.SilenceState) QueryParam {
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
 func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Silence, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.QueryOne",
+	_, span := tracer.Start(ctx, "silence.Silences.QueryOne",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -1005,7 +1053,7 @@ func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Sile
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silence, int, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.Query",
+	_, span := tracer.Start(ctx, "silence.Silences.Query",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -1034,8 +1082,8 @@ func (s *Silences) Version() int {
 }
 
 // CountState counts silences by state.
-func (s *Silences) CountState(ctx context.Context, states ...types.SilenceState) (int, error) {
-	_, span := tracer.Start(ctx, "inhibit.Silences.CountState",
+func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int, error) {
+	_, span := tracer.Start(ctx, "silence.Silences.CountState",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -1236,7 +1284,7 @@ type state map[string]*pb.MeshSilence
 // true whenever a silence with a new ID has been added to the state as a result of merge.
 func (s state) merge(e *pb.MeshSilence, now time.Time) (bool, bool) {
 	id := e.Silence.Id
-	if e.ExpiresAt.Before(now) {
+	if e.ExpiresAt.AsTime().Before(now) {
 		return false, false
 	}
 	// Comments list was moved to a single comment. Apply upgrade
@@ -1248,7 +1296,7 @@ func (s state) merge(e *pb.MeshSilence, now time.Time) (bool, bool) {
 	}
 
 	prev, ok := s[id]
-	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
+	if !ok || prev.Silence.UpdatedAt.AsTime().Before(e.Silence.UpdatedAt.AsTime()) {
 		s[id] = e
 		return true, !ok
 	}
@@ -1259,7 +1307,7 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
 			return nil, err
 		}
 	}
@@ -1268,13 +1316,15 @@ func (s state) MarshalBinary() ([]byte, error) {
 
 func decodeState(r io.Reader) (state, error) {
 	st := state{}
+	br := bufio.NewReader(r)
 	for {
 		var s pb.MeshSilence
-		_, err := pbutil.ReadDelimited(r, &s)
+		err := protodelim.UnmarshalFrom(br, &s)
 		if err == nil {
 			if s.Silence == nil {
 				return nil, ErrInvalidState
 			}
+			postprocessUnmarshalledSilence(s.Silence)
 			st[s.Silence.Id] = &s
 			continue
 		}
@@ -1286,9 +1336,36 @@ func decodeState(r io.Reader) (state, error) {
 	return st, nil
 }
 
+// prepareSilenceForMarshalling prepares a silence for marshalling by copying
+// the first matcher set to the matchers field for backward compatibility with
+// older alertmanager versions.
+func prepareSilenceForMarshalling(sil *pb.Silence) {
+	if len(sil.MatcherSets) > 0 {
+		sil.Matchers = sil.MatcherSets[0].Matchers
+	}
+}
+
+// postprocessUnmarshalledSilence processes a silence after unmarshalling by
+// moving matchers to MatcherSets if needed for backward compatibility.
+func postprocessUnmarshalledSilence(sil *pb.Silence) {
+	// maintain compatibility with older versions of Alertmanager
+	// if the silence was serialized with the old format we need to move the matchers from sil.Matchers
+	// to sil.MatcherSets
+	if len(sil.MatcherSets) == 0 && len(sil.Matchers) > 0 {
+		sil.MatcherSets = append(sil.MatcherSets, &pb.MatcherSet{Matchers: sil.Matchers})
+	}
+	sil.Matchers = nil
+}
+
 func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
+	// Make a copy to avoid modifying the original silence
+	meshCopy := &pb.MeshSilence{
+		Silence:   cloneSilence(e.Silence),
+		ExpiresAt: e.ExpiresAt,
+	}
+	prepareSilenceForMarshalling(meshCopy.Silence)
 	var buf bytes.Buffer
-	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+	if _, err := protodelim.MarshalTo(&buf, meshCopy); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

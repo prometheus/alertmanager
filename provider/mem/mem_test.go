@@ -82,7 +82,7 @@ var (
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestDeadLock(t *testing.T) {
 
 	marker := types.NewMarker(prometheus.NewRegistry())
 	// Run gc every 5 milliseconds to increase the possibility of a deadlock with Subscribe()
-	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 5*time.Millisecond, 0, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestDeadLock(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestAlertsSubscribe(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 
 	ctx := t.Context()
-	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry())
+	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, noopCallback{}, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, 0, noopCallback{}, promslog.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func TestAlertsGC(t *testing.T) {
 	}
 
 	for _, a := range insert {
-		marker.SetActiveOrSilenced(a.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(a.Fingerprint(), nil)
 		marker.SetInhibited(a.Fingerprint())
 		if !marker.Active(a.Fingerprint()) {
 			t.Errorf("error setting status: %v", a)
@@ -366,7 +366,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	cb := &limitCountCallback{limit: 3}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, cb, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, 0, cb, promslog.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +427,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 
 func TestAlerts_CountByState(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, promslog.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, 0, nil, promslog.NewNopLogger(), nil, nil)
 	require.NoError(t, err)
 
 	countTotal := func() int {
@@ -477,7 +477,7 @@ func TestAlerts_CountByState(t *testing.T) {
 
 	// When insert an alert, and then silence it. It shows up with the correct filter.
 	alerts.Put(ctx, a2)
-	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	marker.SetActiveOrSilenced(a2.Fingerprint(), []string{"1"})
 	_, suppressed, _ := alerts.countByState()
 	require.Equal(t, 1, suppressed)
 	require.Equal(t, 1, countTotal())
@@ -516,8 +516,9 @@ func alertDiff(left, right *types.Alert) error {
 }
 
 type limitCountCallback struct {
-	alerts atomic.Int32
-	limit  int
+	alerts  atomic.Int32
+	gcCount atomic.Int32
+	limit   int
 }
 
 var errTooManyAlerts = fmt.Errorf("too many alerts")
@@ -537,6 +538,7 @@ func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
 func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
 	if !existing {
 		l.alerts.Add(1)
+		l.gcCount.Add(1)
 	}
 }
 
@@ -544,9 +546,13 @@ func (l *limitCountCallback) PostDelete(_ *types.Alert) {
 	l.alerts.Add(-1)
 }
 
+func (l *limitCountCallback) PostGC(fingerprints model.Fingerprints) {
+	l.gcCount.Add(-int32(fingerprints.Len()))
+}
+
 func TestAlertsConcurrently(t *testing.T) {
 	callback := &limitCountCallback{limit: 100}
-	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, callback, promslog.NewNopLogger(), nil)
+	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, 0, callback, promslog.NewNopLogger(), nil, nil)
 	require.NoError(t, err)
 
 	stopc := make(chan struct{})
@@ -558,10 +564,7 @@ func TestAlertsConcurrently(t *testing.T) {
 	expire := 10 * time.Millisecond
 	wg := sync.WaitGroup{}
 	for range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			j := 0
 			for {
 				select {
@@ -586,7 +589,7 @@ func TestAlertsConcurrently(t *testing.T) {
 				}
 				j++
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	select {
@@ -602,12 +605,13 @@ func TestAlertsConcurrently(t *testing.T) {
 		return active == 0
 	}, 2*expire, expire)
 	require.Equal(t, int32(0), callback.alerts.Load())
+	require.Equal(t, int32(0), callback.gcCount.Load())
 }
 
 func TestSubscriberChannelMetrics(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 	reg := prometheus.NewRegistry()
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, promslog.NewNopLogger(), reg)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), reg, nil)
 	require.NoError(t, err)
 
 	subscriberName := "test_subscriber"

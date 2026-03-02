@@ -1,0 +1,13 @@
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # use global
+      - channel: '#alerts1'
+        text: 'test'
+        send_resolved: true
+        # trying to use webhook urls with update_message
+        api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+        update_message: true
