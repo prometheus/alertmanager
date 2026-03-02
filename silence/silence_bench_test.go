@@ -302,7 +302,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	// Run things once to populate the matcherCache.
 	sils, _, err := s.Query(
 		b.Context(),
-		QState(types.SilenceStateActive),
+		QState(SilenceStateActive),
 		QMatches(lset),
 	)
 	require.NoError(b, err)
@@ -311,7 +311,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	for b.Loop() {
 		sils, _, err := s.Query(
 			b.Context(),
-			QState(types.SilenceStateActive),
+			QState(SilenceStateActive),
 			QMatches(lset),
 		)
 		require.NoError(b, err)
@@ -369,7 +369,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	// Verify initial query works
 	sils, _, err := s.Query(
 		b.Context(),
-		QState(types.SilenceStateActive),
+		QState(SilenceStateActive),
 		QMatches(lset),
 	)
 	require.NoError(b, err)
@@ -382,7 +382,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 		for pb.Next() {
 			sils, _, err := s.Query(
 				b.Context(),
-				QState(types.SilenceStateActive),
+				QState(SilenceStateActive),
 				QMatches(lset),
 			)
 			if err != nil {
@@ -486,7 +486,7 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 				// Query silences (the common operation)
 				_, _, err := s.Query(
 					b.Context(),
-					QState(types.SilenceStateActive),
+					QState(SilenceStateActive),
 					QMatches(lset),
 				)
 				if err != nil {

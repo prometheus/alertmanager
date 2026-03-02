@@ -1,4 +1,4 @@
-// Copyright 2018 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,12 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package asset provides the assets via a virtual filesystem.
-package asset
+package alert
 
-import (
-	// The blank import is to make go modules happy.
-	_ "github.com/shurcooL/vfsgen"
+// AlertState is used as part of AlertStatus.
+type AlertState string
+
+// Possible values for AlertState.
+const (
+	AlertStateUnprocessed AlertState = "unprocessed"
+	AlertStateActive      AlertState = "active"
+	AlertStateSuppressed  AlertState = "suppressed"
 )
-
-//go:generate go run -tags=dev asset_generate.go

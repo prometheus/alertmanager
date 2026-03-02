@@ -8,13 +8,6 @@ if ! [[ "$0" = "scripts/genproto.sh" ]]; then
   exit 255
 fi
 
-pushd "internal/tools" >/dev/null
-INSTALL_PKGS="github.com/bufbuild/buf/cmd/buf google.golang.org/protobuf/cmd/protoc-gen-go"
-for pkg in ${INSTALL_PKGS}; do
-  go install "$pkg"
-done
-popd >/dev/null
-
 echo "generating files"
-buf dep update
-buf generate
+go tool -modfile=internal/tools/go.mod buf dep update
+go tool -modfile=internal/tools/go.mod buf generate

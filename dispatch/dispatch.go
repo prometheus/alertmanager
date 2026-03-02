@@ -200,9 +200,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	defer it.Close()
 
 	// Start maintenance goroutine
-	d.finished.Add(1)
-	go func() {
-		defer d.finished.Done()
+	d.finished.Go(func() {
 		ticker := time.NewTicker(d.maintenanceInterval)
 		defer ticker.Stop()
 
@@ -214,12 +212,10 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				return
 			}
 		}
-	}()
+	})
 
 	// Start timer goroutine
-	d.finished.Add(1)
-	go func() {
-		defer d.finished.Done()
+	d.finished.Go(func() {
 		<-d.startTimer.C
 
 		if d.state.CompareAndSwap(DispatcherStateWaitingToStart, DispatcherStateRunning) {
@@ -232,7 +228,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				})
 			}
 		}
-	}()
+	})
 
 	// Start multiple alert ingestion goroutines
 	alertCh := it.Next()

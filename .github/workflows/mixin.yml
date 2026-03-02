@@ -14,7 +14,7 @@ jobs:
       - name: install Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       # pin the mixtool version until https://github.com/monitoring-mixins/mixtool/issues/135 is merged.
       - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@2282201396b69055bb0f92f187049027a16d2130
       - run: go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
