@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
@@ -141,7 +142,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), eventrecorder.NopRecorder(), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ctx := context.Background()
@@ -194,7 +195,7 @@ func TestAggrGroup(t *testing.T) {
 
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), eventrecorder.NopRecorder(), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(ctx, a1)
@@ -387,7 +388,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +396,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -538,7 +539,7 @@ route:
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,7 +549,7 @@ route:
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, reg)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, m)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, eventrecorder.NopRecorder(), m)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -660,7 +661,7 @@ func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +669,7 @@ func TestDispatcherRace(t *testing.T) {
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	route := &Route{}
-	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(time.Now())
 	dispatcher.Stop()
 }
@@ -679,7 +680,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,7 +698,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -733,7 +734,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
 	marker := types.NewMarker(r)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), r, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -750,7 +751,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 
 	ctx := context.Background()
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), NewDispatcherMetrics(false, r))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r))
 	// Manually create the routeAggrGroups structure since we are not calling Run().
 	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
 	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
@@ -759,7 +760,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), promslog.NewNopLogger())
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, types.NewMarker(prometheus.NewRegistry()), eventrecorder.NopRecorder(), promslog.NewNopLogger())
 	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 
 	// Add a resolved alert
@@ -818,7 +819,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
@@ -887,7 +888,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -941,7 +942,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, marker, logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -998,7 +999,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1022,7 +1023,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	now := time.Now()
 	startDelay := 2 * time.Second
 	startTime := time.Now().Add(startDelay)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
 	go dispatcher.Run(startTime)
 	defer dispatcher.Stop()
 

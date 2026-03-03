@@ -217,6 +217,15 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 	}
+
+	for i, out := range cfg.EventRecorder.Outputs {
+		if out.Type == "file" {
+			cfg.EventRecorder.Outputs[i].Path = join(out.Path)
+		}
+		if out.HTTPConfig != nil {
+			out.HTTPConfig.SetDirectory(baseDir)
+		}
+	}
 }
 
 // MuteTimeInterval represents a named set of time intervals for which a route should be muted.
@@ -268,8 +277,56 @@ type Config struct {
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
+	EventRecorder EventRecorderConfig `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
+
 	// original is the input from which the config was parsed.
 	original string
+}
+
+// EventRecorderConfig configures the event recorder feature.
+type EventRecorderConfig struct {
+	Outputs []EventRecorderOutput `yaml:"outputs,omitempty" json:"outputs,omitempty"`
+}
+
+// EventRecorderOutput configures a single event recorder output destination.
+type EventRecorderOutput struct {
+	Type       string                      `yaml:"type" json:"type"`
+	Path       string                      `yaml:"path,omitempty" json:"path,omitempty"`
+	URL        *amcommoncfg.SecretURL      `yaml:"url,omitempty" json:"url,omitempty"`
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	// Timeout for webhook HTTP requests (default 10s).
+	Timeout model.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	// Workers is the number of concurrent webhook delivery goroutines
+	// (default 4).  Only applicable to webhook outputs.
+	Workers int `yaml:"workers,omitempty" json:"workers,omitempty"`
+	// MaxRetries is the maximum number of delivery attempts per event
+	// (default 3).  Only applicable to webhook outputs.
+	MaxRetries int `yaml:"max_retries,omitempty" json:"max_retries,omitempty"`
+	// RetryBackoff is the base backoff duration between retry attempts
+	// (default 500ms).  Successive attempts use exponential backoff
+	// (base * 2^attempt).  Only applicable to webhook outputs.
+	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for EventRecorderOutput.
+func (o *EventRecorderOutput) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain EventRecorderOutput
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	switch o.Type {
+	case "file":
+		if o.Path == "" {
+			return errors.New("event_recorder file output requires a path")
+		}
+	case "webhook":
+		if o.URL == nil {
+			return errors.New("event_recorder webhook output requires a url")
+		}
+	default:
+		return fmt.Errorf("unknown event_recorder output type %q, must be \"file\" or \"webhook\"", o.Type)
+	}
+	return nil
 }
 
 func (c Config) String() string {

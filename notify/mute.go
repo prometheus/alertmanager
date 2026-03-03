@@ -93,6 +93,17 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*ty
 		)
 		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
 		logger.Debug("Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
+
+		// Record muted alert hashes in the context so downstream stages
+		// (e.g., the event recorder) can observe which alerts were muted.
+		mutedHashes, _ := MutedAlerts(ctx)
+		if mutedHashes == nil {
+			mutedHashes = make(map[uint64]struct{}, len(muted))
+		}
+		for _, a := range muted {
+			mutedHashes[hashAlert(a)] = struct{}{}
+		}
+		ctx = WithMutedAlerts(ctx, mutedHashes)
 	}
 
 	return ctx, filtered, nil
