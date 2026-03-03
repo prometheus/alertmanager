@@ -7,3 +7,5 @@ modules:
     name: prometheus/alertmanager/cluster
   - path: silence/silencepb
     name: prometheus/alertmanager/silence
+  - path: eventlog/eventlogpb
+    name: prometheus/alertmanager/eventlog

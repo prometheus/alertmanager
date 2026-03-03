@@ -220,6 +220,15 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 	}
+
+	for i, out := range cfg.EventLog.Outputs {
+		if out.Type == "file" {
+			cfg.EventLog.Outputs[i].Path = join(out.Path)
+		}
+		if out.HTTPConfig != nil {
+			out.HTTPConfig.SetDirectory(baseDir)
+		}
+	}
 }
 
 // MuteTimeInterval represents a named set of time intervals for which a route should be muted.
@@ -271,8 +280,46 @@ type Config struct {
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
+	EventLog EventLogConfig `yaml:"event_log,omitempty" json:"event_log,omitempty"`
+
 	// original is the input from which the config was parsed.
 	original string
+}
+
+// EventLogConfig configures the event log feature.
+type EventLogConfig struct {
+	Outputs []EventLogOutput `yaml:"outputs,omitempty" json:"outputs,omitempty"`
+}
+
+// EventLogOutput configures a single event log output destination.
+type EventLogOutput struct {
+	Type       string                      `yaml:"type" json:"type"`
+	Path       string                      `yaml:"path,omitempty" json:"path,omitempty"`
+	URL        *commoncfg.URL              `yaml:"url,omitempty" json:"url,omitempty"`
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	// Timeout for webhook HTTP requests (default 10s).
+	Timeout model.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for EventLogOutput.
+func (o *EventLogOutput) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain EventLogOutput
+	if err := unmarshal((*plain)(o)); err != nil {
+		return err
+	}
+	switch o.Type {
+	case "file":
+		if o.Path == "" {
+			return errors.New("event_log file output requires a path")
+		}
+	case "webhook":
+		if o.URL == nil {
+			return errors.New("event_log webhook output requires a url")
+		}
+	default:
+		return fmt.Errorf("unknown event_log output type %q, must be \"file\" or \"webhook\"", o.Type)
+	}
+	return nil
 }
 
 func (c Config) String() string {

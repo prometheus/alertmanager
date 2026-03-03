@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/eventlog"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -141,7 +142,7 @@ func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *rec
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventlog.NopRecorder(), reg, nil)
 	require.NoError(b, err)
 	b.Cleanup(func() { alerts.Close() })
 
@@ -149,7 +150,7 @@ func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *rec
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	metrics := NewDispatcherMetrics(false, reg)
 
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, metrics)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, eventlog.NopRecorder(), metrics)
 
 	return dispatcher, alerts, recorder
 }

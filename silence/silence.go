@@ -46,6 +46,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/eventlog"
+	"github.com/prometheus/alertmanager/eventlog/eventlogpb"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -147,20 +149,32 @@ type Silencer struct {
 	cache    *cache
 	marker   types.AlertMarker
 	logger   *slog.Logger
+	recorder eventlog.Recorder
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger, recorder eventlog.Recorder) *Silencer {
 	return &Silencer{
 		silences: silences,
 		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
 		marker:   marker,
 		logger:   logger,
+		recorder: recorder,
 	}
 }
 
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
+	return s.mutes(ctx, lset, s.recorder)
+}
+
+// MutesNoRecord returns true iff the given label set is muted without recording events.
+func (s *Silencer) MutesNoRecord(ctx context.Context, lset model.LabelSet) bool {
+	return s.mutes(ctx, lset, eventlog.NopRecorder())
+}
+
+// mutes is the internal implementation that takes an event recorder parameter.
+func (s *Silencer) mutes(ctx context.Context, lset model.LabelSet, recorder eventlog.Recorder) bool {
 	fp := lset.Fingerprint()
 	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
 		trace.WithAttributes(
@@ -273,6 +287,18 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
+
+				recorder.RecordEvent(&eventlogpb.EventData{
+					EventType: &eventlogpb.EventData_SilenceMutedAlert{
+						SilenceMutedAlert: &eventlogpb.SilenceMutedAlertEvent{
+							Silence: s.silences.convertSilenceForEvent(sil),
+							MutedAlert: &eventlogpb.MutedAlert{
+								Fingerprint: uint64(fp),
+								Labels:      eventlog.LabelSetAsProto(lset),
+							},
+						},
+					},
+				})
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -331,6 +357,7 @@ type Silences struct {
 	broadcast func([]byte)
 	mi        matcherIndex
 	vi        versionIndex
+	recorder  eventlog.Recorder
 }
 
 // Limits contains the limits for silences.
@@ -490,6 +517,9 @@ type Options struct {
 	// A logger used by background processing.
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
+
+	// EventRecorder records silence-related events to the event log.
+	EventRecorder eventlog.Recorder
 }
 
 func (o *Options) validate() error {
@@ -514,6 +544,7 @@ func New(o Options) (*Silences, error) {
 		limits:    o.Limits,
 		broadcast: func([]byte) {},
 		st:        state{},
+		recorder:  o.EventRecorder,
 	}
 	if o.Metrics == nil {
 		return nil, errors.New("Options.Metrics is nil")
@@ -811,9 +842,90 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
 	if added {
 		s.indexSilence(msil.Silence)
 		s.updateSizeMetrics()
+
+		s.recorder.RecordEvent(&eventlogpb.EventData{
+			EventType: &eventlogpb.EventData_SilenceCreated{
+				SilenceCreated: &eventlogpb.SilenceCreatedEvent{
+					Silence: s.convertSilenceForEvent(msil.Silence),
+				},
+			},
+		})
 	}
 	s.broadcast(b)
 	return nil
+}
+
+func convertMatcherType(t pb.Matcher_Type) eventlogpb.Matcher_Type {
+	switch t {
+	case pb.Matcher_EQUAL:
+		return eventlogpb.Matcher_TYPE_EQUAL
+	case pb.Matcher_REGEXP:
+		return eventlogpb.Matcher_TYPE_REGEXP
+	case pb.Matcher_NOT_EQUAL:
+		return eventlogpb.Matcher_TYPE_NOT_EQUAL
+	case pb.Matcher_NOT_REGEXP:
+		return eventlogpb.Matcher_TYPE_NOT_REGEXP
+	default:
+		return eventlogpb.Matcher_TYPE_UNSPECIFIED
+	}
+}
+
+func renderMatcher(m *pb.Matcher) string {
+	var matchType labels.MatchType
+	switch m.Type {
+	case pb.Matcher_EQUAL:
+		matchType = labels.MatchEqual
+	case pb.Matcher_NOT_EQUAL:
+		matchType = labels.MatchNotEqual
+	case pb.Matcher_REGEXP:
+		matchType = labels.MatchRegexp
+	case pb.Matcher_NOT_REGEXP:
+		matchType = labels.MatchNotRegexp
+	default:
+		matchType = labels.MatchEqual
+	}
+	labelsMatcher, err := labels.NewMatcher(matchType, m.Name, m.Pattern)
+	if err != nil {
+		// NewMatcher returns an error when the pattern fails to
+		// compile as a regex.  Return empty since there is no
+		// meaningful rendering of an invalid matcher.
+		return ""
+	}
+	return labelsMatcher.String()
+}
+
+func (s *Silences) convertSilenceForEvent(sil *pb.Silence) *eventlogpb.Silence {
+	matcherSets := make([]*eventlogpb.MatcherSet, len(sil.MatcherSets))
+	for i, ms := range sil.MatcherSets {
+		matcherSet := &eventlogpb.MatcherSet{
+			Matchers: make([]*eventlogpb.Matcher, len(ms.Matchers)),
+		}
+		for j, m := range ms.Matchers {
+			matcherSet.Matchers[j] = &eventlogpb.Matcher{
+				Type:     convertMatcherType(m.Type),
+				Name:     m.Name,
+				Pattern:  m.Pattern,
+				Rendered: renderMatcher(m),
+			}
+		}
+		matcherSets[i] = matcherSet
+	}
+
+	var matchers []*eventlogpb.Matcher
+	if len(matcherSets) > 0 {
+		matchers = matcherSets[0].Matchers
+	}
+
+	return &eventlogpb.Silence{
+		Id:          sil.Id,
+		Matchers:    matchers,
+		MatcherSets: matcherSets,
+		StartsAt:    sil.StartsAt,
+		EndsAt:      sil.EndsAt,
+		UpdatedAt:   sil.UpdatedAt,
+		CreatedBy:   sil.CreatedBy,
+		Comment:     sil.Comment,
+	}
 }
 
 // Set the specified silence. If a silence with the ID already exists and the modification
@@ -845,7 +957,17 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
 		}
-		return s.setSilence(msil, now)
+		if err := s.setSilence(msil, now); err != nil {
+			return err
+		}
+		s.recorder.RecordEvent(&eventlogpb.EventData{
+			EventType: &eventlogpb.EventData_SilenceUpdated{
+				SilenceUpdated: &eventlogpb.SilenceUpdatedEvent{
+					Silence: s.convertSilenceForEvent(sil),
+				},
+			},
+		})
+		return nil
 	}
 
 	// If we got here it's either a new silence or a replacing one (which would
