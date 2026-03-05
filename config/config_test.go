@@ -1138,6 +1138,16 @@ func TestSlackBothAppTokenAndAPIURL(t *testing.T) {
 	}
 }
 
+func TestSlackUpdateMessageWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-update-message-and-webhook.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
+	}
+	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
+		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
@@ -1405,6 +1415,13 @@ func TestUnmarshalHostPort(t *testing.T) {
 		{
 			in:  `"localhost:"`,
 			err: true,
+		},
+		{
+			in:  `"[fd12:3456:789a::1]:25"`,
+			exp: HostPort{Host: "fd12:3456:789a::1", Port: "25"},
+			yamlOut: `'[fd12:3456:789a::1]:25'
+`,
+			jsonOut: `"[fd12:3456:789a::1]:25"`,
 		},
 	} {
 		t.Run(tc.in, func(t *testing.T) {

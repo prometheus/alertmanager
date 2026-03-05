@@ -79,51 +79,47 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 		return nil, nil
 	}
 
-	err := &types.MultiError{}
+	var errs error
 	for mech := range strings.SplitSeq(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
 			secret, secretErr := n.getAuthSecret()
 			if secretErr != nil {
-				err.Add(secretErr)
+				errs = errors.Join(errs, secretErr)
 				continue
 			}
 			if secret == "" {
-				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
 			}
 			return smtp.CRAMMD5Auth(username, secret), nil
-
 		case "PLAIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for PLAIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for PLAIN auth mechanism"))
 				continue
 			}
-			identity := n.conf.AuthIdentity
-
-			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
+			return smtp.PlainAuth(n.conf.AuthIdentity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for LOGIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for LOGIN auth mechanism"))
 				continue
 			}
 			return LoginAuth(username, password), nil
+		default:
+			errs = errors.Join(errs, errors.New("unknown auth mechanism: "+mech))
 		}
 	}
-	if err.Len() == 0 {
-		err.Add(errors.New("unknown auth mechanism: " + mechs))
-	}
-	return nil, err
+	return nil, errs
 }
 
 // Notify implements the Notifier interface.

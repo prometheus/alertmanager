@@ -38,7 +38,7 @@ jobs:
     # should also be updated.
     container:
 
-      image: quay.io/prometheus/golang-builder:1.25-base
+      image: quay.io/prometheus/golang-builder:1.26-base
     services:
       maildev-noauth:
         image: maildev/maildev:2.2.1

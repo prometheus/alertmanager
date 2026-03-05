@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -536,28 +536,28 @@ func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.
 type FanoutStage []Stage
 
 // Exec attempts to execute all stages concurrently and discards the results.
-// It returns its input alerts and a types.MultiError if one or more stages fail.
+// It returns its input alerts and an error if one or more stages fail.
 func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var (
-		wg sync.WaitGroup
-		me types.MultiError
+		wg   sync.WaitGroup
+		mtx  sync.Mutex
+		errs error
 	)
 	wg.Add(len(fs))
 
 	for _, s := range fs {
 		go func(s Stage) {
 			if _, _, err := s.Exec(ctx, l, alerts...); err != nil {
-				me.Add(err)
+				mtx.Lock()
+				errs = errors.Join(errs, err)
+				mtx.Unlock()
 			}
 			wg.Done()
 		}(s)
 	}
 	wg.Wait()
 
-	if me.Len() > 0 {
-		return ctx, alerts, &me
-	}
-	return ctx, alerts, nil
+	return ctx, alerts, errs
 }
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
@@ -585,61 +585,6 @@ const (
 	SuppressedReasonMuteTimeInterval   = "mute_time_interval"
 	SuppressedReasonActiveTimeInterval = "active_time_interval"
 )
-
-// MuteStage filters alerts through a Muter.
-type MuteStage struct {
-	muter   types.Muter
-	metrics *Metrics
-}
-
-// NewMuteStage return a new MuteStage.
-func NewMuteStage(m types.Muter, metrics *Metrics) *MuteStage {
-	return &MuteStage{muter: m, metrics: metrics}
-}
-
-// Exec implements the Stage interface.
-func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	ctx, span := tracer.Start(ctx, "notify.MuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	var (
-		filtered []*types.Alert
-		muted    []*types.Alert
-	)
-	for _, a := range alerts {
-		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if muted.
-		if n.muter.Mutes(ctx, a.Labels) {
-			muted = append(muted, a)
-		} else {
-			filtered = append(filtered, a)
-		}
-		// TODO(fabxc): increment muted alerts counter if muted.
-	}
-	if len(muted) > 0 {
-
-		var reason string
-		switch n.muter.(type) {
-		case *silence.Silencer:
-			reason = SuppressedReasonSilence
-		case *inhibit.Inhibitor:
-			reason = SuppressedReasonInhibition
-		default:
-		}
-		span.SetAttributes(
-			attribute.Int("alerting.alerts.muted.count", len(muted)),
-			attribute.Int("alerting.alerts.filtered.count", len(filtered)),
-			attribute.String("alerting.suppressed.reason", reason),
-		)
-		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
-		logger.Debug("Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
-	}
-
-	return ctx, filtered, nil
-}
 
 // WaitStage waits for a certain amount of time before continuing or until the
 // context is done.
@@ -1079,140 +1024,4 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*t
 	// Extract receiver data from context if present (it's ok for it to be nil).
 	store, _ := NflogStore(ctx)
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, store, expiry)
-}
-
-type timeStage struct {
-	muter   types.TimeMuter
-	marker  types.GroupMarker
-	metrics *Metrics
-}
-
-type TimeMuteStage timeStage
-
-func NewTimeMuteStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeMuteStage {
-	return &TimeMuteStage{muter, marker, metrics}
-}
-
-// Exec implements the stage interface for TimeMuteStage.
-// TimeMuteStage is responsible for muting alerts whose route is not in an active time.
-func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	ctx, span := tracer.Start(ctx, "notify.TimeMuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	routeID, ok := RouteID(ctx)
-	if !ok {
-		err := errors.New("route ID missing")
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-		return ctx, nil, err
-	}
-	span.SetAttributes(attribute.String("alerting.route.id", routeID))
-
-	gkey, ok := GroupKey(ctx)
-	if !ok {
-		return ctx, nil, errors.New("group key missing")
-	}
-	span.SetAttributes(attribute.String("alerting.group.key", gkey))
-
-	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
-	if !ok {
-		return ctx, alerts, nil
-	}
-	now, ok := Now(ctx)
-	if !ok {
-		return ctx, alerts, errors.New("missing now timestamp")
-	}
-
-	// Skip this stage if there are no mute timings.
-	if len(muteTimeIntervalNames) == 0 {
-		return ctx, alerts, nil
-	}
-
-	muted, mutedBy, err := tms.muter.Mutes(muteTimeIntervalNames, now)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-		return ctx, alerts, err
-	}
-	// If muted is false then mutedBy is nil and the muted marker is removed.
-	tms.marker.SetMuted(routeID, gkey, mutedBy)
-
-	// If the current time is inside a mute time, all alerts are removed from the pipeline.
-	if muted {
-		tms.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonMuteTimeInterval).Add(float64(len(alerts)))
-		l.Debug("Notifications not sent, route is within mute time", "alerts", len(alerts))
-		span.AddEvent("notify.TimeMuteStage.Exec muted the alerts")
-		return ctx, nil, nil
-	}
-
-	return ctx, alerts, nil
-}
-
-type TimeActiveStage timeStage
-
-func NewTimeActiveStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeActiveStage {
-	return &TimeActiveStage{muter, marker, metrics}
-}
-
-// Exec implements the stage interface for TimeActiveStage.
-// TimeActiveStage is responsible for muting alerts whose route is not in an active time.
-func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	routeID, ok := RouteID(ctx)
-	if !ok {
-		return ctx, nil, errors.New("route ID missing")
-	}
-
-	ctx, span := tracer.Start(ctx, "notify.TimeActiveStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.route.id", routeID)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
-
-	gkey, ok := GroupKey(ctx)
-	if !ok {
-		return ctx, nil, errors.New("group key missing")
-	}
-
-	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
-	if !ok {
-		return ctx, alerts, nil
-	}
-
-	// if we don't have active time intervals at all it is always active.
-	if len(activeTimeIntervalNames) == 0 {
-		return ctx, alerts, nil
-	}
-
-	now, ok := Now(ctx)
-	if !ok {
-		return ctx, alerts, errors.New("missing now timestamp")
-	}
-
-	active, _, err := tas.muter.Mutes(activeTimeIntervalNames, now)
-	if err != nil {
-		return ctx, alerts, err
-	}
-
-	var mutedBy []string
-	if !active {
-		// If the group is muted, then it must be muted by all active time intervals.
-		// Otherwise, the group must be in at least one active time interval for it
-		// to be active.
-		mutedBy = activeTimeIntervalNames
-	}
-	tas.marker.SetMuted(routeID, gkey, mutedBy)
-
-	// If the current time is not inside an active time, all alerts are removed from the pipeline
-	if !active {
-		span.AddEvent("notify.TimeActiveStage.Exec not active, removing all alerts")
-		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
-		l.Debug("Notifications not sent, route is not within active time", "alerts", len(alerts))
-		return ctx, nil, nil
-	}
-
-	return ctx, alerts, nil
 }

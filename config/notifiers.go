@@ -223,7 +223,12 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Text: `{{ template "mattermost.default.text" . }}`,
+		Username:  `{{ template "mattermost.default.username" . }}`,
+		Color:     `{{ template "mattermost.default.color" . }}`,
+		Text:      `{{ template "mattermost.default.text" . }}`,
+		Title:     `{{ template "mattermost.default.title" . }}`,
+		TitleLink: `{{ template "mattermost.default.titlelink" . }}`,
+		Fallback:  `{{ template "mattermost.default.fallback" . }}`,
 	}
 )
 
@@ -558,6 +563,11 @@ type SlackConfig struct {
 	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+
+	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
+	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
+
+	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -579,6 +589,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if (c.APIURL != nil || len(c.APIURLFile) > 0) && (c.AppToken != "" || len(c.AppTokenFile) > 0) {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
+	}
+
+	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
+		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 	}
 
 	return nil
@@ -653,7 +667,8 @@ type WebhookConfig struct {
 
 	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
 	// does not impose a timeout.
-	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+	Timeout time.Duration  `yaml:"timeout" json:"timeout"`
+	Payload map[string]any `yaml:"payload,omitempty" json:"payload,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -1224,6 +1239,19 @@ type MattermostConfig struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
 	Text        string                  `yaml:"text,omitempty" json:"text,omitempty"`
+	Fallback    string                  `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	Color       string                  `yaml:"color,omitempty" json:"color,omitempty"`
+	Pretext     string                  `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	AuthorName  string                  `yaml:"author_name,omitempty" json:"author_name,omitempty"`
+	AuthorLink  string                  `yaml:"author_link,omitempty" json:"author_link,omitempty"`
+	AuthorIcon  string                  `yaml:"author_icon,omitempty" json:"author_icon,omitempty"`
+	Title       string                  `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string                  `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Fields      []*MattermostField      `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ThumbURL    string                  `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
+	Footer      string                  `yaml:"footer,omitempty" json:"footer,omitempty"`
+	FooterIcon  string                  `yaml:"footer_icon,omitempty" json:"footer_icon,omitempty"`
+	ImageURL    string                  `yaml:"image_url,omitempty" json:"image_url,omitempty"`
 	IconURL     string                  `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 	IconEmoji   string                  `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	Attachments []*MattermostAttachment `yaml:"attachments,omitempty" json:"attachments,omitempty"`

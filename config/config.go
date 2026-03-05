@@ -789,7 +789,7 @@ func (hp HostPort) String() string {
 	if hp.Host == "" && hp.Port == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s:%s", hp.Host, hp.Port)
+	return net.JoinHostPort(hp.Host, hp.Port)
 }
 
 // GlobalConfig defines configuration parameters that are valid globally

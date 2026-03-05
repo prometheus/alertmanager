@@ -33,11 +33,7 @@ build: common-build
 lint: common-lint
 
 .PHONY: assets
-assets: asset/assets_vfsdata.go
-
-asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
-	$(GO) generate $(GOOPTS) ./asset
-	@$(GOFMT) -w ./asset
+assets: ui/app/script.js template/email.tmpl
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
@@ -58,7 +54,6 @@ fuzz-config:
 
 .PHONY: clean
 clean:
-	- @rm -rf asset/assets_vfsdata.go \
-                  template/email.tmpl \
+	- @rm -rf template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean

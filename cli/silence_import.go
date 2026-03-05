@@ -115,11 +115,9 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 	}
 	defer closeChannels()
 	for w := 0; w < c.workers; w++ {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			addSilenceWorker(ctx, amclient.Silence, silencec, errc)
-			wg.Done()
-		}()
+		})
 	}
 
 	errCount := 0
