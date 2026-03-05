@@ -201,7 +201,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		oldSils, _, err = s.silences.Query(
 			ctx,
 			QIDs(cachedEntry.silenceIDs...),
-			QState(types.SilenceStateActive, types.SilenceStatePending),
+			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
@@ -222,7 +222,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		newSils, newVersion, err = s.silences.Query(
 			ctx,
 			QSince(cachedEntry.version),
-			QState(types.SilenceStateActive, types.SilenceStatePending),
+			QState(SilenceStateActive, SilenceStatePending),
 			QMatches(lset),
 		)
 		if err != nil {
@@ -268,9 +268,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			}
 			seen[sil.Id] = struct{}{}
 			switch getState(sil, now) {
-			case types.SilenceStatePending:
+			case SilenceStatePending:
 				allIDs = append(allIDs, sil.Id)
-			case types.SilenceStateActive:
+			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
 			default:
@@ -309,8 +309,11 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 // The following methods implement mem.AlertStoreCallback.
 func (s *Silencer) PreStore(_ *types.Alert, _ bool) error { return nil }
 func (s *Silencer) PostStore(_ *types.Alert, _ bool)      {}
-func (s *Silencer) PostDelete(alert *types.Alert) {
-	s.cache.delete(alert.Fingerprint())
+func (s *Silencer) PostDelete(alert *types.Alert)         {}
+func (s *Silencer) PostGC(ff model.Fingerprints) {
+	for _, fp := range ff {
+		s.cache.delete(fp)
+	}
 }
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
@@ -367,7 +370,7 @@ type metrics struct {
 	matcherCompileLoadSnapshotErrorsTotal prometheus.Counter
 }
 
-func newSilenceMetricByState(r prometheus.Registerer, s *Silences, st types.SilenceState) prometheus.GaugeFunc {
+func newSilenceMetricByState(r prometheus.Registerer, s *Silences, st SilenceState) prometheus.GaugeFunc {
 	return promauto.With(r).NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name:        "alertmanager_silences",
@@ -451,9 +454,9 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Help: "Number of received gossip messages that have been further gossiped.",
 	})
 	if s != nil {
-		m.silencesActive = newSilenceMetricByState(r, s, types.SilenceStateActive)
-		m.silencesPending = newSilenceMetricByState(r, s, types.SilenceStatePending)
-		m.silencesExpired = newSilenceMetricByState(r, s, types.SilenceStateExpired)
+		m.silencesActive = newSilenceMetricByState(r, s, SilenceStateActive)
+		m.silencesPending = newSilenceMetricByState(r, s, SilenceStatePending)
+		m.silencesExpired = newSilenceMetricByState(r, s, SilenceStateExpired)
 		m.stateSize = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 			Name: "alertmanager_silences_state_size",
 			Help: "The number of silences in the state map.",
@@ -870,7 +873,7 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		return err
 	}
 
-	if ok && getState(prev, s.nowUTC()) != types.SilenceStateExpired {
+	if ok && getState(prev, s.nowUTC()) != SilenceStateExpired {
 		// We cannot update the silence, expire the old one to leave a history of
 		// the silence before modification.
 		if err := s.expire(prev.Id); err != nil {
@@ -891,18 +894,18 @@ func canUpdate(a, b *pb.Silence, now time.Time) bool {
 	}
 	// Allowed timestamp modifications depend on the current time.
 	switch st := getState(a, now); st {
-	case types.SilenceStateActive:
+	case SilenceStateActive:
 		if a.StartsAt.AsTime().Unix() != b.StartsAt.AsTime().Unix() {
 			return false
 		}
 		if b.EndsAt.AsTime().Before(now) {
 			return false
 		}
-	case types.SilenceStatePending:
+	case SilenceStatePending:
 		if b.StartsAt.AsTime().Before(now) {
 			return false
 		}
-	case types.SilenceStateExpired:
+	case SilenceStateExpired:
 		return false
 	default:
 		panic("unknown silence state")
@@ -935,11 +938,11 @@ func (s *Silences) expire(id string) error {
 	now := s.nowUTC()
 
 	switch getState(sil, now) {
-	case types.SilenceStateExpired:
+	case SilenceStateExpired:
 		return nil
-	case types.SilenceStateActive:
+	case SilenceStateActive:
 		sil.EndsAt = timestamppb.New(now)
-	case types.SilenceStatePending:
+	case SilenceStatePending:
 		// Set both to now to make Silence move to "expired" state
 		sil.StartsAt = timestamppb.New(now)
 		sil.EndsAt = timestamppb.New(now)
@@ -1004,18 +1007,18 @@ func QMatches(set model.LabelSet) QueryParam {
 }
 
 // getState returns a silence's SilenceState at the given timestamp.
-func getState(sil *pb.Silence, ts time.Time) types.SilenceState {
+func getState(sil *pb.Silence, ts time.Time) SilenceState {
 	if ts.Before(sil.StartsAt.AsTime()) {
-		return types.SilenceStatePending
+		return SilenceStatePending
 	}
 	if ts.After(sil.EndsAt.AsTime()) {
-		return types.SilenceStateExpired
+		return SilenceStateExpired
 	}
-	return types.SilenceStateActive
+	return SilenceStateActive
 }
 
 // QState filters queried silences by the given states.
-func QState(states ...types.SilenceState) QueryParam {
+func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, _ *Silences, now time.Time) (bool, error) {
 			s := getState(sil, now)
@@ -1079,7 +1082,7 @@ func (s *Silences) Version() int {
 }
 
 // CountState counts silences by state.
-func (s *Silences) CountState(ctx context.Context, states ...types.SilenceState) (int, error) {
+func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int, error) {
 	_, span := tracer.Start(ctx, "silence.Silences.CountState",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

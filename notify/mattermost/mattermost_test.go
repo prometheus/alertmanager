@@ -29,6 +29,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -40,7 +42,7 @@ var testWebhookURL, _ = url.Parse("https://mattermost.example.com/hooks/xxxxxxxx
 func TestMattermostRetry(t *testing.T) {
 	notifier, err := New(
 		&config.MattermostConfig{
-			WebhookURL: &config.SecretURL{URL: testWebhookURL},
+			WebhookURL: &amcommoncfg.SecretURL{URL: testWebhookURL},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -88,7 +90,7 @@ func TestMattermostTemplating(t *testing.T) {
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
-			tc.cfg.WebhookURL = &config.SecretURL{URL: u}
+			tc.cfg.WebhookURL = &amcommoncfg.SecretURL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
@@ -125,7 +127,7 @@ func TestMattermostRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.MattermostConfig{
-			WebhookURL: &config.SecretURL{URL: u},
+			WebhookURL: &amcommoncfg.SecretURL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -206,33 +208,33 @@ func TestMattermost_Notify(t *testing.T) {
 		{
 			name:   "with text only",
 			text:   "Test Text",
-			result: "{\"text\":\"Test Text\"}\n",
+			result: "{\"attachments\":[{\"text\":\"Test Text\"}]}\n",
 		},
 		{
 			name:     "with text and props",
 			text:     "Test Text",
 			props:    &config.MattermostProps{Card: "Test Card"},
 			priority: nil,
-			result:   "{\"text\":\"Test Text\",\"props\":{\"card\":\"Test Card\"}}\n",
+			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"props\":{\"card\":\"Test Card\"}}\n",
 		},
 		{
 			name:     "with text and priority standard",
 			text:     "Test Text",
 			props:    nil,
 			priority: &config.MattermostPriority{Priority: "standard", RequestedAck: true, PersistentNotifications: true},
-			result:   "{\"text\":\"Test Text\",\"priority\":{\"priority\":\"standard\"}}\n",
+			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"priority\":{\"priority\":\"standard\"}}\n",
 		},
 		{
 			name:     "with text, props and priority",
 			text:     "Test Text",
 			props:    &config.MattermostProps{Card: "Test Card"},
 			priority: &config.MattermostPriority{Priority: "urgent"},
-			result:   "{\"text\":\"Test Text\",\"props\":{\"card\":\"Test Card\"},\"priority\":{\"priority\":\"urgent\"}}\n",
+			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"props\":{\"card\":\"Test Card\"},\"priority\":{\"priority\":\"urgent\"}}\n",
 		},
 		{
 			name:   "with empty text - should omit text field",
 			text:   "",
-			result: "{}\n",
+			result: "{\"attachments\":[{}]}\n",
 		},
 		{
 			name: "with empty text and attachments - should omit text field",
@@ -244,6 +246,17 @@ func TestMattermost_Notify(t *testing.T) {
 				},
 			},
 			result: "{\"attachments\":[{\"text\":\"Attachment Text\",\"title\":\"Test Attachment\"}]}\n",
+		},
+		{
+			name: "with text and attachments",
+			text: "Test Text",
+			attachments: []*config.MattermostAttachment{
+				{
+					Title: "Test Attachment",
+					Text:  "Attachment Text",
+				},
+			},
+			result: "{\"text\":\"Test Text\",\"attachments\":[{\"text\":\"Attachment Text\",\"title\":\"Test Attachment\"}]}\n",
 		},
 	}
 

@@ -603,3 +603,21 @@ receivers:
 		require.Equal(t, tc.body, string(body))
 	}
 }
+
+func TestPostSilences_QuotedMatchers(t *testing.T) {
+	// This test ensures that quoted values in matchers are preserved during JSON unmarshalling
+	jsonBlob := `{"comment":"foo", "createdBy": "author", "startsAt":"2023-03-06T00:22:15Z", "endsAt":"2024-03-06T00:22:15Z", "matchers":[{"isRegex":true, "name":"instance", "value":"\"bar\""}]}`
+
+	var ps open_api_models.PostableSilence
+	err := json.Unmarshal([]byte(jsonBlob), &ps)
+	require.NoError(t, err)
+
+	require.Len(t, ps.Matchers, 1)
+	require.Equal(t, "\"bar\"", *ps.Matchers[0].Value)
+
+	silProto, err := PostableSilenceToProto(&ps)
+	require.NoError(t, err)
+	require.Len(t, silProto.MatcherSets, 1)
+	require.Len(t, silProto.MatcherSets[0].Matchers, 1)
+	require.Equal(t, "\"bar\"", silProto.MatcherSets[0].Matchers[0].Pattern)
+}

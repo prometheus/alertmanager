@@ -15,7 +15,7 @@ package config
 
 import (
 	"encoding/json"
-	"net/url"
+	"fmt"
 	"os"
 	"reflect"
 	"regexp"
@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
@@ -537,202 +538,6 @@ func TestJSONMarshal(t *testing.T) {
 	}
 }
 
-func TestJSONMarshalHideSecretURL(t *testing.T) {
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &SecretURL{urlp}
-
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// u003c -> "<"
-	// u003e -> ">"
-	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
-	// Check that the marshaled data can be unmarshaled again.
-	out := &SecretURL{}
-	err = json.Unmarshal(c, out)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	c, err = yaml.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
-	// Check that the marshaled data can be unmarshaled again.
-	out = &SecretURL{}
-	err = yaml.Unmarshal(c, &out)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestUnmarshalSecretURL(t *testing.T) {
-	b := []byte(`"http://example.com/se cret"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in JSON.")
-
-	err = yaml.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
-}
-
-func TestHideSecretURL(t *testing.T) {
-	b := []byte(`"://wrongurl/"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	require.Error(t, err)
-	require.NotContains(t, err.Error(), "wrongurl")
-}
-
-func TestShowMarshalSecretURL(t *testing.T) {
-	commoncfg.MarshalSecretValue = true
-	defer func() { commoncfg.MarshalSecretValue = false }()
-
-	b := []byte(`"://wrongurl/"`)
-	var u SecretURL
-
-	err := json.Unmarshal(b, &u)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "wrongurl")
-}
-
-func TestMarshalURL(t *testing.T) {
-	for name, tc := range map[string]struct {
-		input        *URL
-		expectedJSON string
-		expectedYAML string
-	}{
-		"url": {
-			input:        mustParseURL("http://example.com/"),
-			expectedJSON: "\"http://example.com/\"",
-			expectedYAML: "http://example.com/\n",
-		},
-
-		"wrapped nil value": {
-			input:        &URL{},
-			expectedJSON: "null",
-			expectedYAML: "null\n",
-		},
-
-		"wrapped empty URL": {
-			input:        &URL{&url.URL{}},
-			expectedJSON: "\"\"",
-			expectedYAML: "\"\"\n",
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			j, err := json.Marshal(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
-
-			y, err := yaml.Marshal(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
-		})
-	}
-}
-
-func TestUnmarshalNilURL(t *testing.T) {
-	b := []byte(`null`)
-
-	{
-		var u URL
-		err := json.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-	}
-
-	{
-		var u URL
-		err := yaml.Unmarshal(b, &u)
-		require.NoError(t, err)
-	}
-}
-
-func TestUnmarshalEmptyURL(t *testing.T) {
-	b := []byte(`""`)
-
-	{
-		var u URL
-		err := json.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-		require.Equal(t, (*url.URL)(nil), u.URL)
-	}
-
-	{
-		var u URL
-		err := yaml.Unmarshal(b, &u)
-		require.Error(t, err, "unsupported scheme \"\" for URL")
-		require.Equal(t, (*url.URL)(nil), u.URL)
-	}
-}
-
-func TestUnmarshalURL(t *testing.T) {
-	b := []byte(`"http://example.com/a b"`)
-	var u URL
-
-	err := json.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in JSON.")
-
-	err = yaml.Unmarshal(b, &u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in YAML.")
-}
-
-func TestUnmarshalInvalidURL(t *testing.T) {
-	for _, b := range [][]byte{
-		[]byte(`"://example.com"`),
-		[]byte(`"http:example.com"`),
-		[]byte(`"telnet://example.com"`),
-	} {
-		var u URL
-
-		err := json.Unmarshal(b, &u)
-		if err == nil {
-			t.Errorf("Expected an error unmarshaling %q from JSON", string(b))
-		}
-
-		err = yaml.Unmarshal(b, &u)
-		if err == nil {
-			t.Errorf("Expected an error unmarshaling %q from YAML", string(b))
-		}
-		t.Logf("%s", err)
-	}
-}
-
-func TestUnmarshalRelativeURL(t *testing.T) {
-	b := []byte(`"/home"`)
-	var u URL
-
-	err := json.Unmarshal(b, &u)
-	if err == nil {
-		t.Errorf("Expected an error parsing URL")
-	}
-
-	err = yaml.Unmarshal(b, &u)
-	if err == nil {
-		t.Errorf("Expected an error parsing URL")
-	}
-}
-
 func TestMarshalRegexpWithNilValue(t *testing.T) {
 	r := &Regexp{}
 
@@ -868,16 +673,16 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPTLSConfig: &commoncfg.TLSConfig{
 				InsecureSkipVerify: false,
 			},
-			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			SlackAppURL:      mustParseURL("https://slack.com/api/chat.postMessage"),
+			SlackAPIURL:      (*amcommoncfg.SecretURL)(amcommoncfg.MustParseURL("http://slack.example.com/")),
+			SlackAppURL:      amcommoncfg.MustParseURL("https://slack.com/api/chat.postMessage"),
 			SMTPRequireTLS:   true,
-			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-			TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
-			WebexAPIURL:      mustParseURL("https://webexapis.com/v1/messages"),
-			RocketchatAPIURL: mustParseURL("https://open.rocket.chat/"),
+			PagerdutyURL:     amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:   amcommoncfg.MustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:     amcommoncfg.MustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL:  amcommoncfg.MustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
+			WebexAPIURL:      amcommoncfg.MustParseURL("https://webexapis.com/v1/messages"),
+			RocketchatAPIURL: amcommoncfg.MustParseURL("https://open.rocket.chat/"),
 		},
 
 		Templates: []string{
@@ -948,6 +753,105 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	if !reflect.DeepEqual(configGot, configExp) {
 		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
+	}
+}
+
+func TestEmptyConfigOfIntegration(t *testing.T) {
+	baseConfigTmpl := `
+global:
+route:
+  receiver: 'test-receiver'
+receivers:
+- name: 'test-receiver'
+  %s:
+  -
+`
+
+	tests := []struct {
+		integration string // The key name in YAML (e.g., webhook_configs)
+		expectedErr string // The unique error message expected for this integration
+	}{
+		{
+			integration: "discord_configs",
+			expectedErr: "missing discord config",
+		},
+		{
+			integration: "email_configs",
+			expectedErr: "missing email config",
+		},
+		{
+			integration: "incidentio_configs",
+			expectedErr: "missing incidentio config",
+		},
+		{
+			integration: "pagerduty_configs",
+			expectedErr: "missing pagerduty config",
+		},
+		{
+			integration: "webhook_configs",
+			expectedErr: "missing webhook config",
+		},
+		{
+			integration: "pushover_configs",
+			expectedErr: "missing pushover config",
+		},
+		{
+			integration: "victorops_configs",
+			expectedErr: "missing victorops config",
+		},
+		{
+			integration: "sns_configs",
+			expectedErr: "missing sns config",
+		},
+		{
+			integration: "telegram_configs",
+			expectedErr: "missing telegram config",
+		},
+		{
+			integration: "webex_configs",
+			expectedErr: "missing webex config",
+		},
+		{
+			integration: "msteams_configs",
+			expectedErr: "missing msteams config",
+		},
+		{
+			integration: "msteamsv2_configs",
+			expectedErr: "missing msteamsv2 config",
+		},
+		{
+			integration: "jira_configs",
+			expectedErr: "missing jira config",
+		},
+		{
+			integration: "mattermost_configs",
+			expectedErr: "missing mattermost config",
+		},
+		{
+			integration: "slack_configs",
+			expectedErr: "no Slack API URL nor App token set either inline or in a file",
+		},
+		{
+			integration: "opsgenie_configs",
+			expectedErr: "no global OpsGenie API Key set either inline or in a file",
+		},
+		{
+			integration: "wechat_configs",
+			expectedErr: "no global Wechat Api Secret set either inline or in a file",
+		},
+		{
+			integration: "rocketchat_configs",
+			expectedErr: "no global Rocketchat TokenID set either inline or in a file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.integration, func(t *testing.T) {
+			in := fmt.Sprintf(baseConfigTmpl, tc.integration)
+			_, err := Load(in)
+			require.Error(t, err, "Expected empty configuration to be an error for %s", tc.integration)
+			require.ErrorContains(t, err, tc.expectedErr)
+		})
 	}
 }
 
@@ -1234,6 +1138,16 @@ func TestSlackBothAppTokenAndAPIURL(t *testing.T) {
 	}
 }
 
+func TestSlackUpdateMessageWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-update-message-and-webhook.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
+	}
+	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
+		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
@@ -1501,6 +1415,13 @@ func TestUnmarshalHostPort(t *testing.T) {
 		{
 			in:  `"localhost:"`,
 			err: true,
+		},
+		{
+			in:  `"[fd12:3456:789a::1]:25"`,
+			exp: HostPort{Host: "fd12:3456:789a::1", Port: "25"},
+			yamlOut: `'[fd12:3456:789a::1]:25'
+`,
+			jsonOut: `"[fd12:3456:789a::1]:25"`,
 		},
 	} {
 		t.Run(tc.in, func(t *testing.T) {

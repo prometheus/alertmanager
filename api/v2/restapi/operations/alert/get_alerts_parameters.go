@@ -60,7 +60,6 @@ func NewGetAlertsParams() GetAlertsParams {
 //
 // swagger:parameters getAlerts
 type GetAlertsParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -69,25 +68,30 @@ type GetAlertsParams struct {
 	  Default: true
 	*/
 	Active *bool
+
 	/*A matcher expression to filter alerts. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	  In: query
 	  Collection Format: multi
 	*/
 	Filter []string
+
 	/*Include inhibited alerts in results. If false, excludes inhibited alerts. Note that true (default) shows both inhibited and non-inhibited alerts.
 	  In: query
 	  Default: true
 	*/
 	Inhibited *bool
+
 	/*A regex matching receivers to filter alerts by
 	  In: query
 	*/
 	Receiver *string
+
 	/*Include silenced alerts in results. If false, excludes silenced alerts. Note that true (default) shows both silenced and non-silenced alerts.
 	  In: query
 	  Default: true
 	*/
 	Silenced *bool
+
 	/*Include unprocessed alerts in results. If false, excludes unprocessed alerts. Note that true (default) shows both processed and unprocessed alerts.
 	  In: query
 	  Default: true
@@ -103,7 +107,6 @@ func (o *GetAlertsParams) BindRequest(r *http.Request, route *middleware.Matched
 	var res []error
 
 	o.HTTPRequest = r
-
 	qs := runtime.Values(r.URL.Query())
 
 	qActive, qhkActive, _ := qs.GetOK("active")

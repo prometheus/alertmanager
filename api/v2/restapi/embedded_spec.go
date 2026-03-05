@@ -593,7 +593,8 @@ func init() {
           "required": [
             "id",
             "status",
-            "updatedAt"
+            "updatedAt",
+            "annotations"
           ],
           "properties": {
             "id": {
@@ -735,6 +736,9 @@ func init() {
         "comment"
       ],
       "properties": {
+        "annotations": {
+          "$ref": "#/definitions/labelSet"
+        },
         "comment": {
           "type": "string"
         },
@@ -1430,7 +1434,8 @@ func init() {
           "required": [
             "id",
             "status",
-            "updatedAt"
+            "updatedAt",
+            "annotations"
           ],
           "properties": {
             "id": {
@@ -1572,6 +1577,9 @@ func init() {
         "comment"
       ],
       "properties": {
+        "annotations": {
+          "$ref": "#/definitions/labelSet"
+        },
         "comment": {
           "type": "string"
         },

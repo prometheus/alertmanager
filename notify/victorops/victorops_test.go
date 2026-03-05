@@ -28,6 +28,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
@@ -44,7 +46,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	conf := &config.VictorOpsConfig{
 		APIKey:            `12345`,
-		APIURL:            &config.URL{URL: url},
+		APIURL:            &amcommoncfg.URL{URL: url},
 		EntityDisplayName: `{{ .CommonLabels.Message }}`,
 		StateMessage:      `{{ .CommonLabels.Message }}`,
 		RoutingKey:        `test`,
@@ -107,7 +109,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	secret := "secret"
 	notifier, err := New(
 		&config.VictorOpsConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKey:     commoncfg.Secret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -131,7 +133,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 
 	notifier, err := New(
 		&config.VictorOpsConfig{
-			APIURL:     &config.URL{URL: u},
+			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKeyFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -204,7 +206,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
-			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.APIKey = "test"
 			vo, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)

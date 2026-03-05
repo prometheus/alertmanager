@@ -64,4 +64,4 @@ triggering a recompile of the project.
 ## Committing changes
 
 Before you commit changes, please run `make build-all` on the root level
-Makefile. Please include `asset/*_vfsdata.go` in your commit.
+Makefile.
