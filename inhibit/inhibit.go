@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -42,7 +43,6 @@ var tracer = otel.Tracer("github.com/prometheus/alertmanager/inhibit")
 type Inhibitor struct {
 	alerts     provider.Alerts
 	rules      []*InhibitRule
-	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
 
@@ -52,10 +52,9 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, logger *slog.Logger) *Inhibitor {
 	ih := &Inhibitor{
 		alerts:     ap,
-		marker:     mk,
 		logger:     logger,
 		propagator: otel.GetTextMapPropagator(),
 	}
@@ -189,6 +188,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
+	m := marker.GetAlertMarker(ctx)
 	now := time.Now()
 	for _, r := range ih.rules {
 		if !r.TargetMatchers.Matches(lset) {
@@ -203,7 +203,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
+			m.SetInhibited(fp, []string{inhibitedByFP.String()})
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
 					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
@@ -212,7 +212,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			return true
 		}
 	}
-	ih.marker.SetInhibited(fp)
+	m.SetInhibited(fp, nil)
 	span.AddEvent("alert not inhibited")
 
 	return false

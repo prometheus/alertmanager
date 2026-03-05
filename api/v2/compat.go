@@ -22,10 +22,10 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
@@ -139,7 +139,7 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
+func AlertToOpenAPIAlert(alert *alert.Alert, status alert.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
@@ -191,14 +191,14 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	return aa
 }
 
-// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*types.Alert.
-func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*alert.Alert.
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*alert.Alert {
 	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
 	defer span.End()
 
-	alerts := []*types.Alert{}
+	alerts := []*alert.Alert{}
 	for _, apiAlert := range apiAlerts {
-		alert := types.Alert{
+		alert := alert.Alert{
 			Alert: prometheus_model.Alert{
 				Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 				Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),

@@ -45,7 +45,6 @@ type Alerts struct {
 	mtx sync.Mutex
 
 	alerts *store.Alerts
-	marker types.AlertMarker
 
 	listeners map[int]listeningAlerts
 	next      int
@@ -85,8 +84,6 @@ type listeningAlerts struct {
 }
 
 func (a *Alerts) registerMetrics(r prometheus.Registerer) {
-	r.MustRegister(&alertsCollector{alerts: a})
-
 	a.alertsLimit = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_alerts_per_alert_limit",
 		Help: "Current limit on number of alerts per alert name",
@@ -116,7 +113,6 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 // NewAlerts returns a new alert provider.
 func NewAlerts(
 	ctx context.Context,
-	m types.AlertMarker,
 	intervalGC time.Duration,
 	perAlertNameLimit int,
 	alertCallback AlertStoreCallback,
@@ -138,7 +134,6 @@ func NewAlerts(
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:     m,
 		alerts:     store.NewAlerts().WithPerAlertLimit(perAlertNameLimit),
 		cancel:     cancel,
 		listeners:  map[int]listeningAlerts{},
@@ -185,13 +180,11 @@ func (a *Alerts) gc() {
 		return
 	}
 
-	// Delete markers for deleted alerts.
 	ff := make(model.Fingerprints, len(deleted))
 	for i, alert := range deleted {
 		ff[i] = alert.Fingerprint()
 		a.callback.PostDelete(alert)
 	}
-	a.marker.Delete(ff...)
 	a.callback.PostGC(ff)
 }
 
@@ -365,48 +358,6 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 	}
 
 	return nil
-}
-
-// countByState returns the number of non-resolved alerts by state.
-func (a *Alerts) countByState() (active, suppressed, unprocessed int) {
-	for _, alert := range a.alerts.List() {
-		if alert.Resolved() {
-			continue
-		}
-
-		switch a.marker.Status(alert.Fingerprint()).State {
-		case types.AlertStateActive:
-			active++
-		case types.AlertStateSuppressed:
-			suppressed++
-		case types.AlertStateUnprocessed:
-			unprocessed++
-		}
-	}
-	return active, suppressed, unprocessed
-}
-
-// alertsCollector implements prometheus.Collector to collect all alert count metrics in a single pass.
-type alertsCollector struct {
-	alerts *Alerts
-}
-
-var alertsDesc = prometheus.NewDesc(
-	"alertmanager_alerts",
-	"How many alerts by state.",
-	[]string{"state"}, nil,
-)
-
-func (c *alertsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- alertsDesc
-}
-
-func (c *alertsCollector) Collect(ch chan<- prometheus.Metric) {
-	active, suppressed, unprocessed := c.alerts.countByState()
-
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(active), string(types.AlertStateActive))
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(suppressed), string(types.AlertStateSuppressed))
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(unprocessed), string(types.AlertStateUnprocessed))
 }
 
 type noopCallback struct{}
