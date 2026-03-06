@@ -1,4 +1,4 @@
-// Copyright 2024 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -23,6 +24,7 @@ import (
 func TestDefaultConfigFilesOthers(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
 
 	files := defaultConfigFiles()
 
@@ -30,7 +32,12 @@ func TestDefaultConfigFilesOthers(t *testing.T) {
 		t.Fatalf("expected 2 config file paths, got %d", len(files))
 	}
 
-	expectedUser := filepath.Join(home, ".config", "amtool", "config.yml")
+	// os.UserConfigDir() on Unix returns $XDG_CONFIG_HOME if set, otherwise $HOME/.config.
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		userConfigDir = filepath.Join(home, ".config")
+	}
+	expectedUser := filepath.Join(userConfigDir, "amtool", "config.yml")
 	if files[0] != expectedUser {
 		t.Errorf("expected user config path %q, got %q", expectedUser, files[0])
 	}
