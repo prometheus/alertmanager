@@ -1,4 +1,4 @@
-// Copyright 2024 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,11 +15,18 @@
 
 package cli
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 func defaultConfigFiles() []string {
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		userConfigDir = filepath.Join(os.ExpandEnv("$HOME"), ".config")
+	}
 	return []string{
-		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
+		filepath.Join(userConfigDir, "amtool", "config.yml"),
 		"/etc/amtool/config.yml",
 	}
 }
