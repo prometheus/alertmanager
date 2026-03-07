@@ -36,6 +36,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventlog"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -2267,7 +2268,7 @@ func TestSilencer(t *testing.T) {
 	now := ss.nowUTC()
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, promslog.NewNopLogger())
+	s := NewSilencer(ss, m, promslog.NewNopLogger(), eventlog.NopRecorder())
 
 	require.False(t, s.Mutes(t.Context(), model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
@@ -2348,7 +2349,7 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 	now := ss.nowUTC()
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, promslog.NewNopLogger())
+	s := NewSilencer(ss, m, promslog.NewNopLogger(), eventlog.NopRecorder())
 
 	lset := model.LabelSet{"foo": "bar"}
 	fp := lset.Fingerprint()

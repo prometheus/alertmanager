@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventlog"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -399,7 +400,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -452,7 +453,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			}),
 			rs: sendResolved(false),
 		}
-		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 
 		alerts := []*types.Alert{
 			{
@@ -487,7 +488,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -519,7 +520,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -570,7 +571,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -699,7 +700,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	ctx := context.Background()
@@ -914,7 +915,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventlog.NopRecorder())
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	alerts := []*types.Alert{
