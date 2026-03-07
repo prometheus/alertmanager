@@ -27,7 +27,7 @@
     "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
+    "@eslint/js": "^10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
