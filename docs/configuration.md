@@ -1791,6 +1791,7 @@ attributes:
 [ disable_notifications: <boolean> | default = false ]
 
 # Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+# If the message exceeds Telegram's character limit, it will be truncated or replaced with a fallback message if parse_mode is set to HTML.
 [ parse_mode: <string> | default = "HTML" ]
 
 # The HTTP client's configuration.
