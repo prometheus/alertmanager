@@ -251,6 +251,11 @@ matchers:
 # and if they have a notification is sent. If they haven't, Alertmanager checks
 # if the repeat_interval has elapsed instead.
 #
+# Note: group_interval also sets the context timeout for the notification
+# pipeline for each send. So if sending a notification takes longer than the
+# group_interval, the notification will get canceled. This can happen with
+# small group_interval values and slow notification receivers.
+#
 # If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
