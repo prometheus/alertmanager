@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,6 +128,45 @@ func TestTelegramNotify(t *testing.T) {
 				BotTokenFile: fileWithToken.Name(),
 			},
 			expText: "test",
+		},
+		{
+			name: "HTML mode with too-large message",
+			cfg: config.TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    strings.Repeat("x", 5000),
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "Default mode with too-large message",
+			cfg: config.TelegramConfig{
+				Message:    strings.Repeat("y", 5000),
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: strings.Repeat("y", maxMessageLenRunes-1) + "…",
+		},
+		{
+			name: "HTML mode with message smaller than limit",
+			cfg: config.TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    strings.Repeat("a", 100),
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: strings.Repeat("a", 100),
+		},
+		{
+			name: "Default mode with message smaller than limit",
+			cfg: config.TelegramConfig{
+				Message:    strings.Repeat("b", 100),
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: strings.Repeat("b", 100),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
