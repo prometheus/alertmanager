@@ -776,18 +776,17 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		alerts        = ag.alerts.List()
 		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
 		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
-		alertCopies   = make([]types.Alert, len(alerts))
 		now           = time.Now()
 	)
-	for i, alert := range alerts {
-		alertCopies[i] = *alert
+	for _, alert := range alerts {
+		a := *alert
 		// Ensure that alerts don't resolve as time move forwards.
-		if alertCopies[i].ResolvedAt(now) {
-			resolvedSlice = append(resolvedSlice, &alertCopies[i])
+		if a.ResolvedAt(now) {
+			resolvedSlice = append(resolvedSlice, &a)
 		} else {
-			alertCopies[i].EndsAt = time.Time{}
+			a.EndsAt = time.Time{}
 		}
-		alertsSlice = append(alertsSlice, &alertCopies[i])
+		alertsSlice = append(alertsSlice, &a)
 	}
 	sort.Stable(alertsSlice)
 
@@ -812,11 +811,6 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			}
 		}
 	}
-	// Enforce the contract that after notification the alerts pointed by alertsSlice
-	// cannot be retained as a pointer (to avoid leaking the whole slice in memory).
-	// A notifier that needs to keep a hold of an alert needs to copy it, or just
-	// keep enough information to recognize it again, in case.
-	clear(alertCopies)
 }
 
 type nilLimits struct{}
