@@ -28,6 +28,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/eventlog"
+	"github.com/prometheus/alertmanager/eventlog/eventlogpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -45,6 +47,7 @@ type Inhibitor struct {
 	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
+	recorder   eventlog.Recorder
 
 	mtx             sync.RWMutex
 	loadingFinished sync.WaitGroup
@@ -52,12 +55,13 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger, recorder eventlog.Recorder) *Inhibitor {
 	ih := &Inhibitor{
 		alerts:     ap,
 		marker:     mk,
 		logger:     logger,
 		propagator: otel.GetTextMapPropagator(),
+		recorder:   recorder,
 	}
 
 	ih.loadingFinished.Add(1)
@@ -178,8 +182,8 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted. It implements the Muter
-// interface.
+// Mutes returns true iff the given label set is muted.  It implements the
+// Muter interface.
 func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
@@ -209,6 +213,19 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
 				),
 			)
+
+			ih.recorder.RecordEvent(ctx, &eventlogpb.EventData{
+				EventType: &eventlogpb.EventData_InhibitionMutedAlert{
+					InhibitionMutedAlert: &eventlogpb.InhibitionMutedAlertEvent{
+						InhibitRules: []*eventlogpb.InhibitRule{convertInhibitRuleForEvent(r)},
+						MutedAlert: &eventlogpb.MutedAlert{
+							Fingerprint: uint64(fp),
+							Labels:      eventlog.LabelSetAsProto(lset),
+						},
+						InhibitingFingerprints: []uint64{uint64(inhibitedByFP)},
+					},
+				},
+			})
 			return true
 		}
 	}
@@ -398,4 +415,27 @@ func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, n
 	}
 
 	return model.Fingerprint(0), false
+}
+
+func convertInhibitRuleForEvent(r *InhibitRule) *eventlogpb.InhibitRule {
+	sourceMatchers := make([]*eventlogpb.Matcher, len(r.SourceMatchers))
+	for i, m := range r.SourceMatchers {
+		sourceMatchers[i] = eventlog.MatcherAsProto(m)
+	}
+
+	targetMatchers := make([]*eventlogpb.Matcher, len(r.TargetMatchers))
+	for i, m := range r.TargetMatchers {
+		targetMatchers[i] = eventlog.MatcherAsProto(m)
+	}
+
+	equalLabels := make([]string, 0, len(r.Equal))
+	for label := range r.Equal {
+		equalLabels = append(equalLabels, string(label))
+	}
+
+	return &eventlogpb.InhibitRule{
+		SourceMatchers: sourceMatchers,
+		TargetMatchers: targetMatchers,
+		EqualLabels:    equalLabels,
+	}
 }

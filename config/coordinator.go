@@ -144,6 +144,33 @@ func (c *Coordinator) Reload() error {
 	return nil
 }
 
+// ApplyConfig accepts an already-loaded configuration, stores it, and
+// notifies all subscribers.  Use this for the initial load so the file
+// is only read once.
+func (c *Coordinator) ApplyConfig(conf *Config) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.config = conf
+
+	if err := c.notifySubscribers(); err != nil {
+		c.logger.Error(
+			"one or more config change subscribers failed to apply new config",
+			"file", c.configFilePath,
+			"err", err,
+		)
+		c.configSuccessMetric.Set(0)
+		return err
+	}
+
+	c.configSuccessMetric.Set(1)
+	c.configSuccessTimeMetric.SetToCurrentTime()
+	hash := md5HashAsMetricValue([]byte(c.config.original))
+	c.configHashMetric.Set(hash)
+
+	return nil
+}
+
 func md5HashAsMetricValue(data []byte) float64 {
 	sum := md5.Sum(data)
 	// We only want 48 bits as a float64 only has a 53 bit mantissa.

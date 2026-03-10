@@ -16,6 +16,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/quartz v0.3.0
 	github.com/emersion/go-smtp v0.24.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-openapi/analysis v0.24.2
 	github.com/go-openapi/errors v0.22.6
 	github.com/go-openapi/loads v0.23.2
