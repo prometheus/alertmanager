@@ -251,6 +251,11 @@ matchers:
 # and if they have a notification is sent. If they haven't, Alertmanager checks
 # if the repeat_interval has elapsed instead.
 #
+# Note: group_interval also sets the context timeout for the notification
+# pipeline for each send. So if sending a notification takes longer than the
+# group_interval, the notification will get canceled. This can happen with
+# small group_interval values and slow notification receivers.
+#
 # If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
@@ -1071,10 +1076,6 @@ webhook_url_file: <filepath>
 # Defaults to the username set during webhook creation; if no username was set during creation, webhook is used.
 [ username: <string> | default = '' ]
 
-# Markdown-formatted message to display in the post.
-# To trigger notifications, use @<username>, @channel, and @here like you would in other Mattermost messages.
-text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
-
 # Overrides the profile picture the message posts with.
 [ icon_url: <string> | default = '' ]
 
@@ -1083,6 +1084,22 @@ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}'
 
 # Message attachments used for richer formatting options.
 # It is for compatibility with Slack.
+[ fallback: <tmpl_string> | default = '{{ template "mattermost.default.fallback" . }}' ]
+[ color: <tmpl_string> | default = '{{ template "mattermost.default.color" . }}' ]
+[ title: <tmpl_string> | default = '{{ template "mattermost.default.title" . }}' ]
+[ title_link: <tmpl_string> | default = '{{ template "mattermost.default.titlelink" . }}' ]
+[ text: <tmpl_string> | default = '{{ template "mattermost.default.text" . }}' ]
+[ pretext: <string> | default = '' ]
+[ author_name: <string> | default = '' ]
+[ author_link: <string> | default = '' ]
+[ author_icon: <string> | default = '' ]
+[ fields: <string> | default = '' ]
+  [ <field_config> ... ]
+[ thumb_url: <string> | default = '' ]
+[ footer: <string> | default = '' ]
+[ footer_icon: <string> | default = '' ]
+[ image_url: <string> | default = '' ]
+# Deprecated: use top-level fields instead; `attachments` will be removed in a future.
 [ attachments: ]
   [ <attachment_config> ... ]
 
@@ -1779,6 +1796,7 @@ attributes:
 [ disable_notifications: <boolean> | default = false ]
 
 # Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+# If the message exceeds Telegram's character limit, it will be truncated or replaced with a fallback message if parse_mode is set to HTML.
 [ parse_mode: <string> | default = "HTML" ]
 
 # The HTTP client's configuration.
@@ -1849,6 +1867,15 @@ url_file: <filepath>
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
+
+# Define custom payload to be sent to the webhook endpoint.
+# USE AT YOUR OWN RISK: This is an advanced configuration option that allows you
+# to define a custom payload using Go templates. Be aware that the Alertmanager does not
+# perform any validation on the resulting payload, and it is your responsibility to
+# ensure that the generated payload is in the desired format expected by the receiving endpoint.
+# The payload has to be valid JSON. You can use the `toJson` function to help with this.
+# THE ALERTMANAGER TEAM WILL NOT PROVIDE ANY SUPPORT FOR ISSUES ARISING FROM THE USE OF THIS OPTION.
+[ payload: { <string>: <tmpl_string>, ... } ]
 ```
 
 The Alertmanager

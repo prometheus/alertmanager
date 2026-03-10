@@ -30,3 +30,31 @@ updates:
       mantine:
         patterns:
           - "@mantine/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      testing:
+        patterns:
+          - "vitest"
+          - "jsdom"
+          - "@testing-library/*"
+      linting:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+          - "prettier*"
+          - "@ianvs/prettier-plugin-sort-imports"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "vite-tsconfig-paths"
+      styles:
+        patterns:
+          - "postcss*"
+          - "stylelint*"

@@ -705,7 +705,7 @@ func (r NotifyReason) String() string {
 	}
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) NotifyReason {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration, now time.Time) NotifyReason {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
@@ -744,7 +744,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(n.now().Add(-repeat))
+	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
 	if isRepeatIntervalElapsed {
 		return ReasonRepeatIntervalElapsed
 	}
@@ -809,7 +809,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
+	now := n.now()
+	if ctxNow, ok := Now(ctx); ok {
+		now = ctxNow
+	}
+	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, now)
 	ctx = WithNotificationReason(ctx, updateReason)
 
 	if updateReason == ReasonFirstNotification {

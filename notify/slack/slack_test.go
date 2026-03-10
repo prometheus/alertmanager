@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -197,7 +197,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			apiurl, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
 				&config.SlackConfig{
-					NotifierConfig: config.NotifierConfig{},
+					NotifierConfig: amcommoncfg.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
 					Channel:        "channelname",
@@ -255,7 +255,7 @@ func TestSlackTimeout(t *testing.T) {
 			u, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
 				&config.SlackConfig{
-					NotifierConfig: config.NotifierConfig{},
+					NotifierConfig: amcommoncfg.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &amcommoncfg.SecretURL{URL: u},
 					Channel:        "channelname",
