@@ -29,11 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/timeinterval"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestMuteStage(t *testing.T) {
@@ -63,9 +64,9 @@ func TestMuteStage(t *testing.T) {
 		{"not": "muted"},
 	}
 
-	var inAlerts []*types.Alert
+	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{
+		inAlerts = append(inAlerts, &alert.Alert{
 			Alert: model.Alert{Labels: lset},
 		})
 	}
@@ -105,8 +106,9 @@ func TestMuteStageWithSilences(t *testing.T) {
 	}
 
 	reg := prometheus.NewRegistry()
-	marker := types.NewMarker(reg)
-	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger())
+	alertMarker := marker.NewAlertMarker()
+	ctx := marker.WithAlertMarker(context.Background(), alertMarker)
+	silencer := silence.NewSilencer(silences, promslog.NewNopLogger())
 	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
 	stage := NewMuteStage(silencer, metrics)
 
@@ -127,18 +129,18 @@ func TestMuteStageWithSilences(t *testing.T) {
 		{"not": "muted"},
 	}
 
-	var inAlerts []*types.Alert
+	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{
+		inAlerts = append(inAlerts, &alert.Alert{
 			Alert: model.Alert{Labels: lset},
 		})
 	}
 
 	// Set the second alert as previously silenced with an old version
 	// number. This is expected to get unsilenced by the stage.
-	marker.SetActiveOrSilenced(inAlerts[1].Fingerprint(), []string{"123"})
+	alertMarker.SetSilenced(inAlerts[1].Fingerprint(), []string{"123"})
 
-	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
+	_, alerts, err := stage.Exec(ctx, promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -157,7 +159,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 	}
 
 	// Do it again to exercise the version tracking of silences.
-	_, alerts, err = stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
+	_, alerts, err = stage.Exec(ctx, promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -181,7 +183,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, alerts, err = stage.Exec(t.Context(), promslog.NewNopLogger(), inAlerts...)
+	_, alerts, err = stage.Exec(ctx, promslog.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -229,44 +231,44 @@ func TestTimeMuteStage(t *testing.T) {
 		name      string
 		intervals map[string][]timeinterval.TimeInterval
 		now       time.Time
-		alerts    []*types.Alert
+		alerts    []*alert.Alert
 		mutedBy   []string
 	}{{
 		name:      "Should be muted outside working hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"weekends"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekday",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekend",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"evenings", "weekends"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := types.NewMarker(r)
+			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
 			st := NewTimeMuteStage(intervener, marker, metrics)
@@ -298,13 +300,7 @@ func TestTimeMuteStage(t *testing.T) {
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-`)))
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(``)))
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
@@ -314,11 +310,6 @@ alertmanager_marked_alerts{state="unprocessed"} 0
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
 # HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
 # TYPE alertmanager_notifications_suppressed_total counter
 alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
@@ -353,38 +344,38 @@ func TestTimeActiveStage(t *testing.T) {
 		name      string
 		intervals map[string][]timeinterval.TimeInterval
 		now       time.Time
-		alerts    []*types.Alert
+		alerts    []*alert.Alert
 		mutedBy   []string
 	}{{
 		name:      "Should be muted outside working hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should be muted at 12pm UTC",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
 		mutedBy:   []string{"weekdays"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := types.NewMarker(r)
+			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
 			st := NewTimeActiveStage(intervener, marker, metrics)
@@ -416,13 +407,7 @@ func TestTimeActiveStage(t *testing.T) {
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
-				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
-`)))
+				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(``)))
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
@@ -432,11 +417,6 @@ alertmanager_marked_alerts{state="unprocessed"} 0
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
-# HELP alertmanager_marked_alerts How many alerts by state are currently marked in the Alertmanager regardless of their expiry.
-# TYPE alertmanager_marked_alerts gauge
-alertmanager_marked_alerts{state="active"} 0
-alertmanager_marked_alerts{state="suppressed"} 0
-alertmanager_marked_alerts{state="unprocessed"} 0
 # HELP alertmanager_notifications_suppressed_total The total number of notifications suppressed for being silenced, inhibited, outside of active time intervals or within muted time intervals.
 # TYPE alertmanager_notifications_suppressed_total counter
 alertmanager_notifications_suppressed_total{reason="active_time_interval"} %d

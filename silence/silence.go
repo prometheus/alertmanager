@@ -45,11 +45,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var tracer = otel.Tracer("github.com/prometheus/alertmanager/silence")
@@ -140,21 +141,18 @@ func (s versionIndex) findVersionGreaterThan(version int) (index int, found bool
 	return startIdx, startIdx < len(s)
 }
 
-// Silencer binds together a AlertMarker and a Silences to implement the Muter
-// interface.
+// Silencer holds Silences and implements the Muter interface.
 type Silencer struct {
 	silences *Silences
 	cache    *cache
-	marker   types.AlertMarker
 	logger   *slog.Logger
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, logger *slog.Logger) *Silencer {
 	return &Silencer{
 		silences: silences,
 		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
-		marker:   marker,
 		logger:   logger,
 	}
 }
@@ -169,6 +167,13 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+
+	// Track the silences to set on marker
+	var markedSilences []string
+	defer func() {
+		// Get the marker from context and set the silences on it if any.
+		marker.GetAlertMarker(ctx).SetSilenced(fp, markedSilences)
+	}()
 
 	// Get the cached entry for this fingerprint.
 	cachedEntry := s.cache.get(fp)
@@ -242,7 +247,6 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.cache.set(fp, newCacheEntry(newVersion))
-		s.marker.SetActiveOrSilenced(fp, nil)
 		span.AddEvent("No silences to match", trace.WithAttributes(
 			attribute.Int("alerting.silences.count", totalSilences),
 		))
@@ -285,11 +289,8 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		"active", len(activeIDs),
 		"pending", len(allIDs)-len(activeIDs),
 	)
-	// TODO: remove this sort once the marker is removed.
-	sort.Strings(activeIDs)
 
 	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
-	s.marker.SetActiveOrSilenced(fp, activeIDs)
 
 	t := trace.WithAttributes(
 		attribute.Int("alerting.silences.active.count", len(activeIDs)),
@@ -299,6 +300,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 	mutes := len(activeIDs) > 0
 	if mutes {
+		markedSilences = activeIDs
 		span.AddEvent("Silencer mutes alert", t)
 	} else {
 		span.AddEvent("Silencer does not mute alert", t)
@@ -307,9 +309,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 }
 
 // The following methods implement mem.AlertStoreCallback.
-func (s *Silencer) PreStore(_ *types.Alert, _ bool) error { return nil }
-func (s *Silencer) PostStore(_ *types.Alert, _ bool)      {}
-func (s *Silencer) PostDelete(alert *types.Alert)         {}
+func (s *Silencer) PreStore(_ *alert.Alert, _ bool) error { return nil }
+func (s *Silencer) PostStore(_ *alert.Alert, _ bool)      {}
+func (s *Silencer) PostDelete(alert *alert.Alert)         {}
 func (s *Silencer) PostGC(ff model.Fingerprints) {
 	for _, fp := range ff {
 		s.cache.delete(fp)

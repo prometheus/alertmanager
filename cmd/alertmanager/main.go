@@ -46,6 +46,7 @@ import (
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"go.uber.org/automaxprocs/maxprocs"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -53,6 +54,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
@@ -61,7 +63,6 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
 
@@ -291,7 +292,7 @@ func run() int {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
 	})
 
-	marker := types.NewMarker(prometheus.DefaultRegisterer)
+	marker := marker.NewGroupMarker()
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
@@ -324,7 +325,7 @@ func run() int {
 		wg.Wait()
 	}()
 
-	silencer := silence.NewSilencer(silences, marker, logger)
+	silencer := silence.NewSilencer(silences, logger)
 
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
@@ -347,7 +348,6 @@ func run() int {
 
 	alerts, err := mem.NewAlerts(
 		context.Background(),
-		marker,
 		*alertGCInterval,
 		*perAlertNameLimit,
 		silencer,
@@ -366,7 +366,7 @@ func run() int {
 		disp.Load().Stop()
 	}()
 
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
@@ -381,7 +381,6 @@ func run() int {
 	api, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
-		AlertStatusFunc: marker.Status,
 		GroupMutedFunc:  marker.Muted,
 		Peer:            clusterPeer,
 		Timeout:         *httpTimeout,
@@ -421,7 +420,7 @@ func run() int {
 		tmpl      *template.Template
 	)
 
-	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
+	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer, ff)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
@@ -476,7 +475,7 @@ func run() int {
 		inhibitor.Load().Stop()
 		disp.Load().Stop()
 
-		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, logger)
 		inhibitor.Store(newInhibitor)
 
 		// An interface value that holds a nil concrete value is non-nil.
