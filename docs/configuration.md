@@ -251,6 +251,11 @@ matchers:
 # and if they have a notification is sent. If they haven't, Alertmanager checks
 # if the repeat_interval has elapsed instead.
 #
+# Note: group_interval also sets the context timeout for the notification
+# pipeline for each send. So if sending a notification takes longer than the
+# group_interval, the notification will get canceled. This can happen with
+# small group_interval values and slow notification receivers.
+#
 # If omitted, child routes inherit the group_interval of the parent route.
 [ group_interval: <duration> | default = 5m ]
 
@@ -1791,6 +1796,7 @@ attributes:
 [ disable_notifications: <boolean> | default = false ]
 
 # Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+# If the message exceeds Telegram's character limit, it will be truncated or replaced with a fallback message if parse_mode is set to HTML.
 [ parse_mode: <string> | default = "HTML" ]
 
 # The HTTP client's configuration.

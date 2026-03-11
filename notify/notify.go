@@ -705,7 +705,7 @@ func (r NotifyReason) String() string {
 	}
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) NotifyReason {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration, now time.Time) NotifyReason {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
@@ -744,11 +744,31 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(n.now().Add(-repeat))
+	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
 	if isRepeatIntervalElapsed {
 		return ReasonRepeatIntervalElapsed
 	}
 	return ReasonDoNotNotify
+}
+
+// partitionAlertsByState separates alerts into firing and resolved, returning both slices and sets.
+func partitionAlertsByState(alerts []*types.Alert, hashFn func(*types.Alert) uint64) (firing, resolved []uint64, firingSet, resolvedSet map[uint64]struct{}) {
+	firingSet = make(map[uint64]struct{}, len(alerts))
+	resolvedSet = make(map[uint64]struct{}, len(alerts))
+	firing = make([]uint64, 0, len(alerts))
+	resolved = make([]uint64, 0, len(alerts))
+
+	for _, a := range alerts {
+		hash := hashFn(a)
+		if a.Resolved() {
+			resolved = append(resolved, hash)
+			resolvedSet[hash] = struct{}{}
+		} else {
+			firing = append(firing, hash)
+			firingSet[hash] = struct{}{}
+		}
+	}
+	return firing, resolved, firingSet, resolvedSet
 }
 
 // Exec implements the Stage interface.
@@ -770,22 +790,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, errors.New("repeat interval missing")
 	}
 
-	firingSet := map[uint64]struct{}{}
-	resolvedSet := map[uint64]struct{}{}
-	firing := []uint64{}
-	resolved := []uint64{}
-
-	var hash uint64
-	for _, a := range alerts {
-		hash = n.hash(a)
-		if a.Resolved() {
-			resolved = append(resolved, hash)
-			resolvedSet[hash] = struct{}{}
-		} else {
-			firing = append(firing, hash)
-			firingSet[hash] = struct{}{}
-		}
-	}
+	firing, resolved, firingSet, resolvedSet := partitionAlertsByState(alerts, n.hash)
 
 	ctx = WithFiringAlerts(ctx, firing)
 	ctx = WithResolvedAlerts(ctx, resolved)
@@ -804,7 +809,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval)
+	now := n.now()
+	if ctxNow, ok := Now(ctx); ok {
+		now = ctxNow
+	}
+	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, now)
 	ctx = WithNotificationReason(ctx, updateReason)
 
 	if updateReason == ReasonFirstNotification {

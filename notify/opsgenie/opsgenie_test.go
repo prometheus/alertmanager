@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -115,7 +115,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config without details",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,
@@ -148,7 +148,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config with details",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,
@@ -184,7 +184,7 @@ func TestOpsGenie(t *testing.T) {
 		{
 			title: "config with multiple teams",
 			cfg: &config.OpsGenieConfig{
-				NotifierConfig: config.NotifierConfig{
+				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,

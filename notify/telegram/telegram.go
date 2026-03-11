@@ -74,21 +74,32 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	logger.Debug("extracted group key")
 
 	var (
-		err  error
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
-		tmpl = notify.TmplText(n.tmpl, data, &err)
+		err         error
+		data        = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
+		tmpl        = notify.TmplText(n.tmpl, data, &err)
+		messageText string
+		truncated   bool
 	)
 
-	if n.conf.ParseMode == "HTML" {
+	switch n.conf.ParseMode {
+	case "HTML":
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
-	}
-
-	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
-	if err != nil {
-		return false, err
-	}
-	if truncated {
-		logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
+		messageText = tmpl(n.conf.Message)
+		if err != nil {
+			return false, err
+		}
+		if len([]rune(messageText)) > maxMessageLenRunes {
+			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`
+		}
+	default:
+		messageText, truncated = notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+		if err != nil {
+			return false, err
+		}
+		if truncated {
+			logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
+		}
 	}
 
 	n.client.Token, err = n.getBotToken()
