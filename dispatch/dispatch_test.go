@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/types"
 )
 
 const testMaintenanceInterval = 30 * time.Second
@@ -1135,7 +1136,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 	now := time.Now()
 
 	// Alert with many labels (typical production alert)
-	alert := &types.Alert{
+	alert := &alert.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"alertname":  "TestAlert",

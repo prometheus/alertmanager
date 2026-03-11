@@ -627,9 +627,9 @@ func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
 
 	b.Run("AppendGrowth", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			alerts := []*types.Alert{}
+			alerts := []*alert.Alert{}
 			for _, apiAlert := range apiAlerts {
-				alerts = append(alerts, &types.Alert{
+				alerts = append(alerts, &alert.Alert{
 					Alert: model.Alert{
 						Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 						Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
