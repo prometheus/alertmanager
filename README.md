@@ -404,6 +404,91 @@ alerting:
 
 If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` prevents Alertmanager from listening to incoming peer requests.
 
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Cluster peers not connecting
+
+**Symptoms:** Alertmanager instances cannot discover each other in cluster mode.
+
+**Solutions:**
+- Verify that both UDP and TCP ports are open on `--cluster.listen-address` (default: 9094)
+- Check firewall rules and ensure the clustering port is whitelisted for both protocols
+- Verify `--cluster.advertise-address` is set correctly and reachable from other peers
+- Use `--cluster.peer` flag to explicitly specify initial peers
+- Check logs for DNS resolution errors, especially if using hostnames
+- Increase `--cluster.peers-resolve-timeout` if DNS lookups are slow (default: 15s)
+
+Example of correct cluster setup:
+```bash
+# Node 1
+./alertmanager --cluster.listen-address=0.0.0.0:9094 \
+               --cluster.advertise-address=192.168.1.10:9094 \
+               --cluster.peer=192.168.1.11:9094
+
+# Node 2
+./alertmanager --cluster.listen-address=0.0.0.0:9094 \
+               --cluster.advertise-address=192.168.1.11:9094 \
+               --cluster.peer=192.168.1.10:9094
+```
+
+#### Alerts not being received
+
+**Symptoms:** Prometheus is sending alerts but Alertmanager shows no alerts.
+
+**Solutions:**
+- Verify Alertmanager is reachable from Prometheus: `curl http://<alertmanager>:9093/-/healthy`
+- Check Prometheus alerting configuration points to correct Alertmanager endpoints
+- Review Prometheus logs for connection errors to Alertmanager
+- Ensure alerts are actually firing in Prometheus: check `/alerts` page
+- Verify no firewall blocking between Prometheus and Alertmanager
+
+#### Notifications not being sent
+
+**Symptoms:** Alerts appear in Alertmanager UI but notifications are not delivered.
+
+**Solutions:**
+- Check Alertmanager logs for errors related to notification delivery
+- Verify receiver configuration in `alertmanager.yml` is correct
+- Test receiver credentials and endpoints manually
+- Check if alerts are being inhibited or silenced
+- Verify routing configuration matches alert labels
+- Use `amtool config routes test` to verify routing logic
+
+#### High memory usage
+
+**Symptoms:** Alertmanager consuming excessive memory.
+
+**Solutions:**
+- Check for alert storms - large number of unique alert groups
+- Review `group_by` labels in routing configuration
+- Consider using more specific grouping to reduce alert group count
+- Monitor notification log size and configure retention as needed
+- Check for large number of active silences
+
+#### DNS resolution timeouts
+
+**Symptoms:** Alertmanager becomes unresponsive, readiness checks fail.
+
+**Solutions:**
+- Increase `--cluster.peers-resolve-timeout` (default: 15s)
+- Use IP addresses instead of hostnames in `--cluster.peer` flags
+- Check DNS server responsiveness and network connectivity
+- Review DNS resolution logs in Alertmanager output
+- Consider using a local DNS cache
+
+#### Configuration reload fails
+
+**Symptoms:** Configuration changes don't take effect or Alertmanager fails to reload.
+
+**Solutions:**
+- Validate configuration before reload: `amtool check-config alertmanager.yml`
+- Check Alertmanager logs for specific configuration errors
+- Verify file permissions on configuration file
+- Ensure template files referenced in config exist and are readable
+- Send SIGHUP signal manually: `kill -HUP <alertmanager-pid>`
+
 ## Contributing
 
 Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/main/CONTRIBUTING.md).
