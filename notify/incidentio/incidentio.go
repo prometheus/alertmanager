@@ -96,9 +96,10 @@ type Message struct {
 	*template.Data
 
 	// The protocol version.
-	Version         string `json:"version"`
-	GroupKey        string `json:"groupKey"`
-	TruncatedAlerts uint64 `json:"truncatedAlerts"`
+	Version         string            `json:"version"`
+	GroupKey        string            `json:"groupKey"`
+	TruncatedAlerts uint64            `json:"truncatedAlerts"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
@@ -164,11 +165,28 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	n.logger.Debug("incident.io notification", "groupKey", groupKey)
 
+	// Render metadata templates
+	var metadata map[string]string
+	if len(n.conf.Metadata) > 0 {
+		var tmplErr error
+		tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+
+		metadata = make(map[string]string, len(n.conf.Metadata))
+		for k, v := range n.conf.Metadata {
+			metadata[k] = tmpl(v)
+		}
+
+		if tmplErr != nil {
+			return false, fmt.Errorf("failed to render metadata templates: %w", tmplErr)
+		}
+	}
+
 	msg := &Message{
 		Version:         "1",
 		Data:            data,
 		GroupKey:        groupKey.String(),
 		TruncatedAlerts: numTruncated,
+		Metadata:        metadata,
 	}
 
 	buf, err := n.encodeMessage(msg)

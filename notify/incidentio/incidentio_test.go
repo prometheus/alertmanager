@@ -476,3 +476,207 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 		}
 	}
 }
+
+func TestIncidentIOMetadataEmpty(t *testing.T) {
+	// When no metadata is configured, the field should be omitted from JSON.
+	var receivedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			receivedBody, err = io.ReadAll(r.Body)
+			require.NoError(t, err)
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"alertname": "TestAlert"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	retry, err := notifier.Notify(ctx, alert)
+	require.NoError(t, err)
+	require.False(t, retry)
+
+	// Verify metadata field is not present in JSON
+	var rawMsg map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(receivedBody, &rawMsg))
+	_, hasMetadata := rawMsg["metadata"]
+	require.False(t, hasMetadata, "metadata field should be omitted when not configured")
+}
+
+func TestIncidentIOMetadataStatic(t *testing.T) {
+	// Static metadata values (no templates) should be passed through as-is.
+	var receivedMsg Message
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&receivedMsg))
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+			Metadata: map[string]string{
+				"environment": "production",
+				"team":        "sre",
+				"region":      "us-east-1",
+			},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"alertname": "TestAlert"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	retry, err := notifier.Notify(ctx, alert)
+	require.NoError(t, err)
+	require.False(t, retry)
+
+	require.Equal(t, map[string]string{
+		"environment": "production",
+		"team":        "sre",
+		"region":      "us-east-1",
+	}, receivedMsg.Metadata)
+}
+
+func TestIncidentIOMetadataTemplated(t *testing.T) {
+	// Metadata values using Go templates should be rendered with alert data.
+	var receivedMsg Message
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&receivedMsg))
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+			Metadata: map[string]string{
+				"severity":    "{{ .CommonLabels.severity }}",
+				"alert_name":  "{{ .CommonLabels.alertname }}",
+				"alert_count": "{{ len .Alerts }}",
+				"status":      "{{ .Status }}",
+			},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "HighLatency",
+					"severity":  "critical",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "HighLatency",
+					"severity":  "critical",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	retry, err := notifier.Notify(ctx, alerts...)
+	require.NoError(t, err)
+	require.False(t, retry)
+
+	require.Equal(t, "critical", receivedMsg.Metadata["severity"])
+	require.Equal(t, "HighLatency", receivedMsg.Metadata["alert_name"])
+	require.Equal(t, "2", receivedMsg.Metadata["alert_count"])
+	require.Equal(t, "firing", receivedMsg.Metadata["status"])
+}
+
+func TestIncidentIOMetadataTemplateError(t *testing.T) {
+	// Invalid template references should return an error with no retry.
+	u, err := url.Parse("https://example.com")
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.IncidentioConfig{
+			URL:              &config.URL{URL: u},
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
+			AlertSourceToken: "test-token",
+			Metadata: map[string]string{
+				"bad": "{{ .NonExistentMethod }}",
+			},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"alertname": "TestAlert"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	retry, err := notifier.Notify(ctx, alert)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to render metadata templates")
+	require.False(t, retry, "should not retry on template rendering errors")
+}
