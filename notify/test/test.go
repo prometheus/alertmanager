@@ -14,7 +14,10 @@
 package test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -123,6 +126,7 @@ func DefaultRetryCodes() []int {
 		http.StatusLoopDetected,
 		http.StatusNotExtended,
 		http.StatusNetworkAuthenticationRequired,
+		http.StatusTooManyRequests,
 	}
 }
 
@@ -187,5 +191,26 @@ func GetContextWithCancelingURL(h ...func(w http.ResponseWriter, r *http.Request
 	return ctx, u, func() {
 		close(done)
 		srv.Close()
+	}
+}
+
+// HTTPResponseForStatusCode returns a http.Response with the given status code and a body containing the status code.
+func HTTPResponseForStatusCode(statusCode int) *http.Response {
+	status := fmt.Sprintf("%d %s", statusCode, http.StatusText(statusCode))
+
+	if statusCode == http.StatusBadRequest {
+		body := `{"status":"invalid event"}`
+		return &http.Response{
+			Status:     status,
+			StatusCode: statusCode,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(bytes.NewBufferString(body)),
+		}
+	}
+	return &http.Response{
+		Status:     status,
+		StatusCode: statusCode,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf("response with status %d", statusCode))),
 	}
 }

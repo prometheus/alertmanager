@@ -141,10 +141,14 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	// Use a retrier to generate an error message for non-200 responses and
 	// classify them as retriable or not.
-	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	retry, err := n.retrier.Check(resp)
 	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		var ewr *notify.ErrorWithReason
+		if errors.As(err, &ewr) {
+			ewr.Err = fmt.Errorf("channel %q: %w", req.Channel, ewr.Err)
+			return retry, ewr
+		}
+		return retry, fmt.Errorf("channel %q: %w", req.Channel, err)
 	}
 	n.logger.Debug("Message sent to Mattermost successfully",
 		"status", resp.StatusCode)
