@@ -964,8 +964,20 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 0 // Always retry.
 
-	tick := backoff.NewTicker(b)
-	defer tick.Stop()
+	stopTimer := func(timer *time.Timer) {
+		if timer == nil {
+			return
+		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+
+	attemptTimer := time.NewTimer(0)
+	defer stopTimer(attemptTimer)
 
 	var (
 		i    = 0
@@ -999,7 +1011,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 		}
 
 		select {
-		case <-tick.C:
+		case <-attemptTimer.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			i++
@@ -1012,10 +1024,24 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
+					nextDelay := b.NextBackOff()
+
+					var e *ErrorWithReason
+					if errors.As(err, &e) && e.Reason == TooManyRequestsReason && e.RetryAfter > 0 {
+						nextDelay = e.RetryAfter
+						l.Warn("Notify attempt failed, honoring Retry-After", "attempts", i, "retry_after", e.RetryAfter, "err", err)
+					} else if iErr == nil || err.Error() != iErr.Error() {
 						// Log the error if the context isn't done and the error isn't the same as before.
 						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
 					}
+
+					// not really needed since the set b.MaxElapsedTime = 0,
+					// but just in case the backoff configuration changes in the future.
+					if nextDelay == backoff.Stop {
+						return ctx, nil, fmt.Errorf("%s/%s: notify retry stopped after %d attempts: %w", r.groupName, r.integration.String(), i, err)
+					}
+
+					attemptTimer.Reset(nextDelay)
 					// Save this error to be able to return the last seen error by an
 					// integration upon context timeout.
 					iErr = err

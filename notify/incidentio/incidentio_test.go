@@ -52,7 +52,7 @@ func TestIncidentIORetry(t *testing.T) {
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		actual, _ := notifier.retrier.Check(statusCode, nil)
+		actual, _ := notifier.retrier.Check(test.HTTPResponseForStatusCode(statusCode))
 		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
 }
@@ -187,7 +187,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			statusCode:             http.StatusTooManyRequests,
 			responseBody:           []byte(`{"error":"rate limit exceeded","message":"Too many requests"}`),
 			expectRetry:            true,
-			expectErrorMsgContains: "rate limit exceeded",
+			expectErrorMsgContains: "unexpected status code 429: Too many requests",
 		},
 		{
 			name:                   "server error response",

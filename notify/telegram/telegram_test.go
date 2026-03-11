@@ -83,7 +83,8 @@ func TestTelegramRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
-		actual, _ := notifier.retrier.Check(statusCode, nil)
+		resp := test.HTTPResponseForStatusCode(statusCode)
+		actual, _ := notifier.retrier.Check(resp)
 		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
