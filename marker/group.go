@@ -26,12 +26,24 @@ type groupStatus struct {
 // NewGroupMarker returns an instance of a GroupMarker implementation.
 func NewGroupMarker() GroupMarker {
 	return &groupMarker{
-		groups: map[string]*groupStatus{},
+		groups: map[groupMarkerKey]*groupStatus{},
+	}
+}
+
+type groupMarkerKey struct {
+	routeID  string
+	groupKey string
+}
+
+func newGroupMarkerKey(routeID, groupKey string) groupMarkerKey {
+	return groupMarkerKey{
+		routeID:  routeID,
+		groupKey: groupKey,
 	}
 }
 
 type groupMarker struct {
-	groups map[string]*groupStatus
+	groups map[groupMarkerKey]*groupStatus
 
 	mtx sync.RWMutex
 }
@@ -40,7 +52,7 @@ type groupMarker struct {
 func (m *groupMarker) Muted(routeID, groupKey string) ([]string, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
-	status, ok := m.groups[routeID+groupKey]
+	status, ok := m.groups[newGroupMarkerKey(routeID, groupKey)]
 	if !ok {
 		return nil, false
 	}
@@ -49,12 +61,13 @@ func (m *groupMarker) Muted(routeID, groupKey string) ([]string, bool) {
 
 // SetMuted implements GroupMarker.
 func (m *groupMarker) SetMuted(routeID, groupKey string, timeIntervalNames []string) {
+	key := newGroupMarkerKey(routeID, groupKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	status, ok := m.groups[routeID+groupKey]
+	status, ok := m.groups[key]
 	if !ok {
 		status = &groupStatus{}
-		m.groups[routeID+groupKey] = status
+		m.groups[key] = status
 	}
 	status.mutedBy = timeIntervalNames
 }
@@ -62,5 +75,5 @@ func (m *groupMarker) SetMuted(routeID, groupKey string, timeIntervalNames []str
 func (m *groupMarker) DeleteByGroupKey(routeID, groupKey string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	delete(m.groups, routeID+groupKey)
+	delete(m.groups, newGroupMarkerKey(routeID, groupKey))
 }

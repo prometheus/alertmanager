@@ -53,6 +53,11 @@ func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer, ff
 			labels, nil,
 		),
 		enableGroupKey: ff.EnableGroupKeyInMetrics(),
+		labels: map[alert.AlertState][]string{
+			alert.AlertStateActive:      {string(alert.AlertStateActive)},
+			alert.AlertStateSuppressed:  {string(alert.AlertStateSuppressed)},
+			alert.AlertStateUnprocessed: {string(alert.AlertStateUnprocessed)},
+		},
 	}
 	r.MustRegister(collector)
 
@@ -87,6 +92,7 @@ type alertStateCollector struct {
 	desc           *prometheus.Desc
 	enableGroupKey bool
 	dispatcher     atomic.Pointer[Dispatcher]
+	labels         map[alert.AlertState][]string
 }
 
 func (c *alertStateCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -107,7 +113,10 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 			d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 				ag := el.(*aggrGroup)
 				active, suppressed, unprocessed := ag.countAlertsByState()
-				c.emit(ch, active, suppressed, unprocessed, ag.GroupKey())
+				groupKey := ag.GroupKey()
+				c.emit(ch, float64(active), append(c.labels[alert.AlertStateActive], groupKey)...)
+				c.emit(ch, float64(suppressed), append(c.labels[alert.AlertStateSuppressed], groupKey)...)
+				c.emit(ch, float64(unprocessed), append(c.labels[alert.AlertStateUnprocessed], groupKey)...)
 				return true
 			})
 		}
@@ -141,7 +150,9 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 			unprocessed++
 		}
 	}
-	c.emit(ch, active, suppressed, unprocessed)
+	c.emit(ch, float64(active), c.labels[alert.AlertStateActive]...)
+	c.emit(ch, float64(suppressed), c.labels[alert.AlertStateSuppressed]...)
+	c.emit(ch, float64(unprocessed), c.labels[alert.AlertStateUnprocessed]...)
 }
 
 // countAlertsByState counts non-resolved alerts in the group by their marker state.
@@ -162,9 +173,7 @@ func (ag *aggrGroup) countAlertsByState() (active, suppressed, unprocessed int) 
 	return active, suppressed, unprocessed
 }
 
-// emit sends three gauge metrics (one per alert state) with the given counts and optional extra label values.
-func (c *alertStateCollector) emit(ch chan<- prometheus.Metric, active, suppressed, unprocessed int, extraLabels ...string) {
-	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(active), append([]string{string(alert.AlertStateActive)}, extraLabels...)...)
-	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(suppressed), append([]string{string(alert.AlertStateSuppressed)}, extraLabels...)...)
-	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(unprocessed), append([]string{string(alert.AlertStateUnprocessed)}, extraLabels...)...)
+// emit sends a gauge metric with the given count and labels.
+func (c *alertStateCollector) emit(ch chan<- prometheus.Metric, count float64, labels ...string) {
+	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, count, labels...)
 }
