@@ -28,7 +28,7 @@ func NewAlertMarker() AlertMarker {
 	}
 }
 
-// AlertMarker is an in-memory implementation of AlertMarker.
+// alertMarker is an in-memory implementation of AlertMarker.
 type alertMarker struct {
 	status map[model.Fingerprint]*alertStatus
 	mtx    sync.RWMutex
