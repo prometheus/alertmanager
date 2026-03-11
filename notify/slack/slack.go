@@ -254,7 +254,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	// Use a retrier to generate an error message for non-200 responses and
 	// classify them as retriable or not.
-	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	retry, err := n.retrier.Check(resp)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)

@@ -912,9 +912,16 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 	defer tick.Stop()
 
 	var (
-		i    = 0
-		iErr error
+		i               = 0
+		iErr            error
+		nextAttemptC    = tick.C
+		retryAfterTimer *time.Timer
 	)
+	defer func() {
+		if retryAfterTimer != nil {
+			retryAfterTimer.Stop()
+		}
+	}()
 
 	l = l.With("receiver", r.groupName, "integration", r.integration.String())
 	if groupKey, ok := GroupKey(ctx); ok {
@@ -943,7 +950,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 		}
 
 		select {
-		case <-tick.C:
+		case <-nextAttemptC:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			i++
@@ -956,7 +963,22 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
+					nextAttemptC = tick.C
+
+					var e *ErrorWithReason
+					if errors.As(err, &e) && e.Reason == TooManyRequestsReason && e.RetryAfter > 0 {
+						if retryAfterTimer != nil {
+							if !retryAfterTimer.Stop() {
+								select {
+								case <-retryAfterTimer.C:
+								default:
+								}
+							}
+						}
+						retryAfterTimer = time.NewTimer(e.RetryAfter)
+						nextAttemptC = retryAfterTimer.C
+						l.Warn("Notify attempt failed, honoring Retry-After", "attempts", i, "retry_after", e.RetryAfter, "err", err)
+					} else if iErr == nil || err.Error() != iErr.Error() {
 						// Log the error if the context isn't done and the error isn't the same as before.
 						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
 					}

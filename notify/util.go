@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
@@ -233,24 +235,64 @@ type Retrier struct {
 	RetryCodes []int
 }
 
+// parseRetryAfter parses the Retry-After header value, which can be either
+// a delay in seconds (integer) or an HTTP-date. Returns zero if absent or unparseable.
+func parseRetryAfter(h http.Header) time.Duration {
+	val := h.Get("Retry-After")
+	if val == "" {
+		return 0
+	}
+	// Try integer seconds first
+	if secs, err := strconv.Atoi(val); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	// Try HTTP-date format
+	if t, err := http.ParseTime(val); err == nil {
+		d := time.Until(t)
+		if d < 0 {
+			return 0
+		}
+		return d
+	}
+	return 0
+}
+
 // Check returns a boolean indicating whether the request should be retried
 // and an optional error if the request has failed. If body is not nil, it will
 // be included in the error message.
-func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
+func (r *Retrier) Check(resp *http.Response) (bool, error) {
 	// 2xx responses are considered to be always successful.
-	if statusCode/100 == 2 {
+	if resp.StatusCode/100 == 2 {
 		return false, nil
 	}
 
 	// 5xx responses are considered to be always retried.
-	retry := statusCode/100 == 5 || slices.Contains(r.RetryCodes, statusCode)
+	retry := resp.StatusCode/100 == 5 || slices.Contains(r.RetryCodes, resp.StatusCode)
 
-	s := fmt.Sprintf("unexpected status code %v", statusCode)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := parseRetryAfter(resp.Header)
+		e := NewErrorWithReason(
+			TooManyRequestsReason,
+			errors.New("received 429 Too Many Requests"),
+		)
+		// if the server provided a Retry-After header, use that value otherwise, use the
+		// default retry after duration defined in NewErrorWithReason for TooManyRequestsReason.
+		if retryAfter > 0 {
+			e.RetryAfter = retryAfter
+		}
+		return true, e
+	}
+
+	s := fmt.Sprintf("unexpected status code %v", resp.StatusCode)
 	var details string
 	if r.CustomDetailsFunc != nil {
-		details = r.CustomDetailsFunc(statusCode, body)
+		details = r.CustomDetailsFunc(resp.StatusCode, resp.Body)
 	} else {
-		details = readAll(body)
+		if resp.Body != nil {
+			details = readAll(resp.Body)
+		} else {
+			details = "no http response body"
+		}
 	}
 	if details != "" {
 		s = fmt.Sprintf("%s: %s", s, details)
@@ -261,10 +303,18 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 type ErrorWithReason struct {
 	Err error
 
-	Reason Reason
+	Reason     Reason
+	RetryAfter time.Duration
 }
 
 func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
+	if reason == TooManyRequestsReason {
+		return &ErrorWithReason{
+			Err:        err,
+			Reason:     reason,
+			RetryAfter: 0, // Default 0 indicates no server indicated retry time, so use default incremental backoff for retries.
+		}
+	}
 	return &ErrorWithReason{
 		Err:    err,
 		Reason: reason,
@@ -284,6 +334,7 @@ const (
 	ServerErrorReason
 	ContextCanceledReason
 	ContextDeadlineExceededReason
+	TooManyRequestsReason
 )
 
 func (s Reason) String() string {
@@ -298,16 +349,21 @@ func (s Reason) String() string {
 		return "contextCanceled"
 	case ContextDeadlineExceededReason:
 		return "contextDeadlineExceeded"
+	case TooManyRequestsReason:
+		return "tooManyRequests"
 	default:
 		panic(fmt.Sprintf("unknown Reason: %d", s))
 	}
 }
 
 // possibleFailureReasonCategory is a list of possible failure reason.
-var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String()}
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String(), TooManyRequestsReason.String()}
 
 // GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
 func GetFailureReasonFromStatusCode(statusCode int) Reason {
+	if statusCode == http.StatusTooManyRequests {
+		return TooManyRequestsReason
+	}
 	if statusCode/100 == 4 {
 		return ClientErrorReason
 	}

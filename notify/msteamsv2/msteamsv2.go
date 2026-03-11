@@ -196,7 +196,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer notify.Drain(resp)
 
 	// https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using?tabs=cURL#rate-limiting-for-connectors
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	shouldRetry, err := n.retrier.Check(resp)
 	if err != nil {
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
