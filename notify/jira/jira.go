@@ -346,6 +346,10 @@ func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *
 		transition = n.conf.ResolveTransition
 	}
 
+	if transition == "" {
+		return false, nil
+	}
+
 	transitionID, shouldRetry, err := n.getIssueTransitionByName(ctx, i.Key, transition)
 	if err != nil {
 		return shouldRetry, err
