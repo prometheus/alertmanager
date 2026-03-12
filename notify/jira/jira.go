@@ -100,6 +100,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		logger.Debug("create new issue")
 	} else {
+		if n.conf.DisableFieldUpdates {
+			return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
+		}
 		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
 		logger.Debug("updating existing issue", "issue_key", existingIssue.Key, "summary_update_enabled", n.conf.Summary.EnableUpdateValue(), "description_update_enabled", n.conf.Description.EnableUpdateValue())
