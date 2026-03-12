@@ -428,7 +428,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil)
 
 	alerts := []*types.Alert{
 		{
@@ -481,7 +481,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			}),
 			rs: sendResolved(false),
 		}
-		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil)
 
 		alerts := []*types.Alert{
 			{
@@ -516,7 +516,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil)
 
 	alerts := []*types.Alert{
 		{
@@ -548,7 +548,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil)
 
 	alerts := []*types.Alert{
 		{
@@ -599,7 +599,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil)
 
 	alerts := []*types.Alert{
 		{
@@ -1027,5 +1027,59 @@ func BenchmarkHashAlert(b *testing.B) {
 	}
 	for b.Loop() {
 		hashAlert(alert)
+	}
+}
+
+func TestLabelSetToMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    model.LabelSet
+		expected map[string]string
+	}{
+		{
+			name:     "nil LabelSet",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty LabelSet",
+			input:    model.LabelSet{},
+			expected: map[string]string{},
+		},
+		{
+			name:     "single label",
+			input:    model.LabelSet{"alertname": "TestAlert"},
+			expected: map[string]string{"alertname": "TestAlert"},
+		},
+		{
+			name: "multiple labels",
+			input: model.LabelSet{
+				"alertname": "TestAlert",
+				"severity":  "critical",
+				"instance":  "localhost:9090",
+			},
+			expected: map[string]string{
+				"alertname": "TestAlert",
+				"severity":  "critical",
+				"instance":  "localhost:9090",
+			},
+		},
+		{
+			name:     "empty label value",
+			input:    model.LabelSet{"alertname": ""},
+			expected: map[string]string{"alertname": ""},
+		},
+		{
+			name:     "special characters in values",
+			input:    model.LabelSet{"path": "/api/v1/query?query=up{job=\"prometheus\"}"},
+			expected: map[string]string{"path": "/api/v1/query?query=up{job=\"prometheus\"}"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := labelSetToMap(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
 	}
 }
