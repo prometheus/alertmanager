@@ -146,7 +146,7 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 			logger.Warn("Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
-			logger.Warn("Automatically set GOMAXPROCS to match Linux container CPU quota")
+			logger.Error("Deprecated: auto-gomaxprocs will be removed in v0.33. Removing this flag does not affect behavior, as Go 1.25+ natively handles container CPU quotas.")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
