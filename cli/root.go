@@ -45,7 +45,7 @@ var (
 	versionCheck    bool
 	featureFlags    string
 
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	configFiles = defaultConfigFiles()
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
@@ -192,8 +192,13 @@ const (
 
 Config File:
 The alertmanager tool will read a config file in YAML format from one of two
-default config locations: $HOME/.config/amtool/config.yml or
-/etc/amtool/config.yml
+default config locations depending on the operating system.
+
+On non-Windows systems:
+  $HOME/.config/amtool/config.yml or /etc/amtool/config.yml
+
+On Windows systems:
+  %APPDATA%\amtool\config.yml or %ProgramData%\amtool\config.yml
 
 All flags can be given in the config file, but the following are the suited for
 static configuration:
