@@ -62,6 +62,7 @@ import (
 	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+	"github.com/prometheus/alertmanager/weboperations"
 )
 
 var (
@@ -582,7 +583,8 @@ func run() int {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	ui.Register(router)
+	weboperations.Register(router, webReload)
 
 	mux := api.Register(router, *routePrefix)
 
