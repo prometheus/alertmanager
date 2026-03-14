@@ -85,9 +85,12 @@ templating.
 
 | Name             | Arguments                  | Description |
 | ---------------- | -------------------------- | ----------- |
+| append           | slice []any, args ...any   | Returns a new slice with the provided arguments appended to the provided slice. |
 | date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
+| dict             | values ...any              | Returns a map of string to any, constructed from the variadic list of key-value pairs. The number of arguments must be even, and the keys must be strings. |
 | humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
 | join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
+| list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
 | reReplaceAll     | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
 | safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
