@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"fmt"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -222,6 +223,28 @@ var DefaultFuncs = FuncMap{
 			return "", err
 		}
 		return string(bytes), nil
+	},
+	"list": func(args ...any) ([]any, error) {
+		return args, nil
+	},
+	"append": func(slice []any, args ...any) ([]any, error) {
+		return append(slice, args...), nil
+	},
+	"dict": func(values ...any) (map[string]any, error) {
+		if len(values)%2 != 0 {
+			return nil, fmt.Errorf("dict requires an even number of arguments")
+		}
+
+		res := make(map[string]any, len(values)/2)
+		for i := 0; i < len(values); i += 2 {
+			key, ok := values[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict keys must be strings")
+			}
+			res[key] = values[i+1]
+		}
+
+		return res, nil
 	},
 }
 

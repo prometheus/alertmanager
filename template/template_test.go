@@ -313,7 +313,7 @@ func TestTemplateExpansion(t *testing.T) {
 		},
 		{
 			title: "Template with invalid syntax",
-			in:    `{{ `,
+			in:    `{{ foo }} `,
 			fail:  true,
 		},
 		{
@@ -462,6 +462,42 @@ func TestTemplateExpansion(t *testing.T) {
 				},
 			},
 			exp: `[{"status":"firing","labels":null,"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+		},
+		{
+			title: "Template creates empty dict when using dict on nil",
+			in:    `{{- $test := dict -}}{{ $test }}`,
+			exp:   "map[]",
+		},
+		{
+			title: "Template creates dict with args",
+			in:    `{{- $test := dict "a" 1 "b" 2 "c" 3 -}}{{ $test }}`,
+			exp:   "map[a:1 b:2 c:3]",
+		},
+		{
+			title: "Template creates empty list when using list on nil",
+			in:    `{{- $test := list -}}{{ $test  }}`,
+			exp:   "[]",
+		},
+		{
+			title: "Template creates list with args",
+			in:    `{{- $test := list "a" "b" "c" -}}{{ $test }}`,
+			exp:   "[a b c]",
+		},
+		{
+			title: "Template appends to list",
+			in:    `{{- $test := list "a" "b" -}}{{ $test = append $test "c" "d" -}}{{ $test }}`,
+			exp:   "[a b c d]",
+		},
+		{
+			title: "Compose json array using list and append",
+			data: Data{
+				Alerts: Alerts{
+					{Status: "firing"},
+					{Status: "resolved"},
+				},
+			},
+			in:  `{{- $newList := list -}}{{ range .Alerts }}{{ $m := dict "status" .Status "labels" .Labels }}{{ $newList = append $newList $m }}{{ end }}{{ toJson $newList }}`,
+			exp: `[{"labels":null,"status":"firing"},{"labels":null,"status":"resolved"}]`,
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
