@@ -85,7 +85,9 @@ templating.
 
 | Name             | Arguments                  | Description |
 | ---------------- | -------------------------- | ----------- |
+| append           | slice []any, args ...any   | Returns a new slice with the provided arguments appended to the provided slice. |
 | date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
+| dict             | values ...any              | Returns a map of string to any, constructed from the variadic list of key-value pairs. The number of arguments must be even, and the keys must be strings. |
 | humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
 | join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
@@ -93,6 +95,7 @@ templating.
 | safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl          | text string                | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
 | since            | time.Time                  | [time.Since](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |
+| list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | stringSlice      | ...string                  | Returns the passed strings as a slice of strings. |
 | title            | string                     | [strings.Title](http://golang.org/pkg/strings/#Title), capitalises first character of each word. |
 | toJson           | any                        | [json.Marshal](https://pkg.go.dev/encoding/json#Marshal), returns the JSON encoding of the value. |
