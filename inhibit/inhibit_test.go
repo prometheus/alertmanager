@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -251,13 +252,13 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 
 	rule1 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
-		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
+		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          []string{"e"},
 	}
 	rule2 := config.InhibitRule{
-		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
-		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
+		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
 		Equal:          []string{"e"},
 	}
 

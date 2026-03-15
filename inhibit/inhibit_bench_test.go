@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
@@ -109,10 +110,10 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
-				SourceMatchers: config.Matchers{
+				SourceMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
 				},
-				TargetMatchers: config.Matchers{
+				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
 				},
 			}
@@ -152,10 +153,10 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 		n: n,
 		newRuleFunc: func(idx int) config.InhibitRule {
 			return config.InhibitRule{
-				SourceMatchers: config.Matchers{
+				SourceMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
 				},
-				TargetMatchers: config.Matchers{
+				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
 				},
 			}
