@@ -4,3 +4,4 @@ elm-stuff/
 /elm-*
 /openapi-*
 /build
+/node_modules/
