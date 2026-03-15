@@ -257,11 +257,11 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(any) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route        `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string      `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig             `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route                    `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []amcommoncfg.InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []Receiver                `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string                  `yaml:"templates" json:"templates"`
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
@@ -916,62 +916,6 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if r.RepeatInterval != nil && time.Duration(*r.RepeatInterval) == time.Duration(0) {
 		return errors.New("repeat_interval cannot be zero")
-	}
-
-	return nil
-}
-
-// InhibitRule defines an inhibition rule that mutes alerts that match the
-// target labels if an alert matching the source labels exists.
-// Both alerts have to have a set of labels being equal.
-type InhibitRule struct {
-	// Name is an optional name for the inhibition rule.
-	Name string `yaml:"name,omitempty" json:"name,omitempty"`
-	// SourceMatch defines a set of labels that have to equal the given
-	// value for source alerts. Deprecated. Remove before v1.0 release.
-	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
-	// SourceMatchRE defines pairs like SourceMatch but does regular expression
-	// matching. Deprecated. Remove before v1.0 release.
-	SourceMatchRE amcommoncfg.MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
-	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
-	SourceMatchers amcommoncfg.Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
-	// TargetMatch defines a set of labels that have to equal the given
-	// value for target alerts. Deprecated. Remove before v1.0 release.
-	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
-	// TargetMatchRE defines pairs like TargetMatch but does regular expression
-	// matching. Deprecated. Remove before v1.0 release.
-	TargetMatchRE amcommoncfg.MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
-	// TargetMatchers defines a set of label matchers that have to be fulfilled for target alerts.
-	TargetMatchers amcommoncfg.Matchers `yaml:"target_matchers,omitempty" json:"target_matchers,omitempty"`
-	// A set of labels that must be equal between the source and target alert
-	// for them to be a match.
-	Equal []string `yaml:"equal,omitempty" json:"equal,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
-func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain InhibitRule
-	if err := unmarshal((*plain)(r)); err != nil {
-		return err
-	}
-
-	for k := range r.SourceMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for k := range r.TargetMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for _, l := range r.Equal {
-		labelName := model.LabelName(l)
-		if !compat.IsValidLabelName(labelName) {
-			return fmt.Errorf("invalid label name %q in equal list", l)
-		}
 	}
 
 	return nil
