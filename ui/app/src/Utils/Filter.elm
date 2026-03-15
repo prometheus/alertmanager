@@ -20,7 +20,6 @@ module Utils.Filter exposing
     , withMatchers
     )
 
-import Char
 import Data.Matcher
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -319,8 +318,8 @@ item : Parser Matcher
 item =
     Parser.succeed Matcher
         |= Parser.variable
-            { start = isVarChar
-            , inner = isVarChar
+            { start = \c -> not (Set.member c reservedChars)
+            , inner = \c -> not (Set.member c reservedChars)
             , reserved = Set.empty
             }
         |= (matchers
@@ -364,12 +363,9 @@ stringHelp separator =
         ]
 
 
-isVarChar : Char -> Bool
-isVarChar char =
-    Char.isLower char
-        || Char.isUpper char
-        || (char == '_')
-        || Char.isDigit char
+reservedChars : Set.Set Char
+reservedChars =
+    Set.fromList [ '{', '}', '!', '=', '~', ',', '\\', '"', '\'', '`', ' ', '\t', '\n', '\u{000D}' ]
 
 
 withMatchers : List Matcher -> Filter -> Filter
