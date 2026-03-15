@@ -401,7 +401,7 @@ func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string
 		return nil, false, err
 	}
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, bytes.NewReader(responseBody))
+	shouldRetry, err := n.retrier.Check(resp)
 	if err != nil {
 		return nil, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}

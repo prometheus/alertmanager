@@ -107,9 +107,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		parameters.Add("corpsecret", tmpl(apiSecret))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-		if err != nil {
-			return false, fmt.Errorf("templating error: %w", err)
-		}
 
 		u := n.conf.APIURL.Copy()
 		u.Path += "gettoken"

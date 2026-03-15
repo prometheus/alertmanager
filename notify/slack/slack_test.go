@@ -51,7 +51,7 @@ func TestSlackRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
-		actual, _ := notifier.retrier.Check(statusCode, nil)
+		actual, _ := notifier.retrier.Check(test.HTTPResponseForStatusCode(statusCode))
 		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }

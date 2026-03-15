@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -80,7 +81,11 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 			// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
 			var respErr *smithyhttp.ResponseError
 			if errors.As(err, &respErr) && respErr.Response != nil {
-				return n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
+				resp := &http.Response{
+					StatusCode: respErr.Response.StatusCode,
+					Body:       io.NopCloser(strings.NewReader(apiErr.ErrorMessage())),
+				}
+				return n.retrier.Check(resp)
 			}
 			// Fallback if we can't get a status code.
 			return true, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage())
@@ -107,7 +112,11 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 			// If we got a status code, use the retrier logic.
 			if statusCode != 0 {
-				retryable, checkErr := n.retrier.Check(statusCode, strings.NewReader(apiErr.ErrorMessage()))
+				resp := &http.Response{
+					StatusCode: statusCode,
+					Body:       io.NopCloser(strings.NewReader(apiErr.ErrorMessage())),
+				}
+				retryable, checkErr := n.retrier.Check(resp)
 				reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(statusCode), checkErr)
 				return retryable, reasonErr
 			}
