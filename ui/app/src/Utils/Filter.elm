@@ -365,7 +365,28 @@ stringHelp separator =
 
 reservedChars : Set.Set Char
 reservedChars =
-    Set.fromList [ '{', '}', '!', '=', '~', ',', '\\', '"', '\'', '`', ' ', '\t', '\n', '\u{000D}' ]
+    -- Matches Go's unicode.IsSpace (for Latin-1) plus matcher syntax characters
+    -- See: https://pkg.go.dev/unicode#IsSpace
+    Set.fromList
+        [ '{'
+        , '}'
+        , '!'
+        , '='
+        , '~'
+        , ','
+        , '\\'
+        , '"'
+        , '\''
+        , '`'
+        , ' '
+        , '\t'
+        , '\n'
+        , '\u{000B}'
+        , '\u{000C}'
+        , '\u{000D}'
+        , '\u{0085}'
+        , '\u{00A0}'
+        ]
 
 
 withMatchers : List Matcher -> Filter -> Filter
