@@ -25,13 +25,10 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -538,69 +535,6 @@ func TestJSONMarshal(t *testing.T) {
 	}
 }
 
-func TestMarshalRegexpWithNilValue(t *testing.T) {
-	r := &Regexp{}
-
-	out, err := json.Marshal(r)
-	require.NoError(t, err)
-	require.Equal(t, "null", string(out))
-
-	out, err = yaml.Marshal(r)
-	require.NoError(t, err)
-	require.Equal(t, "null\n", string(out))
-}
-
-func TestUnmarshalEmptyRegexp(t *testing.T) {
-	b := []byte(`""`)
-
-	{
-		var re Regexp
-		err := json.Unmarshal(b, &re)
-		require.NoError(t, err)
-		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Empty(t, re.original)
-	}
-
-	{
-		var re Regexp
-		err := yaml.Unmarshal(b, &re)
-		require.NoError(t, err)
-		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
-		require.Empty(t, re.original)
-	}
-}
-
-func TestUnmarshalNullRegexp(t *testing.T) {
-	input := []byte(`null`)
-
-	{
-		var re Regexp
-		err := json.Unmarshal(input, &re)
-		require.NoError(t, err)
-		require.Empty(t, re.original)
-	}
-
-	{
-		var re Regexp
-		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
-		require.NoError(t, err)
-		require.Nil(t, re.Regexp)
-		require.Empty(t, re.original)
-	}
-}
-
-func TestMarshalEmptyMatchers(t *testing.T) {
-	r := Matchers{}
-
-	out, err := json.Marshal(r)
-	require.NoError(t, err)
-	require.Equal(t, "[]", string(out))
-
-	out, err = yaml.Marshal(r)
-	require.NoError(t, err)
-	require.Equal(t, "[]\n", string(out))
-}
-
 func TestJSONUnmarshal(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
@@ -656,9 +590,9 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	regexpFoo := Regexp{
+	regexpFoo := amcommoncfg.Regexp{
 		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
-		original: "^(foo1|foo2|baz)$",
+		Original: "^(foo1|foo2|baz)$",
 	}
 
 	expectedConf := Config{
@@ -704,7 +638,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",
-					MatchRE: map[string]Regexp{
+					MatchRE: map[string]amcommoncfg.Regexp{
 						"service": regexpFoo,
 					},
 				},
@@ -1582,48 +1516,6 @@ func TestSecretTemplURLMarshaling(t *testing.T) {
 		require.NoError(t, err)
 		require.JSONEq(t, `""`, string(jsonOut))
 	})
-}
-
-func TestInhibitRuleEqual(t *testing.T) {
-	c, err := LoadFile("testdata/conf.inhibit-equal.yml")
-	require.NoError(t, err)
-
-	// The inhibition rule should have the expected equal labels.
-	require.Len(t, c.InhibitRules, 1)
-	r := c.InhibitRules[0]
-	require.Equal(t, []string{"qux", "corge"}, r.Equal)
-
-	// Should not be able to load configuration with UTF-8 in equals list.
-	_, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
-	require.Error(t, err)
-	require.Equal(t, "invalid label name \"qux🙂\" in equal list", err.Error())
-
-	// Change the mode to UTF-8 mode.
-	ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureUTF8StrictMode)
-	require.NoError(t, err)
-	compat.InitFromFlags(promslog.NewNopLogger(), ff)
-
-	// Restore the mode to classic at the end of the test.
-	ff, err = featurecontrol.NewFlags(promslog.NewNopLogger(), featurecontrol.FeatureClassicMode)
-	require.NoError(t, err)
-	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
-
-	c, err = LoadFile("testdata/conf.inhibit-equal.yml")
-	require.NoError(t, err)
-
-	// The inhibition rule should have the expected equal labels.
-	require.Len(t, c.InhibitRules, 1)
-	r = c.InhibitRules[0]
-	require.Equal(t, []string{"qux", "corge"}, r.Equal)
-
-	// Should also be able to load configuration with UTF-8 in equals list.
-	c, err = LoadFile("testdata/conf.inhibit-equal-utf8.yml")
-	require.NoError(t, err)
-
-	// The inhibition rule should have the expected equal labels.
-	require.Len(t, c.InhibitRules, 1)
-	r = c.InhibitRules[0]
-	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
 
 func TestGroupByEmptyOverride(t *testing.T) {
