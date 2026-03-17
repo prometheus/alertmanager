@@ -409,3 +409,40 @@ func TestDefaultRuleIndexOptions(t *testing.T) {
 	require.Equal(t, 2, opts.minRulesForIndex)
 	require.Equal(t, 0.5, opts.maxMatcherOverlapRatio)
 }
+
+// TestForEachCandidate_EmptyValueMatcherWithAbsentLabel tests that a rule with
+// MatchEqual("label", "") correctly matches alerts that don't have that label.
+// This is a regression test: the index must not miss such rules when the label
+// is absent from the alert's label set.
+func TestForEachCandidate_EmptyValueMatcherWithAbsentLabel(t *testing.T) {
+	rules := []*InhibitRule{
+		{
+			Name: "empty-value-rule",
+			TargetMatchers: labels.Matchers{
+				newTestMatcher(t, labels.MatchEqual, "optional_label", ""),
+			},
+		},
+		{
+			Name: "other-rule",
+			TargetMatchers: labels.Matchers{
+				newTestMatcher(t, labels.MatchEqual, "cluster", "prod"),
+			},
+		},
+	}
+	idx := newRuleIndex(rules)
+
+	// Alert does NOT have "optional_label" at all.
+	// MatchEqual("optional_label", "") should match because Go's map lookup
+	// returns "" for absent keys, so lset["optional_label"] == "" is true.
+	lset := model.LabelSet{"cluster": "staging", "severity": "warning"}
+
+	var visited []string
+	result := idx.forEachCandidate(lset, func(r *InhibitRule) bool {
+		visited = append(visited, r.Name)
+		return false
+	})
+
+	require.False(t, result)
+	require.Contains(t, visited, "empty-value-rule",
+		"Rule with MatchEqual(label, \"\") should be a candidate when label is absent from alert")
+}

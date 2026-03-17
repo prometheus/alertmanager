@@ -99,10 +99,13 @@ func newRuleIndexWithOptions(rules []*InhibitRule, opts ruleIndexOptions) *ruleI
 	}
 
 	// First pass: count how many rules each matcher appears in to detect high-overlap
+	// Note: MatchEqual with empty value is excluded from indexing because it matches
+	// alerts that don't have the label at all, but forEachCandidate only iterates
+	// over labels present in the alert's label set.
 	matcherCount := make(map[matcherKey]int)
 	for _, rule := range rules {
 		for _, m := range rule.TargetMatchers {
-			if m.Type == labels.MatchEqual {
+			if m.Type == labels.MatchEqual && m.Value != "" {
 				matcherCount[matcherKey{m.Name, m.Value}]++
 			}
 		}
@@ -117,12 +120,12 @@ func newRuleIndexWithOptions(rules []*InhibitRule, opts ruleIndexOptions) *ruleI
 		}
 	}
 
-	// Second pass: build index excluding high-overlap matchers
+	// Second pass: build index excluding high-overlap matchers and empty-value matchers
 	for _, rule := range rules {
 		// Count indexable matchers to determine if rule needs deduplication
 		var indexableCount int
 		for _, m := range rule.TargetMatchers {
-			if m.Type != labels.MatchEqual {
+			if m.Type != labels.MatchEqual || m.Value == "" {
 				continue
 			}
 			if _, isHighOverlap := highOverlapMatchers[matcherKey{m.Name, m.Value}]; !isHighOverlap {
@@ -142,7 +145,7 @@ func newRuleIndexWithOptions(rules []*InhibitRule, opts ruleIndexOptions) *ruleI
 
 		// Add rule to index for each indexable matcher
 		for _, m := range rule.TargetMatchers {
-			if m.Type != labels.MatchEqual {
+			if m.Type != labels.MatchEqual || m.Value == "" {
 				continue
 			}
 			if _, isHighOverlap := highOverlapMatchers[matcherKey{m.Name, m.Value}]; isHighOverlap {
