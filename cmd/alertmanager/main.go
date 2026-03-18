@@ -44,7 +44,6 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
-	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
@@ -221,12 +220,7 @@ func run() int {
 	}
 
 	if ff.EnableAutoGOMAXPROCS() {
-		l := func(format string, a ...any) {
-			logger.Info("automaxprocs", "msg", fmt.Sprintf(strings.TrimPrefix(format, "maxprocs: "), a...))
-		}
-		if _, err := maxprocs.Set(maxprocs.Logger(l)); err != nil {
-			logger.Warn("Failed to set GOMAXPROCS automatically", "err", err)
-		}
+		logger.Warn("automaxprocs", "msg", "This flag is deprecated and will be removed in the next release")
 	}
 
 	err = os.MkdirAll(*dataDir, 0o777)
