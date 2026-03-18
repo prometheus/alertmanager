@@ -694,6 +694,14 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			want:  "hello-templated",
 		},
 		{
+			title: "quoted numeric string stays string",
+			input: "hello",
+			fn: TemplateFunc(func(string) (string, error) {
+				return "\"123\"", nil
+			}),
+			want: "123",
+		},
+		{
 			title: "string parsed as YAML map",
 			input: "foo: bar",
 			fn:    identity,

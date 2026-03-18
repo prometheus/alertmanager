@@ -463,8 +463,14 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		if ok == nil {
 			var inlineType any
 			err := yaml.Unmarshal([]byte(parsed), &inlineType)
-			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+			if err != nil {
 				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			if inlineString, isString := inlineType.(string); isString {
+				return inlineString, ok
+			}
+			if strings.TrimSpace(parsed) == "" {
 				return parsed, ok
 			}
 			return DeepCopyWithTemplate(inlineType, tmplTextFunc)
