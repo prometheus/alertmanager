@@ -51,11 +51,25 @@ parseMatcher =
                 Expect.equal
                     (Just (Matcher "cluster-id" Eq "prod-us-east"))
                     (Utils.Filter.parseMatcher "cluster-id=\"prod-us-east\"")
+        , test "should parse dotted label name with not regex match" <|
+            \() ->
+                Expect.equal
+                    (Just (Matcher "host.name" NotRegexMatch "server-.*"))
+                    (Utils.Filter.parseMatcher "host.name!~\"server-.*\"")
         , test "should parse UTF-8 label name" <|
             \() ->
                 Expect.equal
                     (Just (Matcher "Προμηθεύς" Eq "alerts"))
                     (Utils.Filter.parseMatcher "Προμηθεύς=\"alerts\"")
+        , test "should reject NBSP in label name" <|
+            \() ->
+                let
+                    nbsp =
+                        String.fromChar (Char.fromCode 0xA0)
+                in
+                Expect.equal
+                    Nothing
+                    (Utils.Filter.parseMatcher ("host" ++ nbsp ++ "name=\"server-01\""))
         , fuzz (tuple ( string, string )) "should parse random matcher string" <|
             \( key, value ) ->
                 if List.map isNotEmptyTrimmedAlphabetWord [ key, value ] /= [ True, True ] then
