@@ -702,6 +702,25 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			want: "123",
 		},
 		{
+			title: "quoted numeric string stays string in nested map",
+			input: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "TOKEN",
+				},
+			},
+			fn: TemplateFunc(func(s string) (string, error) {
+				if s == "TOKEN" {
+					return "\"15129\"", nil
+				}
+				return s, nil
+			}),
+			want: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "15129",
+				},
+			},
+		},
+		{
 			title: "string parsed as YAML map",
 			input: "foo: bar",
 			fn:    identity,
