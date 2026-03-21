@@ -5,3 +5,4 @@ elm-stuff/
 /openapi-*
 /build
 /node_modules/
+/.build_stamp

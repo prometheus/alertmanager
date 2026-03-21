@@ -27,16 +27,23 @@ STATICCHECK_IGNORE =
 build-all: assets apiv2 build
 
 .PHONY: build
-build: common-build
+build: ui-elm common-build
+
+.PHONY: test
+test: ui-elm common-test
 
 .PHONY: lint
-lint: common-lint
+lint: ui-elm common-lint
 
 .PHONY: assets
-assets: ui/app/script.js template/email.tmpl
+assets: $(FRONTEND_DIR)/src/Data ui-elm template/email.tmpl
 
-ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
-	cd $(FRONTEND_DIR) && $(MAKE) script.js
+.PHONY: ui-elm
+ui-elm:
+	cd $(FRONTEND_DIR) && $(MAKE) build
+
+$(FRONTEND_DIR)/src/Data: api/v2/openapi.yaml
+	cd $(FRONTEND_DIR) && $(MAKE) src/Data
 
 template/email.tmpl: template/email.html
 	cd $(TEMPLATE_DIR) && $(MAKE) email.tmpl
