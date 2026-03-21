@@ -14,6 +14,8 @@
 package ui
 
 import (
+	"bytes"
+	"compress/gzip"
 	"embed"
 	"io"
 	"io/fs"
@@ -28,17 +30,87 @@ import (
 //go:embed app/dist
 var asset embed.FS
 
-// https://www.iana.org/assignments/media-types/
-var fileTypes = map[string]string{
-	".css":   "text/css; charset=utf-8",
-	".eot":   "application/vnd.ms-fontobject",
-	".html":  "text/html; charset=utf-8",
-	".ico":   "image/vnd.microsoft.icon",
-	".js":    "text/javascript; charset=utf-8",
-	".svg":   "image/svg+xml",
-	".ttf":   "font/ttf",
-	".woff":  "font/woff",
-	".woff2": "font/woff2",
+var fileTypes = map[string]struct {
+	contentType  string // https://www.iana.org/assignments/media-types/
+	varyEncoding bool   // Must match build configuration in vite.config.mjs.
+}{
+	".css":   {"text/css; charset=utf-8", true},
+	".eot":   {"application/vnd.ms-fontobject", true},
+	".html":  {"text/html; charset=utf-8", true},
+	".ico":   {"image/vnd.microsoft.icon", true},
+	".js":    {"text/javascript; charset=utf-8", true},
+	".svg":   {"image/svg+xml", true},
+	".ttf":   {"font/ttf", true},
+	".woff":  {"font/woff", false},
+	".woff2": {"font/woff2", false},
+}
+
+type encoding int
+
+const (
+	encNone encoding = iota
+	encGzip
+	encBrotli
+)
+
+type tokenEffect int
+
+const (
+	effectUnseen tokenEffect = iota
+	effectReject
+	effectAccept
+)
+
+// selectEncoding parses the Accept-Encoding header and returns the preferred
+// encoding. For simplicity, non-zero q-values are not ranked.
+func selectEncoding(header string) encoding {
+	brotli, gzip, wildcard := effectUnseen, effectUnseen, effectUnseen
+	for part := range strings.SplitSeq(header, ",") {
+		encAndQ := strings.SplitN(strings.TrimSpace(part), ";", 2)
+
+		effect := effectAccept
+		if len(encAndQ) > 1 {
+			if q, ok := strings.CutPrefix(strings.TrimSpace(encAndQ[1]), "q="); ok {
+				switch q {
+				case "0", "0.", "0.0", "0.00", "0.000":
+					effect = effectReject
+				}
+			}
+		}
+
+		switch strings.TrimSpace(encAndQ[0]) {
+		case "br":
+			brotli = effect
+		case "gzip":
+			gzip = effect
+		case "*":
+			wildcard = effect
+		}
+	}
+
+	if brotli == effectAccept || (wildcard == effectAccept && brotli == effectUnseen) {
+		return encBrotli
+	} else if gzip == effectAccept || (wildcard == effectAccept && gzip == effectUnseen) {
+		return encGzip
+	}
+	return encNone
+}
+
+// decompressToReader decompresses f into memory. For simplicity the entire
+// file is buffered; this is acceptable given the small size of the assets.
+func decompressToReader(f fs.File) (*bytes.Reader, error) {
+	gzReader, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer gzReader.Close()
+
+	data, err := io.ReadAll(gzReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(data), nil
 }
 
 // Register registers handlers to serve files for the web interface.
@@ -49,22 +121,59 @@ func Register(r *route.Router) {
 	}
 	serve := func(w http.ResponseWriter, req *http.Request, filePath string, immutable bool) {
 		ext := strings.ToLower(path.Ext(filePath))
-		contentType, ok := fileTypes[ext]
+		fileType, ok := fileTypes[ext]
 		if !ok {
 			http.NotFound(w, req)
 			return
 		}
 
-		f, err := appFS.Open(filePath)
-		if err != nil {
-			http.NotFound(w, req)
-			return
+		if fileType.varyEncoding {
+			switch selectEncoding(req.Header.Get("Accept-Encoding")) {
+			case encBrotli:
+				if f, err := appFS.Open(filePath + ".br"); err == nil {
+					defer f.Close()
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Set("Content-Encoding", "br")
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+					return
+				}
+			case encGzip:
+				if f, err := appFS.Open(filePath + ".gz"); err == nil {
+					defer f.Close()
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Set("Content-Encoding", "gzip")
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+					return
+				}
+			case encNone:
+				if f, err := appFS.Open(filePath + ".gz"); err == nil {
+					defer f.Close()
+					uncompressedBytes, err := decompressToReader(f)
+					if err != nil {
+						http.Error(w, "failed to decompress file", http.StatusInternalServerError)
+						return
+					}
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, uncompressedBytes)
+					return
+				}
+			}
+		} else {
+			if f, err := appFS.Open(filePath); err == nil {
+				defer f.Close()
+				setCachePolicy(w, immutable)
+				w.Header().Set("Content-Type", fileType.contentType)
+				http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+				return
+			}
 		}
-		defer f.Close()
-
-		setCachePolicy(w, immutable)
-		w.Header().Set("Content-Type", contentType)
-		http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+		http.NotFound(w, req)
 	}
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
