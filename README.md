@@ -34,8 +34,6 @@ Building from source requires [Go](https://golang.org/) and [Node.js](https://no
 Clone the repository and build manually:
 
 ```
-$ mkdir -p $GOPATH/src/github.com/prometheus
-$ cd $GOPATH/src/github.com/prometheus
 $ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
 $ make build
