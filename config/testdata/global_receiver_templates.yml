@@ -1,0 +1,70 @@
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'test@example.org'
+  receiver_templates:
+    slack:
+      title: '{{ template "custom.title" . }}'
+      text: '{{ template "custom.text" . }}'
+    email:
+      subject: 'Custom subject: {{ .CommonLabels.alertname }}'
+    pagerduty:
+      description: 'Global PD description'
+      details:
+        firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+        resolved: '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+        num_firing: '{{ .Alerts.Firing | len }}'
+        num_resolved: '{{ .Alerts.Resolved | len }}'
+        environment: 'prod-global'
+    opsgenie:
+      description: 'Global OpsGenie description'
+
+route:
+  receiver: 'default'
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - api_url: 'http://slack.example.com'
+        channel: '#default'
+        # title and text come from global.receiver_templates.slack
+    pagerduty_configs:
+      - routing_key: 'rk-default'
+        # details come from global.receiver_templates.pagerduty.details
+
+  - name: 'custom-override'
+    slack_configs:
+      - api_url: 'http://slack.example.com'
+        channel: '#custom'
+        title: 'Per-receiver override title'   # overrides global template
+        # text still comes from global.receiver_templates.slack
+    pagerduty_configs:
+      - routing_key: 'rk-override'
+        details:
+          firing: 'Per-receiver PD firing detail'
+          # Custom keys are preserved and must not be overridden.
+          environment: 'custom-env-override'
+
+  - name: 'empty-override'
+    slack_configs:
+      - api_url: 'http://slack.example.com'
+        channel: '#empty'
+        title: ''   # an explicit empty string should NOT be overwritten
+    pagerduty_configs:
+      - routing_key: 'rk-empty'
+        details:
+          firing: ''   # explicit empty string must not be overwritten by global
+
+  - name: 'pd-custom-absent'
+    pagerduty_configs:
+      - routing_key: 'rk-pd-custom-absent'
+        details: {} # does not set `environment`, should inherit it from global receiver_templates
+
+  - name: 'pd-custom-nil'
+    pagerduty_configs:
+      - routing_key: 'rk-pd-custom-nil'
+        # details map entirely omitted
+
+  - name: 'email-receiver'
+    email_configs:
+      - to: 'someone@example.org'
+        # subject comes from global.receiver_templates.email
