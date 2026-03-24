@@ -1,13 +1,10 @@
 # Use `=` instead of `:=` expanding variable lazely, not at beginning. Needed as
 # elm files change during execution.
 ELM_FILES = $(shell find src -iname *.elm)
-DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
 # If JUNIT_DIR is set, the tests are executed with the JUnit reporter and the result is stored in the given directory.
 JUNIT_DIR ?=
-
-ifeq ($(NO_DOCKER), true)
-  DOCKER_CMD=
-endif
+DOCKER              ?= docker
+OPENAPI_GEN_IMAGE   ?= openapitools/openapi-generator-cli:v3.3.4
 
 all: src/Data build test
 
@@ -43,19 +40,18 @@ build: .build_stamp
 	npm run build
 	@touch .build_stamp
 
-src/Data: export TEMPOPENAPI := $(shell mktemp -d ./openapi-XXXXXXXXXX)
 src/Data: ../../api/v2/openapi.yaml
 	-rm -r src/Data
-	$(DOCKER_RUN_CURRENT_USER) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli:v3.3.4 generate \
-		-i /local/api/v2/openapi.yaml \
-	  -g elm \
-		-o /local/ui/app/$(TEMPOPENAPI)
-	# We only want data directory & DateTime package.
-	cp -r $(TEMPOPENAPI)/src/Data src/Data
-	cp -r $(TEMPOPENAPI)/src/DateTime.elm src/DateTime.elm
-	rm -rf $(TEMPOPENAPI)
-	@npx elm-format --yes src/Data src/DateTime.elm
-
+	set -e; \
+	$(DOCKER) run \
+	  --name openapi-gen \
+	  -v ${PWD}/../..:/local \
+	  $(OPENAPI_GEN_IMAGE) \
+	  generate -i /local/api/v2/openapi.yaml -g elm -o /tmp/openapi-gen; \
+	trap "$(DOCKER) rm openapi-gen" EXIT; \
+	$(DOCKER) cp openapi-gen:/tmp/openapi-gen/src/Data src/Data; \
+	$(DOCKER) cp openapi-gen:/tmp/openapi-gen/src/DateTime.elm src/DateTime.elm
+	make format
 
 .PHONY: clean
 clean:
