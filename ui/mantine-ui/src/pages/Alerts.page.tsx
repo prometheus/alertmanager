@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { IconPlus } from '@tabler/icons-react';
 import { ActionIcon, Group, Stack, Switch, TextInput } from '@mantine/core';
 import { AlertGroupList } from '@/components/AlertGroupList';
@@ -15,7 +15,7 @@ export function AlertsPage() {
   const [filterError, setFilterError] = useState('');
   const { data, isLoading, error } = useGroups(filterParams);
 
-  const handleSubAdd = (label: string, value: string) => {
+  const handleSubAdd = useCallback((label: string, value: string) => {
     setFilterParams((prev) => ({
       ...prev,
       filter: {
@@ -23,14 +23,14 @@ export function AlertsPage() {
         [label]: value,
       },
     }));
-  };
+  }, []);
 
   const groupList = useMemo(() => {
     if (!data) {
-      return [];
+      return <></>;
     }
     return <AlertGroupList groups={data} addCallback={handleSubAdd} />;
-  }, [data]);
+  }, [data, handleSubAdd]);
 
   const validateFilterText = (text: string) => {
     // Basic validation: should be in the form of key=value

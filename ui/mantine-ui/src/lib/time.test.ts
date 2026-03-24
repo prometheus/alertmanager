@@ -6,6 +6,12 @@ describe('parseDuration', () => {
     expect(dur).toBeNull();
   });
 
+  it('parses only milliseconds correctly', () => {
+    const dur = parseDuration('500ms');
+    expect(dur).not.toBeNull();
+    expect(dur!.asMilliseconds()).toBe(500);
+  });
+
   it('parses seconds correctly', () => {
     const dur = parseDuration('45s');
     expect(dur).not.toBeNull();
