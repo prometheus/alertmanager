@@ -647,7 +647,7 @@ func newAggrGroup(
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
-	ag.logger = logger.With("aggrGroup", ag)
+	ag.logger = logger.With("aggrGroup", ag.GroupKey())
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
