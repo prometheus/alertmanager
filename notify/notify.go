@@ -968,11 +968,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 				l := l.With(
 					"attempts", i,
 					"duration", dur,
-					"numAlerts", len(alerts),
+					"numAlerts", len(sent),
 				)
-				if groupKey, ok := GroupKey(ctx); ok {
-					l = l.With("aggrGroup", groupKey)
-				}
 				if i <= 1 {
 					l.Debug("Notify success")
 				} else {
