@@ -51,6 +51,7 @@ import (
 	"github.com/prometheus/alertmanager/config/receiver"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/httpserver"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
@@ -582,7 +583,8 @@ func run() int {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	ui.Register(router)
+	httpserver.Register(router, webReload)
 
 	mux := api.Register(router, *routePrefix)
 
