@@ -20,16 +20,18 @@ import (
 	"net/http"
 
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack/internal/apiurl"
 	"github.com/prometheus/alertmanager/template"
 )
 
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
-	conf    *Config
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+	conf        *Config
+	tmpl        *template.Template
+	logger      *slog.Logger
+	client      *http.Client
+	retrier     *notify.Retrier
+	urlResolver *apiurl.Resolver
 
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }

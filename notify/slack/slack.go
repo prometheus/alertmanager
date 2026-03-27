@@ -21,13 +21,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack/internal/apiurl"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -48,6 +48,7 @@ func New(c *Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.
 		logger:       l,
 		client:       client,
 		retrier:      &notify.Retrier{},
+		urlResolver:  apiurl.NewResolver(c.APIURL, c.APIURLFile),
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -141,15 +142,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = strings.TrimSpace(string(content))
+	u, err := n.urlResolver.URLForMethod("")
+	if err != nil {
+		return false, err
 	}
 
 	if n.conf.Timeout > 0 {
@@ -182,7 +177,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			channelId, _ := store.GetStr("channelId")
 			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
 			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
+				updateURL, err := n.urlResolver.URLForMethod("chat.update")
+				if err != nil {
+					return false, err
+				}
+				u = updateURL
 				req.Timestamp = threadTs
 				req.Channel = channelId
 				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
