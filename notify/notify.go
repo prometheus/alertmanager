@@ -32,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
@@ -883,7 +884,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 }
 
 func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var sent []*types.Alert
+	var sent alert.AlertSlice
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
 	// resolved alerts, report them all as successfully notified (we still want the
