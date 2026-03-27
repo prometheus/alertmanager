@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -46,7 +47,7 @@ const (
 	DispatcherStateStopped
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/dispatch")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/dispatch")
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
 type DispatcherMetrics struct {

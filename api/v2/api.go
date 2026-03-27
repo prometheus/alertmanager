@@ -33,7 +33,6 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"github.com/rs/cors"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/api/metrics"
@@ -53,10 +52,11 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/api/v2")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
