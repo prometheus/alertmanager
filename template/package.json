@@ -1,0 +1,8 @@
+{
+  "name": "template",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {
+    "juice": "10.0.1"
+  }
+}

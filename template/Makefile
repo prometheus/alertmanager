@@ -1,17 +1,6 @@
-DOCKER_IMG := alertmanager-template
-DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
-DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
+node_modules: package-lock.json
+	npm ci
 
-ifeq ($(NO_DOCKER), true)
-	DOCKER_CMD=
-endif
-
-template-image:
-	@(if [ "$(NO_DOCKER)" != "true" ] ; then \
-		echo ">> build template docker image"; \
-		docker build -t $(DOCKER_IMG) . > /dev/null; \
-	fi; )
-
-email.tmpl: template-image email.html
+email.tmpl: email.html inline-css.js node_modules
 	@echo ">> inline css for html email template"
-	$(DOCKER_CMD) ./inline-css.js
+	node ./inline-css
