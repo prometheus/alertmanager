@@ -1,0 +1,28 @@
+#
+# Please keep this file in sync with the MAINTAINERS.md file!
+#
+
+# Prometheus team members are members of the "default maintainers" github team.
+# They are code owners by default for the whole repo.
+* @prometheus/alertmanager-maintainers
+
+# Notifiers
+/notify/discord    @prometheus/alertmanager-maintainers
+/notify/email      @prometheus/alertmanager-maintainers
+/notify/incidentio @prometheus/alertmanager-maintainers
+/notify/jira       @prometheus/alertmanager-maintainers
+/notify/mattermost @prometheus/alertmanager-maintainers
+/notify/msteams    @prometheus/alertmanager-maintainers
+/notify/msteamsv2  @prometheus/alertmanager-maintainers
+/notify/opsgenie   @prometheus/alertmanager-maintainers
+/notify/pagerduty  @prometheus/alertmanager-maintainers
+/notify/pushover   @prometheus/alertmanager-maintainers
+/notify/rocketchat @prometheus/alertmanager-maintainers
+/notify/slack      @prometheus/alertmanager-maintainers
+/notify/sns        @prometheus/alertmanager-maintainers
+/notify/telegram   @prometheus/alertmanager-maintainers
+/notify/test       @prometheus/alertmanager-maintainers
+/notify/victorops  @prometheus/alertmanager-maintainers
+/notify/webex      @prometheus/alertmanager-maintainers
+/notify/webhook    @prometheus/alertmanager-maintainers
+/notify/wechat     @prometheus/alertmanager-maintainers
