@@ -361,7 +361,7 @@ alertmanager \
   --cluster.tls-config=/etc/alertmanager/cluster-tls.yml
 ```
 
-See [Secure Cluster Traffic](../doc/design/secure-cluster-traffic.md) for details.
+See the [Gossip Traffic section](https://prometheus.io/docs/alerting/latest/https/#gossip-traffic) for mutual TLS configuration.
 
 ### Persistence
 
@@ -480,5 +480,5 @@ Look for:
 ## Further Reading
 
 - [Alertmanager Configuration](configuration.md)
-- [Secure Cluster Traffic Design](../doc/design/secure-cluster-traffic.md)
+- [Secure Cluster Traffic Design](https://github.com/prometheus/alertmanager/blob/main/doc/design/secure-cluster-traffic.md)
 - [Hashicorp Memberlist Documentation](https://github.com/hashicorp/memberlist)
