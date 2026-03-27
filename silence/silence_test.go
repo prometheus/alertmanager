@@ -16,6 +16,7 @@ package silence
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"os"
 	"runtime"
@@ -2830,6 +2831,45 @@ func TestStateDecodingError(t *testing.T) {
 // be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
 func gosched() {
 	time.Sleep(1 * time.Millisecond)
+}
+
+func TestLogSilence(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	s := &Silences{
+		logger: logger,
+	}
+
+	clock := quartz.NewMock(t)
+	s.clock = clock
+	now := s.nowUTC()
+
+	silence := &pb.Silence{
+		Id:        "test-silence-id",
+		CreatedBy: "test-user",
+		Comment:   "Test silence comment",
+		StartsAt:  timestamppb.New(now),
+		EndsAt:    timestamppb.New(now.Add(time.Hour)),
+		MatcherSets: []*pb.MatcherSet{
+			{Matchers: []*pb.Matcher{
+				{Name: "job", Type: pb.Matcher_EQUAL, Pattern: "test-job"},
+				{Name: "instance", Type: pb.Matcher_REGEXP, Pattern: ".*example.*"},
+				{Name: "severity", Type: pb.Matcher_NOT_EQUAL, Pattern: "info"},
+				{Name: "alertname", Type: pb.Matcher_NOT_REGEXP, Pattern: "Test.*"},
+			}},
+		},
+	}
+
+	s.logSilence("test message", silence)
+	logOutput := buf.String()
+
+	require.Contains(t, logOutput, "msg=\"test message\"")
+	require.Contains(t, logOutput, "Id=test-silence-id")
+	require.Contains(t, logOutput, "CreatedBy=test-user")
+	require.Contains(t, logOutput, "Comment=\"Test silence comment\"")
+	require.Contains(t, logOutput, fmt.Sprintf("StartsAt=%s", now.Format(time.RFC3339)))
+	require.Contains(t, logOutput, fmt.Sprintf("EndsAt=%s", now.Add(time.Hour).Format(time.RFC3339)))
+	require.Contains(t, logOutput, "Matchers=\"job=test-job,instance=~.*example.*,severity!=info,alertname!~Test.*\"")
 }
 
 func TestSilenceAnnotations(t *testing.T) {
