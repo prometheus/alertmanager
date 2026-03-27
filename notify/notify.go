@@ -971,7 +971,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					"numAlerts", len(sent),
 				)
 				if i <= 1 {
-					l.Debug("Notify success")
+					l.Debug("Notify success", "alerts", sent)
 				} else {
 					l.Info("Notify success")
 				}

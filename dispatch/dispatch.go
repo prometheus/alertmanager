@@ -790,7 +790,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	}
 	sort.Stable(alertsSlice)
 
-	ag.logger.Debug("flushing", "numAlerts", len(alertsSlice))
+	ag.logger.Debug("flushing", "numAlerts", len(alertsSlice), "alerts", alertsSlice)
 
 	if notify(alertsSlice...) {
 		// Delete all resolved alerts as we just sent a notification for them,
