@@ -898,6 +898,10 @@ type TelegramConfig struct {
 	Message              string           `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+
+	// Timeout is the maximum time allowed to invoke the telegram. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
