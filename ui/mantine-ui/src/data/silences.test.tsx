@@ -300,15 +300,10 @@ describe('Silence API Hooks', () => {
       global.fetch = mockFetch as unknown as typeof fetch;
 
       // Each query client maintains separate cache per ID
-      const client1 = new QueryClient({
-        defaultOptions: { queries: { retry: false } },
-      });
-      const client2 = new QueryClient({
-        defaultOptions: { queries: { retry: false } },
-      });
+      const wrapper = getWrapper(queryClient);
 
-      renderHook(() => useSilence(id1), { wrapper: getWrapper(client1) });
-      renderHook(() => useSilence(id2), { wrapper: getWrapper(client2) });
+      renderHook(() => useSilence(id1), { wrapper });
+      renderHook(() => useSilence(id2), { wrapper });
 
       await waitFor(() => {
         expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -323,9 +318,7 @@ describe('Silence API Hooks', () => {
         expect.stringContaining(`/api/v2/silence/${id2}`),
         expect.any(Object)
       );
-
-      client1.clear();
-      client2.clear();
+      await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     });
   });
 });
