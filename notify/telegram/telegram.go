@@ -50,6 +50,10 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 		return nil, err
 	}
 
+	if conf.Timeout > 0 {
+		httpclient.Timeout = conf.Timeout
+	}
+
 	client, err := createTelegramClient(conf.APIUrl.String(), conf.ParseMode, httpclient)
 	if err != nil {
 		return nil, err
