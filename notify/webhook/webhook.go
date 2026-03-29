@@ -164,13 +164,11 @@ func (n *Notifier) renderPayload(
 		}
 	)
 	var err error
-	rendered := make(map[string]any, len(n.conf.Payload))
-	for k, v := range n.conf.Payload {
-		rendered[k], err = template.DeepCopyWithTemplate(v, tmplTextFunc)
-		if err != nil {
-			return bytes.Buffer{}, err
-		}
+	rendered, err := template.DeepCopyWithTemplate(n.conf.Payload, tmplTextFunc)
+	if err != nil {
+		return bytes.Buffer{}, err
 	}
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(rendered); err != nil {
 		return bytes.Buffer{}, err
