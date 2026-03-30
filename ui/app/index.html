@@ -17,12 +17,21 @@
         </script>
         <script src="script.js"></script>
         <script>
+            function parseJSON(rawValue, fallback) {
+                if (rawValue === null) return fallback;
+                try {
+                    return JSON.parse(rawValue);
+                } catch (_) {
+                    return fallback;
+                }
+            }
+
             var app = Elm.Main.init({
                 flags: {
                     production: true,
-                    firstDayOfWeek: JSON.parse(localStorage.getItem('firstDayOfWeek')),
+                    firstDayOfWeek: parseJSON(localStorage.getItem('firstDayOfWeek'), null),
                     defaultCreator: localStorage.getItem('defaultCreator'),
-                    groupExpandAll: JSON.parse(localStorage.getItem('groupExpandAll'))
+                    groupExpandAll: parseJSON(localStorage.getItem('groupExpandAll'), null)
                 }
             });
             app.ports.persistDefaultCreator.subscribe(function(name) {
