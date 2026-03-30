@@ -1,5 +1,3 @@
-*.yaml
-*.yml
 /.build
 /.release
 /.tarballs
@@ -7,20 +5,3 @@
 /amtool
 /data/
 /vendor
-
-!.coderabbit.yaml
-!.github/ISSUE_TEMPLATE/*.yml
-!.github/workflows/*.yml
-!.golangci.yml
-!/.promu.yml
-!/.travis.yml
-!/api/v2/openapi.yaml
-!/circle.yml
-!/cli/config/testdata/*.yml
-!/cli/testdata/*.yml
-!/cluster/testdata/*.yml
-!/config/testdata/*.yml
-!/doc/examples/simple.yml
-!/examples/ha/tls/*.yml
-!/notify/email/testdata/*.yml
-!buf*.yaml
