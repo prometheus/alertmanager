@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -39,10 +38,11 @@ import (
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/timeinterval"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/notify")
 
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {

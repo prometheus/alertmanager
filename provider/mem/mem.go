@@ -31,12 +31,13 @@ import (
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
 const alertChannelLength = 200
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/provider/mem")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/provider/mem")
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {

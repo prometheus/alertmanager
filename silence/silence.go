@@ -38,7 +38,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -50,10 +49,11 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/silence")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/silence")
 
 // ErrNotFound is returned if a silence was not found.
 var ErrNotFound = errors.New("silence not found")
