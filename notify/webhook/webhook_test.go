@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -293,7 +294,7 @@ func TestWebhookDefaultPayload(t *testing.T) {
 	require.JSONEq(t, buf.String(), string(capturedPayload))
 }
 
-func TestWebhookCustomPayload(t *testing.T) {
+func TestWebhookCustomPayloadMap(t *testing.T) {
 	var capturedPayload []byte
 
 	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
@@ -335,13 +336,13 @@ func TestWebhookCustomPayload(t *testing.T) {
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
-	msg := map[string]any{
+	expectedContent := map[string]any{
 		"custom":       `some custom content`,
 		"commonLabels": map[string]string{"alertname": "TestAlert"},
 	}
 
-	var buf bytes.Buffer
-	json.NewEncoder(&buf).Encode(msg)
+	var expected bytes.Buffer
+	json.NewEncoder(&expected).Encode(expectedContent)
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
@@ -349,5 +350,185 @@ func TestWebhookCustomPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEmpty(t, capturedPayload)
-	require.JSONEq(t, buf.String(), string(capturedPayload))
+	require.JSONEq(t, expected.String(), string(capturedPayload))
+}
+
+func TestWebhookCustomPayloadList(t *testing.T) {
+	var capturedPayload []byte
+
+	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
+		var err error
+		capturedPayload, err = io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+		}
+	})
+
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	var payload any
+	err = yaml.Unmarshal([]byte(`
+- custom: some custom content
+  commonLabels: "{{ .CommonLabels | toJson }}"
+  commonAnnotations: "{{ .CommonAnnotations | toJson }}"
+- foo: bar
+`), &payload)
+	require.NoError(t, err)
+
+	conf := &config.WebhookConfig{
+		URL:        config.SecretTemplateURL(u.String()),
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Payload:    payload,
+	}
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "TestAlert"},
+				Annotations:  model.LabelSet{"summary": "Test summary"},
+				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+				GeneratorURL: "http://generator.url",
+			},
+		},
+	}
+	tmpl := test.CreateTmpl(t)
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+
+	n, err := New(conf, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
+	n.client.Transport = mockTransport
+	_, err = n.Notify(ctx, alerts...)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, capturedPayload)
+	require.JSONEq(t,
+		"[{\"commonAnnotations\":{\"summary\":\"Test summary\"},\"commonLabels\":{\"alertname\":\"TestAlert\"},\"custom\":\"some custom content\"},{\"foo\":\"bar\"}]",
+		string(capturedPayload),
+	)
+}
+
+func TestWebhookCustomPayloadStringList(t *testing.T) {
+	var capturedPayload []byte
+
+	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
+		var err error
+		capturedPayload, err = io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+		}
+	})
+
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	payload := `
+- commonLabels: {{ .CommonLabels | toJson }}
+- foo: bar
+`
+
+	conf := &config.WebhookConfig{
+		URL:        config.SecretTemplateURL(u.String()),
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Payload:    payload,
+	}
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "TestAlert"},
+				Annotations:  model.LabelSet{"summary": "Test summary"},
+				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+				GeneratorURL: "http://generator.url",
+			},
+		},
+	}
+	tmpl := test.CreateTmpl(t)
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+
+	n, err := New(conf, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
+	n.client.Transport = mockTransport
+	_, err = n.Notify(ctx, alerts...)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, capturedPayload)
+	require.JSONEq(t,
+		"[{\"commonLabels\":{\"alertname\":\"TestAlert\"}},{\"foo\":\"bar\"}]",
+		string(capturedPayload),
+	)
+}
+
+func TestWebhookCustomPayloadString(t *testing.T) {
+	var capturedPayload []byte
+
+	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
+		var err error
+		capturedPayload, err = io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+		}
+	})
+
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	payload := `
+{{- $res := list -}}
+{{- range .Alerts -}}
+{{- $data := dict "foo" "bar" "commonLabels" .Labels -}}
+{{- $res = append  $res $data -}}
+{{- end -}}
+{{ toJson $res }}
+`
+	require.NoError(t, err)
+
+	conf := &config.WebhookConfig{
+		URL:        config.SecretTemplateURL(u.String()),
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Payload:    payload,
+	}
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"alertname": "TestAlert"},
+				Annotations:  model.LabelSet{"summary": "Test summary"},
+				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+				GeneratorURL: "http://generator.url",
+			},
+		},
+	}
+	tmpl := test.CreateTmpl(t)
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+
+	n, err := New(conf, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
+	n.client.Transport = mockTransport
+	_, err = n.Notify(ctx, alerts...)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, capturedPayload)
+	require.JSONEq(t,
+		"[{\"commonLabels\":{\"alertname\":\"TestAlert\"},\"foo\":\"bar\"}]",
+		string(capturedPayload),
+	)
 }

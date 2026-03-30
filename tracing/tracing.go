@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -36,6 +37,30 @@ import (
 )
 
 const serviceName = "alertmanager"
+
+var tracingEnabled atomic.Bool
+
+var noopSpan = noop.Span{}
+
+// conditionalTracer wraps the global OTel tracer and short-circuits
+// Start when tracing is disabled, avoiding allocations entirely.
+type conditionalTracer struct {
+	noop.Tracer
+	name string
+}
+
+// NewTracer returns a trace.Tracer that skips span creation when
+// tracing is disabled. Use this instead of otel.Tracer().
+func NewTracer(name string) trace.Tracer {
+	return &conditionalTracer{name: name}
+}
+
+func (t *conditionalTracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	if !tracingEnabled.Load() {
+		return ctx, noopSpan
+	}
+	return otel.Tracer(t.name).Start(ctx, spanName, opts...)
+}
 
 // Manager is capable of building, (re)installing and shutting down
 // the tracer provider.
@@ -83,6 +108,7 @@ func (m *Manager) ApplyConfig(cfg TracingConfig) error {
 
 	// If no endpoint is set, assume tracing should be disabled.
 	if cfg.Endpoint == "" {
+		tracingEnabled.Store(false)
 		m.config = cfg
 		m.shutdownFunc = nil
 		otel.SetTracerProvider(noop.NewTracerProvider())
@@ -98,6 +124,7 @@ func (m *Manager) ApplyConfig(cfg TracingConfig) error {
 	m.shutdownFunc = shutdownFunc
 	m.config = cfg
 	otel.SetTracerProvider(tp)
+	tracingEnabled.Store(true)
 
 	m.logger.Info("Successfully installed a new tracer provider.")
 	return nil

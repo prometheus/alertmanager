@@ -31,10 +31,11 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/inhibit")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/inhibit")
 
 // An Inhibitor determines whether a given label set is muted based on the
 // currently active alerts and a set of inhibition rules. It implements the

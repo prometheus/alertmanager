@@ -33,9 +33,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -46,7 +48,7 @@ const (
 	DispatcherStateStopped
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/dispatch")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/dispatch")
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
 type DispatcherMetrics struct {
@@ -271,7 +273,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	<-d.ctx.Done()
 }
 
-func (d *Dispatcher) routeAlert(ctx context.Context, alert *types.Alert) {
+func (d *Dispatcher) routeAlert(ctx context.Context, alert *alert.Alert) {
 	d.logger.Debug("Received alert", "alert", alert)
 
 	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert",
@@ -647,7 +649,7 @@ func newAggrGroup(
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
-	ag.logger = logger.With("aggrGroup", ag)
+	ag.logger = logger.With("aggrGroup", ag.GroupKey())
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
@@ -774,8 +776,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	var (
 		alerts        = ag.alerts.List()
-		alertsSlice   = make(types.AlertSlice, 0, len(alerts))
-		resolvedSlice = make(types.AlertSlice, 0, len(alerts))
+		alertsSlice   = make(alert.AlertSlice, 0, len(alerts))
+		resolvedSlice = make(alert.AlertSlice, 0, len(alerts))
 		now           = time.Now()
 	)
 	for _, alert := range alerts {
@@ -790,7 +792,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	}
 	sort.Stable(alertsSlice)
 
-	ag.logger.Debug("flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
+	ag.logger.Debug("flushing", "numAlerts", len(alertsSlice), "alerts", alertsSlice)
 
 	if notify(alertsSlice...) {
 		// Delete all resolved alerts as we just sent a notification for them,

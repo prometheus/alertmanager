@@ -1,0 +1,12 @@
+{
+  "name": "elm-ui",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {
+    "elm": "0.19.1",
+    "elm-format": "0.8.7",
+    "elm-test": "0.19.1-revision6",
+    "uglify-js": "3.13.4",
+    "elm-review": "2.5.0"
+  }
+}
