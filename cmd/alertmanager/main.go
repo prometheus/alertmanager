@@ -484,6 +484,14 @@ func run() int {
 			pipelinePeer = peer
 		}
 
+		var undeliveredTracker *notify.UndeliveredTracker
+		abandonUndeliveredAfter := time.Duration(0)
+		if conf.Global.AbandonUndeliveredNotifications {
+			abandonUndeliveredAfter = time.Duration(conf.Global.AbandonUndeliveredAfter)
+			gcTTL := max(2*abandonUndeliveredAfter, time.Hour)
+			undeliveredTracker = notify.NewUndeliveredTracker(gcTTL)
+		}
+
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
@@ -493,6 +501,8 @@ func run() int {
 			marker,
 			notificationLog,
 			pipelinePeer,
+			undeliveredTracker,
+			abandonUndeliveredAfter,
 		)
 
 		configuredReceivers.Set(float64(len(activeReceivers)))

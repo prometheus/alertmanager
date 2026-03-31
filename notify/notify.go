@@ -302,12 +302,14 @@ type NotificationLog interface {
 }
 
 type Metrics struct {
-	numNotifications                   *prometheus.CounterVec
-	numTotalFailedNotifications        *prometheus.CounterVec
-	numNotificationRequestsTotal       *prometheus.CounterVec
-	numNotificationRequestsFailedTotal *prometheus.CounterVec
-	numNotificationSuppressedTotal     *prometheus.CounterVec
-	notificationLatencySeconds         *prometheus.HistogramVec
+	numNotifications                         *prometheus.CounterVec
+	numTotalFailedNotifications              *prometheus.CounterVec
+	numNotificationRequestsTotal             *prometheus.CounterVec
+	numNotificationRequestsFailedTotal       *prometheus.CounterVec
+	numNotificationsAbandonedTotal           *prometheus.CounterVec
+	numNotificationsAbandonedSuppressedTotal *prometheus.CounterVec
+	numNotificationSuppressedTotal           *prometheus.CounterVec
+	notificationLatencySeconds               *prometheus.HistogramVec
 
 	ff featurecontrol.Flagger
 }
@@ -340,6 +342,16 @@ func NewMetrics(r prometheus.Registerer, ff featurecontrol.Flagger) *Metrics {
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
 		}, labels),
+		numNotificationsAbandonedTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_abandoned_total",
+			Help:      "The total number of notifications abandoned after undelivered threshold without calling the integration.",
+		}, labels),
+		numNotificationsAbandonedSuppressedTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_abandoned_suppressed_total",
+			Help:      "The total number of notification attempts suppressed after abandon for the same firing alert set.",
+		}, labels),
 		numNotificationSuppressedTotal: promauto.With(r).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_suppressed_total",
@@ -367,6 +379,8 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		m.numNotifications.Reset()
 		m.numNotificationRequestsTotal.Reset()
 		m.numNotificationRequestsFailedTotal.Reset()
+		m.numNotificationsAbandonedTotal.Reset()
+		m.numNotificationsAbandonedSuppressedTotal.Reset()
 		m.notificationLatencySeconds.Reset()
 		m.numTotalFailedNotifications.Reset()
 
@@ -376,6 +390,8 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 				m.numNotifications.WithLabelValues(integration.Name(), name)
 				m.numNotificationRequestsTotal.WithLabelValues(integration.Name(), name)
 				m.numNotificationRequestsFailedTotal.WithLabelValues(integration.Name(), name)
+				m.numNotificationsAbandonedTotal.WithLabelValues(integration.Name(), name)
+				m.numNotificationsAbandonedSuppressedTotal.WithLabelValues(integration.Name(), name)
 				m.notificationLatencySeconds.WithLabelValues(integration.Name(), name)
 
 				for _, reason := range possibleFailureReasonCategory {
@@ -411,6 +427,8 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		m.numNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
+		m.numNotificationsAbandonedTotal.WithLabelValues(integration)
+		m.numNotificationsAbandonedSuppressedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 
 		for _, reason := range possibleFailureReasonCategory {
@@ -441,6 +459,8 @@ func (pb *PipelineBuilder) New(
 	marker types.GroupMarker,
 	notificationLog NotificationLog,
 	peer Peer,
+	undeliveredTracker *UndeliveredTracker,
+	abandonUndeliveredAfter time.Duration,
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
@@ -451,7 +471,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, undeliveredTracker, abandonUndeliveredAfter)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -467,6 +487,8 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	undeliveredTracker *UndeliveredTracker,
+	abandonUndeliveredAfter time.Duration,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -478,7 +500,7 @@ func createReceiverStage(
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewRetryStage(integrations[i], name, metrics, undeliveredTracker, abandonUndeliveredAfter))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -830,17 +852,27 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.
 	return ctx, nil, nil
 }
 
+func retryDeliveryKey(ctx context.Context, receiver string, integration Integration) (string, bool) {
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%s\x00%s\x00%s\x00%d", gkey, receiver, integration.Name(), integration.Index()), true
+}
+
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
-	groupName   string
-	metrics     *Metrics
-	labelValues []string
+	integration             Integration
+	groupName               string
+	metrics                 *Metrics
+	labelValues             []string
+	undeliveredTracker      *UndeliveredTracker
+	abandonUndeliveredAfter time.Duration
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics, undeliveredTracker *UndeliveredTracker, abandonUndeliveredAfter time.Duration) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {
@@ -848,11 +880,17 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 	}
 
 	return &RetryStage{
-		integration: i,
-		groupName:   groupName,
-		metrics:     metrics,
-		labelValues: labelValues,
+		integration:             i,
+		groupName:               groupName,
+		metrics:                 metrics,
+		labelValues:             labelValues,
+		undeliveredTracker:      undeliveredTracker,
+		abandonUndeliveredAfter: abandonUndeliveredAfter,
 	}
+}
+
+func (r RetryStage) retrySuppressEnabled() bool {
+	return r.undeliveredTracker != nil && r.abandonUndeliveredAfter > 0
 }
 
 func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
@@ -895,6 +933,11 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 			return ctx, nil, errors.New("firing alerts missing")
 		}
 		if len(firing) == 0 {
+			if r.retrySuppressEnabled() {
+				if key, keyOK := retryDeliveryKey(ctx, r.groupName, r.integration); keyOK {
+					r.undeliveredTracker.Clear(key)
+				}
+			}
 			return ctx, alerts, nil
 		}
 		for _, a := range alerts {
@@ -920,6 +963,27 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 	l = l.With("receiver", r.groupName, "integration", r.integration.String())
 	if groupKey, ok := GroupKey(ctx); ok {
 		l = l.With("aggrGroup", groupKey)
+	}
+
+	if r.retrySuppressEnabled() {
+		firing, firingOK := FiringAlerts(ctx)
+		if firingOK {
+			if key, keyOK := retryDeliveryKey(ctx, r.groupName, r.integration); keyOK {
+				now := time.Now()
+				r.undeliveredTracker.ResetIfFiringChanged(key, firing, now)
+				if r.undeliveredTracker.ShouldSuppressAbandoned(key, firing, now) {
+					l.Debug("Suppressing notification after prior abandon for same firing set without calling integration")
+					r.metrics.numNotificationsAbandonedSuppressedTotal.WithLabelValues(r.labelValues...).Inc()
+					return ctx, alerts, nil
+				}
+				if r.undeliveredTracker.ShouldAbandon(key, r.abandonUndeliveredAfter, now) {
+					l.Info("Abandoning notification after undelivered threshold without calling integration", "abandon_after", r.abandonUndeliveredAfter)
+					r.metrics.numNotificationsAbandonedTotal.WithLabelValues(r.labelValues...).Inc()
+					r.undeliveredTracker.MarkAbandoned(key, firing, now)
+					return ctx, alerts, nil
+				}
+			}
+		}
 	}
 
 	for {
@@ -957,6 +1021,11 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
+					if r.retrySuppressEnabled() {
+						if key, ok := retryDeliveryKey(ctx, r.groupName, r.integration); ok {
+							r.undeliveredTracker.NoteFailure(key, time.Now())
+						}
+					}
 					if iErr == nil || err.Error() != iErr.Error() {
 						// Log the error if the context isn't done and the error isn't the same as before.
 						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
@@ -966,6 +1035,11 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					iErr = err
 				}
 			} else {
+				if r.retrySuppressEnabled() {
+					if key, ok := retryDeliveryKey(ctx, r.groupName, r.integration); ok {
+						r.undeliveredTracker.Clear(key)
+					}
+				}
 				l := l.With(
 					"attempts", i,
 					"duration", dur,

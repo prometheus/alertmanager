@@ -20,6 +20,7 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -428,7 +429,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 
 	alerts := []*types.Alert{
 		{
@@ -481,7 +482,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			}),
 			rs: sendResolved(false),
 		}
-		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 
 		alerts := []*types.Alert{
 			{
@@ -516,7 +517,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 
 	alerts := []*types.Alert{
 		{
@@ -548,7 +549,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 
 	alerts := []*types.Alert{
 		{
@@ -599,7 +600,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 
 	alerts := []*types.Alert{
 		{
@@ -633,6 +634,103 @@ func TestRetryStageSendResolved(t *testing.T) {
 	require.Equal(t, alerts, res)
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
+}
+
+func TestRetryStageAbandonUndelivered(t *testing.T) {
+	var notifyCalls atomic.Int32
+	tracker := NewUndeliveredTracker(time.Hour)
+	reg := prometheus.NewRegistry()
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	i := Integration{
+		name: "webhook",
+		idx:  0,
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifyCalls.Add(1)
+			return true, errors.New("fail")
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "team", metrics, tracker, 30*time.Millisecond)
+
+	alerts := []*types.Alert{{Alert: model.Alert{EndsAt: time.Now().Add(time.Hour)}}}
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "routekey:labels")
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	ctx1, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	defer cancel()
+	_, _, err := r.Exec(ctx1, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+	firstRound := notifyCalls.Load()
+	require.Positive(t, firstRound)
+
+	time.Sleep(50 * time.Millisecond)
+
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Equal(t, firstRound, notifyCalls.Load(), "abandon should skip calling the integration")
+
+	ab := prom_testutil.ToFloat64(metrics.numNotificationsAbandonedTotal.WithLabelValues("webhook"))
+	require.Equal(t, 1.0, ab)
+
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Equal(t, firstRound, notifyCalls.Load(), "same firing set: suppress without calling integration")
+	sup := prom_testutil.ToFloat64(metrics.numNotificationsAbandonedSuppressedTotal.WithLabelValues("webhook"))
+	require.Equal(t, 1.0, sup)
+
+	ctxOtherFiring := WithFiringAlerts(ctx, []uint64{99})
+	ctx1, cancel1 := context.WithTimeout(ctxOtherFiring, 80*time.Millisecond)
+	defer cancel1()
+	_, _, err = r.Exec(ctx1, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+	require.Greater(t, notifyCalls.Load(), firstRound, "different firing set should call integration again")
+}
+
+func TestRetryStageAbandonClearsWhenNoFiringAlerts(t *testing.T) {
+	var notifyCalls atomic.Int32
+	var failPings atomic.Bool
+	failPings.Store(true)
+	tracker := NewUndeliveredTracker(time.Hour)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	i := Integration{
+		name: "webhook",
+		idx:  0,
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifyCalls.Add(1)
+			if failPings.Load() {
+				return true, errors.New("fail")
+			}
+			return false, nil
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "team", metrics, tracker, 30*time.Millisecond)
+
+	alerts := []*types.Alert{{Alert: model.Alert{EndsAt: time.Now().Add(time.Hour)}}}
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "routekey:labels")
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	ctx1, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	defer cancel()
+	_, _, err := r.Exec(ctx1, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+
+	time.Sleep(50 * time.Millisecond)
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	// All resolved: empty firing — should clear tracker so same fingerprint can notify again.
+	ctxResolved := WithFiringAlerts(ctx, []uint64{})
+	_, _, err = r.Exec(ctxResolved, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	failPings.Store(false)
+	ctxReopen := WithFiringAlerts(ctx, []uint64{0})
+	_, _, err = r.Exec(ctxReopen, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Positive(t, notifyCalls.Load(), "after clear on empty firing, integration should be called again")
 }
 
 func TestSetNotifiesStage(t *testing.T) {
@@ -728,7 +826,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	ctx := context.Background()
@@ -943,7 +1041,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), nil, 0)
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	alerts := []*types.Alert{
