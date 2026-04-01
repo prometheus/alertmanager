@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,12 +71,9 @@ func selectEncoding(header string) encoding {
 
 		effect := effectAccept
 		if len(encAndQ) > 1 {
+			// https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2
 			if q, ok := strings.CutPrefix(strings.TrimSpace(encAndQ[1]), "q="); ok {
-				// Based on this RFC:
-				// https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2
-				// This implementation is fast and clever, but everyone else uses `ParseFloat`.
-				switch q {
-				case "0", "0.", "0.0", "0.00", "0.000":
+				if weight, err := strconv.ParseFloat(q, 64); err == nil && weight <= 0 {
 					effect = effectReject
 				}
 			}
