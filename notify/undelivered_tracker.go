@@ -23,6 +23,7 @@ type undeliveredEntry struct {
 	firstFail       time.Time
 	lastSeen        time.Time
 	abandoned       bool
+	failingFiring   []uint64 // sorted; firing set for the active failure streak when !abandoned
 	abandonedFiring []uint64 // sorted; set when abandoned
 }
 
@@ -66,18 +67,38 @@ func (t *UndeliveredTracker) gc(now time.Time) {
 	}
 }
 
-// NoteFailure records the first wall-clock time we saw a failed delivery for key,
-// or refreshes lastSeen if the series already started.
-func (t *UndeliveredTracker) NoteFailure(key string, now time.Time) {
+// NoteFailure records the first wall-clock time we saw a failed delivery for key
+// and the firing set that attempt belonged to. If the firing set changes before
+// abandonment, firstFail is restarted so a new set does not inherit the old timer.
+func (t *UndeliveredTracker) NoteFailure(key string, firing []uint64, now time.Time) {
+	sorted := sortedFiringCopy(firing)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.gc(now)
-	if e, ok := t.entries[key]; ok {
-		e.lastSeen = now
-		t.entries[key] = e
+	e, ok := t.entries[key]
+	if !ok {
+		t.entries[key] = undeliveredEntry{
+			firstFail:     now,
+			lastSeen:      now,
+			failingFiring: sorted,
+		}
 		return
 	}
-	t.entries[key] = undeliveredEntry{firstFail: now, lastSeen: now}
+	if e.abandoned {
+		// Defensive: start a fresh streak if a failure is recorded after abandon.
+		t.entries[key] = undeliveredEntry{
+			firstFail:     now,
+			lastSeen:      now,
+			failingFiring: sorted,
+		}
+		return
+	}
+	if !firingSlicesEqual(sorted, e.failingFiring) {
+		e.firstFail = now
+		e.failingFiring = sorted
+	}
+	e.lastSeen = now
+	t.entries[key] = e
 }
 
 // Clear removes state for key after successful delivery.
@@ -135,12 +156,15 @@ func (t *UndeliveredTracker) MarkAbandoned(key string, firing []uint64, now time
 	e.lastSeen = now
 	e.abandoned = true
 	e.abandonedFiring = sorted
+	e.failingFiring = nil
 	t.entries[key] = e
 }
 
-// ShouldAbandon returns true if key has been failing since at least firstFail+abandonAfter.
-// It refreshes lastSeen for GC when the key exists. Always false if already abandoned.
-func (t *UndeliveredTracker) ShouldAbandon(key string, abandonAfter time.Duration, now time.Time) bool {
+// ShouldAbandon returns true if key has been failing since at least firstFail+abandonAfter
+// for the same firing set as recorded on failures. It refreshes lastSeen for GC when the
+// key exists. Always false if already abandoned or if firing does not match the failure streak.
+func (t *UndeliveredTracker) ShouldAbandon(key string, firing []uint64, abandonAfter time.Duration, now time.Time) bool {
+	sorted := sortedFiringCopy(firing)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.gc(now)
@@ -151,6 +175,9 @@ func (t *UndeliveredTracker) ShouldAbandon(key string, abandonAfter time.Duratio
 	if e.abandoned {
 		e.lastSeen = now
 		t.entries[key] = e
+		return false
+	}
+	if !firingSlicesEqual(sorted, e.failingFiring) {
 		return false
 	}
 	e.lastSeen = now

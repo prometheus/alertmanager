@@ -968,7 +968,11 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 	if r.retrySuppressEnabled() {
 		firing, firingOK := FiringAlerts(ctx)
 		if firingOK {
-			if key, keyOK := retryDeliveryKey(ctx, r.groupName, r.integration); keyOK {
+			if len(firing) == 0 {
+				if key, keyOK := retryDeliveryKey(ctx, r.groupName, r.integration); keyOK {
+					r.undeliveredTracker.Clear(key)
+				}
+			} else if key, keyOK := retryDeliveryKey(ctx, r.groupName, r.integration); keyOK {
 				now := time.Now()
 				r.undeliveredTracker.ResetIfFiringChanged(key, firing, now)
 				if r.undeliveredTracker.ShouldSuppressAbandoned(key, firing, now) {
@@ -976,7 +980,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					r.metrics.numNotificationsAbandonedSuppressedTotal.WithLabelValues(r.labelValues...).Inc()
 					return ctx, alerts, nil
 				}
-				if r.undeliveredTracker.ShouldAbandon(key, r.abandonUndeliveredAfter, now) {
+				if r.undeliveredTracker.ShouldAbandon(key, firing, r.abandonUndeliveredAfter, now) {
 					l.Info("Abandoning notification after undelivered threshold without calling integration", "abandon_after", r.abandonUndeliveredAfter)
 					r.metrics.numNotificationsAbandonedTotal.WithLabelValues(r.labelValues...).Inc()
 					r.undeliveredTracker.MarkAbandoned(key, firing, now)
@@ -1020,12 +1024,17 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 				if !retry {
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
-				if ctx.Err() == nil {
-					if r.retrySuppressEnabled() {
-						if key, ok := retryDeliveryKey(ctx, r.groupName, r.integration); ok {
-							r.undeliveredTracker.NoteFailure(key, time.Now())
+				// Count failures toward abandon even when Notify returns after the per-attempt
+				// context deadline; otherwise hanging receivers never advance firstFail.
+				shouldNoteFailure := ctx.Err() == nil || errors.Is(ctx.Err(), context.DeadlineExceeded)
+				if shouldNoteFailure && r.retrySuppressEnabled() {
+					if key, ok := retryDeliveryKey(ctx, r.groupName, r.integration); ok {
+						if firing, firingOK := FiringAlerts(ctx); firingOK {
+							r.undeliveredTracker.NoteFailure(key, firing, time.Now())
 						}
 					}
+				}
+				if ctx.Err() == nil {
 					if iErr == nil || err.Error() != iErr.Error() {
 						// Log the error if the context isn't done and the error isn't the same as before.
 						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)

@@ -728,9 +728,84 @@ func TestRetryStageAbandonClearsWhenNoFiringAlerts(t *testing.T) {
 
 	failPings.Store(false)
 	ctxReopen := WithFiringAlerts(ctx, []uint64{0})
+	beforeReopen := notifyCalls.Load()
 	_, _, err = r.Exec(ctxReopen, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
-	require.Positive(t, notifyCalls.Load(), "after clear on empty firing, integration should be called again")
+	require.Greater(t, notifyCalls.Load(), beforeReopen, "after clear on empty firing, integration should be called again")
+}
+
+func TestRetryStageAbandonSendResolvedClearsTrackerOnEmptyFiring(t *testing.T) {
+	var notifyCalls atomic.Int32
+	tracker := NewUndeliveredTracker(time.Hour)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	i := Integration{
+		name: "webhook",
+		idx:  0,
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifyCalls.Add(1)
+			firing, ok := FiringAlerts(ctx)
+			if ok && len(firing) > 0 {
+				return true, errors.New("fail")
+			}
+			return false, nil
+		}),
+		rs: sendResolved(true),
+	}
+	r := NewRetryStage(i, "team", metrics, tracker, 30*time.Millisecond)
+
+	alerts := []*types.Alert{{Alert: model.Alert{EndsAt: time.Now().Add(time.Hour)}}}
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "routekey:labels")
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	ctx1, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	defer cancel()
+	_, _, err := r.Exec(ctx1, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+
+	time.Sleep(40 * time.Millisecond)
+
+	ctxResolved := WithFiringAlerts(ctx, []uint64{})
+	before := notifyCalls.Load()
+	_, _, err = r.Exec(ctxResolved, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Greater(t, notifyCalls.Load(), before, "resolved notification must call integration; empty firing must clear undelivered state first")
+}
+
+func TestRetryStageAbandonNotesFailureWhenNotifyReturnsAfterDeadline(t *testing.T) {
+	var notifyCalls atomic.Int32
+	tracker := NewUndeliveredTracker(time.Hour)
+	reg := prometheus.NewRegistry()
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	i := Integration{
+		name: "webhook",
+		idx:  0,
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifyCalls.Add(1)
+			<-ctx.Done()
+			return true, errors.New("fail after deadline")
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "team", metrics, tracker, 30*time.Millisecond)
+
+	alerts := []*types.Alert{{Alert: model.Alert{EndsAt: time.Now().Add(time.Hour)}}}
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "routekey:labels")
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	ctx1, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	_, _, err := r.Exec(ctx1, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+
+	time.Sleep(40 * time.Millisecond)
+	_, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+
+	require.Equal(t, int32(1), notifyCalls.Load(), "deadline-driven attempt should still count as one notify try")
+	ab := prom_testutil.ToFloat64(metrics.numNotificationsAbandonedTotal.WithLabelValues("webhook"))
+	require.Equal(t, 1.0, ab, "firstFail must be recorded when Notify returns after context deadline")
 }
 
 func TestSetNotifiesStage(t *testing.T) {

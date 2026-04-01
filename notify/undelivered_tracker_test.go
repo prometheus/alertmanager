@@ -44,12 +44,13 @@ func TestUndeliveredTracker_NoteFailureKeepsFirstFailTime(t *testing.T) {
 	t0 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(7 * time.Minute)
 	tr := NewUndeliveredTracker(time.Hour)
+	firing := []uint64{1}
 
-	tr.NoteFailure("k", t0)
-	require.False(t, tr.ShouldAbandon("k", 10*time.Minute, t1))
+	tr.NoteFailure("k", firing, t0)
+	require.False(t, tr.ShouldAbandon("k", firing, 10*time.Minute, t1))
 
-	tr.NoteFailure("k", t1)
-	require.True(t, tr.ShouldAbandon("k", 5*time.Minute, t1), "first failure time should stay at t0")
+	tr.NoteFailure("k", firing, t1)
+	require.True(t, tr.ShouldAbandon("k", firing, 5*time.Minute, t1), "first failure time should stay at t0")
 }
 
 func TestUndeliveredTracker_ShouldAbandon(t *testing.T) {
@@ -87,6 +88,7 @@ func TestUndeliveredTracker_ShouldAbandon(t *testing.T) {
 		},
 	}
 
+	firing := []uint64{1}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			trFresh := NewUndeliveredTracker(time.Hour)
@@ -94,9 +96,9 @@ func TestUndeliveredTracker_ShouldAbandon(t *testing.T) {
 			if tc.name == "unknown key" {
 				key = "missing"
 			} else {
-				trFresh.NoteFailure("k", t0)
+				trFresh.NoteFailure("k", firing, t0)
 			}
-			got := trFresh.ShouldAbandon(key, tc.abandonAfter, tc.now)
+			got := trFresh.ShouldAbandon(key, firing, tc.abandonAfter, tc.now)
 			require.Equal(t, tc.want, got)
 		})
 	}
@@ -105,11 +107,12 @@ func TestUndeliveredTracker_ShouldAbandon(t *testing.T) {
 func TestUndeliveredTracker_Clear(t *testing.T) {
 	t0 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	tr := NewUndeliveredTracker(time.Hour)
-	tr.NoteFailure("k", t0)
-	require.True(t, tr.ShouldAbandon("k", time.Minute, t0.Add(2*time.Minute)))
+	firing := []uint64{1}
+	tr.NoteFailure("k", firing, t0)
+	require.True(t, tr.ShouldAbandon("k", firing, time.Minute, t0.Add(2*time.Minute)))
 
 	tr.Clear("k")
-	require.False(t, tr.ShouldAbandon("k", time.Nanosecond, t0.Add(time.Hour)))
+	require.False(t, tr.ShouldAbandon("k", firing, time.Nanosecond, t0.Add(time.Hour)))
 
 	tr.Clear("nonexistent")
 }
@@ -118,25 +121,27 @@ func TestUndeliveredTracker_GCRemovesStaleEntries(t *testing.T) {
 	t0 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	gcTTL := 10 * time.Minute
 	tr := NewUndeliveredTracker(gcTTL)
+	f := []uint64{1}
 
-	tr.NoteFailure("stale", t0)
+	tr.NoteFailure("stale", f, t0)
 	// lastSeen for "stale" is t0; at t0+15m cutoff is t0+5m, so entry is removed on next op.
-	tr.NoteFailure("fresh", t0.Add(15*time.Minute))
+	tr.NoteFailure("fresh", f, t0.Add(15*time.Minute))
 
-	require.False(t, tr.ShouldAbandon("stale", time.Nanosecond, t0.Add(15*time.Minute)))
-	require.False(t, tr.ShouldAbandon("fresh", time.Hour, t0.Add(15*time.Minute)))
+	require.False(t, tr.ShouldAbandon("stale", f, time.Nanosecond, t0.Add(15*time.Minute)))
+	require.False(t, tr.ShouldAbandon("fresh", f, time.Hour, t0.Add(15*time.Minute)))
 }
 
 func TestUndeliveredTracker_ShouldAbandonRefreshesLastSeen(t *testing.T) {
 	t0 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	// Long gcTTL so the initial entry is not removed by gc inside ShouldAbandon before lastSeen is refreshed.
 	tr := NewUndeliveredTracker(time.Hour)
+	fk := []uint64{9}
 
-	tr.NoteFailure("k", t0)
-	require.False(t, tr.ShouldAbandon("k", time.Hour, t0.Add(15*time.Minute)))
+	tr.NoteFailure("k", fk, t0)
+	require.False(t, tr.ShouldAbandon("k", fk, time.Hour, t0.Add(15*time.Minute)))
 
-	tr.NoteFailure("other", t0.Add(20*time.Minute))
-	require.True(t, tr.ShouldAbandon("k", time.Minute, t0.Add(21*time.Minute)),
+	tr.NoteFailure("other", []uint64{2}, t0.Add(20*time.Minute))
+	require.True(t, tr.ShouldAbandon("k", fk, time.Minute, t0.Add(21*time.Minute)),
 		"firstFail should stay at t0 after ShouldAbandon refreshed lastSeen")
 }
 
@@ -150,8 +155,9 @@ func TestUndeliveredTracker_Concurrent(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			key := string(rune('a' + id%8))
-			tr.NoteFailure(key, t0)
-			tr.ShouldAbandon(key, 30*time.Minute, t0.Add(31*time.Minute))
+			f := []uint64{0}
+			tr.NoteFailure(key, f, t0)
+			tr.ShouldAbandon(key, f, 30*time.Minute, t0.Add(31*time.Minute))
 			tr.Clear(key)
 		}(i)
 	}
@@ -164,7 +170,7 @@ func TestUndeliveredTracker_MarkAbandonedAndSuppress(t *testing.T) {
 	firing := []uint64{3, 1, 2}
 
 	tr.MarkAbandoned("k", firing, t0)
-	require.False(t, tr.ShouldAbandon("k", time.Nanosecond, t0.Add(time.Hour)))
+	require.False(t, tr.ShouldAbandon("k", firing, time.Nanosecond, t0.Add(time.Hour)))
 
 	require.True(t, tr.ShouldSuppressAbandoned("k", []uint64{2, 3, 1}, t0.Add(time.Minute)))
 	require.False(t, tr.ShouldSuppressAbandoned("k", []uint64{1, 2}, t0.Add(2*time.Minute)))
@@ -180,7 +186,7 @@ func TestUndeliveredTracker_ResetIfFiringChanged(t *testing.T) {
 
 	tr.ResetIfFiringChanged("k", []uint64{1, 2, 3}, t0.Add(3*time.Minute))
 	require.False(t, tr.ShouldSuppressAbandoned("k", []uint64{1, 2, 3}, t0.Add(4*time.Minute)))
-	require.False(t, tr.ShouldAbandon("k", time.Nanosecond, t0.Add(4*time.Minute)))
+	require.False(t, tr.ShouldAbandon("k", []uint64{1, 2, 3}, time.Nanosecond, t0.Add(4*time.Minute)))
 }
 
 func TestUndeliveredTracker_GCRemovesAbandonedEntry(t *testing.T) {
@@ -189,8 +195,28 @@ func TestUndeliveredTracker_GCRemovesAbandonedEntry(t *testing.T) {
 	tr := NewUndeliveredTracker(gcTTL)
 	tr.MarkAbandoned("k", []uint64{1}, t0)
 
-	tr.NoteFailure("other", t0.Add(6*time.Minute))
+	tr.NoteFailure("other", []uint64{0}, t0.Add(6*time.Minute))
 	require.False(t, tr.ShouldSuppressAbandoned("k", []uint64{1}, t0.Add(6*time.Minute)))
+}
+
+func TestUndeliveredTracker_FiringChangeResetsFirstFail(t *testing.T) {
+	t0 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+	tr := NewUndeliveredTracker(time.Hour)
+	fa := []uint64{1, 2}
+	fb := []uint64{3}
+
+	tr.NoteFailure("k", fa, t0)
+	tr.NoteFailure("k", fa, t0.Add(50*time.Minute))
+	require.True(t, tr.ShouldAbandon("k", fa, 45*time.Minute, t0.Add(50*time.Minute)),
+		"long failure streak for set A should cross abandon threshold")
+
+	require.False(t, tr.ShouldAbandon("k", fb, time.Nanosecond, t0.Add(50*time.Minute)),
+		"switched firing set must not inherit A's firstFail before any failure for B")
+
+	tr.NoteFailure("k", fb, t0.Add(50*time.Minute))
+	require.False(t, tr.ShouldAbandon("k", fb, 40*time.Minute, t0.Add(50*time.Minute)),
+		"B's abandon timer starts at B's first recorded failure")
+	require.True(t, tr.ShouldAbandon("k", fb, 40*time.Minute, t0.Add(91*time.Minute)))
 }
 
 func TestUndeliveredTracker_SortedFiringCopy(t *testing.T) {
