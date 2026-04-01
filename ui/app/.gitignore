@@ -2,6 +2,6 @@ dist/
 elm-stuff/
 .elm
 /elm-*
-/openapi-*
 /build
 /node_modules/
+/.build_stamp

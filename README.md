@@ -30,15 +30,8 @@ Alertmanager will now be reachable at http://localhost:9093/.
 
 ### Compiling the binary
 
-You can either `go install` it:
-
-```
-$ go install github.com/prometheus/alertmanager/cmd/...@latest
-# cd $GOPATH/src/github.com/prometheus/alertmanager
-$ alertmanager --config.file=<your_file>
-```
-
-Or clone the repository and build manually:
+Building from source requires [Go](https://golang.org/) and [Node.js](https://nodejs.org/) (with npm).
+Clone the repository and build manually:
 
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
