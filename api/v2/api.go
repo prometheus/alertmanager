@@ -431,7 +431,15 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter)
 
-	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, marker.NewAlertMarker())
+	// Use a temporary marker to "predict" each alert's current status at
+	// query time (silenced, inhibited, active). The alertFilter calls
+	// setAlertStatus which runs the inhibitor/silencer pipeline and writes
+	// the result into tempMarker. We then use tempMarker for the response
+	// to preserve backward-compatible behavior that clients depend on.
+	// TODO: consider a feature flag or API query param to let callers opt
+	// into using the group's actual marker status instead of the prediction.
+	tempMarker := marker.NewAlertMarker()
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
@@ -458,7 +466,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
-			status := alertGroup.AlertStatuses[fp]
+			status := tempMarker.Status(fp)
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
