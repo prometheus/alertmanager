@@ -14,6 +14,7 @@
 package marker
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -44,7 +45,7 @@ func (m *alertMarker) SetSilenced(fp model.Fingerprint, silencedBy []string) {
 		s = &alertStatus{}
 		m.status[fp] = s
 	}
-	s.SilencedBy = silencedBy
+	s.SilencedBy = slices.Clone(silencedBy)
 }
 
 // SetInhibited implements AlertMarker.
@@ -57,7 +58,7 @@ func (m *alertMarker) SetInhibited(fp model.Fingerprint, inhibitedBy []string) {
 		s = &alertStatus{}
 		m.status[fp] = s
 	}
-	s.InhibitedBy = inhibitedBy
+	s.InhibitedBy = slices.Clone(inhibitedBy)
 }
 
 // Status implements AlertMarker.
@@ -78,10 +79,10 @@ func (m *alertMarker) Status(fp model.Fingerprint) alert.AlertStatus {
 
 	status.State = s.state()
 	if s.SilencedBy != nil {
-		status.SilencedBy = s.SilencedBy
+		status.SilencedBy = slices.Clone(s.SilencedBy)
 	}
 	if s.InhibitedBy != nil {
-		status.InhibitedBy = s.InhibitedBy
+		status.InhibitedBy = slices.Clone(s.InhibitedBy)
 	}
 	return status
 }
