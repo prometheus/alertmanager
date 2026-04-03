@@ -22,3 +22,26 @@ const (
 	AlertStateActive      AlertState = "active"
 	AlertStateSuppressed  AlertState = "suppressed"
 )
+
+// Compare returns -1 if s has lower priority than other, 0 if equal,
+// and 1 if higher. Priority order: suppressed > active > unprocessed.
+func (s AlertState) Compare(other AlertState) int {
+	p := func(st AlertState) int {
+		switch st {
+		case AlertStateSuppressed:
+			return 2
+		case AlertStateActive:
+			return 1
+		default:
+			return 0
+		}
+	}
+	switch a, b := p(s), p(other); {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
