@@ -698,7 +698,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRouteID(ctx, ag.routeID)
 			ctx = notify.WithFlushID(ctx, ag.flushIdx)
 			ctx = notify.WithGroupMatchers(ctx, ag.matchers)
-			ctx = marker.WithAlertMarker(ctx, ag.marker)
+			ctx = marker.WithContext(ctx, ag.marker)
 
 			ag.flushIdx++
 

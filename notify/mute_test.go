@@ -108,7 +108,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	alertMarker := marker.NewAlertMarker()
-	ctx := marker.WithAlertMarker(context.Background(), alertMarker)
+	ctx := marker.WithContext(context.Background(), alertMarker)
 	silencer := silence.NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
 	stage := NewMuteStage(silencer, metrics)
