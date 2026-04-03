@@ -51,10 +51,7 @@ func TestConditionalTracerEnabled(t *testing.T) {
 		ClientType: TracingClientGRPC,
 	}
 	require.NoError(t, m.ApplyConfig(cfg))
-	t.Cleanup(func() {
-		tracingEnabled.Store(false)
-		m.shutdownFunc = nil
-	})
+	t.Cleanup(m.Stop)
 
 	tracer := NewTracer("test")
 	ctx := context.Background()
@@ -68,10 +65,7 @@ func TestConditionalTracerEnabled(t *testing.T) {
 
 func TestTracingEnabledFlagTransitions(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
-	t.Cleanup(func() {
-		tracingEnabled.Store(false)
-		m.shutdownFunc = nil
-	})
+	t.Cleanup(m.Stop)
 
 	// Initially disabled.
 	require.False(t, tracingEnabled.Load())
@@ -96,10 +90,7 @@ func TestApplyConfigNoGapDuringReload(t *testing.T) {
 		ClientType: TracingClientGRPC,
 	}
 	require.NoError(t, m.ApplyConfig(cfg))
-	t.Cleanup(func() {
-		tracingEnabled.Store(false)
-		m.shutdownFunc = nil
-	})
+	t.Cleanup(m.Stop)
 
 	require.True(t, tracingEnabled.Load())
 	tpBefore := otel.GetTracerProvider()
@@ -123,10 +114,7 @@ func TestApplyConfigBuildFailurePreservesState(t *testing.T) {
 		ClientType: TracingClientGRPC,
 	}
 	require.NoError(t, m.ApplyConfig(cfg))
-	t.Cleanup(func() {
-		tracingEnabled.Store(false)
-		m.shutdownFunc = nil
-	})
+	t.Cleanup(m.Stop)
 
 	require.True(t, tracingEnabled.Load())
 	tpBefore := otel.GetTracerProvider()
