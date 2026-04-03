@@ -116,15 +116,15 @@ func TestAlertMarkerContext(t *testing.T) {
 	ctx := t.Context()
 
 	// No marker in context — should return no-op marker.
-	got := GetAlertMarker(ctx)
-	require.NotNil(t, got)
-	// No-op marker returns unknown for any fingerprint.
-	require.Equal(t, alert.AlertStateUnprocessed, got.Status(model.Fingerprint(1)).State)
+	got, ok := FromContext(ctx)
+	require.False(t, ok)
+	require.Nil(t, got)
 
 	// Set marker in context.
 	gm := NewAlertMarker()
-	ctx = WithAlertMarker(ctx, gm)
-	got = GetAlertMarker(ctx)
+	ctx = WithContext(ctx, gm)
+	got, ok = FromContext(ctx)
+	require.True(t, ok)
 	require.NotNil(t, got)
 
 	// Writing through the context-extracted marker should be visible.

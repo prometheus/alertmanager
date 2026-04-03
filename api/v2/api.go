@@ -487,7 +487,7 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 
 		// Set alert's current status based on its label set.
 		// The inhibitor and silencer write to m via the context.
-		ctx = marker.WithAlertMarker(ctx, m)
+		ctx = marker.WithContext(ctx, m)
 		api.setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.

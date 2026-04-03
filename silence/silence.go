@@ -176,7 +176,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	var markedSilences []string
 	defer func() {
 		// Get the marker from context and set the silences on it if any.
-		marker.GetAlertMarker(ctx).SetSilenced(fp, markedSilences)
+		m, ok := marker.FromContext(ctx)
+		if ok {
+			m.SetSilenced(fp, markedSilences)
+		}
 	}()
 
 	// Get the cached entry for this fingerprint.

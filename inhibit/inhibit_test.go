@@ -39,7 +39,7 @@ var nopLogger = promslog.NewNopLogger()
 func checkMutes(t *testing.T, ih *Inhibitor, target model.LabelSet, wantMuted bool, msgAndArgs ...any) {
 	t.Helper()
 	m := marker.NewAlertMarker()
-	ctx := marker.WithAlertMarker(context.Background(), m)
+	ctx := marker.WithContext(context.Background(), m)
 	got := ih.Mutes(ctx, target)
 	require.Equal(t, wantMuted, got, msgAndArgs...)
 	fp := target.Fingerprint()
