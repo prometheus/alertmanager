@@ -15,7 +15,7 @@ package tracing
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 	"testing"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -144,7 +144,7 @@ func TestApplyConfigBuildFailurePreservesState(t *testing.T) {
 	require.Equal(t, tpBefore, otel.GetTracerProvider())
 	require.NotNil(t, m.shutdownFunc)
 	// shutdownFunc should be the same as before the failed apply.
-	require.Equal(t, fmt.Sprintf("%p", shutdownBefore), fmt.Sprintf("%p", m.shutdownFunc))
+	require.Equal(t, reflect.ValueOf(shutdownBefore).Pointer(), reflect.ValueOf(m.shutdownFunc).Pointer())
 }
 
 func TestInstallingNewTracerProvider(t *testing.T) {
