@@ -42,7 +42,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/notify")
@@ -939,7 +938,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*types.Alert, error) {
+func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var sent alert.AlertSlice
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
