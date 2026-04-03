@@ -136,6 +136,9 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	// Deduplicate by fingerprint for backward compatibility.
+	// The same alert can live in multiple aggregation groups with
+	// different per-group marker states. Use highest-priority state:
+	// suppressed > active > unprocessed.
 	seen := map[model.Fingerprint]alert.AlertState{}
 	for i := range d.routeGroupsSlice {
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
@@ -143,8 +146,9 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 			for _, a := range ag.alerts.List() {
 				fp := a.Fingerprint()
 				if !a.Resolved() {
-					if _, ok := seen[fp]; !ok {
-						seen[fp] = ag.marker.Status(fp).State
+					state := ag.marker.Status(fp).State
+					if prev, ok := seen[fp]; !ok || state.Compare(prev) > 0 {
+						seen[fp] = state
 					}
 				}
 			}
