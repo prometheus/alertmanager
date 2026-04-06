@@ -127,7 +127,9 @@ global:
   [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  # The default Telegram bot token. It is mutually exclusive with `telegram_bot_token_file`.
   [ telegram_bot_token: <secret> ]
+  # The default configuration to read the Telegram bot token from a file. It is mutually exclusive with `telegram_bot_token`.
   [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   [ mattermost_webhook_url: <secret> ]
