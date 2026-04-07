@@ -118,7 +118,9 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				TopicARN:   "TestTopic",
 				Sigv4: sigv4.SigV4Config{
-					Region: "us-west-2",
+					Region:     "us-west-2",
+					RoleARN:    "my:role/arn",
+					ExternalID: "external_id",
 				},
 			}
 			if tc.updateCfg != nil {
