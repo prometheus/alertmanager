@@ -1777,6 +1777,10 @@ attributes:
 
 # AWS Role ARN, an alternative to using AWS API keys.
 [ role_arn: <string> ]
+
+# AWS External ID used when assuming a role.
+# Can only be used with role_arn.
+[ external_id: <string> ]
 ```
 
 ### `<telegram_config>`
