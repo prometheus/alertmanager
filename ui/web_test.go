@@ -19,22 +19,49 @@ import (
 	"net/http/httptest"
 	"path"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
 )
 
-func fetch(router *route.Router, urlPath string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, urlPath, nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	return w
+func TestSelectEncoding(t *testing.T) {
+	for _, tt := range []struct {
+		header string
+		want   encoding
+	}{
+		{"", encNone},
+		{"gzip", encGzip},
+		{"br", encBrotli},
+		{"gzip, br", encBrotli},
+		{"br, gzip", encBrotli},
+		{"br;q=0", encNone},
+		{"br;q=0.0", encNone},
+		{"br;q=0.000", encNone},
+		{"br;q=0, gzip", encGzip},
+		{"gzip;q=0", encNone},
+		{"gzip;q=0, br", encBrotli},
+		{"br;q=0.1", encBrotli},
+		{"gzip ; q=0", encNone},
+		{"compress, gzip", encGzip},
+		{"*", encBrotli},
+		{"br;q=0, *", encGzip},
+		{"br;q=0, gzip;q=0, *", encNone},
+		{"*;q=0", encNone},
+		{"compress;q=0.5, gzip;q=1.0", encGzip},
+		{"gzip;q=1.0, identity; q=0.5, *;q=0", encGzip},
+		{"gzip, deflate, br, zstd", encBrotli}, // Chrome
+	} {
+		t.Run(tt.header, func(t *testing.T) {
+			require.Equal(t, tt.want, selectEncoding(tt.header))
+		})
+	}
 }
 
 func fetchIndexAndAssets(t *testing.T, router *route.Router, urlPath string) {
 	t.Helper()
-	res := fetch(router, urlPath)
+	res := fetchWithEncoding(router, urlPath, encNone)
 	require.Equal(t, http.StatusOK, res.Code)
 
 	re := regexp.MustCompile(`(?:src|href)="([^"]+)"`)
@@ -44,7 +71,7 @@ func fetchIndexAndAssets(t *testing.T, router *route.Router, urlPath string) {
 	for _, match := range matches {
 		assetPath := path.Join(urlPath, match[1])
 		t.Run(assetPath, func(t *testing.T) {
-			res := fetch(router, assetPath)
+			res := fetchWithEncoding(router, assetPath, encNone)
 			require.Equal(t, http.StatusOK, res.Code)
 		})
 	}
@@ -63,31 +90,57 @@ func TestIndexAssetsAreServedPrefix(t *testing.T) {
 	fetchIndexAndAssets(t, router, "/alertmanager/")
 }
 
-// walkEmbeddedFiles returns a map of URL to file path for every file in the
-// app/dist embed.FS. Each URL is guaranteed to be unique. The test fails if
-// any file has no known route.
-func walkEmbeddedFiles(t *testing.T) map[string]string {
+// walkEmbeddedFiles returns a map of URL to encodings for every file in
+// app/dist.
+func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
 	t.Helper()
 	appFS, err := fs.Sub(asset, "app/dist")
 	require.NoError(t, err)
-	files := make(map[string]string)
+
+	count := make(map[string]int)
+
 	err = fs.WalkDir(appFS, ".", func(filePath string, d fs.DirEntry, err error) error {
-		if err != nil {
+		if err != nil || d.IsDir() {
 			return err
 		}
-		if d.IsDir() {
-			return nil
-		}
-		url := "/" + filePath
-		if filePath == "index.html" {
-			url = "/"
-		}
-		require.NotContains(t, files, url, "duplicate URL %q in embedded FS", url)
-		files[url] = filePath
+		base := strings.TrimSuffix(strings.TrimSuffix(filePath, ".gz"), ".br")
+		count[base]++
 		return nil
 	})
 	require.NoError(t, err)
+
+	files := make(map[string][]encoding)
+	for base, n := range count {
+		url := "/" + base
+		if base == "index.html" {
+			url = "/"
+		}
+		ext := path.Ext(base)
+		fileType, known := fileTypes[ext]
+		require.True(t, known, "unknown extension %q for url %q", ext, url)
+		if fileType.varyEncoding {
+			require.Equal(t, 2, n, "expected .gz and .br for %q, got %d variant(s)", url, n)
+			files[url] = []encoding{encGzip, encBrotli, encNone}
+		} else {
+			require.Equal(t, 1, n, "expected single file for uncompressed url %q, got %d", url, n)
+			files[url] = []encoding{encNone}
+		}
+	}
+
 	return files
+}
+
+func fetchWithEncoding(router *route.Router, urlPath string, encoding encoding) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, urlPath, nil)
+	switch encoding {
+	case encGzip:
+		req.Header.Set("Accept-Encoding", "gzip")
+	case encBrotli:
+		req.Header.Set("Accept-Encoding", "br")
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
 }
 
 // A server SHOULD send Last-Modified only when the modification date can be
@@ -120,13 +173,14 @@ func TestAssetsNotFoundCacheHeader(t *testing.T) {
 	router := route.New()
 	Register(router)
 
-	res := fetch(router, "/assets/nonexistent.js")
+	res := fetchWithEncoding(router, "/assets/nonexistent.js", encNone)
 
 	require.Equal(t, http.StatusNotFound, res.Code)
 	require.Empty(t, res.Header().Get("Cache-Control"))
 }
 
-// TestWebRoutes walks the embedded FS and issues an HTTP request for every file.
+// TestWebRoutes walks the embedded FS and issues an HTTP request for every
+// file, using the appropriate Accept-Encoding for compressed variants.
 func TestWebRoutes(t *testing.T) {
 	router := route.New()
 	Register(router)
@@ -136,11 +190,35 @@ func TestWebRoutes(t *testing.T) {
 	require.Contains(t, files, "/")
 	require.Contains(t, files, "/favicon.ico")
 
-	for url := range files {
+	for url, encodings := range files {
 		t.Run(url, func(t *testing.T) {
-			res := fetch(router, url)
-			require.Equal(t, http.StatusOK, res.Code)
-			checkCachingHeaders(t, res)
+			for _, encoding := range encodings {
+				switch encoding {
+				case encGzip:
+					t.Run("gzip", func(t *testing.T) {
+						res := fetchWithEncoding(router, url, encoding)
+						require.Equal(t, http.StatusOK, res.Code)
+						require.Equal(t, "gzip", res.Header().Get("Content-Encoding"))
+						checkCachingHeaders(t, res)
+					})
+				case encBrotli:
+					t.Run("br", func(t *testing.T) {
+						res := fetchWithEncoding(router, url, encoding)
+						require.Equal(t, http.StatusOK, res.Code)
+						require.Equal(t, "br", res.Header().Get("Content-Encoding"))
+						checkCachingHeaders(t, res)
+					})
+				case encNone:
+					t.Run("none", func(t *testing.T) {
+						res := fetchWithEncoding(router, url, encoding)
+						require.Equal(t, http.StatusOK, res.Code)
+						require.Empty(t, res.Header().Get("Content-Encoding"))
+						checkCachingHeaders(t, res)
+					})
+				default:
+					t.Fatalf("unhandled encoding %d", encoding)
+				}
+			}
 		})
 	}
 }
