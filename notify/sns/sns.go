@@ -185,7 +185,7 @@ func (n *Notifier) createSNSClient(ctx context.Context, tmpl func(string) string
 		stsProvider := stscreds.NewAssumeRoleProvider(
 			stsClient,
 			n.conf.Sigv4.RoleARN,
-			//This adds an optional external_id configuration field that is passed to STS AssumeRole when role_arn is specified.
+			// This adds an optional external_id configuration field that is passed to STS AssumeRole when role_arn is specified.
 			func(o *stscreds.AssumeRoleOptions) {
 				if n.conf.Sigv4.ExternalID != "" {
 					o.ExternalID = aws.String(n.conf.Sigv4.ExternalID)
