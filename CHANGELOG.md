@@ -21,6 +21,7 @@
 * [ENHANCEMENT] docs: Remove duplicate header. #5034
 * [ENHANCEMENT] docs: Update mutual tls reference in high availability documentation. #5120
 * [ENHANCEMENT] tracing: Use noop spans when tracing disabled. #5118
+* [ENHANCEMENT] ui: Serve pre-compressed assets. #5133
 * [FEATURE] Add silence annotations. #4965
 * [FEATURE] Add silence logging option. #4163
 * [FEATURE] Add support for multiple matcher set silences. #4957
@@ -36,6 +37,7 @@
 * [BUGFIX] config: Fix ipv6 address handling in hostport.string(). #5040
 * [BUGFIX] mattermost: Omit empty text field in notifications. #4985
 * [BUGFIX] telegram: Send fallback message when notification exceeds character limit. #5074
+* [BUGFIX] tracing: Properly shutdown tracer provider. #5131
 * [BUGFIX] ui: Fix escaping for matcher values with quotes. #4862
 * [BUGFIX] ui: Handle special chars in silence regex-matchers. #4942
 * [BUGFIX] ui: Support utf-8 label names in matchers. #5089
