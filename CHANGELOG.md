@@ -4,7 +4,7 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
-## 0.32.0 / 2026-04-10
+## 0.32.0 / 2026-04-08
 
 * [CHANGE] `go get github.com/prometheus/alertmanager/ui` will now fail as compiled UI assets are no longer checked into the repository. Downstream builds that rely on these assets being present in the source tree must now build the UI from source. #5113
 * [CHANGE] The '--enable-feature=auto-gomaxprocs' option is deprecated and will be removed in v0.33. This flag currently has no effect and can be safely removed from any startup scripts. #5090
