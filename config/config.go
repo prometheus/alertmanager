@@ -464,6 +464,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				}
 				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
 			}
+			if err := slack.ValidateUpdateMessageAPIURL(sc.UpdateMessage, sc.APIURL); err != nil {
+				return err
+			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc == nil {
