@@ -1,3 +1,4 @@
+data/
 .build/
 .tarballs/
 
@@ -6,3 +7,4 @@
 !.build/linux-arm64/
 !.build/linux-ppc64le/
 !.build/linux-s390x/
+!.build/linux-riscv64/
