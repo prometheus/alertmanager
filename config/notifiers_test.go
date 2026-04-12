@@ -17,7 +17,6 @@ import (
 	"errors"
 	"net/mail"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -262,93 +261,6 @@ source: 'alert-manager-source'
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedSource, cfg.Source)
 		})
-	}
-}
-
-func TestWebhookURLIsPresent(t *testing.T) {
-	in := `{}`
-	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "one of url or url_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestWebhookURLOrURLFile(t *testing.T) {
-	in := `
-url: 'http://example.com'
-url_file: 'http://example.com'
-`
-	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "at most one of url & url_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestWebhookHttpConfigIsValid(t *testing.T) {
-	in := `
-url: 'http://example.com'
-http_config:
-  bearer_token: foo
-  bearer_token_file: /tmp/bar
-`
-	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "at most one of bearer_token & bearer_token_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestWebhookHttpConfigIsOptional(t *testing.T) {
-	in := `
-url: 'http://example.com'
-`
-	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err != nil {
-		t.Fatalf("no error expected, returned:\n%v", err.Error())
-	}
-}
-
-func TestWebhookPasswordIsObfuscated(t *testing.T) {
-	in := `
-url: 'http://example.com'
-http_config:
-  basic_auth:
-    username: foo
-    password: supersecret
-`
-	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err != nil {
-		t.Fatalf("no error expected, returned:\n%v", err.Error())
-	}
-
-	ycfg, err := yaml.Marshal(cfg)
-	if err != nil {
-		t.Fatalf("no error expected, returned:\n%v", err.Error())
-	}
-	if strings.Contains(string(ycfg), "supersecret") {
-		t.Errorf("Found password in the YAML cfg: %s\n", ycfg)
 	}
 }
 
