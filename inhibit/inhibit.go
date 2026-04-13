@@ -158,7 +158,6 @@ func (ih *Inhibitor) Run() {
 		for _, src := range rule.Sources {
 			go src.scache.Run(runCtx, 15*time.Minute)
 		}
-		//go rule.scache.Run(runCtx, 15*time.Minute)
 	}
 
 	g.Add(func() error {
@@ -381,16 +380,16 @@ func (s *Source) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
 	return equalSet.Fingerprint()
 }
 
-func (src *Source) updateIndex(alert *types.Alert) {
+func (s *Source) updateIndex(alert *types.Alert) {
 	fp := alert.Fingerprint()
 	// Calculate source labelset subset which is in equals.
-	eq := src.fingerprintEquals(alert.Labels)
+	eq := s.fingerprintEquals(alert.Labels)
 
 	// Check if the equal labelset is already in the index.
-	indexed, ok := src.sindex.Get(eq)
+	indexed, ok := s.sindex.Get(eq)
 	if !ok {
 		// If not, add it.
-		src.sindex.Set(eq, fp)
+		s.sindex.Set(eq, fp)
 		return
 	}
 	// If the indexed fingerprint is the same as the new fingerprint, do nothing.
@@ -399,16 +398,16 @@ func (src *Source) updateIndex(alert *types.Alert) {
 	}
 
 	// New alert and existing index are not the same, compare them.
-	existing, err := src.scache.Get(indexed)
+	existing, err := s.scache.Get(indexed)
 	if err != nil {
 		// failed to get the existing alert, overwrite the index.
-		src.sindex.Set(eq, fp)
+		s.sindex.Set(eq, fp)
 		return
 	}
 
 	// If the new alert resolves after the existing alert, replace the index.
 	if existing.ResolvedAt(alert.EndsAt) {
-		src.sindex.Set(eq, fp)
+		s.sindex.Set(eq, fp)
 		return
 	}
 	// If the existing alert resolves after the new alert, do nothing.

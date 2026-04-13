@@ -203,7 +203,7 @@ func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numI
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
 			sources := []amcommoncfg.InhibitRuleSource{}
-			for i := 0; i < numSources; i++ {
+			for i := range numSources {
 				sources = append(sources, amcommoncfg.InhibitRuleSource{
 					SrcMatchers: amcommoncfg.Matchers{
 						mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(i)),
@@ -219,8 +219,8 @@ func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numI
 		},
 		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
 			var alerts []types.Alert
-			for src := 0; src < numSources; src++ {
-				for i := 0; i < numInhibitingAlerts; i++ {
+			for src := range numSources {
+				for i := range numInhibitingAlerts {
 					alerts = append(alerts, types.Alert{
 						Alert: model.Alert{
 							Labels: model.LabelSet{
