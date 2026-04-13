@@ -77,9 +77,12 @@ type Recorder struct {
 	core *sharedRecorder
 }
 
-// writeRequest is a single event queued for background writing.
+// writeRequest is a single event queued for background serialization
+// and writing.  It carries the proto message so that the expensive
+// protojson.Marshal call happens in the write-loop goroutine, not on
+// the caller's hot path.
 type writeRequest struct {
-	data      []byte
+	event     *eventrecorderpb.Event
 	eventType string
 }
 
@@ -228,9 +231,12 @@ func buildOutputs(cfgOutputs []config.EventRecorderOutput, m *metrics, logger *s
 	return outputs
 }
 
-// writeLoop drains the event queue and writes to outputs.  It owns
-// the outputs and currentCfg exclusively — all mutations arrive via
-// the cfgUpdate channel, so no mutex is needed.
+// writeLoop drains the event queue, serializes events, and writes to
+// outputs.  It owns the outputs and currentCfg exclusively — all
+// mutations arrive via the cfgUpdate channel, so no mutex is needed.
+//
+// The protojson.Marshal runs here (not in the caller goroutine) so that
+// the serialization cost is off the alert-processing hot path.
 //
 // It runs until the done channel is closed, then drains remaining
 // events and closes all outputs before returning.
@@ -247,7 +253,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg config.Even
 	for {
 		select {
 		case req := <-c.events:
-			sendToOutputs(req, outputs, c.metrics, c.logger)
+			c.marshalAndSend(req, outputs)
 		case update := <-c.cfgUpdate:
 			if !eventRecorderConfigEqual(update.cfg, currentCfg) {
 				newOutputs := buildOutputs(update.cfg.Outputs, c.metrics, c.logger)
@@ -279,7 +285,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg config.Even
 			for {
 				select {
 				case req := <-c.events:
-					sendToOutputs(req, outputs, c.metrics, c.logger)
+					c.marshalAndSend(req, outputs)
 				case update := <-c.cfgUpdate:
 					close(update.done)
 				default:
@@ -290,24 +296,40 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg config.Even
 	}
 }
 
+// marshalAndSend serializes a queued event and fans it out to all outputs.
+func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination) {
+	data, err := protojson.Marshal(req.event)
+	if err != nil {
+		c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
+		c.logger.Error("Failed to marshal event", "event_type", req.eventType, "err", err)
+		return
+	}
+	data = append(data, '\n')
+	sendToOutputs(data, req.eventType, outputs, c.metrics, c.logger)
+}
+
 // sendToOutputs sends a pre-serialized event to all outputs.
-func sendToOutputs(req writeRequest, outputs []Destination, m *metrics, logger *slog.Logger) {
+func sendToOutputs(data []byte, eventType string, outputs []Destination, m *metrics, logger *slog.Logger) {
 	for _, out := range outputs {
 		name := out.Name()
-		if writeErr := out.SendEvent(req.data); writeErr != nil {
-			m.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
-			logger.Error("Failed to write event", "event_type", req.eventType, "output", name, "err", writeErr)
+		if writeErr := out.SendEvent(data); writeErr != nil {
+			m.eventsRecorded.WithLabelValues(eventType, name, "error").Inc()
+			logger.Error("Failed to write event", "event_type", eventType, "output", name, "err", writeErr)
 		} else {
-			m.eventsRecorded.WithLabelValues(req.eventType, name, "success").Inc()
-			m.eventRecorderBytesWritten.WithLabelValues(req.eventType, name).Add(float64(len(req.data)))
+			m.eventsRecorded.WithLabelValues(eventType, name, "success").Inc()
+			m.eventRecorderBytesWritten.WithLabelValues(eventType, name).Add(float64(len(data)))
 		}
 	}
 }
 
-// RecordEvent serializes the event and places it on a bounded queue
-// for background delivery.  If the queue is full the event is dropped
-// (never blocks the caller).  Recording only occurs when the context
-// has been decorated with WithEventRecording.
+// RecordEvent wraps the event and places it on a bounded queue for
+// background serialization and delivery.  If the queue is full the
+// event is dropped (never blocks the caller).  Recording only occurs
+// when the context has been decorated with WithEventRecording.
+//
+// The expensive protojson.Marshal call is deferred to the write-loop
+// goroutine so that the caller's hot path only pays for the proto
+// wrapping and a channel send.
 func (r Recorder) RecordEvent(ctx context.Context, event *eventrecorderpb.EventData) {
 	if r.core == nil || r.core.events == nil {
 		return
@@ -328,17 +350,8 @@ func (r Recorder) RecordEvent(ctx context.Context, event *eventrecorderpb.EventD
 		wrappedEvent.ClusterPosition = uint32(peer.Position())
 	}
 
-	data, err := protojson.Marshal(wrappedEvent)
-	if err != nil {
-		r.core.metrics.eventSerializeErrors.WithLabelValues(eventType).Inc()
-		r.core.logger.Error("Failed to marshal event", "event_type", eventType, "err", err)
-		return
-	}
-
-	data = append(data, '\n')
-
 	select {
-	case r.core.events <- writeRequest{data: data, eventType: eventType}:
+	case r.core.events <- writeRequest{event: wrappedEvent, eventType: eventType}:
 	default:
 		// Queue full; drop event to avoid blocking alertmanager.
 		r.core.metrics.eventsDropped.WithLabelValues(eventType).Inc()
@@ -426,19 +439,33 @@ func (r Recorder) Close() error {
 }
 
 // extractEventType returns the proto oneof field name for the event
-// type (e.g. "alert_created", "notification").  It uses proto
-// reflection so that new event types are handled automatically.
+// type (e.g. "alert_created", "notification").  It uses a type switch
+// on the generated oneof wrapper types, avoiding proto reflection.
 func extractEventType(event *eventrecorderpb.EventData) string {
-	msg := event.ProtoReflect()
-	od := msg.Descriptor().Oneofs().ByName("event_type")
-	if od == nil {
+	switch event.EventType.(type) {
+	case *eventrecorderpb.EventData_AlertmanagerStartupEvent:
+		return "alertmanager_startup_event"
+	case *eventrecorderpb.EventData_AlertmanagerShutdownEvent:
+		return "alertmanager_shutdown_event"
+	case *eventrecorderpb.EventData_AlertCreated:
+		return "alert_created"
+	case *eventrecorderpb.EventData_AlertResolved:
+		return "alert_resolved"
+	case *eventrecorderpb.EventData_AlertGrouped:
+		return "alert_grouped"
+	case *eventrecorderpb.EventData_Notification:
+		return "notification"
+	case *eventrecorderpb.EventData_SilenceCreated:
+		return "silence_created"
+	case *eventrecorderpb.EventData_SilenceUpdated:
+		return "silence_updated"
+	case *eventrecorderpb.EventData_SilenceMutedAlert:
+		return "silence_muted_alert"
+	case *eventrecorderpb.EventData_InhibitionMutedAlert:
+		return "inhibition_muted_alert"
+	default:
 		return "unknown"
 	}
-	fd := msg.WhichOneof(od)
-	if fd == nil {
-		return "unknown"
-	}
-	return string(fd.Name())
 }
 
 // LabelSetAsProto converts a model.LabelSet to an eventrecorderpb.LabelSet.
