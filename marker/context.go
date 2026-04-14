@@ -32,8 +32,8 @@ func WithContext(ctx context.Context, m AlertMarker) context.Context {
 	return context.WithValue(ctx, keyAlertMarker, m)
 }
 
-// FromContext extracts the AlertMarker from the context if present,
-// otherwise returns a no-op marker.
+// FromContext extracts the AlertMarker from ctx.
+// If no marker is present, it returns (nil, false).
 func FromContext(ctx context.Context) (AlertMarker, bool) {
 	m, ok := ctx.Value(keyAlertMarker).(AlertMarker)
 	return m, ok
