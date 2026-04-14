@@ -485,6 +485,12 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 			return false
 		}
 
+		// Short-circuit on label matchers before the expensive
+		// silencer/inhibitor pipeline.
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+			return false
+		}
+
 		// Set alert's current status based on its label set.
 		// The inhibitor and silencer write to m via the context.
 		ctx = marker.WithContext(ctx, m)
@@ -505,7 +511,7 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 			return false
 		}
 
-		return alertMatchesFilterLabels(&a.Alert, matchers)
+		return true
 	}
 }
 
