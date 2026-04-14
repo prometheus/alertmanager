@@ -34,10 +34,21 @@ type DispatcherMetrics struct {
 	alertsCollector          *alertStateCollector
 }
 
+// newNoopDispatcherMetrics returns a DispatcherMetrics whose counters,
+// gauges, and summaries silently discard observations. It is used when
+// no prometheus.Registerer is provided.
+func newNoopDispatcherMetrics() *DispatcherMetrics {
+	return &DispatcherMetrics{
+		aggrGroups:            prometheus.NewGauge(prometheus.GaugeOpts{}),
+		processingDuration:    prometheus.NewSummary(prometheus.SummaryOpts{}),
+		aggrGroupLimitReached: prometheus.NewCounter(prometheus.CounterOpts{}),
+	}
+}
+
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
 func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer, ff featurecontrol.Flagger) *DispatcherMetrics {
 	if r == nil {
-		return nil
+		return newNoopDispatcherMetrics()
 	}
 	if ff == nil {
 		ff = featurecontrol.NoopFlags{}

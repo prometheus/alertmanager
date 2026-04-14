@@ -114,6 +114,9 @@ func NewDispatcher(
 	if limits == nil {
 		limits = nilLimits{}
 	}
+	if metrics == nil {
+		metrics = newNoopDispatcherMetrics()
+	}
 
 	// Calculate concurrency for ingestion.
 	concurrency := min(max(runtime.GOMAXPROCS(0)/2, 2), 8)
