@@ -414,8 +414,9 @@ func run() int {
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 
 	var (
-		inhibitor atomic.Pointer[inhibit.Inhibitor]
-		tmpl      *template.Template
+		inhibitor          atomic.Pointer[inhibit.Inhibitor]
+		tmpl               *template.Template
+		undeliveredTracker *notify.UndeliveredTracker
 	)
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
@@ -484,6 +485,17 @@ func run() int {
 			pipelinePeer = peer
 		}
 
+		abandonUndeliveredAfter := time.Duration(0)
+		if conf.Global.AbandonUndeliveredNotifications {
+			abandonUndeliveredAfter = time.Duration(conf.Global.AbandonUndeliveredAfter)
+			gcTTL := max(2*abandonUndeliveredAfter, time.Hour)
+			if undeliveredTracker == nil {
+				undeliveredTracker = notify.NewUndeliveredTracker(gcTTL)
+			}
+		} else {
+			undeliveredTracker = nil
+		}
+
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
@@ -493,6 +505,8 @@ func run() int {
 			marker,
 			notificationLog,
 			pipelinePeer,
+			undeliveredTracker,
+			abandonUndeliveredAfter,
 		)
 
 		configuredReceivers.Set(float64(len(activeReceivers)))

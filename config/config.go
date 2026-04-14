@@ -350,6 +350,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured")
 	}
 
+	if c.Global.AbandonUndeliveredNotifications && time.Duration(c.Global.AbandonUndeliveredAfter) <= 0 {
+		return errors.New("abandon_undelivered_after must be greater than zero when abandon_undelivered_notifications is enabled")
+	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -838,6 +842,13 @@ type GlobalConfig struct {
 	RocketchatTokenIDFile    string                 `yaml:"rocketchat_token_id_file,omitempty" json:"rocketchat_token_id_file,omitempty"`
 	MattermostWebhookURL     *amcommoncfg.SecretURL `yaml:"mattermost_webhook_url,omitempty" json:"mattermost_webhook_url,omitempty"`
 	MattermostWebhookURLFile string                 `yaml:"mattermost_webhook_url_file,omitempty" json:"mattermost_webhook_url_file,omitempty"`
+	// AbandonUndeliveredNotifications, when true, stops calling an integration after
+	// AbandonUndeliveredAfter from the first failed delivery attempt for a notification
+	// key, and suppresses further attempts for the same firing alert set without calling
+	// the integration.
+	AbandonUndeliveredNotifications bool `yaml:"abandon_undelivered_notifications" json:"abandon_undelivered_notifications"`
+	// AbandonUndeliveredAfter must be positive when AbandonUndeliveredNotifications is true.
+	AbandonUndeliveredAfter model.Duration `yaml:"abandon_undelivered_after" json:"abandon_undelivered_after"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

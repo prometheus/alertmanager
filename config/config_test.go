@@ -62,6 +62,23 @@ route:
 	}
 }
 
+func TestAbandonUndeliveredInvalid(t *testing.T) {
+	in := `
+global:
+  abandon_undelivered_notifications: true
+  abandon_undelivered_after: 0s
+route:
+  receiver: x
+receivers:
+- name: x
+  webhook_configs:
+  - url: http://example.com
+`
+	_, err := Load(in)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "abandon_undelivered_after")
+}
+
 func TestReceiverNameIsUnique(t *testing.T) {
 	in := `
 route:
