@@ -32,10 +32,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -145,6 +147,10 @@ const (
 	keyRouteID
 	keyNflogStore
 	keyNotificationReason
+	keyMutedAlerts
+	keyAggrGroupID
+	keyFlushID
+	keyGroupMatchers
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -271,6 +277,50 @@ func RouteID(ctx context.Context) (string, bool) {
 
 func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	v, ok := ctx.Value(keyNotificationReason).(NotifyReason)
+	return v, ok
+}
+
+// WithMutedAlerts populates a context with a set of muted alert hashes.
+func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Context {
+	return context.WithValue(ctx, keyMutedAlerts, alerts)
+}
+
+// MutedAlerts extracts a set of muted alert hashes from the context.
+func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
+	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
+	return v, ok
+}
+
+// WithAggrGroupID populates a context with an aggregation group UUID.
+func WithAggrGroupID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, keyAggrGroupID, id)
+}
+
+// AggrGroupID extracts an aggregation group UUID from the context.
+func AggrGroupID(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyAggrGroupID).(string)
+	return v, ok
+}
+
+// WithFlushID populates a context with a flush identifier.
+func WithFlushID(ctx context.Context, id uint64) context.Context {
+	return context.WithValue(ctx, keyFlushID, id)
+}
+
+// FlushID extracts a flush identifier from the context.
+func FlushID(ctx context.Context) (uint64, bool) {
+	v, ok := ctx.Value(keyFlushID).(uint64)
+	return v, ok
+}
+
+// WithGroupMatchers populates a context with the route's matchers.
+func WithGroupMatchers(ctx context.Context, matchers labels.Matchers) context.Context {
+	return context.WithValue(ctx, keyGroupMatchers, matchers)
+}
+
+// GroupMatchers extracts the route's matchers from the context.
+func GroupMatchers(ctx context.Context) (labels.Matchers, bool) {
+	v, ok := ctx.Value(keyGroupMatchers).(labels.Matchers)
 	return v, ok
 }
 
@@ -420,14 +470,16 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 }
 
 type PipelineBuilder struct {
-	metrics *Metrics
-	ff      featurecontrol.Flagger
+	metrics  *Metrics
+	ff       featurecontrol.Flagger
+	recorder eventrecorder.Recorder
 }
 
-func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger) *PipelineBuilder {
+func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger, recorder eventrecorder.Recorder) *PipelineBuilder {
 	return &PipelineBuilder{
-		metrics: NewMetrics(r, ff),
-		ff:      ff,
+		metrics:  NewMetrics(r, ff),
+		ff:       ff,
+		recorder: recorder,
 	}
 }
 
@@ -451,7 +503,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -467,6 +519,7 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	recorder eventrecorder.Recorder,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -478,7 +531,7 @@ func createReceiverStage(
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -837,10 +890,11 @@ type RetryStage struct {
 	groupName   string
 	metrics     *Metrics
 	labelValues []string
+	recorder    eventrecorder.Recorder
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder eventrecorder.Recorder) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {
@@ -852,6 +906,7 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 		groupName:   groupName,
 		metrics:     metrics,
 		labelValues: labelValues,
+		recorder:    recorder,
 	}
 }
 
@@ -977,6 +1032,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					l.Info("Notify success")
 				}
 
+				r.recorder.RecordEvent(ctx, NewNotificationEvent(ctx, sent, r.integration))
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():

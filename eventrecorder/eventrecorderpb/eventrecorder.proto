@@ -1,0 +1,389 @@
+syntax = "proto3";
+
+package eventrecorderpb;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb";
+
+// Event is the top-level envelope written to each event recorder output.
+// It wraps the specific event data with metadata about when and where
+// the event was produced.
+message Event {
+  // The wall-clock time at which the event was recorded.
+  google.protobuf.Timestamp timestamp = 1 [json_name = "@timestamp"];
+
+  // The hostname or address of the Alertmanager instance that produced
+  // the event.
+  string instance = 2;
+
+  // The event payload.  Exactly one of the oneof fields inside EventData
+  // will be set.
+  EventData data = 3;
+
+  // The ordinal position of this instance among its HA cluster peers.
+  // Zero when clustering is disabled.
+  uint32 cluster_position = 4;
+}
+
+// EventData carries the payload for a single event recorder entry.
+// Exactly one of the oneof fields will be populated.
+message EventData {
+  oneof event_type {
+    // Recorded when the Alertmanager process starts.
+    AlertmanagerStartupEvent alertmanager_startup_event = 1;
+
+    // Recorded when the Alertmanager process shuts down gracefully.
+    AlertmanagerShutdownEvent alertmanager_shutdown_event = 2;
+
+    // Recorded when a new alert is first inserted into the alert store.
+    AlertCreatedEvent alert_created = 3;
+
+    // Recorded when an alert transitions to the resolved state and is
+    // removed from its aggregation group after successful notification.
+    AlertResolvedEvent alert_resolved = 4;
+
+    // Recorded when an alert is inserted into an aggregation group for
+    // the first time.
+    AlertGroupedEvent alert_grouped = 5;
+
+    // Recorded after a notification is successfully delivered to an
+    // integration (e.g., webhook, email, PagerDuty).
+    NotificationEvent notification = 6;
+
+    // Recorded when a new silence is created.
+    SilenceCreatedEvent silence_created = 7;
+
+    // Recorded when an existing silence is updated (e.g., extended or
+    // re-commented).
+    SilenceUpdatedEvent silence_updated = 8;
+
+    // Recorded each time a silence actively suppresses an alert during
+    // the muting evaluation pass.
+    SilenceMutedAlertEvent silence_muted_alert = 9;
+
+    // Recorded each time one or more inhibition rules suppress an alert
+    // during the muting evaluation pass.
+    InhibitionMutedAlertEvent inhibition_muted_alert = 10;
+  }
+}
+
+// AlertmanagerStartupEvent is emitted once when the process starts.
+message AlertmanagerStartupEvent {
+  // The semantic version of the Alertmanager binary (e.g., "0.28.0").
+  string version = 1;
+
+  // Free-form build metadata such as Go version, branch, and revision.
+  string build_context = 2;
+}
+
+// AlertmanagerShutdownEvent is emitted when the process shuts down
+// gracefully.  It carries no additional data.
+message AlertmanagerShutdownEvent {}
+
+// LabelPair is a single key-value label.
+message LabelPair {
+  // The label name (e.g., "alertname").
+  string key = 1;
+
+  // The label value (e.g., "HighMemoryUsage").
+  string value = 2;
+}
+
+// LabelSet is an ordered collection of label pairs.
+message LabelSet {
+  // The label pairs that make up this set.
+  repeated LabelPair labels = 1;
+}
+
+// Alert represents a snapshot of an alert at the time the event was
+// recorded.
+message Alert {
+  // The unique fingerprint derived from the alert's label set.
+  uint64 fingerprint = 1;
+
+  // The value of the "alertname" label, provided for convenience.
+  string name = 2;
+
+  // The full label set that identifies this alert.
+  LabelSet labels = 3;
+
+  // Informational annotations attached to the alert (e.g., summary,
+  // description).
+  LabelSet annotations = 4;
+
+  // The time at which the alert started firing.
+  google.protobuf.Timestamp starts_at = 5;
+
+  // The time at which the alert is considered resolved.  For firing
+  // alerts this is typically set to a time in the future.
+  google.protobuf.Timestamp ends_at = 6;
+
+  // Whether the alert was resolved at the time the event was recorded.
+  bool resolved = 7;
+}
+
+// GroupedAlert is a reference to an alert within an aggregation group.
+// It always carries the content hash; the full alert details are
+// included when available.
+message GroupedAlert {
+  // A hash of the alert's label set, used for deduplication within the
+  // notification pipeline.
+  uint64 hash = 1;
+
+  // The full alert details.  May be absent when only the hash is needed
+  // (e.g., in firing/resolved lists on NotificationEvent).
+  optional Alert details = 2;
+}
+
+// AlertGroupInfo describes the aggregation group context in which an
+// alert is being processed.
+message AlertGroupInfo {
+  // The composite key that uniquely identifies this aggregation group
+  // (encodes route and group label values).
+  string group_key = 1;
+
+  // The label set used to group alerts together within this route.
+  LabelSet group_labels = 2;
+
+  // A stable, shortened identifier derived from the group key (SHA-256
+  // hex).
+  string group_id = 3;
+
+  // The name of the receiver that this group routes to.
+  string receiver_name = 4;
+
+  // The set of matchers defined on the route that matched these alerts.
+  repeated Matcher matchers = 5;
+
+  // A UUID that uniquely identifies this aggregation group instance.
+  string group_uuid = 6;
+}
+
+// AlertCreatedEvent is emitted when a brand-new alert is inserted into
+// the in-memory alert store.
+message AlertCreatedEvent {
+  // The newly created alert.
+  Alert alert = 1;
+}
+
+// AlertResolvedEvent is emitted when an alert is removed from its
+// aggregation group after a successful notification that included the
+// resolution.
+message AlertResolvedEvent {
+  // The resolved alert, including its hash and full details.
+  GroupedAlert alert = 1;
+
+  // The aggregation group from which the alert was resolved.
+  AlertGroupInfo group_info = 2;
+}
+
+// AlertGroupedEvent is emitted the first time an alert is inserted into
+// an aggregation group.
+message AlertGroupedEvent {
+  // The alert being grouped, including its hash and full details.
+  GroupedAlert alert = 1;
+
+  // The aggregation group the alert was added to.
+  AlertGroupInfo group_info = 2;
+}
+
+// NotifyReason describes why a notification was sent for an aggregation
+// group.
+enum NotifyReason {
+  // Default / unknown reason.
+  NOTIFY_REASON_UNSPECIFIED = 0;
+
+  // The group has never been notified before and contains at least one
+  // firing alert.
+  NOTIFY_REASON_FIRST_NOTIFICATION = 1;
+
+  // New firing alerts have been added to the group since the last
+  // notification.
+  NOTIFY_REASON_NEW_ALERTS_IN_GROUP = 2;
+
+  // Some alerts in the group have resolved since the last notification.
+  NOTIFY_REASON_NEW_RESOLVED_ALERTS = 3;
+
+  // All alerts in the group have resolved.
+  NOTIFY_REASON_ALL_ALERTS_RESOLVED = 4;
+
+  // The configured repeat interval has elapsed since the last
+  // notification.
+  NOTIFY_REASON_REPEAT_INTERVAL_ELAPSED = 5;
+}
+
+// Integration identifies a specific notification integration (e.g.,
+// the second PagerDuty receiver in a receiver definition).
+message Integration {
+  // The type of the integration (e.g., "webhook", "pagerduty").
+  string name = 1;
+
+  // The zero-based index of this integration within its receiver.
+  int64 index = 2;
+}
+
+// NotificationEvent is emitted after a notification is successfully
+// delivered to an integration.
+message NotificationEvent {
+  // All alerts that were included in the notification.
+  repeated GroupedAlert alerts = 1;
+
+  // The subset of alerts that are currently firing.
+  repeated GroupedAlert firing_alerts = 2;
+
+  // The subset of alerts that are resolved.
+  repeated GroupedAlert resolved_alerts = 3;
+
+  // Alerts that were muted (silenced or inhibited) during this flush
+  // cycle.
+  repeated GroupedAlert muted_alerts = 4;
+
+  // The aggregation group context for this notification.
+  AlertGroupInfo group_info = 5;
+
+  // The configured repeat interval for the aggregation group's route.
+  google.protobuf.Duration repeat_interval = 6;
+
+  // The reason the notification was triggered.
+  NotifyReason reason = 7;
+
+  // A monotonically increasing identifier for each flush cycle of the
+  // aggregation group.
+  uint64 flush_id = 8;
+
+  // The integration that delivered the notification.
+  Integration integration = 9;
+}
+
+// Silence is a snapshot of a silence definition at the time the event
+// was recorded.
+message Silence {
+  // The globally unique silence identifier (UUID).
+  string id = 1;
+
+  // The matchers that define which alerts this silence suppresses.
+  // For silences with multiple matcher sets, this is the first set.
+  repeated Matcher matchers = 2;
+
+  // Optional structured annotations on the silence (key-value pairs).
+  LabelSet annotations = 3;
+
+  // The time at which the silence becomes active.
+  google.protobuf.Timestamp starts_at = 4;
+
+  // The time at which the silence expires.
+  google.protobuf.Timestamp ends_at = 5;
+
+  // The last time the silence was created or updated.
+  google.protobuf.Timestamp updated_at = 6;
+
+  // The author who created the silence.
+  string created_by = 7;
+
+  // A human-readable comment explaining the silence.
+  string comment = 8;
+
+  // Additional matcher sets evaluated with OR logic.  At least one
+  // matcher set must match for the silence to apply.
+  repeated MatcherSet matcher_sets = 9;
+}
+
+// Matcher defines a single label matching rule.
+message Matcher {
+  // Type enumerates the supported matching operators.
+  enum Type {
+    // Unspecified / unknown match type.
+    TYPE_UNSPECIFIED = 0;
+
+    // Exact string equality (=).
+    TYPE_EQUAL = 1;
+
+    // Regular expression match (=~).
+    TYPE_REGEXP = 2;
+
+    // Negated exact string equality (!=).
+    TYPE_NOT_EQUAL = 3;
+
+    // Negated regular expression match (!~).
+    TYPE_NOT_REGEXP = 4;
+  }
+
+  // The matching operator to apply.
+  Type type = 1;
+
+  // The label name to match against.
+  string name = 2;
+
+  // The value or pattern to match, interpreted according to type.
+  string pattern = 3;
+
+  // Human-readable string representation (e.g., "env=~prod.*").
+  string rendered = 4;
+}
+
+// MatcherSet is a conjunction of matchers: all matchers in the set must
+// match for the set to match.
+message MatcherSet {
+  // The matchers that make up this set (evaluated with AND logic).
+  repeated Matcher matchers = 1;
+}
+
+// SilenceCreatedEvent is emitted when a new silence is created.
+message SilenceCreatedEvent {
+  // The newly created silence.
+  Silence silence = 1;
+}
+
+// SilenceUpdatedEvent is emitted when an existing silence is modified.
+message SilenceUpdatedEvent {
+  // The silence after the update.
+  Silence silence = 1;
+}
+
+// MutedAlert identifies an alert that was suppressed by a silence or
+// inhibition rule.
+message MutedAlert {
+  // The label set of the muted alert.
+  LabelSet labels = 1;
+
+  // The fingerprint of the muted alert.
+  uint64 fingerprint = 2;
+}
+
+// SilenceMutedAlertEvent is emitted each time a silence suppresses an
+// alert during the muting evaluation pass.
+message SilenceMutedAlertEvent {
+  // The silence that suppressed the alert.
+  Silence silence = 1;
+
+  // The alert that was suppressed.
+  MutedAlert muted_alert = 2;
+}
+
+// InhibitRule is a snapshot of an inhibition rule definition.
+message InhibitRule {
+  // Matchers that identify source alerts (those that do the inhibiting).
+  repeated Matcher source_matchers = 1;
+
+  // Matchers that identify target alerts (those that get inhibited).
+  repeated Matcher target_matchers = 2;
+
+  // Label names whose values must be equal between source and target
+  // alerts for the inhibition to take effect.
+  repeated string equal_labels = 3;
+}
+
+// InhibitionMutedAlertEvent is emitted when one or more inhibition
+// rules suppress an alert.
+message InhibitionMutedAlertEvent {
+  // The inhibition rules that matched.
+  repeated InhibitRule inhibit_rules = 1;
+
+  // The alert that was suppressed.
+  MutedAlert muted_alert = 2;
+
+  // The fingerprints of the source alerts that caused the inhibition.
+  repeated uint64 inhibiting_fingerprints = 3;
+}

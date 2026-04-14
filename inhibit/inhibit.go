@@ -28,6 +28,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -46,6 +48,7 @@ type Inhibitor struct {
 	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
+	recorder   eventrecorder.Recorder
 
 	mtx             sync.RWMutex
 	loadingFinished sync.WaitGroup
@@ -53,12 +56,13 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, mk types.AlertMarker, logger *slog.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, mk types.AlertMarker, logger *slog.Logger, recorder eventrecorder.Recorder) *Inhibitor {
 	ih := &Inhibitor{
 		alerts:     ap,
 		marker:     mk,
 		logger:     logger,
 		propagator: otel.GetTextMapPropagator(),
+		recorder:   recorder,
 	}
 
 	ih.loadingFinished.Add(1)
@@ -179,8 +183,8 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted. It implements the Muter
-// interface.
+// Mutes returns true iff the given label set is muted.  It implements the
+// Muter interface.
 func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
@@ -210,6 +214,12 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
 				),
 			)
+
+			ih.recorder.RecordEvent(ctx, eventrecorder.NewInhibitionMutedAlertEvent(
+				[]*eventrecorderpb.InhibitRule{eventrecorder.InhibitRuleAsProto(r.SourceMatchers, r.TargetMatchers, r.Equal)},
+				fp, lset,
+				[]model.Fingerprint{inhibitedByFP},
+			))
 			return true
 		}
 	}

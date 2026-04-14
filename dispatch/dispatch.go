@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
@@ -34,7 +35,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/tracing"
@@ -110,7 +114,8 @@ type Dispatcher struct {
 	maintenanceInterval time.Duration
 	concurrency         int // Number of goroutines for alert ingestion
 
-	logger *slog.Logger
+	logger   *slog.Logger
+	recorder eventrecorder.Recorder
 
 	startTimer *time.Timer
 	state      atomic.Int32
@@ -140,6 +145,7 @@ func NewDispatcher(
 	maintenanceInterval time.Duration,
 	limits Limits,
 	logger *slog.Logger,
+	recorder eventrecorder.Recorder,
 	metrics *DispatcherMetrics,
 ) *Dispatcher {
 	if limits == nil {
@@ -158,13 +164,14 @@ func NewDispatcher(
 		maintenanceInterval: maintenanceInterval,
 		concurrency:         concurrency,
 		logger:              logger.With("component", "dispatcher"),
+		recorder:            recorder,
 		metrics:             metrics,
 		limits:              limits,
 		propagator:          otel.GetTextMapPropagator(),
 	}
 	disp.state.Store(DispatcherStateUnknown)
 	disp.loaded = make(chan struct{})
-	disp.ctx, disp.cancel = context.WithCancel(context.Background())
+	disp.ctx, disp.cancel = context.WithCancel(eventrecorder.WithEventRecording(context.Background()))
 	return disp
 }
 
@@ -490,7 +497,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.logger)
+	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.marker.(types.AlertMarker), d.recorder, d.logger)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -614,15 +621,18 @@ type aggrGroup struct {
 	logger   *slog.Logger
 	routeID  string
 	routeKey string
+	matchers labels.Matchers
 
-	alerts  *store.Alerts
-	marker  types.AlertMarker
-	ctx     context.Context
-	cancel  func()
-	done    chan struct{}
-	next    *time.Timer
-	timeout func(time.Duration) time.Duration
-	running atomic.Bool
+	alerts   *store.Alerts
+	marker   types.AlertMarker
+	recorder eventrecorder.Recorder
+	ctx      context.Context
+	cancel   func()
+	done     chan struct{}
+	next     *time.Timer
+	timeout  func(time.Duration) time.Duration
+	running  atomic.Bool
+	flushIdx uint64
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -632,6 +642,7 @@ func newAggrGroup(
 	r *Route,
 	to func(time.Duration) time.Duration,
 	marker types.AlertMarker,
+	recorder eventrecorder.Recorder,
 	logger *slog.Logger,
 ) *aggrGroup {
 	if to == nil {
@@ -641,13 +652,20 @@ func newAggrGroup(
 		labels:   labels,
 		routeID:  r.ID(),
 		routeKey: r.Key(),
+		matchers: r.Matchers,
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),
 		marker:   marker,
+		recorder: recorder,
 		done:     make(chan struct{}),
+		flushIdx: 1,
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
+
+	if id, err := uuid.NewRandom(); err == nil {
+		ag.ctx = notify.WithAggrGroupID(ag.ctx, id.String())
+	}
 
 	ag.logger = logger.With("aggrGroup", ag.GroupKey())
 
@@ -695,6 +713,10 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
 			ctx = notify.WithRouteID(ctx, ag.routeID)
+			ctx = notify.WithFlushID(ctx, ag.flushIdx)
+			ctx = notify.WithGroupMatchers(ctx, ag.matchers)
+
+			ag.flushIdx++
 
 			// Wait the configured interval before calling flush again.
 			ag.resetTimer(ag.opts.GroupInterval)
@@ -756,6 +778,8 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *types.Alert) bool {
 		span.SetStatus(codes.Error, message)
 		span.RecordError(err)
 		ag.logger.Error(message, "err", err)
+	} else {
+		ag.recorder.RecordEvent(ctx, notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert))
 	}
 	return true
 }
@@ -795,6 +819,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	ag.logger.Debug("flushing", "numAlerts", len(alertsSlice), "alerts", alertsSlice)
 
 	if notify(alertsSlice...) {
+		ag.recordResolvedEvents(resolvedSlice)
+
 		// Delete all resolved alerts as we just sent a notification for them,
 		// and we don't want to send another one. However, we need to make sure
 		// that each resolved alert has not fired again during the flush as then
@@ -812,6 +838,25 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				}
 			}
 		}
+	}
+}
+
+func (ag *aggrGroup) recordResolvedEvents(resolved types.AlertSlice) {
+	if len(resolved) == 0 {
+		return
+	}
+	groupInfo := ag.alertGroupInfo()
+	for _, a := range resolved {
+		ag.recorder.RecordEvent(ag.ctx, notify.NewAlertResolvedEvent(groupInfo, a))
+	}
+}
+
+func (ag *aggrGroup) alertGroupInfo() *eventrecorderpb.AlertGroupInfo {
+	return &eventrecorderpb.AlertGroupInfo{
+		GroupKey:     ag.GroupKey(),
+		GroupLabels:  eventrecorder.LabelSetAsProto(ag.labels),
+		GroupId:      notify.Key(ag.GroupKey()).Hash(),
+		ReceiverName: ag.opts.Receiver,
 	}
 }
 
