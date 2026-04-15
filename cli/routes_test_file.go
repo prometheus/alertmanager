@@ -40,9 +40,10 @@ type testFileAlertDef struct {
 	// ExpectedReceivers lists the receiver names the alert should route to.
 	// Mutually exclusive with ExpectedInhibited.
 	ExpectedReceivers []string `yaml:"expected_receivers,omitempty"`
-	// ExpectedInhibited asserts that this alert should be inhibited.
-	// Mutually exclusive with ExpectedReceivers.
-	ExpectedInhibited bool `yaml:"expected_inhibited,omitempty"`
+	// ExpectedInhibited asserts whether this alert should be inhibited.
+	// Use true to assert inhibition, false to explicitly assert no inhibition.
+	// Mutually exclusive with ExpectedReceivers; exactly one must be set.
+	ExpectedInhibited *bool `yaml:"expected_inhibited,omitempty"`
 }
 
 // testFileCase is a named test case containing one or more alert definitions.
@@ -189,29 +190,62 @@ func runRouteTestCase(
 
 	// Validate each alert definition.
 	for i, ad := range tc.Alerts {
+		hasReceivers := len(ad.ExpectedReceivers) > 0
+		hasInhibited := ad.ExpectedInhibited != nil
+
+		// Exactly one of expected_receivers / expected_inhibited must be set.
+		if hasReceivers && hasInhibited {
+			return false, fmt.Sprintf(
+				"alert[%d] %s: expected_receivers and expected_inhibited are mutually exclusive",
+				i, labelMapString(ad.Labels),
+			)
+		}
+		if !hasReceivers && !hasInhibited {
+			return false, fmt.Sprintf(
+				"alert[%d] %s: one of expected_receivers or expected_inhibited must be set",
+				i, labelMapString(ad.Labels),
+			)
+		}
+
 		lset := mapToLabelSet(ad.Labels)
 
-		if ad.ExpectedInhibited {
-			if ih == nil {
+		// When an inhibitor is active, check mute status before receiver matching.
+		// An alert that is actually muted would never reach its receivers, so a
+		// receiver assertion on a muted alert should fail.
+		muted := ih != nil && ih.Mutes(context.Background(), lset)
+
+		if hasInhibited {
+			wantInhibited := *ad.ExpectedInhibited
+			if wantInhibited && ih == nil {
 				return false, fmt.Sprintf(
 					"alert[%d] %s: expected_inhibited=true but no inhibit_rules are configured",
 					i, labelMapString(ad.Labels),
 				)
 			}
-			muted := ih.Mutes(context.Background(), lset)
-			if !muted {
+			if wantInhibited && !muted {
 				return false, fmt.Sprintf(
 					"alert[%d] %s: expected to be inhibited but was not",
 					i, labelMapString(ad.Labels),
 				)
 			}
+			if !wantInhibited && muted {
+				return false, fmt.Sprintf(
+					"alert[%d] %s: expected not to be inhibited but was",
+					i, labelMapString(ad.Labels),
+				)
+			}
 		} else {
+			if muted {
+				return false, fmt.Sprintf(
+					"alert[%d] %s: expected receivers %v but alert is inhibited",
+					i, labelMapString(ad.Labels), ad.ExpectedReceivers,
+				)
+			}
 			matchedRoutes := mainRoute.Match(lset)
 			receivers := make([]string, 0, len(matchedRoutes))
 			for _, r := range matchedRoutes {
 				receivers = append(receivers, r.RouteOpts.Receiver)
 			}
-
 			if !equalStringSlices(ad.ExpectedReceivers, receivers) {
 				return false, fmt.Sprintf(
 					"alert[%d] %s: expected receivers %v but got %v",

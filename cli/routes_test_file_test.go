@@ -29,6 +29,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+func boolPtr(b bool) *bool { return &b }
+
 // loadTestRoute is a helper that loads a dispatch.Route from a config file.
 func loadTestRoute(t *testing.T, cfgFile string) (*dispatch.Route, []amcommoncfg.InhibitRule) {
 	t.Helper()
@@ -142,13 +144,31 @@ func TestRunRouteTestCase_InhibitionPass(t *testing.T) {
 			},
 			{
 				Labels:            map[string]string{"alertname": "SomeAlert", "severity": "warning"},
-				ExpectedInhibited: true,
+				ExpectedInhibited: boolPtr(true),
 			},
 		},
 	}
 
 	passed, detail := runRouteTestCase(tc, mainRoute, inhibitRules)
 	require.True(t, passed, "expected inhibition pass but got failure: %s", detail)
+}
+
+// TestRunRouteTestCase_ReceiverExpectedButMuted checks that using
+// expected_receivers on an actually-inhibited alert fails.
+func TestRunRouteTestCase_ReceiverExpectedButMuted(t *testing.T) {
+	mainRoute, inhibitRules := loadTestRoute(t, "testdata/conf.inhibit.yml")
+	tc := testFileCase{
+		Name: "receiver expected but alert is muted",
+		Alerts: []testFileAlertDef{
+			// This alert acts as the inhibition source.
+			{Labels: map[string]string{"alertname": "SomeAlert", "severity": "critical"}, ExpectedReceivers: []string{"default"}},
+			// This alert is inhibited but the test mistakenly uses expected_receivers.
+			{Labels: map[string]string{"alertname": "SomeAlert", "severity": "warning"}, ExpectedReceivers: []string{"default"}},
+		},
+	}
+	passed, detail := runRouteTestCase(tc, mainRoute, inhibitRules)
+	require.False(t, passed)
+	require.Contains(t, detail, "alert is inhibited")
 }
 
 // TestRunRouteTestCase_InhibitionExpectedButNoRules checks that requesting
@@ -163,7 +183,7 @@ func TestRunRouteTestCase_InhibitionExpectedButNoRules(t *testing.T) {
 		Alerts: []testFileAlertDef{
 			{
 				Labels:            map[string]string{"alertname": "X"},
-				ExpectedInhibited: true,
+				ExpectedInhibited: boolPtr(true),
 			},
 		},
 	}
