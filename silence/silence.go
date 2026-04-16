@@ -46,6 +46,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -148,15 +149,17 @@ type Silencer struct {
 	cache    *cache
 	marker   types.AlertMarker
 	logger   *slog.Logger
+	recorder eventrecorder.Recorder
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger, recorder eventrecorder.Recorder) *Silencer {
 	return &Silencer{
 		silences: silences,
 		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
 		marker:   marker,
 		logger:   logger,
+		recorder: recorder,
 	}
 }
 
@@ -274,6 +277,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
+
+				s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceMutedAlertEvent(
+					eventrecorder.SilenceAsProto(sil), fp, lset,
+				))
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -333,6 +340,7 @@ type Silences struct {
 	broadcast func([]byte)
 	mi        matcherIndex
 	vi        versionIndex
+	recorder  eventrecorder.Recorder
 }
 
 // Limits contains the limits for silences.
@@ -494,6 +502,9 @@ type Options struct {
 	// A logger used by background processing.
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
+
+	// EventRecorder records silence-related events to the event recorder.
+	EventRecorder eventrecorder.Recorder
 }
 
 func (o *Options) validate() error {
@@ -519,6 +530,7 @@ func New(o Options) (*Silences, error) {
 		logging:   o.Logging,
 		broadcast: func([]byte) {},
 		st:        state{},
+		recorder:  o.EventRecorder,
 	}
 	if o.Metrics == nil {
 		return nil, errors.New("Options.Metrics is nil")
@@ -807,18 +819,20 @@ func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
 	}
 }
 
-func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
+func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) (changed, added bool, err error) {
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
-		return err
+		return false, false, err
 	}
-	_, added := s.st.merge(msil, now)
+	changed, added = s.st.merge(msil, now)
 	if added {
 		s.indexSilence(msil.Silence)
 		s.updateSizeMetrics()
 	}
-	s.broadcast(b)
-	return nil
+	if changed {
+		s.broadcast(b)
+	}
+	return changed, added, nil
 }
 
 // Set the specified silence. If a silence with the ID already exists and the modification
@@ -853,7 +867,16 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		if s.logging {
 			s.logSilence("update silence", sil)
 		}
-		return s.setSilence(msil, now)
+		changed, _, err := s.setSilence(msil, now)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceUpdatedEvent(
+				eventrecorder.SilenceAsProto(sil),
+			))
+		}
+		return nil
 	}
 
 	// If we got here it's either a new silence or a replacing one (which would
@@ -892,7 +915,16 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	if s.logging {
 		s.logSilence("create silence", sil)
 	}
-	return s.setSilence(msil, now)
+	_, added, err := s.setSilence(msil, now)
+	if err != nil {
+		return err
+	}
+	if added {
+		s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceCreatedEvent(
+			eventrecorder.SilenceAsProto(sil),
+		))
+	}
+	return nil
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -962,7 +994,8 @@ func (s *Silences) expire(id string) error {
 	if s.logging {
 		s.logSilence("expire silence", sil)
 	}
-	return s.setSilence(s.toMeshSilence(sil), now)
+	_, _, err := s.setSilence(s.toMeshSilence(sil), now)
+	return err
 }
 
 // QueryParam expresses parameters along which silences are queried.

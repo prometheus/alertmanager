@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.39.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc/credentials"
@@ -65,6 +66,7 @@ func (t *conditionalTracer) Start(ctx context.Context, spanName string, opts ...
 // Manager is capable of building, (re)installing and shutting down
 // the tracer provider.
 type Manager struct {
+	mtx          sync.Mutex
 	logger       *slog.Logger
 	done         chan struct{}
 	config       TracingConfig
@@ -92,6 +94,9 @@ func (m *Manager) Run() {
 // ApplyConfig takes care of refreshing the tracing configuration by shutting down
 // the current tracer provider (if any is registered) and installing a new one.
 func (m *Manager) ApplyConfig(cfg TracingConfig) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	// Update only if a config change is detected. If TLS configuration is
 	// set, we have to restart the manager to make sure that new TLS
 	// certificates are picked up.
@@ -100,31 +105,40 @@ func (m *Manager) ApplyConfig(cfg TracingConfig) error {
 		return nil
 	}
 
-	if m.shutdownFunc != nil {
-		if err := m.shutdownFunc(); err != nil {
-			return fmt.Errorf("failed to shut down the tracer provider: %w", err)
-		}
-	}
-
-	// If no endpoint is set, assume tracing should be disabled.
+	// If no endpoint is set, disable tracing and shut down the old provider.
 	if cfg.Endpoint == "" {
 		tracingEnabled.Store(false)
-		m.config = cfg
-		m.shutdownFunc = nil
 		otel.SetTracerProvider(noop.NewTracerProvider())
+		if m.shutdownFunc != nil {
+			if err := m.shutdownFunc(); err != nil {
+				m.logger.Warn("Failed to shut down the previous tracer provider", "err", err)
+			}
+			m.shutdownFunc = nil
+		}
+		m.config = cfg
 		m.logger.Info("Tracing provider uninstalled.")
 		return nil
 	}
 
+	// Build the new provider before tearing down the old one so that
+	// tracing remains available throughout the reload.
 	tp, shutdownFunc, err := buildTracerProvider(context.Background(), cfg)
 	if err != nil {
-		return fmt.Errorf("failed to install a new tracer provider: %w", err)
+		return fmt.Errorf("failed to build a new tracer provider: %w", err)
 	}
 
-	m.shutdownFunc = shutdownFunc
-	m.config = cfg
+	// Swap to the new provider, then shut down the old one.
+	oldShutdown := m.shutdownFunc
 	otel.SetTracerProvider(tp)
 	tracingEnabled.Store(true)
+	m.shutdownFunc = shutdownFunc
+	m.config = cfg
+
+	if oldShutdown != nil {
+		if err := oldShutdown(); err != nil {
+			m.logger.Warn("Failed to shut down the previous tracer provider", "err", err)
+		}
+	}
 
 	m.logger.Info("Successfully installed a new tracer provider.")
 	return nil
@@ -134,13 +148,20 @@ func (m *Manager) ApplyConfig(cfg TracingConfig) error {
 func (m *Manager) Stop() {
 	defer close(m.done)
 
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	if m.shutdownFunc == nil {
 		return
 	}
 
+	tracingEnabled.Store(false)
+	otel.SetTracerProvider(noop.NewTracerProvider())
+
 	if err := m.shutdownFunc(); err != nil {
 		m.logger.Error("failed to shut down the tracer provider", "err", err)
 	}
+	m.shutdownFunc = nil
 
 	m.logger.Info("Tracing manager stopped")
 }
@@ -190,12 +211,7 @@ func buildTracerProvider(ctx context.Context, tracingCfg TracingConfig) (trace.T
 	return tp, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err := tp.Shutdown(ctx)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return tp.Shutdown(ctx)
 	}, nil
 }
 

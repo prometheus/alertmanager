@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -106,7 +107,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger())
+	silencer := silence.NewSilencer(silences, marker, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
 	stage := NewMuteStage(silencer, metrics)
 
