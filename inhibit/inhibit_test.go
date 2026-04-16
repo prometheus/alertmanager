@@ -48,7 +48,7 @@ func checkMutes(t *testing.T, ih *Inhibitor, target model.LabelSet, wantMuted bo
 		require.Equal(t, alert.AlertStateSuppressed, status.State, msgAndArgs...)
 		require.NotEmpty(t, status.InhibitedBy, msgAndArgs...)
 	} else {
-		require.Empty(t, status.InhibitedBy, msgAndArgs...)
+		require.Equal(t, alert.AlertStateActive, status.State, msgAndArgs...)
 	}
 }
 
