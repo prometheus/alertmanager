@@ -477,6 +477,12 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 }
 
 func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
+	// Snapshot the function pointer under the lock so the closure is safe
+	// to call without holding api.mtx (e.g. in getAlertGroupsHandler).
+	api.mtx.RLock()
+	setAlertStatus := api.setAlertStatus
+	api.mtx.RUnlock()
+
 	return func(a *alert.Alert, now time.Time) bool {
 		ctx, span := tracer.Start(parent, "alertFilter")
 		defer span.End()
@@ -494,7 +500,7 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 		// Set alert's current status based on its label set.
 		// The inhibitor and silencer write to m via the context.
 		ctx = marker.WithContext(ctx, m)
-		api.setAlertStatus(ctx, a.Labels)
+		setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
 		status := m.Status(a.Fingerprint())
