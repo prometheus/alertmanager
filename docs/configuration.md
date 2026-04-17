@@ -1952,6 +1952,10 @@ url_file: <filepath>
 # Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
 # does not impose a timeout.
 [ timeout: <duration> | default = 0s ]
+
+# A set of arbitrary key/value pairs to include with alerts.
+# Values support Go template syntax.
+[ metadata: { <string>: <tmpl_string>, ... } ]
 ```
 
 ### `<wechat_config>`
