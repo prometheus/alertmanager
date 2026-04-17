@@ -495,7 +495,7 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:              &config.URL{URL: u},
+			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
 		},
@@ -542,7 +542,7 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:              &config.URL{URL: u},
+			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
 			Metadata: map[string]string{
@@ -594,7 +594,7 @@ func TestIncidentIOMetadataTemplated(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:              &config.URL{URL: u},
+			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
 			Metadata: map[string]string{
@@ -652,7 +652,7 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 
 	notifier, err := New(
 		&config.IncidentioConfig{
-			URL:              &config.URL{URL: u},
+			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
 			Metadata: map[string]string{
