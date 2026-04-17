@@ -18,8 +18,7 @@ jobs:
     needs: ci
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: prometheus/promci@fc721ff8497a70a93a881cd552b71af7fb3a9d53 # v0.5.4
-      - uses: ./.github/promci/actions/build
+      - uses: prometheus/promci/build@42c3c84c865e5c1ab78543b929f7341eb2ef6123 # v0.6.1
         with:
           parallelism: 12
           thread: ${{ matrix.thread }}
@@ -29,8 +28,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: prometheus/promci@fc721ff8497a70a93a881cd552b71af7fb3a9d53 # v0.5.4
-      - uses: ./.github/promci/actions/publish_release
+      - uses: prometheus/promci/publish_release@42c3c84c865e5c1ab78543b929f7341eb2ef6123 # v0.6.1
         with:
           docker_hub_login: ${{ secrets.docker_hub_login }}
           docker_hub_password: ${{ secrets.docker_hub_password }}

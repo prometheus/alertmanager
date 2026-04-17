@@ -20,7 +20,6 @@ module Utils.Filter exposing
     , withMatchers
     )
 
-import Char
 import Data.Matcher
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -319,8 +318,8 @@ item : Parser Matcher
 item =
     Parser.succeed Matcher
         |= Parser.variable
-            { start = isVarChar
-            , inner = isVarChar
+            { start = \c -> not (isReservedChar c)
+            , inner = \c -> not (isReservedChar c)
             , reserved = Set.empty
             }
         |= (matchers
@@ -364,12 +363,39 @@ stringHelp separator =
         ]
 
 
-isVarChar : Char -> Bool
-isVarChar char =
-    Char.isLower char
-        || Char.isUpper char
-        || (char == '_')
-        || Char.isDigit char
+isReservedChar : Char -> Bool
+isReservedChar c =
+    isSpace c || Set.member c syntaxChars
+
+
+{-| Matches Go's unicode.IsSpace.
+See: <https://pkg.go.dev/unicode#IsSpace>
+-}
+isSpace : Char -> Bool
+isSpace c =
+    let
+        code =
+            Char.toCode c
+    in
+    -- ASCII whitespace: tab, newline, vertical tab, form feed, carriage return
+    (code >= 0x09 && code <= 0x0D)
+        || (code == 0x20)
+        -- Latin-1 whitespace
+        || (code == 0x85)
+        || (code == 0xA0)
+        -- Unicode whitespace (category Z)
+        || (code == 0x1680)
+        || (code >= 0x2000 && code <= 0x200A)
+        || (code == 0x2028)
+        || (code == 0x2029)
+        || (code == 0x202F)
+        || (code == 0x205F)
+        || (code == 0x3000)
+
+
+syntaxChars : Set.Set Char
+syntaxChars =
+    Set.fromList [ '{', '}', '!', '=', '~', ',', '\\', '"', '\'', '`' ]
 
 
 withMatchers : List Matcher -> Filter -> Filter

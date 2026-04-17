@@ -108,15 +108,6 @@ update msg ({ basePath, apiUrl } as model) =
             in
             ( { model | silenceForm = silenceForm }, cmd )
 
-        BootstrapCSSLoaded css ->
-            ( { model | bootstrapCSS = css }, Cmd.none )
-
-        FontAwesomeCSSLoaded css ->
-            ( { model | fontAwesomeCSS = css }, Cmd.none )
-
-        ElmDatepickerCSSLoaded css ->
-            ( { model | elmDatepickerCSS = css }, Cmd.none )
-
         SetDefaultCreator name ->
             ( { model | defaultCreator = name }, Cmd.none )
 

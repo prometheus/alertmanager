@@ -33,7 +33,6 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"github.com/rs/cors"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/api/metrics"
@@ -48,15 +47,17 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/api/v2")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
@@ -328,7 +329,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.postAlertsHandler")
+	ctx, span := tracer.Start(eventrecorder.WithEventRecording(params.HTTPRequest.Context()), "api.postAlertsHandler")
 	defer span.End()
 
 	alerts := OpenAPIAlertsToAlerts(ctx, params.Alerts)
@@ -678,7 +679,7 @@ func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middlewar
 func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.deleteSilenceHandler")
+	ctx, span := tracer.Start(eventrecorder.WithEventRecording(params.HTTPRequest.Context()), "api.deleteSilenceHandler")
 	defer span.End()
 
 	sid := params.SilenceID.String()
@@ -695,7 +696,7 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	ctx, span := tracer.Start(params.HTTPRequest.Context(), "api.postSilencesHandler")
+	ctx, span := tracer.Start(eventrecorder.WithEventRecording(params.HTTPRequest.Context()), "api.postSilencesHandler")
 	defer span.End()
 
 	sil, err := PostableSilenceToProto(params.Silence)

@@ -1,0 +1,144 @@
+{{/*
+Copyright The Prometheus Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{/*
+This an example how to render custom templates for Microsoft Teams using the Alertmanager webhook receiver.
+Receiver is configured as:
+```yaml
+- name: local_test
+  webhook_configs:
+  - url: 'http://localhost:8080'
+    send_resolved: true
+    payload:
+      type: "message"
+      attachments:
+        - contentType: "application/vnd.microsoft.card.adaptive"
+          contentUrl: null
+          content:
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json"
+            type: "AdaptiveCard"
+            body:
+              - type: "ColumnSet"
+                columns:
+                  - type: "Column"
+                    items:
+                      - type: "Icon"
+                        name: '{{ template "wh_teams_icon" . }}'
+                        size: "xSmall"
+                    width: "25px"
+                  - type: "Column"
+                    items:
+                      - type: "TextBlock"
+                        text: '{{ .CommonLabels.alertname }}'
+                        weight: "bolder"
+                        color: '{{ template "wh_teams_color" . }}'
+                    width: "stretch"
+              - type: "ColumnSet"
+                columns: '{{ template "wh_teams_alertlist" . }}'
+              - type: ActionSet
+                actions: '{{ template "wh_teams_actions" . }}'
+
+```
+*/}}
+
+
+{{- define "wh_teams_icon" }}
+{{- if eq .Status "firing" -}}AlertOn{{- else -}}Checkmark{{- end -}}
+{{- end -}}
+
+{{- define "wh_teams_color" }}
+{{- if eq .Status "firing" -}}Attention{{- else -}}Good{{- end -}}
+{{- end }}
+
+{{- define "wh_teams_alertlist_icon_column" }}
+{{- $length := len ( .Alerts ) }}
+[
+{{- range $index, $element := .Alerts }}
+{{- if $index -}}, {{ end -}}
+{{- if gt 5 $index }}
+  {
+    "type": "Icon",
+    "size": "xSmall",
+    "name": "{{ template "wh_teams_icon" $element }}"
+  }
+{{ else if eq 5 $index }}
+  {
+    "type": "Icon",
+    "size": "xSmall",
+    "name": "CommentNote"
+  }
+{{- end }}
+{{- end }}
+]
+{{- end }}
+
+
+{{- define "wh_teams_alertlist_instance_column" -}}
+{{- $length := len ( .Alerts ) -}}
+[
+{{- range $index, $element := .Alerts -}}
+{{- if $index -}}, {{ end -}}
+{{- if gt 5 $index -}}
+  {
+    "type": "TextBlock",
+    "size": "Medium",
+    "text": "{{ .Labels.instance }}"
+  }
+{{- else if eq 5 $index -}}
+  {
+   "type": "TextBlock",
+   "size": "Medium",
+   "text": "Only 5 out of {{ $length }} displayed!",
+  }
+{{- end -}}
+{{- end }}
+]
+{{- end }}
+
+{{ define "wh_teams_alertlist" }}
+[
+  {
+    "type": "Column",
+    "width": "25px",
+    "items": {{ template "wh_teams_alertlist_icon_column" . }}
+  },
+  {
+    "type": "Column",
+    "width": "stretch",
+    "items": {{ template "wh_teams_alertlist_instance_column" . }}
+  }
+]
+{{- end }}
+
+{{ define "wh_teams_actions" }}
+[
+  {{- if ((index .Alerts 0).Annotations).dashboard_url }}
+  {
+    "type": "Action.OpenUrl",
+    "title": "Dashboard",
+    "url": "{{ ((index .Alerts 0).Annotations).dashboard_url }}",
+    "iconUrl": "icon:ArrowTrendingLines"
+  }
+  {{- end }}
+  {{- if ((index .Alerts 0).Annotations).runbook_url }}
+  ,{
+    "type": "Action.OpenUrl",
+    "title": "Runbook",
+    "url": "{{ ((index .Alerts 0).Annotations).runbook_url }}",
+    "iconUrl": "icon:PersonRunning"
+  }
+  {{- end }}
+]
+{{ end }}

@@ -28,15 +28,17 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
 const alertChannelLength = 200
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/provider/mem")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/provider/mem")
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
@@ -54,6 +56,7 @@ type Alerts struct {
 
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
+	recorder   eventrecorder.Recorder
 	flagger    featurecontrol.Flagger
 
 	alertsLimit             prometheus.Gauge
@@ -121,6 +124,7 @@ func NewAlerts(
 	perAlertNameLimit int,
 	alertCallback AlertStoreCallback,
 	l *slog.Logger,
+	recorder eventrecorder.Recorder,
 	r prometheus.Registerer,
 	flagger featurecontrol.Flagger,
 ) (*Alerts, error) {
@@ -145,6 +149,7 @@ func NewAlerts(
 		next:       0,
 		logger:     l.With("component", "provider"),
 		propagator: otel.GetTextMapPropagator(),
+		recorder:   recorder,
 		callback:   alertCallback,
 		flagger:    flagger,
 	}
@@ -347,6 +352,10 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 		}
 
 		a.callback.PostStore(alert, existing)
+
+		if !existing {
+			a.recorder.RecordEvent(ctx, eventrecorder.NewAlertCreatedEvent(alert))
+		}
 
 		metadata := map[string]string{}
 		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))

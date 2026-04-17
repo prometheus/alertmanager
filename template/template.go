@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"fmt"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -223,6 +224,31 @@ var DefaultFuncs = FuncMap{
 		}
 		return string(bytes), nil
 	},
+	"list": func(args ...any) ([]any, error) {
+		if args == nil {
+			return []any{}, nil
+		}
+		return args, nil
+	},
+	"append": func(slice []any, args ...any) []any {
+		return append(slice, args...)
+	},
+	"dict": func(values ...any) (map[string]any, error) {
+		if len(values)%2 != 0 {
+			return nil, fmt.Errorf("dict requires an even number of arguments")
+		}
+
+		res := make(map[string]any, len(values)/2)
+		for i := 0; i < len(values); i += 2 {
+			key, ok := values[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict keys must be strings")
+			}
+			res[key] = values[i+1]
+		}
+
+		return res, nil
+	},
 }
 
 // Pair is a key/value string pair.
@@ -376,9 +402,11 @@ func (as Alerts) Resolved() []Alert {
 
 // Data assembles data for template expansion.
 func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
+	typedAlerts := types.Alerts(alerts...)
+
 	data := &Data{
 		Receiver:           regexp.QuoteMeta(recv),
-		Status:             string(types.Alerts(alerts...).Status()),
+		Status:             string(typedAlerts.Status()),
 		Alerts:             make(Alerts, 0, len(alerts)),
 		NotificationReason: notificationReason,
 		GroupLabels:        KV{},
@@ -389,7 +417,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 
 	// The call to types.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
-	for _, a := range types.Alerts(alerts...) {
+	for _, a := range typedAlerts {
 		alert := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),

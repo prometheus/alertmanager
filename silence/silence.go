@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -46,13 +46,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/silence")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/silence")
 
 // ErrNotFound is returned if a silence was not found.
 var ErrNotFound = errors.New("silence not found")
@@ -147,15 +149,17 @@ type Silencer struct {
 	cache    *cache
 	marker   types.AlertMarker
 	logger   *slog.Logger
+	recorder eventrecorder.Recorder
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger, recorder eventrecorder.Recorder) *Silencer {
 	return &Silencer{
 		silences: silences,
 		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
 		marker:   marker,
 		logger:   logger,
+		recorder: recorder,
 	}
 }
 
@@ -273,6 +277,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
+
+				s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceMutedAlertEvent(
+					eventrecorder.SilenceAsProto(sil), fp, lset,
+				))
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -324,6 +332,7 @@ type Silences struct {
 	metrics   *metrics
 	retention time.Duration
 	limits    Limits
+	logging   bool
 
 	mtx       sync.RWMutex
 	st        state
@@ -331,6 +340,7 @@ type Silences struct {
 	broadcast func([]byte)
 	mi        matcherIndex
 	vi        versionIndex
+	recorder  eventrecorder.Recorder
 }
 
 // Limits contains the limits for silences.
@@ -487,9 +497,14 @@ type Options struct {
 	Retention time.Duration
 	Limits    Limits
 
+	Logging bool
+
 	// A logger used by background processing.
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
+
+	// EventRecorder records silence-related events to the event recorder.
+	EventRecorder eventrecorder.Recorder
 }
 
 func (o *Options) validate() error {
@@ -512,8 +527,10 @@ func New(o Options) (*Silences, error) {
 		logger:    promslog.NewNopLogger(),
 		retention: o.Retention,
 		limits:    o.Limits,
+		logging:   o.Logging,
 		broadcast: func([]byte) {},
 		st:        state{},
+		recorder:  o.EventRecorder,
 	}
 	if o.Metrics == nil {
 		return nil, errors.New("Options.Metrics is nil")
@@ -802,18 +819,20 @@ func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
 	}
 }
 
-func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
+func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) (changed, added bool, err error) {
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
-		return err
+		return false, false, err
 	}
-	_, added := s.st.merge(msil, now)
+	changed, added = s.st.merge(msil, now)
 	if added {
 		s.indexSilence(msil.Silence)
 		s.updateSizeMetrics()
 	}
-	s.broadcast(b)
-	return nil
+	if changed {
+		s.broadcast(b)
+	}
+	return changed, added, nil
 }
 
 // Set the specified silence. If a silence with the ID already exists and the modification
@@ -845,7 +864,19 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
 		}
-		return s.setSilence(msil, now)
+		if s.logging {
+			s.logSilence("update silence", sil)
+		}
+		changed, _, err := s.setSilence(msil, now)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceUpdatedEvent(
+				eventrecorder.SilenceAsProto(sil),
+			))
+		}
+		return nil
 	}
 
 	// If we got here it's either a new silence or a replacing one (which would
@@ -881,7 +912,19 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		}
 	}
 
-	return s.setSilence(msil, now)
+	if s.logging {
+		s.logSilence("create silence", sil)
+	}
+	_, added, err := s.setSilence(msil, now)
+	if err != nil {
+		return err
+	}
+	if added {
+		s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceCreatedEvent(
+			eventrecorder.SilenceAsProto(sil),
+		))
+	}
+	return nil
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -948,7 +991,11 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = timestamppb.New(now)
 	}
 	sil.UpdatedAt = timestamppb.New(now)
-	return s.setSilence(s.toMeshSilence(sil), now)
+	if s.logging {
+		s.logSilence("expire silence", sil)
+	}
+	_, _, err := s.setSilence(s.toMeshSilence(sil), now)
+	return err
 }
 
 // QueryParam expresses parameters along which silences are queried.
@@ -1401,4 +1448,37 @@ func openReplace(filename string) (*replaceFile, error) {
 		filename: filename,
 	}
 	return rf, nil
+}
+
+// logging silence status changes.
+//
+// XXX: This rewrites some code present in cli/format/format.go,
+// labelsMatcher() and cli/format/format_extended.go,
+// FormatSilences(). Refactoring this seems a little out of scope for
+// now.
+func (s *Silences) logSilence(msg string, sil *pb.Silence) {
+	var listMatchers []string
+	matcherTypeOperator := map[string]string{
+		"EQUAL":      "=",
+		"REGEXP":     "=~",
+		"NOT_EQUAL":  "!=",
+		"NOT_REGEXP": "!~",
+	}
+	for _, ms := range sil.MatcherSets {
+		for _, matcher := range ms.Matchers {
+			m := matcher.Name + matcherTypeOperator[matcher.Type.String()] + matcher.Pattern
+			listMatchers = append(listMatchers, m)
+		}
+	}
+	strMatchers := strings.Join(listMatchers, `,`)
+
+	s.logger.Info(
+		msg,
+		"Id", sil.Id,
+		"CreatedBy", sil.CreatedBy,
+		"Comment", sil.Comment,
+		"StartsAt", sil.StartsAt.AsTime().Format(time.RFC3339),
+		"EndsAt", sil.EndsAt.AsTime().Format(time.RFC3339),
+		"Matchers", strMatchers,
+	)
 }

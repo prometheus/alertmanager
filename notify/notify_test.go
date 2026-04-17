@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -207,9 +208,38 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat).shouldNotify()
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, now).shouldNotify()
 		require.Equal(t, c.res, res)
 	}
+}
+
+func TestDedupStageUsesContextNow(t *testing.T) {
+	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	s := &DedupStage{
+		hash: func(*types.Alert) uint64 { return 1 },
+		now: func() time.Time {
+			return base.Add(time.Hour)
+		},
+		rs: sendResolved(false),
+		nflog: &testNflog{
+			qerr: nil,
+			qres: []*nflogpb.Entry{{
+				FiringAlerts: []uint64{1},
+				Timestamp:    timestamppb.New(base),
+			}},
+		},
+	}
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "group")
+	ctx = WithRepeatInterval(ctx, 30*time.Minute)
+	ctx = WithNow(ctx, base.Add(10*time.Minute))
+
+	alerts := []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}}}}
+
+	_, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Empty(t, res)
 }
 
 func TestDedupStage(t *testing.T) {
@@ -399,7 +429,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -452,7 +482,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			}),
 			rs: sendResolved(false),
 		}
-		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 		alerts := []*types.Alert{
 			{
@@ -487,7 +517,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -519,7 +549,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -570,7 +600,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 		}),
 		rs: sendResolved(true),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*types.Alert{
 		{
@@ -699,7 +729,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	ctx := context.Background()
@@ -914,7 +944,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
-	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
 
 	alerts := []*types.Alert{

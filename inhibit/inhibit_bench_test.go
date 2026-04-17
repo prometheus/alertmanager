@@ -25,7 +25,8 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
@@ -83,10 +84,10 @@ type benchmarkOptions struct {
 	// n is the total number of inhibition rules.
 	n int
 	// newRuleFunc creates the next inhibition rule. It is called n times.
-	newRuleFunc func(idx int) config.InhibitRule
+	newRuleFunc func(idx int) amcommoncfg.InhibitRule
 	// newAlertsFunc creates the inhibiting alerts for each inhibition rule.
 	// It is called n times.
-	newAlertsFunc func(idx int, r config.InhibitRule) []types.Alert
+	newAlertsFunc func(idx int, r amcommoncfg.InhibitRule) []types.Alert
 	// benchFunc runs the benchmark.
 	benchFunc func(mutesFunc func(context.Context, model.LabelSet) bool) error
 }
@@ -107,17 +108,17 @@ type benchmarkOptions struct {
 func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
 	return benchmarkOptions{
 		n: numInhibitionRules,
-		newRuleFunc: func(idx int) config.InhibitRule {
-			return config.InhibitRule{
-				SourceMatchers: config.Matchers{
+		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
+			return amcommoncfg.InhibitRule{
+				SourceMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
 				},
-				TargetMatchers: config.Matchers{
+				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
 				},
 			}
 		},
-		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
 			var alerts []types.Alert
 			for i := range numInhibitingAlerts {
 				alerts = append(alerts, types.Alert{
@@ -150,17 +151,17 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 	return benchmarkOptions{
 		n: n,
-		newRuleFunc: func(idx int) config.InhibitRule {
-			return config.InhibitRule{
-				SourceMatchers: config.Matchers{
+		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
+			return amcommoncfg.InhibitRule{
+				SourceMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
 				},
-				TargetMatchers: config.Matchers{
+				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
 				},
 			}
 		},
-		newAlertsFunc: func(idx int, _ config.InhibitRule) []types.Alert {
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
 			// Do not create an alert unless it is the last inhibition rule.
 			if idx < n-1 {
 				return nil
@@ -184,7 +185,7 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	r := prometheus.NewRegistry()
 	m := types.NewMarker(r)
-	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), r, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -198,7 +199,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 	defer ih.Stop()
 	go ih.Run()
 
@@ -210,10 +211,10 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	}
 }
 
-func benchmarkFromOptions(opts benchmarkOptions) ([]types.Alert, []config.InhibitRule) {
+func benchmarkFromOptions(opts benchmarkOptions) ([]types.Alert, []amcommoncfg.InhibitRule) {
 	var (
 		alerts = make([]types.Alert, 0, opts.n)
-		rules  = make([]config.InhibitRule, 0, opts.n)
+		rules  = make([]amcommoncfg.InhibitRule, 0, opts.n)
 	)
 	for i := 0; i < opts.n; i++ {
 		r := opts.newRuleFunc(i)

@@ -27,14 +27,17 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/prometheus/alertmanager/config"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/inhibit")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/inhibit")
 
 // An Inhibitor determines whether a given label set is muted based on the
 // currently active alerts and a set of inhibition rules. It implements the
@@ -45,6 +48,7 @@ type Inhibitor struct {
 	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
+	recorder   eventrecorder.Recorder
 
 	mtx             sync.RWMutex
 	loadingFinished sync.WaitGroup
@@ -52,12 +56,13 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.AlertMarker, logger *slog.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, mk types.AlertMarker, logger *slog.Logger, recorder eventrecorder.Recorder) *Inhibitor {
 	ih := &Inhibitor{
 		alerts:     ap,
 		marker:     mk,
 		logger:     logger,
 		propagator: otel.GetTextMapPropagator(),
+		recorder:   recorder,
 	}
 
 	ih.loadingFinished.Add(1)
@@ -178,8 +183,8 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted. It implements the Muter
-// interface.
+// Mutes returns true iff the given label set is muted.  It implements the
+// Muter interface.
 func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
@@ -209,6 +214,12 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
 				),
 			)
+
+			ih.recorder.RecordEvent(ctx, eventrecorder.NewInhibitionMutedAlertEvent(
+				[]*eventrecorderpb.InhibitRule{eventrecorder.InhibitRuleAsProto(r.SourceMatchers, r.TargetMatchers, r.Equal)},
+				fp, lset,
+				[]model.Fingerprint{inhibitedByFP},
+			))
 			return true
 		}
 	}
@@ -247,7 +258,7 @@ type InhibitRule struct {
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
-func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
+func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	var (
 		sourcem labels.Matchers
 		targetm labels.Matchers
@@ -316,7 +327,7 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 
 // fingerprintEquals returns the fingerprint of the equal labels of the given label set.
 func (r *InhibitRule) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
-	equalSet := model.LabelSet{}
+	equalSet := make(model.LabelSet, len(r.Equal))
 	for n := range r.Equal {
 		equalSet[n] = lset[n]
 	}

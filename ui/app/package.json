@@ -1,0 +1,21 @@
+{
+  "name": "elm-ui",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "elm": "0.19.1",
+    "elm-format": "0.8.7",
+    "elm-review": "2.5.0",
+    "elm-test": "0.19.1-revision6",
+    "vite": "^8.0.0",
+    "vite-plugin-compression2": "^2.5.1",
+    "vite-plugin-elm": "^3.0.1"
+  },
+  "dependencies": {
+    "bootstrap": "^4.6.2",
+    "font-awesome": "^4.7.0"
+  }
+}

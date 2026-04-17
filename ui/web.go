@@ -14,91 +14,188 @@
 package ui
 
 import (
+	"bytes"
+	"compress/gzip"
 	"embed"
-	"fmt"
+	"io"
 	"io/fs"
-	"log/slog"
 	"net/http"
-	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 )
 
-//go:embed app/script.js app/index.html app/favicon.ico app/lib
+//go:embed app/dist
 var asset embed.FS
 
-// Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger *slog.Logger) {
-	r.Get("/metrics", promhttp.Handler().ServeHTTP)
+var fileTypes = map[string]struct {
+	contentType  string // https://www.iana.org/assignments/media-types/
+	varyEncoding bool   // Must match build configuration in vite.config.mjs.
+}{
+	".css":   {"text/css; charset=utf-8", true},
+	".eot":   {"application/vnd.ms-fontobject", true},
+	".html":  {"text/html; charset=utf-8", true},
+	".ico":   {"image/vnd.microsoft.icon", true},
+	".js":    {"text/javascript; charset=utf-8", true},
+	".svg":   {"image/svg+xml", true},
+	".ttf":   {"font/ttf", true},
+	".woff":  {"font/woff", false},
+	".woff2": {"font/woff2", false},
+}
 
-	appFS, err := fs.Sub(asset, "app")
-	if err != nil {
-		panic(err) // During build step, we did not embed a directory named `app`.
+type encoding int
+
+const (
+	encNone encoding = iota
+	encGzip
+	encBrotli
+)
+
+type tokenEffect int
+
+const (
+	effectUnseen tokenEffect = iota
+	effectReject
+	effectAccept
+)
+
+// selectEncoding parses the Accept-Encoding header and returns the preferred
+// encoding. For simplicity, non-zero q-values are not ranked.
+func selectEncoding(header string) encoding {
+	brotli, gzip, wildcard := effectUnseen, effectUnseen, effectUnseen
+	for part := range strings.SplitSeq(header, ",") {
+		encAndQ := strings.SplitN(strings.TrimSpace(part), ";", 2)
+
+		effect := effectAccept
+		if len(encAndQ) > 1 {
+			// https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2
+			if q, ok := strings.CutPrefix(strings.TrimSpace(encAndQ[1]), "q="); ok {
+				if weight, err := strconv.ParseFloat(q, 64); err == nil && weight <= 0 {
+					effect = effectReject
+				}
+			}
+		}
+
+		switch strings.TrimSpace(encAndQ[0]) {
+		case "br":
+			brotli = effect
+		case "gzip":
+			gzip = effect
+		case "*":
+			wildcard = effect
+		}
 	}
-	fs := http.FileServerFS(appFS)
-	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-		fs.ServeHTTP(w, req)
-	})
 
-	r.Get("/script.js", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-		fs.ServeHTTP(w, req)
+	if brotli == effectAccept || (wildcard == effectAccept && brotli == effectUnseen) {
+		return encBrotli
+	} else if gzip == effectAccept || (wildcard == effectAccept && gzip == effectUnseen) {
+		return encGzip
+	}
+	return encNone
+}
+
+// decompressToReader decompresses f into memory. For simplicity the entire
+// file is buffered; this is acceptable given the small size of the assets.
+func decompressToReader(f fs.File) (*bytes.Reader, error) {
+	gzReader, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer gzReader.Close()
+
+	data, err := io.ReadAll(gzReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(data), nil
+}
+
+// Register registers handlers to serve files for the web interface.
+func Register(r *route.Router) {
+	appFS, err := fs.Sub(asset, "app/dist")
+	if err != nil {
+		panic(err) // During build step, we did not embed a directory named `app/dist`.
+	}
+	serve := func(w http.ResponseWriter, req *http.Request, filePath string, immutable bool) {
+		ext := strings.ToLower(path.Ext(filePath))
+		fileType, ok := fileTypes[ext]
+		if !ok {
+			http.NotFound(w, req)
+			return
+		}
+
+		if fileType.varyEncoding {
+			switch selectEncoding(req.Header.Get("Accept-Encoding")) {
+			case encBrotli:
+				if f, err := appFS.Open(filePath + ".br"); err == nil {
+					defer f.Close()
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Set("Content-Encoding", "br")
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+					return
+				}
+			case encGzip:
+				if f, err := appFS.Open(filePath + ".gz"); err == nil {
+					defer f.Close()
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Set("Content-Encoding", "gzip")
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+					return
+				}
+			case encNone:
+				if f, err := appFS.Open(filePath + ".gz"); err == nil {
+					defer f.Close()
+					uncompressedBytes, err := decompressToReader(f)
+					if err != nil {
+						http.Error(w, "failed to decompress file", http.StatusInternalServerError)
+						return
+					}
+					setCachePolicy(w, immutable)
+					w.Header().Set("Content-Type", fileType.contentType)
+					w.Header().Add("Vary", "Accept-Encoding")
+					http.ServeContent(w, req, filePath, time.Time{}, uncompressedBytes)
+					return
+				}
+			}
+		} else {
+			if f, err := appFS.Open(filePath); err == nil {
+				defer f.Close()
+				setCachePolicy(w, immutable)
+				w.Header().Set("Content-Type", fileType.contentType)
+				http.ServeContent(w, req, filePath, time.Time{}, f.(io.ReadSeeker))
+				return
+			}
+		}
+		http.NotFound(w, req)
+	}
+
+	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+		serve(w, req, "index.html", false)
 	})
 
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-		fs.ServeHTTP(w, req)
+		serve(w, req, "favicon.ico", false)
 	})
 
-	r.Get("/lib/*path", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-		fs.ServeHTTP(w, req)
+	r.Get("/assets/*path", func(w http.ResponseWriter, req *http.Request) {
+		serve(w, req, path.Join("assets", route.Param(req.Context(), "path")), true)
 	})
-
-	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
-		errc := make(chan error)
-		defer close(errc)
-
-		reloadCh <- errc
-		if err := <-errc; err != nil {
-			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
-		}
-	})
-
-	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "OK")
-	})
-	r.Head("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	r.Get("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "OK")
-	})
-	r.Head("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	debugHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
-		subpath := route.Param(req.Context(), "subpath")
-		req.URL.Path = path.Join("/debug", subpath)
-		// path.Join removes trailing slashes, but some pprof handlers expect them.
-		if strings.HasSuffix(subpath, "/") && !strings.HasSuffix(req.URL.Path, "/") {
-			req.URL.Path += "/"
-		}
-		http.DefaultServeMux.ServeHTTP(w, req)
-	}
-	r.Get("/debug/*subpath", debugHandlerFunc)
-	r.Post("/debug/*subpath", debugHandlerFunc)
 }
 
-func disableCaching(w http.ResponseWriter) {
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0") // Prevent proxies from caching.
+func setCachePolicy(w http.ResponseWriter, immutable bool) {
+	if immutable {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0") // Prevent proxies from caching.
+	}
 }

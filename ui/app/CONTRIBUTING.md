@@ -8,13 +8,17 @@ This document describes how to:
 
 ## Dev Environment Setup
 
-You can either use our default Docker setup or install all dev dependencies
-locally. For the former you only need Docker installed, for the latter you need
-to set the environment flag `NO_DOCKER` to `true` and have the following
-dependencies installed:
+To set up your environment and install all dependencies, run:
 
-- [Elm](https://guide.elm-lang.org/install.html#install)
-- [Elm-Format](https://github.com/avh4/elm-format) is installed
+```sh
+npm ci
+```
+
+To run the tests:
+
+```sh
+make test
+```
 
 In addition for easier development you
 can [configure](https://guide.elm-lang.org/install.html#configure-your-editor)
