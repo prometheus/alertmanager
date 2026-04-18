@@ -512,6 +512,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 				// We swapped the new group in, we can break and start it.
 				break
 			}
+			loaded = false
 		} else {
 			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
 			if !loaded {
