@@ -1746,6 +1746,13 @@ attributes:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# Force the AWS SDK's HTTP client (BuildableClient) instead of the default
+# tracing-wrapped client. Required when the AWS SDK needs to inject a custom
+# CA bundle (e.g. via `ca_bundle` in the AWS shared config). Auto-enabled
+# when the AWS_CA_BUNDLE environment variable is set; tracing is disabled
+# for SNS requests when this path is taken.
+[ use_aws_http_client: <boolean> | default = false ]
 ```
 
 #### `<sigv4_config>` (SNS)

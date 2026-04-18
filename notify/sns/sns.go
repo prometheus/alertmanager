@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
@@ -45,13 +47,13 @@ type Notifier struct {
 	conf    *config.SNSConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
-	client  *http.Client
+	client  aws.HTTPClient
 	retrier *notify.Retrier
 }
 
 // New returns a new SNS notification handler.
 func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "sns", httpOpts...)
+	client, err := newSNSHTTPClient(c, httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +64,31 @@ func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...
 		client:  client,
 		retrier: &notify.Retrier{},
 	}, nil
+}
+
+// newSNSHTTPClient picks the right HTTP client for the AWS SDK. The SDK's
+// custom-CA-bundle path requires a *awshttp.BuildableClient (concrete type
+// assertion in resolveCustomCABundle), so we use one when AWS_CA_BUNDLE is set
+// or the user opts in. Otherwise we use the standard tracing-wrapped client.
+func newSNSHTTPClient(c *config.SNSConfig, httpOpts ...commoncfg.HTTPClientOption) (aws.HTTPClient, error) {
+	if c.UseAWSHTTPClient || os.Getenv("AWS_CA_BUNDLE") != "" {
+		return newAWSBuildableClient(c)
+	}
+	return notify.NewClientWithTracing(*c.HTTPConfig, "sns", httpOpts...)
+}
+
+func newAWSBuildableClient(c *config.SNSConfig) (*awshttp.BuildableClient, error) {
+	client := awshttp.NewBuildableClient()
+	if c.HTTPConfig == nil {
+		return client, nil
+	}
+	tlsConfig, err := commoncfg.NewTLSConfig(&c.HTTPConfig.TLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("build SNS TLS config: %w", err)
+	}
+	return client.WithTransportOptions(func(tr *http.Transport) {
+		tr.TLSClientConfig = tlsConfig
+	}), nil
 }
 
 func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
