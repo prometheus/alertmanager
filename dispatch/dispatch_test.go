@@ -840,12 +840,11 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	metrics := NewDispatcherMetrics(false, reg)
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), metrics)
-	// Don't call Run — the dispatcher stays in DispatcherStateUnknown so
-	// groupAlert's final switch falls through the default branch and the
-	// aggregation group's run goroutine is never started. (This does emit a
-	// benign "unknown state detected" warn per created group.)
+	// Don't call Run — put the dispatcher manually in  the DispatcherStateWaitingToStart
+	// state so groupAlert's final switch falls through the default branch and the
+	// aggregation group's run goroutine is never started.
 	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
-	dispatcher.state.Store(DispatcherStateWaitingToStart) // silences the warn
+	dispatcher.state.Store(DispatcherStateWaitingToStart) // silences the warn that would happen in unknown mode.
 	rounds := 0
 	for rounds < maxRounds && testutil.ToFloat64(metrics.aggrGroupCreationRetries) == 0 {
 		groupLabels := model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("shared-%d", rounds))}
