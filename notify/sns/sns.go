@@ -70,6 +70,9 @@ func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...
 // custom-CA-bundle path requires a *awshttp.BuildableClient (concrete type
 // assertion in resolveCustomCABundle), so we use one when AWS_CA_BUNDLE is set
 // or the user opts in. Otherwise we use the standard tracing-wrapped client.
+//
+// AWS_CA_BUNDLE is handled by the aws sdk's resolveCustomCABundle function,
+// so we don't need to handle it manually when building the client.
 func newSNSHTTPClient(c *config.SNSConfig, httpOpts ...commoncfg.HTTPClientOption) (aws.HTTPClient, error) {
 	if c.UseAWSHTTPClient || os.Getenv("AWS_CA_BUNDLE") != "" {
 		return newAWSBuildableClient(c)
@@ -77,17 +80,23 @@ func newSNSHTTPClient(c *config.SNSConfig, httpOpts ...commoncfg.HTTPClientOptio
 	return notify.NewClientWithTracing(*c.HTTPConfig, "sns", httpOpts...)
 }
 
+// newAWSBuildableClient builds a BuildableClient pre-configured with the
+// user's TLSConfig and proxy settings from HTTPClientConfig. Other
+// HTTPClientConfig knobs (BasicAuth, OAuth2, FollowRedirects, EnableHTTP2,
+// HTTPHeaders, etc.) are intentionally not propagated: AWS uses sigv4 so
+// auth knobs are irrelevant, and the rest are managed by the SDK itself.
 func newAWSBuildableClient(c *config.SNSConfig) (*awshttp.BuildableClient, error) {
-	client := awshttp.NewBuildableClient()
-	if c.HTTPConfig == nil {
-		return client, nil
-	}
 	tlsConfig, err := commoncfg.NewTLSConfig(&c.HTTPConfig.TLSConfig)
 	if err != nil {
 		return nil, fmt.Errorf("build SNS TLS config: %w", err)
 	}
-	return client.WithTransportOptions(func(tr *http.Transport) {
+	proxyFn := c.HTTPConfig.Proxy()
+	return awshttp.NewBuildableClient().WithTransportOptions(func(tr *http.Transport) {
 		tr.TLSClientConfig = tlsConfig
+		if proxyFn != nil {
+			tr.Proxy = proxyFn
+			tr.ProxyConnectHeader = c.HTTPConfig.GetProxyConnectHeader()
+		}
 	}), nil
 }
 

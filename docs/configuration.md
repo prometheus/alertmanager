@@ -1750,8 +1750,14 @@ attributes:
 # Force the AWS SDK's HTTP client (BuildableClient) instead of the default
 # tracing-wrapped client. Required when the AWS SDK needs to inject a custom
 # CA bundle (e.g. via `ca_bundle` in the AWS shared config). Auto-enabled
-# when the AWS_CA_BUNDLE environment variable is set; tracing is disabled
-# for SNS requests when this path is taken.
+# when the AWS_CA_BUNDLE environment variable is set.
+#
+# When this flag is set tracing is disabled for SNS requests, and only the
+# `tls_config` and proxy fields of `http_config` are honored. Other
+# `http_config` knobs (basic_auth, oauth2, authorization, follow_redirects,
+# enable_http2, http_headers) are silently ignored — most are irrelevant for
+# AWS calls (which use SigV4) but if you depend on them for SNS, do not enable
+# this.
 [ use_aws_http_client: <boolean> | default = false ]
 ```
 
