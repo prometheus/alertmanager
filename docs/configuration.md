@@ -118,13 +118,13 @@ global:
   [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
   [ rocketchat_api_url: <string> | default = "https://open.rocket.chat/" ]
-  # The default configuration of sender token for Rocketchat. It is mutually exclusive with `rocketchat_token_file`.
+  # The default Rocketchat sender token. It is mutually exclusive with `rocketchat_token_file`.
   [ rocketchat_token: <secret> ]
-  # The default configuration to read a Rocketchat sender token from a file. It is mutually exclusive with `rocketchat_token`.
+  # Read the default Rocketchat sender token from a file. It is mutually exclusive with `rocketchat_token`.
   [ rocketchat_token_file: <filepath> ]
-  # The default configuration of sender token ID for Rocketchat. It is mutually exclusive with `rocketchat_token_id_file`.
+  # The default Rocketchat sender token ID. It is mutually exclusive with `rocketchat_token_id_file`.
   [ rocketchat_token_id: <secret> ]
-  # The default configuration to read a Rocketchat sender token ID from a file. It is mutually exclusive with `rocketchat_token_id`.
+  # Read the default Rocketchat sender token ID from a file. It is mutually exclusive with `rocketchat_token_id`.
   [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
