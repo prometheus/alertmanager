@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -884,12 +885,19 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 		rounds++
 	}
 
-	// Retries > 0 proves the test actually exercised the contended CAS-recovery
-	// branch (rather than every goroutine taking the early Load+insert path).
 	// Give-ups must stay 0: losers must recover via LoadOrStore, not spin to
 	// the 100-retry limit.
-	require.Positive(t, testutil.ToFloat64(metrics.aggrGroupCreationRetries), "contended CAS path was not exercised in %d rounds — scheduler is unusually serial", rounds)
 	require.Zero(t, testutil.ToFloat64(metrics.aggrGroupCreationGivenUp), "no alert should be dropped to the give-up branch")
+
+	// With GOMAXPROCS=1 the contention can't be fully exercised.
+	// Skip the check that retries > 0.
+	if runtime.GOMAXPROCS(0) == 1 {
+		return
+	}
+
+	// Retries > 0 proves the test actually exercised the contended CAS-recovery
+	// branch (rather than every goroutine taking the early Load+insert path).
+	require.Positive(t, testutil.ToFloat64(metrics.aggrGroupCreationRetries), "contended CAS path was not exercised in %d rounds — scheduler is unusually serial", rounds)
 }
 
 func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
