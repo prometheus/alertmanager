@@ -52,9 +52,11 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/dispatch")
 
 // DispatcherMetrics represents metrics associated to a dispatcher.
 type DispatcherMetrics struct {
-	aggrGroups            prometheus.Gauge
-	processingDuration    prometheus.Summary
-	aggrGroupLimitReached prometheus.Counter
+	aggrGroups               prometheus.Gauge
+	processingDuration       prometheus.Summary
+	aggrGroupLimitReached    prometheus.Counter
+	aggrGroupCreationRetries prometheus.Counter
+	aggrGroupCreationGivenUp prometheus.Counter
 }
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
@@ -79,6 +81,18 @@ func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *D
 			prometheus.CounterOpts{
 				Name: "alertmanager_dispatcher_aggregation_group_limit_reached_total",
 				Help: "Number of times when dispatcher failed to create new aggregation group due to limit.",
+			},
+		),
+		aggrGroupCreationRetries: promauto.With(r).NewCounter(
+			prometheus.CounterOpts{
+				Name: "alertmanager_dispatcher_aggregation_group_creation_retries_total",
+				Help: "Number of CAS retries while creating aggregation groups under contention.",
+			},
+		),
+		aggrGroupCreationGivenUp: promauto.With(r).NewCounter(
+			prometheus.CounterOpts{
+				Name: "alertmanager_dispatcher_aggregation_group_creation_given_up_total",
+				Help: "Number of alerts dropped because aggregation group creation exceeded the retry limit.",
 			},
 		),
 	}
@@ -505,6 +519,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 				// We swapped the new group in, we can break and start it.
 				break
 			}
+			loaded = false
 		} else {
 			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
 			if !loaded {
@@ -526,8 +541,10 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 
 		// If we failed to swap, it means another goroutine has created/modified the group
 		retries++
+		d.metrics.aggrGroupCreationRetries.Inc()
 		if retries > 100 {
 			// This shouldn't happen - indicates a bug or extreme contention
+			d.metrics.aggrGroupCreationGivenUp.Inc()
 			d.logger.Error("excessive retries creating aggregation group",
 				"fingerprint", fp,
 				"route", route.Key(),
