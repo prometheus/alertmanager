@@ -46,7 +46,7 @@ func newNoopDispatcherMetrics() *DispatcherMetrics {
 }
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
-func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer, ff featurecontrol.Flagger) *DispatcherMetrics {
+func NewDispatcherMetrics(_ bool, r prometheus.Registerer, ff featurecontrol.Flagger) *DispatcherMetrics {
 	if r == nil {
 		return newNoopDispatcherMetrics()
 	}
