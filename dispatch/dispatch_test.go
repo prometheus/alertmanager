@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -798,6 +799,104 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
 	require.False(t, isMuted)
 	require.Empty(t, mutedBy)
+}
+
+// TestGroupAlert_RecoversWhenCASFails reproduces a bug where groupAlert would
+// retry the same CompareAndSwap with a stale `el` reference after the slot at
+// fp had been mutated by a competing goroutine (or removed by maintenance).
+// Without the fix, CAS losers spin until the 100-retry give-up and lose their
+// alert. With the fix, they fall back to LoadOrStore and insert into whichever
+// live group now occupies the slot.
+//
+// Each round pre-stores a destroyed aggrGroup at fp and fires many concurrent
+// groupAlert calls. We keep running rounds until we observe the contended CAS
+// branch firing at least once (cap at maxRounds to avoid hangs on a pathologic
+// scheduler) — a single round can be unlucky and serialize, taking the early
+// Load+insert path on every goroutine.
+func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
+	const (
+		alertsPerRound = 200
+		maxRounds      = 50
+	)
+
+	logger := promslog.NewNopLogger()
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
+	require.NoError(t, err)
+	defer alerts.Close()
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "test",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      time.Hour, // never flush during this test
+			GroupInterval:  time.Hour,
+			RepeatInterval: time.Hour,
+		},
+		Idx: 0,
+	}
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	metrics := NewDispatcherMetrics(false, reg)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, metrics)
+	// Don't call Run — put the dispatcher manually in  the DispatcherStateWaitingToStart
+	// state so groupAlert's final switch falls through the default branch and the
+	// aggregation group's run goroutine is never started.
+	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
+	dispatcher.state.Store(DispatcherStateWaitingToStart) // silences the warn that would happen in unknown mode.
+	rounds := 0
+	for rounds < maxRounds && testutil.ToFloat64(metrics.aggrGroupCreationRetries) == 0 {
+		groupLabels := model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("shared-%d", rounds))}
+		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, marker, logger)
+		// Mark the store destroyed: empty store + destroyIfEmpty=true.
+		require.NoError(t, destroyedAg.alerts.DeleteIfNotModified(types.AlertSlice{}, true))
+		require.True(t, destroyedAg.destroyed())
+		fp := destroyedAg.fingerprint()
+		dispatcher.routeGroupsSlice[0].groups.Store(fp, destroyedAg)
+
+		var ready, done sync.WaitGroup
+		ready.Add(alertsPerRound)
+		done.Add(alertsPerRound)
+		start := make(chan struct{})
+		for i := range alertsPerRound {
+			go func() {
+				defer done.Done()
+				alert := newAlert(model.LabelSet{
+					"alertname": groupLabels["alertname"],
+					"instance":  model.LabelValue(fmt.Sprintf("inst-%d", i)),
+				})
+				ready.Done()
+				<-start
+				dispatcher.groupAlert(context.Background(), alert, route)
+			}()
+		}
+		ready.Wait()
+		close(start)
+		done.Wait()
+
+		el, ok := dispatcher.routeGroupsSlice[0].groups.Load(fp)
+		require.True(t, ok, "round %d: a live group must occupy the fp after the race", rounds)
+		finalAg := el.(*aggrGroup)
+		require.False(t, finalAg.destroyed(), "round %d: the final group must not be destroyed", rounds)
+		require.NotSame(t, destroyedAg, finalAg, "round %d: destroyed group must have been replaced", rounds)
+		require.Len(t, finalAg.alerts.List(), alertsPerRound, "round %d: all alerts must land in the final group", rounds)
+		rounds++
+	}
+
+	// Give-ups must stay 0: losers must recover via LoadOrStore, not spin to
+	// the 100-retry limit.
+	require.Zero(t, testutil.ToFloat64(metrics.aggrGroupCreationGivenUp), "no alert should be dropped to the give-up branch")
+
+	// With GOMAXPROCS=1 the contention can't be fully exercised.
+	// Skip the check that retries > 0.
+	if runtime.GOMAXPROCS(0) == 1 {
+		return
+	}
+
+	// Retries > 0 proves the test actually exercised the contended CAS-recovery
+	// branch (rather than every goroutine taking the early Load+insert path).
+	require.Positive(t, testutil.ToFloat64(metrics.aggrGroupCreationRetries), "contended CAS path was not exercised in %d rounds — scheduler is unusually serial", rounds)
 }
 
 func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
