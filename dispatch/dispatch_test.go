@@ -209,9 +209,9 @@ func TestAggrGroup(t *testing.T) {
 		ag.insert(ctx, a)
 	}
 	receiveBatch(t, last, opts.GroupInterval, resolved)
-	if !ag.empty() {
-		t.Fatalf("Expected aggregation group to be empty after resolving alerts: %v", ag)
-	}
+	// ntfy unblocks before flush() finishes deleting resolved alerts, so poll.
+	require.Eventually(t, ag.empty, time.Second, 10*time.Millisecond,
+		"Expected aggregation group to be empty after resolving alerts: %v", ag)
 
 	ag.stop()
 }
