@@ -219,7 +219,15 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		fmt.Fprintf(&jql, `resolution != %q and `, n.conf.WontFixResolution)
+		// JQL's `!=` on `resolution` silently excludes issues whose
+		// resolution is EMPTY (i.e. unresolved), so the naive clause
+		// would skip every alert that has an open Jira issue -- the
+		// exact opposite of what wont_fix_resolution is supposed to do.
+		// Include the EMPTY case explicitly so unresolved issues are
+		// kept and only the "Won't Do"-style resolution is filtered out.
+		// See https://confluence.atlassian.com/jirakb/using-not-equals-on-a-resolution-does-not-return-unresolved-issues-635897091.html
+		// (prometheus/alertmanager#4295).
+		fmt.Fprintf(&jql, `(resolution is EMPTY or resolution != %q) and `, n.conf.WontFixResolution)
 	}
 
 	// If the group is firing, search for open issues. If a reopen transition is
