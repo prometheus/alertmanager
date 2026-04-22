@@ -142,6 +142,9 @@ global:
   # This has no impact on alerts from Prometheus, as they always include EndsAt.
   [ resolve_timeout: <duration> | default = 5m ]
 
+  # Global default template overrides for receivers
+  [ receiver_templates: <global_receiver_templates> ]
+
 # Files from which custom notification template definitions are read.
 # The last component may use a wildcard matcher, e.g. 'templates/*.tmpl'.
 templates:
@@ -167,6 +170,67 @@ mute_time_intervals:
 time_intervals:
   [ - <time_interval> ... ]
 ```
+
+### `<global_receiver_templates>`
+
+An optional `receiver_templates` block under `global` lets you set default
+template strings for all receivers of each integration type. A per-receiver
+value always takes precedence over the global template. If neither is set,
+the built-in default template is used.
+
+```yaml
+global:
+  receiver_templates:
+    slack:
+      [ username: <tmpl_string> ]
+      [ icon_emoji: <tmpl_string> ]
+      [ icon_url: <tmpl_string> ]
+      [ pretext: <tmpl_string> ]
+      [ title: <tmpl_string> ]
+      [ title_link: <tmpl_string> ]
+      [ text: <tmpl_string> ]
+      [ fallback: <tmpl_string> ]
+      [ footer: <tmpl_string> ]
+      [ color: <tmpl_string> ]
+    email:
+      [ subject: <tmpl_string> ]
+      [ html: <tmpl_string> ]
+      [ text: <tmpl_string> ]
+    pagerduty:
+      [ description: <tmpl_string> ]
+      [ client: <tmpl_string> ]
+      [ client_url: <tmpl_string> ]
+      [ details: { <string>: <tmpl_string>, ... } ]
+    opsgenie:
+      [ message: <tmpl_string> ]
+      [ description: <tmpl_string> ]
+      [ source: <tmpl_string> ]
+      [ note: <tmpl_string> ]
+    victorops:
+      [ message_type: <tmpl_string> ]
+      [ entity_display_name: <tmpl_string> ]
+      [ state_message: <tmpl_string> ]
+    pushover:
+      [ title: <tmpl_string> ]
+      [ message: <tmpl_string> ]
+      [ url: <tmpl_string> ]
+    wechat:
+      [ message: <tmpl_string> ]
+      [ message_type: <tmpl_string> ]
+    telegram:
+      [ message: <tmpl_string> ]
+```
+
+PagerDuty `receiver_templates.pagerduty.details` values are merged into each
+receiver's `pagerduty_configs[].details` map. For the built-in standard keys
+(`firing`, `resolved`, `num_firing`, `num_resolved`), the global override is
+applied only when the receiver value is still the built-in default; otherwise
+the receiver value is kept. For custom keys, global values are used only
+when the receiver does not set that key.
+
+All values are unrendered Go template strings and are rendered later at
+alert notification time (identical in behavior to per-receiver
+`pagerduty_configs[].details` values).
 
 ## Route-related settings
 

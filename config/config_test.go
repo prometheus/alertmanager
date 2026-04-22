@@ -1642,3 +1642,189 @@ func TestMattermostNoWebhookURL(t *testing.T) {
 		t.Errorf("Expected: %s\nGot: %s", "missing webhook_url or webhook_url_file on mattermost_config", err.Error())
 	}
 }
+
+func TestGlobalReceiverTemplates(t *testing.T) {
+	// Test 1: Global template applies when receiver field is empty
+	t.Run("global_template_applied_when_field_empty", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var slackCfg *SlackConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "default" {
+				slackCfg = cfg.Receivers[i].SlackConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, slackCfg)
+
+		// Should get the global template
+		require.Equal(t, `{{ template "custom.title" . }}`, slackCfg.Title)
+		require.Equal(t, `{{ template "custom.text" . }}`, slackCfg.Text)
+	})
+
+	// Test 2: Per-receiver value wins over global template
+	t.Run("per_receiver_overrides_global", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var slackCfg *SlackConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "custom-override" {
+				slackCfg = cfg.Receivers[i].SlackConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, slackCfg)
+
+		// Should get the per-receiver override, not the global template
+		require.Equal(t, "Per-receiver override title", slackCfg.Title)
+		// But text (not set per-receiver) should still get global template
+		require.Equal(t, `{{ template "custom.text" . }}`, slackCfg.Text)
+	})
+
+	// Test 3: Explicit empty string `title: ""` per-receiver
+	t.Run("empty_string_override", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var slackCfg *SlackConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "empty-override" {
+				slackCfg = cfg.Receivers[i].SlackConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, slackCfg)
+
+		// The title was explicitly set to empty string, it should remain empty
+		require.Empty(t, slackCfg.Title)
+		// But text (not set per-receiver) should still get global template
+		require.Equal(t, `{{ template "custom.text" . }}`, slackCfg.Text)
+	})
+
+	// Test 5: Global PagerDuty `details` are applied when receiver doesn't set the key
+	t.Run("pagerduty_global_details_applied_when_absent", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var pdCfg *PagerdutyConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "default" {
+				pdCfg = cfg.Receivers[i].PagerdutyConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, pdCfg)
+
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Firing }}`, pdCfg.Details["firing"])
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`, pdCfg.Details["resolved"])
+		require.Equal(t, `{{ .Alerts.Firing | len }}`, pdCfg.Details["num_firing"])
+		require.Equal(t, `{{ .Alerts.Resolved | len }}`, pdCfg.Details["num_resolved"])
+		require.Equal(t, "prod-global", pdCfg.Details["environment"])
+	})
+
+	// Test 6: Receiver explicit PagerDuty `details` takes precedence
+	t.Run("pagerduty_per_receiver_overrides_global", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var pdCfg *PagerdutyConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "custom-override" {
+				pdCfg = cfg.Receivers[i].PagerdutyConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, pdCfg)
+
+		require.Equal(t, "Per-receiver PD firing detail", pdCfg.Details["firing"])
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`, pdCfg.Details["resolved"])
+		require.Equal(t, "custom-env-override", pdCfg.Details["environment"])
+	})
+
+	// Test 7: Explicit empty string PagerDuty `details` is preserved
+	t.Run("pagerduty_empty_string_override_preserved", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var pdCfg *PagerdutyConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "empty-override" {
+				pdCfg = cfg.Receivers[i].PagerdutyConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, pdCfg)
+
+		require.Empty(t, pdCfg.Details["firing"])
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`, pdCfg.Details["resolved"])
+		require.Equal(t, "prod-global", pdCfg.Details["environment"])
+	})
+
+	// Test 8: Custom PagerDuty `details` keys absent on receiver are inherited from global
+	t.Run("pagerduty_custom_key_absent_gets_global_value", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var pdCfg *PagerdutyConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name != "pd-custom-absent" {
+				continue
+			}
+			require.Len(t, cfg.Receivers[i].PagerdutyConfigs, 1)
+			pdCfg = cfg.Receivers[i].PagerdutyConfigs[0]
+			break
+		}
+		require.NotNil(t, pdCfg, "expected a receiver named pd-custom-absent")
+
+		require.Equal(t, "prod-global", pdCfg.Details["environment"])
+	})
+
+	// Test 9: Complete omission of receiver details uses all global details correctly and exercises nil guard
+	t.Run("pagerduty_omitted_details_gets_global_value", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/global_receiver_templates.yml")
+		require.NoError(t, err)
+
+		var pdCfg *PagerdutyConfig
+		for i := range cfg.Receivers {
+			if cfg.Receivers[i].Name == "pd-custom-nil" {
+				pdCfg = cfg.Receivers[i].PagerdutyConfigs[0]
+				break
+			}
+		}
+		require.NotNil(t, pdCfg, "expected a receiver named pd-custom-nil")
+
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Firing }}`, pdCfg.Details["firing"])
+		require.Equal(t, `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`, pdCfg.Details["resolved"])
+		require.Equal(t, `{{ .Alerts.Firing | len }}`, pdCfg.Details["num_firing"])
+		require.Equal(t, `{{ .Alerts.Resolved | len }}`, pdCfg.Details["num_resolved"])
+		require.Equal(t, "prod-global", pdCfg.Details["environment"])
+	})
+
+	// Test 4: Built-in defaults apply when no global template and no per-receiver value
+	t.Run("builtin_default_applied_when_no_global_no_receiver", func(t *testing.T) {
+		// Load a config with no receiver_templates section
+		cfg, err := LoadFile("testdata/conf.good.yml")
+		require.NoError(t, err)
+
+		for _, recv := range cfg.Receivers {
+			for _, sc := range recv.SlackConfigs {
+				// Unset fields should get built-in defaults
+				if sc.Title == "" {
+					t.Errorf("receiver %q: slack title should not be empty", recv.Name)
+				}
+			}
+		}
+	})
+
+	// Test 4: No receiver_templates key = nil GlobalReceiverTemplates (backward compat)
+	t.Run("backward_compatible_no_receiver_templates", func(t *testing.T) {
+		cfg, err := LoadFile("testdata/conf.good.yml")
+		require.NoError(t, err)
+		// Global exists but ReceiverTemplates is nil
+		if cfg.Global != nil {
+			require.Nil(t, cfg.Global.ReceiverTemplates)
+		}
+	})
+}

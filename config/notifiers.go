@@ -30,6 +30,90 @@ import (
 	"github.com/prometheus/sigv4"
 )
 
+// GlobalSlackTemplates holds global default template overrides for Slack.
+// Fields here are applied to every SlackConfig whose corresponding field
+// is not explicitly set, before falling back to built-in defaults.
+type GlobalSlackTemplates struct {
+	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
+	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
+	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	Footer    string `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Color     string `yaml:"color,omitempty" json:"color,omitempty"`
+}
+
+// GlobalEmailTemplates holds global default template overrides for Email.
+type GlobalEmailTemplates struct {
+	Subject string `yaml:"subject,omitempty" json:"subject,omitempty"`
+	HTML    string `yaml:"html,omitempty" json:"html,omitempty"`
+	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+// GlobalPagerDutyTemplates holds global default template overrides for PagerDuty.
+type GlobalPagerDutyTemplates struct {
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Client      string `yaml:"client,omitempty" json:"client,omitempty"`
+	ClientURL   string `yaml:"client_url,omitempty" json:"client_url,omitempty"`
+
+	// Details holds global default template overrides for entries in a
+	// PagerDuty receiver's `details` map.
+	//
+	// Values are stored as Go template strings (unrendered) and will be
+	// template-expanded later during notification rendering.
+	Details map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+}
+
+// GlobalOpsGenieTemplates holds global default template overrides for OpsGenie.
+type GlobalOpsGenieTemplates struct {
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Source      string `yaml:"source,omitempty" json:"source,omitempty"`
+	Note        string `yaml:"note,omitempty" json:"note,omitempty"`
+}
+
+// GlobalVictorOpsTemplates holds global default template overrides for VictorOps.
+type GlobalVictorOpsTemplates struct {
+	MessageType       string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	EntityDisplayName string `yaml:"entity_display_name,omitempty" json:"entity_display_name,omitempty"`
+	StateMessage      string `yaml:"state_message,omitempty" json:"state_message,omitempty"`
+}
+
+// GlobalPushoverTemplates holds global default template overrides for Pushover.
+type GlobalPushoverTemplates struct {
+	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	URL     string `yaml:"url,omitempty" json:"url,omitempty"`
+}
+
+// GlobalWeChatTemplates holds global default template overrides for WeChat.
+type GlobalWeChatTemplates struct {
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+}
+
+// GlobalTelegramTemplates holds global default template overrides for Telegram.
+type GlobalTelegramTemplates struct {
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+// GlobalReceiverTemplates is the container for all per-integration global
+// template overrides. It lives under global.receiver_templates in the config.
+type GlobalReceiverTemplates struct {
+	Slack     *GlobalSlackTemplates     `yaml:"slack,omitempty" json:"slack,omitempty"`
+	Email     *GlobalEmailTemplates     `yaml:"email,omitempty" json:"email,omitempty"`
+	PagerDuty *GlobalPagerDutyTemplates `yaml:"pagerduty,omitempty" json:"pagerduty,omitempty"`
+	OpsGenie  *GlobalOpsGenieTemplates  `yaml:"opsgenie,omitempty" json:"opsgenie,omitempty"`
+	VictorOps *GlobalVictorOpsTemplates `yaml:"victorops,omitempty" json:"victorops,omitempty"`
+	Pushover  *GlobalPushoverTemplates  `yaml:"pushover,omitempty" json:"pushover,omitempty"`
+	WeChat    *GlobalWeChatTemplates    `yaml:"wechat,omitempty" json:"wechat,omitempty"`
+	Telegram  *GlobalTelegramTemplates  `yaml:"telegram,omitempty" json:"telegram,omitempty"`
+}
+
 var (
 	// DefaultIncidentioConfig defines default values for Incident.io configurations.
 	DefaultIncidentioConfig = IncidentioConfig{
@@ -426,6 +510,11 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if c.Source == "" {
 		c.Source = c.Client
+	}
+	for k, v := range c.Details {
+		if _, ok := v.(string); !ok {
+			return fmt.Errorf("pagerduty_configs details map must contain only string values, but key %q has type %T", k, v)
+		}
 	}
 	for k, v := range DefaultPagerdutyDetails {
 		if _, ok := c.Details[k]; !ok {
