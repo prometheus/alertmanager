@@ -399,7 +399,13 @@ times:
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
-`['monday:wednesday','saturday', 'sunday']`
+`['monday:wednesday','saturday', 'sunday']`.
+
+Note that Alertmanager follows Go's `time.Weekday` convention where Sunday = 0 and Saturday = 6.
+This differs from ISO 8601 where Monday is the first day of the week. Ranges do not wrap
+around the week boundary. For example, `saturday:sunday` will not match any day and should
+be written as `['saturday', 'sunday']` instead. `sunday:saturday` can be used to match every
+day of the week.
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
