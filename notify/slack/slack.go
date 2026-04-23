@@ -22,7 +22,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -59,7 +61,7 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 		tmpl:         t,
 		logger:       l,
 		client:       client,
-		retrier:      &notify.Retrier{},
+		retrier:      &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -256,6 +258,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if d := parseRetryAfter(resp.Header.Get("Retry-After")); d > 0 {
+				n.logger.Warn("Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
+				select {
+				case <-time.After(d):
+				case <-ctx.Done():
+				}
+			}
+		}
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
@@ -292,6 +303,20 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
 	}
 	return false, nil
+}
+
+// parseRetryAfter parses the Retry-After header value as integer seconds
+// and returns the corresponding duration. Returns 0 if the value is empty,
+// not a valid integer, or non-positive.
+func parseRetryAfter(val string) time.Duration {
+	if val == "" {
+		return 0
+	}
+	seconds, err := strconv.Atoi(val)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // checkTextResponseError classifies plaintext responses from Slack.
