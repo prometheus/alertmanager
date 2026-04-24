@@ -25,9 +25,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // A Muter determines whether a given label set is muted. Implementers that
@@ -55,7 +56,7 @@ func NewMuteStage(m Muter, metrics *Metrics) *MuteStage {
 }
 
 // Exec implements the Stage interface.
-func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	ctx, span := tracer.Start(ctx, "notify.MuteStage.Exec",
 		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -63,8 +64,8 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*ty
 	defer span.End()
 
 	var (
-		filtered []*types.Alert
-		muted    []*types.Alert
+		filtered []*alert.Alert
+		muted    []*alert.Alert
 	)
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
@@ -118,19 +119,19 @@ type TimeMuter interface {
 
 type timeStage struct {
 	muter   TimeMuter
-	marker  types.GroupMarker
+	marker  marker.GroupMarker
 	metrics *Metrics
 }
 
 type TimeMuteStage timeStage
 
-func NewTimeMuteStage(muter TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeMuteStage {
+func NewTimeMuteStage(muter TimeMuter, marker marker.GroupMarker, metrics *Metrics) *TimeMuteStage {
 	return &TimeMuteStage{muter, marker, metrics}
 }
 
 // Exec implements the stage interface for TimeMuteStage.
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
-func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	ctx, span := tracer.Start(ctx, "notify.TimeMuteStage.Exec",
 		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -154,15 +155,18 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*ty
 
 	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
 	if !ok {
+		tms.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, nil
 	}
 	now, ok := Now(ctx)
 	if !ok {
+		tms.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
 	// Skip this stage if there are no mute timings.
 	if len(muteTimeIntervalNames) == 0 {
+		tms.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, nil
 	}
 
@@ -188,13 +192,13 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*ty
 
 type TimeActiveStage timeStage
 
-func NewTimeActiveStage(muter TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeActiveStage {
+func NewTimeActiveStage(muter TimeMuter, marker marker.GroupMarker, metrics *Metrics) *TimeActiveStage {
 	return &TimeActiveStage{muter, marker, metrics}
 }
 
 // Exec implements the stage interface for TimeActiveStage.
 // TimeActiveStage is responsible for muting alerts whose route is not in an active time.
-func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	routeID, ok := RouteID(ctx)
 	if !ok {
 		return ctx, nil, errors.New("route ID missing")
@@ -214,16 +218,19 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 
 	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
 	if !ok {
+		tas.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, nil
 	}
 
 	// if we don't have active time intervals at all it is always active.
 	if len(activeTimeIntervalNames) == 0 {
+		tas.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, nil
 	}
 
 	now, ok := Now(ctx)
 	if !ok {
+		tas.marker.SetMuted(routeID, gkey, nil)
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 

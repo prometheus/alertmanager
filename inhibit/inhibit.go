@@ -30,6 +30,7 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -45,7 +46,6 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/inhibit")
 type Inhibitor struct {
 	alerts     provider.Alerts
 	rules      []*InhibitRule
-	marker     types.AlertMarker
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
 	recorder   eventrecorder.Recorder
@@ -56,10 +56,9 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, mk types.AlertMarker, logger *slog.Logger, recorder eventrecorder.Recorder) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, logger *slog.Logger, recorder eventrecorder.Recorder) *Inhibitor {
 	ih := &Inhibitor{
 		alerts:     ap,
-		marker:     mk,
 		logger:     logger,
 		propagator: otel.GetTextMapPropagator(),
 		recorder:   recorder,
@@ -194,6 +193,15 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	)
 	defer span.End()
 
+	var inhibitedBy []string
+	defer func() {
+		// Get the marker from context and set the inhibited alerts on it if any.
+		m, ok := marker.FromContext(ctx)
+		if ok {
+			m.SetInhibited(fp, inhibitedBy)
+		}
+	}()
+
 	now := time.Now()
 	for _, r := range ih.rules {
 		if !r.TargetMatchers.Matches(lset) {
@@ -208,7 +216,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
-			ih.marker.SetInhibited(fp, inhibitedByFP.String())
+			inhibitedBy = append(inhibitedBy, inhibitedByFP.String())
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
 					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
@@ -223,7 +231,6 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			return true
 		}
 	}
-	ih.marker.SetInhibited(fp)
 	span.AddEvent("alert not inhibited")
 
 	return false
