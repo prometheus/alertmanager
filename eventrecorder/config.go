@@ -64,16 +64,16 @@ func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 	switch o.Type {
-	case "file":
+	case OutputFile:
 		if o.Path == "" {
 			return errors.New("event_recorder file output requires a path")
 		}
-	case "webhook":
+	case OutputWebhook:
 		if o.URL == nil {
 			return errors.New("event_recorder webhook output requires a url")
 		}
 	default:
-		return fmt.Errorf("unknown event_recorder output type %q, must be \"file\" or \"webhook\"", o.Type)
+		return fmt.Errorf("unknown event_recorder output type %q, must be %q or %q", o.Type, OutputFile, OutputWebhook)
 	}
 	return nil
 }

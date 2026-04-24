@@ -45,6 +45,11 @@ import (
 )
 
 const (
+	OutputFile    string = "file"
+	OutputWebhook string = "webhook"
+)
+
+const (
 	// Maximum number of events buffered before new events are dropped.
 	// At ~500 bytes per event this caps memory usage at roughly 4 MB.
 	eventQueueSize = 8192
@@ -209,14 +214,14 @@ func buildOutputs(cfgOutputs []Output, m *metrics, logger *slog.Logger) []Destin
 	var outputs []Destination
 	for _, out := range cfgOutputs {
 		switch out.Type {
-		case "file":
+		case OutputFile:
 			fo, err := NewFileOutput(out.Path, logger)
 			if err != nil {
 				logger.Error("Failed to create file event recorder output", "path", out.Path, "err", err)
 				continue
 			}
 			outputs = append(outputs, fo)
-		case "webhook":
+		case OutputWebhook:
 			wo, err := NewWebhookOutput(out, m.webhookDrops, logger)
 			if err != nil {
 				logger.Error("Failed to create webhook event recorder output", "url", out.URL, "err", err)
