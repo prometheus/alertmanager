@@ -58,7 +58,7 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := EventRecorderOutput{
+	cfg := Output{
 		Type: "webhook",
 		URL:  u,
 	}
@@ -92,7 +92,7 @@ func TestWebhookOutput_MultipleWorkers(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := EventRecorderOutput{
+	cfg := Output{
 		Type:    "webhook",
 		URL:     u,
 		Workers: 8,
@@ -124,7 +124,7 @@ func TestWebhookOutput_RetryOnFailure(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := EventRecorderOutput{
+	cfg := Output{
 		Type:         "webhook",
 		URL:          u,
 		MaxRetries:   3,
@@ -150,7 +150,7 @@ func TestWebhookOutput_DropsAfterMaxRetries(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := EventRecorderOutput{
+	cfg := Output{
 		Type:         "webhook",
 		URL:          u,
 		MaxRetries:   2,
@@ -176,7 +176,7 @@ func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := EventRecorderOutput{
+	cfg := Output{
 		Type:    "webhook",
 		URL:     u,
 		Workers: 1,

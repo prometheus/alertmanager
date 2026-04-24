@@ -278,7 +278,7 @@ type Config struct {
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
-	EventRecorder eventrecorder.EventRecorderConfig `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
+	EventRecorder eventrecorder.Config `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string

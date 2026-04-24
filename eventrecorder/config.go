@@ -32,13 +32,13 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// EventRecorderConfig configures the event recorder feature.
-type EventRecorderConfig struct {
-	Outputs []EventRecorderOutput `yaml:"outputs,omitempty" json:"outputs,omitempty"`
+// Config configures the event recorder feature.
+type Config struct {
+	Outputs []Output `yaml:"outputs,omitempty" json:"outputs,omitempty"`
 }
 
-// EventRecorderOutput configures a single event recorder output destination.
-type EventRecorderOutput struct {
+// Output configures a single event recorder output destination.
+type Output struct {
 	Type       string                      `yaml:"type" json:"type"`
 	Path       string                      `yaml:"path,omitempty" json:"path,omitempty"`
 	URL        *amcommoncfg.SecretURL      `yaml:"url,omitempty" json:"url,omitempty"`
@@ -57,9 +57,9 @@ type EventRecorderOutput struct {
 	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for EventRecorderOutput.
-func (o *EventRecorderOutput) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain EventRecorderOutput
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Output.
+func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain Output
 	if err := unmarshal((*plain)(o)); err != nil {
 		return err
 	}
