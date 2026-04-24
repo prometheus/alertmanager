@@ -23,7 +23,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -74,7 +73,7 @@ func newTestRecorder(outputs ...Destination) Recorder {
 		done:      make(chan struct{}),
 	}
 	core.wg.Add(1)
-	go core.writeLoop(outputs, config.EventRecorderConfig{})
+	go core.writeLoop(outputs, EventRecorderConfig{})
 	return Recorder{core: core}
 }
 
@@ -111,7 +110,7 @@ func TestRecordEventMultipleDestinations(t *testing.T) {
 func TestNopRecorderDoesNotPanic(t *testing.T) {
 	rec := NopRecorder()
 	rec.RecordEvent(recordCtx(), startupEvent())
-	rec.ApplyConfig(config.EventRecorderConfig{})
+	rec.ApplyConfig(EventRecorderConfig{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
 }
@@ -119,7 +118,7 @@ func TestNopRecorderDoesNotPanic(t *testing.T) {
 func TestZeroRecorderDoesNotPanic(t *testing.T) {
 	var rec Recorder
 	rec.RecordEvent(recordCtx(), startupEvent())
-	rec.ApplyConfig(config.EventRecorderConfig{})
+	rec.ApplyConfig(EventRecorderConfig{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
 }
@@ -151,7 +150,7 @@ func TestApplyConfig(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	// ApplyConfig with the same (zero) config should be a no-op.
-	rec.ApplyConfig(config.EventRecorderConfig{})
+	rec.ApplyConfig(EventRecorderConfig{})
 
 	// Events still flow to the same output after no-op reload.
 	rec.RecordEvent(recordCtx(), startupEvent())
@@ -235,13 +234,13 @@ func TestMatchersAsProto(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual(t *testing.T) {
-	a := config.EventRecorderConfig{
-		Outputs: []config.EventRecorderOutput{
+	a := EventRecorderConfig{
+		Outputs: []EventRecorderOutput{
 			{Type: "file", Path: "/tmp/events.jsonl"},
 		},
 	}
-	b := config.EventRecorderConfig{
-		Outputs: []config.EventRecorderOutput{
+	b := EventRecorderConfig{
+		Outputs: []EventRecorderOutput{
 			{Type: "file", Path: "/tmp/events.jsonl"},
 		},
 	}
@@ -251,6 +250,6 @@ func TestEventRecorderConfigEqual(t *testing.T) {
 	require.False(t, eventRecorderConfigEqual(a, b))
 
 	// Different number of outputs.
-	c := config.EventRecorderConfig{}
+	c := EventRecorderConfig{}
 	require.False(t, eventRecorderConfigEqual(a, c))
 }

@@ -25,8 +25,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
-
-	"github.com/prometheus/alertmanager/config"
 )
 
 const (
@@ -59,7 +57,7 @@ type WebhookOutput struct {
 }
 
 // NewWebhookOutput creates a new webhook-based event recorder output.
-func NewWebhookOutput(cfg config.EventRecorderOutput, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
+func NewWebhookOutput(cfg EventRecorderOutput, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
 	httpCfg := commoncfg.DefaultHTTPClientConfig
 	if cfg.HTTPConfig != nil {
 		httpCfg = *cfg.HTTPConfig

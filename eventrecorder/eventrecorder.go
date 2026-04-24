@@ -38,7 +38,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	silencepb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -107,7 +106,7 @@ type sharedRecorder struct {
 // cfgUpdateMsg is sent to writeLoop to hot-reload the configuration.
 // The sender blocks until the writeLoop acknowledges by closing done.
 type cfgUpdateMsg struct {
-	cfg  config.EventRecorderConfig
+	cfg  EventRecorderConfig
 	done chan struct{}
 }
 
@@ -179,7 +178,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 // NewRecorderFromConfig builds a Recorder from the given configuration.
 // A background goroutine is started to drain the event queue; call
 // Close to stop it.
-func NewRecorderFromConfig(cfg config.EventRecorderConfig, instance string, logger *slog.Logger, r prometheus.Registerer) Recorder {
+func NewRecorderFromConfig(cfg EventRecorderConfig, instance string, logger *slog.Logger, r prometheus.Registerer) Recorder {
 	core := &sharedRecorder{
 		instance:  instance,
 		logger:    logger,
@@ -206,7 +205,7 @@ func NewRecorderFromConfig(cfg config.EventRecorderConfig, instance string, logg
 }
 
 // buildOutputs creates Destination implementations from the given config.
-func buildOutputs(cfgOutputs []config.EventRecorderOutput, m *metrics, logger *slog.Logger) []Destination {
+func buildOutputs(cfgOutputs []EventRecorderOutput, m *metrics, logger *slog.Logger) []Destination {
 	var outputs []Destination
 	for _, out := range cfgOutputs {
 		switch out.Type {
@@ -240,7 +239,7 @@ func buildOutputs(cfgOutputs []config.EventRecorderOutput, m *metrics, logger *s
 //
 // It runs until the done channel is closed, then drains remaining
 // events and closes all outputs before returning.
-func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg config.EventRecorderConfig) {
+func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg EventRecorderConfig) {
 	defer c.wg.Done()
 	defer func() {
 		for _, out := range outputs {
@@ -368,7 +367,7 @@ func (r Recorder) SetClusterPeer(peer *cluster.Peer) {
 
 // eventRecorderConfigEqual compares two EventRecorderConfig values by their
 // semantically significant fields.
-func eventRecorderConfigEqual(a, b config.EventRecorderConfig) bool {
+func eventRecorderConfigEqual(a, b EventRecorderConfig) bool {
 	if len(a.Outputs) != len(b.Outputs) {
 		return false
 	}
@@ -412,7 +411,7 @@ func eventRecorderConfigEqual(a, b config.EventRecorderConfig) bool {
 // ApplyConfig hot-reloads the event recorder configuration.  The update is
 // sent to the writeLoop goroutine, which owns the outputs; this method
 // blocks until the writeLoop has acknowledged the update.
-func (r Recorder) ApplyConfig(cfg config.EventRecorderConfig) {
+func (r Recorder) ApplyConfig(cfg EventRecorderConfig) {
 	if r.core == nil || r.core.cfgUpdate == nil {
 		return
 	}
