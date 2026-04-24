@@ -215,6 +215,7 @@ var DefaultFuncs = FuncMap{
 		}
 		return t.In(loc), nil
 	},
+	"now":              time.Now,
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
 	"toJson": func(v any) (string, error) {
