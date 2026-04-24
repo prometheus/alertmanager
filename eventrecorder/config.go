@@ -25,6 +25,7 @@ package eventrecorder
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -76,4 +77,47 @@ func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
 		return fmt.Errorf("unknown event_recorder output type %q, must be %q or %q", o.Type, OutputFile, OutputWebhook)
 	}
 	return nil
+}
+
+// eventRecorderConfigEqual compares two Config values by their
+// semantically significant fields.
+func eventRecorderConfigEqual(a, b Config) bool {
+	if len(a.Outputs) != len(b.Outputs) {
+		return false
+	}
+	for i := range a.Outputs {
+		oa, ob := a.Outputs[i], b.Outputs[i]
+		if oa.Type != ob.Type {
+			return false
+		}
+		if oa.Path != ob.Path {
+			return false
+		}
+		if oa.Timeout != ob.Timeout {
+			return false
+		}
+		aURL, bURL := "", ""
+		if oa.URL != nil {
+			aURL = oa.URL.String()
+		}
+		if ob.URL != nil {
+			bURL = ob.URL.String()
+		}
+		if aURL != bURL {
+			return false
+		}
+		if oa.Workers != ob.Workers {
+			return false
+		}
+		if oa.MaxRetries != ob.MaxRetries {
+			return false
+		}
+		if oa.RetryBackoff != ob.RetryBackoff {
+			return false
+		}
+		if !reflect.DeepEqual(oa.HTTPConfig, ob.HTTPConfig) {
+			return false
+		}
+	}
+	return true
 }

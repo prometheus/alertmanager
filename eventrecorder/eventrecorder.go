@@ -26,7 +26,6 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -368,49 +367,6 @@ func (r Recorder) SetClusterPeer(peer *cluster.Peer) {
 		return
 	}
 	r.core.peer.Store(peer)
-}
-
-// eventRecorderConfigEqual compares two Config values by their
-// semantically significant fields.
-func eventRecorderConfigEqual(a, b Config) bool {
-	if len(a.Outputs) != len(b.Outputs) {
-		return false
-	}
-	for i := range a.Outputs {
-		oa, ob := a.Outputs[i], b.Outputs[i]
-		if oa.Type != ob.Type {
-			return false
-		}
-		if oa.Path != ob.Path {
-			return false
-		}
-		if oa.Timeout != ob.Timeout {
-			return false
-		}
-		aURL, bURL := "", ""
-		if oa.URL != nil {
-			aURL = oa.URL.String()
-		}
-		if ob.URL != nil {
-			bURL = ob.URL.String()
-		}
-		if aURL != bURL {
-			return false
-		}
-		if oa.Workers != ob.Workers {
-			return false
-		}
-		if oa.MaxRetries != ob.MaxRetries {
-			return false
-		}
-		if oa.RetryBackoff != ob.RetryBackoff {
-			return false
-		}
-		if !reflect.DeepEqual(oa.HTTPConfig, ob.HTTPConfig) {
-			return false
-		}
-	}
-	return true
 }
 
 // ApplyConfig hot-reloads the event recorder configuration.  The update is
