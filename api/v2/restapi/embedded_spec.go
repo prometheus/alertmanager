@@ -101,6 +101,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -199,6 +209,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -224,6 +244,18 @@ func init() {
           "receiver"
         ],
         "operationId": "getReceivers",
+        "parameters": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Get receivers response",
@@ -233,6 +265,12 @@ func init() {
                 "$ref": "#/definitions/receiver"
               }
             }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
           }
         }
       }
@@ -721,6 +759,9 @@ func init() {
         "name"
       ],
       "properties": {
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        },
         "name": {
           "type": "string"
         }
@@ -909,6 +950,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1019,6 +1070,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1050,6 +1111,18 @@ func init() {
           "receiver"
         ],
         "operationId": "getReceivers",
+        "parameters": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Get receivers response",
@@ -1058,6 +1131,18 @@ func init() {
               "items": {
                 "$ref": "#/definitions/receiver"
               }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -1562,6 +1647,9 @@ func init() {
         "name"
       ],
       "properties": {
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        },
         "name": {
           "type": "string"
         }
