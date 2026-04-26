@@ -82,12 +82,13 @@ else
 endif
 
 .PHONY: build
-build: .build_stamp
+build: dist/.build_stamp
 
-.build_stamp: $(ELM_FILES) index.html vite.config.mjs node_modules
+dist/.build_stamp: $(ELM_FILES) index.html vite.config.mjs package-lock.json
 	@echo ">> building frontend"
+	$(MAKE) node_modules
 	$(NPM) run build
-	@touch .build_stamp
+	@touch dist/.build_stamp
 
 src/Data: ../../api/v2/openapi.yaml
 	-rm -rf src/Data src/DateTime.elm
@@ -98,8 +99,8 @@ src/Data: ../../api/v2/openapi.yaml
 	  -v ${PWD}/src:/output/src \
 	  $(OPENAPI_GEN_IMAGE) \
 	  -c 'java -jar /opt/openapi-generator/modules/openapi-generator-cli/target/openapi-generator-cli.jar generate -i /local/api/v2/openapi.yaml -g elm -o /tmp/openapi-gen && cp -r /tmp/openapi-gen/src/Data /output/src/Data && cp /tmp/openapi-gen/src/DateTime.elm /output/src/DateTime.elm'
-	make format
+	$(MAKE) format
 
 .PHONY: clean
 clean:
-	- @rm -rf .build_stamp dist elm-stuff src/Data src/DateTime.elm openapi-* elm-*
+	- @rm -rf dist node_modules elm-stuff src/Data src/DateTime.elm openapi-* elm-*
