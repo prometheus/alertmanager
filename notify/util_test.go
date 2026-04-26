@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -132,60 +133,75 @@ func (b brokenReader) Read([]byte) (int, error) {
 
 func TestRetrierCheck(t *testing.T) {
 	for _, tc := range []struct {
-		retrier Retrier
-		status  int
-		body    io.Reader
+		retrier  Retrier
+		response *http.Response
 
 		retry       bool
 		expectedErr string
 	}{
 		{
 			retrier: Retrier{},
-			status:  http.StatusOK,
-			body:    bytes.NewBuffer([]byte("ok")),
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("ok"))),
+			},
 
 			retry: false,
 		},
 		{
 			retrier: Retrier{},
-			status:  http.StatusNoContent,
+			response: &http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte{})),
+			},
 
 			retry: false,
 		},
 		{
 			retrier: Retrier{},
-			status:  http.StatusBadRequest,
+			response: &http.Response{
+				StatusCode: http.StatusBadRequest,
+			},
 
 			retry:       false,
 			expectedErr: "unexpected status code 400",
 		},
 		{
-			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
-			status:  http.StatusBadRequest,
-			body:    bytes.NewBuffer([]byte("invalid request")),
+			retrier: Retrier{},
+			response: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("invalid request"))),
+			},
 
 			retry:       false,
 			expectedErr: "unexpected status code 400: invalid request",
 		},
 		{
-			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
-			status:  http.StatusTooManyRequests,
+			retrier: Retrier{},
+			response: &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("too many requests"))),
+			},
 
 			retry:       true,
-			expectedErr: "unexpected status code 429",
+			expectedErr: "unexpected status code 429: too many requests",
 		},
 		{
 			retrier: Retrier{},
-			status:  http.StatusServiceUnavailable,
-			body:    bytes.NewBuffer([]byte("retry later")),
+			response: &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("retry later"))),
+			},
 
 			retry:       true,
 			expectedErr: "unexpected status code 503: retry later",
 		},
 		{
 			retrier: Retrier{},
-			status:  http.StatusBadGateway,
-			body:    &brokenReader{},
+			response: &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(&brokenReader{}),
+			},
 
 			retry:       true,
 			expectedErr: "unexpected status code 502",
@@ -198,21 +214,90 @@ func TestRetrierCheck(t *testing.T) {
 				bs, _ := io.ReadAll(b)
 				return fmt.Sprintf("server response is %q", string(bs))
 			}},
-			status: http.StatusServiceUnavailable,
-			body:   bytes.NewBuffer([]byte("retry later")),
+			response: &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("retry later"))),
+			},
 
 			retry:       true,
 			expectedErr: "unexpected status code 503: server response is \"retry later\"",
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			retry, err := tc.retrier.Check(tc.status, tc.body)
+			retry, err := tc.retrier.Check(tc.response)
 			require.Equal(t, tc.retry, retry)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				return
 			}
 			require.EqualError(t, err, tc.expectedErr)
+		})
+	}
+}
+
+func TestRetrierCheckTooManyRequestsRetryAfterPropagation(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		retrier               Retrier
+		retryAfter            string
+		expected              time.Duration
+		useHTTPDate           bool
+		expectExactRetryAfter bool
+	}{
+		{
+			name:                  "retry-after seconds",
+			retrier:               Retrier{},
+			retryAfter:            "7",
+			expected:              7 * time.Second,
+			expectExactRetryAfter: true,
+		},
+		{
+			name:                  "retry-after seconds with retry-codes including 429",
+			retrier:               Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			retryAfter:            "10",
+			expected:              10 * time.Second,
+			expectExactRetryAfter: true,
+		},
+		{
+			name:    "retry-after http-date with retry-codes including 429",
+			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			// retryAfter is intentionally left empty; the HTTP-date value is
+			// generated inside the subtest to avoid it being stale.
+			retryAfter:  "",
+			expected:    2 * time.Second,
+			useHTTPDate: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			retryAfter := tc.retryAfter
+			if tc.useHTTPDate {
+				retryAfter = time.Now().Add(tc.expected).UTC().Format(http.TimeFormat)
+			}
+
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString("too many requests")),
+			}
+			resp.Header.Set("Retry-After", retryAfter)
+
+			retry, err := tc.retrier.Check(resp)
+			require.True(t, retry)
+			require.Error(t, err)
+
+			var errWithReason *ErrorWithReason
+			require.ErrorAs(t, err, &errWithReason)
+			require.Equal(t, TooManyRequestsReason, errWithReason.Reason)
+
+			if tc.expectExactRetryAfter {
+				require.Equal(t, tc.expected, errWithReason.RetryAfter)
+				return
+			}
+
+			// HTTP-date parsing depends on wall clock timing; assert we keep a positive value
+			// and that it is close to what was requested.
+			require.Greater(t, errWithReason.RetryAfter, time.Duration(0))
+			require.InDelta(t, tc.expected.Seconds(), errWithReason.RetryAfter.Seconds(), 1.0)
 		})
 	}
 }

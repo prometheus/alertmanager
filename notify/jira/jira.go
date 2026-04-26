@@ -405,9 +405,17 @@ func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string
 		return nil, false, err
 	}
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, bytes.NewReader(responseBody))
-	if err != nil {
-		return nil, shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	// Pass a temporary response to the retrier so that resp.Body remains
+	// the original network body; defer notify.Drain(resp) will then close
+	// the real connection rather than the in-memory reader.
+	checkResp := &http.Response{
+		StatusCode: resp.StatusCode,
+		Header:     resp.Header,
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}
+	shouldRetry, errWithReason := n.retrier.Check(checkResp)
+	if errWithReason != nil {
+		return nil, shouldRetry, errWithReason
 	}
 
 	return responseBody, false, nil
