@@ -94,6 +94,13 @@ var (
 		Fallback:   `{{ template "slack.default.fallback" . }}`,
 		CallbackID: `{{ template "slack.default.callbackid" . }}`,
 		Footer:     `{{ template "slack.default.footer" . }}`,
+		Actions: []*SlackAction{
+			{
+				Type: "button",
+				Text: `{{ template "slack.default.investigate.text" . }}`,
+				URL:  `{{ template "slack.default.investigate.url" . }}`,
+			},
+		},
 	}
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
