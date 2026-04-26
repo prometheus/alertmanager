@@ -38,6 +38,11 @@ lint: ui-elm common-lint
 .PHONY: assets
 assets: $(FRONTEND_DIR)/src/Data ui-elm template/email.tmpl
 
+.PHONY: assets-tarball
+assets-tarball: ui-elm
+	mkdir -p .tarballs
+	tar czf ".tarballs/alertmanager-web-ui-$(file <VERSION).tar.gz" -C ui/app dist
+
 .PHONY: ui-elm
 ui-elm:
 	cd $(FRONTEND_DIR) && $(MAKE) build
