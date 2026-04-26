@@ -4,6 +4,11 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
+## 0.32.1-rc.0 / 2026-04-27
+
+* [BUGFIX] dispatcher: Fix issue with dispatching to a contended route. #5179
+* [BUGFIX] ui: Provide prebuilt ui assets in release. #5191
+
 ## 0.32.0 / 2026-04-10
 
 * [CHANGE] `go get github.com/prometheus/alertmanager/ui` will now fail as compiled UI assets are no longer checked into the repository. Downstream builds that rely on these assets being present in the source tree must now build the UI from source. #5113
