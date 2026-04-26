@@ -79,9 +79,9 @@ func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// eventRecorderConfigEqual compares two Config values by their
+// configEqual compares two Config values by their
 // semantically significant fields.
-func eventRecorderConfigEqual(a, b Config) bool {
+func configEqual(a, b Config) bool {
 	if len(a.Outputs) != len(b.Outputs) {
 		return false
 	}

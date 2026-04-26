@@ -220,7 +220,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 
 	for i, out := range cfg.EventRecorder.Outputs {
-		if out.Type == "file" {
+		if out.Type == eventrecorder.OutputFile {
 			cfg.EventRecorder.Outputs[i].Path = join(out.Path)
 		}
 		if out.HTTPConfig != nil {

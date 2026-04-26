@@ -258,7 +258,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 		case req := <-c.events:
 			c.marshalAndSend(req, outputs)
 		case update := <-c.cfgUpdate:
-			if !eventRecorderConfigEqual(update.cfg, currentCfg) {
+			if !configEqual(update.cfg, currentCfg) {
 				newOutputs := buildOutputs(update.cfg.Outputs, c.metrics, c.logger)
 				if len(newOutputs) != len(update.cfg.Outputs) {
 					// Some outputs failed to initialize.  Keep the existing

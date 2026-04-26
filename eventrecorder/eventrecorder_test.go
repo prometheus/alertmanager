@@ -236,20 +236,20 @@ func TestMatchersAsProto(t *testing.T) {
 func TestEventRecorderConfigEqual(t *testing.T) {
 	a := Config{
 		Outputs: []Output{
-			{Type: "file", Path: "/tmp/events.jsonl"},
+			{Type: OutputFile, Path: "/tmp/events.jsonl"},
 		},
 	}
 	b := Config{
 		Outputs: []Output{
-			{Type: "file", Path: "/tmp/events.jsonl"},
+			{Type: OutputFile, Path: "/tmp/events.jsonl"},
 		},
 	}
-	require.True(t, eventRecorderConfigEqual(a, b))
+	require.True(t, configEqual(a, b))
 
 	b.Outputs[0].Path = "/tmp/other.jsonl"
-	require.False(t, eventRecorderConfigEqual(a, b))
+	require.False(t, configEqual(a, b))
 
 	// Different number of outputs.
 	c := Config{}
-	require.False(t, eventRecorderConfigEqual(a, c))
+	require.False(t, configEqual(a, c))
 }
