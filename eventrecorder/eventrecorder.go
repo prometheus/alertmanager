@@ -44,8 +44,8 @@ import (
 )
 
 const (
-	OutputFile    string = "file"
-	OutputWebhook string = "webhook"
+	OutputFile    = "file"
+	OutputWebhook = "webhook"
 )
 
 const (
