@@ -1,0 +1,12 @@
+---
+name: golangci-lint
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+  workflow_call:
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Lint is run as part of the CI workflow."
