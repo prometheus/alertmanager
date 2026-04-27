@@ -46,15 +46,6 @@ var (
 		Message: `{{ template "webex.default.message" . }}`,
 	}
 
-	// DefaultDiscordConfig defines default values for Discord configurations.
-	DefaultDiscordConfig = DiscordConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Title:   `{{ template "discord.default.title" . }}`,
-		Message: `{{ template "discord.default.message" . }}`,
-	}
-
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: amcommoncfg.NotifierConfig{
@@ -249,40 +240,6 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
 		return errors.New("missing webex_configs.http_config.authorization")
-	}
-
-	return nil
-}
-
-// DiscordConfig configures notifications via Discord.
-type DiscordConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
-
-	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
-	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
-	AvatarURL string `yaml:"avatar_url,omitempty" json:"avatar_url,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultDiscordConfig
-	type plain DiscordConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
-	}
-
-	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
 	return nil
