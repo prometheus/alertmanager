@@ -97,16 +97,16 @@ func TestAggrGroup(t *testing.T) {
 		}
 	)
 
-	var (
-		last       = time.Now()
-		current    = time.Now()
-		lastCurMtx = &sync.Mutex{}
-		alertsCh   = make(chan types.AlertSlice)
-	)
+	type batch struct {
+		alerts types.AlertSlice
+		now    time.Time // timer fire time, propagated via notify.WithNow
+	}
+	batchCh := make(chan batch)
 
 	ntfy := func(ctx context.Context, alerts ...*types.Alert) bool {
 		// Validate that the context is properly populated.
-		if _, ok := notify.Now(ctx); !ok {
+		now, ok := notify.Now(ctx)
+		if !ok {
 			t.Errorf("now missing")
 		}
 		if _, ok := notify.GroupKey(ctx); !ok {
@@ -122,14 +122,7 @@ func TestAggrGroup(t *testing.T) {
 			t.Errorf("wrong repeat interval: %q", ri)
 		}
 
-		lastCurMtx.Lock()
-		last = current
-		// Subtract a millisecond to allow for races.
-		current = time.Now().Add(-time.Millisecond)
-		lastCurMtx.Unlock()
-
-		alertsCh <- types.AlertSlice(alerts)
-
+		batchCh <- batch{alerts: alerts, now: now}
 		return true
 	}
 
@@ -142,120 +135,70 @@ func TestAggrGroup(t *testing.T) {
 		return as
 	}
 
+	// receiveBatch waits for the next flush, asserts it didn't fire earlier than
+	// minWait after `since`, and returns the timer-reported fire time. We use
+	// the timer's own `now` (propagated via notify.WithNow) instead of a
+	// time.Now() snapshot inside ntfy — the latter accumulates scheduler jitter
+	// between the timer firing and ntfy actually running, which made the
+	// assertion flake under load.
+	receiveBatch := func(t *testing.T, since time.Time, minWait time.Duration, want types.AlertSlice) time.Time {
+		t.Helper()
+		select {
+		case <-time.After(2 * minWait):
+			t.Fatalf("expected new batch after %v but received none", minWait)
+		case b := <-batchCh:
+			if got := b.now.Sub(since); got < minWait {
+				t.Fatalf("received batch too early after %v (want >= %v)", got, minWait)
+			}
+			sort.Sort(b.alerts)
+			if !reflect.DeepEqual(b.alerts, want) {
+				t.Fatalf("expected alerts %v but got %v", want, b.alerts)
+			}
+			return b.now
+		}
+		return time.Time{}
+	}
+
 	// Test regular situation where we wait for group_wait to send out alerts.
+	createdAt := time.Now()
 	ag := newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), eventrecorder.NopRecorder(), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ctx := context.Background()
 	ag.insert(ctx, a1)
 
-	select {
-	case <-time.After(2 * opts.GroupWait):
-		t.Fatalf("expected initial batch after group_wait")
-
-	case batch := <-alertsCh:
-		lastCurMtx.Lock()
-		s := time.Since(last)
-		lastCurMtx.Unlock()
-		if s < opts.GroupWait {
-			t.Fatalf("received batch too early after %v", s)
-		}
-		exp := removeEndsAt(types.AlertSlice{a1})
-		sort.Sort(batch)
-
-		if !reflect.DeepEqual(batch, exp) {
-			t.Fatalf("expected alerts %v but got %v", exp, batch)
-		}
-	}
+	last := receiveBatch(t, createdAt, opts.GroupWait, removeEndsAt(types.AlertSlice{a1}))
 
 	for range 3 {
 		// New alert should come in after group interval.
 		ag.insert(ctx, a3)
-
-		select {
-		case <-time.After(2 * opts.GroupInterval):
-			t.Fatalf("expected new batch after group interval but received none")
-
-		case batch := <-alertsCh:
-			lastCurMtx.Lock()
-			s := time.Since(last)
-			lastCurMtx.Unlock()
-			if s < opts.GroupInterval {
-				t.Fatalf("received batch too early after %v", s)
-			}
-			exp := removeEndsAt(types.AlertSlice{a1, a3})
-			sort.Sort(batch)
-
-			if !reflect.DeepEqual(batch, exp) {
-				t.Fatalf("expected alerts %v but got %v", exp, batch)
-			}
-		}
+		last = receiveBatch(t, last, opts.GroupInterval, removeEndsAt(types.AlertSlice{a1, a3}))
 	}
 
 	ag.stop()
 
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
+	createdAt = time.Now()
 	ag = newAggrGroup(context.Background(), lset, route, nil, types.NewMarker(prometheus.NewRegistry()), eventrecorder.NopRecorder(), promslog.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(ctx, a1)
 	ag.insert(ctx, a2)
 
-	batch := <-alertsCh
-	exp := removeEndsAt(types.AlertSlice{a1, a2})
-	sort.Sort(batch)
-
-	if !reflect.DeepEqual(batch, exp) {
-		t.Fatalf("expected alerts %v but got %v", exp, batch)
-	}
+	last = receiveBatch(t, createdAt, opts.GroupWait, removeEndsAt(types.AlertSlice{a1, a2}))
 
 	for range 3 {
 		// New alert should come in after group interval.
 		ag.insert(ctx, a3)
-
-		select {
-		case <-time.After(2 * opts.GroupInterval):
-			t.Fatalf("expected new batch after group interval but received none")
-
-		case batch := <-alertsCh:
-			lastCurMtx.Lock()
-			s := time.Since(last)
-			lastCurMtx.Unlock()
-			if s < opts.GroupInterval {
-				t.Fatalf("received batch too early after %v", s)
-			}
-			exp := removeEndsAt(types.AlertSlice{a1, a2, a3})
-			sort.Sort(batch)
-
-			if !reflect.DeepEqual(batch, exp) {
-				t.Fatalf("expected alerts %v but got %v", exp, batch)
-			}
-		}
+		last = receiveBatch(t, last, opts.GroupInterval, removeEndsAt(types.AlertSlice{a1, a2, a3}))
 	}
 
 	// Resolve an alert, and it should be removed after the next batch was sent.
 	a1r := *a1
 	a1r.EndsAt = time.Now()
 	ag.insert(ctx, &a1r)
-	exp = append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...)
-
-	select {
-	case <-time.After(2 * opts.GroupInterval):
-		t.Fatalf("expected new batch after group interval but received none")
-	case batch := <-alertsCh:
-		lastCurMtx.Lock()
-		s := time.Since(last)
-		lastCurMtx.Unlock()
-		if s < opts.GroupInterval {
-			t.Fatalf("received batch too early after %v", s)
-		}
-		sort.Sort(batch)
-
-		if !reflect.DeepEqual(batch, exp) {
-			t.Fatalf("expected alerts %v but got %v", exp, batch)
-		}
-	}
+	last = receiveBatch(t, last, opts.GroupInterval, append(types.AlertSlice{&a1r}, removeEndsAt(types.AlertSlice{a2, a3})...))
 
 	// Resolve all remaining alerts, they should be removed after the next batch was sent.
 	// Do not add a1r as it should have been deleted following the previous batch.
@@ -265,28 +208,10 @@ func TestAggrGroup(t *testing.T) {
 		a.EndsAt = time.Now()
 		ag.insert(ctx, a)
 	}
-
-	select {
-	case <-time.After(2 * opts.GroupInterval):
-		t.Fatalf("expected new batch after group interval but received none")
-
-	case batch := <-alertsCh:
-		lastCurMtx.Lock()
-		s := time.Since(last)
-		lastCurMtx.Unlock()
-		if s < opts.GroupInterval {
-			t.Fatalf("received batch too early after %v", s)
-		}
-		sort.Sort(batch)
-
-		if !reflect.DeepEqual(batch, resolved) {
-			t.Fatalf("expected alerts %v but got %v", resolved, batch)
-		}
-
-		if !ag.empty() {
-			t.Fatalf("Expected aggregation group to be empty after resolving alerts: %v", ag)
-		}
-	}
+	receiveBatch(t, last, opts.GroupInterval, resolved)
+	// ntfy unblocks before flush() finishes deleting resolved alerts, so poll.
+	require.Eventually(t, ag.empty, time.Second, 10*time.Millisecond,
+		"Expected aggregation group to be empty after resolving alerts: %v", ag)
 
 	ag.stop()
 }
