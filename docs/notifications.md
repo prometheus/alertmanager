@@ -6,7 +6,7 @@ sort_rank: 7
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.
 
-The notifications sent to receivers are constructed via templates. The Alertmanager comes with default templates but they can also be customized.
+The notifications sent to receivers are constructed via templates. The Alertmanager comes with [default templates](https://github.com/prometheus/alertmanager/blob/main/template/default.tmpl) but they can also be customized.
 To avoid confusion it's important to note that the Alertmanager templates differ from [templating in Prometheus](https://prometheus.io/docs/visualization/template_reference/), however Prometheus templating also includes the templating in alert rule labels/annotations.
 
 
