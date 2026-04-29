@@ -4,7 +4,7 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
-## 0.32.1-rc.0 / 2026-04-27
+## 0.32.1 / 2026-04-29
 
 * [BUGFIX] dispatcher: Fix issue with dispatching to a contended route. #5179
 * [BUGFIX] ui: Provide prebuilt ui assets in release. #5191
