@@ -620,3 +620,59 @@ func BenchmarkFingerprintEquals(b *testing.B) {
 		})
 	}
 }
+
+// TestInhibitRule_gcCallback_preserves_regex_source_match is a regression test for
+// the case where multiple source alerts match via a regex matcher and share the same
+// equal-label fingerprint. When one of them is GC'd, inhibition for the remaining
+// active source alert must continue to work.
+func TestInhibitRule_gcCallback_preserves_regex_source_match(t *testing.T) {
+	// Build an InhibitRule with a regex source matcher (alertname =~ "src.*") and
+	// equal: [env] so that two source alerts with the same env share an index slot.
+	sourceMatcher, err := labels.NewMatcher(labels.MatchRegexp, "alertname", "src.*")
+	require.NoError(t, err)
+	targetMatcher, err := labels.NewMatcher(labels.MatchEqual, "alertname", "target")
+	require.NoError(t, err)
+
+	rule := &InhibitRule{
+		SourceMatchers: labels.Matchers{sourceMatcher},
+		TargetMatchers: labels.Matchers{targetMatcher},
+		Equal:          map[model.LabelName]struct{}{"env": {}},
+		scache:         store.NewAlerts(),
+		sindex:         newIndex(),
+	}
+
+	now := time.Now()
+	makeAlert := func(name, env string) *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": model.LabelValue(name),
+					"env":       model.LabelValue(env),
+				},
+				StartsAt: now.Add(-1 * time.Minute),
+				EndsAt:   now.Add(10 * time.Minute),
+			},
+		}
+	}
+
+	src1 := makeAlert("src1", "prod")
+	src2 := makeAlert("src2", "prod")
+	target := makeAlert("target", "prod")
+
+	// Both source alerts arrive and are indexed.
+	require.NoError(t, rule.scache.Set(src1))
+	rule.updateIndex(src1)
+	require.NoError(t, rule.scache.Set(src2))
+	rule.updateIndex(src2)
+
+	// Target alert should be inhibited while both sources are active.
+	_, inhibited := rule.hasEqual(target.Labels, false, now)
+	require.True(t, inhibited, "target should be inhibited while both source alerts are active")
+
+	// src1 expires from the cache (GC).
+	rule.gcCallback([]*types.Alert{src1})
+
+	// src2 is still active; target must still be inhibited.
+	_, inhibited = rule.hasEqual(target.Labels, false, now)
+	require.True(t, inhibited, "target should still be inhibited after src1 is GC'd — src2 is still active")
+}

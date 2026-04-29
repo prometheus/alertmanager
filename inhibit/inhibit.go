@@ -390,8 +390,27 @@ func (r *InhibitRule) findEqualSourceAlert(lset model.LabelSet, now time.Time) (
 
 func (r *InhibitRule) gcCallback(alerts []*types.Alert) {
 	for _, a := range alerts {
-		fp := r.fingerprintEquals(a.Labels)
-		r.sindex.Delete(fp)
+		eq := r.fingerprintEquals(a.Labels)
+
+		// Only act on the index entry if the GC'd alert is the one currently indexed.
+		// When multiple source alerts share the same equal-label fingerprint (e.g. via
+		// a regex source_matchers like alertname =~ "(a|b|c)"), the index holds only one
+		// of them. If a different alert is indexed, removing the entry would break
+		// inhibition for that other alert.
+		indexed, ok := r.sindex.Get(eq)
+		if !ok || indexed != a.Fingerprint() {
+			continue
+		}
+
+		// The GC'd alert was the indexed one. Remove it and promote another still-active
+		// source alert with the same equal labels, if any.
+		r.sindex.Delete(eq)
+		for _, candidate := range r.scache.List() {
+			if r.fingerprintEquals(candidate.Labels) == eq {
+				r.sindex.Set(eq, candidate.Fingerprint())
+				break
+			}
+		}
 	}
 }
 
