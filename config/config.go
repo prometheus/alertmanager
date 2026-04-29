@@ -221,7 +221,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 
 	for i, out := range cfg.EventRecorder.Outputs {
-		if out.Type == "file" {
+		if out.Type == eventrecorder.OutputFile {
 			cfg.EventRecorder.Outputs[i].Path = join(out.Path)
 		}
 		if out.HTTPConfig != nil {
@@ -279,7 +279,7 @@ type Config struct {
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
-	EventRecorder eventrecorder.EventRecorderConfig `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
+	EventRecorder eventrecorder.Config `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
