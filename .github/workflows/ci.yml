@@ -22,15 +22,29 @@ jobs:
       - run: make assets
       - run: make apiv2
       - run: git diff --exit-code
+      - run: make assets-tarball
+      - uses: prometheus/promci-artifacts/save@f9a587dbc0b2c78a0c54f8ad1cde71ea29a4b76f # v0.1.0
+        with:
+          directory: .tarballs
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4.6.2
+        with:
+          name: ui-dist
+          path: ui/app/dist
+          include-hidden-files: true
 
   build:
     name: Build Alertmanager for common architectures
+    needs: [test_frontend]
     runs-on: ubuntu-latest
     strategy:
       matrix:
         thread: [0, 1, 2]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.0.0
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ui-dist
+          path: ui/app/dist
       - uses: prometheus/promci/build@42c3c84c865e5c1ab78543b929f7341eb2ef6123 # v0.6.1
         with:
           promu_opts: "-p linux/amd64 -p windows/amd64 -p linux/arm64 -p darwin/amd64 -p darwin/arm64 -p linux/386"
@@ -40,6 +54,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    needs: [test_frontend]
     # Whenever the Go version is updated here, .promu.yml
     # should also be updated.
     container:
@@ -58,14 +73,10 @@ jobs:
       EMAIL_AUTH_CONFIG: testdata/auth.yml
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - id: cache-paths
-        run: echo "npm-cache=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          path: ${{ steps.cache-paths.outputs.npm-cache }}
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          name: ui-dist
+          path: ui/app/dist
       - uses: prometheus/promci-setup@5af30ba8c199a91d6c04ebdc3c48e630e355f62d # v0.1.0
       - run: make
       - run: git diff --exit-code

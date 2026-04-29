@@ -38,13 +38,6 @@ var (
 		},
 	}
 
-	// DefaultWebhookConfig defines default values for Webhook configurations.
-	DefaultWebhookConfig = WebhookConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-	}
-
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
 		NotifierConfig: amcommoncfg.NotifierConfig{
@@ -641,43 +634,6 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// WebhookConfig configures notifications via a generic webhook.
-type WebhookConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	// URL to send POST request to.
-	URL     SecretTemplateURL `yaml:"url,omitempty" json:"url,omitempty"`
-	URLFile string            `yaml:"url_file" json:"url_file"`
-
-	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
-	// Alerts exceeding this threshold will be truncated. Setting this to 0
-	// allows an unlimited number of alerts.
-	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
-
-	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
-	// does not impose a timeout.
-	Timeout time.Duration `yaml:"timeout" json:"timeout"`
-	Payload any           `yaml:"payload,omitempty" json:"payload,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultWebhookConfig
-	type plain WebhookConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.URL == "" && c.URLFile == "" {
-		return errors.New("one of url or url_file must be configured")
-	}
-	if c.URL != "" && c.URLFile != "" {
-		return errors.New("at most one of url & url_file must be configured")
-	}
-	return nil
-}
-
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
@@ -908,6 +864,10 @@ type SNSConfig struct {
 	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	// UseAWSHTTPClient forces the AWS SDK's BuildableClient instead of
+	// alertmanager's tracing-wrapped HTTP client. Auto-enabled when AWS_CA_BUNDLE
+	// is set; set explicitly when configuring ca_bundle via shared AWS config.
+	UseAWSHTTPClient bool `yaml:"use_aws_http_client,omitempty" json:"use_aws_http_client,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

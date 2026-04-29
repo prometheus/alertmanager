@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
@@ -246,7 +247,7 @@ func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numI
 func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	r := prometheus.NewRegistry()
 	m := types.NewMarker(r)
-	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), r, nil)
+	s, err := mem.NewAlerts(context.TODO(), m, time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), r, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -260,7 +261,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 		}
 	}
 
-	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger())
+	ih := NewInhibitor(s, rules, m, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 	defer ih.Stop()
 	go ih.Run()
 
