@@ -213,3 +213,65 @@ func TestTelegramNotify(t *testing.T) {
 		})
 	}
 }
+
+func TestTelegramTimeout(t *testing.T) {
+	token := "secret"
+
+	tests := []struct {
+		name    string
+		latency time.Duration
+		timeout time.Duration
+		wantErr bool
+	}{
+		{
+			name:    "success",
+			latency: 100 * time.Millisecond,
+			timeout: 120 * time.Millisecond,
+			wantErr: false,
+		},
+		{
+			name:    "timeout",
+			latency: 100 * time.Millisecond,
+			timeout: 80 * time.Millisecond,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/bot"+token+"/sendMessage", r.URL.Path)
+				_, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				time.Sleep(tc.latency)
+				w.Write([]byte(`{"ok":true,"result":{"chat":{}}}`))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			cfg := &config.TelegramConfig{
+				Message:    "test",
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+				Timeout:    tc.timeout,
+				APIUrl:     &amcommoncfg.URL{URL: u},
+			}
+
+			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			alert := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			_, err = notifier.Notify(ctx, alert)
+			require.Equal(t, tc.wantErr, err != nil)
+		})
+	}
+}
