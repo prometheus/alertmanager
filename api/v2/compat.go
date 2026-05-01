@@ -139,18 +139,14 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string, receiverLabels map[string]open_api_models.LabelSet) *open_api_models.GettableAlert {
+func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
 	startsAt := strfmt.DateTime(alert.StartsAt)
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
 
-	apiReceivers := make([]*open_api_models.Receiver, 0, len(receivers))
+	apiReceivers := make([]*open_api_models.ReceiverReference, 0, len(receivers))
 	for i := range receivers {
-		rcv := &open_api_models.Receiver{Name: &receivers[i]}
-		if lbls, ok := receiverLabels[receivers[i]]; ok {
-			rcv.Labels = lbls
-		}
-		apiReceivers = append(apiReceivers, rcv)
+		apiReceivers = append(apiReceivers, &open_api_models.ReceiverReference{Name: &receivers[i]})
 	}
 
 	fp := alert.Fingerprint().String()

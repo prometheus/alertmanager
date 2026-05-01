@@ -36,14 +36,7 @@ paths:
       operationId: getReceivers
       description: Get list of all receivers (name of notification integrations)
       parameters:
-        - name: receiver_matchers
-          in: query
-          description: A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
-          required: false
-          type: array
-          collectionFormat: multi
-          items:
-            type: string
+        - $ref: '#/parameters/receiverMatchers'
       responses:
         '200':
           description: Get receivers response
@@ -53,8 +46,6 @@ paths:
               $ref: '#/definitions/receiver'
         '400':
           $ref: '#/responses/BadRequest'
-        '500':
-          $ref: '#/responses/InternalServerError'
   /silences:
     get:
       tags:
@@ -186,14 +177,7 @@ paths:
           description: A regex matching receivers to filter alerts by
           required: false
           type: string
-        - name: receiver_matchers
-          in: query
-          description: A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
-          required: false
-          type: array
-          collectionFormat: multi
-          items:
-            type: string
+        - $ref: '#/parameters/receiverMatchers'
       responses:
         '200':
           description: Get alerts response
@@ -262,14 +246,7 @@ paths:
           description: A regex matching receivers to filter alerts by
           required: false
           type: string
-        - name: receiver_matchers
-          in: query
-          description: A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
-          required: false
-          type: array
-          collectionFormat: multi
-          items:
-            type: string
+        - '$ref': '#/parameters/receiverMatchers'
       responses:
         '200':
           description: Get alert groups response
@@ -290,6 +267,16 @@ responses:
     schema:
       type: string
 
+parameters:
+  receiverMatchers:
+    name: receiver_matchers
+    in: query
+    description: A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
+    required: false
+    type: array
+    collectionFormat: multi
+    items:
+      type: string
 
 definitions:
   alertmanagerStatus:
@@ -465,7 +452,7 @@ definitions:
           receivers:
             type: array
             items:
-              $ref: '#/definitions/receiver'
+              $ref: '#/definitions/receiverReference'
           fingerprint:
             type: string
           startsAt:
@@ -515,7 +502,7 @@ definitions:
       labels:
         $ref: '#/definitions/labelSet'
       receiver:
-        $ref: '#/definitions/receiver'
+        $ref: '#/definitions/receiverReference'
       alerts:
         type: array
         items:
@@ -554,6 +541,13 @@ definitions:
         type: string
       labels:
         $ref: '#/definitions/labelSet'
+    required:
+      - name
+  receiverReference:
+    type: object
+    properties:
+      name:
+        type: string
     required:
       - name
   labelSet:

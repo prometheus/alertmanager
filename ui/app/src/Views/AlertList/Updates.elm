@@ -3,7 +3,7 @@ port module Views.AlertList.Updates exposing (update)
 import Alerts.Api as Api
 import Browser.Navigation as Navigation
 import Data.AlertGroup exposing (AlertGroup)
-import Data.Receiver exposing (Receiver)
+import Data.ReceiverReference exposing (ReceiverReference)
 import Dict
 import Set
 import Task
@@ -45,7 +45,7 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                                         |> Dict.toList
                                         |> List.map
                                             (\( labels, alerts_ ) ->
-                                                AlertGroup (Dict.fromList labels) (Receiver "unknown" Nothing) alerts_
+                                                AlertGroup (Dict.fromList labels) (ReceiverReference "unknown") alerts_
                                             )
 
                                 newGroupBar =

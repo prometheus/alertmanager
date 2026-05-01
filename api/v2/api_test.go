@@ -503,7 +503,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil, nil)
+	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
@@ -513,7 +513,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		EndsAt:      convertDateTime(time.Time{}),
 		UpdatedAt:   convertDateTime(updated),
 		Fingerprint: &fp,
-		Receivers: []*open_api_models.Receiver{
+		Receivers: []*open_api_models.ReceiverReference{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
 		},
@@ -738,33 +738,6 @@ receivers:
 			require.Equal(t, tc.expectedNames, names)
 		})
 	}
-}
-
-func TestAlertToOpenAPIAlertWithReceiverLabels(t *testing.T) {
-	var (
-		start     = time.Now().Add(-time.Minute)
-		updated   = time.Now()
-		receivers = []string{"receiver1", "receiver2"}
-		rcvLabels = map[string]open_api_models.LabelSet{
-			"receiver1": {"name": "receiver1", "owner": "team-a"},
-			"receiver2": {"name": "receiver2", "owner": "team-b"},
-		}
-
-		alert = &types.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
-				StartsAt: start,
-			},
-			UpdatedAt: updated,
-		}
-	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil, rcvLabels)
-
-	require.Len(t, openAPIAlert.Receivers, 2)
-	require.Equal(t, "receiver1", *openAPIAlert.Receivers[0].Name)
-	require.Equal(t, open_api_models.LabelSet{"name": "receiver1", "owner": "team-a"}, openAPIAlert.Receivers[0].Labels)
-	require.Equal(t, "receiver2", *openAPIAlert.Receivers[1].Name)
-	require.Equal(t, open_api_models.LabelSet{"name": "receiver2", "owner": "team-b"}, openAPIAlert.Receivers[1].Labels)
 }
 
 func TestReceiversMatchLabels(t *testing.T) {
