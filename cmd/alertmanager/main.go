@@ -15,6 +15,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -140,6 +142,7 @@ func run() int {
 
 	var (
 		configFile                  = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configAutoReloadInterval    = kingpin.Flag("config.auto-reload-interval", "Interval for checking and automatically reloading the Alertmanager configuration file. Set to 0 to disable.").Default("0s").Duration()
 		dataDir                     = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention                   = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval         = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
@@ -659,6 +662,14 @@ func run() int {
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
+	// Start the auto-reload watcher if the interval is non-zero.
+	if *configAutoReloadInterval > 0 {
+		logger.Info("Auto-reload enabled: checking for configuration changes", "interval", *configAutoReloadInterval, "file", *configFile)
+		watcherCtx, cancelWatcher := context.WithCancel(context.Background())
+		defer cancelWatcher()
+		go runConfigWatcher(watcherCtx, *configFile, *configAutoReloadInterval, webReload, logger)
+	}
+
 	for {
 		select {
 		case <-hup:
@@ -676,6 +687,91 @@ func run() int {
 			return 0
 		case <-srvc:
 			return 1
+		}
+	}
+}
+
+// configFileChecksum reads the file at path and returns its SHA256 hex digest.
+// It returns an error if the file cannot be read.
+func configFileChecksum(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading config file for checksum: %w", err)
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// runConfigWatcher polls the config file checksum every interval and sends
+// to reloadCh when a change is detected. It exits when ctx is cancelled.
+// Interval must be > 0; callers are responsible for checking this.
+func runConfigWatcher(
+	ctx context.Context,
+	configFile string,
+	interval time.Duration,
+	reloadCh chan<- chan error,
+	logger *slog.Logger,
+) {
+	// Compute the initial checksum at startup so we only reload on *changes*,
+	// not on the first tick unconditionally.
+	lastChecksum, err := configFileChecksum(configFile)
+	hasChecksum := err == nil
+	if err != nil {
+		// Log but don't abort - the coordinator already validated the file at
+		// startup, so this is a transient read error. We'll retry next tick.
+		logger.Warn("Auto-reload: failed to compute initial config checksum", "file", configFile, "err", err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Auto-reload: watcher stopped", "file", configFile)
+			return
+		case <-ticker.C:
+			checksum, err := configFileChecksum(configFile)
+			if err != nil {
+				logger.Warn("Auto-reload: failed to read config file", "file", configFile, "err", err)
+				continue // don't update lastChecksum; retry next tick
+			}
+
+			if !hasChecksum {
+				// Startup read failed; seed the baseline now without reloading.
+				lastChecksum = checksum
+				hasChecksum = true
+				continue
+			}
+
+			if checksum == lastChecksum {
+				continue // no change
+			}
+
+			logger.Info("Auto-reload: config file changed, reloading", "file", configFile)
+
+			// Trigger reload via the same channel that SIGHUP and POST /-/reload use.
+			// Use a select so that a simultaneous SIGTERM doesn't leave this
+			// goroutine blocked on the send or the result receive.
+			errCh := make(chan error)
+			select {
+			case reloadCh <- errCh:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case err := <-errCh:
+				if err != nil {
+					logger.Error("Auto-reload: reload failed", "file", configFile, "err", err)
+					// Don't update lastChecksum so we retry on the next tick.
+					continue
+				}
+			case <-ctx.Done():
+				return
+			}
+
+			lastChecksum = checksum
+			logger.Info("Auto-reload: config reload successful", "file", configFile)
 		}
 	}
 }

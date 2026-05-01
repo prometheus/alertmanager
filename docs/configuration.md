@@ -20,6 +20,22 @@ is not well-formed, the changes will not be applied and an error is logged.
 A configuration reload is triggered by sending a `SIGHUP` to the process or
 sending an HTTP POST request to the `/-/reload` endpoint.
 
+## Auto-reload
+
+To have Alertmanager automatically reload its configuration when the file
+changes on disk, set `--config.auto-reload-interval` to a non-zero duration.
+Alertmanager will poll the file for changes at that interval and apply the new
+configuration if it detects a difference. The feature is off by default.
+
+```bash
+alertmanager --config.file=alertmanager.yml --config.auto-reload-interval=30s
+```
+
+This is especially useful in Kubernetes where ConfigMaps and Secrets are
+updated through mounted files. The reload follows the same code path as
+`SIGHUP` and `POST /-/reload`, so an invalid configuration is rejected and
+logged without affecting the running configuration.
+
 ## Limits
 
 Alertmanager supports a number of configurable limits via command-line flags.
