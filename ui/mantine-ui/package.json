@@ -41,7 +41,7 @@
     "eslint-config-mantine": "^4.0.3",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.5",
-    "jsdom": "^29.0.1",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.8",
     "postcss-preset-mantine": "1.18.0",
     "postcss-simple-vars": "^7.0.1",
@@ -53,6 +53,6 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.4",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.5"
   }
 }
