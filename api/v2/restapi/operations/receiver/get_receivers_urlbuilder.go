@@ -23,11 +23,17 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+
+	"github.com/go-openapi/swag"
 )
 
 // GetReceiversURL generates an URL for the get receivers operation
 type GetReceiversURL struct {
+	ReceiverMatchers []string
+
 	_basePath string
+	// avoid unkeyed usage
+	_ struct{}
 }
 
 // WithBasePath sets the base path for this url builder, only required when it's different from the
@@ -56,6 +62,24 @@ func (o *GetReceiversURL) Build() (*url.URL, error) {
 		_basePath = "/api/v2/"
 	}
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
+
+	qs := make(url.Values)
+
+	var receiverMatchersIR []string
+	for _, receiverMatchersI := range o.ReceiverMatchers {
+		receiverMatchersIS := receiverMatchersI
+		if receiverMatchersIS != "" {
+			receiverMatchersIR = append(receiverMatchersIR, receiverMatchersIS)
+		}
+	}
+
+	receiverMatchers := swag.JoinByFormat(receiverMatchersIR, "multi")
+
+	for _, qsv := range receiverMatchers {
+		qs.Add("receiver_matchers", qsv)
+	}
+
+	_result.RawQuery = qs.Encode()
 
 	return &_result, nil
 }

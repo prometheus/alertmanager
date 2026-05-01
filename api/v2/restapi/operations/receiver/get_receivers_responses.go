@@ -74,3 +74,89 @@ func (o *GetReceiversOK) WriteResponse(rw http.ResponseWriter, producer runtime.
 		panic(err) // let the recovery middleware deal with this
 	}
 }
+
+// GetReceiversBadRequestCode is the HTTP code returned for type GetReceiversBadRequest
+const GetReceiversBadRequestCode int = 400
+
+/*
+GetReceiversBadRequest Bad request
+
+swagger:response getReceiversBadRequest
+*/
+type GetReceiversBadRequest struct {
+
+	/*
+	  In: Body
+	*/
+	Payload string `json:"body,omitempty"`
+}
+
+// NewGetReceiversBadRequest creates GetReceiversBadRequest with default headers values
+func NewGetReceiversBadRequest() *GetReceiversBadRequest {
+
+	return &GetReceiversBadRequest{}
+}
+
+// WithPayload adds the payload to the get receivers bad request response
+func (o *GetReceiversBadRequest) WithPayload(payload string) *GetReceiversBadRequest {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get receivers bad request response
+func (o *GetReceiversBadRequest) SetPayload(payload string) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetReceiversBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(400)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+}
+
+// GetReceiversInternalServerErrorCode is the HTTP code returned for type GetReceiversInternalServerError
+const GetReceiversInternalServerErrorCode int = 500
+
+/*
+GetReceiversInternalServerError Internal server error
+
+swagger:response getReceiversInternalServerError
+*/
+type GetReceiversInternalServerError struct {
+
+	/*
+	  In: Body
+	*/
+	Payload string `json:"body,omitempty"`
+}
+
+// NewGetReceiversInternalServerError creates GetReceiversInternalServerError with default headers values
+func NewGetReceiversInternalServerError() *GetReceiversInternalServerError {
+
+	return &GetReceiversInternalServerError{}
+}
+
+// WithPayload adds the payload to the get receivers internal server error response
+func (o *GetReceiversInternalServerError) WithPayload(payload string) *GetReceiversInternalServerError {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get receivers internal server error response
+func (o *GetReceiversInternalServerError) SetPayload(payload string) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetReceiversInternalServerError) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(500)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+}

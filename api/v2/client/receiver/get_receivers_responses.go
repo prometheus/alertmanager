@@ -45,6 +45,18 @@ func (o *GetReceiversReader) ReadResponse(response runtime.ClientResponse, consu
 			return nil, err
 		}
 		return result, nil
+	case 400:
+		result := NewGetReceiversBadRequest()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
+	case 500:
+		result := NewGetReceiversInternalServerError()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	default:
 		return nil, runtime.NewAPIError("[GET /receivers] getReceivers", response, response.Code())
 	}
@@ -109,6 +121,142 @@ func (o *GetReceiversOK) GetPayload() []*models.Receiver {
 }
 
 func (o *GetReceiversOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	// response payload
+	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && !stderrors.Is(err, io.EOF) {
+		return err
+	}
+
+	return nil
+}
+
+// NewGetReceiversBadRequest creates a GetReceiversBadRequest with default headers values
+func NewGetReceiversBadRequest() *GetReceiversBadRequest {
+	return &GetReceiversBadRequest{}
+}
+
+/*
+GetReceiversBadRequest describes a response with status code 400, with default header values.
+
+Bad request
+*/
+type GetReceiversBadRequest struct {
+	Payload string
+}
+
+// IsSuccess returns true when this get receivers bad request response has a 2xx status code
+func (o *GetReceiversBadRequest) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get receivers bad request response has a 3xx status code
+func (o *GetReceiversBadRequest) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get receivers bad request response has a 4xx status code
+func (o *GetReceiversBadRequest) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this get receivers bad request response has a 5xx status code
+func (o *GetReceiversBadRequest) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this get receivers bad request response a status code equal to that given
+func (o *GetReceiversBadRequest) IsCode(code int) bool {
+	return code == 400
+}
+
+// Code gets the status code for the get receivers bad request response
+func (o *GetReceiversBadRequest) Code() int {
+	return 400
+}
+
+func (o *GetReceiversBadRequest) Error() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversBadRequest %s", 400, payload)
+}
+
+func (o *GetReceiversBadRequest) String() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversBadRequest %s", 400, payload)
+}
+
+func (o *GetReceiversBadRequest) GetPayload() string {
+	return o.Payload
+}
+
+func (o *GetReceiversBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	// response payload
+	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && !stderrors.Is(err, io.EOF) {
+		return err
+	}
+
+	return nil
+}
+
+// NewGetReceiversInternalServerError creates a GetReceiversInternalServerError with default headers values
+func NewGetReceiversInternalServerError() *GetReceiversInternalServerError {
+	return &GetReceiversInternalServerError{}
+}
+
+/*
+GetReceiversInternalServerError describes a response with status code 500, with default header values.
+
+Internal server error
+*/
+type GetReceiversInternalServerError struct {
+	Payload string
+}
+
+// IsSuccess returns true when this get receivers internal server error response has a 2xx status code
+func (o *GetReceiversInternalServerError) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get receivers internal server error response has a 3xx status code
+func (o *GetReceiversInternalServerError) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get receivers internal server error response has a 4xx status code
+func (o *GetReceiversInternalServerError) IsClientError() bool {
+	return false
+}
+
+// IsServerError returns true when this get receivers internal server error response has a 5xx status code
+func (o *GetReceiversInternalServerError) IsServerError() bool {
+	return true
+}
+
+// IsCode returns true when this get receivers internal server error response a status code equal to that given
+func (o *GetReceiversInternalServerError) IsCode(code int) bool {
+	return code == 500
+}
+
+// Code gets the status code for the get receivers internal server error response
+func (o *GetReceiversInternalServerError) Code() int {
+	return 500
+}
+
+func (o *GetReceiversInternalServerError) Error() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversInternalServerError %s", 500, payload)
+}
+
+func (o *GetReceiversInternalServerError) String() string {
+	payload, _ := json.Marshal(o.Payload)
+	return fmt.Sprintf("[GET /receivers][%d] getReceiversInternalServerError %s", 500, payload)
+}
+
+func (o *GetReceiversInternalServerError) GetPayload() string {
+	return o.Payload
+}
+
+func (o *GetReceiversInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	// response payload
 	if err := consumer.Consume(response.Body(), &o.Payload); err != nil && !stderrors.Is(err, io.EOF) {

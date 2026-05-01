@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -240,9 +241,20 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 	_, span := tracer.Start(params.HTTPRequest.Context(), "api.getReceiversHandler")
 	defer span.End()
 
+	receiverMatchers, err := parseFilter(params.ReceiverMatchers)
+	if err != nil {
+		return receiver_ops.NewGetReceiversBadRequest().WithPayload(
+			fmt.Sprintf("failed to parse receiver_matchers param: %v", err.Error()),
+		)
+	}
+
 	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
 	for i := range api.alertmanagerConfig.Receivers {
-		receivers = append(receivers, &open_api_models.Receiver{Name: &api.alertmanagerConfig.Receivers[i].Name})
+		rcv := &api.alertmanagerConfig.Receivers[i]
+		if len(receiverMatchers) > 0 && !matchFilterLabels(receiverMatchers, rcv.Labels) {
+			continue
+		}
+		receivers = append(receivers, configReceiverToAPIReceiver(rcv))
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
@@ -279,6 +291,14 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 	}
 
+	receiverMatchers, err := parseFilter(params.ReceiverMatchers)
+	if err != nil {
+		logger.Debug("Failed to parse receiver matchers", "err", err)
+		return alert_ops.NewGetAlertsBadRequest().WithPayload(
+			fmt.Sprintf("failed to parse receiver_matchers param: %v", err.Error()),
+		)
+	}
+
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
@@ -286,6 +306,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	now := time.Now()
 
 	api.mtx.RLock()
+	rcvLabels := api.receiverLabelsMap()
 	for a := range alerts.Next() {
 		alert := a.Data
 		if err = alerts.Err(); err != nil {
@@ -305,11 +326,15 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
+		if len(receiverMatchers) > 0 && !receiversMatchLabels(receivers, receiverMatchers, rcvLabels) {
+			continue
+		}
+
 		if !alertFilter(alert, now) {
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil, rcvLabels)
 
 		res = append(res, openAlert)
 	}
@@ -423,15 +448,36 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}
 
-	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
+	receiverMatchers, err := parseFilter(params.ReceiverMatchers)
+	if err != nil {
+		logger.Debug("Failed to parse receiver matchers", "err", err)
+		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(
+			fmt.Sprintf("failed to parse receiver_matchers param: %v", err.Error()),
+		)
+	}
+
+	api.mtx.RLock()
+	rcvLabels := api.receiverLabelsMap()
+	api.mtx.RUnlock()
+
+	rf := func(receiverFilter *regexp.Regexp, receiverMatchers []*labels.Matcher, rcvLabels map[string]open_api_models.LabelSet) func(r *dispatch.Route) bool {
 		return func(r *dispatch.Route) bool {
 			receiver := r.RouteOpts.Receiver
 			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
 				return false
 			}
+			if len(receiverMatchers) > 0 {
+				if lbls, ok := rcvLabels[receiver]; ok {
+					if !matchFilterLabels(receiverMatchers, lbls) {
+						return false
+					}
+				} else {
+					return false
+				}
+			}
 			return true
 		}
-	}(receiverFilter)
+	}(receiverFilter, receiverMatchers, rcvLabels)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
@@ -452,7 +498,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 
 		ag := &open_api_models.AlertGroup{
-			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver, Labels: rcvLabels[alertGroup.Receiver]},
 			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
 			Alerts:   make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
 		}
@@ -461,7 +507,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
 			status := api.getAlertStatus(fp)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
+			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy, rcvLabels)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
 		res = append(res, ag)
@@ -539,6 +585,40 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 	}
 
 	return true
+}
+
+// receiversMatchLabels returns true if at least one receiver's labels match all the given matchers.
+func receiversMatchLabels(receivers []string, matchers []*labels.Matcher, rcvLabels map[string]open_api_models.LabelSet) bool {
+	for _, rcvName := range receivers {
+		if lbls, ok := rcvLabels[rcvName]; ok {
+			if matchFilterLabels(matchers, lbls) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// configReceiverToAPIReceiver converts a config.Receiver to an API model Receiver.
+func configReceiverToAPIReceiver(rcv *config.Receiver) *open_api_models.Receiver {
+	apiLabels := make(open_api_models.LabelSet, len(rcv.Labels))
+	maps.Copy(apiLabels, rcv.Labels)
+	return &open_api_models.Receiver{
+		Name:   &rcv.Name,
+		Labels: apiLabels,
+	}
+}
+
+// receiverLabelsMap builds a lookup from receiver name to labels for the current config.
+func (api *API) receiverLabelsMap() map[string]open_api_models.LabelSet {
+	m := make(map[string]open_api_models.LabelSet, len(api.alertmanagerConfig.Receivers))
+	for i := range api.alertmanagerConfig.Receivers {
+		rcv := &api.alertmanagerConfig.Receivers[i]
+		apiLabels := make(open_api_models.LabelSet, len(rcv.Labels))
+		maps.Copy(apiLabels, rcv.Labels)
+		m[rcv.Name] = apiLabels
+	}
+	return m
 }
 
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
