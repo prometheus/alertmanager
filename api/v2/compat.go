@@ -22,10 +22,10 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
@@ -139,17 +139,17 @@ func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 }
 
 // AlertToOpenAPIAlert converts internal alerts, alert types, and receivers to *open_api_models.GettableAlert.
-func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
-	startsAt := strfmt.DateTime(alert.StartsAt)
-	updatedAt := strfmt.DateTime(alert.UpdatedAt)
-	endsAt := strfmt.DateTime(alert.EndsAt)
+func AlertToOpenAPIAlert(source *alert.Alert, status alert.AlertStatus, receivers, mutedBy []string) *open_api_models.GettableAlert {
+	startsAt := strfmt.DateTime(source.StartsAt)
+	updatedAt := strfmt.DateTime(source.UpdatedAt)
+	endsAt := strfmt.DateTime(source.EndsAt)
 
 	apiReceivers := make([]*open_api_models.Receiver, 0, len(receivers))
 	for i := range receivers {
 		apiReceivers = append(apiReceivers, &open_api_models.Receiver{Name: &receivers[i]})
 	}
 
-	fp := alert.Fingerprint().String()
+	fp := source.Fingerprint().String()
 
 	state := string(status.State)
 	if len(mutedBy) > 0 {
@@ -159,10 +159,10 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 
 	aa := &open_api_models.GettableAlert{
 		Alert: open_api_models.Alert{
-			GeneratorURL: strfmt.URI(alert.GeneratorURL),
-			Labels:       ModelLabelSetToAPILabelSet(alert.Labels),
+			GeneratorURL: strfmt.URI(source.GeneratorURL),
+			Labels:       ModelLabelSetToAPILabelSet(source.Labels),
 		},
-		Annotations: ModelLabelSetToAPILabelSet(alert.Annotations),
+		Annotations: ModelLabelSetToAPILabelSet(source.Annotations),
 		StartsAt:    &startsAt,
 		UpdatedAt:   &updatedAt,
 		EndsAt:      &endsAt,
@@ -191,14 +191,14 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	return aa
 }
 
-// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*types.Alert.
-func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*types.Alert {
+// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*alert.Alert.
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*alert.Alert {
 	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
 	defer span.End()
 
-	alerts := make([]*types.Alert, 0, len(apiAlerts))
+	alerts := make([]*alert.Alert, 0, len(apiAlerts))
 	for _, apiAlert := range apiAlerts {
-		alerts = append(alerts, &types.Alert{
+		alerts = append(alerts, &alert.Alert{
 			Alert: prometheus_model.Alert{
 				Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 				Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
