@@ -1,0 +1,14 @@
+global:
+  slack_api_url: 'https://slack.com/api/chat.postMessage'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alerts'
+        text: 'test'
+        http_config:
+          authorization:
+            credentials: 'xoxb-test-token'
+        message_strategy: thread
