@@ -92,6 +92,7 @@ templating.
 | join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
 | list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
+| now              |                            | [time.Now](https://pkg.go.dev/time#Now), returns the current local time. |
 | reReplaceAll     | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
 | safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl          | text string                | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |

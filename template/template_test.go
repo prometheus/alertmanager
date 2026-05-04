@@ -722,6 +722,37 @@ func TestTemplateFuncs(t *testing.T) {
 	}
 }
 
+func TestTemplateNow(t *testing.T) {
+	tmpl, err := FromGlobs([]string{})
+	require.NoError(t, err)
+
+	const (
+		layout   = "2006-01-02T15:04:05-0700"
+		tmplExpr = `{{ now | date "2006-01-02T15:04:05-0700" }}`
+		window   = 3 * time.Second
+	)
+
+	wg := sync.WaitGroup{}
+	for range 10 {
+		wg.Go(func() {
+			before := time.Now()
+			got, err := tmpl.ExecuteTextString(tmplExpr, nil)
+			require.NoError(t, err)
+
+			parsed, parseErr := time.Parse(layout, got)
+			require.NoError(t, parseErr)
+
+			// The rendered value is second-precision; allow up to 1s behind
+			// the captured start time, plus a forward execution window.
+			lowerBound := before.Add(-1 * time.Second)
+			upperBound := before.Add(window)
+			require.False(t, parsed.Before(lowerBound), "parsed now %v is before lower bound %v", parsed, lowerBound)
+			require.False(t, parsed.After(upperBound), "parsed now %v is after upper bound %v", parsed, upperBound)
+		})
+	}
+	wg.Wait()
+}
+
 func TestDeepCopyWithTemplate(t *testing.T) {
 	identity := TemplateFunc(func(s string) (string, error) { return s, nil })
 	withSuffix := TemplateFunc(func(s string) (string, error) { return s + "-templated", nil })
