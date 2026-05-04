@@ -32,6 +32,7 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -939,7 +940,7 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	DiscordConfigs    []*DiscordConfig         `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	DiscordConfigs    []*discord.DiscordConfig `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*IncidentioConfig      `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*PagerdutyConfig       `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
