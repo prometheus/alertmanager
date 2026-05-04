@@ -18,6 +18,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -25,7 +26,8 @@ import (
 	"github.com/prometheus/alertmanager/template"
 )
 
-// Notifier implements a Notifier for Slack notifications.
+// Notifier sends alerts to Slack using SlackConfig (API URL, message_strategy, etc.),
+// Templates, and an HTTP client. postJSONFunc is swappable for tests.
 type Notifier struct {
 	conf        *config.SlackConfig
 	tmpl        *template.Template
@@ -37,16 +39,17 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// request is the request for sending a Slack notification.
+// request is the JSON body for chat.postMessage and chat.update (and threaded variants).
 type request struct {
-	Channel     string       `json:"channel,omitempty"`
-	Timestamp   string       `json:"ts,omitempty"`
-	Username    string       `json:"username,omitempty"`
-	IconEmoji   string       `json:"icon_emoji,omitempty"`
-	IconURL     string       `json:"icon_url,omitempty"`
-	LinkNames   bool         `json:"link_names,omitempty"`
-	Text        string       `json:"text,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	Channel         string       `json:"channel,omitempty"`
+	Timestamp       string       `json:"ts,omitempty"`
+	ThreadTimestamp string       `json:"thread_ts,omitempty"`
+	Username        string       `json:"username,omitempty"`
+	IconEmoji       string       `json:"icon_emoji,omitempty"`
+	IconURL         string       `json:"icon_url,omitempty"`
+	LinkNames       bool         `json:"link_names,omitempty"`
+	Text            string       `json:"text,omitempty"`
+	Attachments     []attachment `json:"attachments"`
 }
 
 // attachment is used to display a richly formatted message block.
@@ -66,10 +69,39 @@ type attachment struct {
 	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
+// reactionRequest is the request payload for Slack's reactions.add API.
+type reactionRequest struct {
+	Channel   string `json:"channel"`
+	Name      string `json:"name"`
+	Timestamp string `json:"timestamp"`
+}
+
 // slackResponse represents the response from Slack API.
 type slackResponse struct {
 	OK        bool   `json:"ok"`
 	Error     string `json:"error,omitempty"`
 	Channel   string `json:"channel,omitempty"`
 	Timestamp string `json:"ts,omitempty"`
+}
+
+// slackResponseOpts configures interpretation of Slack JSON bodies after a 2xx HTTP status.
+type slackResponseOpts struct {
+	// IgnoreAPIErrors lists Slack JSON "error" codes treated as success when ok is false
+	// (e.g. already_reacted from reactions.add).
+	IgnoreAPIErrors []string
+}
+
+// treatsSlackErrorAsSuccess reports whether code is a non-fatal API outcome.
+func (o slackResponseOpts) treatsSlackErrorAsSuccess(code string) bool {
+	return slices.Contains(o.IgnoreAPIErrors, code)
+}
+
+// threadSummaryHeaderContent holds the computed parent summary line for thread mode
+// when use_summary_header is true (transition text, title, color, notify reason).
+type threadSummaryHeaderContent struct {
+	transitions string
+	title       string
+	color       string
+	reason      notify.NotifyReason
+	reasonOk    bool
 }

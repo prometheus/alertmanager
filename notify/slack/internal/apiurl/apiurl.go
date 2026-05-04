@@ -39,6 +39,9 @@ func NewResolver(apiURL *amcommoncfg.SecretURL, apiURLFile string) *Resolver {
 	return &Resolver{apiURL: apiURL, apiURLFile: apiURLFile}
 }
 
+// URLForMethod returns the Slack Web API URL for the given method name
+// (e.g. "chat.update", "reactions.add"). An empty method returns the base
+// api_url as-is, which is suitable for the default chat.postMessage call.
 func (r *Resolver) URLForMethod(method string) (string, error) {
 	if method == "" {
 		if r.apiURL != nil {
@@ -73,6 +76,7 @@ func (r *Resolver) URLForMethod(method string) (string, error) {
 	return webAPIMethodURL(baseURL, method)
 }
 
+// getURLFromFile reads and parses the URL from the api_url_file path on disk.
 func (r *Resolver) getURLFromFile() (*amcommoncfg.URL, error) {
 	content, err := os.ReadFile(r.apiURLFile)
 	if err != nil {
