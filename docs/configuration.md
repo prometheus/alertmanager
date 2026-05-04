@@ -46,17 +46,17 @@ value is set to the specified default.
 
 Generic placeholders are defined as follows:
 
-* `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
-* `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
-* `<labelvalue>`: a string of unicode characters
-* `<filepath>`: a valid path in the current working directory
-* `<boolean>`: a boolean that can take the values `true` or `false`
-* `<string>`: a regular string
-* `<secret>`: a regular string that is a secret, such as a password
-* `<tmpl_string>`: a string which is template-expanded before usage
-* `<tmpl_secret>`: a string which is template-expanded before usage that is a secret
-* `<int>`: an integer value
-* `<regex>`: any valid [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) (The regex is anchored on both ends. To un-anchor the regex, use `.*<regex>.*`.)
+- `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
+- `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
+- `<labelvalue>`: a string of unicode characters
+- `<filepath>`: a valid path in the current working directory
+- `<boolean>`: a boolean that can take the values `true` or `false`
+- `<string>`: a regular string
+- `<secret>`: a regular string that is a secret, such as a password
+- `<tmpl_string>`: a string which is template-expanded before usage
+- `<tmpl_secret>`: a string which is template-expanded before usage that is a secret
+- `<int>`: an integer value
+- `<regex>`: any valid [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) (The regex is anchored on both ends. To un-anchor the regex, use `.*<regex>.*`.)
 
 The other placeholders are specified separately.
 
@@ -306,7 +306,7 @@ routes:
 # The root route with all parameters, which are inherited by the child
 # routes if they are not overwritten.
 route:
-  receiver: 'default-receiver'
+  receiver: "default-receiver"
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
@@ -314,39 +314,39 @@ route:
   # All alerts that do not match the following child routes
   # will remain at the root node and be dispatched to 'default-receiver'.
   routes:
-  # All alerts with service=mysql or service=cassandra
-  # are dispatched to the database pager.
-  - receiver: 'database-pager'
-    group_wait: 10s
-    matchers:
-    - service=~"mysql|cassandra"
-  # All alerts with the team=frontend label match this sub-route.
-  # They are grouped by product and environment rather than cluster
-  # and alertname.
-  - receiver: 'frontend-pager'
-    group_by: [product, environment]
-    matchers:
-    - team="frontend"
+    # All alerts with service=mysql or service=cassandra
+    # are dispatched to the database pager.
+    - receiver: "database-pager"
+      group_wait: 10s
+      matchers:
+        - service=~"mysql|cassandra"
+    # All alerts with the team=frontend label match this sub-route.
+    # They are grouped by product and environment rather than cluster
+    # and alertname.
+    - receiver: "frontend-pager"
+      group_by: [product, environment]
+      matchers:
+        - team="frontend"
 
-  # All alerts with the service=inhouse-service label match this sub-route.
-  # the route will be muted during offhours and holidays time intervals.
-  # even if it matches, it will continue to the next sub-route
-  - receiver: 'dev-pager'
-    matchers:
-      - service="inhouse-service"
-    mute_time_intervals:
-      - offhours
-      - holidays
-    continue: true
+    # All alerts with the service=inhouse-service label match this sub-route.
+    # the route will be muted during offhours and holidays time intervals.
+    # even if it matches, it will continue to the next sub-route
+    - receiver: "dev-pager"
+      matchers:
+        - service="inhouse-service"
+      mute_time_intervals:
+        - offhours
+        - holidays
+      continue: true
 
-    # All alerts with the service=inhouse-service label match this sub-route
-    # the route will be active only during offhours and holidays time intervals.
-  - receiver: 'on-call-pager'
-    matchers:
-      - service="inhouse-service"
-    active_time_intervals:
-      - offhours
-      - holidays
+      # All alerts with the service=inhouse-service label match this sub-route
+      # the route will be active only during offhours and holidays time intervals.
+    - receiver: "on-call-pager"
+      matchers:
+        - service="inhouse-service"
+      active_time_intervals:
+        - offhours
+        - holidays
 ```
 
 ### `<time_interval>`
@@ -356,8 +356,7 @@ in the routing tree to mute/activate particular routes for particular times of t
 
 ```yaml
 name: <string>
-time_intervals:
-  [ - <time_interval_spec> ... ]
+time_intervals: [- <time_interval_spec> ...]
 ```
 
 #### `<time_interval_spec>`
@@ -392,8 +391,8 @@ immediately before 24:00. They are specified like so:
 
 ```yaml
 times:
-- start_time: HH:MM
-  end_time: HH:MM
+  - start_time: HH:MM
+    end_time: HH:MM
 ```
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
@@ -422,9 +421,9 @@ contained something like:
 
 ```yaml
 times:
-- start_time: 09:00
-  end_time: 17:00
-weekdays: ['monday:friday']
+  - start_time: 09:00
+    end_time: 17:00
+weekdays: ["monday:friday"]
 ```
 
 would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
@@ -629,7 +628,7 @@ A UTF-8 matcher consists of three tokens:
 - One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means not equal, `=~` means matches the regular expression and `!~` means doesn't match the regular expression.
 - An unquoted literal or a double-quoted string for the regular expression or label value.
 
-Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
+Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in `` { } ! = ~ , \ " ' ` ``. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
 Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
 
@@ -710,37 +709,37 @@ Here are some more examples:
 
 1. Two equals matchers composed as a YAML list:
 
-    ```yaml
-    matchers:
-      - foo = bar
-      - dings != bums
-    ```
+   ```yaml
+   matchers:
+     - foo = bar
+     - dings != bums
+   ```
 
 2. Two matchers combined composed as a short-form YAML list:
 
-    ```yaml
-    matchers: [ foo = bar, dings != bums ]
-    ```
+   ```yaml
+   matchers: [foo = bar, dings != bums]
+   ```
 
    As shown below, in the short-form, it's better to use double quotes to avoid problems with special characters like commas:
 
    ```yaml
-   matchers: [ "foo = \"bar,baz\"", "dings != bums" ]
+   matchers: ['foo = "bar,baz"', "dings != bums"]
    ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes work best here:
 
-    ```yaml
-    matchers: [ '{foo="bar", dings!="bums"}' ]
-    ```
+   ```yaml
+   matchers: ['{foo="bar", dings!="bums"}']
+   ```
 
 4. To avoid issues with escaping and quoting rules in YAML, you can also use a YAML block:
 
-    ```yaml
-    matchers:
-      - |
-          {quote=~"She said: \"Hi, all!( How're you…)?\""}
-    ```
+   ```yaml
+   matchers:
+     - |
+       {quote=~"She said: \"Hi, all!( How're you…)?\""}
+   ```
 
 ## General receiver-related settings
 
@@ -757,45 +756,27 @@ Note: As part of lifting the past moratorium on new receivers it was agreed that
 name: <string>
 
 # Configurations for several notification integrations.
-discord_configs:
-  [ - <discord_config>, ... ]
-email_configs:
-  [ - <email_config>, ... ]
-mattermost_configs:
-  [ - <mattermost_config>, ... ]
-msteams_configs:
-  [ - <msteams_config>, ... ]
-msteamsv2_configs:
-  [ - <msteamsv2_config>, ... ]
-jira_configs:
-  [ - <jira_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-pagerduty_configs:
-  [ - <pagerduty_config>, ... ]
-incidentio_configs:
-  [ - <incidentio_config>, ... ]
-pushover_configs:
-  [ - <pushover_config>, ... ]
-rocketchat_configs:
-  [ - <rocketchat_config>, ... ]
-slack_configs:
-  [ - <slack_config>, ... ]
-sns_configs:
-  [ - <sns_config>, ... ]
-telegram_configs:
-  [ - <telegram_config>, ... ]
-victorops_configs:
-  [ - <victorops_config>, ... ]
-webex_configs:
-  [ - <webex_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
-wechat_configs:
-  [ - <wechat_config>, ... ]
+discord_configs: [- <discord_config>, ...]
+email_configs: [- <email_config>, ...]
+mattermost_configs: [- <mattermost_config>, ...]
+msteams_configs: [- <msteams_config>, ...]
+msteamsv2_configs: [- <msteamsv2_config>, ...]
+jira_configs: [- <jira_config>, ...]
+opsgenie_configs: [- <opsgenie_config>, ...]
+pagerduty_configs: [- <pagerduty_config>, ...]
+incidentio_configs: [- <incidentio_config>, ...]
+pushover_configs: [- <pushover_config>, ...]
+rocketchat_configs: [- <rocketchat_config>, ...]
+slack_configs: [- <slack_config>, ...]
+sns_configs: [- <sns_config>, ...]
+telegram_configs: [- <telegram_config>, ...]
+victorops_configs: [- <victorops_config>, ...]
+webex_configs: [- <webex_config>, ...]
+webhook_configs: [- <webhook_config>, ...]
+wechat_configs: [- <wechat_config>, ...]
 ```
 
-### `<http_config>` (Shared) 
+### `<http_config>` (Shared)
 
 An `http_config` allows configuring the HTTP client that the receiver uses to
 communicate with HTTP-based API services.
@@ -1116,6 +1097,7 @@ webhook_url_file: <filepath>
 #### `<attachment_config>`
 
 See [Mattermost documentation](https://developers.mattermost.com/integrate/reference/message-attachments/) for more info.
+
 ```yaml
 [ fallback: <string> | default = '' ]
 [ color: <string> | default = '' ]
@@ -1139,7 +1121,7 @@ See [Mattermost documentation](https://developers.mattermost.com/integrate/refer
 
 ```yaml
 # Props card allows for extra information (Markdown-formatted text) to be sent to Mattermost that will only be displayed in the RHS panel after a user selects the info icon displayed alongside the post.
-[ card: <string> | default = '' ]
+[card: <string> | default = '']
 ```
 
 #### `<priority_config>`
@@ -1293,8 +1275,8 @@ The `labels` field is a list of labels added to the issue. Template expressions 
 
 ```yaml
 labels:
-  - 'alertmanager'
-  - '{{ .CommonLabels.severity }}'
+  - "alertmanager"
+  - "{{ .CommonLabels.severity }}"
 ```
 
 #### `<jira_field>`
@@ -1305,14 +1287,15 @@ See https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/
 
 ```yaml
 fields:
-    # Components
-    components: { name: "Monitoring" }
-    # Custom Field TextField
-    customfield_10001: "Random text"
-    # Custom Field SelectList
-    customfield_10002: {"value": "red"}
-    # Custom Field MultiSelect
-    customfield_10003: [{"value": "red"}, {"value": "blue"}, {"value": "green"}]
+  # Components
+  components: { name: "Monitoring" }
+  # Custom Field TextField
+  customfield_10001: "Random text"
+  # Custom Field SelectList
+  customfield_10002: { "value": "red" }
+  # Custom Field MultiSelect
+  customfield_10003:
+    [{ "value": "red" }, { "value": "blue" }, { "value": "green" }]
 ```
 
 ### `<opsgenie_config>`
@@ -1852,6 +1835,15 @@ routing_key: <tmpl_string>
 # The monitoring tool the state message is from.
 [ monitoring_tool: <tmpl_string> | default = '{{ template "victorops.default.monitoring_tool" . }}' ]
 
+# Additional custom fields to include in the request payload.
+# Keys must not use names reserved by this integration:
+# routing_key, message_type, state_message, entity_display_name,
+# monitoring_tool, entity_id, entity_state.
+# (Some reserved keys are not part of the JSON body, but are still disallowed
+# as custom_fields keys to avoid conflicts with the integrations request/validation.)
+[ custom_fields:
+  [ <string>: <tmpl_string> ... ] ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
@@ -2017,6 +2009,7 @@ room_id: <tmpl_string>
 ```
 
 ## Tracing Configuration
+
 ### `<tracing_config>`
 
 ```yaml
