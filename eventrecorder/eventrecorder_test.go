@@ -73,7 +73,7 @@ func newTestRecorder(outputs ...Destination) Recorder {
 		done:      make(chan struct{}),
 	}
 	core.wg.Add(1)
-	go core.writeLoop(outputs, EventRecorderConfig{})
+	go core.writeLoop(outputs, Config{})
 	return Recorder{core: core}
 }
 
@@ -110,7 +110,7 @@ func TestRecordEventMultipleDestinations(t *testing.T) {
 func TestNopRecorderDoesNotPanic(t *testing.T) {
 	rec := NopRecorder()
 	rec.RecordEvent(recordCtx(), startupEvent())
-	rec.ApplyConfig(EventRecorderConfig{})
+	rec.ApplyConfig(Config{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
 }
@@ -118,7 +118,7 @@ func TestNopRecorderDoesNotPanic(t *testing.T) {
 func TestZeroRecorderDoesNotPanic(t *testing.T) {
 	var rec Recorder
 	rec.RecordEvent(recordCtx(), startupEvent())
-	rec.ApplyConfig(EventRecorderConfig{})
+	rec.ApplyConfig(Config{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
 }
@@ -150,7 +150,7 @@ func TestApplyConfig(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	// ApplyConfig with the same (zero) config should be a no-op.
-	rec.ApplyConfig(EventRecorderConfig{})
+	rec.ApplyConfig(Config{})
 
 	// Events still flow to the same output after no-op reload.
 	rec.RecordEvent(recordCtx(), startupEvent())
@@ -234,22 +234,22 @@ func TestMatchersAsProto(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual(t *testing.T) {
-	a := EventRecorderConfig{
-		Outputs: []EventRecorderOutput{
-			{Type: "file", Path: "/tmp/events.jsonl"},
+	a := Config{
+		Outputs: []Output{
+			{Type: OutputFile, Path: "/tmp/events.jsonl"},
 		},
 	}
-	b := EventRecorderConfig{
-		Outputs: []EventRecorderOutput{
-			{Type: "file", Path: "/tmp/events.jsonl"},
+	b := Config{
+		Outputs: []Output{
+			{Type: OutputFile, Path: "/tmp/events.jsonl"},
 		},
 	}
-	require.True(t, eventRecorderConfigEqual(a, b))
+	require.True(t, configEqual(a, b))
 
 	b.Outputs[0].Path = "/tmp/other.jsonl"
-	require.False(t, eventRecorderConfigEqual(a, b))
+	require.False(t, configEqual(a, b))
 
 	// Different number of outputs.
-	c := EventRecorderConfig{}
-	require.False(t, eventRecorderConfigEqual(a, c))
+	c := Config{}
+	require.False(t, configEqual(a, c))
 }
