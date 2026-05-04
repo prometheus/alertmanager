@@ -27,7 +27,7 @@
     "react-router-dom": "^7.14.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
+    "@eslint/js": "^10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
@@ -37,7 +37,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^9.39.2",
+    "eslint": "^10.3.0",
     "eslint-config-mantine": "^4.0.3",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.5",
@@ -45,12 +45,12 @@
     "postcss": "^8.5.13",
     "postcss-preset-mantine": "1.18.0",
     "postcss-simple-vars": "^7.0.1",
-    "prettier": "^3.8.1",
+    "prettier": "^3.8.3",
     "prop-types": "^15.8.1",
     "stylelint": "^17.10.0",
     "stylelint-config-standard-scss": "^17.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.1",
+    "typescript-eslint": "^8.59.1",
     "vite": "^8.0.10",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.5"
