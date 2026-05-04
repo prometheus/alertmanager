@@ -22,9 +22,9 @@
     "@mantine/hooks": "^9.0.0",
     "@tanstack/react-query": "^5.96.2",
     "highlight.js": "^11.11.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.2"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
