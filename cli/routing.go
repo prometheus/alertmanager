@@ -30,6 +30,7 @@ type routingShow struct {
 	labels            []string
 	expectedReceivers string
 	debugTree         bool
+	testFile          string
 }
 
 const (
