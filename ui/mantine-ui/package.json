@@ -51,7 +51,7 @@
     "stylelint-config-standard-scss": "^17.0.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.4",
+    "vite": "^8.0.10",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.5"
   }
