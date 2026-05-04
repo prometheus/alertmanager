@@ -115,12 +115,6 @@ api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXX
 `,
 			expectedErr: "at most one of api_url/api_url_file & app_token/app_token_file must be configured",
 		},
-		{
-			in: `
-update_message: true
-`,
-			expectedErr: "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage",
-		},
 	}
 
 	for _, rt := range tests {
@@ -137,6 +131,45 @@ update_message: true
 		}
 		// Check that the error that occurred was what was expected.
 		if err != nil && err.Error() != rt.expectedErr {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expectedErr, err.Error())
+		}
+	}
+}
+
+// TestValidateMessageStrategy is the strategy-framework analogue of the
+// `update_message: true` + no `api_url` regression case once carried by
+// TestSlackAuthMethodConfigValidation: a config that asks to update or
+// thread but supplies no api_url at any level must surface a validation
+// error from ValidateMessageStrategy without panicking.
+func TestValidateMessageStrategy(t *testing.T) {
+	tests := []struct {
+		in          string
+		expectedErr string
+	}{
+		{
+			in: `
+message_strategy: update
+`,
+			expectedErr: `message_strategy "update" requires api_url or api_url_file`,
+		},
+		{
+			in: `
+message_strategy: thread
+`,
+			expectedErr: `message_strategy "thread" requires api_url or api_url_file`,
+		},
+	}
+
+	for _, rt := range tests {
+		var cfg Config
+		if err := yaml.UnmarshalStrict([]byte(rt.in), &cfg); err != nil {
+			t.Fatalf("\nunexpected unmarshal error: %v", err)
+		}
+		err := cfg.ValidateMessageStrategy()
+		if err == nil {
+			t.Fatalf("\nno error returned, expected:\n%v", rt.expectedErr)
+		}
+		if err.Error() != rt.expectedErr {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expectedErr, err.Error())
 		}
 	}

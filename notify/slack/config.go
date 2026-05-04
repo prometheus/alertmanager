@@ -15,11 +15,21 @@ package slack
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+)
+
+const (
+	// PublishingStrategyNew sends each notification as a separate message (default).
+	PublishingStrategyNew PublishingStrategy = "new"
+	// PublishingStrategyUpdate updates the original message in-place.
+	PublishingStrategyUpdate PublishingStrategy = "update"
+	// PublishingStrategyThread sends subsequent notifications as threaded replies.
+	PublishingStrategyThread PublishingStrategy = "thread"
 )
 
 // DefaultConfig defines default values for Slack configurations.
@@ -125,6 +135,36 @@ func (f *Field) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+// PublishingStrategy controls how subsequent notifications for the same
+// alert group are delivered to Slack.
+type PublishingStrategy string
+
+// SlackThreadedOptions configures thread-specific behavior when message_strategy is "thread".
+type SlackThreadedOptions struct {
+	// ResolveEmoji is the emoji name (without colons) to react with on the
+	// original thread message when all alerts in the group are resolved.
+	// Requires the bot token to have reactions:write scope.
+	ResolveEmoji string `yaml:"resolve_emoji,omitempty" json:"resolve_emoji,omitempty"`
+
+	// UseSummaryHeader controls whether the thread parent is a lightweight
+	// auto-updated summary (true, default) or the first actual alert message
+	// (false). When true, all alert content is posted as replies and the parent
+	// is continuously updated with the transition title and color.
+	UseSummaryHeader *bool `yaml:"use_summary_header,omitempty" json:"use_summary_header,omitempty"`
+
+	// SummaryHeader holds options for summary-header mode only (see UseSummaryHeader).
+	SummaryHeader *SlackThreadSummaryHeaderOptions `yaml:"summary_header,omitempty" json:"summary_header,omitempty"`
+}
+
+// SlackThreadSummaryHeaderOptions configures fields that only apply when
+// message_strategy is "thread" and use_summary_header is true (the lightweight
+// parent summary mode).
+type SlackThreadSummaryHeaderOptions struct {
+	// ResolveColor overrides the parent summary attachment color when the alert
+	// group resolves. Supports Go templates.
+	ResolveColor string `yaml:"resolve_color,omitempty" json:"resolve_color,omitempty"`
+}
+
 // Config configures notifications via Slack.
 type Config struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
@@ -160,10 +200,19 @@ type Config struct {
 	MrkdwnIn    []string  `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*Action `yaml:"actions,omitempty" json:"actions,omitempty"`
 
-	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
-	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
+	// MessageStrategy controls how subsequent notifications for the same alert
+	// group are delivered: "new" (default), "update" (edit in-place), or "thread"
+	// (threaded replies). "update" and "thread" require a bot token.
+	MessageStrategy PublishingStrategy `yaml:"message_strategy,omitempty" json:"message_strategy,omitempty"`
 
-	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
+	// Deprecated: use message_strategy: update instead. If true, message_strategy must
+	// be unset or "update"; when message_strategy is unset it is treated as "update".
+	UpdateMessage bool `yaml:"update_message,omitempty" json:"update_message,omitempty"`
+
+	// ThreadedOptions configures thread-specific behavior.
+	// Only valid when message_strategy is "thread".
+	ThreadedOptions *SlackThreadedOptions `yaml:"threaded_options,omitempty" json:"threaded_options,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -187,11 +236,73 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
+	// Deprecated: remove this block when update_message is deleted.
 	if c.UpdateMessage {
-		if c.APIURL == nil || c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
-			return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+		if c.MessageStrategy != "" && c.MessageStrategy != PublishingStrategyUpdate {
+			return fmt.Errorf("update_message: true is incompatible with message_strategy %q; omit message_strategy or set message_strategy: \"update\"", c.MessageStrategy)
+		}
+		if c.MessageStrategy == "" {
+			c.MessageStrategy = PublishingStrategyUpdate
+		}
+	}
+	if c.MessageStrategy == "" {
+		c.MessageStrategy = PublishingStrategyNew
+	}
+
+	if c.MessageStrategy != PublishingStrategyNew &&
+		c.MessageStrategy != PublishingStrategyUpdate &&
+		c.MessageStrategy != PublishingStrategyThread {
+		return fmt.Errorf("unknown message_strategy %q; must be \"new\", \"update\", or \"thread\"", c.MessageStrategy)
+	}
+
+	if c.ThreadedOptions != nil {
+		if c.MessageStrategy != PublishingStrategyThread {
+			return errors.New("threaded_options requires message_strategy to be \"thread\"")
+		}
+		if c.ThreadedOptions.UseSummaryHeader != nil && !*c.ThreadedOptions.UseSummaryHeader && c.ThreadedOptions.SummaryHeader != nil {
+			return errors.New("threaded_options.summary_header requires use_summary_header to be enabled")
 		}
 	}
 
 	return nil
+}
+
+// ValidateMessageStrategy checks that the resolved api_url (after global defaults
+// have been applied) satisfies the requirements for update/thread strategies.
+func (c *Config) ValidateMessageStrategy() error {
+	switch c.MessageStrategy {
+	case PublishingStrategyUpdate, PublishingStrategyThread:
+		if c.APIURL == nil && c.APIURLFile == "" {
+			return fmt.Errorf("message_strategy %q requires api_url or api_url_file", c.MessageStrategy)
+		}
+		if c.APIURL != nil && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
+			return fmt.Errorf("message_strategy %q requires a bot token; api_url must be https://slack.com/api/chat.postMessage", c.MessageStrategy)
+		}
+	}
+	return nil
+}
+
+// UseSummaryHeaderInThread returns true when the thread parent should be a lightweight
+// auto-updated summary. Returns true by default (nil or explicit true).
+func (c *Config) UseSummaryHeaderInThread() bool {
+	if c.ThreadedOptions == nil || c.ThreadedOptions.UseSummaryHeader == nil {
+		return true
+	}
+	return *c.ThreadedOptions.UseSummaryHeader
+}
+
+// HasStrategyThatUpdatesParent reports whether message_strategy uses nflog to tie
+// multiple notifications to one Slack message or thread.
+func (c *Config) HasStrategyThatUpdatesParent() bool {
+	return c.HasUpdateStrategy() || c.HasThreadStrategy()
+}
+
+// HasUpdateStrategy is true when message_strategy is "update" (chat.update in place).
+func (c *Config) HasUpdateStrategy() bool {
+	return c.MessageStrategy == PublishingStrategyUpdate
+}
+
+// HasThreadStrategy is true when message_strategy is "thread" (threaded replies).
+func (c *Config) HasThreadStrategy() bool {
+	return c.MessageStrategy == PublishingStrategyThread
 }
