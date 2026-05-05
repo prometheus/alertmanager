@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pill, PillProps } from '@mantine/core';
+import { Pill, type PillProps } from '@mantine/core';
+
 import classes from './LabelPill.module.css';
 
 export interface LabelPillProps extends PillProps {

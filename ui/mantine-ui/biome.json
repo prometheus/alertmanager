@@ -1,0 +1,127 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.d.ts", "!**/*.d.mts"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "trailingCommas": "es5",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
+  "css": {
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "double"
+    },
+    "linter": {
+      "enabled": true
+    },
+    "parser": {
+      "cssModules": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        "noNonNullAssertion": "off",
+        "useImportType": "warn"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noArrayIndexKey": "off"
+      },
+      "a11y": {
+        "useKeyWithClickEvents": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":URL:", ":NODE:"],
+              ":BLANK_LINE:",
+              "dayjs",
+              "react",
+              "next",
+              "next/**",
+              ":BLANK_LINE:",
+              ":PACKAGE:",
+              ":BLANK_LINE:",
+              "@mantine/**",
+              "@mantinex/**",
+              "@mantine-tests/**",
+              "@docs/**",
+              ":BLANK_LINE:",
+              "@/**",
+              ":BLANK_LINE:",
+              ["../**", "./**"],
+              ":BLANK_LINE:",
+              "**/*.css"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.story.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          },
+          "performance": {
+            "noNamespaceImport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.{mjs,cjs,js}"],
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "includes": ["**/*.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
+          },
+          "suspicious": {
+            "noUnknownAtRules": "off",
+            "noDuplicateProperties": "off",
+            "noDuplicateCustomProperties": "off"
+          }
+        }
+      }
+    }
+  ]
+}
