@@ -2,11 +2,13 @@ import '@mantine/core/styles.css';
 import '@mantine/code-highlight/styles.css';
 
 import { Suspense } from 'react';
+
+import { CodeHighlightAdapterProvider, createHighlightJsAdapter } from '@mantine/code-highlight';
+import { AppShell, Box, MantineProvider, Skeleton } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import hljs from 'highlight.js/lib/core';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { CodeHighlightAdapterProvider, createHighlightJsAdapter } from '@mantine/code-highlight';
-import { AppShell, Box, MantineProvider, Skeleton } from '@mantine/core';
+
 import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { AlertsPage } from './pages/Alerts.page';

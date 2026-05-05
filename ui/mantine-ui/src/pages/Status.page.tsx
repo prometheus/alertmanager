@@ -1,4 +1,5 @@
 import { Table } from '@mantine/core';
+
 import InfoPageCard from '@/components/InfoPageCard';
 import InfoPageStack from '@/components/InfoPageStack';
 import { useStatus } from '@/data/status';
