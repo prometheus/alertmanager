@@ -1082,6 +1082,17 @@ func TestSlackUpdateMessageWebhookURL(t *testing.T) {
 	}
 }
 
+func TestSlackUpdateMessageGlobalAPIURL(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.slack-update-message-global-api-url.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-update-message-global-api-url.yml", err)
+	}
+
+	if got := conf.Receivers[0].SlackConfigs[0].APIURL.String(); got != slackUpdateMessageAPIURL {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", got, slackUpdateMessageAPIURL)
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
