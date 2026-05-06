@@ -110,7 +110,11 @@ global:
   [ slack_app_token_file: <filepath> ]
   [ slack_app_url: <string> ]
 
+  # The default API key to use when talking to the VictorOps API.
+  # It is mutually exclusive with `victorops_api_key_file`.
   [ victorops_api_key: <secret> ]
+  # Reads the default API key to use when talking to the VictorOps API from a file.
+  # It is mutually exclusive with `victorops_api_key`.
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
