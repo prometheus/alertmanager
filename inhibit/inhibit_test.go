@@ -128,19 +128,23 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Sources: []Source{
+					{
+						scache: store.NewAlerts(),
+						sindex: newIndex(),
+					},
+				},
+				Equal: map[model.LabelName]struct{}{},
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
 			}
 			for _, v := range c.initial {
-				r.scache.Set(v)
-				r.updateIndex(v)
+				r.Sources[0].scache.Set(v)
+				r.Sources[0].updateIndex(v)
 			}
 
-			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
+			if _, have := r.Sources[0].hasEqual(c.input, false, time.Now(), r.TargetMatchers); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
@@ -181,15 +185,15 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].Sources[0].scache = store.NewAlerts()
+	ih.rules[0].Sources[0].scache.Set(sourceAlert1)
+	ih.rules[0].Sources[0].sindex = newIndex()
+	ih.rules[0].Sources[0].updateIndex(sourceAlert1)
 
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].Sources[0].scache = store.NewAlerts()
+	ih.rules[1].Sources[0].scache.Set(sourceAlert2)
+	ih.rules[1].Sources[0].sindex = newIndex()
+	ih.rules[1].Sources[0].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -252,12 +256,20 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 
 	rule1 := amcommoncfg.InhibitRule{
-		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+			},
+		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          []string{"e"},
 	}
 	rule2 := amcommoncfg.InhibitRule{
-		SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+			},
+		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
 		Equal:          []string{"e"},
 	}
@@ -282,15 +294,15 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].Sources[0].scache = store.NewAlerts()
+	ih.rules[0].Sources[0].scache.Set(sourceAlert1)
+	ih.rules[0].Sources[0].sindex = newIndex()
+	ih.rules[0].Sources[0].updateIndex(sourceAlert1)
 
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].Sources[0].scache = store.NewAlerts()
+	ih.rules[1].Sources[0].scache.Set(sourceAlert2)
+	ih.rules[1].Sources[0].sindex = newIndex()
+	ih.rules[1].Sources[0].updateIndex(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -354,8 +366,10 @@ func TestInhibitRuleName(t *testing.T) {
 
 	config1 := amcommoncfg.InhibitRule{
 		Name: "test-rule",
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -363,8 +377,10 @@ func TestInhibitRuleName(t *testing.T) {
 		Equal: []string{"instance"},
 	}
 	config2 := amcommoncfg.InhibitRule{
-		SourceMatchers: []*labels.Matcher{
-			{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"}},
+			},
 		},
 		TargetMatchers: []*labels.Matcher{
 			{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
@@ -618,5 +634,183 @@ func BenchmarkFingerprintEquals(b *testing.B) {
 				_ = rule.fingerprintEquals(lset)
 			}
 		})
+	}
+}
+
+func TestInhibitByMultipleSources(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	inhibitRules := func() []amcommoncfg.InhibitRule {
+		return []amcommoncfg.InhibitRule{
+			{
+				Sources: []amcommoncfg.InhibitRuleSource{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s11", Value: "1"},
+						},
+						Equal: []string{"e"},
+					},
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s22", Value: "1"},
+						},
+						Equal: []string{"f"},
+					},
+				},
+				TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+			},
+		}
+	}
+	// alertOne is muted by alertTwo and alertThree when it is active.
+	alertOne := func() *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"t": "1", "e": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(time.Hour),
+			},
+		}
+	}
+	alertTwo := func(resolved bool) *types.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s1": "1", "s11": "1", "e": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	alertThree := func(resolved bool) *types.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s2": "1", "s22": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	type exp struct {
+		lbls  model.LabelSet
+		muted bool
+	}
+	for i, tc := range []struct {
+		alerts   []*types.Alert
+		expected []exp
+	}{
+		{
+			// alertOne shouldn't be muted since alertTwo and alertThree hasn't fired.
+			alerts: []*types.Alert{alertOne()},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne shouldnt be muted by alertTwo which is active since alertThree is not active.
+			alerts: []*types.Alert{alertOne(), alertTwo(false), alertThree(true)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "e": "f"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne shouldn't be muted by alertTwo which is active since alertThree is not active.
+			alerts: []*types.Alert{alertOne(), alertTwo(true), alertThree(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne should be muted since alertTwo and alertThree are active.
+			alerts: []*types.Alert{alertOne(), alertTwo(false), alertThree(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "f": "5"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
+					muted: true,
+				},
+				{
+					lbls:  model.LabelSet{"s3": "1", "t": "1", "s11": "1", "e": "1", "f": "1"},
+					muted: true,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "2", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "4"},
+					muted: false,
+				},
+			},
+		},
+	} {
+		ap := newFakeAlerts(tc.alerts)
+		mk := types.NewMarker(prometheus.NewRegistry())
+		inhibitor := NewInhibitor(ap, inhibitRules(), mk, nopLogger)
+
+		go func() {
+			for ap.finished != nil {
+				select {
+				case <-ap.finished:
+					ap.finished = nil
+				default:
+				}
+			}
+			inhibitor.Stop()
+		}()
+		inhibitor.Run()
+
+		for _, expected := range tc.expected {
+			if inhibitor.Mutes(context.Background(), expected.lbls) != expected.muted {
+				mute := "unmuted"
+				if expected.muted {
+					mute = "muted"
+				}
+				t.Errorf("tc: %d, expected alert with labels %q to be %s", i, expected.lbls, mute)
+			}
+		}
 	}
 }
