@@ -1072,13 +1072,106 @@ func TestSlackBothAppTokenAndAPIURL(t *testing.T) {
 	}
 }
 
-func TestSlackUpdateMessageWebhookURL(t *testing.T) {
-	_, err := LoadFile("testdata/conf.slack-update-message-and-webhook.yml")
-	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
+func TestSlackMessageStrategyWithWrongAPIURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		file     string
+		strategy string
+	}{
+		{
+			name:     "update strategy with webhook URL",
+			file:     "testdata/conf.slack-update-message-and-webhook.yml",
+			strategy: `update`,
+		},
+		{
+			name:     "update strategy with webhook URL (new field)",
+			file:     "testdata/conf.slack-update-message-and-webhook-with-new-field.yml",
+			strategy: `update`,
+		},
+		{
+			name:     "thread strategy with webhook URL",
+			file:     "testdata/conf.slack-thread-message-and-webhook.yml",
+			strategy: `thread`,
+		},
 	}
-	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
-		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := LoadFile(tt.file)
+			if err == nil {
+				t.Fatal("Expected an error")
+			}
+			expectedErrMsg := fmt.Sprintf("message_strategy %q requires a bot token; api_url must be https://slack.com/api/chat.postMessage", tt.strategy)
+			if err.Error() != expectedErrMsg {
+				t.Errorf("Expected: %s\nGot: %s", expectedErrMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestSlackMessageStrategyWithGlobalAPIURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFile("testdata/conf.slack-thread-strategy-with-global-api-url.yml")
+	if err != nil {
+		t.Fatalf("Expected no error when message_strategy uses global slack_api_url, got: %s", err)
+	}
+}
+
+func TestSlackMessageStrategyWithoutAPIURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFile("testdata/conf.slack-thread-strategy-without-api-url.yml")
+	if err == nil {
+		t.Fatal("Expected an error when message_strategy: thread has no api_url at any level")
+	}
+	expectedErrMsg := `no Slack API URL nor App token set either inline or in a file`
+	if err.Error() != expectedErrMsg {
+		t.Errorf("Expected: %s\nGot: %s", expectedErrMsg, err.Error())
+	}
+}
+
+func TestSlackThreadedOptionsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		file           string
+		expectedErrMsg string
+	}{
+		{
+			name:           "threaded options without thread strategy (resolve emoji)",
+			file:           "testdata/conf.slack-thread-resolve-emoji-without-thread-message.yml",
+			expectedErrMsg: `threaded_options requires message_strategy to be "thread"`,
+		},
+		{
+			name:           "threaded options without thread strategy (update parent)",
+			file:           "testdata/conf.slack-thread-update-parent-without-thread-message.yml",
+			expectedErrMsg: `threaded_options requires message_strategy to be "thread"`,
+		},
+		{
+			name:           "resolve color without summary header",
+			file:           "testdata/conf.slack-resolve-color-without-summary-header.yml",
+			expectedErrMsg: `threaded_options.summary_header requires use_summary_header to be enabled`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := LoadFile(tt.file)
+			if err == nil {
+				t.Fatal("Expected an error")
+			}
+			if err.Error() != tt.expectedErrMsg {
+				t.Errorf("Expected: %s\nGot: %s", tt.expectedErrMsg, err.Error())
+			}
+		})
 	}
 }
 

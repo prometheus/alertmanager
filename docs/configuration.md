@@ -1664,9 +1664,43 @@ fields:
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
 
-# Enables updating existing Slack messages instead of creating new ones on alert state change.
-# Webhook URLs do not support updates.
-[ update_message: <boolean> | default = false ]
+# Controls how subsequent notifications for the same alert group are delivered.
+# "new" (default): each notification is a separate message.
+# "update": subsequent notifications update the original message in-place.
+# "thread": subsequent notifications are sent as threaded replies.
+# "update" and "thread" require api_url or api_url_file resolving to
+# https://slack.com/api/chat.postMessage (bot token).
+[ message_strategy: <string> | default = "new" ]
+
+# Limitation for "thread" (and "update"): thread metadata (for example the parent
+# message timestamp and channel id) is written to the notification log only after
+# the integration returns success for the entire notification attempt. If Slack
+# accepts an earlier API call in the same attempt but a later call fails and retries
+# are exhausted, the next flush may not see stored thread state and can open a new
+# thread in the channel, leaving the previous thread without further updates.
+
+# Options for threaded message behavior. Only valid when message_strategy is "thread".
+threaded_options:
+  # When true (default), the thread parent is a lightweight auto-updated summary
+  # header and all alert content is posted as replies. When false, the first
+  # alert message IS the thread parent and subsequent alerts are threaded replies.
+  [ use_summary_header: <boolean> | default = true ]
+
+  # Emoji name (without colons) to react with on the parent thread message
+  # when all alerts in the group are resolved (e.g. "white_check_mark").
+  # Requires the bot token to have reactions:write scope.
+  [ resolve_emoji: <string> ]
+
+  # Options that only apply when use_summary_header is true (default).
+  [ summary_header: <summary_header_thread_config> ]
+```
+
+#### `<summary_header_thread_config>`
+
+```yaml
+# Overrides the parent summary attachment color when all alerts resolve.
+# Supports Go templates.
+[ resolve_color: <tmpl_string> ]
 ```
 
 #### `<action_config>` (Slack)
