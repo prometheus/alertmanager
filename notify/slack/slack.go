@@ -21,7 +21,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -29,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack/internal/apiurl"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -36,18 +36,14 @@ import (
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
 
-// Notifier implements a Notifier for Slack notifications.
-type Notifier struct {
-	conf    *config.SlackConfig
-	tmpl    *template.Template
-	logger  *slog.Logger
-	client  *http.Client
-	retrier *notify.Retrier
+// nflog store keys for persisting Slack-specific state across notifications.
+const (
+	storeKeyThreadTs    = "threadTs"
+	storeKeyChannelId   = "channelId"
+	storeKeyTransitions = "transitions"
+)
 
-	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
-}
-
-// New returns a new Slack notification handler.
+// New builds a Slack Notifier with tracing enabled on the configured HTTP client.
 func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
@@ -60,48 +56,15 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 		logger:       l,
 		client:       client,
 		retrier:      &notify.Retrier{},
+		urlResolver:  apiurl.NewResolver(c.APIURL, c.APIURLFile),
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
 
-// request is the request for sending a slack notification.
-type request struct {
-	Channel     string       `json:"channel,omitempty"`
-	Timestamp   string       `json:"ts,omitempty"`
-	Username    string       `json:"username,omitempty"`
-	IconEmoji   string       `json:"icon_emoji,omitempty"`
-	IconURL     string       `json:"icon_url,omitempty"`
-	LinkNames   bool         `json:"link_names,omitempty"`
-	Text        string       `json:"text,omitempty"`
-	Attachments []attachment `json:"attachments"`
-}
-
-// attachment is used to display a richly-formatted message block.
-type attachment struct {
-	Title      string               `json:"title,omitempty"`
-	TitleLink  string               `json:"title_link,omitempty"`
-	Pretext    string               `json:"pretext,omitempty"`
-	Text       string               `json:"text"`
-	Fallback   string               `json:"fallback"`
-	CallbackID string               `json:"callback_id"`
-	Fields     []config.SlackField  `json:"fields,omitempty"`
-	Actions    []config.SlackAction `json:"actions,omitempty"`
-	ImageURL   string               `json:"image_url,omitempty"`
-	ThumbURL   string               `json:"thumb_url,omitempty"`
-	Footer     string               `json:"footer"`
-	Color      string               `json:"color,omitempty"`
-	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
-}
-
-// slackResponse represents the response from Slack API.
-type slackResponse struct {
-	OK        bool   `json:"ok"`
-	Error     string `json:"error,omitempty"`
-	Channel   string `json:"channel,omitempty"`
-	Timestamp string `json:"ts,omitempty"`
-}
-
-// Notify implements the Notifier interface.
+// Notify implements the Notifier interface. It expands templates, builds the Slack
+// payload, and sends it (or updates an existing message / thread) based on
+// message_strategy and nflog state. The returned bool is true when the delivery
+// should be retried (e.g. transport or retryable HTTP errors).
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	key, err := notify.ExtractGroupKey(ctx)
@@ -190,23 +153,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = strings.TrimSpace(string(content))
-	}
-
-	if n.conf.Timeout > 0 {
-		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
-		defer cancel()
-		ctx = postCtx
-	}
-
 	req := &request{
 		Channel:     tmplText(n.conf.Channel),
 		Username:    tmplText(n.conf.Username),
@@ -216,31 +162,73 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Text:        tmplText(n.conf.MessageText),
 		Attachments: []attachment{*att},
 	}
+	// tmplText is notify.TmplText(..., &err): every field execution appends template errors
+	// into the same err. Check here so we never call Slack after a failed template render.
+	if err != nil {
+		return false, err
+	}
 
-	// If a notification for this alert group has already been sent and `update_message` config is set
-	// edit API endpoint and payload to update notification instead of sending a new one.
+	u, err := n.urlResolver.URLForMethod("")
+	if err != nil {
+		return false, err
+	}
+
+	if n.conf.Timeout > 0 {
+		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
+		defer cancel()
+		ctx = postCtx
+	}
+
 	var store *nflog.Store
 
-	if n.conf.UpdateMessage {
+	if n.conf.HasStrategyThatUpdatesParent() {
 		var ok bool
 		store, ok = notify.NflogStore(ctx)
 		if !ok {
-			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+			logger.Warn("cannot create NflogStore, updatable/threaded messages will be disabled.")
+		} else if store == nil {
+			logger.Warn("NflogStore is nil, updatable/threaded messages will be disabled.")
 		} else {
-			threadTs, _ := store.GetStr("threadTs")
-			channelId, _ := store.GetStr("channelId")
-			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
-			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
-				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
+			// If message_strategy is "update", edit the API endpoint and payload to update
+			// the existing notification instead of sending a new one.
+			if n.conf.HasUpdateStrategy() {
+				threadTs, _ := store.GetStr(storeKeyThreadTs)
+				channelId, _ := store.GetStr(storeKeyChannelId)
+				logger.Debug("attempt recovering threadTs and channelId to update an existing message", storeKeyThreadTs, threadTs, storeKeyChannelId, channelId)
+				if threadTs != "" && channelId != "" {
+					updateURL, err := n.urlResolver.URLForMethod("chat.update")
+					if err != nil {
+						return false, err
+					}
+					u = updateURL
+					req.Timestamp = threadTs
+					req.Channel = channelId
+					logger.Debug("updating previously sent message", storeKeyThreadTs, threadTs, storeKeyChannelId, channelId)
+				}
+			} else if n.conf.HasThreadStrategy() {
+				// If message_strategy is "thread", there are two modes controlled by the flag use_summary_header.
+				if n.conf.UseSummaryHeaderInThread() {
+					return n.handleThreadedSummaryHeaderMode(ctx, data, tmplText, &err, store, u, req, logger)
+				}
+				return n.handleThreadedDirectMode(ctx, store, req, u, logger)
 			}
 		}
 	}
+
+	// Default path: post the message directly (for "new" and "update" strategies, or when thread strategy falls
+	// through due to missing nflog store).
+	return n.postAndHandle(ctx, u, req.Channel, req, store, slackResponseOpts{})
+}
+
+// postAndHandle JSON-encodes payload, POSTs it to u, applies HTTP retry classification,
+// Then parses the Slack body. channel is only used in error messages. When store is
+// non-nil and the response is successful JSON with ts/channel, persistResponseState may
+// Persist nflog keys for update/thread strategies. opts.IgnoreAPIErrors lists Slack
+// JSON error codes treated as success (e.g. already_reacted for reactions.add).
+func (n *Notifier) postAndHandle(ctx context.Context, u, channel string, payload any, store *nflog.Store, opts slackResponseOpts) (bool, error) {
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+		return false, fmt.Errorf("encode slack request: %w", err)
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
@@ -256,51 +244,77 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		err = fmt.Errorf("channel %q: %w", channel, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
-	retry, err = n.slackResponseHandler(resp, store)
+	data, retry, err := readAndParseSlackResponse(resp, opts)
 	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		err = fmt.Errorf("channel %q: %w", channel, err)
 		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 	}
-	return retry, nil
-}
 
-// slackResponseHandler parses the response body of the request, handles retryable errors
-// and saves the response timestamp and channelId to nflog.
-func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store) (bool, error) {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return true, fmt.Errorf("could not read response body: %w", err)
-	}
-	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		return checkTextResponseError(body)
-	}
-	var data slackResponse
-	if err := json.Unmarshal(body, &data); err != nil {
-		return true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
-	}
-	if !data.OK {
-		return false, fmt.Errorf("error response from Slack: %s", data.Error)
-	}
-	// If store, TS and Channel are set, store the threadTS and channelId
-	if store != nil && data.Timestamp != "" && data.Channel != "" {
-		store.SetStr("threadTs", data.Timestamp)
-		store.SetStr("channelId", data.Channel)
-		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
-	}
+	n.persistResponseState(store, data)
+
 	return false, nil
 }
 
-// checkTextResponseError classifies plaintext responses from Slack.
-// A plaintext (non-JSON) response is successful if it's a string "ok".
-// This is typically a response for an Incoming Webhook
-// (https://api.slack.com/messaging/webhooks#handling_errors)
+// persistResponseState persists the threadTs and channelId of a message in nflog. For message_strategy "thread", only
+// the first message is saved, so later replies do not replace the thread root.
+func (n *Notifier) persistResponseState(store *nflog.Store, data slackResponse) {
+	if store == nil || data.Timestamp == "" || data.Channel == "" {
+		return
+	}
+	if n.conf.HasThreadStrategy() {
+		parentThreadTs, parentChannelId, parentFound := getStoredParent(store)
+		if !parentFound {
+			store.SetStr(storeKeyThreadTs, data.Timestamp)
+			store.SetStr(storeKeyChannelId, data.Channel)
+			n.logger.Debug("stored threadTs and channelId for thread parent", storeKeyThreadTs, data.Timestamp, storeKeyChannelId, data.Channel)
+		} else {
+			n.logger.Debug("skipping storing reply as thread parent is already stored", storeKeyThreadTs, parentThreadTs, storeKeyChannelId, parentChannelId)
+		}
+	} else {
+		store.SetStr(storeKeyThreadTs, data.Timestamp)
+		store.SetStr(storeKeyChannelId, data.Channel)
+		n.logger.Debug("stored threadTs and channelId", storeKeyThreadTs, data.Timestamp, storeKeyChannelId, data.Channel)
+	}
+}
+
+// checkTextResponseError classifies incoming-webhook plaintext responses.
+// Success requires body exactly "ok". The bool is the retry hint (always false here).
+// See https://api.slack.com/messaging/webhooks#handling_errors
 func checkTextResponseError(body []byte) (bool, error) {
-	if !bytes.Equal(body, []byte("ok")) {
+	if !bytes.Equal(bytes.TrimSpace(body), []byte("ok")) {
 		return false, fmt.Errorf("received an error response from Slack: %s", string(body))
 	}
 	return false, nil
+}
+
+// readAndParseSlackResponse reads the response body. For Content-Type application/json
+// it unmarshals slackResponse; ok=false is an error unless data.Error is listed in
+// opts.IgnoreAPIErrors. Non-JSON bodies use incoming-webhook plaintext rules (body "ok").
+// Retry is true for read/unmarshal failures that may be transient; false for definitive
+// Slack API errors (ok=false without ignore) or successful plaintext.
+func readAndParseSlackResponse(resp *http.Response, opts slackResponseOpts) (slackResponse, bool, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return slackResponse{}, true, fmt.Errorf("could not read response body: %w", err)
+	}
+	contentType := strings.TrimSpace(strings.ToLower(resp.Header.Get("Content-Type")))
+	if !strings.HasPrefix(contentType, "application/json") {
+		retry, err := checkTextResponseError(body)
+		return slackResponse{}, retry, err
+	}
+	var data slackResponse
+	if err = json.Unmarshal(body, &data); err != nil {
+		return slackResponse{}, true, fmt.Errorf("could not unmarshal JSON response %q: %w", string(body), err)
+	}
+	if !data.OK {
+		if opts.treatsSlackErrorAsSuccess(data.Error) {
+			return data, false, nil
+		}
+		return slackResponse{}, false, fmt.Errorf("error response from Slack: %s", data.Error)
+	}
+	return data, false, nil
 }

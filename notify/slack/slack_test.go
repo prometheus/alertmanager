@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -63,50 +62,6 @@ func TestSlackRedactedURL(t *testing.T) {
 	notifier, err := New(
 		&config.SlackConfig{
 			APIURL:     &amcommoncfg.SecretURL{URL: u},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-		},
-		test.CreateTmpl(t),
-		promslog.NewNopLogger(),
-	)
-	require.NoError(t, err)
-
-	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
-}
-
-func TestGettingSlackURLFromFile(t *testing.T) {
-	ctx, u, fn := test.GetContextWithCancelingURL()
-	defer fn()
-
-	f, err := os.CreateTemp(t.TempDir(), "slack_test")
-	require.NoError(t, err, "creating temp file failed")
-	_, err = f.WriteString(u.String())
-	require.NoError(t, err, "writing to temp file failed")
-
-	notifier, err := New(
-		&config.SlackConfig{
-			APIURLFile: f.Name(),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-		},
-		test.CreateTmpl(t),
-		promslog.NewNopLogger(),
-	)
-	require.NoError(t, err)
-
-	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
-}
-
-func TestTrimmingSlackURLFromFile(t *testing.T) {
-	ctx, u, fn := test.GetContextWithCancelingURL()
-	defer fn()
-
-	f, err := os.CreateTemp(t.TempDir(), "slack_test_newline")
-	require.NoError(t, err, "creating temp file failed")
-	_, err = f.WriteString(u.String() + "\n\n")
-	require.NoError(t, err, "writing to temp file failed")
-
-	notifier, err := New(
-		&config.SlackConfig{
-			APIURLFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),

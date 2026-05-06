@@ -426,6 +426,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if sc.APIURL == nil && len(sc.APIURLFile) == 0 && sc.AppToken == "" && len(sc.AppTokenFile) == 0 {
 				return errors.New("no Slack API URL nor App token set either inline or in a file")
 			}
+			if err := sc.ValidateMessageStrategy(); err != nil {
+				return err
+			}
 			if sc.HTTPConfig == nil {
 				// we don't want to change the global http config when setting the receiver's http config, do we do a copy
 				httpconfig := *c.Global.HTTPConfig
