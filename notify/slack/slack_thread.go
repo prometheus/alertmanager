@@ -28,7 +28,7 @@ import (
 // handleThreadedSummaryHeaderMode implements message_strategy "thread" when
 // use_summary_header is true: the first post is a compact parent summary (title/color
 // from transition state); each notify appends a threaded reply and refreshes the parent.
-// tmplErr points to the template error variable updated by tmplText.
+// TmplErr points to the template error variable updated by tmplText.
 func (n *Notifier) handleThreadedSummaryHeaderMode(ctx context.Context, data *template.Data, tmplText func(string) string, tmplErr *error, store *nflog.Store, u string, req *request, logger *slog.Logger) (bool, error) {
 	content, err := n.buildThreadSummaryHeaderContent(ctx, store, data, tmplText, tmplErr)
 	if err != nil {
@@ -93,9 +93,16 @@ func (n *Notifier) handleThreadedDirectMode(ctx context.Context, store *nflog.St
 }
 
 // ensureSummaryHeaderParent returns thread ts and channel for the summary parent,
-// posting the parent message when missing. parentFound is true when ids were
+// Posting the parent message when missing. parentFound is true when ids were
 // already in nflog before this call.
-func (n *Notifier) ensureSummaryHeaderParent(ctx context.Context, u string, store *nflog.Store, tmplText func(string) string, tmplErr *error, content threadSummaryHeaderContent) (parentThreadTs, parentChannelId string, parentFound bool, retry bool, err error) {
+func (n *Notifier) ensureSummaryHeaderParent(
+	ctx context.Context,
+	u string,
+	store *nflog.Store,
+	tmplText func(string) string,
+	tmplErr *error,
+	content threadSummaryHeaderContent,
+) (parentThreadTs, parentChannelId string, parentFound bool, retry bool, err error) {
 	parentThreadTs, parentChannelId, parentFound = getStoredParent(store)
 
 	if !parentFound {
@@ -127,7 +134,7 @@ func (n *Notifier) ensureSummaryHeaderParent(ctx context.Context, u string, stor
 }
 
 // buildThreadSummaryHeaderContent derives transition history, summary title, and colors
-// from nflog, context, and templates. tmplErr is the shared template error pointer from Notify.
+// From nflog, context, and templates. tmplErr is the shared template error pointer from Notify.
 func (n *Notifier) buildThreadSummaryHeaderContent(ctx context.Context, store *nflog.Store, data *template.Data, tmplText func(string) string, tmplErr *error) (threadSummaryHeaderContent, error) {
 	previousTransitions, _ := store.GetStr(storeKeyTransitions)
 	reason, reasonOk := notify.NotificationReason(ctx)
@@ -234,7 +241,7 @@ func (n *Notifier) updateParentSummary(ctx context.Context, channel, timestamp, 
 }
 
 // getStoredParent retrieves the thread parent's timestamp and channel from the nflog store.
-// found is true only when both keys are present, guarding against partial state.
+// Found is true only when both keys are present, guarding against partial state.
 func getStoredParent(store *nflog.Store) (threadTs, channelId string, found bool) {
 	threadTs, tsOk := store.GetStr(storeKeyThreadTs)
 	channelId, chOk := store.GetStr(storeKeyChannelId)
@@ -258,7 +265,7 @@ func reasonToTransition(reason notify.NotifyReason) string {
 
 // buildTransitionTitle collapses a pipe-delimited transition history into a
 // human-readable title with counts for consecutive duplicate states.
-// Example: "FIRING|FIRING|PARTIAL RESOLVE|RESOLVED" → "FIRING (2) → PARTIAL RESOLVE → RESOLVED: MyAlert"
+// Example: "FIRING|FIRING|PARTIAL RESOLVE|RESOLVED" → "FIRING (2) → PARTIAL RESOLVE → RESOLVED: MyAlert".
 func buildTransitionTitle(transitions, alertName string) string {
 	parts := strings.Split(transitions, "|")
 

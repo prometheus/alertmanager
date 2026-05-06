@@ -48,9 +48,8 @@ func (r *Resolver) URLForMethod(method string) (string, error) {
 			apiURLStr := r.apiURL.String()
 			if apiURLStr != "" {
 				return apiURLStr, nil
-			} else {
-				return "", fmt.Errorf("slack api url is empty")
 			}
+			return "", fmt.Errorf("slack api url is empty")
 		}
 
 		// Read api_url_file on each resolution; see New.
@@ -88,7 +87,7 @@ func (r *Resolver) getURLFromFile() (*amcommoncfg.URL, error) {
 }
 
 // webAPIMethodURL returns a Slack Web API URL for the given method, using the same
-// scheme and host as postMessageURL. postMessageURL must be a URL whose path ends
+// Scheme and host as postMessageURL. postMessageURL must be a URL whose path ends
 // with a method name (e.g. .../api/chat.postMessage).
 func webAPIMethodURL(postMessageURL *amcommoncfg.SecretURL, method string) (string, error) {
 	if postMessageURL == nil || postMessageURL.URL == nil {

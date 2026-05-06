@@ -18,6 +18,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -26,7 +27,7 @@ import (
 )
 
 // Notifier sends alerts to Slack using SlackConfig (API URL, message_strategy, etc.),
-// templates, and an HTTP client. postJSONFunc is swappable for tests.
+// Templates, and an HTTP client. postJSONFunc is swappable for tests.
 type Notifier struct {
 	conf        *config.SlackConfig
 	tmpl        *template.Template
@@ -92,12 +93,7 @@ type slackResponseOpts struct {
 
 // treatsSlackErrorAsSuccess reports whether code is a non-fatal API outcome.
 func (o slackResponseOpts) treatsSlackErrorAsSuccess(code string) bool {
-	for _, e := range o.IgnoreAPIErrors {
-		if e == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(o.IgnoreAPIErrors, code)
 }
 
 // threadSummaryHeaderContent holds the computed parent summary line for thread mode

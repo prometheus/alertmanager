@@ -103,7 +103,6 @@ func TestResolver_URLForMethod_ValidScenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -146,7 +145,6 @@ func TestResolver_URLForMethod_InvalidScenarios(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -167,7 +165,7 @@ func getSecretURL(t *testing.T, raw string) *amcommoncfg.SecretURL {
 	return &s
 }
 
-func createTempAPIURLFile(t *testing.T, pattern string, url string) *os.File {
+func createTempAPIURLFile(t *testing.T, pattern, url string) *os.File {
 	t.Helper()
 	apiURLFileWithNewLines, err := os.CreateTemp(t.TempDir(), pattern)
 	require.NoError(t, err)

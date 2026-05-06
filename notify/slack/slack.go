@@ -189,7 +189,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		} else if store == nil {
 			logger.Warn("NflogStore is nil, updatable/threaded messages will be disabled.")
 		} else {
-
 			// If message_strategy is "update", edit the API endpoint and payload to update
 			// the existing notification instead of sending a new one.
 			if n.conf.HasUpdateStrategy() {
@@ -222,9 +221,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 }
 
 // postAndHandle JSON-encodes payload, POSTs it to u, applies HTTP retry classification,
-// then parses the Slack body. channel is only used in error messages. When store is
+// Then parses the Slack body. channel is only used in error messages. When store is
 // non-nil and the response is successful JSON with ts/channel, persistResponseState may
-// persist nflog keys for update/thread strategies. opts.IgnoreAPIErrors lists Slack
+// Persist nflog keys for update/thread strategies. opts.IgnoreAPIErrors lists Slack
 // JSON error codes treated as success (e.g. already_reacted for reactions.add).
 func (n *Notifier) postAndHandle(ctx context.Context, u, channel string, payload any, store *nflog.Store, opts slackResponseOpts) (bool, error) {
 	var buf bytes.Buffer
@@ -295,7 +294,7 @@ func checkTextResponseError(body []byte) (bool, error) {
 // readAndParseSlackResponse reads the response body. For Content-Type application/json
 // it unmarshals slackResponse; ok=false is an error unless data.Error is listed in
 // opts.IgnoreAPIErrors. Non-JSON bodies use incoming-webhook plaintext rules (body "ok").
-// retry is true for read/unmarshal failures that may be transient; false for definitive
+// Retry is true for read/unmarshal failures that may be transient; false for definitive
 // Slack API errors (ok=false without ignore) or successful plaintext.
 func readAndParseSlackResponse(resp *http.Response, opts slackResponseOpts) (slackResponse, bool, error) {
 	body, err := io.ReadAll(resp.Body)
