@@ -144,9 +144,9 @@ func AlertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers
 	updatedAt := strfmt.DateTime(alert.UpdatedAt)
 	endsAt := strfmt.DateTime(alert.EndsAt)
 
-	apiReceivers := make([]*open_api_models.Receiver, 0, len(receivers))
+	apiReceivers := make([]*open_api_models.ReceiverReference, 0, len(receivers))
 	for i := range receivers {
-		apiReceivers = append(apiReceivers, &open_api_models.Receiver{Name: &receivers[i]})
+		apiReceivers = append(apiReceivers, &open_api_models.ReceiverReference{Name: &receivers[i]})
 	}
 
 	fp := alert.Fingerprint().String()

@@ -939,6 +939,8 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
+	// Labels attached to this receiver for querying and filtering.
+	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
 	DiscordConfigs    []*discord.DiscordConfig `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
@@ -969,5 +971,12 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.Name == "" {
 		return errors.New("missing name in receiver")
 	}
+	if c.Labels == nil {
+		c.Labels = make(map[string]string)
+	}
+	if v, ok := c.Labels["name"]; ok && v != c.Name {
+		return fmt.Errorf("receiver label \"name\" must match receiver name %q, got %q", c.Name, v)
+	}
+	c.Labels["name"] = c.Name
 	return nil
 }
