@@ -15,6 +15,7 @@ package test
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -555,10 +556,11 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(t, co)
 
-	wh.Func = func(ts float64) bool {
-		// Make some webhook requests slow enough to hit the webhook
-		// timeout, but not so slow as to hit the dispatcher timeout.
-		if ts < 3 {
+	var attempts atomic.Int32
+	wh.Func = func(_ float64) bool {
+		// Make the first webhook request slow enough to hit the webhook
+		// timeout. After the timeout, the retry must succeed.
+		if attempts.Add(1) <= 1 {
 			time.Sleep(time.Second)
 			return true
 		}
@@ -569,7 +571,10 @@ receivers:
 
 	am.Push(At(1), Alert("alertname", "test1"))
 
-	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1))
+	// Alert is dispatched at t=2 (group_wait=1s). The first attempt times out
+	// after 500ms. The retry fires after backoff (250ms–750ms), so success
+	// arrives between t≈2.75 and t≈3.25.
+	co.Want(Between(2, 4), Alert("alertname", "test1").Active(1))
 
 	at.Run()
 

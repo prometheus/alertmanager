@@ -202,11 +202,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 	defer notify.Drain(resp)
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
-	}
-	return shouldRetry, err
+	return n.retrier.Check(resp)
 }
 
 // errDetails extracts error details from the response for better error messages.

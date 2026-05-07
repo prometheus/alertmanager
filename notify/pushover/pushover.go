@@ -174,9 +174,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
-	}
-	return shouldRetry, err
+	shouldRetry, errWithReason := n.retrier.Check(resp)
+	return shouldRetry, errWithReason
 }

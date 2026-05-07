@@ -540,6 +540,115 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 	require.NotNil(t, resctx)
 }
 
+func TestRetryStageHonorsRetryAfter(t *testing.T) {
+	attempts := 0
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			attempts++
+			if attempts < 4 {
+				err := NewErrorWithReason(TooManyRequestsReason, errors.New("received 429 Too Many Requests"))
+				err.RetryAfter = 10 * time.Millisecond
+				return true, err
+			}
+			return false, nil
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+
+	alerts := []*types.Alert{{
+		Alert: model.Alert{
+			EndsAt: time.Now().Add(time.Hour),
+		},
+	}}
+
+	// The default exponential backoff starts at 500ms after the first immediate
+	// attempt, so 4 attempts can only complete within this timeout when
+	// Retry-After is actually honored.
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	start := time.Now()
+	_, _, err := r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	elapsed := time.Since(start)
+	require.NoError(t, err)
+	require.Equal(t, 4, attempts)
+	require.GreaterOrEqual(t, elapsed, 30*time.Millisecond)
+	require.Less(t, elapsed, 350*time.Millisecond)
+}
+
+func TestRetryStageRecalculatesBackoffAfterRetryAfter(t *testing.T) {
+	attempts := 0
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			attempts++
+			switch attempts {
+			case 1:
+				err := NewErrorWithReason(TooManyRequestsReason, errors.New("received 429 Too Many Requests"))
+				err.RetryAfter = 10 * time.Millisecond
+				return true, err
+			case 2:
+				return true, errors.New("temporary failure")
+			default:
+				return false, nil
+			}
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+
+	alerts := []*types.Alert{{
+		Alert: model.Alert{
+			EndsAt: time.Now().Add(time.Hour),
+		},
+	}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	_, _, err := r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "notify retry canceled after 2 attempts")
+	require.Equal(t, 2, attempts)
+}
+
+func TestRetryStageWithoutRetryAfterUsesExponentialBackoff(t *testing.T) {
+	attempts := 0
+	i := Integration{
+		name: "test",
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			attempts++
+			if attempts < 4 {
+				return true, NewErrorWithReason(TooManyRequestsReason, errors.New("received 429 Too Many Requests"))
+			}
+			return false, nil
+		}),
+		rs: sendResolved(false),
+	}
+	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+
+	alerts := []*types.Alert{{
+		Alert: model.Alert{
+			EndsAt: time.Now().Add(time.Hour),
+		},
+	}}
+
+	// Without Retry-After we should follow the default backoff ticker, whose
+	// first interval after the initial attempt is far larger than this timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	_, _, err := r.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "notify retry canceled after 1 attempts")
+	require.Equal(t, 1, attempts)
+}
+
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{

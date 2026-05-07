@@ -48,7 +48,7 @@ func TestOpsGenieRetry(t *testing.T) {
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		actual, _ := notifier.retrier.Check(statusCode, nil)
+		actual, _ := notifier.retrier.Check(test.HTTPResponseForStatusCode(statusCode))
 		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
 }
