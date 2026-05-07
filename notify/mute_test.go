@@ -36,13 +36,11 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestMuteStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.

@@ -28,13 +28,11 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()

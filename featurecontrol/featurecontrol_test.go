@@ -21,13 +21,11 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestFlags(t *testing.T) {
 	tc := []struct {

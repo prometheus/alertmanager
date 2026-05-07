@@ -28,13 +28,11 @@ import (
 	"github.com/prometheus/alertmanager/featurecontrol"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestAddAlerts(t *testing.T) {
 	t.Parallel()

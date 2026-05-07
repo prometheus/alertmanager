@@ -36,13 +36,11 @@ import (
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 var testWebhookURL, _ = url.Parse("https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx")
 

@@ -56,13 +56,11 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 const (
 	emailNoAuthConfigVar = "EMAIL_NO_AUTH_CONFIG"

@@ -19,13 +19,11 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 var (
 	url *string

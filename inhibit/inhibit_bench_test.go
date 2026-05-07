@@ -31,13 +31,11 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface
 // for different numbers of inhibition rules.

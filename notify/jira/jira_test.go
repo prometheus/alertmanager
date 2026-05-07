@@ -37,13 +37,11 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func jiraStringDescription(v string) *jiraDescription {
 	return &jiraDescription{StringDescription: stringPtr(v)}

@@ -22,13 +22,11 @@ import (
 
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestFallbackMatcherParser(t *testing.T) {
 	tests := []struct {

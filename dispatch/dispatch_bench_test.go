@@ -29,13 +29,11 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 	"go.uber.org/goleak"
-
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 // buildDeepRouteTree creates a multi-level hierarchical route tree:
 // - numTeams routes at top level

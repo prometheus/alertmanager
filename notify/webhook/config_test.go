@@ -17,15 +17,13 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
 	"go.uber.org/goleak"
-
+	"gopkg.in/yaml.v2"
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
-
 
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
