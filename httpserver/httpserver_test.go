@@ -20,7 +20,14 @@ import (
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	reloadCh := make(chan chan error)

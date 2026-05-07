@@ -87,6 +87,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	iterator := alerts.Subscribe("test")
 
@@ -142,6 +143,7 @@ func TestDeadLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 	alertsToInsert := []*types.Alert{}
 	for i := range 200 + 1 {
 		alertsToInsert = append(alertsToInsert, &types.Alert{
@@ -195,6 +197,7 @@ func TestAlertsPut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	insert := []*types.Alert{alert1, alert2, alert3}
 
@@ -219,6 +222,7 @@ func TestAlertsSubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	// Add alert1 to validate if pending alerts will be sent.
 	if err := alerts.Put(ctx, alert1); err != nil {
@@ -296,6 +300,7 @@ func TestAlertsGetPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	ctx := context.Background()
 	if err := alerts.Put(ctx, alert1, alert2); err != nil {
@@ -334,6 +339,7 @@ func TestAlertsGC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	insert := []*types.Alert{alert1, alert2, alert3}
 
@@ -371,6 +377,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	ctx := context.Background()
 	err = alerts.Put(ctx, alert1, alert2, alert3)
@@ -430,6 +437,7 @@ func TestAlerts_CountByState(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
 	require.NoError(t, err)
+	defer alerts.Close()
 
 	countTotal := func() int {
 		active, suppressed, unprocessed := alerts.countByState()
@@ -555,6 +563,7 @@ func TestAlertsConcurrently(t *testing.T) {
 	callback := &limitCountCallback{limit: 100}
 	a, err := NewAlerts(context.Background(), types.NewMarker(prometheus.NewRegistry()), time.Millisecond, 0, callback, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
 	require.NoError(t, err)
+	defer a.Close()
 
 	stopc := make(chan struct{})
 	failc := make(chan struct{})
@@ -614,6 +623,7 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), reg, nil)
 	require.NoError(t, err)
+	defer alerts.Close()
 
 	subscriberName := "test_subscriber"
 
@@ -622,9 +632,18 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 	defer iterator.Close()
 
 	// Consume alerts in the background
+	quit := make(chan struct{})
 	go func() {
-		for range iterator.Next() {
-			// Just drain the channel
+		ch := iterator.Next()
+		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+			case <-quit:
+				return
+			}
 		}
 	}()
 
@@ -696,4 +715,6 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 		writeCount := getCounterValue("alertmanager_alerts_subscriber_channel_writes_total", "subscriber", subscriberName)
 		return writeCount == float64(len(alertsToSend))
 	}, 1*time.Second, 10*time.Millisecond, "subscriberChannelWrites should equal the number of alerts sent")
+
+	close(quit)
 }

@@ -15,7 +15,14 @@ package nflogpb
 
 import (
 	"testing"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestIsFiringSubset(t *testing.T) {
 	e := &Entry{

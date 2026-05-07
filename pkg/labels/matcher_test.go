@@ -16,7 +16,14 @@ package labels
 import (
 	"encoding/json"
 	"testing"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
 	m, err := NewMatcher(mType, "", value)

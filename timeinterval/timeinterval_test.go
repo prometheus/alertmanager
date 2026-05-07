@@ -22,7 +22,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 var timeIntervalTestCases = []struct {
 	validTimeStrings   []string

@@ -24,7 +24,14 @@ import (
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestSelectEncoding(t *testing.T) {
 	for _, tt := range []struct {

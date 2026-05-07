@@ -26,7 +26,14 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestPushoverRetry(t *testing.T) {
 	notifier, err := New(

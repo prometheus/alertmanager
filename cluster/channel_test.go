@@ -26,11 +26,14 @@ import (
 )
 
 func TestNormalMessagesGossiped(t *testing.T) {
+	stopc := make(chan struct{})
+	defer close(stopc)
 	var sent bool
 	c := newChannel(
 		func(_ []byte) { sent = true },
 		func() []*memberlist.Node { return nil },
 		func(_ *memberlist.Node, _ []byte) error { return nil },
+		stopc,
 	)
 
 	c.Broadcast([]byte{})
@@ -41,12 +44,15 @@ func TestNormalMessagesGossiped(t *testing.T) {
 }
 
 func TestOversizedMessagesGossiped(t *testing.T) {
+	stopc := make(chan struct{})
+	defer close(stopc)
 	var sent bool
 	ctx, cancel := context.WithCancel(context.Background())
 	c := newChannel(
 		func(_ []byte) {},
 		func() []*memberlist.Node { return []*memberlist.Node{{}} },
 		func(_ *memberlist.Node, _ []byte) error { sent = true; cancel(); return nil },
+		stopc,
 	)
 
 	f, err := os.Open("/dev/zero")
@@ -76,6 +82,7 @@ func newChannel(
 	send func([]byte),
 	peers func() []*memberlist.Node,
 	sendOversize func(*memberlist.Node, []byte) error,
+	stopc <-chan struct{},
 ) *Channel {
 	return NewChannel(
 		"test",
@@ -83,7 +90,7 @@ func newChannel(
 		peers,
 		sendOversize,
 		promslog.NewNopLogger(),
-		make(chan struct{}),
+		stopc,
 		prometheus.NewRegistry(),
 	)
 }

@@ -19,7 +19,14 @@ import (
 
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func newTestCache() *cache {
 	return &cache{entries: map[model.Fingerprint]*cacheEntry{}}

@@ -22,7 +22,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestSetGet(t *testing.T) {
 	a := NewAlerts()

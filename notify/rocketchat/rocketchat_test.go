@@ -26,7 +26,14 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
+	"go.uber.org/goleak"
+
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 
 func TestRocketchatRetry(t *testing.T) {
 	secret := commoncfg.Secret("xxxxx")
