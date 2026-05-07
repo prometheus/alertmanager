@@ -42,7 +42,12 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
 // not try to access properties of peer, which would trigger a nil pointer

@@ -114,6 +114,7 @@ func testJoinLeave(t *testing.T) {
 	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
+	p.Leave(0 * time.Second)
 }
 
 func testReconnect(t *testing.T) {
@@ -185,6 +186,8 @@ func testReconnect(t *testing.T) {
 	require.Equal(t, 2, p.ClusterSize())
 	require.Empty(t, p.failedPeers)
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
+	p.Leave(0 * time.Second)
+	p2.Leave(0 * time.Second)
 }
 
 func testRemoveFailedPeers(t *testing.T) {
@@ -237,6 +240,7 @@ func testRemoveFailedPeers(t *testing.T) {
 	p.removeFailedPeers(30 * time.Minute)
 	require.Len(t, p.failedPeers, 1)
 	require.Equal(t, p1, p.failedPeers[0])
+	p.Leave(0 * time.Second)
 }
 
 func testInitiallyFailingPeers(t *testing.T) {
@@ -287,6 +291,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 		p.peerJoin(pr.Node)
 		require.Len(t, p.failedPeers, expectedLen)
 	}
+	p.Leave(0 * time.Second)
 }
 
 func testTLSConnection(t *testing.T) {
@@ -362,6 +367,7 @@ func testTLSConnection(t *testing.T) {
 	require.Len(t, p1.failedPeers, 1)
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
+	p1.Leave(0 * time.Second)
 }
 
 func testPeerNames(t *testing.T, name1, name2 string) {
@@ -437,4 +443,6 @@ func testPeerNames(t *testing.T, name1, name2 string) {
 		require.Eventually(t, func() bool { return p2.ClusterSize() == 2 }, 5*time.Second, time.Second)
 		require.NotEqual(t, p1.Name(), p2.Name(), "peers should have different names")
 	}
+	p1.Leave(0 * time.Second)
+	p2.Leave(0 * time.Second)
 }

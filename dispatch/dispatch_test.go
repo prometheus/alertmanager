@@ -664,6 +664,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer alerts.Close()
 
 	route := &Route{
 		RouteOpts: RouteOpts{

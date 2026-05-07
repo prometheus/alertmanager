@@ -25,7 +25,12 @@ import (
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 // mockDestination records all events written to it.
 type mockDestination struct {

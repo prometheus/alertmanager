@@ -19,7 +19,12 @@ import (
 
 	"github.com/prometheus/alertmanager/matcher/parse"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestCompliance(t *testing.T) {
 	for _, tc := range []struct {

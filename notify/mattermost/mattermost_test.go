@@ -35,7 +35,12 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 var testWebhookURL, _ = url.Parse("https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx")
 
@@ -172,6 +177,7 @@ func TestMattermost_Notify(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 	}))
+	defer srv.Close()
 
 	// Create a temporary file to simulate the WebhookURLFile
 	tempFile, err := os.CreateTemp(t.TempDir(), "webhook_url")
