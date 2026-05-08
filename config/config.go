@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/incidentio"
+	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -956,7 +957,7 @@ type Receiver struct {
 	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*MSTeamsConfig               `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*MSTeamsV2Config             `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs       []*JiraConfig                  `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*MattermostConfig            `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
