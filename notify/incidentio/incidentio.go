@@ -26,7 +26,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -39,7 +38,7 @@ const (
 
 // Notifier implements a Notifier for incident.io.
 type Notifier struct {
-	conf    *config.IncidentioConfig
+	conf    *IncidentioConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -47,7 +46,7 @@ type Notifier struct {
 }
 
 // New returns a new incident.io notifier.
-func New(conf *config.IncidentioConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(conf *IncidentioConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	// conf.HTTPConfig is likely to be the global shared HTTPConfig, so we take a
 	// copy to avoid modifying it.
 	httpConfig := *conf.HTTPConfig
