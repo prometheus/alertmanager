@@ -29,12 +29,22 @@ func Register(r *route.Router, reloadCh chan<- chan error) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
-		errc := make(chan error)
-		defer close(errc)
+		errc := make(chan error, 1)
 
-		reloadCh <- errc
-		if err := <-errc; err != nil {
-			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
+		select {
+		case reloadCh <- errc:
+		case <-req.Context().Done():
+			http.Error(w, req.Context().Err().Error(), http.StatusUnprocessableEntity)
+			return
+		}
+
+		select {
+		case err := <-errc:
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
+			}
+		case <-req.Context().Done():
+			http.Error(w, req.Context().Err().Error(), http.StatusUnprocessableEntity)
 		}
 	})
 
