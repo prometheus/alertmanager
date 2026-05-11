@@ -31,7 +31,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
@@ -52,7 +51,7 @@ func boolPtr(v bool) *bool {
 
 func TestJiraRetry(t *testing.T) {
 	notifier, err := New(
-		&config.JiraConfig{
+		&JiraConfig{
 			APIURL: &amcommoncfg.URL{
 				URL: &url.URL{
 					Scheme: "https",
@@ -112,7 +111,7 @@ func TestSearchExistingIssue(t *testing.T) {
 
 	for _, tc := range []struct {
 		title         string
-		cfg           *config.JiraConfig
+		cfg           *JiraConfig
 		groupKey      string
 		firing        bool
 		expectedJQL   string
@@ -122,9 +121,9 @@ func TestSearchExistingIssue(t *testing.T) {
 	}{
 		{
 			title: "search existing issue with project template for firing alert",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Project:     `{{ .CommonLabels.project }}`,
 			},
 			groupKey:    "1",
@@ -133,9 +132,9 @@ func TestSearchExistingIssue(t *testing.T) {
 		},
 		{
 			title: "search existing issue with reopen duration for firing alert",
-			cfg: &config.JiraConfig{
-				Summary:          config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:      config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:          JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:      JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Project:          `{{ .CommonLabels.project }}`,
 				ReopenDuration:   model.Duration(60 * time.Minute),
 				ReopenTransition: "REOPEN",
@@ -146,9 +145,9 @@ func TestSearchExistingIssue(t *testing.T) {
 		},
 		{
 			title: "search existing issue for resolved alert",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Project:     `{{ .CommonLabels.project }}`,
 			},
 			groupKey:    "1",
@@ -201,7 +200,7 @@ func TestSearchExistingIssue(t *testing.T) {
 func TestPrepareSearchRequest(t *testing.T) {
 	for _, tc := range []struct {
 		title           string
-		cfg             *config.JiraConfig
+		cfg             *JiraConfig
 		jql             string
 		expectedBody    any
 		expectedURL     string
@@ -209,7 +208,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 	}{
 		{
 			title: "cloud API type",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				APIType: "cloud",
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -230,7 +229,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		},
 		{
 			title: "auto API type with atlassian.net url",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				APIType: "auto",
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -251,7 +250,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		},
 		{
 			title: "auto API type without atlassian.net url",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				APIType: "auto",
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -272,7 +271,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		},
 		{
 			title: "atlassian.net URL suffix but datacenter api type",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				APIType: "datacenter",
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -293,7 +292,7 @@ func TestPrepareSearchRequest(t *testing.T) {
 		},
 		{
 			title: "datacenter API type",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				APIType: "datacenter",
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -351,7 +350,7 @@ func TestJiraTemplating(t *testing.T) {
 
 	for _, tc := range []struct {
 		title string
-		cfg   *config.JiraConfig
+		cfg   *JiraConfig
 
 		retry              bool
 		errMsg             string
@@ -360,9 +359,9 @@ func TestJiraTemplating(t *testing.T) {
 	}{
 		{
 			title: "full-blown message with templated custom field",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Fields: map[string]any{
 					"customfield_14400": `{{ template "jira.host" . }}`,
 				},
@@ -373,42 +372,42 @@ func TestJiraTemplating(t *testing.T) {
 		},
 		{
 			title: "template project",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				Project:     `{{ .CommonLabels.lbl1 }}`,
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 			},
 			retry: false,
 		},
 		{
 			title: "template issue type",
-			cfg: &config.JiraConfig{
+			cfg: &JiraConfig{
 				IssueType:   `{{ .CommonLabels.lbl1 }}`,
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 			},
 			retry: false,
 		},
 		{
 			title: "summary with templating errors",
-			cfg: &config.JiraConfig{
-				Summary: config.JiraFieldConfig{Template: "{{ "},
+			cfg: &JiraConfig{
+				Summary: JiraFieldConfig{Template: "{{ "},
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 		{
 			title: "description with templating errors",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: "{{ "},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: "{{ "},
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 		{
 			title: "priority with templating errors",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				Priority:    "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
@@ -469,7 +468,7 @@ func TestJiraTemplating(t *testing.T) {
 func TestJiraNotify(t *testing.T) {
 	for _, tc := range []struct {
 		title string
-		cfg   *config.JiraConfig
+		cfg   *JiraConfig
 
 		alert *types.Alert
 
@@ -480,9 +479,9 @@ func TestJiraNotify(t *testing.T) {
 	}{
 		{
 			title: "create new issue",
-			cfg: &config.JiraConfig{
-				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -522,12 +521,12 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "update existing issue with disabled summary and description",
-			cfg: &config.JiraConfig{
-				Summary: config.JiraFieldConfig{
+			cfg: &JiraConfig{
+				Summary: JiraFieldConfig{
 					Template:     `{{ template "jira.default.summary" . }}`,
 					EnableUpdate: boolPtr(false),
 				},
-				Description: config.JiraFieldConfig{
+				Description: JiraFieldConfig{
 					Template:     `{{ template "jira.default.description" . }}`,
 					EnableUpdate: boolPtr(false),
 				},
@@ -593,9 +592,9 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "create new issue with template project and issue type",
-			cfg: &config.JiraConfig{
-				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "{{ .CommonLabels.issue_type }}",
 				Project:           "{{ .CommonLabels.project }}",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -637,9 +636,9 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "create new issue with custom field and too long summary",
-			cfg: &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: strings.Repeat("A", maxSummaryLenRunes+10)},
-				Description: config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: strings.Repeat("A", maxSummaryLenRunes+10)},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:   "Incident",
 				Project:     "OPS",
 				Priority:    `{{ template "jira.default.priority" . }}`,
@@ -702,9 +701,9 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "reopen issue",
-			cfg: &config.JiraConfig{
-				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -757,9 +756,9 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "error resolve transition not found",
-			cfg: &config.JiraConfig{
-				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -811,9 +810,9 @@ func TestJiraNotify(t *testing.T) {
 		},
 		{
 			title: "error reopen transition not found",
-			cfg: &config.JiraConfig{
-				Summary:           config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description:       config.JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
@@ -1265,9 +1264,9 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.JiraConfig{
-				Summary:     config.JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
-				Description: config.JiraFieldConfig{Template: tc.descriptionTemplate},
+			cfg := &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: tc.descriptionTemplate},
 				IssueType:   "Incident",
 				Project:     "OPS",
 				Labels:      []string{"alertmanager"},
