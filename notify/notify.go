@@ -826,6 +826,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			}
 
 			if iErr != nil {
+				level.Error(l).Log("msg", "failed to send notification, retry canceled", "attempts", i, "err", iErr)
 				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
 			}
 			return ctx, nil, nil
@@ -834,6 +835,8 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 		select {
 		case <-tick.C:
+			level.Info(l).Log("msg", "sending notification", "attempts", i)
+
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			dur := time.Since(now)
@@ -842,24 +845,17 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
 				if !retry {
+					level.Error(l).Log("msg", "failed to send notification, retry canceled due to unrecoverable error", "attempts", i, "err", err)
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
+				level.Warn(l).Log("msg", "failed to send notification, will retry", "attempts", i, "err", err)
 				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
-						// Log the error if the context isn't done and the error isn't the same as before.
-						level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
-					}
 					// Save this error to be able to return the last seen error by an
 					// integration upon context timeout.
 					iErr = err
 				}
 			} else {
-				lvl := level.Info(l)
-				if i <= 1 {
-					lvl = level.Debug(log.With(l, "alerts", fmt.Sprintf("%v", alerts)))
-				}
-
-				lvl.Log("msg", "Notify success", "attempts", i, "duration", dur)
+				level.Info(l).Log("msg", "sent notification", "attempts", i)
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
@@ -872,6 +868,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				}
 			}
 			if iErr != nil {
+				level.Error(l).Log("msg", "failed to send notification, retry canceled", "attempts", i, "err", iErr)
 				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
 			}
 			return ctx, nil, nil
