@@ -523,7 +523,9 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 			// Try to store the new group in the map. If another goroutine has already created the same group, use the existing one.
 			swapped := d.routeGroupsSlice[route.Idx].groups.CompareAndSwap(fp, el, ag)
 			if swapped {
-				// We swapped the new group in, we can break and start it.
+				// Cancel the old destroyed group's goroutine since it's no longer
+				// reachable in the map and doMaintenance() won't find it to stop it.
+				el.(*aggrGroup).cancel()
 				break
 			}
 			loaded = false

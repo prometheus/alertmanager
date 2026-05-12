@@ -825,6 +825,48 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	require.Positive(t, testutil.ToFloat64(metrics.aggrGroupCreationRetries), "contended CAS path was not exercised in %d rounds — scheduler is unusually serial", rounds)
 }
 
+// TestGroupAlert_CancelsDestroyedGroupOnCASSwap verifies that when groupAlert
+// replaces a destroyed aggrGroup in the map via CompareAndSwap, it calls
+// cancel() on the evicted group so its goroutine can exit cleanly.
+func TestGroupAlert_CancelsDestroyedGroupOnCASSwap(t *testing.T) {
+	logger := promslog.NewNopLogger()
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "test",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      time.Hour,
+			GroupInterval:  time.Hour,
+			RepeatInterval: time.Hour,
+		},
+		Idx: 0,
+	}
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(nil, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
+	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
+	dispatcher.state.Store(DispatcherStateWaitingToStart)
+
+	groupLabels := model.LabelSet{"alertname": "TestAlert"}
+
+	// Create a destroyed aggrGroup and place it at the fingerprint.
+	destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
+	require.NoError(t, destroyedAg.alerts.DeleteIfNotModified(types.AlertSlice{}, true))
+	require.True(t, destroyedAg.destroyed(), "pre-condition: group must be destroyed")
+
+	dispatcher.routeGroupsSlice[0].groups.Store(destroyedAg.fingerprint(), destroyedAg)
+
+	// groupAlert must detect the destroyed group, create a replacement, and
+	// CAS it in — triggering cancel() on the evicted group.
+	alert := newAlert(model.LabelSet{"alertname": "TestAlert"})
+	dispatcher.groupAlert(context.Background(), alert, route)
+
+	require.ErrorIs(t, destroyedAg.ctx.Err(), context.Canceled,
+		"destroyed group's context must be cancelled after being CAS-swapped out")
+}
+
 func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 	t.Run("successful flush deletes markers for resolved alerts", func(t *testing.T) {
 		ctx := context.Background()
