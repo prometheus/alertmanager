@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -959,7 +960,7 @@ type Receiver struct {
 	MSTeamsV2Configs  []*MSTeamsV2Config             `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
-	MattermostConfigs []*MattermostConfig            `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
+	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
