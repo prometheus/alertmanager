@@ -4,6 +4,10 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - main
+# Docker Hub + Quay pushes use their own secrets.
+permissions:
+  contents: read
+
 jobs:
   ci:
     name: Run ci

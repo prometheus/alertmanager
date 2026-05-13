@@ -4,6 +4,11 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - v*
+# Docker Hub + Quay pushes use their own secrets; GitHub release publish
+# uses PROMBOT_GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   ci:
     name: Run ci
