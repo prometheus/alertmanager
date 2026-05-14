@@ -22,7 +22,12 @@ import (
 
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func mustUnmarshalInhibitRule(t *testing.T, input string) InhibitRule {
 	t.Helper()

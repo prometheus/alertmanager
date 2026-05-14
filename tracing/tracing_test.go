@@ -24,7 +24,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestConditionalTracerDisabled(t *testing.T) {
 	tracingEnabled.Store(false)
@@ -139,6 +144,7 @@ func TestInstallingNewTracerProvider(t *testing.T) {
 	tpBefore := otel.GetTracerProvider()
 
 	m := NewManager(promslog.NewNopLogger())
+	t.Cleanup(m.Stop)
 	cfg := TracingConfig{
 		Endpoint:   "localhost:1234",
 		ClientType: TracingClientGRPC,
@@ -150,6 +156,7 @@ func TestInstallingNewTracerProvider(t *testing.T) {
 
 func TestReinstallingTracerProvider(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
+	t.Cleanup(m.Stop)
 	cfg := TracingConfig{
 		Endpoint:   "localhost:1234",
 		ClientType: TracingClientGRPC,
@@ -189,6 +196,7 @@ func TestReinstallingTracerProvider(t *testing.T) {
 
 func TestReinstallingTracerProviderWithTLS(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
+	t.Cleanup(m.Stop)
 	cfg := TracingConfig{
 		Endpoint:   "localhost:1234",
 		ClientType: TracingClientGRPC,
@@ -207,6 +215,7 @@ func TestReinstallingTracerProviderWithTLS(t *testing.T) {
 
 func TestUninstallingTracerProvider(t *testing.T) {
 	m := NewManager(promslog.NewNopLogger())
+	t.Cleanup(m.Stop)
 	cfg := TracingConfig{
 		Endpoint:   "localhost:1234",
 		ClientType: TracingClientGRPC,

@@ -33,7 +33,12 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestWebexRetry(t *testing.T) {
 	testWebhookURL, err := url.Parse("https://api.ciscospark.com/v1/message")

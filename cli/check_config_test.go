@@ -14,8 +14,13 @@
 package cli
 
 import (
+	"go.uber.org/goleak"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestCheckConfig(t *testing.T) {
 	err := CheckConfig([]string{"testdata/conf.good.yml"})

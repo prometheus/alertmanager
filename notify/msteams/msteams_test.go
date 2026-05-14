@@ -35,7 +35,12 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 // This is a test URL that has been modified to not be valid.
 var testWebhookURL, _ = url.Parse("https://example.webhook.office.com/webhookb2/xxxxxx/IncomingWebhook/xxx/xxx")
