@@ -33,7 +33,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
@@ -42,7 +41,7 @@ import (
 
 func TestSlackRetry(t *testing.T) {
 	notifier, err := New(
-		&config.SlackConfig{
+		&Config{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -61,7 +60,7 @@ func TestSlackRedactedURL(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.SlackConfig{
+		&Config{
 			APIURL:     &amcommoncfg.SecretURL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -83,7 +82,7 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.SlackConfig{
+		&Config{
 			APIURLFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -105,7 +104,7 @@ func TestTrimmingSlackURLFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.SlackConfig{
+		&Config{
 			APIURLFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -196,7 +195,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			apiurl, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
-				&config.SlackConfig{
+				&Config{
 					NotifierConfig: amcommoncfg.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
@@ -254,7 +253,7 @@ func TestSlackTimeout(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			u, _ := url.Parse("https://slack.com/post.Message")
 			notifier, err := New(
-				&config.SlackConfig{
+				&Config{
 					NotifierConfig: amcommoncfg.NotifierConfig{},
 					HTTPConfig:     &commoncfg.HTTPClientConfig{},
 					APIURL:         &amcommoncfg.SecretURL{URL: u},
@@ -325,7 +324,7 @@ func TestSlackMessageField(t *testing.T) {
 
 	// 4. Configure Notifier with BOTH new and old fields
 	u, _ := url.Parse(server.URL)
-	conf := &config.SlackConfig{
+	conf := &Config{
 		APIURL:      &amcommoncfg.SecretURL{URL: u},
 		MessageText: "My Top Level Message", // Your NEW field
 		Title:       "Old Attachment Title", // An OLD field
