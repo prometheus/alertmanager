@@ -324,9 +324,14 @@ func (d *Dispatcher) doMaintenance() {
 			ag := el.(*aggrGroup)
 			if ag.destroyed() {
 				ag.stop()
-				d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
 				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
 				if deleted {
+					// Deletion from the marker should only happen if we really deleted the group.
+					// While it's possible that a new group with the same fingerprint is added between
+					// CompareAndDelete and DeleteByGroupKey, it should not have flushed in between,
+					// because of flush waits. A full prevention would require DeleteByGroupKey to also
+					// take the group as an argument and only delete if the group itself matches.
+					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
 					d.routeGroupsSlice[i].groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
 					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
@@ -523,6 +528,9 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *types.Alert, route *
 			// Try to store the new group in the map. If another goroutine has already created the same group, use the existing one.
 			swapped := d.routeGroupsSlice[route.Idx].groups.CompareAndSwap(fp, el, ag)
 			if swapped {
+				// Since we swapped the new group in, we need to cancel the old one,
+				// as doMaintenance will not be able to find it in the map anymore.
+				el.(*aggrGroup).cancel()
 				// We swapped the new group in, we can break and start it.
 				break
 			}
@@ -756,6 +764,11 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			})
 
 			cancel()
+
+			// If destroyed, exit: this particular alert group won't be used anymore.
+			if ag.destroyed() {
+				return
+			}
 
 		case <-ag.ctx.Done():
 			return
