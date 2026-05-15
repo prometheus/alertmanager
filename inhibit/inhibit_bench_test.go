@@ -77,6 +77,15 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("10000 inhibition rules, last rule matches", func(b *testing.B) {
 		benchmarkMutes(b, lastRuleMatchesBenchmark(b, 10000))
 	})
+	b.Run("10 inhibition rules, 5 sources, 100 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 5, 10, 100))
+	})
+	b.Run("100 inhibition rules, 10 sources, 1000 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 10, 100, 1000))
+	})
+	b.Run("1000 inhibition rules, 20 sources, 1000 inhibiting alerts", func(b *testing.B) {
+		benchmarkMutes(b, multipleSourcesBenchMark(b, 20, 1000, 1000))
+	})
 }
 
 // benchmarkOptions allows the declaration of a wide range of benchmarks.
@@ -110,8 +119,12 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
 			return amcommoncfg.InhibitRule{
-				SourceMatchers: amcommoncfg.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				Sources: []amcommoncfg.InhibitRuleSource{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+						},
+					},
 				},
 				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
@@ -153,8 +166,12 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 		n: n,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
 			return amcommoncfg.InhibitRule{
-				SourceMatchers: amcommoncfg.Matchers{
-					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				Sources: []amcommoncfg.InhibitRuleSource{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+						},
+					},
 				},
 				TargetMatchers: amcommoncfg.Matchers{
 					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
@@ -173,6 +190,51 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 					},
 				},
 			}}
+		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
+				return errors.New("expected dst=0 to be muted")
+			}
+			return nil
+		},
+	}
+}
+
+func multipleSourcesBenchMark(b *testing.B, numSources, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
+	return benchmarkOptions{
+		n: numInhibitionRules,
+		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
+			sources := []amcommoncfg.InhibitRuleSource{}
+			for i := range numSources {
+				srcValue := strconv.Itoa(idx) + "-" + strconv.Itoa(i)
+				sources = append(sources, amcommoncfg.InhibitRuleSource{
+					SrcMatchers: amcommoncfg.Matchers{
+						mustNewMatcher(b, labels.MatchEqual, "src", srcValue),
+					},
+				})
+			}
+			return amcommoncfg.InhibitRule{
+				Sources: sources,
+				TargetMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+				},
+			}
+		},
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
+			var alerts []types.Alert
+			for src := range numSources {
+				for i := range numInhibitingAlerts {
+					srcValue := strconv.Itoa(idx) + "-" + strconv.Itoa(src)
+					alerts = append(alerts, types.Alert{
+						Alert: model.Alert{
+							Labels: model.LabelSet{
+								"src": model.LabelValue(srcValue),
+								"idx": model.LabelValue(strconv.Itoa(i)),
+							},
+						},
+					})
+				}
+			}
+			return alerts
 		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
 			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
