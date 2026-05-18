@@ -899,6 +899,66 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	require.Positive(t, testutil.ToFloat64(metrics.aggrGroupCreationRetries), "contended CAS path was not exercised in %d rounds — scheduler is unusually serial", rounds)
 }
 
+// TestGroupAlert_DisplacedAggrGroupGoroutineExits is a regression test for a
+// goroutine leak: when groupAlert CAS-replaces a destroyed aggrGroup in the
+// map, the displaced group's run goroutine must be torn down. Otherwise it
+// stays parked in its select forever (doMaintenance can no longer find it
+// because it's been removed from the map), accumulating one stuck goroutine
+// per replacement for the lifetime of the process.
+func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
+	logger := promslog.NewNopLogger()
+	reg := prometheus.NewRegistry()
+	marker := types.NewMarker(reg)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+	require.NoError(t, err)
+	defer alerts.Close()
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "test",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      time.Hour, // never auto-flush during the test
+			GroupInterval:  time.Hour,
+			RepeatInterval: time.Hour,
+		},
+		Idx: 0,
+	}
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
+	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
+	// WaitingToStart so groupAlert won't auto-start the new ag — keeps the
+	// test focused on the displaced group.
+	dispatcher.state.Store(DispatcherStateWaitingToStart)
+
+	groupLabels := model.LabelSet{"alertname": "displaced"}
+	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
+	// Mark destroyed so groupAlert can't insert into it and is forced down
+	// the CAS-replace path.
+	require.NoError(t, displaced.alerts.DeleteIfNotModified(types.AlertSlice{}, true))
+	require.True(t, displaced.destroyed())
+	dispatcher.routeGroupsSlice[0].groups.Store(displaced.fingerprint(), displaced)
+
+	// Start the run goroutine on the displaced group — this is the orphan
+	// candidate. Without the fix it would never exit.
+	go displaced.run(func(context.Context, ...*types.Alert) bool { return true })
+
+	// Trigger the CAS replacement.
+	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route)
+
+	// The displaced group should have been swapped out for a fresh one.
+	el, ok := dispatcher.routeGroupsSlice[0].groups.Load(displaced.fingerprint())
+	require.True(t, ok)
+	require.NotSame(t, displaced, el.(*aggrGroup), "destroyed group must have been replaced")
+
+	// And its run goroutine must have exited.
+	select {
+	case <-displaced.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("displaced aggrGroup.run goroutine did not exit after CAS replacement")
+	}
+}
+
 func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 	t.Run("successful flush deletes markers for resolved alerts", func(t *testing.T) {
 		ctx := context.Background()
