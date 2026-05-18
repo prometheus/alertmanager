@@ -138,7 +138,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory)
+	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory, nil)
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -192,7 +192,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory)
+	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory, nil)
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -714,4 +714,108 @@ type limits struct {
 
 func (l limits) MaxNumberOfAggregationGroups() int {
 	return l.groups
+}
+
+// TestAggrGroupFlushDeletesMarkerEntries verifies that flush() cleans up marker
+// entries for resolved alerts, preventing memory leaks from orphaned marker entries.
+func TestAggrGroupFlushDeletesMarkerEntries(t *testing.T) {
+	lset := model.LabelSet{"alertname": "test"}
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "test",
+			GroupBy:        map[model.LabelName]struct{}{},
+			GroupInterval:  time.Millisecond,
+			RepeatInterval: time.Hour,
+		},
+	}
+
+	newGroup := func() (types.Marker, *aggrGroup) {
+		m := types.NewMarker(prometheus.NewRegistry())
+		return m, newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger(), standardTimerFactory, m)
+	}
+
+	// nfWithInhibit simulates MuteStage calling SetInhibited unconditionally for
+	// every alert, as the real pipeline does, then returns the given success value.
+	nfWithInhibit := func(marker types.Marker, success bool) notifyFunc {
+		return func(_ context.Context, alerts ...*types.Alert) bool {
+			for _, a := range alerts {
+				marker.SetInhibited(a.Fingerprint())
+			}
+			return success
+		}
+	}
+
+	resolved := func(updatedAt time.Time) *types.Alert {
+		return &types.Alert{
+			Alert:     model.Alert{Labels: lset, StartsAt: updatedAt.Add(-time.Minute), EndsAt: updatedAt},
+			UpdatedAt: updatedAt,
+		}
+	}
+
+	t.Run("resolved alert removed on success", func(t *testing.T) {
+		marker, ag := newGroup()
+		require.NoError(t, ag.alerts.Set(resolved(time.Now().Add(-time.Second))))
+		ag.flush(context.Background(), nfWithInhibit(marker, true))
+		require.Equal(t, 0, marker.Count())
+	})
+
+	t.Run("stale resolved alert removed on notification failure", func(t *testing.T) {
+		marker, ag := newGroup()
+		require.NoError(t, ag.alerts.Set(resolved(time.Now().Add(-time.Hour))))
+		ag.flush(context.Background(), nfWithInhibit(marker, false))
+		require.Equal(t, 0, marker.Count())
+	})
+
+	t.Run("active alert keeps its marker entry", func(t *testing.T) {
+		marker, ag := newGroup()
+		require.NoError(t, ag.alerts.Set(&types.Alert{
+			Alert:     model.Alert{Labels: lset, StartsAt: time.Now().Add(-time.Minute), EndsAt: time.Now().Add(time.Hour)},
+			UpdatedAt: time.Now().Add(-time.Minute),
+		}))
+		ag.flush(context.Background(), nfWithInhibit(marker, true))
+		require.Equal(t, 1, marker.Count())
+	})
+
+	t.Run("GC race: entry re-created by flush after GC deletion is cleaned up", func(t *testing.T) {
+		marker, ag := newGroup()
+		a := resolved(time.Now().Add(-time.Second))
+		require.NoError(t, ag.alerts.Set(a))
+		marker.SetInhibited(a.Fingerprint())
+		marker.Delete(a.Fingerprint())
+		ag.flush(context.Background(), nfWithInhibit(marker, true))
+		require.Equal(t, 0, marker.Count())
+	})
+
+	t.Run("re-fired alert during flush keeps its marker entry", func(t *testing.T) {
+		marker, ag := newGroup()
+
+		// Two resolved alerts with different fingerprints.
+		a1 := resolved(time.Now().Add(-time.Second))
+		a2 := &types.Alert{
+			Alert:     model.Alert{Labels: model.LabelSet{"alertname": "test2"}, StartsAt: time.Now().Add(-time.Minute), EndsAt: time.Now().Add(-time.Second)},
+			UpdatedAt: time.Now().Add(-time.Second),
+		}
+		require.NoError(t, ag.alerts.Set(a1))
+		require.NoError(t, ag.alerts.Set(a2))
+
+		// nf simulates a2 re-firing during notification delivery.
+		nf := func(_ context.Context, alerts ...*types.Alert) bool {
+			for _, a := range alerts {
+				marker.SetInhibited(a.Fingerprint())
+			}
+			refired := *a2
+			refired.EndsAt = time.Now().Add(time.Hour)
+			refired.UpdatedAt = time.Now()
+			require.NoError(t, ag.alerts.Set(&refired))
+			return true
+		}
+
+		ag.flush(context.Background(), nf)
+
+		// a1 was deleted, marker entry gone. a2 re-fired, marker entry kept.
+		require.Equal(t, 1, marker.Count())
+		_, inhibited := marker.Inhibited(a2.Fingerprint())
+		require.False(t, inhibited)
+		require.True(t, marker.Active(a2.Fingerprint()))
+	})
 }

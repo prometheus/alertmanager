@@ -115,16 +115,17 @@ func (a *Alerts) Set(alert *types.Alert) error {
 }
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
-// modified.
-func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) {
+// modified. It returns the fingerprints of alerts that were actually deleted.
+func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice) []model.Fingerprint {
 	a.Lock()
 	defer a.Unlock()
-	a.deleteIfNotModified(alerts)
+	return a.deleteIfNotModified(alerts)
 }
 
 // DeleteIfStale deletes the slice of Alerts from the store if the time since
-// the last update is greater than or equal to the given TTL.
-func (a *Alerts) DeleteIfStale(alerts types.AlertSlice, ttl time.Duration) {
+// the last update is greater than or equal to the given TTL. It returns the
+// fingerprints of alerts that were actually deleted.
+func (a *Alerts) DeleteIfStale(alerts types.AlertSlice, ttl time.Duration) []model.Fingerprint {
 	a.Lock()
 	defer a.Unlock()
 
@@ -136,18 +137,21 @@ func (a *Alerts) DeleteIfStale(alerts types.AlertSlice, ttl time.Duration) {
 		}
 	}
 
-	a.deleteIfNotModified(stale)
+	return a.deleteIfNotModified(stale)
 }
 
 // deleteIfNotModified deletes alerts from the store whose UpdatedAt has not changed.
 // Not thread-safe. The caller must hold the lock.
-func (a *Alerts) deleteIfNotModified(alerts types.AlertSlice) {
+func (a *Alerts) deleteIfNotModified(alerts types.AlertSlice) []model.Fingerprint {
+	var deleted []model.Fingerprint
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 		if other, ok := a.c[fp]; ok && alert.UpdatedAt.Equal(other.UpdatedAt) {
 			delete(a.c, fp)
+			deleted = append(deleted, fp)
 		}
 	}
+	return deleted
 }
 
 // List returns a slice of Alerts currently held in memory.
