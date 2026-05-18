@@ -146,15 +146,40 @@ func (s state) clone() state {
 
 // merge returns true or false whether the MeshFlushLog was merged or
 // not. This information is used to decide to gossip the message further.
+//
+// Tombstones (entries with zero ExpiresAt) are retained in state rather than
+// being removed: a deletion that drops the local entry would let an
+// in-flight refresh broadcast for the same group_fingerprint re-add the
+// entry, causing a gossip ping-pong (the deleted and refreshed messages
+// would oscillate between peers). Keeping the tombstone with a Timestamp
+// at least as recent as the deleted entry's lets the entry-path's
+// Timestamp.Before check reject stale refreshes naturally. Tombstones are
+// GC'd in FlushLog.GC once Timestamp + retention has elapsed.
 func (s state) merge(e *pb.MeshFlushLog, now time.Time) bool {
-	if e.ExpiresAt.IsZero() { // handle delete broadcasts
-		if prev, ok := s[e.FlushLog.GroupFingerprint]; !ok {
+	if e.ExpiresAt.IsZero() { // tombstone
+		prev, ok := s[e.FlushLog.GroupFingerprint]
+		if !ok {
+			// No prior knowledge of this group; record the tombstone so any
+			// future stale refresh broadcast can be rejected by Timestamp.
+			s[e.FlushLog.GroupFingerprint] = e
+			return true
+		}
+		if prev.ExpiresAt.IsZero() {
+			// Prev is already a tombstone; only a strictly newer Timestamp
+			// is propagated further to avoid endless re-gossip of identical
+			// tombstones.
+			if prev.FlushLog.Timestamp.Before(e.FlushLog.Timestamp) {
+				s[e.FlushLog.GroupFingerprint] = e
+				return true
+			}
 			return false
-		} else if prev.FlushLog.Timestamp.Before(e.FlushLog.Timestamp) || prev.FlushLog.Timestamp.Equal(e.FlushLog.Timestamp) {
-			// only delete if the incoming entry is newer
-			// since on expire the flushlog gets recreated, this can lead to a race condition
-			// causing the previous entry delete message to arrive after the new entry
-			delete(s, e.FlushLog.GroupFingerprint)
+		}
+		// Prev is a live entry; tombstone wins if its Timestamp is at least
+		// as new as the entry's (since on near-expiry the flushlog gets
+		// re-broadcast with the same Timestamp, the delete needs to defeat
+		// in-flight refreshes that carry the same Timestamp).
+		if prev.FlushLog.Timestamp.Before(e.FlushLog.Timestamp) || prev.FlushLog.Timestamp.Equal(e.FlushLog.Timestamp) {
+			s[e.FlushLog.GroupFingerprint] = e
 			return true
 		}
 		return false
@@ -368,7 +393,7 @@ func (l *FlushLog) Log(groupFingerprint uint64, flushTime, expiryThreshold time.
 		ExpiresAt: expiresAt,
 	}
 
-	if prevle, ok := l.st[groupFingerprint]; ok {
+	if prevle, ok := l.st[groupFingerprint]; ok && !prevle.ExpiresAt.IsZero() {
 		// minimize gossip by logging once per expiry period
 		// - expiry is based on the time given by the flush log clock and is set on the mesh struct.
 		// - we don't have any of that here, so based on flush time (which is before the flushlog clock time)
@@ -384,6 +409,11 @@ func (l *FlushLog) Log(groupFingerprint uint64, flushTime, expiryThreshold time.
 			e.FlushLog = prevle.FlushLog // keep previous timestamp
 		}
 	}
+	// If prevle is a tombstone we intentionally fall through here: the new
+	// flush must use the fresh flushTime so its Timestamp is strictly newer
+	// than the tombstone's, allowing peers to accept it via state.merge's
+	// entry-path. Carrying the tombstone's Timestamp would deadlock the
+	// group on every peer until GC sweeps the tombstone.
 
 	b, err := marshalMeshFlushLog(e)
 	if err != nil {
@@ -395,7 +425,24 @@ func (l *FlushLog) Log(groupFingerprint uint64, flushTime, expiryThreshold time.
 	return nil
 }
 
-// Delete removes the entry for the given group fingerprint from the log.
+// Delete marks the entry for the given group fingerprint as a tombstone and
+// broadcasts it. The tombstone is retained in state (rather than being
+// removed) so that stale refresh broadcasts arriving after the delete
+// cannot resurrect the entry — see state.merge for the full rationale.
+//
+// The tombstone's FlushLog.Timestamp is bumped to now (or kept if already
+// later — possible under clock skew across peers) so FlushLog.GC sweeps it
+// at deletion_time + retention regardless of how long the underlying entry
+// was alive. Without this, a long-firing alert whose FlushLog.Timestamp
+// stays pinned to its original flush time would produce a tombstone whose
+// Timestamp + retention is already in the past, and GC would sweep it on
+// the next tick — letting in-flight refresh broadcasts resurrect the entry.
+//
+// The tombstone is built as a fresh MeshFlushLog (including a fresh inner
+// FlushLog) rather than mutating the in-map pointer. Query returns the
+// inner *pb.FlushLog by reference and releases the read lock before the
+// caller dereferences fields like Timestamp; mutating the shared pointer
+// would race those readers on time.Time's multi-word value.
 func (l *FlushLog) Delete(groupFingerprint uint64) error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
@@ -404,11 +451,26 @@ func (l *FlushLog) Delete(groupFingerprint uint64) error {
 	if !ok {
 		return ErrNotFound
 	}
+	if fl.ExpiresAt.IsZero() {
+		// Already tombstoned; nothing to do.
+		return nil
+	}
 
-	delete(l.st, groupFingerprint)
-	fl.ExpiresAt = time.Time{} // broadcast expired log
+	now := l.now()
+	ts := fl.FlushLog.Timestamp
+	if ts.Before(now) {
+		ts = now
+	}
+	tomb := &pb.MeshFlushLog{
+		FlushLog: &pb.FlushLog{
+			GroupFingerprint: fl.FlushLog.GroupFingerprint,
+			Timestamp:        ts,
+		},
+		ExpiresAt: time.Time{},
+	}
+	l.st[groupFingerprint] = tomb
 
-	b, err := marshalMeshFlushLog(fl)
+	b, err := marshalMeshFlushLog(tomb)
 	if err != nil {
 		return err
 	}
@@ -417,7 +479,10 @@ func (l *FlushLog) Delete(groupFingerprint uint64) error {
 	return nil
 }
 
-// GC implements the Log interface.
+// GC implements the Log interface. Live entries are swept when their
+// ExpiresAt has passed. Tombstones (ExpiresAt zero) are swept once
+// FlushLog.Timestamp + retention has passed — long enough for in-flight
+// gossip refresh messages to drain so they can't resurrect a deleted entry.
 func (l *FlushLog) GC() (int, error) {
 	start := time.Now()
 	defer func() { l.metrics.gcDuration.Observe(time.Since(start).Seconds()) }()
@@ -429,6 +494,13 @@ func (l *FlushLog) GC() (int, error) {
 	defer l.mtx.Unlock()
 
 	for k, le := range l.st {
+		if le.ExpiresAt.IsZero() {
+			if le.FlushLog.Timestamp.Add(l.retention).Before(now) {
+				delete(l.st, k)
+				n++
+			}
+			continue
+		}
 		if !le.ExpiresAt.After(now) {
 			delete(l.st, k)
 			n++
@@ -452,7 +524,7 @@ func (l *FlushLog) Query(groupFingerprint uint64) ([]*pb.FlushLog, error) {
 		l.mtx.RLock()
 		defer l.mtx.RUnlock()
 
-		if le, ok := l.st[groupFingerprint]; ok {
+		if le, ok := l.st[groupFingerprint]; ok && !le.ExpiresAt.IsZero() {
 			return []*pb.FlushLog{le.FlushLog}, nil
 		}
 		return nil, ErrNotFound

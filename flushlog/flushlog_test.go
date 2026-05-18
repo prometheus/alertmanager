@@ -63,17 +63,20 @@ func TestLogGC(t *testing.T) {
 func TestLogDelete(t *testing.T) {
 	mockClock := clock.NewMock()
 	now := mockClock.Now()
-	// We only care about key names and expiration timestamps.
-	newFlushLog := func(ts time.Time) *pb.MeshFlushLog {
+	newFlushLog := func(fp uint64, ts, exp time.Time) *pb.MeshFlushLog {
 		return &pb.MeshFlushLog{
-			ExpiresAt: ts,
+			FlushLog: &pb.FlushLog{
+				GroupFingerprint: fp,
+				Timestamp:        ts,
+			},
+			ExpiresAt: exp,
 		}
 	}
 
 	l := &FlushLog{
 		st: state{
-			1: newFlushLog(now),
-			2: newFlushLog(now.Add(time.Second)),
+			1: newFlushLog(1, now, now.Add(time.Hour)),
+			2: newFlushLog(2, now, now.Add(time.Second)),
 		},
 		clock:     mockClock,
 		metrics:   newMetrics(nil),
@@ -82,10 +85,13 @@ func TestLogDelete(t *testing.T) {
 	err := l.Delete(1)
 	require.NoError(t, err, "unexpected delete error")
 
+	// Tombstone retained in state with the original FlushLog.Timestamp and
+	// ExpiresAt zeroed; entry 2 untouched.
 	expected := state{
-		2: newFlushLog(now.Add(time.Second)),
+		1: newFlushLog(1, now, time.Time{}),
+		2: newFlushLog(2, now, now.Add(time.Second)),
 	}
-	require.Equal(t, expected, l.st, "unexpected state after garbage collection")
+	require.Equal(t, expected, l.st, "unexpected state after delete")
 }
 
 func TestLogSnapshot(t *testing.T) {
@@ -268,27 +274,30 @@ func TestStateMerge(t *testing.T) {
 				3: newFlushLog(3, now.Add(time.Minute), exp),                         // newer timestamp, should overwrite
 				4: newFlushLog(4, now, exp),                                          // new key, should be added
 				5: newFlushLog(5, now.Add(-time.Minute), now.Add(-time.Millisecond)), // new key, expired, should not be added
-				6: newFlushLog(6, now.Add(time.Minute), time.Time{}),                 // zero expiration, should be deleted
+				6: newFlushLog(6, now.Add(time.Minute), time.Time{}),                 // tombstone, overwrites entry as tombstone
 			},
 			final: state{
 				1: newFlushLog(1, now, exp),
 				2: newFlushLog(2, now, exp),
 				3: newFlushLog(3, now.Add(time.Minute), exp),
 				4: newFlushLog(4, now, exp),
+				6: newFlushLog(6, now.Add(time.Minute), time.Time{}), // tombstone retained
 			},
 		},
 		{
-			name: "deletes when expiration is zero and timestamp is after previous entry",
+			name: "marks tombstone when expiration is zero and timestamp is after previous entry",
 			a: state{
 				1: newFlushLog(1, now, exp),
 			},
 			b: state{
-				1: newFlushLog(1, now.Add(time.Minute), time.Time{}), // zero expiration, should be deleted
+				1: newFlushLog(1, now.Add(time.Minute), time.Time{}),
 			},
-			final: state{},
+			final: state{
+				1: newFlushLog(1, now.Add(time.Minute), time.Time{}),
+			},
 		},
 		{
-			name: "doesn't delete when timestamp is before previous entry",
+			name: "doesn't tombstone when timestamp is before previous entry",
 			a: state{
 				1: newFlushLog(1, now, exp),
 			},
@@ -297,6 +306,64 @@ func TestStateMerge(t *testing.T) {
 			},
 			final: state{
 				1: newFlushLog(1, now, exp),
+			},
+		},
+		{
+			name: "doesn't resurrect entry after tombstone with same timestamp",
+			a: state{
+				1: newFlushLog(1, now, time.Time{}), // tombstone already in state
+			},
+			b: state{
+				1: newFlushLog(1, now, exp), // stale refresh broadcast — same Timestamp T
+			},
+			final: state{
+				1: newFlushLog(1, now, time.Time{}), // tombstone preserved
+			},
+		},
+		{
+			name: "newer flush overrides tombstone",
+			a: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+			b: state{
+				1: newFlushLog(1, now.Add(time.Minute), exp), // newer flush — Timestamp T2 > T1
+			},
+			final: state{
+				1: newFlushLog(1, now.Add(time.Minute), exp),
+			},
+		},
+		{
+			name: "older entry doesn't override tombstone with same timestamp",
+			a: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+			b: state{
+				1: newFlushLog(1, now.Add(-time.Minute), exp),
+			},
+			final: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+		},
+		{
+			name: "stores tombstone with no prev to reject future stale refreshes",
+			a:    state{},
+			b: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+			final: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+		},
+		{
+			name: "newer tombstone overrides older tombstone",
+			a: state{
+				1: newFlushLog(1, now, time.Time{}),
+			},
+			b: state{
+				1: newFlushLog(1, now.Add(time.Minute), time.Time{}),
+			},
+			final: state{
+				1: newFlushLog(1, now.Add(time.Minute), time.Time{}),
 			},
 		},
 	}
@@ -312,6 +379,70 @@ func TestStateMerge(t *testing.T) {
 			require.Equal(t, c.final, res, "Merge result should match expectation")
 			require.Equal(t, c.b, cb, "Merged state should remain unmodified")
 			require.Equal(t, c.a, ca, "Merge should not change original state")
+		})
+	}
+}
+
+// TestStateMergeGossipPropagation asserts that merge() returns true/false in
+// the right cases so that ping-pong gossip on tombstones doesn't occur.
+func TestStateMergeGossipPropagation(t *testing.T) {
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
+
+	newFlushLog := func(fp uint64, ts, exp time.Time) *pb.MeshFlushLog {
+		return &pb.MeshFlushLog{
+			FlushLog: &pb.FlushLog{
+				GroupFingerprint: fp,
+				Timestamp:        ts,
+			},
+			ExpiresAt: exp,
+		}
+	}
+	exp := now.Add(time.Minute)
+
+	cases := []struct {
+		name   string
+		prev   state
+		in     *pb.MeshFlushLog
+		merged bool
+	}{
+		{
+			name:   "tombstone over entry with same timestamp: merged once",
+			prev:   state{1: newFlushLog(1, now, exp)},
+			in:     newFlushLog(1, now, time.Time{}),
+			merged: true,
+		},
+		{
+			name:   "tombstone equal to stored tombstone: not re-gossiped",
+			prev:   state{1: newFlushLog(1, now, time.Time{})},
+			in:     newFlushLog(1, now, time.Time{}),
+			merged: false,
+		},
+		{
+			name:   "older tombstone vs stored tombstone: not re-gossiped",
+			prev:   state{1: newFlushLog(1, now, time.Time{})},
+			in:     newFlushLog(1, now.Add(-time.Minute), time.Time{}),
+			merged: false,
+		},
+		{
+			name:   "stale refresh after tombstone: not re-gossiped",
+			prev:   state{1: newFlushLog(1, now, time.Time{})},
+			in:     newFlushLog(1, now, exp),
+			merged: false,
+		},
+		{
+			name:   "newer flush after tombstone: merged",
+			prev:   state{1: newFlushLog(1, now, time.Time{})},
+			in:     newFlushLog(1, now.Add(time.Minute), exp),
+			merged: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := c.prev.clone()
+			got := s.merge(c.in, now)
+			require.Equal(t, c.merged, got, "unexpected merge return value")
 		})
 	}
 }
@@ -388,6 +519,195 @@ func TestQuery(t *testing.T) {
 	entry := entries[0]
 	require.Equal(t, uint64(1), entry.GroupFingerprint, "unexpected group fingerprint")
 	require.Equal(t, now, entry.Timestamp, "unexpected group fingerprint")
+}
+
+// TestQuery_Tombstone asserts that Query treats a tombstone-marked entry as
+// not-found so callers can't observe a phantom flushlog entry.
+func TestQuery_Tombstone(t *testing.T) {
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
+
+	l := &FlushLog{
+		clock:   mockClock,
+		metrics: newMetrics(nil),
+		st: state{
+			1: &pb.MeshFlushLog{
+				FlushLog: &pb.FlushLog{
+					GroupFingerprint: 1,
+					Timestamp:        now,
+				},
+				ExpiresAt: time.Time{},
+			},
+		},
+	}
+	_, err := l.Query(1)
+	require.ErrorIs(t, err, ErrNotFound, "Query must hide tombstones from callers")
+}
+
+// TestLog_AfterTombstone asserts that calling Log() when the previous entry
+// is a tombstone produces a fresh entry with the new flushTime and a valid
+// ExpiresAt — i.e. the tombstone doesn't sink the new flush via the
+// closeToExpiry / Timestamp-carry-over branch.
+func TestLog_AfterTombstone(t *testing.T) {
+	mockClock := clock.NewMock()
+	t1 := mockClock.Now()
+	mockClock.Add(time.Hour)
+	t2 := mockClock.Now()
+
+	var broadcasts [][]byte
+	l := &FlushLog{
+		clock:     mockClock,
+		retention: 24 * time.Hour,
+		logger:    nil,
+		metrics:   newMetrics(nil),
+		broadcast: func(b []byte) { broadcasts = append(broadcasts, b) },
+		st: state{
+			1: &pb.MeshFlushLog{
+				FlushLog: &pb.FlushLog{
+					GroupFingerprint: 1,
+					Timestamp:        t1,
+				},
+				ExpiresAt: time.Time{}, // tombstone
+			},
+		},
+	}
+
+	err := l.Log(1, t2, t2.Add(time.Hour), 0)
+	require.NoError(t, err)
+
+	got, ok := l.st[1]
+	require.True(t, ok, "expected fresh entry in state after Log post-tombstone")
+	require.False(t, got.ExpiresAt.IsZero(), "expected real entry, got tombstone")
+	require.Equal(t, t2, got.FlushLog.Timestamp, "expected fresh Timestamp (t2), not tombstone's Timestamp (t1)")
+	require.Len(t, broadcasts, 1, "expected exactly one broadcast")
+}
+
+// TestQuery_PointerStability asserts that a *pb.FlushLog returned by
+// Query is not mutated by a subsequent Delete. Query releases the read
+// lock before the caller dereferences fields; mutating the in-map
+// pointer (rather than replacing it) would race on time.Time's
+// multi-word value.
+func TestQuery_PointerStability(t *testing.T) {
+	mockClock := clock.NewMock()
+	t1 := mockClock.Now()
+
+	l := &FlushLog{
+		clock:     mockClock,
+		retention: 24 * time.Hour,
+		metrics:   newMetrics(nil),
+		broadcast: func([]byte) {},
+		st: state{
+			1: &pb.MeshFlushLog{
+				FlushLog: &pb.FlushLog{
+					GroupFingerprint: 1,
+					Timestamp:        t1,
+				},
+				ExpiresAt: t1.Add(time.Hour),
+			},
+		},
+	}
+
+	entries, err := l.Query(1)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	held := entries[0]
+	require.Equal(t, t1, held.Timestamp)
+
+	// Advance the clock and delete. This would bump the in-map Timestamp
+	// to the new now if Delete mutated the existing pointer in place.
+	mockClock.Add(100 * time.Hour)
+	require.NoError(t, l.Delete(1))
+
+	require.Equal(t, t1, held.Timestamp, "pointer returned by Query must not be mutated by Delete")
+}
+
+// TestLogDelete_LongLivedEntry asserts that Delete bumps the tombstone's
+// Timestamp to the deletion time when the underlying entry has been
+// refreshed for longer than retention. Without the bump, the tombstone
+// would be swept by GC immediately (Timestamp + retention is already in
+// the past), opening a resurrection window for in-flight refresh
+// broadcasts.
+func TestLogDelete_LongLivedEntry(t *testing.T) {
+	mockClock := clock.NewMock()
+	t1 := mockClock.Now()
+	retention := 24 * time.Hour
+	mockClock.Add(100 * time.Hour)
+	deletionTime := mockClock.Now()
+
+	l := &FlushLog{
+		clock:     mockClock,
+		retention: retention,
+		metrics:   newMetrics(nil),
+		broadcast: func([]byte) {},
+		st: state{
+			1: &pb.MeshFlushLog{
+				FlushLog: &pb.FlushLog{
+					GroupFingerprint: 1,
+					Timestamp:        t1, // original flush, well outside retention
+				},
+				ExpiresAt: deletionTime.Add(retention), // recently refreshed
+			},
+		},
+	}
+
+	err := l.Delete(1)
+	require.NoError(t, err)
+
+	tomb, ok := l.st[1]
+	require.True(t, ok, "tombstone must be retained in state")
+	require.True(t, tomb.ExpiresAt.IsZero(), "ExpiresAt must be zero")
+	require.Equal(t, deletionTime, tomb.FlushLog.Timestamp, "Timestamp must be bumped to deletion time")
+
+	// GC right after delete must not sweep the tombstone.
+	n, err := l.GC()
+	require.NoError(t, err)
+	require.Equal(t, 0, n, "tombstone must not be swept immediately after delete")
+	require.Contains(t, l.st, uint64(1))
+
+	// Advance past retention from deletion; tombstone is now eligible for sweep.
+	mockClock.Add(retention + time.Second)
+	n, err = l.GC()
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "tombstone must be swept once retention since delete has elapsed")
+	require.NotContains(t, l.st, uint64(1))
+}
+
+// TestLogGC_Tombstones asserts GC retains tombstones until
+// FlushLog.Timestamp + retention has passed, then sweeps them.
+func TestLogGC_Tombstones(t *testing.T) {
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
+	retention := time.Hour
+
+	entry := func(fp uint64, ts, exp time.Time) *pb.MeshFlushLog {
+		return &pb.MeshFlushLog{
+			FlushLog: &pb.FlushLog{
+				GroupFingerprint: fp,
+				Timestamp:        ts,
+			},
+			ExpiresAt: exp,
+		}
+	}
+
+	l := &FlushLog{
+		clock:     mockClock,
+		retention: retention,
+		metrics:   newMetrics(nil),
+		st: state{
+			1: entry(1, now, now.Add(time.Second)),                    // entry, ExpiresAt still in future — keep
+			2: entry(2, now.Add(-2*time.Hour), now.Add(-time.Second)), // entry, expired — sweep
+			3: entry(3, now, time.Time{}),                             // tombstone, Timestamp+retention in future — keep
+			4: entry(4, now.Add(-2*retention), time.Time{}),           // tombstone, Timestamp+retention in past — sweep
+		},
+	}
+
+	n, err := l.GC()
+	require.NoError(t, err)
+	require.Equal(t, 2, n, "expected two entries swept (one expired entry, one expired tombstone)")
+	require.Contains(t, l.st, uint64(1), "fresh entry must survive GC")
+	require.Contains(t, l.st, uint64(3), "fresh tombstone must survive GC")
+	require.NotContains(t, l.st, uint64(2), "expired entry must be swept")
+	require.NotContains(t, l.st, uint64(4), "expired tombstone must be swept")
 }
 
 func TestStateDecodingError(t *testing.T) {
