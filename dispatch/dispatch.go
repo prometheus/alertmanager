@@ -326,11 +326,11 @@ func (d *Dispatcher) doMaintenance() {
 				ag.stop()
 				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
 				if deleted {
+					// TODO(ultrotter, siavash):
 					// Deletion from the marker should only happen if we really deleted the group.
-					// While it's possible that a new group with the same fingerprint is added between
-					// CompareAndDelete and DeleteByGroupKey, it should not have flushed in between,
-					// because of flush waits. A full prevention would require DeleteByGroupKey to also
-					// take the group as an argument and only delete if the group itself matches.
+					// Fully fixing the case where a new group with the same fingerprint is created between
+					// CompareAndDelete and DeleteByGroupKey would require changes to the marker interface,
+					// so we leave it as a fix for after landing the pending marker changes.
 					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
 					d.routeGroupsSlice[i].groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
