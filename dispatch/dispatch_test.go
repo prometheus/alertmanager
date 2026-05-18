@@ -909,7 +909,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 	marker := types.NewMarker(reg)
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, 0, nil, logger, reg, nil)
 	require.NoError(t, err)
 	defer alerts.Close()
 
@@ -925,14 +925,14 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, NewDispatcherMetrics(false, reg))
 	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
 	// WaitingToStart so groupAlert won't auto-start the new ag — keeps the
 	// test focused on the displaced group.
 	dispatcher.state.Store(DispatcherStateWaitingToStart)
 
 	groupLabels := model.LabelSet{"alertname": "displaced"}
-	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, marker, eventrecorder.NopRecorder(), logger)
+	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, marker, logger)
 	// Mark destroyed so groupAlert can't insert into it and is forced down
 	// the CAS-replace path.
 	require.NoError(t, displaced.alerts.DeleteIfNotModified(types.AlertSlice{}, true))
