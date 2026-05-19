@@ -431,15 +431,13 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter)
 
-	// Use a temporary marker to "predict" each alert's current status at
-	// query time (silenced, inhibited, active). The alertFilter calls
-	// setAlertStatus which runs the inhibitor/silencer pipeline and writes
-	// the result into tempMarker. We then use tempMarker for the response
-	// to preserve backward-compatible behavior that clients depend on.
-	// TODO: consider a feature flag or API query param to let callers opt
-	// into using the group's actual marker status instead of the prediction.
-	tempMarker := marker.NewAlertMarker()
-	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
+	// The alertFilter runs the inhibitor/silencer pipeline per alert to
+	// decide whether the alert should be included based on the
+	// silenced/inhibited/active query params. Passing a nil marker makes
+	// the filter use a fresh marker per alert, so the prediction for one
+	// alert does not leak into another (the same fingerprint may appear
+	// in multiple aggregation groups).
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, nil)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
@@ -450,6 +448,15 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
+
+	// Snapshot setAlertStatus under the lock so we can predict the status
+	// for each alert without holding api.mtx. We predict at query time
+	// rather than reading the group's actual marker, so the response is
+	// stable across calls regardless of whether the notification pipeline
+	// has run in between (assuming no new alerts/silences/inhibits).
+	api.mtx.RLock()
+	setAlertStatus := api.setAlertStatus
+	api.mtx.RUnlock()
 
 	for _, alertGroup := range alertGroups {
 		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
@@ -466,7 +473,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
-			status := tempMarker.Status(fp)
+			// Predict status per (alert, group) using a fresh marker so
+			// writes don't leak across alerts or groups.
+			status := predictAlertStatus(ctx, setAlertStatus, alert)
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
@@ -474,6 +483,17 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}
 
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
+}
+
+// predictAlertStatus runs the silencer/inhibitor pipeline against a fresh
+// AlertMarker to compute the alert's current status at query time. Using
+// a fresh marker per call isolates the prediction so it does not leak
+// across alerts or aggregation groups.
+func predictAlertStatus(ctx context.Context, setAlertStatus setAlertStatusFn, a *alert.Alert) alert.AlertStatus {
+	m := marker.NewAlertMarker()
+	ctx = marker.WithContext(ctx, m)
+	setAlertStatus(ctx, a.Labels)
+	return m.Status(a.Fingerprint())
 }
 
 func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
@@ -498,12 +518,20 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 		}
 
 		// Set alert's current status based on its label set.
-		// The inhibitor and silencer write to m via the context.
-		ctx = marker.WithContext(ctx, m)
+		// The inhibitor and silencer write to the marker via the context.
+		// When the caller does not provide a marker, use a fresh per-alert
+		// marker to avoid cross-alert contamination (e.g. the same
+		// fingerprint may appear in multiple aggregation groups for
+		// /alerts/groups).
+		predict := m
+		if predict == nil {
+			predict = marker.NewAlertMarker()
+		}
+		ctx = marker.WithContext(ctx, predict)
 		setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
-		status := m.Status(a.Fingerprint())
+		status := predict.Status(a.Fingerprint())
 
 		if !active && status.State == alert.AlertStateActive {
 			return false
