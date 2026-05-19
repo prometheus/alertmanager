@@ -2049,3 +2049,120 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
+
+## Event Recorder
+
+The event recorder captures significant Alertmanager events (process start
+and shutdown, alert lifecycle transitions, silence creation, notification
+delivery, and mute/inhibit suppressions) and fans them out to one or more
+destinations.  Each event is encoded as a structured payload that includes
+a timestamp, the producing instance's hostname, the cluster position (when
+HA clustering is enabled), and the event-specific data.
+
+The recorder is gated behind the `event-recorder` feature flag — pass
+`--enable-feature=event-recorder` on the command line to activate it.
+When the flag is not set, the recorder silently discards all events.
+
+Event recording is configured under the top-level `event_recorder` key.
+
+### `<event_recorder_config>`
+
+```yaml
+# A list of output destinations.  All events are sent to every output.
+outputs:
+  [ - <event_recorder_output> ... ]
+```
+
+### `<event_recorder_output>`
+
+Each output has a `type` (`file`, `webhook`, or `kafka`) and a set of
+type-specific fields.
+
+#### File output
+
+Writes each event as a single JSON line to a file.  The file is reopened
+when the parent directory observes a rename/remove/create on the target
+path (for compatibility with `logrotate` and similar tools).
+
+```yaml
+type: file
+# Path to the JSONL output file.  Will be created if it does not exist.
+path: <filepath>
+```
+
+#### Webhook output
+
+POSTs each event as a JSON body to an HTTP endpoint.  Delivery is
+performed by a bounded worker pool with bounded retries and exponential
+backoff.
+
+```yaml
+type: webhook
+# URL to POST events to.
+url: <secret>
+
+# HTTP client configuration (TLS, basic auth, OAuth, proxies, ...).
+[ http_config: <http_config> ]
+
+# HTTP request timeout.
+[ timeout: <duration> | default = 10s ]
+
+# Number of concurrent delivery workers.
+[ workers: <int> | default = 4 ]
+
+# Maximum number of delivery attempts per event.
+[ max_retries: <int> | default = 3 ]
+
+# Base backoff between retries; subsequent attempts use exponential
+# backoff (base * 2^attempt) capped at 30s.
+[ retry_backoff: <duration> | default = 500ms ]
+```
+
+#### Kafka output
+
+Produces each event to a Kafka topic.  Records use the producing
+Alertmanager instance's hostname as the message key, which keeps all
+events from a single instance on the same partition and preserves their
+relative ordering.  Delivery is asynchronous and bounded: when the local
+buffer is full, events are dropped.
+
+A failure to reach the Kafka brokers at startup is logged at warn level
+but does **not** prevent Alertmanager from starting; the underlying
+client retries connections in the background.
+
+```yaml
+type: kafka
+# Seed broker list (host:port).  At least one entry is required.
+brokers:
+  [ - <string> ... ]
+
+# Topic to produce events to.
+topic: <string>
+
+# Client identifier reported to the brokers.
+[ client_id: <string> | default = "alertmanager" ]
+
+# On-the-wire encoding for each record value: "json" (protojson) or
+# "protobuf" (binary proto).  JSON is the default for symmetry with the
+# file and webhook outputs; consumers that already use the
+# eventrecorder.proto schema may prefer protobuf for compactness.
+[ format: <"json" | "protobuf"> | default = "json" ]
+
+# Producer acknowledgement level.  "leader" matches the franz-go default
+# and minimizes Alertmanager's exposure to Kafka latency.  "all" enables
+# the idempotent producer for at-least-once durability at the cost of
+# higher latency.
+[ acks: <"none" | "leader" | "all"> | default = "leader" ]
+
+# Compression codec for record batches.  When omitted, batches are sent
+# uncompressed.
+[ compression: <"none" | "gzip" | "snappy" | "lz4" | "zstd"> ]
+
+# Capacity of the local buffer between the event recorder and franz-go.
+# Events are dropped when this buffer is full.
+[ buffer_size: <int> | default = 1024 ]
+
+# TLS configuration for the broker connection.  When unset, the
+# connection uses PLAINTEXT.
+[ tls_config: <tls_config> ]
+```
