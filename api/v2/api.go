@@ -35,6 +35,7 @@ import (
 	"github.com/rs/cors"
 	"go.opentelemetry.io/otel/codes"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
@@ -48,13 +49,13 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
@@ -65,7 +66,6 @@ type API struct {
 	silences       *silence.Silences
 	alerts         provider.Alerts
 	alertGroups    groupsFn
-	getAlertStatus getAlertStatusFn
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
 
@@ -84,9 +84,8 @@ type API struct {
 }
 
 type (
-	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
+	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
-	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
 )
 
@@ -94,7 +93,6 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	asf getAlertStatusFn,
 	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
@@ -103,7 +101,6 @@ func NewAPI(
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
-		getAlertStatus: asf,
 		alertGroups:    gf,
 		groupMutedFunc: gmf,
 		peer:           peer,
@@ -282,7 +279,8 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	tempMarker := marker.NewAlertMarker()
+	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
 	now := time.Now()
 
 	api.mtx.RLock()
@@ -309,7 +307,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, api.getAlertStatus(alert.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alert, tempMarker.Status(alert.Fingerprint()), receivers, nil)
 
 		res = append(res, openAlert)
 	}
@@ -366,7 +364,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 
 	// Make a best effort to insert all alerts that are valid.
 	var (
-		validAlerts    = make([]*types.Alert, 0, len(alerts))
+		validAlerts    = make([]*alert.Alert, 0, len(alerts))
 		validationErrs error
 	)
 	for _, a := range alerts {
@@ -433,7 +431,13 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter)
 
-	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	// The alertFilter runs the inhibitor/silencer pipeline per alert to
+	// decide whether the alert should be included based on the
+	// silenced/inhibited/active query params. Passing a nil marker makes
+	// the filter use a fresh marker per alert, so the prediction for one
+	// alert does not leak into another (the same fingerprint may appear
+	// in multiple aggregation groups).
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, nil)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
@@ -444,6 +448,15 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
+
+	// Snapshot setAlertStatus under the lock so we can predict the status
+	// for each alert without holding api.mtx. We predict at query time
+	// rather than reading the group's actual marker, so the response is
+	// stable across calls regardless of whether the notification pipeline
+	// has run in between (assuming no new alerts/silences/inhibits).
+	api.mtx.RLock()
+	setAlertStatus := api.setAlertStatus
+	api.mtx.RUnlock()
 
 	for _, alertGroup := range alertGroups {
 		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
@@ -460,7 +473,9 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
 			receivers := allReceivers[fp]
-			status := api.getAlertStatus(fp)
+			// Predict status per (alert, group) using a fresh marker so
+			// writes don't leak across alerts or groups.
+			status := predictAlertStatus(ctx, setAlertStatus, alert)
 			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
@@ -470,22 +485,55 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
-	return func(a *types.Alert, now time.Time) bool {
-		ctx, span := tracer.Start(context.Background(), "alertFilter")
+// predictAlertStatus runs the silencer/inhibitor pipeline against a fresh
+// AlertMarker to compute the alert's current status at query time. Using
+// a fresh marker per call isolates the prediction so it does not leak
+// across alerts or aggregation groups.
+func predictAlertStatus(ctx context.Context, setAlertStatus setAlertStatusFn, a *alert.Alert) alert.AlertStatus {
+	m := marker.NewAlertMarker()
+	ctx = marker.WithContext(ctx, m)
+	setAlertStatus(ctx, a.Labels)
+	return m.Status(a.Fingerprint())
+}
+
+func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
+	// Snapshot the function pointer under the lock so the closure is safe
+	// to call without holding api.mtx (e.g. in getAlertGroupsHandler).
+	api.mtx.RLock()
+	setAlertStatus := api.setAlertStatus
+	api.mtx.RUnlock()
+
+	return func(a *alert.Alert, now time.Time) bool {
+		ctx, span := tracer.Start(parent, "alertFilter")
 		defer span.End()
 
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 			return false
 		}
 
+		// Short-circuit on label matchers before the expensive
+		// silencer/inhibitor pipeline.
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+			return false
+		}
+
 		// Set alert's current status based on its label set.
-		api.setAlertStatus(ctx, a.Labels)
+		// The inhibitor and silencer write to the marker via the context.
+		// When the caller does not provide a marker, use a fresh per-alert
+		// marker to avoid cross-alert contamination (e.g. the same
+		// fingerprint may appear in multiple aggregation groups for
+		// /alerts/groups).
+		predict := m
+		if predict == nil {
+			predict = marker.NewAlertMarker()
+		}
+		ctx = marker.WithContext(ctx, predict)
+		setAlertStatus(ctx, a.Labels)
 
 		// Get alert's current status after seeing if it is suppressed.
-		status := api.getAlertStatus(a.Fingerprint())
+		status := predict.Status(a.Fingerprint())
 
-		if !active && status.State == types.AlertStateActive {
+		if !active && status.State == alert.AlertStateActive {
 			return false
 		}
 
@@ -497,7 +545,7 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 			return false
 		}
 
-		return alertMatchesFilterLabels(&a.Alert, matchers)
+		return true
 	}
 }
 
