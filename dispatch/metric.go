@@ -39,9 +39,11 @@ type DispatcherMetrics struct {
 // no prometheus.Registerer is provided.
 func newNoopDispatcherMetrics() *DispatcherMetrics {
 	return &DispatcherMetrics{
-		aggrGroups:            prometheus.NewGauge(prometheus.GaugeOpts{}),
-		processingDuration:    prometheus.NewSummary(prometheus.SummaryOpts{}),
-		aggrGroupLimitReached: prometheus.NewCounter(prometheus.CounterOpts{}),
+		aggrGroups:               prometheus.NewGauge(prometheus.GaugeOpts{}),
+		processingDuration:       prometheus.NewSummary(prometheus.SummaryOpts{}),
+		aggrGroupLimitReached:    prometheus.NewCounter(prometheus.CounterOpts{}),
+		aggrGroupCreationRetries: prometheus.NewCounter(prometheus.CounterOpts{}),
+		aggrGroupCreationGivenUp: prometheus.NewCounter(prometheus.CounterOpts{}),
 	}
 }
 
