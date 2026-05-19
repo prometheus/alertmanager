@@ -46,6 +46,7 @@ import (
 const (
 	OutputFile    = "file"
 	OutputWebhook = "webhook"
+	OutputKafka   = "kafka"
 )
 
 const (
@@ -125,6 +126,24 @@ type Destination interface {
 	io.Closer
 }
 
+// ProtoDestination is an optional extension of Destination for outputs
+// that want to consume events as protobuf messages directly, skipping
+// the JSON serialization step.  Outputs that implement this interface
+// and return true from WantsProto receive SendProto calls instead of
+// SendEvent; SendEvent must remain implemented for fallback callers.
+type ProtoDestination interface {
+	Destination
+	// WantsProto returns true if this destination prefers SendProto
+	// over SendEvent.  Implementations may return false to fall back
+	// to the JSON path (useful when format is configurable per output).
+	WantsProto() bool
+	// SendProto delivers the event in its native proto form.  The
+	// implementation is responsible for any encoding (e.g. proto.Marshal).
+	// The returned size is the number of payload bytes ultimately
+	// written to the wire, used for the bytes-written metric.
+	SendProto(event *eventrecorderpb.Event) (size int, err error)
+}
+
 // NopRecorder returns a Recorder that silently discards all events.
 // Use this in tests or when the event recorder is not configured.
 func NopRecorder() Recorder {
@@ -137,7 +156,8 @@ type metrics struct {
 	eventRecorderBytesWritten *prometheus.CounterVec
 	eventsDropped             *prometheus.CounterVec
 	eventSerializeErrors      *prometheus.CounterVec
-	webhookDrops              *prometheus.CounterVec
+	outputDrops               *prometheus.CounterVec
+	kafkaProduceErrors        *prometheus.CounterVec
 }
 
 func newMetrics(r prometheus.Registerer) *metrics {
@@ -161,13 +181,23 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		Help: "The total number of events that failed to serialize.",
 	}, []string{"event_type"})
 
-	webhookDrops := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_event_webhook_drops_total",
-		Help: "The total number of events dropped by a webhook output due to a full queue.",
+	// outputDrops is incremented when an output's local delivery buffer
+	// is full and an event has to be dropped before reaching the wire.
+	// Replaces the legacy alertmanager_event_webhook_drops_total metric
+	// and is shared by the webhook and kafka outputs.
+	outputDrops := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "alertmanager_event_output_drops_total",
+		Help: "The total number of events dropped by an output due to a full local buffer.",
 	}, []string{"output"})
 
+	kafkaProduceErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "alertmanager_event_kafka_produce_errors_total",
+		Help: "The total number of Kafka produce attempts that failed.",
+	}, []string{"output", "error_type"})
+
 	if r != nil {
-		r.MustRegister(eventsRecorded, eventRecorderBytesWritten, eventsDropped, eventSerializeErrors, webhookDrops)
+		r.MustRegister(eventsRecorded, eventRecorderBytesWritten, eventsDropped,
+			eventSerializeErrors, outputDrops, kafkaProduceErrors)
 	}
 
 	return &metrics{
@@ -175,7 +205,8 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		eventRecorderBytesWritten: eventRecorderBytesWritten,
 		eventsDropped:             eventsDropped,
 		eventSerializeErrors:      eventSerializeErrors,
-		webhookDrops:              webhookDrops,
+		outputDrops:               outputDrops,
+		kafkaProduceErrors:        kafkaProduceErrors,
 	}
 }
 
@@ -191,7 +222,7 @@ func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r p
 		cfgUpdate: make(chan cfgUpdateMsg),
 		done:      make(chan struct{}),
 	}
-	initialOutputs := buildOutputs(cfg.Outputs, core.metrics, logger)
+	initialOutputs := buildOutputs(cfg.Outputs, instance, core.metrics, logger)
 
 	if r != nil {
 		r.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -209,7 +240,7 @@ func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r p
 }
 
 // buildOutputs creates Destination implementations from the given config.
-func buildOutputs(cfgOutputs []Output, m *metrics, logger *slog.Logger) []Destination {
+func buildOutputs(cfgOutputs []Output, instance string, m *metrics, logger *slog.Logger) []Destination {
 	var outputs []Destination
 	for _, out := range cfgOutputs {
 		switch out.Type {
@@ -221,12 +252,19 @@ func buildOutputs(cfgOutputs []Output, m *metrics, logger *slog.Logger) []Destin
 			}
 			outputs = append(outputs, fo)
 		case OutputWebhook:
-			wo, err := NewWebhookOutput(out, m.webhookDrops, logger)
+			wo, err := NewWebhookOutput(out, m.outputDrops, logger)
 			if err != nil {
 				logger.Error("Failed to create webhook event recorder output", "url", out.URL, "err", err)
 				continue
 			}
 			outputs = append(outputs, wo)
+		case OutputKafka:
+			ko, err := NewKafkaOutput(out, instance, m.outputDrops, m.kafkaProduceErrors, logger)
+			if err != nil {
+				logger.Error("Failed to create kafka event recorder output", "brokers", out.Brokers, "topic", out.Topic, "err", err)
+				continue
+			}
+			outputs = append(outputs, ko)
 		default:
 			logger.Error("Unknown event recorder output type", "type", out.Type)
 		}
@@ -259,7 +297,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 			c.marshalAndSend(req, outputs)
 		case update := <-c.cfgUpdate:
 			if !configEqual(update.cfg, currentCfg) {
-				newOutputs := buildOutputs(update.cfg.Outputs, c.metrics, c.logger)
+				newOutputs := buildOutputs(update.cfg.Outputs, c.instance, c.metrics, c.logger)
 				if len(newOutputs) != len(update.cfg.Outputs) {
 					// Some outputs failed to initialize.  Keep the existing
 					// (known-good) set rather than risking partial coverage.
@@ -299,28 +337,53 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 	}
 }
 
-// marshalAndSend serializes a queued event and fans it out to all outputs.
+// marshalAndSend fans the queued event out to all outputs.  JSON
+// serialization is performed lazily — it only happens if at least one
+// destination wants the JSON representation.  Destinations that
+// implement ProtoDestination and return true from WantsProto receive
+// SendProto and skip the JSON path entirely.
 func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination) {
-	data, err := protojson.Marshal(req.event)
-	if err != nil {
-		c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
-		c.logger.Error("Failed to marshal event", "event_type", req.eventType, "err", err)
-		return
-	}
-	data = append(data, '\n')
-	sendToOutputs(data, req.eventType, outputs, c.metrics, c.logger)
-}
+	var (
+		jsonData       []byte
+		jsonMarshalErr error
+		jsonMarshalled bool
+	)
 
-// sendToOutputs sends a pre-serialized event to all outputs.
-func sendToOutputs(data []byte, eventType string, outputs []Destination, m *metrics, logger *slog.Logger) {
 	for _, out := range outputs {
 		name := out.Name()
-		if writeErr := out.SendEvent(data); writeErr != nil {
-			m.eventsRecorded.WithLabelValues(eventType, name, "error").Inc()
-			logger.Error("Failed to write event", "event_type", eventType, "output", name, "err", writeErr)
+
+		if pd, ok := out.(ProtoDestination); ok && pd.WantsProto() {
+			size, writeErr := pd.SendProto(req.event)
+			if writeErr != nil {
+				c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
+				c.logger.Error("Failed to write event (proto)", "event_type", req.eventType, "output", name, "err", writeErr)
+				continue
+			}
+			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "success").Inc()
+			c.metrics.eventRecorderBytesWritten.WithLabelValues(req.eventType, name).Add(float64(size))
+			continue
+		}
+
+		if !jsonMarshalled {
+			jsonData, jsonMarshalErr = protojson.Marshal(req.event)
+			if jsonMarshalErr == nil {
+				jsonData = append(jsonData, '\n')
+			}
+			jsonMarshalled = true
+		}
+		if jsonMarshalErr != nil {
+			c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
+			c.logger.Error("Failed to marshal event", "event_type", req.eventType, "err", jsonMarshalErr)
+			// Don't try further JSON destinations with bad data.
+			return
+		}
+
+		if writeErr := out.SendEvent(jsonData); writeErr != nil {
+			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
+			c.logger.Error("Failed to write event", "event_type", req.eventType, "output", name, "err", writeErr)
 		} else {
-			m.eventsRecorded.WithLabelValues(eventType, name, "success").Inc()
-			m.eventRecorderBytesWritten.WithLabelValues(eventType, name).Add(float64(len(data)))
+			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "success").Inc()
+			c.metrics.eventRecorderBytesWritten.WithLabelValues(req.eventType, name).Add(float64(len(jsonData)))
 		}
 	}
 }
