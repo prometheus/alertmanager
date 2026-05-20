@@ -28,15 +28,17 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
 
 const alertChannelLength = 200
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/provider/mem")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/provider/mem")
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
@@ -45,7 +47,6 @@ type Alerts struct {
 	mtx sync.Mutex
 
 	alerts *store.Alerts
-	marker types.AlertMarker
 
 	listeners map[int]listeningAlerts
 	next      int
@@ -54,6 +55,7 @@ type Alerts struct {
 
 	logger     *slog.Logger
 	propagator propagation.TextMapPropagator
+	recorder   eventrecorder.Recorder
 	flagger    featurecontrol.Flagger
 
 	alertsLimit             prometheus.Gauge
@@ -85,8 +87,6 @@ type listeningAlerts struct {
 }
 
 func (a *Alerts) registerMetrics(r prometheus.Registerer) {
-	r.MustRegister(&alertsCollector{alerts: a})
-
 	a.alertsLimit = promauto.With(r).NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_alerts_per_alert_limit",
 		Help: "Current limit on number of alerts per alert name",
@@ -116,11 +116,11 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 // NewAlerts returns a new alert provider.
 func NewAlerts(
 	ctx context.Context,
-	m types.AlertMarker,
 	intervalGC time.Duration,
 	perAlertNameLimit int,
 	alertCallback AlertStoreCallback,
 	l *slog.Logger,
+	recorder eventrecorder.Recorder,
 	r prometheus.Registerer,
 	flagger featurecontrol.Flagger,
 ) (*Alerts, error) {
@@ -138,13 +138,13 @@ func NewAlerts(
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:     m,
 		alerts:     store.NewAlerts().WithPerAlertLimit(perAlertNameLimit),
 		cancel:     cancel,
 		listeners:  map[int]listeningAlerts{},
 		next:       0,
 		logger:     l.With("component", "provider"),
 		propagator: otel.GetTextMapPropagator(),
+		recorder:   recorder,
 		callback:   alertCallback,
 		flagger:    flagger,
 	}
@@ -185,13 +185,11 @@ func (a *Alerts) gc() {
 		return
 	}
 
-	// Delete markers for deleted alerts.
 	ff := make(model.Fingerprints, len(deleted))
 	for i, alert := range deleted {
 		ff[i] = alert.Fingerprint()
 		a.callback.PostDelete(alert)
 	}
-	a.marker.Delete(ff...)
 	a.callback.PostGC(ff)
 }
 
@@ -348,6 +346,10 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 
 		a.callback.PostStore(alert, existing)
 
+		if !existing {
+			a.recorder.RecordEvent(ctx, eventrecorder.NewAlertCreatedEvent(alert))
+		}
+
 		metadata := map[string]string{}
 		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
 		msg := &provider.Alert{
@@ -365,48 +367,6 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 	}
 
 	return nil
-}
-
-// countByState returns the number of non-resolved alerts by state.
-func (a *Alerts) countByState() (active, suppressed, unprocessed int) {
-	for _, alert := range a.alerts.List() {
-		if alert.Resolved() {
-			continue
-		}
-
-		switch a.marker.Status(alert.Fingerprint()).State {
-		case types.AlertStateActive:
-			active++
-		case types.AlertStateSuppressed:
-			suppressed++
-		case types.AlertStateUnprocessed:
-			unprocessed++
-		}
-	}
-	return active, suppressed, unprocessed
-}
-
-// alertsCollector implements prometheus.Collector to collect all alert count metrics in a single pass.
-type alertsCollector struct {
-	alerts *Alerts
-}
-
-var alertsDesc = prometheus.NewDesc(
-	"alertmanager_alerts",
-	"How many alerts by state.",
-	[]string{"state"}, nil,
-)
-
-func (c *alertsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- alertsDesc
-}
-
-func (c *alertsCollector) Collect(ch chan<- prometheus.Metric) {
-	active, suppressed, unprocessed := c.alerts.countByState()
-
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(active), string(types.AlertStateActive))
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(suppressed), string(types.AlertStateSuppressed))
-	ch <- prometheus.MustNewConstMetric(alertsDesc, prometheus.GaugeValue, float64(unprocessed), string(types.AlertStateUnprocessed))
 }
 
 type noopCallback struct{}

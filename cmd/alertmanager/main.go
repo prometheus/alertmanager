@@ -45,14 +45,18 @@ import (
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/config/receiver"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/httpserver"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
@@ -61,7 +65,6 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
 
@@ -266,6 +269,39 @@ func run() int {
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 
+	// Load config once for both event recorder initialization and the first
+	// coordinator apply.  Subsequent reloads (SIGHUP, /-/reload) go
+	// through configCoordinator.Reload() which reads the file again.
+	initialConf, err := config.LoadFile(*configFile)
+	if err != nil {
+		logger.Error("error loading configuration file", "err", err)
+		return 1
+	}
+
+	hostname, _ := os.Hostname()
+	var eventRec eventrecorder.Recorder
+	if ff.EnableEventRecorder() {
+		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), prometheus.DefaultRegisterer)
+	}
+	defer eventRec.Close()
+
+	recordCtx := eventrecorder.WithEventRecording(context.Background())
+	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
+		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
+			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
+				Version:      version.Version,
+				BuildContext: version.BuildContext(),
+			},
+		},
+	})
+	defer func() {
+		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
+			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
+				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
+			},
+		})
+	}()
+
 	notificationLogOpts := nflog.Options{
 		SnapshotFile: filepath.Join(*dataDir, "nflog"),
 		Retention:    *retention,
@@ -287,7 +323,7 @@ func run() int {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
 	})
 
-	marker := types.NewMarker(prometheus.DefaultRegisterer)
+	marker := marker.NewGroupMarker()
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
@@ -296,9 +332,10 @@ func run() int {
 			MaxSilences:         func() int { return *maxSilences },
 			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
 		},
-		Logger:  logger.With("component", "silences"),
-		Metrics: prometheus.DefaultRegisterer,
-		Logging: *silenceLogging,
+		Logger:        logger.With("component", "silences"),
+		Metrics:       prometheus.DefaultRegisterer,
+		Logging:       *silenceLogging,
+		EventRecorder: eventRec,
 	}
 
 	silences, err := silence.New(silenceOpts)
@@ -321,7 +358,7 @@ func run() int {
 		wg.Wait()
 	}()
 
-	silencer := silence.NewSilencer(silences, marker, logger)
+	silencer := silence.NewSilencer(silences, logger, eventRec)
 
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
@@ -340,15 +377,16 @@ func run() int {
 			}
 		}()
 		go peer.Settle(ctx, *gossipInterval*10)
+		eventRec.SetClusterPeer(peer)
 	}
 
 	alerts, err := mem.NewAlerts(
 		context.Background(),
-		marker,
 		*alertGCInterval,
 		*perAlertNameLimit,
 		silencer,
 		logger,
+		eventRec,
 		prometheus.DefaultRegisterer,
 		ff,
 	)
@@ -363,7 +401,7 @@ func run() int {
 		disp.Load().Stop()
 	}()
 
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return disp.Load().Groups(ctx, routeFilter, alertFilter)
 	}
 
@@ -378,7 +416,6 @@ func run() int {
 	api, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
-		AlertStatusFunc: marker.Status,
 		GroupMutedFunc:  marker.Muted,
 		Peer:            clusterPeer,
 		Timeout:         *httpTimeout,
@@ -418,8 +455,8 @@ func run() int {
 		tmpl      *template.Template
 	)
 
-	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff)
+	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer, ff)
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff, eventRec)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,
@@ -427,6 +464,11 @@ func run() int {
 		configLogger,
 	)
 	configCoordinator.Subscribe(func(conf *config.Config) error {
+		// Reload event recorder outputs first so events emitted during
+		// the rest of this callback (e.g., by stopping the old
+		// dispatcher) go to the new outputs.
+		eventRec.ApplyConfig(conf.EventRecorder)
+
 		tmpl, err = template.FromGlobs(conf.Templates)
 		if err != nil {
 			return fmt.Errorf("failed to parse templates: %w", err)
@@ -473,7 +515,7 @@ func run() int {
 		inhibitor.Load().Stop()
 		disp.Load().Stop()
 
-		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, logger, eventRec)
 		inhibitor.Store(newInhibitor)
 
 		// An interface value that holds a nil concrete value is non-nil.
@@ -513,6 +555,7 @@ func run() int {
 			*dispatchMaintenanceInterval,
 			nil,
 			logger,
+			eventRec,
 			dispMetrics,
 		)
 		routes.Walk(func(r *dispatch.Route) {
@@ -564,7 +607,7 @@ func run() int {
 		return nil
 	})
 
-	if err := configCoordinator.Reload(); err != nil {
+	if err := configCoordinator.ApplyConfig(initialConf); err != nil {
 		return 1
 	}
 

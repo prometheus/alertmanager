@@ -27,22 +27,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/timeinterval"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/notify")
 
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
@@ -63,7 +65,7 @@ const MinTimeout = 10 * time.Second
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
 type Notifier interface {
-	Notify(context.Context, ...*types.Alert) (bool, error)
+	Notify(context.Context, ...*alert.Alert) (bool, error)
 }
 
 // Integration wraps a notifier and its configuration to be uniquely identified
@@ -88,7 +90,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 }
 
 // Notify implements the Notifier interface.
-func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (recoverable bool, err error) {
+func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (recoverable bool, err error) {
 	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
 		trace.WithAttributes(attribute.String("alerting.notify.integration.name", i.name)),
 		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
@@ -145,6 +147,10 @@ const (
 	keyRouteID
 	keyNflogStore
 	keyNotificationReason
+	keyMutedAlerts
+	keyAggrGroupID
+	keyFlushID
+	keyGroupMatchers
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -274,6 +280,50 @@ func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	return v, ok
 }
 
+// WithMutedAlerts populates a context with a set of muted alert hashes.
+func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Context {
+	return context.WithValue(ctx, keyMutedAlerts, alerts)
+}
+
+// MutedAlerts extracts a set of muted alert hashes from the context.
+func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
+	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
+	return v, ok
+}
+
+// WithAggrGroupID populates a context with an aggregation group UUID.
+func WithAggrGroupID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, keyAggrGroupID, id)
+}
+
+// AggrGroupID extracts an aggregation group UUID from the context.
+func AggrGroupID(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyAggrGroupID).(string)
+	return v, ok
+}
+
+// WithFlushID populates a context with a flush identifier.
+func WithFlushID(ctx context.Context, id uint64) context.Context {
+	return context.WithValue(ctx, keyFlushID, id)
+}
+
+// FlushID extracts a flush identifier from the context.
+func FlushID(ctx context.Context) (uint64, bool) {
+	v, ok := ctx.Value(keyFlushID).(uint64)
+	return v, ok
+}
+
+// WithGroupMatchers populates a context with the route's matchers.
+func WithGroupMatchers(ctx context.Context, matchers labels.Matchers) context.Context {
+	return context.WithValue(ctx, keyGroupMatchers, matchers)
+}
+
+// GroupMatchers extracts the route's matchers from the context.
+func GroupMatchers(ctx context.Context) (labels.Matchers, bool) {
+	v, ok := ctx.Value(keyGroupMatchers).(labels.Matchers)
+	return v, ok
+}
+
 func WithNflogStore(ctx context.Context, store *nflog.Store) context.Context {
 	return context.WithValue(ctx, keyNflogStore, store)
 }
@@ -285,14 +335,14 @@ func NflogStore(ctx context.Context) (*nflog.Store, bool) {
 
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
-	Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
+	Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error)
 }
 
 // StageFunc wraps a function to represent a Stage.
-type StageFunc func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
+type StageFunc func(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error)
 
 // Exec implements Stage interface.
-func (f StageFunc) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (f StageFunc) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	return f(ctx, l, alerts...)
 }
 
@@ -420,14 +470,16 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 }
 
 type PipelineBuilder struct {
-	metrics *Metrics
-	ff      featurecontrol.Flagger
+	metrics  *Metrics
+	ff       featurecontrol.Flagger
+	recorder eventrecorder.Recorder
 }
 
-func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger) *PipelineBuilder {
+func NewPipelineBuilder(r prometheus.Registerer, ff featurecontrol.Flagger, recorder eventrecorder.Recorder) *PipelineBuilder {
 	return &PipelineBuilder{
-		metrics: NewMetrics(r, ff),
-		ff:      ff,
+		metrics:  NewMetrics(r, ff),
+		ff:       ff,
+		recorder: recorder,
 	}
 }
 
@@ -438,7 +490,7 @@ func (pb *PipelineBuilder) New(
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
 	intervener *timeinterval.Intervener,
-	marker types.GroupMarker,
+	marker marker.GroupMarker,
 	notificationLog NotificationLog,
 	peer Peer,
 ) RoutingStage {
@@ -451,7 +503,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -467,6 +519,7 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	recorder eventrecorder.Recorder,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -478,7 +531,7 @@ func createReceiverStage(
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -491,7 +544,7 @@ func createReceiverStage(
 type RoutingStage map[string]Stage
 
 // Exec implements the Stage interface.
-func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	receiver, ok := ReceiverName(ctx)
 	if !ok {
 		return ctx, nil, errors.New("receiver missing")
@@ -518,7 +571,7 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*type
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
-func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var err error
 	for _, s := range ms {
 		if len(alerts) == 0 {
@@ -538,7 +591,7 @@ type FanoutStage []Stage
 
 // Exec attempts to execute all stages concurrently and discards the results.
 // It returns its input alerts and an error if one or more stages fail.
-func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var (
 		wg   sync.WaitGroup
 		mtx  sync.Mutex
@@ -571,7 +624,7 @@ func NewGossipSettleStage(p Peer) *GossipSettleStage {
 	return &GossipSettleStage{peer: p}
 }
 
-func (n *GossipSettleStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *GossipSettleStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	if n.peer != nil {
 		if err := n.peer.WaitReady(ctx); err != nil {
 			return ctx, nil, err
@@ -601,7 +654,7 @@ func NewWaitStage(wait func() time.Duration) *WaitStage {
 }
 
 // Exec implements the Stage interface.
-func (ws *WaitStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (ws *WaitStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	select {
 	case <-time.After(ws.wait()):
 	case <-ctx.Done():
@@ -618,7 +671,7 @@ type DedupStage struct {
 	recv  *nflogpb.Receiver
 
 	now  func() time.Time
-	hash func(*types.Alert) uint64
+	hash func(*alert.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
@@ -645,7 +698,7 @@ var hashBuffers = sync.Pool{
 	New: func() any { return &hashBuffer{buf: make([]byte, 0, 1024)} },
 }
 
-func hashAlert(a *types.Alert) uint64 {
+func hashAlert(a *alert.Alert) uint64 {
 	const sep = '\xff'
 
 	hb := hashBuffers.Get().(*hashBuffer)
@@ -753,7 +806,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 }
 
 // partitionAlertsByState separates alerts into firing and resolved, returning both slices and sets.
-func partitionAlertsByState(alerts []*types.Alert, hashFn func(*types.Alert) uint64) (firing, resolved []uint64, firingSet, resolvedSet map[uint64]struct{}) {
+func partitionAlertsByState(alerts []*alert.Alert, hashFn func(*alert.Alert) uint64) (firing, resolved []uint64, firingSet, resolvedSet map[uint64]struct{}) {
 	firingSet = make(map[uint64]struct{}, len(alerts))
 	resolvedSet = make(map[uint64]struct{}, len(alerts))
 	firing = make([]uint64, 0, len(alerts))
@@ -773,7 +826,7 @@ func partitionAlertsByState(alerts []*types.Alert, hashFn func(*types.Alert) uin
 }
 
 // Exec implements the Stage interface.
-func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
@@ -837,10 +890,11 @@ type RetryStage struct {
 	groupName   string
 	metrics     *Metrics
 	labelValues []string
+	recorder    eventrecorder.Recorder
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder eventrecorder.Recorder) *RetryStage {
 	labelValues := []string{i.Name()}
 
 	if metrics.ff.EnableReceiverNamesInMetrics() {
@@ -852,10 +906,11 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 		groupName:   groupName,
 		metrics:     metrics,
 		labelValues: labelValues,
+		recorder:    recorder,
 	}
 }
 
-func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
 
 	ctx, span := tracer.Start(ctx, "notify.RetryStage.Exec",
@@ -883,7 +938,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var sent alert.AlertSlice
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
@@ -977,6 +1032,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*types.A
 					l.Info("Notify success")
 				}
 
+				r.recorder.RecordEvent(ctx, NewNotificationEvent(ctx, sent, r.integration))
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
@@ -1000,7 +1056,7 @@ func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifies
 }
 
 // Exec implements the Stage interface.
-func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")

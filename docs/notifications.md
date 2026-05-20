@@ -6,7 +6,7 @@ sort_rank: 7
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.
 
-The notifications sent to receivers are constructed via templates. The Alertmanager comes with default templates but they can also be customized.
+The notifications sent to receivers are constructed via templates. The Alertmanager comes with [default templates](https://github.com/prometheus/alertmanager/blob/main/template/default.tmpl) but they can also be customized.
 To avoid confusion it's important to note that the Alertmanager templates differ from [templating in Prometheus](https://prometheus.io/docs/visualization/template_reference/), however Prometheus templating also includes the templating in alert rule labels/annotations.
 
 
@@ -92,6 +92,7 @@ templating.
 | join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
 | list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
+| now              |                            | [time.Now](https://pkg.go.dev/time#Now), returns the current local time. |
 | reReplaceAll     | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
 | safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl          | text string                | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |

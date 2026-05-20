@@ -1,0 +1,8 @@
+.label {
+  background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-gray-8));
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-5));
+}
+
+.remove {
+  color: var(--mantine-color-red-5);
+}

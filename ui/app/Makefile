@@ -1,64 +1,106 @@
 # Use `=` instead of `:=` expanding variable lazely, not at beginning. Needed as
 # elm files change during execution.
 ELM_FILES = $(shell find src -iname *.elm)
-DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
 # If JUNIT_DIR is set, the tests are executed with the JUnit reporter and the result is stored in the given directory.
-JUNIT_DIR ?=
+JUNIT_DIR           ?=
+DOCKER              ?=
+OPENAPI_GEN_IMAGE   ?= docker.io/openapitools/openapi-generator-cli:v3.3.4
+UI_BUILD_IMAGE      ?= quay.io/prometheus/golang-builder:1.26-base #  Derived from ../../.promu.yml.
+CA_BUNDLE           ?=
 
-ifeq ($(NO_DOCKER), true)
-  DOCKER_CMD=
+ifeq ($(DOCKER),)
+  # Run locally.
+  NPM = npm
+  NPX = npx
+  CONTAINER_RUNTIME = docker # Runtime is needed, since src/Data requires the OPENAPI_GEN_IMAGE.
+  USER_ARGS = --user $(shell id -u):$(shell id -g)
+else
+  # Run npm and npx inside container runtime.
+	# `USER_ARGS` prevents creation of root-owned files.
+  ifeq ($(DOCKER),podman)
+    USER_ARGS = --userns=keep-id --user $(shell id -u):$(shell id -g)
+  else
+    USER_ARGS = --user $(shell id -u):$(shell id -g)
+  endif
+  CA_BUNDLE_ARGS = $(if $(CA_BUNDLE),--volume $(CA_BUNDLE):/etc/ssl/certs/ca-certificates.crt:ro \
+    --env NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt)
+  DOCKER_RUN = $(DOCKER) run --rm -i \
+    --entrypoint "" \
+    -v "$(CURDIR):/app" \
+    -w /app \
+    $(USER_ARGS) \
+    --env HOME=/tmp \
+    $(CA_BUNDLE_ARGS) \
+    $(UI_BUILD_IMAGE)
+  NPM = $(DOCKER_RUN) npm
+  NPX = $(DOCKER_RUN) npx
+  CONTAINER_RUNTIME = $(DOCKER)
 endif
 
-all: script.js test
+.PHONY: all
+all: src/Data build test
 
 node_modules: package-lock.json
-	npm ci
+	@echo ">> installing dependencies"
+	$(NPM) ci
 
+.PHONY: format
 format: node_modules $(ELM_FILES)
 	@echo ">> format front-end code"
-	@npx elm-format --yes $(ELM_FILES)
+	@$(NPX) elm-format --yes $(ELM_FILES)
 
-review: src/Data node_modules
-	@npx elm-review --fix
+.PHONY: review
+review: node_modules
+	@$(NPX) elm-review --fix
 
-test: src/Data node_modules
+.PHONY: test
+test: node_modules
 	rm -rf elm-stuff/generated-code
-	@npx elm-format $(ELM_FILES) --validate
-	@npx elm-review
+	@$(NPX) elm-format $(ELM_FILES) --validate
+	@$(NPX) elm-review
 ifneq ($(JUNIT_DIR),)
 	mkdir -p $(JUNIT_DIR)
-	@npx elm-test --report=junit | tee $(JUNIT_DIR)/junit.xml
+	@$(NPX) elm-test --report=junit | tee $(JUNIT_DIR)/junit.xml
 else
-	@npx elm-test
+	@$(NPX) elm-test
 endif
 
-dev-server:
+.PHONY: dev-server
+dev-server: node_modules
+ifeq ($(DOCKER),)
 	npx elm reactor
+else
+	$(DOCKER) run --rm -it \
+	  --entrypoint "" \
+	  -v "$(CURDIR):/app" \
+	  -w /app \
+	  -p 8000:8000 \
+	  $(USER_ARGS) \
+	  $(CA_BUNDLE_ARGS) \
+	  $(UI_BUILD_IMAGE) \
+	  npx elm reactor
+endif
 
-# macOS requires mktemp template to be at the end of the filename,
-# however --output flag for elm make must end in .js or .html.
-script.js: export TEMPFILE := "$(shell mktemp ./elm-XXXXXXXXXX)"
-script.js: export TEMPFILE_JS := "$(TEMPFILE).js"
-script.js: src/Data node_modules format $(ELM_FILES)
-	@echo ">> building script.js"
-	@rm -rf elm-stuff
-	@npx elm make src/Main.elm --optimize --output $(TEMPFILE_JS)
-	@npx uglifyjs $(TEMPFILE_JS) --compress 'pure_funcs="F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9",pure_getters,keep_fargs=false,unsafe_comps,unsafe' --mangle --output $(@)
-	@rm -rf $(TEMPFILE_JS)
-	@rm -rf $(TEMPFILE)
+.PHONY: build
+build: dist/.build_stamp
 
-src/Data: export TEMPOPENAPI := $(shell mktemp -d ./openapi-XXXXXXXXXX)
+dist/.build_stamp: $(ELM_FILES) index.html vite.config.mjs package-lock.json
+	@echo ">> building frontend"
+	$(MAKE) node_modules
+	$(NPM) run build
+	@touch dist/.build_stamp
+
 src/Data: ../../api/v2/openapi.yaml
-	-rm -r src/Data
-	$(DOCKER_RUN_CURRENT_USER) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli:v3.3.4 generate \
-		-i /local/api/v2/openapi.yaml \
-	  -g elm \
-		-o /local/ui/app/$(TEMPOPENAPI)
-	# We only want data directory & DateTime package.
-	cp -r $(TEMPOPENAPI)/src/Data src/Data
-	cp -r $(TEMPOPENAPI)/src/DateTime.elm src/DateTime.elm
-	rm -rf $(TEMPOPENAPI)
+	-rm -rf src/Data src/DateTime.elm
+	$(CONTAINER_RUNTIME) run --rm \
+	  $(USER_ARGS) \
+	  --entrypoint sh \
+	  -v ${PWD}/../..:/local \
+	  -v ${PWD}/src:/output/src \
+	  $(OPENAPI_GEN_IMAGE) \
+	  -c 'java -jar /opt/openapi-generator/modules/openapi-generator-cli/target/openapi-generator-cli.jar generate -i /local/api/v2/openapi.yaml -g elm -o /tmp/openapi-gen && cp -r /tmp/openapi-gen/src/Data /output/src/Data && cp /tmp/openapi-gen/src/DateTime.elm /output/src/DateTime.elm'
+	$(MAKE) format
 
-
+.PHONY: clean
 clean:
-	- @rm -rf script.js elm-stuff src/Data src/DateTime.elm openapi-* elm-*
+	- @rm -rf dist node_modules elm-stuff src/Data src/DateTime.elm openapi-* elm-*

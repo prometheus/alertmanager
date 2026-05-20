@@ -48,6 +48,9 @@ func GetTLSTransportConfig(configPath string) (*TLSTransportConfig, error) {
 	if cfg.TLSServerConfig == nil {
 		return nil, fmt.Errorf("missing 'tls_server_config' entry in the TLS configuration")
 	}
+	if cfg.TLSClientConfig == nil {
+		return nil, fmt.Errorf("missing 'tls_client_config' entry in the TLS configuration")
+	}
 
 	cfg.TLSServerConfig.SetDirectory(filepath.Dir(configPath))
 	cfg.TLSClientConfig.SetDirectory(filepath.Dir(configPath))

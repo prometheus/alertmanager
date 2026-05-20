@@ -2,7 +2,6 @@ module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
 import Utils.Filter exposing (Filter, SilenceFormGetParams)
-import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.Settings.Types as SettingsView exposing (SettingsMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
@@ -22,9 +21,6 @@ type alias Model =
     , basePath : String
     , apiUrl : String
     , libUrl : String
-    , bootstrapCSS : ApiData String
-    , fontAwesomeCSS : ApiData String
-    , elmDatepickerCSS : ApiData String
     , defaultCreator : String
     , expandAll : Bool
     , key : Key
@@ -50,9 +46,6 @@ type Msg
     | NavigateToInternalUrl String
     | NavigateToExternalUrl String
     | RedirectAlerts
-    | BootstrapCSSLoaded (ApiData String)
-    | FontAwesomeCSSLoaded (ApiData String)
-    | ElmDatepickerCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
 

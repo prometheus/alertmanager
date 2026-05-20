@@ -127,7 +127,9 @@ global:
   [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  # The default Telegram bot token. It is mutually exclusive with `telegram_bot_token_file`.
   [ telegram_bot_token: <secret> ]
+  # The default configuration to read the Telegram bot token from a file. It is mutually exclusive with `telegram_bot_token`.
   [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   [ mattermost_webhook_url: <secret> ]
@@ -1808,6 +1810,19 @@ attributes:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# Force the AWS SDK's HTTP client (BuildableClient) instead of the default
+# tracing-wrapped client. Required when the AWS SDK needs to inject a custom
+# CA bundle (e.g. via `ca_bundle` in the AWS shared config). Auto-enabled
+# when the AWS_CA_BUNDLE environment variable is set.
+#
+# When this flag is set tracing is disabled for SNS requests, and only the
+# `tls_config` and proxy fields of `http_config` are honored. Other
+# `http_config` knobs (basic_auth, oauth2, authorization, follow_redirects,
+# enable_http2, http_headers) are silently ignored — most are irrelevant for
+# AWS calls (which use SigV4) but if you depend on them for SNS, do not enable
+# this.
+[ use_aws_http_client: <boolean> | default = false ]
 ```
 
 #### `<sigv4_config>` (SNS)

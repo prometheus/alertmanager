@@ -23,38 +23,46 @@ import (
 const (
 	FeatureAlertNamesInMetrics   = "alert-names-in-metrics"
 	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
+	FeatureGroupKeyInMetrics     = "group-key-in-metrics"
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
 	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
+	FeatureEventRecorder         = "event-recorder"
 )
 
 var AllowedFlags = []string{
 	FeatureAlertNamesInMetrics,
 	FeatureReceiverNameInMetrics,
+	FeatureGroupKeyInMetrics,
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
 	FeatureAutoGOMAXPROCS,
+	FeatureEventRecorder,
 }
 
 type Flagger interface {
 	EnableAlertNamesInMetrics() bool
 	EnableReceiverNamesInMetrics() bool
+	EnableGroupKeyInMetrics() bool
 	ClassicMode() bool
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
 	EnableAutoGOMAXPROCS() bool
+	EnableEventRecorder() bool
 }
 
 type Flags struct {
 	logger                       *slog.Logger
 	enableAlertNamesInMetrics    bool
 	enableReceiverNamesInMetrics bool
+	enableGroupKeyInMetrics      bool
 	classicMode                  bool
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
 	enableAutoGOMAXPROCS         bool
+	enableEventRecorder          bool
 }
 
 func (f *Flags) EnableAlertNamesInMetrics() bool {
@@ -63,6 +71,10 @@ func (f *Flags) EnableAlertNamesInMetrics() bool {
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
 	return f.enableReceiverNamesInMetrics
+}
+
+func (f *Flags) EnableGroupKeyInMetrics() bool {
+	return f.enableGroupKeyInMetrics
 }
 
 func (f *Flags) ClassicMode() bool {
@@ -81,11 +93,21 @@ func (f *Flags) EnableAutoGOMAXPROCS() bool {
 	return f.enableAutoGOMAXPROCS
 }
 
+func (f *Flags) EnableEventRecorder() bool {
+	return f.enableEventRecorder
+}
+
 type flagOption func(flags *Flags)
 
 func enableReceiverNameInMetrics() flagOption {
 	return func(configs *Flags) {
 		configs.enableReceiverNamesInMetrics = true
+	}
+}
+
+func enableGroupKeyInMetrics() flagOption {
+	return func(configs *Flags) {
+		configs.enableGroupKeyInMetrics = true
 	}
 }
 
@@ -113,6 +135,12 @@ func enableAutoGOMAXPROCS() flagOption {
 	}
 }
 
+func enableEventRecorder() flagOption {
+	return func(configs *Flags) {
+		configs.enableEventRecorder = true
+	}
+}
+
 func enableAlertNamesInMetrics() flagOption {
 	return func(configs *Flags) {
 		configs.enableAlertNamesInMetrics = true
@@ -135,6 +163,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureReceiverNameInMetrics:
 			opts = append(opts, enableReceiverNameInMetrics())
 			logger.Warn("Experimental receiver name in metrics enabled")
+		case FeatureGroupKeyInMetrics:
+			opts = append(opts, enableGroupKeyInMetrics())
+			logger.Warn("Experimental group key in metrics enabled")
 		case FeatureClassicMode:
 			opts = append(opts, enableClassicMode())
 			logger.Warn("Classic mode enabled")
@@ -147,6 +178,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMAXPROCS:
 			opts = append(opts, enableAutoGOMAXPROCS())
 			logger.Error("Deprecated: auto-gomaxprocs will be removed in v0.33. Removing this flag does not affect behavior, as Go 1.25+ natively handles container CPU quotas.")
+		case FeatureEventRecorder:
+			opts = append(opts, enableEventRecorder())
+			logger.Warn("Experimental event recorder enabled")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
@@ -169,6 +203,8 @@ func (n NoopFlags) EnableAlertNamesInMetrics() bool { return false }
 
 func (n NoopFlags) EnableReceiverNamesInMetrics() bool { return false }
 
+func (n NoopFlags) EnableGroupKeyInMetrics() bool { return false }
+
 func (n NoopFlags) ClassicMode() bool { return false }
 
 func (n NoopFlags) UTF8StrictMode() bool { return false }
@@ -176,3 +212,5 @@ func (n NoopFlags) UTF8StrictMode() bool { return false }
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
+
+func (n NoopFlags) EnableEventRecorder() bool { return false }
