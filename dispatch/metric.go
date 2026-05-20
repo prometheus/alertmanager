@@ -56,16 +56,23 @@ func NewDispatcherMetrics(_ bool, r prometheus.Registerer, ff featurecontrol.Fla
 		ff = featurecontrol.NoopFlags{}
 	}
 
-	labels := []string{"state"}
+	stateLabels := []string{"state"}
+	suppressedLabels := []string{"reason"}
 	if ff.EnableGroupKeyInMetrics() {
-		labels = append(labels, "group_key")
+		stateLabels = append(stateLabels, "group_key")
+		suppressedLabels = append(suppressedLabels, "group_key")
 	}
 
 	collector := &alertStateCollector{
 		desc: prometheus.NewDesc(
 			"alertmanager_alerts",
 			"How many alerts by state.",
-			labels, nil,
+			stateLabels, nil,
+		),
+		suppressedDesc: prometheus.NewDesc(
+			"alertmanager_alerts_suppressed",
+			"How many alerts are currently suppressed by reason. Alerts with multiple suppression reasons are counted once for each reason.",
+			suppressedLabels, nil,
 		),
 		enableGroupKey: ff.EnableGroupKeyInMetrics(),
 	}
@@ -112,12 +119,14 @@ func NewDispatcherMetrics(_ bool, r prometheus.Registerer, ff featurecontrol.Fla
 // metrics by state from the dispatcher's aggregation groups.
 type alertStateCollector struct {
 	desc           *prometheus.Desc
+	suppressedDesc *prometheus.Desc
 	dispatcher     atomic.Pointer[Dispatcher]
 	enableGroupKey bool
 }
 
 func (c *alertStateCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.desc
+	ch <- c.suppressedDesc
 }
 
 func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
@@ -130,18 +139,10 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	if c.enableGroupKey {
-		labelValues := make([]string, 2)
 		for i := range d.routeGroupsSlice {
 			d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 				ag := el.(*aggrGroup)
-				active, suppressed, unprocessed := ag.countAlertsByState()
-				labelValues[1] = ag.GroupKey()
-				labelValues[0] = string(alert.AlertStateActive)
-				c.emit(ch, float64(active), labelValues...)
-				labelValues[0] = string(alert.AlertStateSuppressed)
-				c.emit(ch, float64(suppressed), labelValues...)
-				labelValues[0] = string(alert.AlertStateUnprocessed)
-				c.emit(ch, float64(unprocessed), labelValues...)
+				c.emitCounts(ch, ag.countAlerts(), ag.GroupKey())
 				return true
 			})
 		}
@@ -152,57 +153,101 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	// The same alert can live in multiple aggregation groups with
 	// different per-group marker states. Use highest-priority state:
 	// suppressed > active > unprocessed.
-	seen := map[model.Fingerprint]alert.AlertState{}
+	seen := map[model.Fingerprint]alertStatusSnapshot{}
 	for i := range d.routeGroupsSlice {
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 			ag := el.(*aggrGroup)
 			for _, a := range ag.alerts.List() {
 				fp := a.Fingerprint()
 				if !a.Resolved() {
-					state := ag.marker.Status(fp).State
-					if prev, ok := seen[fp]; !ok || state.Compare(prev) > 0 {
-						seen[fp] = state
+					status := ag.marker.Status(fp)
+					snapshot := seen[fp]
+					if _, ok := seen[fp]; !ok || status.State.Compare(snapshot.state) > 0 {
+						snapshot.state = status.State
 					}
+					snapshot.silenced = snapshot.silenced || len(status.SilencedBy) > 0
+					snapshot.inhibited = snapshot.inhibited || len(status.InhibitedBy) > 0
+					seen[fp] = snapshot
 				}
 			}
 			return true
 		})
 	}
-	var active, suppressed, unprocessed int
-	for _, state := range seen {
-		switch state {
-		case alert.AlertStateActive:
-			active++
-		case alert.AlertStateSuppressed:
-			suppressed++
-		default:
-			unprocessed++
-		}
+	var counts alertCounts
+	for _, status := range seen {
+		counts.addState(status.state)
+		counts.addSuppressedReasons(status.silenced, status.inhibited)
 	}
-	c.emit(ch, float64(active), string(alert.AlertStateActive))
-	c.emit(ch, float64(suppressed), string(alert.AlertStateSuppressed))
-	c.emit(ch, float64(unprocessed), string(alert.AlertStateUnprocessed))
+	c.emitCounts(ch, counts, "")
 }
 
-// countAlertsByState counts non-resolved alerts in the group by their marker state.
-func (ag *aggrGroup) countAlertsByState() (active, suppressed, unprocessed int) {
+type alertCounts struct {
+	active                 int
+	suppressed             int
+	unprocessed            int
+	suppressedBySilence    int
+	suppressedByInhibition int
+}
+
+type alertStatusSnapshot struct {
+	state     alert.AlertState
+	silenced  bool
+	inhibited bool
+}
+
+// countAlerts counts non-resolved alerts in the group by marker state and suppression reason.
+func (ag *aggrGroup) countAlerts() alertCounts {
+	var counts alertCounts
 	for _, a := range ag.alerts.List() {
 		if a.Resolved() {
 			continue
 		}
-		switch ag.marker.Status(a.Fingerprint()).State {
-		case alert.AlertStateActive:
-			active++
-		case alert.AlertStateSuppressed:
-			suppressed++
-		default:
-			unprocessed++
-		}
+
+		status := ag.marker.Status(a.Fingerprint())
+		counts.addState(status.State)
+		counts.addSuppressedReasons(len(status.SilencedBy) > 0, len(status.InhibitedBy) > 0)
 	}
-	return active, suppressed, unprocessed
+	return counts
+}
+
+func (c *alertCounts) addState(state alert.AlertState) {
+	switch state {
+	case alert.AlertStateActive:
+		c.active++
+	case alert.AlertStateSuppressed:
+		c.suppressed++
+	default:
+		c.unprocessed++
+	}
+}
+
+func (c *alertCounts) addSuppressedReasons(silenced, inhibited bool) {
+	if silenced {
+		c.suppressedBySilence++
+	}
+	if inhibited {
+		c.suppressedByInhibition++
+	}
+}
+
+func (c *alertStateCollector) emitCounts(ch chan<- prometheus.Metric, counts alertCounts, groupKey string) {
+	if c.enableGroupKey {
+		c.emit(ch, c.desc, float64(counts.active), string(alert.AlertStateActive), groupKey)
+		c.emit(ch, c.desc, float64(counts.suppressed), string(alert.AlertStateSuppressed), groupKey)
+		c.emit(ch, c.desc, float64(counts.unprocessed), string(alert.AlertStateUnprocessed), groupKey)
+		c.emit(ch, c.suppressedDesc, float64(counts.suppressedBySilence), "silence", groupKey)
+		c.emit(ch, c.suppressedDesc, float64(counts.suppressedByInhibition), "inhibition", groupKey)
+		return
+	}
+
+	c.emit(ch, c.desc, float64(counts.active), string(alert.AlertStateActive))
+	c.emit(ch, c.desc, float64(counts.suppressed), string(alert.AlertStateSuppressed))
+	c.emit(ch, c.desc, float64(counts.unprocessed), string(alert.AlertStateUnprocessed))
+	c.emit(ch, c.suppressedDesc, float64(counts.suppressedBySilence), "silence")
+	c.emit(ch, c.suppressedDesc, float64(counts.suppressedByInhibition), "inhibition")
 }
 
 // emit sends a gauge metric with the given count and labels.
-func (c *alertStateCollector) emit(ch chan<- prometheus.Metric, count float64, labelValues ...string) {
-	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, count, labelValues...)
+func (c *alertStateCollector) emit(ch chan<- prometheus.Metric, desc *prometheus.Desc, count float64, labelValues ...string) {
+	ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count, labelValues...)
 }
