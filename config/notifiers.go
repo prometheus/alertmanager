@@ -256,6 +256,27 @@ var (
 		Title: `{{ template "msteamsv2.default.title" . }}`,
 		Text:  `{{ template "msteamsv2.default.text" . }}`,
 	}
+
+	DefaultMSTeamsConfig = MSTeamsConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+		Title:   `{{ template "msteams.default.title" . }}`,
+		Summary: `{{ template "msteams.default.summary" . }}`,
+		Text:    `{{ template "msteams.default.text" . }}`,
+	}
+
+	DefaultIncidentioConfig = IncidentioConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
+	DefaultWebhookConfig = WebhookConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 )
 
 // WebexConfig configures notifications via Webex.
@@ -357,21 +378,21 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (ec *EmailConfig) applyTemplates(gt *GlobalEmailTemplates) {
+func (c *EmailConfig) applyTemplates(gt *GlobalEmailTemplates) {
 	if gt != nil {
 		if gt.Subject != "" {
-			if ec.Headers == nil {
-				ec.Headers = make(map[string]string)
+			if c.Headers == nil {
+				c.Headers = make(map[string]string)
 			}
-			if val, ok := ec.Headers["Subject"]; !ok || val == DefaultEmailSubject {
-				ec.Headers["Subject"] = gt.Subject
+			if val, ok := c.Headers["Subject"]; !ok || val == DefaultEmailSubject {
+				c.Headers["Subject"] = gt.Subject
 			}
 		}
-		applyGlobalTemplateOverride(&ec.HTML, gt.HTML, DefaultEmailConfig.HTML)
+		applyGlobalTemplateOverride(&c.HTML, gt.HTML, DefaultEmailConfig.HTML)
 		// Text default is "", so we can't distinguish omitted vs explicit empty.
 		// Only apply if receiver still has the zero value (omitted).
-		if gt.Text != "" && ec.Text == "" {
-			ec.Text = gt.Text
+		if gt.Text != "" && c.Text == "" {
+			c.Text = gt.Text
 		}
 	}
 }
@@ -451,14 +472,14 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (pc *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
+func (c *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
 	if gt == nil {
 		return
 	}
 
-	applyGlobalTemplateOverride(&pc.Description, gt.Description, DefaultPagerdutyConfig.Description)
-	applyGlobalTemplateOverride(&pc.Client, gt.Client, DefaultPagerdutyConfig.Client)
-	applyGlobalTemplateOverride(&pc.ClientURL, gt.ClientURL, DefaultPagerdutyConfig.ClientURL)
+	applyGlobalTemplateOverride(&c.Description, gt.Description, DefaultPagerdutyConfig.Description)
+	applyGlobalTemplateOverride(&c.Client, gt.Client, DefaultPagerdutyConfig.Client)
+	applyGlobalTemplateOverride(&c.ClientURL, gt.ClientURL, DefaultPagerdutyConfig.ClientURL)
 
 	// Merge global template overrides into the receiver `details` map.
 	//
@@ -474,8 +495,8 @@ func (pc *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
 	if gt.Details == nil {
 		return
 	}
-	if pc.Details == nil {
-		pc.Details = make(map[string]any)
+	if c.Details == nil {
+		c.Details = make(map[string]any)
 	}
 
 	for k, gv := range gt.Details {
@@ -484,10 +505,10 @@ func (pc *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
 			continue
 		}
 
-		receiverVal, receiverHasKey := pc.Details[k]
+		receiverVal, receiverHasKey := c.Details[k]
 		if !receiverHasKey {
 			// Key absent on receiver: global value becomes the default.
-			pc.Details[k] = gv
+			c.Details[k] = gv
 			continue
 		}
 
@@ -504,7 +525,7 @@ func (pc *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
 			continue
 		}
 		if receiverStr == builtInStr {
-			pc.Details[k] = gv
+			c.Details[k] = gv
 		}
 	}
 }
@@ -663,18 +684,18 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (sc *SlackConfig) applyTemplates(gt *GlobalSlackTemplates) {
+func (c *SlackConfig) applyTemplates(gt *GlobalSlackTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&sc.Username, gt.Username, DefaultSlackConfig.Username)
-		applyGlobalTemplateOverride(&sc.IconEmoji, gt.IconEmoji, DefaultSlackConfig.IconEmoji)
-		applyGlobalTemplateOverride(&sc.IconURL, gt.IconURL, DefaultSlackConfig.IconURL)
-		applyGlobalTemplateOverride(&sc.Pretext, gt.Pretext, DefaultSlackConfig.Pretext)
-		applyGlobalTemplateOverride(&sc.Title, gt.Title, DefaultSlackConfig.Title)
-		applyGlobalTemplateOverride(&sc.TitleLink, gt.TitleLink, DefaultSlackConfig.TitleLink)
-		applyGlobalTemplateOverride(&sc.Text, gt.Text, DefaultSlackConfig.Text)
-		applyGlobalTemplateOverride(&sc.Fallback, gt.Fallback, DefaultSlackConfig.Fallback)
-		applyGlobalTemplateOverride(&sc.Footer, gt.Footer, DefaultSlackConfig.Footer)
-		applyGlobalTemplateOverride(&sc.Color, gt.Color, DefaultSlackConfig.Color)
+		applyGlobalTemplateOverride(&c.Username, gt.Username, DefaultSlackConfig.Username)
+		applyGlobalTemplateOverride(&c.IconEmoji, gt.IconEmoji, DefaultSlackConfig.IconEmoji)
+		applyGlobalTemplateOverride(&c.IconURL, gt.IconURL, DefaultSlackConfig.IconURL)
+		applyGlobalTemplateOverride(&c.Pretext, gt.Pretext, DefaultSlackConfig.Pretext)
+		applyGlobalTemplateOverride(&c.Title, gt.Title, DefaultSlackConfig.Title)
+		applyGlobalTemplateOverride(&c.TitleLink, gt.TitleLink, DefaultSlackConfig.TitleLink)
+		applyGlobalTemplateOverride(&c.Text, gt.Text, DefaultSlackConfig.Text)
+		applyGlobalTemplateOverride(&c.Fallback, gt.Fallback, DefaultSlackConfig.Fallback)
+		applyGlobalTemplateOverride(&c.Footer, gt.Footer, DefaultSlackConfig.Footer)
+		applyGlobalTemplateOverride(&c.Color, gt.Color, DefaultSlackConfig.Color)
 	}
 }
 
@@ -812,16 +833,16 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (wc *WechatConfig) applyTemplates(gt *GlobalWeChatTemplates) {
+func (c *WechatConfig) applyTemplates(gt *GlobalWeChatTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&wc.Message, gt.Message, DefaultWechatConfig.Message)
-		applyGlobalTemplateOverride(&wc.AgentID, gt.AgentID, DefaultWechatConfig.AgentID)
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultWechatConfig.Message)
+		applyGlobalTemplateOverride(&c.AgentID, gt.AgentID, DefaultWechatConfig.AgentID)
 		// MessageType default is "" but UnmarshalYAML normalizes it to "text".
 		// We can't use applyGlobalTemplateOverride since the effective default
 		// differs from the struct zero value. Only apply if receiver has the
 		// post-unmarshal default "text".
-		if gt.MessageType != "" && wc.MessageType == "text" {
-			wc.MessageType = gt.MessageType
+		if gt.MessageType != "" && c.MessageType == "text" {
+			c.MessageType = gt.MessageType
 		}
 	}
 }
@@ -884,15 +905,15 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (oc *OpsGenieConfig) applyTemplates(gt *GlobalOpsGenieTemplates) {
+func (c *OpsGenieConfig) applyTemplates(gt *GlobalOpsGenieTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&oc.Message, gt.Message, DefaultOpsGenieConfig.Message)
-		applyGlobalTemplateOverride(&oc.Description, gt.Description, DefaultOpsGenieConfig.Description)
-		applyGlobalTemplateOverride(&oc.Source, gt.Source, DefaultOpsGenieConfig.Source)
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultOpsGenieConfig.Message)
+		applyGlobalTemplateOverride(&c.Description, gt.Description, DefaultOpsGenieConfig.Description)
+		applyGlobalTemplateOverride(&c.Source, gt.Source, DefaultOpsGenieConfig.Source)
 		// Note default is "", so we can't distinguish omitted vs explicit empty.
 		// Only apply if receiver still has the zero value (omitted).
-		if gt.Note != "" && oc.Note == "" {
-			oc.Note = gt.Note
+		if gt.Note != "" && c.Note == "" {
+			c.Note = gt.Note
 		}
 	}
 }
@@ -949,11 +970,11 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (vc *VictorOpsConfig) applyTemplates(gt *GlobalVictorOpsTemplates) {
+func (c *VictorOpsConfig) applyTemplates(gt *GlobalVictorOpsTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&vc.MessageType, gt.MessageType, DefaultVictorOpsConfig.MessageType)
-		applyGlobalTemplateOverride(&vc.EntityDisplayName, gt.EntityDisplayName, DefaultVictorOpsConfig.EntityDisplayName)
-		applyGlobalTemplateOverride(&vc.StateMessage, gt.StateMessage, DefaultVictorOpsConfig.StateMessage)
+		applyGlobalTemplateOverride(&c.MessageType, gt.MessageType, DefaultVictorOpsConfig.MessageType)
+		applyGlobalTemplateOverride(&c.EntityDisplayName, gt.EntityDisplayName, DefaultVictorOpsConfig.EntityDisplayName)
+		applyGlobalTemplateOverride(&c.StateMessage, gt.StateMessage, DefaultVictorOpsConfig.StateMessage)
 	}
 }
 
@@ -1019,11 +1040,11 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (pc *PushoverConfig) applyTemplates(gt *GlobalPushoverTemplates) {
+func (c *PushoverConfig) applyTemplates(gt *GlobalPushoverTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&pc.Title, gt.Title, DefaultPushoverConfig.Title)
-		applyGlobalTemplateOverride(&pc.Message, gt.Message, DefaultPushoverConfig.Message)
-		applyGlobalTemplateOverride(&pc.URL, gt.URL, DefaultPushoverConfig.URL)
+		applyGlobalTemplateOverride(&c.Title, gt.Title, DefaultPushoverConfig.Title)
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultPushoverConfig.Message)
+		applyGlobalTemplateOverride(&c.URL, gt.URL, DefaultPushoverConfig.URL)
 	}
 }
 
@@ -1101,9 +1122,9 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-func (tc *TelegramConfig) applyTemplates(gt *GlobalTelegramTemplates) {
+func (c *TelegramConfig) applyTemplates(gt *GlobalTelegramTemplates) {
 	if gt != nil {
-		applyGlobalTemplateOverride(&tc.Message, gt.Message, DefaultTelegramConfig.Message)
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultTelegramConfig.Message)
 	}
 }
 
