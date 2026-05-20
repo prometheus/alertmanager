@@ -181,6 +181,7 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	c.emitCounts(ch, counts, "")
 }
 
+// alertCounts stores alert totals by state and suppression reason.
 type alertCounts struct {
 	active                 int
 	suppressed             int
@@ -189,6 +190,7 @@ type alertCounts struct {
 	suppressedByInhibition int
 }
 
+// alertStatusSnapshot stores state and suppression reasons for a deduplicated alert.
 type alertStatusSnapshot struct {
 	state     alert.AlertState
 	silenced  bool
@@ -210,6 +212,7 @@ func (ag *aggrGroup) countAlerts() alertCounts {
 	return counts
 }
 
+// addState increments the count for the given alert state.
 func (c *alertCounts) addState(state alert.AlertState) {
 	switch state {
 	case alert.AlertStateActive:
@@ -221,6 +224,7 @@ func (c *alertCounts) addState(state alert.AlertState) {
 	}
 }
 
+// addSuppressedReasons increments counts for the active suppression reasons.
 func (c *alertCounts) addSuppressedReasons(silenced, inhibited bool) {
 	if silenced {
 		c.suppressedBySilence++
@@ -230,6 +234,7 @@ func (c *alertCounts) addSuppressedReasons(silenced, inhibited bool) {
 	}
 }
 
+// emitCounts emits state and suppression metrics for the collected alert counts.
 func (c *alertStateCollector) emitCounts(ch chan<- prometheus.Metric, counts alertCounts, groupKey string) {
 	if c.enableGroupKey {
 		c.emit(ch, c.desc, float64(counts.active), string(alert.AlertStateActive), groupKey)
