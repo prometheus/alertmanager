@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -33,6 +35,28 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
+// Kafka format identifiers.
+const (
+	KafkaFormatJSON     = "json"
+	KafkaFormatProtobuf = "protobuf"
+)
+
+// Kafka acks levels.
+const (
+	KafkaAcksNone   = "none"
+	KafkaAcksLeader = "leader"
+	KafkaAcksAll    = "all"
+)
+
+// Kafka compression codecs.
+const (
+	KafkaCompressionNone   = "none"
+	KafkaCompressionGzip   = "gzip"
+	KafkaCompressionSnappy = "snappy"
+	KafkaCompressionLZ4    = "lz4"
+	KafkaCompressionZstd   = "zstd"
+)
+
 const (
 	defaultKafkaBufferSize  = 1024
 	defaultKafkaClientID    = "alertmanager"
@@ -40,6 +64,90 @@ const (
 	defaultKafkaLinger      = 5 * time.Millisecond
 	defaultKafkaFlushBudget = 30 * time.Second
 )
+
+// validateKafka validates and normalizes Kafka-specific Output fields.
+// Called from Output.UnmarshalYAML when Type == OutputKafka.
+func (o *Output) validateKafka() error {
+	if len(o.Brokers) == 0 {
+		return errors.New("event_recorder kafka output requires at least one broker")
+	}
+	if slices.Contains(o.Brokers, "") {
+		return errors.New("event_recorder kafka output broker entries must be non-empty")
+	}
+	if o.Topic == "" {
+		return errors.New("event_recorder kafka output requires a topic")
+	}
+	if o.Format == "" {
+		o.Format = KafkaFormatJSON
+	}
+	switch o.Format {
+	case KafkaFormatJSON, KafkaFormatProtobuf:
+	default:
+		return fmt.Errorf("event_recorder kafka output: unknown format %q, must be %q or %q",
+			o.Format, KafkaFormatJSON, KafkaFormatProtobuf)
+	}
+	switch o.Acks {
+	case "", KafkaAcksLeader, KafkaAcksNone, KafkaAcksAll:
+	default:
+		return fmt.Errorf("event_recorder kafka output: unknown acks %q, must be %q, %q, or %q",
+			o.Acks, KafkaAcksNone, KafkaAcksLeader, KafkaAcksAll)
+	}
+	switch o.Compression {
+	case "", KafkaCompressionNone, KafkaCompressionGzip,
+		KafkaCompressionSnappy, KafkaCompressionLZ4, KafkaCompressionZstd:
+	default:
+		return fmt.Errorf("event_recorder kafka output: unknown compression %q", o.Compression)
+	}
+	return nil
+}
+
+// kafkaOutputsEqual compares the kafka-specific fields of two Outputs.
+// The caller has already verified that both outputs are of type
+// OutputKafka.  Broker lists are compared order-independently because
+// reordering brokers in YAML is semantically a no-op.
+func kafkaOutputsEqual(a, b Output) bool {
+	if !sortedStringSliceEqual(a.Brokers, b.Brokers) {
+		return false
+	}
+	if a.Topic != b.Topic {
+		return false
+	}
+	if a.ClientID != b.ClientID {
+		return false
+	}
+	if a.Format != b.Format {
+		return false
+	}
+	if a.Acks != b.Acks {
+		return false
+	}
+	if a.Compression != b.Compression {
+		return false
+	}
+	if a.BufferSize != b.BufferSize {
+		return false
+	}
+	return reflect.DeepEqual(a.TLSConfig, b.TLSConfig)
+}
+
+// sortedStringSliceEqual reports whether a and b contain the same strings,
+// independent of order.  Broker lists are considered equivalent when their
+// contents match regardless of how the operator wrote them in YAML.
+func sortedStringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aa := append([]string(nil), a...)
+	bb := append([]string(nil), b...)
+	sort.Strings(aa)
+	sort.Strings(bb)
+	for i := range aa {
+		if aa[i] != bb[i] {
+			return false
+		}
+	}
+	return true
+}
 
 // KafkaOutput delivers serialized events to a Kafka topic via franz-go.
 // Events are buffered in a bounded local channel and produced by a

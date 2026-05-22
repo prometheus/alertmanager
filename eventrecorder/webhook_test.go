@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
@@ -190,4 +191,81 @@ func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 
 	require.NoError(t, wo.Close())
 	require.Equal(t, int64(5), count.Load())
+}
+
+// --- config tests.
+
+func TestOutput_UnmarshalYAML_Webhook(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		check   func(t *testing.T, o Output)
+	}{
+		{
+			name: "valid minimal",
+			yaml: "type: webhook\nurl: https://example.com/hook\n",
+			check: func(t *testing.T, o Output) {
+				require.Equal(t, OutputWebhook, o.Type)
+				require.NotNil(t, o.URL)
+				require.Equal(t, "https://example.com/hook", o.URL.String())
+			},
+		},
+		{
+			name: "valid with tunables",
+			yaml: "type: webhook\nurl: https://example.com/h\ntimeout: 5s\nworkers: 8\nmax_retries: 5\nretry_backoff: 250ms\n",
+			check: func(t *testing.T, o Output) {
+				require.Equal(t, model.Duration(5*time.Second), o.Timeout)
+				require.Equal(t, 8, o.Workers)
+				require.Equal(t, 5, o.MaxRetries)
+				require.Equal(t, model.Duration(250*time.Millisecond), o.RetryBackoff)
+			},
+		},
+		{
+			name:    "missing url",
+			yaml:    "type: webhook\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var o Output
+			err := yaml.Unmarshal([]byte(tc.yaml), &o)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.check != nil {
+				tc.check(t, o)
+			}
+		})
+	}
+}
+
+func TestEventRecorderConfigEqual_Webhook(t *testing.T) {
+	a := Config{Outputs: []Output{{
+		Type:       OutputWebhook,
+		URL:        mustParseURL(t, "https://example.com/hook"),
+		Timeout:    model.Duration(10 * time.Second),
+		Workers:    4,
+		MaxRetries: 3,
+	}}}
+	b := Config{Outputs: []Output{{
+		Type:       OutputWebhook,
+		URL:        mustParseURL(t, "https://example.com/hook"),
+		Timeout:    model.Duration(10 * time.Second),
+		Workers:    4,
+		MaxRetries: 3,
+	}}}
+	require.True(t, configEqual(a, b))
+
+	// Differing URL.
+	b.Outputs[0].URL = mustParseURL(t, "https://example.com/other")
+	require.False(t, configEqual(a, b))
+	b.Outputs[0].URL = a.Outputs[0].URL
+
+	// Differing workers.
+	b.Outputs[0].Workers = 8
+	require.False(t, configEqual(a, b))
 }

@@ -14,35 +14,40 @@
 // Package eventrecorder provides a structured event recorder for
 // significant Alertmanager events.  Events are serialized as JSON and
 // fanned out to one or more configured destinations (JSONL file,
-// webhook, etc.).
+// webhook, kafka).
 //
 // RecordEvent never blocks the caller: events are serialized and
 // placed on a bounded in-memory queue.  A background goroutine
 // drains the queue and sends to destinations.  If the queue is full,
 // events are dropped and a metric is incremented.
+//
+// Package layout:
+//
+//   - eventrecorder.go    Recorder core: types, write loop, fan-out.
+//   - metrics.go          Prometheus metric definitions.
+//   - events.go           Pure proto-conversion helpers and event constructors.
+//   - config.go           Output struct + per-type validation/equality dispatch.
+//   - file.go             File output and its config validators.
+//   - webhook.go          Webhook output and its config validators.
+//   - kafka.go            Kafka output and its config validators.
 package eventrecorder
 
 import (
 	"context"
 	"io"
 	"log/slog"
-	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
-	"github.com/prometheus/alertmanager/pkg/labels"
-	silencepb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
+// Output type identifiers used in the YAML configuration.
 const (
 	OutputFile    = "file"
 	OutputWebhook = "webhook"
@@ -148,66 +153,6 @@ type ProtoDestination interface {
 // Use this in tests or when the event recorder is not configured.
 func NopRecorder() Recorder {
 	return Recorder{core: &sharedRecorder{}}
-}
-
-// metrics holds Prometheus metrics for the event recorder.
-type metrics struct {
-	eventsRecorded            *prometheus.CounterVec
-	eventRecorderBytesWritten *prometheus.CounterVec
-	eventsDropped             *prometheus.CounterVec
-	eventSerializeErrors      *prometheus.CounterVec
-	outputDrops               *prometheus.CounterVec
-	kafkaProduceErrors        *prometheus.CounterVec
-}
-
-func newMetrics(r prometheus.Registerer) *metrics {
-	eventsRecorded := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_events_recorded_total",
-		Help: "The total number of events recorded by the event recorder.",
-	}, []string{"event_type", "output", "result"})
-
-	eventRecorderBytesWritten := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_event_recorder_bytes_written_total",
-		Help: "The total number of bytes written to the event recorder.",
-	}, []string{"event_type", "output"})
-
-	eventsDropped := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_events_dropped_total",
-		Help: "The total number of events dropped due to a full queue.",
-	}, []string{"event_type"})
-
-	eventSerializeErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_event_serialize_errors_total",
-		Help: "The total number of events that failed to serialize.",
-	}, []string{"event_type"})
-
-	// outputDrops is incremented when an output's local delivery buffer
-	// is full and an event has to be dropped before reaching the wire.
-	// Replaces the legacy alertmanager_event_webhook_drops_total metric
-	// and is shared by the webhook and kafka outputs.
-	outputDrops := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_event_output_drops_total",
-		Help: "The total number of events dropped by an output due to a full local buffer.",
-	}, []string{"output"})
-
-	kafkaProduceErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "alertmanager_event_kafka_produce_errors_total",
-		Help: "The total number of Kafka produce attempts that failed.",
-	}, []string{"output", "error_type"})
-
-	if r != nil {
-		r.MustRegister(eventsRecorded, eventRecorderBytesWritten, eventsDropped,
-			eventSerializeErrors, outputDrops, kafkaProduceErrors)
-	}
-
-	return &metrics{
-		eventsRecorded:            eventsRecorded,
-		eventRecorderBytesWritten: eventRecorderBytesWritten,
-		eventsDropped:             eventsDropped,
-		eventSerializeErrors:      eventSerializeErrors,
-		outputDrops:               outputDrops,
-		kafkaProduceErrors:        kafkaProduceErrors,
-	}
 }
 
 // NewRecorderFromConfig builds a Recorder from the given configuration.
@@ -459,256 +404,4 @@ func (r Recorder) Close() error {
 	})
 	r.core.wg.Wait()
 	return nil
-}
-
-// extractEventType returns the proto oneof field name for the event
-// type (e.g. "alert_created", "notification").  It uses a type switch
-// on the generated oneof wrapper types, avoiding proto reflection.
-func extractEventType(event *eventrecorderpb.EventData) string {
-	switch event.EventType.(type) {
-	case *eventrecorderpb.EventData_AlertmanagerStartupEvent:
-		return "alertmanager_startup_event"
-	case *eventrecorderpb.EventData_AlertmanagerShutdownEvent:
-		return "alertmanager_shutdown_event"
-	case *eventrecorderpb.EventData_AlertCreated:
-		return "alert_created"
-	case *eventrecorderpb.EventData_AlertResolved:
-		return "alert_resolved"
-	case *eventrecorderpb.EventData_AlertGrouped:
-		return "alert_grouped"
-	case *eventrecorderpb.EventData_Notification:
-		return "notification"
-	case *eventrecorderpb.EventData_SilenceCreated:
-		return "silence_created"
-	case *eventrecorderpb.EventData_SilenceUpdated:
-		return "silence_updated"
-	case *eventrecorderpb.EventData_SilenceMutedAlert:
-		return "silence_muted_alert"
-	case *eventrecorderpb.EventData_InhibitionMutedAlert:
-		return "inhibition_muted_alert"
-	default:
-		return "unknown"
-	}
-}
-
-// LabelSetAsProto converts a model.LabelSet to an eventrecorderpb.LabelSet.
-// Labels are sorted by name for deterministic output.
-func LabelSetAsProto(ls model.LabelSet) *eventrecorderpb.LabelSet {
-	names := make([]model.LabelName, 0, len(ls))
-	for k := range ls {
-		names = append(names, k)
-	}
-	slices.SortFunc(names, func(a, b model.LabelName) int {
-		return strings.Compare(string(a), string(b))
-	})
-	pairs := make([]*eventrecorderpb.LabelPair, 0, len(ls))
-	for _, k := range names {
-		pairs = append(pairs, &eventrecorderpb.LabelPair{Key: string(k), Value: string(ls[k])})
-	}
-	return &eventrecorderpb.LabelSet{Labels: pairs}
-}
-
-// AlertAsProto converts a types.Alert to an eventrecorderpb.Alert.
-func AlertAsProto(alert *types.Alert) *eventrecorderpb.Alert {
-	return &eventrecorderpb.Alert{
-		Fingerprint: uint64(alert.Fingerprint()),
-		Name:        alert.Name(),
-		Labels:      LabelSetAsProto(alert.Labels),
-		Annotations: LabelSetAsProto(alert.Annotations),
-		StartsAt:    timestamppb.New(alert.StartsAt),
-		EndsAt:      timestamppb.New(alert.EndsAt),
-		Resolved:    alert.Resolved(),
-	}
-}
-
-// MatcherAsProto converts a single *labels.Matcher to its protobuf
-// representation.
-func MatcherAsProto(m *labels.Matcher) *eventrecorderpb.Matcher {
-	var matcherType eventrecorderpb.Matcher_Type
-	switch m.Type {
-	case labels.MatchEqual:
-		matcherType = eventrecorderpb.Matcher_TYPE_EQUAL
-	case labels.MatchNotEqual:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_EQUAL
-	case labels.MatchRegexp:
-		matcherType = eventrecorderpb.Matcher_TYPE_REGEXP
-	case labels.MatchNotRegexp:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_REGEXP
-	default:
-		matcherType = eventrecorderpb.Matcher_TYPE_UNSPECIFIED
-	}
-	return &eventrecorderpb.Matcher{
-		Type:     matcherType,
-		Name:     m.Name,
-		Pattern:  m.Value,
-		Rendered: m.String(),
-	}
-}
-
-// MatchersAsProto converts a slice of matchers to their protobuf
-// representations.
-func MatchersAsProto(matchers labels.Matchers) []*eventrecorderpb.Matcher {
-	result := make([]*eventrecorderpb.Matcher, len(matchers))
-	for i, m := range matchers {
-		result[i] = MatcherAsProto(m)
-	}
-	return result
-}
-
-// SilenceMatcherAsProto converts a silencepb.Matcher to an
-// eventrecorderpb.Matcher.
-func SilenceMatcherAsProto(m *silencepb.Matcher) *eventrecorderpb.Matcher {
-	var matcherType eventrecorderpb.Matcher_Type
-	switch m.Type {
-	case silencepb.Matcher_EQUAL:
-		matcherType = eventrecorderpb.Matcher_TYPE_EQUAL
-	case silencepb.Matcher_REGEXP:
-		matcherType = eventrecorderpb.Matcher_TYPE_REGEXP
-	case silencepb.Matcher_NOT_EQUAL:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_EQUAL
-	case silencepb.Matcher_NOT_REGEXP:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_REGEXP
-	default:
-		matcherType = eventrecorderpb.Matcher_TYPE_UNSPECIFIED
-	}
-
-	var rendered string
-	var matchType labels.MatchType
-	switch m.Type {
-	case silencepb.Matcher_EQUAL:
-		matchType = labels.MatchEqual
-	case silencepb.Matcher_NOT_EQUAL:
-		matchType = labels.MatchNotEqual
-	case silencepb.Matcher_REGEXP:
-		matchType = labels.MatchRegexp
-	case silencepb.Matcher_NOT_REGEXP:
-		matchType = labels.MatchNotRegexp
-	default:
-		matchType = labels.MatchEqual
-	}
-	if lm, err := labels.NewMatcher(matchType, m.Name, m.Pattern); err == nil {
-		rendered = lm.String()
-	}
-
-	return &eventrecorderpb.Matcher{
-		Type:     matcherType,
-		Name:     m.Name,
-		Pattern:  m.Pattern,
-		Rendered: rendered,
-	}
-}
-
-// SilenceAsProto converts a silencepb.Silence to an
-// eventrecorderpb.Silence.
-func SilenceAsProto(sil *silencepb.Silence) *eventrecorderpb.Silence {
-	matcherSets := make([]*eventrecorderpb.MatcherSet, len(sil.MatcherSets))
-	for i, ms := range sil.MatcherSets {
-		matcherSet := &eventrecorderpb.MatcherSet{
-			Matchers: make([]*eventrecorderpb.Matcher, len(ms.Matchers)),
-		}
-		for j, m := range ms.Matchers {
-			matcherSet.Matchers[j] = SilenceMatcherAsProto(m)
-		}
-		matcherSets[i] = matcherSet
-	}
-
-	var matchers []*eventrecorderpb.Matcher
-	if len(matcherSets) > 0 {
-		matchers = matcherSets[0].Matchers
-	}
-
-	return &eventrecorderpb.Silence{
-		Id:          sil.Id,
-		Matchers:    matchers,
-		MatcherSets: matcherSets,
-		StartsAt:    sil.StartsAt,
-		EndsAt:      sil.EndsAt,
-		UpdatedAt:   sil.UpdatedAt,
-		CreatedBy:   sil.CreatedBy,
-		Comment:     sil.Comment,
-	}
-}
-
-// InhibitRuleAsProto converts inhibit rule fields to an
-// eventrecorderpb.InhibitRule.  It accepts the individual fields rather
-// than the InhibitRule struct to avoid an import cycle.
-func InhibitRuleAsProto(sourceMatchers, targetMatchers labels.Matchers, equal map[model.LabelName]struct{}) *eventrecorderpb.InhibitRule {
-	equalLabels := make([]string, 0, len(equal))
-	for label := range equal {
-		equalLabels = append(equalLabels, string(label))
-	}
-	slices.Sort(equalLabels)
-	return &eventrecorderpb.InhibitRule{
-		SourceMatchers: MatchersAsProto(sourceMatchers),
-		TargetMatchers: MatchersAsProto(targetMatchers),
-		EqualLabels:    equalLabels,
-	}
-}
-
-// NewAlertCreatedEvent constructs an AlertCreated event.
-func NewAlertCreatedEvent(alert *types.Alert) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertCreated{
-			AlertCreated: &eventrecorderpb.AlertCreatedEvent{
-				Alert: AlertAsProto(alert),
-			},
-		},
-	}
-}
-
-// NewSilenceMutedAlertEvent constructs a SilenceMutedAlert event.
-func NewSilenceMutedAlertEvent(silence *eventrecorderpb.Silence, fp model.Fingerprint, lset model.LabelSet) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceMutedAlert{
-			SilenceMutedAlert: &eventrecorderpb.SilenceMutedAlertEvent{
-				Silence: silence,
-				MutedAlert: &eventrecorderpb.MutedAlert{
-					Fingerprint: uint64(fp),
-					Labels:      LabelSetAsProto(lset),
-				},
-			},
-		},
-	}
-}
-
-// NewSilenceCreatedEvent constructs a SilenceCreated event.
-func NewSilenceCreatedEvent(silence *eventrecorderpb.Silence) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceCreated{
-			SilenceCreated: &eventrecorderpb.SilenceCreatedEvent{
-				Silence: silence,
-			},
-		},
-	}
-}
-
-// NewSilenceUpdatedEvent constructs a SilenceUpdated event.
-func NewSilenceUpdatedEvent(silence *eventrecorderpb.Silence) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceUpdated{
-			SilenceUpdated: &eventrecorderpb.SilenceUpdatedEvent{
-				Silence: silence,
-			},
-		},
-	}
-}
-
-// NewInhibitionMutedAlertEvent constructs an InhibitionMutedAlert event.
-func NewInhibitionMutedAlertEvent(rules []*eventrecorderpb.InhibitRule, fp model.Fingerprint, lset model.LabelSet, inhibitingFPs []model.Fingerprint) *eventrecorderpb.EventData {
-	fps := make([]uint64, len(inhibitingFPs))
-	for i, f := range inhibitingFPs {
-		fps[i] = uint64(f)
-	}
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_InhibitionMutedAlert{
-			InhibitionMutedAlert: &eventrecorderpb.InhibitionMutedAlertEvent{
-				InhibitRules: rules,
-				MutedAlert: &eventrecorderpb.MutedAlert{
-					Fingerprint: uint64(fp),
-					Labels:      LabelSetAsProto(lset),
-				},
-				InhibitingFingerprints: fps,
-			},
-		},
-	}
 }

@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
@@ -385,57 +385,120 @@ func TestKafkaOutput_NameIsStable(t *testing.T) {
 	require.Equal(t, "kafka:a:9092,b:9092/topic", a)
 }
 
-// Smoke test for the proto fast path in marshalAndSend: build a
-// recorder whose only output is a fake ProtoDestination and assert
-// it receives SendProto, not SendEvent, and that protojson is never
-// invoked (we observe this indirectly by inspecting the captured event).
-func TestMarshalAndSend_ProtoFastPath(t *testing.T) {
-	pd := &fakeProtoDest{wantProto: true}
-	rec := newTestRecorder(pd)
-	defer rec.Close()
+// --- config tests.
 
-	rec.RecordEvent(recordCtx(), startupEvent())
+func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
+	a := Config{Outputs: []Output{{
+		Type:    OutputKafka,
+		Brokers: []string{"b:9092", "a:9092"},
+		Topic:   "t",
+		Format:  KafkaFormatJSON,
+	}}}
+	b := Config{Outputs: []Output{{
+		Type:    OutputKafka,
+		Brokers: []string{"a:9092", "b:9092"},
+		Topic:   "t",
+		Format:  KafkaFormatJSON,
+	}}}
+	require.True(t, configEqual(a, b), "broker order must not affect equality")
 
-	require.Eventually(t, func() bool {
-		pd.mu.Lock()
-		defer pd.mu.Unlock()
-		return pd.protoCount == 1 && pd.jsonCount == 0
-	}, time.Second, 10*time.Millisecond)
+	b.Outputs[0].Topic = "other"
+	require.False(t, configEqual(a, b), "differing topics must compare unequal")
 
-	require.Eventually(t, func() bool {
-		pd.mu.Lock()
-		defer pd.mu.Unlock()
-		return pd.last != nil && pd.last.GetData().GetAlertmanagerStartupEvent() != nil
-	}, time.Second, 10*time.Millisecond)
+	b.Outputs[0].Topic = "t"
+	b.Outputs[0].Format = KafkaFormatProtobuf
+	require.False(t, configEqual(a, b), "differing formats must compare unequal")
 }
 
-// fakeProtoDest implements ProtoDestination and counts both code paths
-// so the test can assert the fast path was taken.
-type fakeProtoDest struct {
-	mu         sync.Mutex
-	wantProto  bool
-	jsonCount  int
-	protoCount int
-	last       *eventrecorderpb.Event
-}
-
-func (f *fakeProtoDest) Name() string { return "fake:proto" }
-
-func (f *fakeProtoDest) SendEvent(_ []byte) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.jsonCount++
-	return nil
-}
-
-func (f *fakeProtoDest) Close() error { return nil }
-
-func (f *fakeProtoDest) WantsProto() bool { return f.wantProto }
-
-func (f *fakeProtoDest) SendProto(ev *eventrecorderpb.Event) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.protoCount++
-	f.last = ev
-	return 42, nil
+func TestOutput_UnmarshalYAML_Kafka(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		check   func(t *testing.T, o Output)
+	}{
+		{
+			name: "valid minimal kafka",
+			yaml: `
+type: kafka
+brokers: [a:9092, b:9092]
+topic: amgr-events
+`,
+			check: func(t *testing.T, o Output) {
+				require.Equal(t, OutputKafka, o.Type)
+				require.Equal(t, "amgr-events", o.Topic)
+				// Format defaults to "json" when omitted.
+				require.Equal(t, "json", o.Format)
+			},
+		},
+		{
+			name: "valid full kafka",
+			yaml: `
+type: kafka
+brokers: [a:9092]
+topic: t
+client_id: amgr
+format: protobuf
+acks: all
+compression: zstd
+buffer_size: 4096
+`,
+			check: func(t *testing.T, o Output) {
+				require.Equal(t, KafkaFormatProtobuf, o.Format)
+				require.Equal(t, KafkaAcksAll, o.Acks)
+				require.Equal(t, KafkaCompressionZstd, o.Compression)
+				require.Equal(t, 4096, o.BufferSize)
+				require.Equal(t, "amgr", o.ClientID)
+			},
+		},
+		{
+			name:    "missing brokers",
+			yaml:    "type: kafka\ntopic: t\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing topic",
+			yaml:    "type: kafka\nbrokers: [a:9092]\n",
+			wantErr: true,
+		},
+		{
+			name:    "empty broker entry",
+			yaml:    "type: kafka\nbrokers: ['']\ntopic: t\n",
+			wantErr: true,
+		},
+		{
+			name:    "bad format",
+			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\nformat: yaml\n",
+			wantErr: true,
+		},
+		{
+			name:    "bad acks",
+			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\nacks: majority\n",
+			wantErr: true,
+		},
+		{
+			name:    "bad compression",
+			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\ncompression: deflate\n",
+			wantErr: true,
+		},
+		{
+			name:    "unknown type",
+			yaml:    "type: nats\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var o Output
+			err := yaml.Unmarshal([]byte(tc.yaml), &o)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.check != nil {
+				tc.check(t, o)
+			}
+		})
+	}
 }

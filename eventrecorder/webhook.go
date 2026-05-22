@@ -15,17 +15,57 @@ package eventrecorder
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 )
+
+// validateWebhook validates the webhook-output fields of an Output.
+// Called from Output.UnmarshalYAML when Type == OutputWebhook.
+func (o *Output) validateWebhook() error {
+	if o.URL == nil {
+		return errors.New("event_recorder webhook output requires a url")
+	}
+	return nil
+}
+
+// webhookOutputsEqual compares the webhook-specific fields of two
+// Outputs.  The caller has already verified that both outputs are of
+// type OutputWebhook.
+func webhookOutputsEqual(a, b Output) bool {
+	aURL, bURL := "", ""
+	if a.URL != nil {
+		aURL = a.URL.String()
+	}
+	if b.URL != nil {
+		bURL = b.URL.String()
+	}
+	if aURL != bURL {
+		return false
+	}
+	if a.Timeout != b.Timeout {
+		return false
+	}
+	if a.Workers != b.Workers {
+		return false
+	}
+	if a.MaxRetries != b.MaxRetries {
+		return false
+	}
+	if a.RetryBackoff != b.RetryBackoff {
+		return false
+	}
+	return reflect.DeepEqual(a.HTTPConfig, b.HTTPConfig)
+}
 
 const (
 	defaultWebhookTimeout      = 10 * time.Second

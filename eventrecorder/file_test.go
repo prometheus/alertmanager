@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestFileOutput_SendEvent(t *testing.T) {
@@ -116,4 +117,52 @@ func TestFileOutput_Close(t *testing.T) {
 func TestFileOutput_InvalidPath(t *testing.T) {
 	_, err := NewFileOutput("/nonexistent/dir/events.jsonl", slog.Default())
 	require.Error(t, err)
+}
+
+// --- config tests.
+
+func TestOutput_UnmarshalYAML_File(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		check   func(t *testing.T, o Output)
+	}{
+		{
+			name: "valid",
+			yaml: "type: file\npath: /tmp/events.jsonl\n",
+			check: func(t *testing.T, o Output) {
+				require.Equal(t, OutputFile, o.Type)
+				require.Equal(t, "/tmp/events.jsonl", o.Path)
+			},
+		},
+		{
+			name:    "missing path",
+			yaml:    "type: file\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var o Output
+			err := yaml.Unmarshal([]byte(tc.yaml), &o)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.check != nil {
+				tc.check(t, o)
+			}
+		})
+	}
+}
+
+func TestEventRecorderConfigEqual_File(t *testing.T) {
+	a := Config{Outputs: []Output{{Type: OutputFile, Path: "/tmp/events.jsonl"}}}
+	b := Config{Outputs: []Output{{Type: OutputFile, Path: "/tmp/events.jsonl"}}}
+	require.True(t, configEqual(a, b))
+
+	b.Outputs[0].Path = "/tmp/other.jsonl"
+	require.False(t, configEqual(a, b))
 }

@@ -14,6 +14,7 @@
 package eventrecorder
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,6 +23,22 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 )
+
+// validateFile validates the file-output fields of an Output.  Called
+// from Output.UnmarshalYAML when Type == OutputFile.
+func (o *Output) validateFile() error {
+	if o.Path == "" {
+		return errors.New("event_recorder file output requires a path")
+	}
+	return nil
+}
+
+// fileOutputsEqual compares the file-specific fields of two Outputs.
+// The caller has already verified that both outputs are of type
+// OutputFile.
+func fileOutputsEqual(a, b Output) bool {
+	return a.Path == b.Path
+}
 
 // FileOutput writes pre-serialized JSON event bytes to a JSONL file.
 // The file is reopened when fsnotify detects a rename or remove (e.g.

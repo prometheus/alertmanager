@@ -11,50 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package eventrecorder provides a structured event recorder for
-// significant Alertmanager events.  Events are serialized as JSON and
-// fanned out to one or more configured destinations (JSONL file,
-// webhook, etc.).
-//
-// RecordEvent never blocks the caller: events are serialized and
-// placed on a bounded in-memory queue.  A background goroutine
-// drains the queue and sends to destinations.  If the queue is full,
-// events are dropped and a metric is incremented.
 package eventrecorder
 
 import (
-	"errors"
 	"fmt"
-	"reflect"
-	"slices"
-	"sort"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-)
-
-// Kafka format identifiers.
-const (
-	KafkaFormatJSON     = "json"
-	KafkaFormatProtobuf = "protobuf"
-)
-
-// Kafka acks levels.
-const (
-	KafkaAcksNone   = "none"
-	KafkaAcksLeader = "leader"
-	KafkaAcksAll    = "all"
-)
-
-// Kafka compression codecs.
-const (
-	KafkaCompressionNone   = "none"
-	KafkaCompressionGzip   = "gzip"
-	KafkaCompressionSnappy = "snappy"
-	KafkaCompressionLZ4    = "lz4"
-	KafkaCompressionZstd   = "zstd"
 )
 
 // Config configures the event recorder feature.
@@ -63,25 +28,42 @@ type Config struct {
 }
 
 // Output configures a single event recorder output destination.
+//
+// All output types share the same struct because YAML unmarshalling is
+// single-pass; only a subset of fields applies to each Type.  The
+// per-type field groups are listed below.  Validation and equality
+// comparison for the type-specific fields live in the corresponding
+// output file (file.go, webhook.go, kafka.go).
 type Output struct {
-	Type       string                      `yaml:"type" json:"type"`
-	Path       string                      `yaml:"path,omitempty" json:"path,omitempty"`
-	URL        *amcommoncfg.SecretURL      `yaml:"url,omitempty" json:"url,omitempty"`
+	// Type selects the destination kind.  Must be one of OutputFile,
+	// OutputWebhook, or OutputKafka.
+	Type string `yaml:"type" json:"type"`
+
+	// --- File output fields (Type == OutputFile) ---
+
+	// Path is the JSONL file to append events to.
+	Path string `yaml:"path,omitempty" json:"path,omitempty"`
+
+	// --- Webhook output fields (Type == OutputWebhook) ---
+
+	// URL is the endpoint to POST each event to.
+	URL *amcommoncfg.SecretURL `yaml:"url,omitempty" json:"url,omitempty"`
+	// HTTPConfig configures the HTTP client used for webhook delivery.
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	// Timeout for webhook HTTP requests (default 10s).
 	Timeout model.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 	// Workers is the number of concurrent webhook delivery goroutines
-	// (default 4).  Only applicable to webhook outputs.
+	// (default 4).
 	Workers int `yaml:"workers,omitempty" json:"workers,omitempty"`
 	// MaxRetries is the maximum number of delivery attempts per event
-	// (default 3).  Only applicable to webhook outputs.
+	// (default 3).
 	MaxRetries int `yaml:"max_retries,omitempty" json:"max_retries,omitempty"`
 	// RetryBackoff is the base backoff duration between retry attempts
 	// (default 500ms).  Successive attempts use exponential backoff
-	// (base * 2^attempt).  Only applicable to webhook outputs.
+	// (base * 2^attempt).
 	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
 
-	// --- Kafka-specific fields (Type == OutputKafka) ---
+	// --- Kafka output fields (Type == OutputKafka) ---
 
 	// Brokers is the list of Kafka seed brokers in host:port form.
 	Brokers []string `yaml:"brokers,omitempty" json:"brokers,omitempty"`
@@ -107,6 +89,7 @@ type Output struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Output.
+// It dispatches to per-type validators defined in each output's file.
 func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain Output
 	if err := unmarshal((*plain)(o)); err != nil {
@@ -114,59 +97,20 @@ func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	switch o.Type {
 	case OutputFile:
-		if o.Path == "" {
-			return errors.New("event_recorder file output requires a path")
-		}
-	case OutputWebhook:
-		if o.URL == nil {
-			return errors.New("event_recorder webhook output requires a url")
-		}
+		return o.validateFile()
 	case OutputKafka:
 		return o.validateKafka()
+	case OutputWebhook:
+		return o.validateWebhook()
 	default:
 		return fmt.Errorf("unknown event_recorder output type %q, must be %q, %q, or %q",
 			o.Type, OutputFile, OutputWebhook, OutputKafka)
 	}
-	return nil
 }
 
-// validateKafka validates and normalizes Kafka-specific Output fields.
-func (o *Output) validateKafka() error {
-	if len(o.Brokers) == 0 {
-		return errors.New("event_recorder kafka output requires at least one broker")
-	}
-	if slices.Contains(o.Brokers, "") {
-		return errors.New("event_recorder kafka output broker entries must be non-empty")
-	}
-	if o.Topic == "" {
-		return errors.New("event_recorder kafka output requires a topic")
-	}
-	if o.Format == "" {
-		o.Format = KafkaFormatJSON
-	}
-	switch o.Format {
-	case KafkaFormatJSON, KafkaFormatProtobuf:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown format %q, must be %q or %q",
-			o.Format, KafkaFormatJSON, KafkaFormatProtobuf)
-	}
-	switch o.Acks {
-	case "", KafkaAcksLeader, KafkaAcksNone, KafkaAcksAll:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown acks %q, must be %q, %q, or %q",
-			o.Acks, KafkaAcksNone, KafkaAcksLeader, KafkaAcksAll)
-	}
-	switch o.Compression {
-	case "", KafkaCompressionNone, KafkaCompressionGzip,
-		KafkaCompressionSnappy, KafkaCompressionLZ4, KafkaCompressionZstd:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown compression %q", o.Compression)
-	}
-	return nil
-}
-
-// configEqual compares two Config values by their
-// semantically significant fields.
+// configEqual compares two Config values by their semantically significant
+// fields.  For each output, equality is delegated to a per-type helper
+// defined alongside that output's implementation.
 func configEqual(a, b Config) bool {
 	if len(a.Outputs) != len(b.Outputs) {
 		return false
@@ -176,76 +120,22 @@ func configEqual(a, b Config) bool {
 		if oa.Type != ob.Type {
 			return false
 		}
-		if oa.Path != ob.Path {
-			return false
-		}
-		if oa.Timeout != ob.Timeout {
-			return false
-		}
-		aURL, bURL := "", ""
-		if oa.URL != nil {
-			aURL = oa.URL.String()
-		}
-		if ob.URL != nil {
-			bURL = ob.URL.String()
-		}
-		if aURL != bURL {
-			return false
-		}
-		if oa.Workers != ob.Workers {
-			return false
-		}
-		if oa.MaxRetries != ob.MaxRetries {
-			return false
-		}
-		if oa.RetryBackoff != ob.RetryBackoff {
-			return false
-		}
-		if !reflect.DeepEqual(oa.HTTPConfig, ob.HTTPConfig) {
-			return false
-		}
-		// Kafka fields.
-		if !sortedStringSliceEqual(oa.Brokers, ob.Brokers) {
-			return false
-		}
-		if oa.Topic != ob.Topic {
-			return false
-		}
-		if oa.ClientID != ob.ClientID {
-			return false
-		}
-		if oa.Format != ob.Format {
-			return false
-		}
-		if oa.Acks != ob.Acks {
-			return false
-		}
-		if oa.Compression != ob.Compression {
-			return false
-		}
-		if oa.BufferSize != ob.BufferSize {
-			return false
-		}
-		if !reflect.DeepEqual(oa.TLSConfig, ob.TLSConfig) {
-			return false
-		}
-	}
-	return true
-}
-
-// sortedStringSliceEqual reports whether a and b contain the same strings,
-// independent of order.  Broker lists are considered equivalent when their
-// contents match regardless of how the operator wrote them in YAML.
-func sortedStringSliceEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	aa := append([]string(nil), a...)
-	bb := append([]string(nil), b...)
-	sort.Strings(aa)
-	sort.Strings(bb)
-	for i := range aa {
-		if aa[i] != bb[i] {
+		switch oa.Type {
+		case OutputFile:
+			if !fileOutputsEqual(oa, ob) {
+				return false
+			}
+		case OutputKafka:
+			if !kafkaOutputsEqual(oa, ob) {
+				return false
+			}
+		case OutputWebhook:
+			if !webhookOutputsEqual(oa, ob) {
+				return false
+			}
+		default:
+			// Unknown types should have been rejected at unmarshal time.
+			// Treat as inequality to force a reload.
 			return false
 		}
 	}
