@@ -18,7 +18,7 @@
     color: var(--mantine-color-gray-0);
   }
 
-  [data-mantine-color-scheme] &[aria-current='page'] {
+  [data-mantine-color-scheme] &[aria-current="page"] {
     background-color: var(--mantine-color-blue-filled);
     color: var(--mantine-color-white);
   }

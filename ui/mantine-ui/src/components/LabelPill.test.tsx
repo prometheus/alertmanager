@@ -1,4 +1,5 @@
 import { render, screen } from '@test-utils';
+
 import { LabelPill } from './LabelPill';
 
 describe('LabelPill', () => {
