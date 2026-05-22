@@ -31,9 +31,18 @@ import (
 
 // validateWebhook validates the webhook-output fields of an Output.
 // Called from Output.UnmarshalYAML when Type == OutputWebhook.
+//
+// Note: SecretURL.UnmarshalYAML delegates to ParseURL, which already
+// enforces a non-empty host and an http(s) scheme.  The only way an
+// otherwise-valid Output reaches this function with a degenerate URL
+// is via the "<secret>" placeholder shortcut in SecretURL.UnmarshalYAML,
+// which sets URL to an empty url.URL{}.  We catch that case here.
 func (o *Output) validateWebhook() error {
-	if o.URL == nil {
+	if o.URL == nil || o.URL.URL == nil {
 		return errors.New("event_recorder webhook output requires a url")
+	}
+	if o.URL.Scheme == "" || o.URL.Host == "" {
+		return errors.New("event_recorder webhook output requires an absolute http(s) url")
 	}
 	return nil
 }

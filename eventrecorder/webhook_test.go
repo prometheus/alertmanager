@@ -226,6 +226,24 @@ func TestOutput_UnmarshalYAML_Webhook(t *testing.T) {
 			yaml:    "type: webhook\n",
 			wantErr: true,
 		},
+		{
+			// SecretURL.UnmarshalYAML treats "<secret>" specially and
+			// installs an empty url.URL{} so that round-tripping a
+			// redacted config (e.g. from the Alertmanager API via
+			// amtool) doesn't fail.  An empty URL must still be
+			// rejected here as it would be unusable at runtime.
+			name:    "placeholder secret url",
+			yaml:    "type: webhook\nurl: <secret>\n",
+			wantErr: true,
+		},
+		{
+			// Wrong scheme should be rejected by SecretURL.UnmarshalYAML
+			// itself (ParseURL only accepts http/https), so the error
+			// surfaces before our validator runs.
+			name:    "non-http scheme",
+			yaml:    "type: webhook\nurl: ftp://example.com/\n",
+			wantErr: true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
