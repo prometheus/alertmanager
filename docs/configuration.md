@@ -756,6 +756,10 @@ Note: As part of lifting the past moratorium on new receivers it was agreed that
 # The unique name of the receiver.
 name: <string>
 
+# Labels attached to this receiver for querying and filtering.
+labels:
+  [ <labelname>: <labelvalue>, ... ]
+
 # Configurations for several notification integrations.
 discord_configs:
   [ - <discord_config>, ... ]
