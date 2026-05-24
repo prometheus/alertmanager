@@ -119,7 +119,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
-		return true, err
+		return true, notify.RedactURL(err)
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 

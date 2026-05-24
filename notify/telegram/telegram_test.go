@@ -213,3 +213,76 @@ func TestTelegramNotify(t *testing.T) {
 		})
 	}
 }
+
+// TestTelegramNotifyRedactURL verifies that notify.RedactURL is applied to the
+// error returned by client.Send, so the bot token is never exposed in logs.
+func TestTelegramNotifyRedactURL(t *testing.T) {
+	token := "secret"
+
+	t.Run("transport error redacts URL", func(t *testing.T) {
+		// Point at a closed server so telebot returns a *url.Error with the full URL.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		u, _ := url.Parse(srv.URL)
+		srv.Close() // closed immediately — next dial will fail
+
+		notifier, err := New(
+			&config.TelegramConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				APIUrl:     &amcommoncfg.URL{URL: u},
+				BotToken:   commoncfg.Secret(token),
+			},
+			test.CreateTmpl(t),
+			promslog.NewNopLogger(),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ctx = notify.WithGroupKey(ctx, "1")
+
+		retry, err := notifier.Notify(ctx, &types.Alert{
+			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
+		})
+		require.True(t, retry)
+		require.Error(t, err)
+		// The token must not appear in the error string.
+		require.NotContains(t, err.Error(), token, "bot token leaked in transport error")
+		// The URL should be redacted.
+		require.Contains(t, err.Error(), "<redacted>")
+	})
+
+	t.Run("Telegram API error passes through without token", func(t *testing.T) {
+		// Return a Telegram API error response — telebot wraps this as its own
+		// error type (not *url.Error), so RedactURL is a no-op, but the token
+		// is not in the error string either.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"ok":false,"description":"Bad Request: chat not found","error_code":400}`))
+		}))
+		defer srv.Close()
+		u, _ := url.Parse(srv.URL)
+
+		notifier, err := New(
+			&config.TelegramConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				APIUrl:     &amcommoncfg.URL{URL: u},
+				BotToken:   commoncfg.Secret(token),
+			},
+			test.CreateTmpl(t),
+			promslog.NewNopLogger(),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ctx = notify.WithGroupKey(ctx, "1")
+
+		retry, err := notifier.Notify(ctx, &types.Alert{
+			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
+		})
+		require.True(t, retry)
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), token, "bot token leaked in API error")
+	})
+}
+}
