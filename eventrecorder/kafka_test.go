@@ -375,6 +375,15 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 			cfg:  Output{Type: OutputKafka, Topic: "t", Format: KafkaFormatJSON},
 		},
 		{
+			name: "empty broker entry",
+			cfg: Output{
+				Type:    OutputKafka,
+				Brokers: []string{"127.0.0.1:9092", ""},
+				Topic:   "t",
+				Format:  KafkaFormatJSON,
+			},
+		},
+		{
 			name: "no topic",
 			cfg:  Output{Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Format: KafkaFormatJSON},
 		},

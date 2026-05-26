@@ -188,6 +188,9 @@ func NewKafkaOutput(
 	if len(cfg.Brokers) == 0 {
 		return nil, errors.New("kafka output requires at least one broker")
 	}
+	if slices.Contains(cfg.Brokers, "") {
+		return nil, errors.New("kafka output broker entries must be non-empty")
+	}
 	if cfg.Topic == "" {
 		return nil, errors.New("kafka output requires a topic")
 	}
