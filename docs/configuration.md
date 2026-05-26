@@ -166,6 +166,14 @@ mute_time_intervals:
 # A list of time intervals for muting/activating routes.
 time_intervals:
   [ - <time_interval> ... ]
+
+# Optional event recorder configuration.  Captures significant
+# Alertmanager events (startup/shutdown, alert lifecycle, silences,
+# notifications) and ships them to one or more outputs (file, webhook,
+# kafka).  Recording is gated behind the `event-recorder` feature flag;
+# pass `--enable-feature=event-recorder` on the command line to
+# activate it.  See the Event Recorder section below.
+[ event_recorder: <event_recorder_config> ]
 ```
 
 ## Route-related settings
@@ -2129,6 +2137,17 @@ buffer is full, events are dropped.
 A failure to reach the Kafka brokers at startup is logged at warn level
 but does **not** prevent Alertmanager from starting; the underlying
 client retries connections in the background.
+
+**Topic creation:** Alertmanager does not create the topic itself.  The
+target topic must either already exist on the cluster or the brokers
+must be configured with `auto.create.topics.enable=true` (the Kafka
+default, but explicitly disabled in many production clusters).  When
+the topic is missing on a cluster that disables auto-creation, produce
+attempts fail with `UNKNOWN_TOPIC_OR_PARTITION` and are counted in the
+`alertmanager_event_kafka_produce_errors_total` metric.  Create the
+topic up-front with a tool such as `kafka-topics.sh`, choosing the
+partition count and replication factor appropriate for your event
+throughput and durability requirements.
 
 ```yaml
 type: kafka
