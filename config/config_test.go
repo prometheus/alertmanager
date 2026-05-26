@@ -149,6 +149,125 @@ receivers:
 	}
 }
 
+func TestReceiverLabelsAutoPopulatesName(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels == nil {
+		t.Fatal("expected labels to be initialized, got nil")
+	}
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+}
+
+func TestReceiverLabelsPreservesUserLabels(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    owner: my-team
+    kind: heartbeat
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+	if rcv.Labels["owner"] != "my-team" {
+		t.Errorf("expected labels[\"owner\"] = \"my-team\", got %q", rcv.Labels["owner"])
+	}
+	if rcv.Labels["kind"] != "heartbeat" {
+		t.Errorf("expected labels[\"kind\"] = \"heartbeat\", got %q", rcv.Labels["kind"])
+	}
+}
+
+func TestReceiverLabelsNameConflict(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    name: 'different-name'
+`
+	_, err := Load(in)
+
+	expected := `receiver label "name" must match receiver name "team-X", got "different-name"`
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestReceiverLabelsNameMatchesExplicitly(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    name: 'team-X'
+    owner: my-team
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+	if rcv.Labels["owner"] != "my-team" {
+		t.Errorf("expected labels[\"owner\"] = \"my-team\", got %q", rcv.Labels["owner"])
+	}
+}
+
+func TestReceiverLabelsAllowsHyphensAndUTF8(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-slack
+
+receivers:
+- name: 'team-X-slack'
+  labels:
+    owning-team: team-X-slack
+    kind: heartbeat
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["owning-team"] != "team-X-slack" {
+		t.Errorf("expected labels[\"owning-team\"] = \"team-X-slack\", got %q", rcv.Labels["owning-team"])
+	}
+}
+
 func TestMuteTimeExists(t *testing.T) {
 	in := `
 route:
@@ -646,7 +765,8 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		},
 		Receivers: []Receiver{
 			{
-				Name: "team-X-mails",
+				Name:   "team-X-mails",
+				Labels: map[string]string{"name": "team-X-mails"},
 				EmailConfigs: []*EmailConfig{
 					{
 						To:         "team-X+alerts@example.org",

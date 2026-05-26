@@ -10,7 +10,7 @@
 -}
 
 
-module Data.Receiver exposing (Receiver, decoder, encoder)
+module Data.ReceiverReference exposing (ReceiverReference, decoder, encoder)
 
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -18,22 +18,19 @@ import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 
 
-type alias Receiver =
+type alias ReceiverReference =
     { name : String
-    , labels : Maybe (Dict String String)
     }
 
 
-decoder : Decoder Receiver
+decoder : Decoder ReceiverReference
 decoder =
-    Decode.succeed Receiver
+    Decode.succeed ReceiverReference
         |> required "name" Decode.string
-        |> optional "labels" (Decode.nullable (Decode.dict Decode.string)) Nothing
 
 
-encoder : Receiver -> Encode.Value
+encoder : ReceiverReference -> Encode.Value
 encoder model =
     Encode.object
         [ ( "name", Encode.string model.name )
-        , ( "labels", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.labels) )
         ]

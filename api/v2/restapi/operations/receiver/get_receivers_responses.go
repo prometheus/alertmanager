@@ -74,3 +74,46 @@ func (o *GetReceiversOK) WriteResponse(rw http.ResponseWriter, producer runtime.
 		panic(err) // let the recovery middleware deal with this
 	}
 }
+
+// GetReceiversBadRequestCode is the HTTP code returned for type GetReceiversBadRequest
+const GetReceiversBadRequestCode int = 400
+
+/*
+GetReceiversBadRequest Bad request
+
+swagger:response getReceiversBadRequest
+*/
+type GetReceiversBadRequest struct {
+
+	/*
+	  In: Body
+	*/
+	Payload string `json:"body,omitempty"`
+}
+
+// NewGetReceiversBadRequest creates GetReceiversBadRequest with default headers values
+func NewGetReceiversBadRequest() *GetReceiversBadRequest {
+
+	return &GetReceiversBadRequest{}
+}
+
+// WithPayload adds the payload to the get receivers bad request response
+func (o *GetReceiversBadRequest) WithPayload(payload string) *GetReceiversBadRequest {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get receivers bad request response
+func (o *GetReceiversBadRequest) SetPayload(payload string) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetReceiversBadRequest) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(400)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+}

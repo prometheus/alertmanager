@@ -28,6 +28,7 @@ import (
 	"github.com/go-openapi/runtime"
 	cr "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
 )
 
 // NewGetReceiversParams creates a new GetReceiversParams object,
@@ -74,6 +75,13 @@ GetReceiversParams contains all the parameters to send to the API endpoint
 	Typically these are written to a http.Request.
 */
 type GetReceiversParams struct {
+
+	/* ReceiverMatchers.
+
+	   A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
+	*/
+	ReceiverMatchers []string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -127,6 +135,17 @@ func (o *GetReceiversParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
+// WithReceiverMatchers adds the receiverMatchers to the get receivers params
+func (o *GetReceiversParams) WithReceiverMatchers(receiverMatchers []string) *GetReceiversParams {
+	o.SetReceiverMatchers(receiverMatchers)
+	return o
+}
+
+// SetReceiverMatchers adds the receiverMatchers to the get receivers params
+func (o *GetReceiversParams) SetReceiverMatchers(receiverMatchers []string) {
+	o.ReceiverMatchers = receiverMatchers
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetReceiversParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -135,8 +154,36 @@ func (o *GetReceiversParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.
 	}
 	var res []error
 
+	if o.ReceiverMatchers != nil {
+
+		// binding items for receiver_matchers
+		joinedReceiverMatchers := o.bindParamReceiverMatchers(reg)
+
+		// query array param receiver_matchers
+		if err := r.SetQueryParam("receiver_matchers", joinedReceiverMatchers...); err != nil {
+			return err
+		}
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
+}
+
+// bindParamGetReceivers binds the parameter receiver_matchers
+func (o *GetReceiversParams) bindParamReceiverMatchers(formats strfmt.Registry) []string {
+	receiverMatchersIR := o.ReceiverMatchers
+
+	var receiverMatchersIC []string
+	for _, receiverMatchersIIR := range receiverMatchersIR { // explode []string
+
+		receiverMatchersIIV := receiverMatchersIIR // string as string
+		receiverMatchersIC = append(receiverMatchersIC, receiverMatchersIIV)
+	}
+
+	// items.CollectionFormat: "multi"
+	receiverMatchersIS := swag.JoinByFormat(receiverMatchersIC, "multi")
+
+	return receiverMatchersIS
 }

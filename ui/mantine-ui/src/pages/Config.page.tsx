@@ -1,4 +1,5 @@
 import { CodeHighlight } from '@mantine/code-highlight';
+
 import { useStatus } from '@/data/status';
 
 export function ConfigPage() {

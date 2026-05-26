@@ -29,12 +29,13 @@ import (
 
 // GetAlertsURL generates an URL for the get alerts operation
 type GetAlertsURL struct {
-	Active      *bool
-	Filter      []string
-	Inhibited   *bool
-	Receiver    *string
-	Silenced    *bool
-	Unprocessed *bool
+	Active           *bool
+	Filter           []string
+	Inhibited        *bool
+	Receiver         *string
+	ReceiverMatchers []string
+	Silenced         *bool
+	Unprocessed      *bool
 
 	_basePath string
 	// avoid unkeyed usage
@@ -106,6 +107,20 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 	}
 	if receiverQ != "" {
 		qs.Set("receiver", receiverQ)
+	}
+
+	var receiverMatchersIR []string
+	for _, receiverMatchersI := range o.ReceiverMatchers {
+		receiverMatchersIS := receiverMatchersI
+		if receiverMatchersIS != "" {
+			receiverMatchersIR = append(receiverMatchersIR, receiverMatchersIS)
+		}
+	}
+
+	receiverMatchers := swag.JoinByFormat(receiverMatchersIR, "multi")
+
+	for _, qsv := range receiverMatchers {
+		qs.Add("receiver_matchers", qsv)
 	}
 
 	var silencedQ string
