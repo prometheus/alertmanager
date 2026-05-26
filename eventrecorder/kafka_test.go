@@ -246,16 +246,12 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Block the dispatcher by replacing it with a paused worker.
-	// Easiest deterministic approach: stop the dispatcher entirely,
-	// then push records straight into the channel until the
-	// buffered-channel default case fires.
+	// Stop the dispatcher so the channel is no longer drained, then
+	// push records directly until the buffered-channel default branch
+	// fires.  enqueue is gated by ko.closed (not ko.done), so sends
+	// continue to land on the buffer while the output is still "open".
 	close(ko.done)
 	ko.wg.Wait()
-
-	// Reset done so SendEvent's select doesn't take the closed-done
-	// path; we just want to exercise the "default" drop branch.
-	ko.done = make(chan struct{})
 
 	// First send fills the size-1 buffer; subsequent sends drop.
 	require.NoError(t, ko.SendEvent([]byte("a")))
@@ -265,9 +261,41 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 
 	require.GreaterOrEqual(t, counterValue(t, ko.drops), float64(10))
 
-	// Re-close (no dispatcher now); we manually close the client.
-	close(ko.done)
+	// Manually close the franz-go client; we already shut the
+	// dispatcher down by closing ko.done above.
 	ko.client.Close()
+}
+
+func TestKafkaOutput_SendAfterClose(t *testing.T) {
+	const topic = "amgr-events-after-close"
+	cluster := startFakeCluster(t, topic, 1)
+	brokers := cluster.ListenAddrs()
+
+	ko, err := NewKafkaOutput(
+		Output{
+			Type:    OutputKafka,
+			Brokers: brokers,
+			Topic:   topic,
+			Format:  KafkaFormatJSON,
+		},
+		"test-host",
+		testOutputDrops(),
+		testKafkaProduceErrors(),
+		slog.Default(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, ko.Close())
+
+	// SendEvent must report closure rather than silently dropping
+	// onto a buffer that no dispatcher is draining.
+	err = ko.SendEvent([]byte(`{"after":"close"}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "closed")
+
+	// SendProto should behave the same way.
+	_, err = ko.SendProto(sampleEvent())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "closed")
 }
 
 func TestKafkaOutput_CloseFlushesQueue(t *testing.T) {

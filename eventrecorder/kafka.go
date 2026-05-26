@@ -158,6 +158,8 @@ func sortedStringSliceEqual(a, b []string) bool {
 // message and a metric increment) so that a slow or unreachable
 // broker cannot block the upstream event recorder pipeline.
 type KafkaOutput struct {
+	mu          sync.RWMutex
+	closed      bool
 	client      *kgo.Client
 	topic       string
 	instance    string // used as the message key
@@ -359,16 +361,21 @@ func (ko *KafkaOutput) SendProto(event *eventrecorderpb.Event) (int, error) {
 	return len(data), nil
 }
 
-// enqueue places the value on the local buffer.  Returns nil on
-// successful enqueue or a sentinel drop error if the buffer is full
-// (the upstream metric records the drop directly so callers do not
-// need to inspect this error to count drops).
+// enqueue places the value on the local buffer.  Returns an error if
+// the output is already closed (so a SendEvent/SendProto racing with
+// Close cannot land a record on a channel that no dispatcher will
+// drain).  If the buffer is full the event is dropped; the upstream
+// metric records the drop directly so callers do not need to inspect
+// this error to count drops.
 func (ko *KafkaOutput) enqueue(value []byte) error {
+	ko.mu.RLock()
+	defer ko.mu.RUnlock()
+	if ko.closed {
+		return errors.New("kafka output: closed")
+	}
 	select {
 	case ko.work <- value:
 		return nil
-	case <-ko.done:
-		return errors.New("kafka output: closed")
 	default:
 		ko.drops.Inc()
 		ko.logger.Warn("Kafka event recorder buffer full, dropping event", "output", ko.name)
@@ -390,14 +397,21 @@ func (ko *KafkaOutput) dispatch() {
 			// Drain whatever is left in the local channel into
 			// franz-go's producer before returning.  The actual
 			// flush to brokers happens in Close.
-			for {
-				select {
-				case value := <-ko.work:
-					ko.produce(value)
-				default:
-					return
-				}
-			}
+			ko.drainWork()
+			return
+		}
+	}
+}
+
+// drainWork non-blockingly drains every queued value into the
+// producer.  Called by dispatch on shutdown.
+func (ko *KafkaOutput) drainWork() {
+	for {
+		select {
+		case value := <-ko.work:
+			ko.produce(value)
+		default:
+			return
 		}
 	}
 }
@@ -451,8 +465,18 @@ func classifyKafkaError(err error) string {
 // into franz-go's producer, flushes the producer (up to flushBudget),
 // and then closes the underlying client.  Pending records that do not
 // flush before the budget expires are dropped on client close.
+//
+// Close is safe to call multiple times; subsequent calls are no-ops.
 func (ko *KafkaOutput) Close() error {
+	ko.mu.Lock()
+	if ko.closed {
+		ko.mu.Unlock()
+		return nil
+	}
+	ko.closed = true
 	close(ko.done)
+	ko.mu.Unlock()
+
 	ko.wg.Wait()
 
 	ctx, cancel := context.WithTimeout(context.Background(), ko.flushBudget)
