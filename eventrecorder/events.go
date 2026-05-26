@@ -258,7 +258,12 @@ func NewInhibitionMutedAlertEvent(rules []*eventrecorderpb.InhibitRule, fp model
 // extractEventType returns the proto oneof field name for the event
 // type (e.g. "alert_created", "notification").  It uses a type switch
 // on the generated oneof wrapper types, avoiding proto reflection.
+// A nil input is reported as "unknown" so logging and metric paths
+// stay panic-free.
 func extractEventType(event *eventrecorderpb.EventData) string {
+	if event == nil {
+		return "unknown"
+	}
 	switch event.EventType.(type) {
 	case *eventrecorderpb.EventData_AlertmanagerStartupEvent:
 		return "alertmanager_startup_event"

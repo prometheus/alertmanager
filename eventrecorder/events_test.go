@@ -53,6 +53,11 @@ func TestExtractEventType(t *testing.T) {
 			event:    &eventrecorderpb.EventData{},
 			expected: "unknown",
 		},
+		{
+			name:     "nil",
+			event:    nil,
+			expected: "unknown",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
