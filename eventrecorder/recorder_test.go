@@ -121,6 +121,19 @@ func TestZeroRecorderDoesNotPanic(t *testing.T) {
 	require.NoError(t, rec.Close())
 }
 
+// NewRecorderFromConfig must tolerate a nil *slog.Logger by
+// substituting a discard logger, so downstream code (buildOutputs,
+// writeLoop, per-output constructors) can call the logger
+// unconditionally.
+func TestNewRecorderFromConfig_NilLogger(t *testing.T) {
+	require.NotPanics(t, func() {
+		rec := NewRecorderFromConfig(Config{}, "test-host", nil, nil)
+		rec.RecordEvent(recordCtx(), startupEvent())
+		rec.ApplyConfig(Config{})
+		require.NoError(t, rec.Close())
+	})
+}
+
 func TestRecordingNotEnabledByDefault(t *testing.T) {
 	out := newMockDestination("test:mock")
 	rec := newTestRecorder(out)

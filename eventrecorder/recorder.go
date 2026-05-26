@@ -159,6 +159,9 @@ func NopRecorder() Recorder {
 // A background goroutine is started to drain the event queue; call
 // Close to stop it.
 func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r prometheus.Registerer) Recorder {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	core := &sharedRecorder{
 		instance:  instance,
 		logger:    logger,
