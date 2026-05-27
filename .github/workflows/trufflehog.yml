@@ -1,0 +1,26 @@
+name: TruffleHog Secret Scanning
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  id-token: write
+
+jobs:
+  secret-scan:
+    name: TruffleHog Secret Scan
+    uses: grafana/security-github-actions/.github/workflows/reusable-trufflehog.yml@73f4e8cf63fe15bc68de25bd769c4874b82a8d4d # main 2025-05-26
+    with:
+      fail-on-verified: "true"
+      fail-on-unverified: "false"
+      runs-on: ${{ (!github.event.repository.private || github.repository_owner != 'grafana') && 'ubuntu-latest' || 'ubuntu-arm64-small' }}
+    secrets: inherit
