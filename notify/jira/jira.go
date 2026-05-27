@@ -218,7 +218,11 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		fmt.Fprintf(&jql, `resolution != %q and `, n.conf.WontFixResolution)
+		// JQL's != on resolution silently excludes issues whose resolution
+		// is EMPTY (unresolved). Use (resolution is EMPTY or resolution != X)
+		// so open issues remain in the candidate set and only the won't-fix
+		// resolved ones are filtered out. See prometheus/alertmanager#4295.
+		fmt.Fprintf(&jql, `(resolution is EMPTY or resolution != %q) and `, n.conf.WontFixResolution)
 	}
 
 	// If the group is firing, search for open issues. If a reopen transition is
