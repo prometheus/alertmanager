@@ -26,17 +26,10 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/sigv4"
 )
 
 var (
-	// DefaultIncidentioConfig defines default values for Incident.io configurations.
-	DefaultIncidentioConfig = IncidentioConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-	}
 
 	// DefaultWebexConfig defines default values for Webex configurations.
 	DefaultWebexConfig = WebexConfig{
@@ -44,15 +37,6 @@ var (
 			VSendResolved: true,
 		},
 		Message: `{{ template "webex.default.message" . }}`,
-	}
-
-	// DefaultDiscordConfig defines default values for Discord configurations.
-	DefaultDiscordConfig = DiscordConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Title:   `{{ template "discord.default.title" . }}`,
-		Message: `{{ template "discord.default.message" . }}`,
 	}
 
 	// DefaultEmailConfig defines default values for Email configurations.
@@ -181,47 +165,12 @@ var (
 		ParseMode:            "HTML",
 	}
 
-	DefaultMSTeamsConfig = MSTeamsConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Title:   `{{ template "msteams.default.title" . }}`,
-		Summary: `{{ template "msteams.default.summary" . }}`,
-		Text:    `{{ template "msteams.default.text" . }}`,
-	}
-
 	DefaultMSTeamsV2Config = MSTeamsV2Config{
 		NotifierConfig: amcommoncfg.NotifierConfig{
 			VSendResolved: true,
 		},
 		Title: `{{ template "msteamsv2.default.title" . }}`,
 		Text:  `{{ template "msteamsv2.default.text" . }}`,
-	}
-
-	DefaultJiraConfig = JiraConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		APIType: "auto",
-		Summary: JiraFieldConfig{
-			Template: `{{ template "jira.default.summary" . }}`,
-		},
-		Description: JiraFieldConfig{
-			Template: `{{ template "jira.default.description" . }}`,
-		},
-		Priority: `{{ template "jira.default.priority" . }}`,
-	}
-
-	DefaultMattermostConfig = MattermostConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Username:  `{{ template "mattermost.default.username" . }}`,
-		Color:     `{{ template "mattermost.default.color" . }}`,
-		Text:      `{{ template "mattermost.default.text" . }}`,
-		Title:     `{{ template "mattermost.default.title" . }}`,
-		TitleLink: `{{ template "mattermost.default.titlelink" . }}`,
-		Fallback:  `{{ template "mattermost.default.fallback" . }}`,
 	}
 )
 
@@ -249,40 +198,6 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
 		return errors.New("missing webex_configs.http_config.authorization")
-	}
-
-	return nil
-}
-
-// DiscordConfig configures notifications via Discord.
-type DiscordConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
-
-	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
-	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
-	AvatarURL string `yaml:"avatar_url,omitempty" json:"avatar_url,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultDiscordConfig
-	type plain DiscordConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
-	}
-
-	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
 	return nil
@@ -582,58 +497,6 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// IncidentioConfig configures notifications via incident.io.
-type IncidentioConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	// URL to send POST request to.
-	URL     *amcommoncfg.URL `yaml:"url" json:"url"`
-	URLFile string           `yaml:"url_file" json:"url_file"`
-
-	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
-	AlertSourceToken     commoncfg.Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
-	AlertSourceTokenFile string           `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
-
-	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
-	// Alerts exceeding this threshold will be truncated. Setting this to 0
-	// allows an unlimited number of alerts. Note that if the payload exceeds
-	// incident.io's size limits, you will receive a 429 response and alerts
-	// will not be ingested.
-	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
-
-	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
-	// does not impose a timeout.
-	Timeout time.Duration `yaml:"timeout" json:"timeout"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultIncidentioConfig
-	type plain IncidentioConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.URL == nil && c.URLFile == "" {
-		return errors.New("one of url or url_file must be configured")
-	}
-	if c.URL != nil && c.URLFile != "" {
-		return errors.New("at most one of url & url_file must be configured")
-	}
-	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
-		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
-	}
-	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
-		return errors.New("cannot specify alert_source_token or alert_source_token_file when using http_config.authorization")
-	}
-
-	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
-		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
-	}
-	return nil
-}
-
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
@@ -925,35 +788,6 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-type MSTeamsConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL                 *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile             string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
-
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
-}
-
-func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultMSTeamsConfig
-	type plain MSTeamsConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
-	}
-
-	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
-	}
-
-	return nil
-}
-
 type MSTeamsV2Config struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
@@ -979,78 +813,6 @@ func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}
 
-	return nil
-}
-
-type JiraFieldConfig struct {
-	// Template is the template string used to render the field.
-	Template string `yaml:"template,omitempty" json:"template,omitempty"`
-	// EnableUpdate indicates whether this field should be omitted when updating an existing issue.
-	EnableUpdate *bool `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
-}
-
-type JiraConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL  *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIType string           `yaml:"api_type,omitempty" json:"api_type,omitempty"`
-
-	Project     string          `yaml:"project,omitempty" json:"project,omitempty"`
-	Summary     JiraFieldConfig `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Description JiraFieldConfig `yaml:"description,omitempty" json:"description,omitempty"`
-	Labels      []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Priority    string          `yaml:"priority,omitempty" json:"priority,omitempty"`
-	IssueType   string          `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
-
-	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
-	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
-	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
-	ReopenDuration    model.Duration `yaml:"reopen_duration,omitempty" json:"reopen_duration,omitempty"`
-
-	Fields map[string]any `yaml:"fields,omitempty" json:"custom_fields,omitempty"`
-}
-
-func (f *JiraFieldConfig) EnableUpdateValue() bool {
-	if f.EnableUpdate == nil {
-		return true
-	}
-	return *f.EnableUpdate
-}
-
-// Supports both the legacy string and the new object form.
-func (f *JiraFieldConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	// Try simple string first (backward compatibility).
-	var s string
-	if err := unmarshal(&s); err == nil {
-		f.Template = s
-		// DisableUpdate stays false by default.
-		return nil
-	}
-
-	// Fallback to full object form.
-	type plain JiraFieldConfig
-	return unmarshal((*plain)(f))
-}
-
-func (c *JiraConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultJiraConfig
-	type plain JiraConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.Project == "" {
-		return errors.New("missing project in jira_config")
-	}
-	if c.IssueType == "" {
-		return errors.New("missing issue_type in jira_config")
-	}
-	if c.APIType != "auto" &&
-		c.APIType != "cloud" &&
-		c.APIType != "datacenter" {
-		return errors.New("unknown api_type on jira_config, must be auto, cloud or datacenter")
-	}
 	return nil
 }
 
@@ -1119,109 +881,5 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.TokenID != nil && len(c.TokenIDFile) > 0 {
 		return errors.New("at most one of token_id & token_id_file must be configured")
 	}
-	return nil
-}
-
-// MattermostPriority defines the priority for a mattermost notification.
-type MattermostPriority struct {
-	Priority                string `yaml:"priority,omitempty" json:"priority,omitempty"`
-	RequestedAck            bool   `yaml:"requested_ack,omitempty" json:"requested_ack,omitempty"`
-	PersistentNotifications bool   `yaml:"persistent_notifications,omitempty" json:"persistent_notifications,omitempty"`
-}
-
-// MattermostProps defines additional properties for a mattermost notification.
-// Only 'card' property takes effect now.
-type MattermostProps struct {
-	Card string `yaml:"card,omitempty" json:"card,omitempty"`
-}
-
-// MattermostField configures a single Mattermost field for Slack compatibility.
-// See https://developers.mattermost.com/integrate/reference/message-attachments/#fields for more information.
-type MattermostField struct {
-	Title string `yaml:"title,omitempty" json:"title,omitempty"`
-	Value string `yaml:"value,omitempty" json:"value,omitempty"`
-	Short *bool  `yaml:"short,omitempty" json:"short,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for MattermostField.
-func (c *MattermostField) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain MattermostField
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.Title == "" {
-		return errors.New("missing title in Mattermost field configuration")
-	}
-	if c.Value == "" {
-		return errors.New("missing value in Mattermost field configuration")
-	}
-	return nil
-}
-
-// MattermostAttachment defines an attachment for a Mattermost notification.
-// See https://developers.mattermost.com/integrate/reference/message-attachments/#fields for more information.
-type MattermostAttachment struct {
-	Fallback   string             `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	Color      string             `yaml:"color,omitempty" json:"color,omitempty"`
-	Pretext    string             `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text       string             `yaml:"text,omitempty" json:"text,omitempty"`
-	AuthorName string             `yaml:"author_name,omitempty" json:"author_name,omitempty"`
-	AuthorLink string             `yaml:"author_link,omitempty" json:"author_link,omitempty"`
-	AuthorIcon string             `yaml:"author_icon,omitempty" json:"author_icon,omitempty"`
-	Title      string             `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink  string             `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Fields     []*MattermostField `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ThumbURL   string             `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	Footer     string             `yaml:"footer,omitempty" json:"footer,omitempty"`
-	FooterIcon string             `yaml:"footer_icon,omitempty" json:"footer_icon,omitempty"`
-	ImageURL   string             `yaml:"image_url,omitempty" json:"image_url,omitempty"`
-}
-
-// MattermostConfig configures notifications via Mattermost.
-// See https://developers.mattermost.com/integrate/webhooks/incoming/ for more information.
-type MattermostConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
-
-	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Username string `yaml:"username,omitempty" json:"username,omitempty"`
-
-	Text        string                  `yaml:"text,omitempty" json:"text,omitempty"`
-	Fallback    string                  `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	Color       string                  `yaml:"color,omitempty" json:"color,omitempty"`
-	Pretext     string                  `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	AuthorName  string                  `yaml:"author_name,omitempty" json:"author_name,omitempty"`
-	AuthorLink  string                  `yaml:"author_link,omitempty" json:"author_link,omitempty"`
-	AuthorIcon  string                  `yaml:"author_icon,omitempty" json:"author_icon,omitempty"`
-	Title       string                  `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink   string                  `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Fields      []*MattermostField      `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ThumbURL    string                  `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	Footer      string                  `yaml:"footer,omitempty" json:"footer,omitempty"`
-	FooterIcon  string                  `yaml:"footer_icon,omitempty" json:"footer_icon,omitempty"`
-	ImageURL    string                  `yaml:"image_url,omitempty" json:"image_url,omitempty"`
-	IconURL     string                  `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	IconEmoji   string                  `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
-	Attachments []*MattermostAttachment `yaml:"attachments,omitempty" json:"attachments,omitempty"`
-	Type        string                  `yaml:"type,omitempty" json:"type,omitempty"`
-	Props       *MattermostProps        `yaml:"props,omitempty" json:"props,omitempty"`
-	Priority    *MattermostPriority     `yaml:"priority,omitempty" json:"priority,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultMattermostConfig
-	type plain MattermostConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
-	}
-
 	return nil
 }

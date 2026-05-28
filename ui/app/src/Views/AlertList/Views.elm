@@ -2,7 +2,7 @@ module Views.AlertList.Views exposing (view)
 
 import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
-import Data.Receiver exposing (Receiver)
+import Data.ReceiverReference exposing (ReceiverReference)
 import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -110,7 +110,7 @@ defaultAlertGroups activeId activeGroups expandAll groups =
                 )
 
 
-alertGroup : Maybe String -> Set Int -> Receiver -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
+alertGroup : Maybe String -> Set Int -> ReceiverReference -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
 alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
     let
         groupActive =
@@ -170,7 +170,7 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
         ]
 
 
-expandAlertGroup : Bool -> Int -> Receiver -> Html Int
+expandAlertGroup : Bool -> Int -> ReceiverReference -> Html Int
 expandAlertGroup expanded groupId receiver =
     let
         icon =

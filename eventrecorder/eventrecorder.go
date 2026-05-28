@@ -26,7 +26,6 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -42,6 +41,11 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 	silencepb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+)
+
+const (
+	OutputFile    = "file"
+	OutputWebhook = "webhook"
 )
 
 const (
@@ -106,7 +110,7 @@ type sharedRecorder struct {
 // cfgUpdateMsg is sent to writeLoop to hot-reload the configuration.
 // The sender blocks until the writeLoop acknowledges by closing done.
 type cfgUpdateMsg struct {
-	cfg  EventRecorderConfig
+	cfg  Config
 	done chan struct{}
 }
 
@@ -178,7 +182,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 // NewRecorderFromConfig builds a Recorder from the given configuration.
 // A background goroutine is started to drain the event queue; call
 // Close to stop it.
-func NewRecorderFromConfig(cfg EventRecorderConfig, instance string, logger *slog.Logger, r prometheus.Registerer) Recorder {
+func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r prometheus.Registerer) Recorder {
 	core := &sharedRecorder{
 		instance:  instance,
 		logger:    logger,
@@ -205,18 +209,18 @@ func NewRecorderFromConfig(cfg EventRecorderConfig, instance string, logger *slo
 }
 
 // buildOutputs creates Destination implementations from the given config.
-func buildOutputs(cfgOutputs []EventRecorderOutput, m *metrics, logger *slog.Logger) []Destination {
+func buildOutputs(cfgOutputs []Output, m *metrics, logger *slog.Logger) []Destination {
 	var outputs []Destination
 	for _, out := range cfgOutputs {
 		switch out.Type {
-		case "file":
+		case OutputFile:
 			fo, err := NewFileOutput(out.Path, logger)
 			if err != nil {
 				logger.Error("Failed to create file event recorder output", "path", out.Path, "err", err)
 				continue
 			}
 			outputs = append(outputs, fo)
-		case "webhook":
+		case OutputWebhook:
 			wo, err := NewWebhookOutput(out, m.webhookDrops, logger)
 			if err != nil {
 				logger.Error("Failed to create webhook event recorder output", "url", out.URL, "err", err)
@@ -239,7 +243,7 @@ func buildOutputs(cfgOutputs []EventRecorderOutput, m *metrics, logger *slog.Log
 //
 // It runs until the done channel is closed, then drains remaining
 // events and closes all outputs before returning.
-func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg EventRecorderConfig) {
+func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 	defer c.wg.Done()
 	defer func() {
 		for _, out := range outputs {
@@ -254,7 +258,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg EventRecord
 		case req := <-c.events:
 			c.marshalAndSend(req, outputs)
 		case update := <-c.cfgUpdate:
-			if !eventRecorderConfigEqual(update.cfg, currentCfg) {
+			if !configEqual(update.cfg, currentCfg) {
 				newOutputs := buildOutputs(update.cfg.Outputs, c.metrics, c.logger)
 				if len(newOutputs) != len(update.cfg.Outputs) {
 					// Some outputs failed to initialize.  Keep the existing
@@ -365,53 +369,10 @@ func (r Recorder) SetClusterPeer(peer *cluster.Peer) {
 	r.core.peer.Store(peer)
 }
 
-// eventRecorderConfigEqual compares two EventRecorderConfig values by their
-// semantically significant fields.
-func eventRecorderConfigEqual(a, b EventRecorderConfig) bool {
-	if len(a.Outputs) != len(b.Outputs) {
-		return false
-	}
-	for i := range a.Outputs {
-		oa, ob := a.Outputs[i], b.Outputs[i]
-		if oa.Type != ob.Type {
-			return false
-		}
-		if oa.Path != ob.Path {
-			return false
-		}
-		if oa.Timeout != ob.Timeout {
-			return false
-		}
-		aURL, bURL := "", ""
-		if oa.URL != nil {
-			aURL = oa.URL.String()
-		}
-		if ob.URL != nil {
-			bURL = ob.URL.String()
-		}
-		if aURL != bURL {
-			return false
-		}
-		if oa.Workers != ob.Workers {
-			return false
-		}
-		if oa.MaxRetries != ob.MaxRetries {
-			return false
-		}
-		if oa.RetryBackoff != ob.RetryBackoff {
-			return false
-		}
-		if !reflect.DeepEqual(oa.HTTPConfig, ob.HTTPConfig) {
-			return false
-		}
-	}
-	return true
-}
-
 // ApplyConfig hot-reloads the event recorder configuration.  The update is
 // sent to the writeLoop goroutine, which owns the outputs; this method
 // blocks until the writeLoop has acknowledged the update.
-func (r Recorder) ApplyConfig(cfg EventRecorderConfig) {
+func (r Recorder) ApplyConfig(cfg Config) {
 	if r.core == nil || r.core.cfgUpdate == nil {
 		return
 	}

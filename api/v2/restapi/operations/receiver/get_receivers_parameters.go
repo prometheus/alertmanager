@@ -23,7 +23,9 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
 )
 
 // NewGetReceiversParams creates a new GetReceiversParams object
@@ -41,6 +43,12 @@ func NewGetReceiversParams() GetReceiversParams {
 type GetReceiversParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
+
+	/*A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
+	  In: query
+	  Collection Format: multi
+	*/
+	ReceiverMatchers []string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -51,9 +59,36 @@ func (o *GetReceiversParams) BindRequest(r *http.Request, route *middleware.Matc
 	var res []error
 
 	o.HTTPRequest = r
+	qs := runtime.Values(r.URL.Query())
 
+	qReceiverMatchers, qhkReceiverMatchers, _ := qs.GetOK("receiver_matchers")
+	if err := o.bindReceiverMatchers(qReceiverMatchers, qhkReceiverMatchers, route.Formats); err != nil {
+		res = append(res, err)
+	}
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+// bindReceiverMatchers binds and validates array parameter ReceiverMatchers from query.
+//
+// Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
+func (o *GetReceiversParams) bindReceiverMatchers(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	// CollectionFormat: multi
+	receiverMatchersIC := rawData
+	if len(receiverMatchersIC) == 0 {
+		return nil
+	}
+
+	var receiverMatchersIR []string
+	for _, receiverMatchersIV := range receiverMatchersIC {
+		receiverMatchersI := receiverMatchersIV
+
+		receiverMatchersIR = append(receiverMatchersIR, receiverMatchersI)
+	}
+
+	o.ReceiverMatchers = receiverMatchersIR
+
 	return nil
 }

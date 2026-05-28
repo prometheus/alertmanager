@@ -32,6 +32,11 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/notify/discord"
+	"github.com/prometheus/alertmanager/notify/incidentio"
+	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/mattermost"
+	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -221,7 +226,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 
 	for i, out := range cfg.EventRecorder.Outputs {
-		if out.Type == "file" {
+		if out.Type == eventrecorder.OutputFile {
 			cfg.EventRecorder.Outputs[i].Path = join(out.Path)
 		}
 		if out.HTTPConfig != nil {
@@ -279,7 +284,7 @@ type Config struct {
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
 
-	EventRecorder eventrecorder.EventRecorderConfig `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
+	EventRecorder eventrecorder.Config `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -938,25 +943,27 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
+	// Labels attached to this receiver for querying and filtering.
+	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
-	DiscordConfigs    []*DiscordConfig         `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	IncidentioConfigs []*IncidentioConfig      `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
-	PagerdutyConfigs  []*PagerdutyConfig       `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig           `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs    []*webhook.WebhookConfig `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs   []*OpsGenieConfig        `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig          `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs   []*PushoverConfig        `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig       `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs        []*SNSConfig             `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs   []*TelegramConfig        `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig           `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs    []*MSTeamsConfig         `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config       `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs       []*JiraConfig            `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig      `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
-	MattermostConfigs []*MattermostConfig      `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
+	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig             `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig              `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs        []*SNSConfig                   `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs   []*TelegramConfig              `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs  []*MSTeamsV2Config             `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -968,5 +975,12 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.Name == "" {
 		return errors.New("missing name in receiver")
 	}
+	if c.Labels == nil {
+		c.Labels = make(map[string]string)
+	}
+	if v, ok := c.Labels["name"]; ok && v != c.Name {
+		return fmt.Errorf("receiver label \"name\" must match receiver name %q, got %q", c.Name, v)
+	}
+	c.Labels["name"] = c.Name
 	return nil
 }

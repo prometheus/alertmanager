@@ -57,7 +57,7 @@ type WebhookOutput struct {
 }
 
 // NewWebhookOutput creates a new webhook-based event recorder output.
-func NewWebhookOutput(cfg EventRecorderOutput, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
+func NewWebhookOutput(cfg Output, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
 	httpCfg := commoncfg.DefaultHTTPClientConfig
 	if cfg.HTTPConfig != nil {
 		httpCfg = *cfg.HTTPConfig

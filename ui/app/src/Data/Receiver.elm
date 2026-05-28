@@ -20,6 +20,7 @@ import Json.Encode as Encode
 
 type alias Receiver =
     { name : String
+    , labels : Maybe (Dict String String)
     }
 
 
@@ -27,10 +28,12 @@ decoder : Decoder Receiver
 decoder =
     Decode.succeed Receiver
         |> required "name" Decode.string
+        |> optional "labels" (Decode.nullable (Decode.dict Decode.string)) Nothing
 
 
 encoder : Receiver -> Encode.Value
 encoder model =
     Encode.object
         [ ( "name", Encode.string model.name )
+        , ( "labels", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.labels) )
         ]

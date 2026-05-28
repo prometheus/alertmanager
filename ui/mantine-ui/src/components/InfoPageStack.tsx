@@ -1,4 +1,5 @@
-import { FC, ReactNode } from 'react';
+import type { FC, ReactNode } from 'react';
+
 import { Stack } from '@mantine/core';
 
 const InfoPageStack: FC<{ children: ReactNode }> = ({ children }) => {

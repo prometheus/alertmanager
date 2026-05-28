@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
@@ -41,7 +42,6 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -495,7 +495,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		fp        = "0223b772b51c29e1"
 		receivers = []string{"receiver1", "receiver2"}
 
-		alert = &types.Alert{
+		a = &alert.Alert{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
 				StartsAt: start,
@@ -503,7 +503,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			UpdatedAt: updated,
 		}
 	)
-	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers, nil)
+	openAPIAlert := AlertToOpenAPIAlert(a, alert.AlertStatus{State: alert.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
@@ -513,7 +513,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		EndsAt:      convertDateTime(time.Time{}),
 		UpdatedAt:   convertDateTime(updated),
 		Fingerprint: &fp,
-		Receivers: []*open_api_models.Receiver{
+		Receivers: []*open_api_models.ReceiverReference{
 			{Name: &receivers[0]},
 			{Name: &receivers[1]},
 		},
@@ -585,7 +585,7 @@ receivers:
 		expectedCode int
 	}{
 		{
-			`[{"name":"team-X"},{"name":"team-Y"}]`,
+			`[{"labels":{"name":"team-X"},"name":"team-X"},{"labels":{"name":"team-Y"},"name":"team-Y"}]`,
 			200,
 		},
 	} {
@@ -603,6 +603,289 @@ receivers:
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
+}
+
+func TestGetReceiversHandlerWithLabels(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    owner: platform
+    kind: heartbeat
+- name: 'team-Y'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	api := API{
+		uptime:             time.Now(),
+		logger:             promslog.NewNopLogger(),
+		alertmanagerConfig: cfg,
+	}
+
+	r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	p := runtime.TextProducer()
+	responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+		HTTPRequest: r,
+	})
+	responder.WriteResponse(w, p)
+
+	require.Equal(t, 200, w.Code)
+
+	var receivers []*open_api_models.Receiver
+	err = json.Unmarshal(w.Body.Bytes(), &receivers)
+	require.NoError(t, err)
+	require.Len(t, receivers, 2)
+
+	// team-X has user-defined labels plus auto-injected name.
+	require.Equal(t, "team-X", *receivers[0].Name)
+	require.Equal(t, "team-X", receivers[0].Labels["name"])
+	require.Equal(t, "platform", receivers[0].Labels["owner"])
+	require.Equal(t, "heartbeat", receivers[0].Labels["kind"])
+
+	// team-Y has only the auto-injected name label.
+	require.Equal(t, "team-Y", *receivers[1].Name)
+	require.Equal(t, "team-Y", receivers[1].Labels["name"])
+	require.Len(t, receivers[1].Labels, 1)
+}
+
+func TestGetReceiversHandlerWithReceiverMatchers(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    owner: platform
+    kind: heartbeat
+- name: 'team-Y'
+  labels:
+    owner: security
+- name: 'team-Z'
+  labels:
+    owner: platform
+    kind: paging
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	api := API{
+		uptime:             time.Now(),
+		logger:             promslog.NewNopLogger(),
+		alertmanagerConfig: cfg,
+	}
+
+	for _, tc := range []struct {
+		desc             string
+		receiverMatchers []string
+		expectedNames    []string
+	}{
+		{
+			desc:             "filter by owner",
+			receiverMatchers: []string{`owner="platform"`},
+			expectedNames:    []string{"team-X", "team-Z"},
+		},
+		{
+			desc:             "filter by kind",
+			receiverMatchers: []string{`kind="heartbeat"`},
+			expectedNames:    []string{"team-X"},
+		},
+		{
+			desc:             "filter by multiple matchers",
+			receiverMatchers: []string{`owner="platform"`, `kind="paging"`},
+			expectedNames:    []string{"team-Z"},
+		},
+		{
+			desc:             "no match",
+			receiverMatchers: []string{`owner="nonexistent"`},
+			expectedNames:    []string{},
+		},
+		{
+			desc:             "no filter returns all",
+			receiverMatchers: nil,
+			expectedNames:    []string{"team-X", "team-Y", "team-Z"},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+				HTTPRequest:      r,
+				ReceiverMatchers: tc.receiverMatchers,
+			})
+			responder.WriteResponse(w, p)
+
+			require.Equal(t, 200, w.Code)
+
+			var receivers []*open_api_models.Receiver
+			err = json.Unmarshal(w.Body.Bytes(), &receivers)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(receivers))
+			for _, rcv := range receivers {
+				names = append(names, *rcv.Name)
+			}
+			require.Equal(t, tc.expectedNames, names)
+		})
+	}
+}
+
+func TestReceiversMatchLabels(t *testing.T) {
+	rcvLabels := map[string]open_api_models.LabelSet{
+		"team-x-slack":     {"name": "team-x-slack", "owner": "team-x", "kind": "heartbeat"},
+		"team-y-pagerduty": {"name": "team-y-pagerduty", "owner": "team-y"},
+		"team-z-email":     {"name": "team-z-email", "owner": "team-z"},
+	}
+
+	testCases := []struct {
+		desc      string
+		receivers []string
+		matcher   string
+		expected  bool
+	}{
+		{
+			desc:      "match owner label",
+			receivers: []string{"team-x-slack"},
+			matcher:   `owner="team-x"`,
+			expected:  true,
+		},
+		{
+			desc:      "no match owner label",
+			receivers: []string{"team-x-slack"},
+			matcher:   `owner="team-y"`,
+			expected:  false,
+		},
+		{
+			desc:      "match among multiple receivers",
+			receivers: []string{"team-x-slack", "team-y-pagerduty"},
+			matcher:   `owner="team-y"`,
+			expected:  true,
+		},
+		{
+			desc:      "match by kind label",
+			receivers: []string{"team-x-slack", "team-y-pagerduty"},
+			matcher:   `kind="heartbeat"`,
+			expected:  true,
+		},
+		{
+			desc:      "no match - label not present on any receiver",
+			receivers: []string{"team-y-pagerduty", "team-z-email"},
+			matcher:   `kind="heartbeat"`,
+			expected:  false,
+		},
+		{
+			desc:      "match by name label",
+			receivers: []string{"team-x-slack"},
+			matcher:   `name="team-x-slack"`,
+			expected:  true,
+		},
+		{
+			desc:      "unknown receiver",
+			receivers: []string{"nonexistent"},
+			matcher:   `owner="team-x"`,
+			expected:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			matchers, err := parseFilter([]string{tc.matcher})
+			require.NoError(t, err)
+
+			result := receiversMatchLabels(tc.receivers, matchers, rcvLabels)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestReceiversMatchLabelsRegex(t *testing.T) {
+	rcvLabels := map[string]open_api_models.LabelSet{
+		"team-x-slack":     {"name": "team-x-slack", "owner": "team-x", "kind": "heartbeat"},
+		"team-y-pagerduty": {"name": "team-y-pagerduty", "owner": "team-y", "kind": "paging"},
+	}
+
+	testCases := []struct {
+		desc      string
+		receivers []string
+		matcher   string
+		expected  bool
+	}{
+		{
+			desc:      "regex match on owner",
+			receivers: []string{"team-x-slack"},
+			matcher:   `owner=~"team-."`,
+			expected:  true,
+		},
+		{
+			desc:      "regex no match",
+			receivers: []string{"team-x-slack"},
+			matcher:   `owner=~"squad-."`,
+			expected:  false,
+		},
+		{
+			desc:      "not equal match",
+			receivers: []string{"team-x-slack", "team-y-pagerduty"},
+			matcher:   `kind!="heartbeat"`,
+			expected:  true,
+		},
+		{
+			desc:      "not regex match",
+			receivers: []string{"team-x-slack"},
+			matcher:   `kind!~"pag.*"`,
+			expected:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			matchers, err := parseFilter([]string{tc.matcher})
+			require.NoError(t, err)
+
+			result := receiversMatchLabels(tc.receivers, matchers, rcvLabels)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetReceiversHandlerBadReceiverMatchers(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	api := API{
+		uptime:             time.Now(),
+		logger:             promslog.NewNopLogger(),
+		alertmanagerConfig: cfg,
+	}
+
+	r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	p := runtime.TextProducer()
+	responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+		HTTPRequest:      r,
+		ReceiverMatchers: []string{"not-a-valid-matcher!!!"},
+	})
+	responder.WriteResponse(w, p)
+
+	require.Equal(t, 400, w.Code)
 }
 
 func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
@@ -627,9 +910,9 @@ func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
 
 	b.Run("AppendGrowth", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			alerts := []*types.Alert{}
+			alerts := []*alert.Alert{}
 			for _, apiAlert := range apiAlerts {
-				alerts = append(alerts, &types.Alert{
+				alerts = append(alerts, &alert.Alert{
 					Alert: model.Alert{
 						Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 						Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),

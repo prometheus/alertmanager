@@ -25,6 +25,7 @@ package eventrecorder
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -32,13 +33,13 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// EventRecorderConfig configures the event recorder feature.
-type EventRecorderConfig struct {
-	Outputs []EventRecorderOutput `yaml:"outputs,omitempty" json:"outputs,omitempty"`
+// Config configures the event recorder feature.
+type Config struct {
+	Outputs []Output `yaml:"outputs,omitempty" json:"outputs,omitempty"`
 }
 
-// EventRecorderOutput configures a single event recorder output destination.
-type EventRecorderOutput struct {
+// Output configures a single event recorder output destination.
+type Output struct {
 	Type       string                      `yaml:"type" json:"type"`
 	Path       string                      `yaml:"path,omitempty" json:"path,omitempty"`
 	URL        *amcommoncfg.SecretURL      `yaml:"url,omitempty" json:"url,omitempty"`
@@ -57,23 +58,66 @@ type EventRecorderOutput struct {
 	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for EventRecorderOutput.
-func (o *EventRecorderOutput) UnmarshalYAML(unmarshal func(any) error) error {
-	type plain EventRecorderOutput
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Output.
+func (o *Output) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain Output
 	if err := unmarshal((*plain)(o)); err != nil {
 		return err
 	}
 	switch o.Type {
-	case "file":
+	case OutputFile:
 		if o.Path == "" {
 			return errors.New("event_recorder file output requires a path")
 		}
-	case "webhook":
+	case OutputWebhook:
 		if o.URL == nil {
 			return errors.New("event_recorder webhook output requires a url")
 		}
 	default:
-		return fmt.Errorf("unknown event_recorder output type %q, must be \"file\" or \"webhook\"", o.Type)
+		return fmt.Errorf("unknown event_recorder output type %q, must be %q or %q", o.Type, OutputFile, OutputWebhook)
 	}
 	return nil
+}
+
+// configEqual compares two Config values by their
+// semantically significant fields.
+func configEqual(a, b Config) bool {
+	if len(a.Outputs) != len(b.Outputs) {
+		return false
+	}
+	for i := range a.Outputs {
+		oa, ob := a.Outputs[i], b.Outputs[i]
+		if oa.Type != ob.Type {
+			return false
+		}
+		if oa.Path != ob.Path {
+			return false
+		}
+		if oa.Timeout != ob.Timeout {
+			return false
+		}
+		aURL, bURL := "", ""
+		if oa.URL != nil {
+			aURL = oa.URL.String()
+		}
+		if ob.URL != nil {
+			bURL = ob.URL.String()
+		}
+		if aURL != bURL {
+			return false
+		}
+		if oa.Workers != ob.Workers {
+			return false
+		}
+		if oa.MaxRetries != ob.MaxRetries {
+			return false
+		}
+		if oa.RetryBackoff != ob.RetryBackoff {
+			return false
+		}
+		if !reflect.DeepEqual(oa.HTTPConfig, ob.HTTPConfig) {
+			return false
+		}
+	}
+	return true
 }
