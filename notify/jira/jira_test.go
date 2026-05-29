@@ -154,6 +154,18 @@ func TestSearchExistingIssue(t *testing.T) {
 			firing:      false,
 			expectedJQL: `statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
 		},
+		{
+			title: "search existing issue with wont_fix_resolution includes unresolved issues",
+			cfg: &JiraConfig{
+				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:       JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Project:           `{{ .CommonLabels.project }}`,
+				WontFixResolution: "Won't Do",
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `(resolution is EMPTY or resolution != "Won't Do") and statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			expectedJQL = tc.expectedJQL
