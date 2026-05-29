@@ -18,87 +18,55 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"reflect"
-	"slices"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	commoncfg "github.com/prometheus/common/config"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/plugin/kslog"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/kafka"
 )
 
-// Kafka format identifiers.
-const (
-	KafkaFormatJSON     = "json"
-	KafkaFormatProtobuf = "protobuf"
-)
-
-// Kafka acks levels.
-const (
-	KafkaAcksNone   = "none"
-	KafkaAcksLeader = "leader"
-	KafkaAcksAll    = "all"
-)
-
-// Kafka compression codecs.
-const (
-	KafkaCompressionNone   = "none"
-	KafkaCompressionGzip   = "gzip"
-	KafkaCompressionSnappy = "snappy"
-	KafkaCompressionLZ4    = "lz4"
-	KafkaCompressionZstd   = "zstd"
-)
-
-const (
-	defaultKafkaBufferSize  = 1024
-	defaultKafkaClientID    = "alertmanager"
-	defaultKafkaPingTimeout = 5 * time.Second
-	defaultKafkaLinger      = 5 * time.Millisecond
-	defaultKafkaFlushBudget = 30 * time.Second
-)
+const defaultKafkaBufferSize = 1024
 
 // validateKafka validates and normalizes Kafka-specific Output fields.
 // Called from Output.UnmarshalYAML when Type == OutputKafka.
+//
+// Validation of the transport-layer fields (brokers, acks, compression,
+// TLS) is delegated to kafka.ClientOptions.Validate so this code and a
+// future Kafka receiver share a single source of truth.
 func (o *Output) validateKafka() error {
-	if len(o.Brokers) == 0 {
-		return errors.New("event_recorder kafka output requires at least one broker")
-	}
-	if slices.Contains(o.Brokers, "") {
-		return errors.New("event_recorder kafka output broker entries must be non-empty")
+	if err := o.kafkaClientOptions().Validate(); err != nil {
+		// The shared validator's messages already say "kafka: ..."; we
+		// prefix with the event_recorder context for user clarity.
+		return fmt.Errorf("event_recorder %w", err)
 	}
 	if o.Topic == "" {
 		return errors.New("event_recorder kafka output requires a topic")
 	}
 	if o.Format == "" {
-		o.Format = KafkaFormatJSON
+		o.Format = kafka.FormatJSON
 	}
-	switch o.Format {
-	case KafkaFormatJSON, KafkaFormatProtobuf:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown format %q, must be %q or %q",
-			o.Format, KafkaFormatJSON, KafkaFormatProtobuf)
-	}
-	switch o.Acks {
-	case "", KafkaAcksLeader, KafkaAcksNone, KafkaAcksAll:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown acks %q, must be %q, %q, or %q",
-			o.Acks, KafkaAcksNone, KafkaAcksLeader, KafkaAcksAll)
-	}
-	switch o.Compression {
-	case "", KafkaCompressionNone, KafkaCompressionGzip,
-		KafkaCompressionSnappy, KafkaCompressionLZ4, KafkaCompressionZstd:
-	default:
-		return fmt.Errorf("event_recorder kafka output: unknown compression %q", o.Compression)
+	if err := kafka.ValidateFormat(o.Format); err != nil {
+		return fmt.Errorf("event_recorder %w", err)
 	}
 	return nil
+}
+
+// kafkaClientOptions copies the Kafka-related Output fields into a
+// kafka.ClientOptions value suitable for passing to kafka.BuildOpts.
+func (o *Output) kafkaClientOptions() kafka.ClientOptions {
+	return kafka.ClientOptions{
+		Brokers:     o.Brokers,
+		Topic:       o.Topic,
+		ClientID:    o.ClientID,
+		Acks:        o.Acks,
+		Compression: o.Compression,
+		TLSConfig:   o.TLSConfig,
+	}
 }
 
 // kafkaOutputsEqual compares the kafka-specific fields of two Outputs.
@@ -106,7 +74,7 @@ func (o *Output) validateKafka() error {
 // OutputKafka.  Broker lists are compared order-independently because
 // reordering brokers in YAML is semantically a no-op.
 func kafkaOutputsEqual(a, b Output) bool {
-	if !sortedStringSliceEqual(a.Brokers, b.Brokers) {
+	if !kafka.BrokerListsEqual(a.Brokers, b.Brokers) {
 		return false
 	}
 	if a.Topic != b.Topic {
@@ -130,25 +98,6 @@ func kafkaOutputsEqual(a, b Output) bool {
 	return reflect.DeepEqual(a.TLSConfig, b.TLSConfig)
 }
 
-// sortedStringSliceEqual reports whether a and b contain the same strings,
-// independent of order.  Broker lists are considered equivalent when their
-// contents match regardless of how the operator wrote them in YAML.
-func sortedStringSliceEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	aa := append([]string(nil), a...)
-	bb := append([]string(nil), b...)
-	sort.Strings(aa)
-	sort.Strings(bb)
-	for i := range aa {
-		if aa[i] != bb[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // KafkaOutput delivers serialized events to a Kafka topic via franz-go.
 // Events are buffered in a bounded local channel and produced by a
 // single dispatcher goroutine; franz-go handles batching, compression,
@@ -163,7 +112,7 @@ type KafkaOutput struct {
 	client      *kgo.Client
 	topic       string
 	instance    string // used as the message key
-	format      string // KafkaFormatJSON or KafkaFormatProtobuf
+	format      string // kafka.FormatJSON or kafka.FormatProtobuf
 	name        string // "kafka:<sorted-brokers>/<topic>"
 	logger      *slog.Logger
 	drops       prometheus.Counter
@@ -185,27 +134,28 @@ func NewKafkaOutput(
 	produceErrors *prometheus.CounterVec,
 	logger *slog.Logger,
 ) (*KafkaOutput, error) {
-	if len(cfg.Brokers) == 0 {
-		return nil, errors.New("kafka output requires at least one broker")
-	}
-	if slices.Contains(cfg.Brokers, "") {
-		return nil, errors.New("kafka output broker entries must be non-empty")
-	}
+	// Shared validation + franz-go option construction lives in the
+	// kafka package so a future Kafka receiver can reuse it.
+	clientOpts := cfg.kafkaClientOptions()
 	if cfg.Topic == "" {
 		return nil, errors.New("kafka output requires a topic")
 	}
-
 	format := cfg.Format
 	if format == "" {
-		format = KafkaFormatJSON
+		format = kafka.FormatJSON
 	}
-	if format != KafkaFormatJSON && format != KafkaFormatProtobuf {
-		return nil, fmt.Errorf("kafka output: unsupported format %q", format)
+	if err := kafka.ValidateFormat(format); err != nil {
+		return nil, err
 	}
 
-	clientID := cfg.ClientID
-	if clientID == "" {
-		clientID = defaultKafkaClientID
+	kopts, err := kafka.BuildOpts(clientOpts, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := kgo.NewClient(kopts...)
+	if err != nil {
+		return nil, fmt.Errorf("kafka output: creating client: %w", err)
 	}
 
 	bufferSize := cfg.BufferSize
@@ -213,49 +163,7 @@ func NewKafkaOutput(
 		bufferSize = defaultKafkaBufferSize
 	}
 
-	name := kafkaOutputName(cfg.Brokers, cfg.Topic)
-
-	opts := []kgo.Opt{
-		kgo.SeedBrokers(cfg.Brokers...),
-		kgo.DefaultProduceTopic(cfg.Topic),
-		kgo.ClientID(clientID),
-		kgo.ProducerLinger(defaultKafkaLinger),
-		kgo.WithLogger(kslog.New(logger)),
-	}
-
-	acksOpt, err := kafkaAcksOpt(cfg.Acks)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, acksOpt)
-
-	// franz-go enables idempotent writes by default, which mandates
-	// acks=all.  Our default is acks=leader for low latency, so disable
-	// idempotency unless the operator explicitly opted into acks=all.
-	if cfg.Acks != KafkaAcksAll {
-		opts = append(opts, kgo.DisableIdempotentWrite())
-	}
-
-	if cfg.Compression != "" {
-		codec, err := kafkaCompressionCodec(cfg.Compression)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, kgo.ProducerBatchCompression(codec))
-	}
-
-	if cfg.TLSConfig != nil {
-		tlsCfg, err := commoncfg.NewTLSConfig(cfg.TLSConfig)
-		if err != nil {
-			return nil, fmt.Errorf("kafka output: building TLS config: %w", err)
-		}
-		opts = append(opts, kgo.DialTLSConfig(tlsCfg))
-	}
-
-	client, err := kgo.NewClient(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("kafka output: creating client: %w", err)
-	}
+	name := fmt.Sprintf("kafka:%s/%s", kafka.BrokerList(cfg.Brokers), cfg.Topic)
 
 	ko := &KafkaOutput{
 		client:      client,
@@ -268,23 +176,13 @@ func NewKafkaOutput(
 		produceErrs: produceErrors,
 		work:        make(chan []byte, bufferSize),
 		done:        make(chan struct{}),
-		flushBudget: defaultKafkaFlushBudget,
+		flushBudget: kafka.DefaultFlushBudget,
 	}
 
 	// Best-effort connectivity check runs in the background so that
 	// alertmanager startup (and event_recorder hot reload) is never
-	// blocked by an unreachable broker.  Failure is logged at warn
-	// level; franz-go keeps retrying connections internally, and any
-	// records produced while the brokers are unreachable are buffered
-	// (or dropped, counted via dropsCounter).
-	go func() {
-		pingCtx, cancel := context.WithTimeout(context.Background(), defaultKafkaPingTimeout)
-		defer cancel()
-		if pingErr := client.Ping(pingCtx); pingErr != nil {
-			logger.Warn("Kafka event recorder output could not reach brokers at startup; will retry in background",
-				"output", name, "err", pingErr)
-		}
-	}()
+	// blocked by an unreachable broker.
+	kafka.PingInBackground(client, logger)
 
 	ko.wg.Add(1)
 	go ko.dispatch()
@@ -292,54 +190,11 @@ func NewKafkaOutput(
 	return ko, nil
 }
 
-// kafkaOutputName builds a stable, Prometheus-label-safe identifier for
-// the output.  Brokers are sorted so config reordering does not produce
-// distinct metric label values.
-func kafkaOutputName(brokers []string, topic string) string {
-	sorted := append([]string(nil), brokers...)
-	sort.Strings(sorted)
-	return fmt.Sprintf("kafka:%s/%s", strings.Join(sorted, ","), topic)
-}
-
-// kafkaAcksOpt translates the user-facing acks string into a franz-go
-// option.  Empty defaults to LeaderAck.
-func kafkaAcksOpt(s string) (kgo.Opt, error) {
-	switch s {
-	case "", KafkaAcksLeader:
-		return kgo.RequiredAcks(kgo.LeaderAck()), nil
-	case KafkaAcksNone:
-		return kgo.RequiredAcks(kgo.NoAck()), nil
-	case KafkaAcksAll:
-		return kgo.RequiredAcks(kgo.AllISRAcks()), nil
-	default:
-		return nil, fmt.Errorf("kafka output: unknown acks %q", s)
-	}
-}
-
-// kafkaCompressionCodec translates the user-facing compression string
-// into a franz-go codec.
-func kafkaCompressionCodec(s string) (kgo.CompressionCodec, error) {
-	switch s {
-	case KafkaCompressionNone:
-		return kgo.NoCompression(), nil
-	case KafkaCompressionGzip:
-		return kgo.GzipCompression(), nil
-	case KafkaCompressionSnappy:
-		return kgo.SnappyCompression(), nil
-	case KafkaCompressionLZ4:
-		return kgo.Lz4Compression(), nil
-	case KafkaCompressionZstd:
-		return kgo.ZstdCompression(), nil
-	default:
-		return kgo.NoCompression(), fmt.Errorf("kafka output: unknown compression %q", s)
-	}
-}
-
 // Name returns the stable identifier for this output.
 func (ko *KafkaOutput) Name() string { return ko.name }
 
 // WantsProto reports whether this output prefers SendProto over SendEvent.
-func (ko *KafkaOutput) WantsProto() bool { return ko.format == KafkaFormatProtobuf }
+func (ko *KafkaOutput) WantsProto() bool { return ko.format == kafka.FormatProtobuf }
 
 // SendEvent queues pre-serialized JSON bytes for delivery.  Used when
 // the output is in JSON format (the default).
@@ -432,36 +287,9 @@ func (ko *KafkaOutput) produce(value []byte) {
 		if err == nil {
 			return
 		}
-		ko.produceErrs.WithLabelValues(ko.name, classifyKafkaError(err)).Inc()
+		ko.produceErrs.WithLabelValues(ko.name, kafka.ClassifyError(err)).Inc()
 		ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "err", err)
 	})
-}
-
-// classifyKafkaError buckets a franz-go error into a coarse category
-// suitable for use as a Prometheus label value.  This keeps the
-// label cardinality bounded.
-func classifyKafkaError(err error) string {
-	if err == nil {
-		return "none"
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return "timeout"
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		if netErr.Timeout() {
-			return "timeout"
-		}
-		return "network"
-	}
-	// franz-go surfaces broker-side errors typed as kerr.Error; we don't
-	// need to import kerr to detect them — error strings produced by the
-	// library all contain "broker" or a Kafka error code reference.
-	msg := err.Error()
-	if strings.Contains(msg, "broker") || strings.Contains(msg, "kafka:") {
-		return "broker"
-	}
-	return "unknown"
 }
 
 // Close stops the dispatcher, drains any remaining buffered records
@@ -470,6 +298,12 @@ func classifyKafkaError(err error) string {
 // flush before the budget expires are dropped on client close.
 //
 // Close is safe to call multiple times; subsequent calls are no-ops.
+//
+// Note: franz-go's Client.Close has documented blocking behaviour
+// around leaving consumer groups, but this client is configured as a
+// producer only (no ConsumeTopics / ConsumePartitions / InstanceID),
+// so the leave-group path is a no-op and Close will not block on it.
+// The only bounded wait here is the explicit Flush above.
 func (ko *KafkaOutput) Close() error {
 	ko.mu.Lock()
 	if ko.closed {

@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/kafka"
 )
 
 // --- helpers.
@@ -132,7 +133,7 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: brokers,
 			Topic:   topic,
-			Format:  KafkaFormatJSON,
+			Format:  kafka.FormatJSON,
 		},
 		"test-host",
 		testOutputDrops(),
@@ -165,7 +166,7 @@ func TestKafkaOutput_SendProto_Protobuf(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: brokers,
 			Topic:   topic,
-			Format:  KafkaFormatProtobuf,
+			Format:  kafka.FormatProtobuf,
 		},
 		"test-host",
 		testOutputDrops(),
@@ -204,7 +205,7 @@ func TestKafkaOutput_KeyIsInstance(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: brokers,
 			Topic:   topic,
-			Format:  KafkaFormatJSON,
+			Format:  kafka.FormatJSON,
 		},
 		"instance-A",
 		testOutputDrops(),
@@ -236,7 +237,7 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 			Type:       OutputKafka,
 			Brokers:    brokers,
 			Topic:      topic,
-			Format:     KafkaFormatJSON,
+			Format:     kafka.FormatJSON,
 			BufferSize: 1,
 		},
 		"test-host",
@@ -276,7 +277,7 @@ func TestKafkaOutput_SendAfterClose(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: brokers,
 			Topic:   topic,
-			Format:  KafkaFormatJSON,
+			Format:  kafka.FormatJSON,
 		},
 		"test-host",
 		testOutputDrops(),
@@ -308,7 +309,7 @@ func TestKafkaOutput_CloseFlushesQueue(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: brokers,
 			Topic:   topic,
-			Format:  KafkaFormatJSON,
+			Format:  kafka.FormatJSON,
 		},
 		"test-host",
 		testOutputDrops(),
@@ -338,7 +339,7 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 			Type:    OutputKafka,
 			Brokers: []string{"127.0.0.1:1"},
 			Topic:   "no-broker",
-			Format:  KafkaFormatJSON,
+			Format:  kafka.FormatJSON,
 		},
 		"test-host",
 		testOutputDrops(),
@@ -372,7 +373,7 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 	}{
 		{
 			name: "no brokers",
-			cfg:  Output{Type: OutputKafka, Topic: "t", Format: KafkaFormatJSON},
+			cfg:  Output{Type: OutputKafka, Topic: "t", Format: kafka.FormatJSON},
 		},
 		{
 			name: "empty broker entry",
@@ -380,12 +381,12 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 				Type:    OutputKafka,
 				Brokers: []string{"127.0.0.1:9092", ""},
 				Topic:   "t",
-				Format:  KafkaFormatJSON,
+				Format:  kafka.FormatJSON,
 			},
 		},
 		{
 			name: "no topic",
-			cfg:  Output{Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Format: KafkaFormatJSON},
+			cfg:  Output{Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Format: kafka.FormatJSON},
 		},
 		{
 			name: "bad format",
@@ -395,14 +396,14 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 			name: "bad acks",
 			cfg: Output{
 				Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
-				Format: KafkaFormatJSON, Acks: "majority",
+				Format: kafka.FormatJSON, Acks: "majority",
 			},
 		},
 		{
 			name: "bad compression",
 			cfg: Output{
 				Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
-				Format: KafkaFormatJSON, Compression: "deflate",
+				Format: kafka.FormatJSON, Compression: "deflate",
 			},
 		},
 	}
@@ -415,9 +416,14 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 }
 
 func TestKafkaOutput_NameIsStable(t *testing.T) {
-	// Brokers given in different orders should map to the same Name().
-	a := kafkaOutputName([]string{"b:9092", "a:9092"}, "topic")
-	b := kafkaOutputName([]string{"a:9092", "b:9092"}, "topic")
+	// The Name() format ("kafka:<sorted-brokers>/<topic>") is composed
+	// here in eventrecorder; broker-list sorting is handled by the
+	// shared kafka package (and tested there).  This test pins the
+	// composition formula so reordering brokers in YAML doesn't change
+	// the Prometheus label value.
+	const topic = "topic"
+	a := "kafka:" + kafka.BrokerList([]string{"b:9092", "a:9092"}) + "/" + topic
+	b := "kafka:" + kafka.BrokerList([]string{"a:9092", "b:9092"}) + "/" + topic
 	require.Equal(t, a, b)
 	require.Equal(t, "kafka:a:9092,b:9092/topic", a)
 }
@@ -429,13 +435,13 @@ func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
 		Type:    OutputKafka,
 		Brokers: []string{"b:9092", "a:9092"},
 		Topic:   "t",
-		Format:  KafkaFormatJSON,
+		Format:  kafka.FormatJSON,
 	}}}
 	b := Config{Outputs: []Output{{
 		Type:    OutputKafka,
 		Brokers: []string{"a:9092", "b:9092"},
 		Topic:   "t",
-		Format:  KafkaFormatJSON,
+		Format:  kafka.FormatJSON,
 	}}}
 	require.True(t, configEqual(a, b), "broker order must not affect equality")
 
@@ -443,7 +449,7 @@ func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
 	require.False(t, configEqual(a, b), "differing topics must compare unequal")
 
 	b.Outputs[0].Topic = "t"
-	b.Outputs[0].Format = KafkaFormatProtobuf
+	b.Outputs[0].Format = kafka.FormatProtobuf
 	require.False(t, configEqual(a, b), "differing formats must compare unequal")
 }
 
@@ -481,9 +487,9 @@ compression: zstd
 buffer_size: 4096
 `,
 			check: func(t *testing.T, o Output) {
-				require.Equal(t, KafkaFormatProtobuf, o.Format)
-				require.Equal(t, KafkaAcksAll, o.Acks)
-				require.Equal(t, KafkaCompressionZstd, o.Compression)
+				require.Equal(t, kafka.FormatProtobuf, o.Format)
+				require.Equal(t, kafka.AcksAll, o.Acks)
+				require.Equal(t, kafka.CompressionZstd, o.Compression)
 				require.Equal(t, 4096, o.BufferSize)
 				require.Equal(t, "amgr", o.ClientID)
 			},
