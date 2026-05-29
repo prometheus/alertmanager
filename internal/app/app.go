@@ -19,7 +19,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -32,7 +31,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/prometheus/exporter-toolkit/web"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
@@ -56,9 +54,45 @@ import (
 )
 
 // Run starts an Alertmanager instance using opts and blocks until ctx is
-// cancelled or an unrecoverable error occurs. It is the package-level
-// equivalent of what cmd/alertmanager used to do inline.
+// cancelled or an unrecoverable error occurs. It is a thin wrapper over
+// New + Start + serveLoop + Stop intended for callers that don't need
+// the richer lifecycle API.
+//
+// The deferred Stop also ensures cleanup runs on panic, matching the
+// implicit panic-safety of the original defer-based implementation.
 func Run(ctx context.Context, opts Options) error {
+	a, err := New(opts)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = a.Stop(stopCtx)
+	}()
+	if err := a.Start(); err != nil {
+		return err
+	}
+	return a.serveLoop(ctx)
+}
+
+// setup wires every Alertmanager subsystem and registers their teardown
+// hooks on a.cleanups via a.onStop. Stop drains those hooks in LIFO order
+// so the shutdown sequence matches the implicit ordering of the original
+// defer-based Run implementation.
+//
+// The body is deliberately one long function rather than a chain of helpers.
+// Nearly every step depends on locals produced by earlier steps (peer,
+// eventRec, silences, alerts, groupMarker, silencer, notificationLog,
+// disp, inhibitor, tmpl, configCoordinator, waitFunc, timeoutFunc, ...),
+// and the configCoordinator.Subscribe callback closes over most of them.
+// Splitting setup into helpers would force us to either thread a wide
+// state struct between them or promote those locals to App fields; both
+// obscure the dataflow without simplifying anything.
+//
+//nolint:gocyclo // intentional, see comment above.
+func (a *App) setup() error {
+	opts := a.opts
 	if err := opts.validate(); err != nil {
 		return err
 	}
@@ -67,6 +101,8 @@ func Run(ctx context.Context, opts Options) error {
 	reg := opts.Registerer
 	ff := opts.Flagger
 	m := newMetrics(reg)
+
+	a.logger = logger
 
 	logger.Info("Starting Alertmanager", "version", version.Info())
 	startTime := time.Now()
@@ -123,7 +159,7 @@ func Run(ctx context.Context, opts Options) error {
 	if ff.EnableEventRecorder() {
 		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), reg)
 	}
-	defer eventRec.Close()
+	a.onStop(func() { eventRec.Close() })
 
 	recordCtx := eventrecorder.WithEventRecording(context.Background())
 	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
@@ -134,13 +170,13 @@ func Run(ctx context.Context, opts Options) error {
 			},
 		},
 	})
-	defer func() {
+	a.onStop(func() {
 		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
 			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
 				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
 			},
 		})
-	}()
+	})
 
 	notificationLogOpts := nflog.Options{
 		SnapshotFile: filepath.Join(opts.DataDir, "nflog"),
@@ -184,15 +220,15 @@ func Run(ctx context.Context, opts Options) error {
 		silences.SetBroadcast(c.Broadcast)
 	}
 
-	// Start providers before router potentially sends updates.
+	// Start providers before the router potentially sends updates.
 	wg.Go(func() {
 		silences.Maintenance(opts.MaintenanceInterval, filepath.Join(opts.DataDir, "silences"), stopc, nil)
 	})
 
-	defer func() {
+	a.onStop(func() {
 		close(stopc)
 		wg.Wait()
-	}()
+	})
 
 	silencer := silence.NewSilencer(silences, logger, eventRec)
 
@@ -201,13 +237,13 @@ func Run(ctx context.Context, opts Options) error {
 		if err := peer.Join(opts.ReconnectInterval, opts.PeerReconnectTimeout); err != nil {
 			logger.Warn("unable to join gossip mesh", "err", err)
 		}
-		settleCtx, cancel := context.WithTimeout(context.Background(), opts.SettleTimeout)
-		defer func() {
-			cancel()
+		settleCtx, settleCancel := context.WithTimeout(context.Background(), opts.SettleTimeout)
+		a.onStop(func() {
+			settleCancel()
 			if err := peer.Leave(10 * time.Second); err != nil {
 				logger.Warn("unable to leave gossip mesh", "err", err)
 			}
-		}()
+		})
 		go peer.Settle(settleCtx, opts.GossipInterval*10)
 		eventRec.SetClusterPeer(peer)
 	}
@@ -225,14 +261,14 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil {
 		return fmt.Errorf("error creating memory provider: %w", err)
 	}
-	defer alerts.Close()
+	a.onStop(alerts.Close)
 
 	var disp atomic.Pointer[dispatch.Dispatcher]
-	defer func() {
+	a.onStop(func() {
 		if d := disp.Load(); d != nil {
 			d.Stop()
 		}
-	}()
+	})
 
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return disp.Load().Groups(ctx, routeFilter, alertFilter)
@@ -280,6 +316,8 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
+	a.tracing = tracingManager
+	a.onStop(tracingManager.Stop)
 
 	var (
 		inhibitor atomic.Pointer[inhibit.Inhibitor]
@@ -294,6 +332,7 @@ func Run(ctx context.Context, opts Options) error {
 		reg,
 		configLogger,
 	)
+	a.coord = configCoordinator
 
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		// Reload event recorder outputs first so events emitted during
@@ -455,48 +494,23 @@ func Run(ctx context.Context, opts Options) error {
 		router = router.WithPrefix(routePrefix)
 	}
 
-	webReload := make(chan chan error)
-
 	ui.Register(router)
-	httpserver.Register(router, webReload)
+	httpserver.Register(router, a.webReload)
 
 	mux := apih.Register(router, routePrefix)
 
-	srv := &http.Server{
+	a.srv = &http.Server{
 		// Instrument all handlers with tracing.
 		Handler: tracing.Middleware(mux),
 	}
-	srvc := make(chan struct{})
 
-	go func() {
-		if err := web.ListenAndServe(srv, opts.WebConfig, logger); !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("Listen error", "err", err)
-			close(srvc)
-		}
-	}()
-
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Warn("graceful HTTP shutdown failed", "err", err)
-		}
-	}()
-
-	for {
-		select {
-		case <-opts.Reload:
-			if err := configCoordinator.Reload(); err != nil {
-				logger.Error("configuration reload failed", "err", err)
-			}
-		case errc := <-webReload:
-			errc <- configCoordinator.Reload()
-		case <-ctx.Done():
-			logger.Info("Shutting down gracefully")
-			tracingManager.Stop()
-			return nil
-		case <-srvc:
-			return errors.New("alertmanager: HTTP listener failed")
-		}
+	// Bind listeners now so Addr is meaningful before Start runs and
+	// ":0" ports can be discovered by callers.
+	listeners, err := listenAll(opts.WebConfig)
+	if err != nil {
+		return err
 	}
+	a.listeners = listeners
+
+	return nil
 }
