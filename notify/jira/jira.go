@@ -158,7 +158,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		Project:   &issueProject{Key: project},
 		Issuetype: &idNameValue{Name: issueType},
 		Summary:   &summary,
-		Labels:    make([]string, 0, len(n.conf.Labels)+1),
+		Labels:    nil,
 		Fields:    fieldsWithStringKeys,
 	}}
 
@@ -192,15 +192,17 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 
 	requestBody.Fields.Description = description
 
-	for i, label := range n.conf.Labels {
-		label, err = tmplTextFunc(label)
-		if err != nil {
-			return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)
+	if n.conf.Labels != nil {
+		for i, label := range n.conf.Labels {
+			label, err = tmplTextFunc(label)
+			if err != nil {
+				return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)
+			}
+			requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
 		}
-		requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
+		requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
+		sort.Strings(requestBody.Fields.Labels)
 	}
-	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
-	sort.Strings(requestBody.Fields.Labels)
 
 	priority, err := tmplTextFunc(n.conf.Priority)
 	if err != nil {
