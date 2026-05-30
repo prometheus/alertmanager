@@ -192,6 +192,11 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 
 	requestBody.Fields.Description = description
 
+	// Always add the internal correlation label so searchExistingIssue can
+	// find and dedup/reopen/resolve issues. User-defined labels are added
+	// only when explicitly configured, so Jira screens that do not include
+	// the Labels field are not affected when no labels are configured.
+	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
 	if n.conf.Labels != nil {
 		for i, label := range n.conf.Labels {
 			label, err = tmplTextFunc(label)
@@ -200,8 +205,13 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 			}
 			requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
 		}
-		requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
+		requestBody.Fields.Labels = append(requestBody.Fields.Labels, alertLabel)
 		sort.Strings(requestBody.Fields.Labels)
+	} else {
+		// No user labels configured: still set the correlation label so
+		// dedup/reopen/resolve flows continue to work. The slice has
+		// exactly one element so no sorting is needed.
+		requestBody.Fields.Labels = []string{alertLabel}
 	}
 
 	priority, err := tmplTextFunc(n.conf.Priority)
@@ -220,15 +230,9 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
-		// JQL's != on resolution silently excludes issues whose resolution
-		// is EMPTY (unresolved). Use (resolution is EMPTY or resolution != X)
-		// so open issues remain in the candidate set and only the won't-fix
-		// resolved ones are filtered out. See prometheus/alertmanager#4295.
 		fmt.Fprintf(&jql, `(resolution is EMPTY or resolution != %q) and `, n.conf.WontFixResolution)
 	}
 
-	// If the group is firing, search for open issues. If a reopen transition is
-	// defined, also search for issues that were closed within the reopen duration.
 	if firing {
 		reopenDuration := int64(time.Duration(n.conf.ReopenDuration).Minutes())
 		if n.conf.ReopenTransition != "" && reopenDuration > 0 {
@@ -275,18 +279,6 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	return &issueSearchResult.Issues[0], false, nil
 }
 
-// prepareSearchRequest builds the request body and search path for Jira issue search.
-//
-// Atlassian announced (see https://developer.atlassian.com/changelog/#CHANGE-2046) that
-// the legacy /search endpoint is no longer available on Jira Cloud. The replacement
-// endpoint (/rest/api/3/search/jql) is currently not available in Jira Data Center.
-//
-// Selection logic:
-//   - If APIType is "datacenter", always use the v2 /search endpoint.
-//   - If APIType is "cloud", or if APIType is "auto" and the host ends with
-//     "atlassian.net", use the v3 /search/jql endpoint.
-//   - Otherwise (APIType is "auto" without an atlassian.net host),
-//     use the v2 /search endpoint.
 func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 	requestBody := issueSearch{
 		JQL:        jql,
