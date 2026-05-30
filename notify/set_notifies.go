@@ -17,10 +17,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
 
 // SetNotifiesStage sets the notification information about passed alerts. The
