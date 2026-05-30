@@ -29,7 +29,7 @@ import (
 type mockDestination struct {
 	mu     sync.Mutex
 	name   string
-	events [][]byte
+	events []*eventrecorderpb.Event
 }
 
 func newMockDestination(name string) *mockDestination {
@@ -37,11 +37,11 @@ func newMockDestination(name string) *mockDestination {
 }
 
 func (m *mockDestination) Name() string { return m.name }
-func (m *mockDestination) SendEvent(data []byte) error {
+func (m *mockDestination) SendEvent(event *eventrecorderpb.Event) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.events = append(m.events, append([]byte(nil), data...))
-	return nil
+	m.events = append(m.events, event)
+	return 1, nil
 }
 func (m *mockDestination) Close() error { return nil }
 
@@ -171,70 +171,35 @@ func TestApplyConfig(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
-	a := Config{Outputs: []Output{{Type: OutputFile, Path: "/tmp/a"}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
 	b := Config{}
 	require.False(t, configEqual(a, b),
 		"configs with different output counts must compare unequal")
 }
 
 func TestEventRecorderConfigEqual_TypeMismatch(t *testing.T) {
-	a := Config{Outputs: []Output{{Type: OutputFile, Path: "/tmp/a"}}}
-	b := Config{Outputs: []Output{{Type: OutputWebhook}}}
+	// Same total output count but in different per-type lists must
+	// compare unequal.
+	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
+	b := Config{WebhookOutputs: []WebhookOutputConfig{{URL: mustParseURL(t, "https://example.com/h")}}}
 	require.False(t, configEqual(a, b),
 		"outputs of different types must compare unequal")
 }
 
-// Smoke test for the proto fast path in marshalAndSend: build a
-// recorder whose only output is a fake ProtoDestination and assert
-// it receives SendProto, not SendEvent, and that protojson is never
-// invoked (we observe this indirectly by inspecting the captured event).
-func TestMarshalAndSend_ProtoFastPath(t *testing.T) {
-	pd := &fakeProtoDest{wantProto: true}
-	rec := newTestRecorder(pd)
+// marshalAndSend hands the structured event to every destination; the
+// destination owns serialization.  Verify a destination receives the
+// event (and the recorder records it).
+func TestMarshalAndSend_DeliversEvent(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
 	defer rec.Close()
 
 	rec.RecordEvent(recordCtx(), startupEvent())
 
 	require.Eventually(t, func() bool {
-		pd.mu.Lock()
-		defer pd.mu.Unlock()
-		return pd.protoCount == 1 && pd.jsonCount == 0
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		return len(out.events) == 1 &&
+			out.events[0].GetData().GetAlertmanagerStartupEvent() != nil
 	}, time.Second, 10*time.Millisecond)
-
-	require.Eventually(t, func() bool {
-		pd.mu.Lock()
-		defer pd.mu.Unlock()
-		return pd.last != nil && pd.last.GetData().GetAlertmanagerStartupEvent() != nil
-	}, time.Second, 10*time.Millisecond)
-}
-
-// fakeProtoDest implements ProtoDestination and counts both code paths
-// so the test can assert the fast path was taken.
-type fakeProtoDest struct {
-	mu         sync.Mutex
-	wantProto  bool
-	jsonCount  int
-	protoCount int
-	last       *eventrecorderpb.Event
-}
-
-func (f *fakeProtoDest) Name() string { return "fake:proto" }
-
-func (f *fakeProtoDest) SendEvent(_ []byte) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.jsonCount++
-	return nil
-}
-
-func (f *fakeProtoDest) Close() error { return nil }
-
-func (f *fakeProtoDest) WantsProto() bool { return f.wantProto }
-
-func (f *fakeProtoDest) SendProto(ev *eventrecorderpb.Event) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.protoCount++
-	f.last = ev
-	return 42, nil
 }

@@ -22,22 +22,33 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
-// validateFile validates the file-output fields of an Output.  Called
-// from Output.UnmarshalYAML when Type == OutputFile.
-func (o *Output) validateFile() error {
-	if o.Path == "" {
+// FileOutputConfig configures a JSONL file event recorder output.
+type FileOutputConfig struct {
+	// Path is the JSONL file to append events to.  Created if absent.
+	Path string `yaml:"path" json:"path"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface, validating
+// the file output configuration.
+func (c *FileOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain FileOutputConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Path == "" {
 		return errors.New("event_recorder file output requires a path")
 	}
 	return nil
 }
 
-// fileOutputsEqual compares the file-specific fields of two Outputs.
-// The caller has already verified that both outputs are of type
-// OutputFile.
-func fileOutputsEqual(a, b Output) bool {
-	return a.Path == b.Path
+// equal reports whether two file output configs are semantically equal.
+func (c FileOutputConfig) equal(o FileOutputConfig) bool {
+	return c.Path == o.Path
 }
 
 // FileOutput writes pre-serialized JSON event bytes to a JSONL file.
@@ -159,12 +170,20 @@ func (fo *FileOutput) watchLoop(ready chan<- error) {
 	}
 }
 
-// SendEvent writes the pre-serialized JSON bytes to the file.
-func (fo *FileOutput) SendEvent(data []byte) error {
+// SendEvent serializes the event as a JSON line and appends it to the
+// file.  It returns the number of bytes written (including the trailing
+// newline) for the bytes-written metric.
+func (fo *FileOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
+	data, err := protojson.Marshal(event)
+	if err != nil {
+		return 0, &serializeError{err: err}
+	}
+	data = append(data, '\n')
+
 	fo.mu.Lock()
 	defer fo.mu.Unlock()
-	_, err := fo.f.Write(data)
-	return err
+	n, err := fo.f.Write(data)
+	return n, err
 }
 
 // Close stops the watcher goroutine, waits for it to exit, and closes

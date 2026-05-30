@@ -14,6 +14,7 @@
 package kafka
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -40,10 +41,5 @@ func BrokerListsEqual(a, b []string) bool {
 	bb := append([]string(nil), b...)
 	sort.Strings(aa)
 	sort.Strings(bb)
-	for i := range aa {
-		if aa[i] != bb[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(aa, bb)
 }

@@ -35,26 +35,35 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 )
 
+// Format is the wire encoding of a Kafka message value.
+type Format string
+
 // Wire format identifiers used by producers and consumers.
 const (
-	FormatJSON     = "json"
-	FormatProtobuf = "protobuf"
+	FormatJSON     Format = "json"
+	FormatProtobuf Format = "protobuf"
 )
+
+// Acks is the producer acknowledgement level.
+type Acks string
 
 // Producer acknowledgement levels.
 const (
-	AcksNone   = "none"
-	AcksLeader = "leader"
-	AcksAll    = "all"
+	AcksNone   Acks = "none"
+	AcksLeader Acks = "leader"
+	AcksAll    Acks = "all"
 )
+
+// Compression is the producer batch compression codec.
+type Compression string
 
 // Compression codecs supported on the producer wire.
 const (
-	CompressionNone   = "none"
-	CompressionGzip   = "gzip"
-	CompressionSnappy = "snappy"
-	CompressionLZ4    = "lz4"
-	CompressionZstd   = "zstd"
+	CompressionNone   Compression = "none"
+	CompressionGzip   Compression = "gzip"
+	CompressionSnappy Compression = "snappy"
+	CompressionLZ4    Compression = "lz4"
+	CompressionZstd   Compression = "zstd"
 )
 
 // Default values applied by BuildOpts when ClientOptions leaves a
@@ -86,13 +95,13 @@ type ClientOptions struct {
 
 	// Acks is the producer acknowledgement level: "", AcksNone,
 	// AcksLeader (default), or AcksAll.  Producer-only.
-	Acks string
+	Acks Acks
 
 	// Compression is the producer compression codec: "" (default,
 	// no compression), CompressionNone, CompressionGzip,
 	// CompressionSnappy, CompressionLZ4, or CompressionZstd.
 	// Producer-only.
-	Compression string
+	Compression Compression
 
 	// TLSConfig configures TLS for the broker connection.  If nil,
 	// PLAINTEXT is used.
@@ -123,11 +132,11 @@ func (o ClientOptions) Validate() error {
 	return nil
 }
 
-// ValidateFormat checks that a wire-format string is recognised.  It
-// is provided as a free helper because some callers (e.g. the event
+// ValidateFormat checks that a wire-format value is recognised.  It is
+// provided as a free helper because some callers (e.g. the event
 // recorder) carry the format on a per-output struct rather than on the
 // shared ClientOptions.
-func ValidateFormat(format string) error {
+func ValidateFormat(format Format) error {
 	switch format {
 	case FormatJSON, FormatProtobuf:
 		return nil

@@ -20,21 +20,24 @@ import (
 	"strings"
 )
 
-// Error categories returned by ClassifyError.  These string values
-// are intended for use as bounded-cardinality Prometheus label values.
+// ErrorCategory is a coarse bucket for a Kafka error, suitable for use
+// as a bounded-cardinality Prometheus label value.
+type ErrorCategory string
+
+// Error categories returned by ClassifyError.
 const (
-	ErrorCategoryNone    = "none"
-	ErrorCategoryTimeout = "timeout"
-	ErrorCategoryNetwork = "network"
-	ErrorCategoryBroker  = "broker"
-	ErrorCategoryUnknown = "unknown"
+	ErrorCategoryNone    ErrorCategory = "none"
+	ErrorCategoryTimeout ErrorCategory = "timeout"
+	ErrorCategoryNetwork ErrorCategory = "network"
+	ErrorCategoryBroker  ErrorCategory = "broker"
+	ErrorCategoryUnknown ErrorCategory = "unknown"
 )
 
 // ClassifyError buckets a franz-go error into one of the
 // ErrorCategory* constants.  It keeps Prometheus metric label
 // cardinality bounded regardless of the specific error string franz-go
 // surfaces.
-func ClassifyError(err error) string {
+func ClassifyError(err error) ErrorCategory {
 	if err == nil {
 		return ErrorCategoryNone
 	}

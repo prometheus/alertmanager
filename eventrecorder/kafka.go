@@ -23,7 +23,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
@@ -32,70 +34,97 @@ import (
 
 const defaultKafkaBufferSize = 1024
 
-// validateKafka validates and normalizes Kafka-specific Output fields.
-// Called from Output.UnmarshalYAML when Type == OutputKafka.
-//
-// Validation of the transport-layer fields (brokers, acks, compression,
-// TLS) is delegated to kafka.ClientOptions.Validate so this code and a
-// future Kafka receiver share a single source of truth.
-func (o *Output) validateKafka() error {
-	if err := o.kafkaClientOptions().Validate(); err != nil {
+// KafkaOutputConfig configures a Kafka event recorder output.
+type KafkaOutputConfig struct {
+	// Brokers is the list of Kafka seed brokers in host:port form.
+	Brokers []string `yaml:"brokers" json:"brokers"`
+	// Topic is the Kafka topic to produce events to.
+	Topic string `yaml:"topic" json:"topic"`
+	// ClientID is reported to the Kafka brokers (default "alertmanager").
+	ClientID string `yaml:"client_id,omitempty" json:"client_id,omitempty"`
+	// Format selects the on-the-wire encoding of each event value:
+	// "json" (default, JSON via protojson) or "protobuf" (binary proto).
+	Format kafka.Format `yaml:"format,omitempty" json:"format,omitempty"`
+	// Acks controls the producer acknowledgement level:
+	// "none", "leader" (default), or "all".
+	Acks kafka.Acks `yaml:"acks,omitempty" json:"acks,omitempty"`
+	// Compression selects the producer compression codec:
+	// "" (default, no compression), "none", "gzip", "snappy", "lz4", or "zstd".
+	Compression kafka.Compression `yaml:"compression,omitempty" json:"compression,omitempty"`
+	// BufferSize is the capacity of the local channel between the event
+	// recorder dispatcher and the franz-go producer (default 1024).
+	BufferSize int `yaml:"buffer_size,omitempty" json:"buffer_size,omitempty"`
+	// TLSConfig configures TLS for the Kafka broker connection.  If unset,
+	// PLAINTEXT is used.
+	TLSConfig *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface, validating
+// and normalising the Kafka output configuration.  Transport-layer
+// validation (brokers, acks, compression, TLS) is delegated to the
+// shared kafka package so this code and a future Kafka receiver share a
+// single source of truth.
+func (c *KafkaOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain KafkaOutputConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if err := c.clientOptions().Validate(); err != nil {
 		// The shared validator's messages already say "kafka: ..."; we
 		// prefix with the event_recorder context for user clarity.
 		return fmt.Errorf("event_recorder %w", err)
 	}
-	if o.Topic == "" {
+	if c.Topic == "" {
 		return errors.New("event_recorder kafka output requires a topic")
 	}
-	if o.Format == "" {
-		o.Format = kafka.FormatJSON
+	if c.Format == "" {
+		c.Format = kafka.FormatJSON
 	}
-	if err := kafka.ValidateFormat(o.Format); err != nil {
+	if err := kafka.ValidateFormat(c.Format); err != nil {
 		return fmt.Errorf("event_recorder %w", err)
 	}
 	return nil
 }
 
-// kafkaClientOptions copies the Kafka-related Output fields into a
-// kafka.ClientOptions value suitable for passing to kafka.BuildOpts.
-func (o *Output) kafkaClientOptions() kafka.ClientOptions {
+// clientOptions copies the config into a kafka.ClientOptions value
+// suitable for passing to kafka.BuildOpts.
+func (c KafkaOutputConfig) clientOptions() kafka.ClientOptions {
 	return kafka.ClientOptions{
-		Brokers:     o.Brokers,
-		Topic:       o.Topic,
-		ClientID:    o.ClientID,
-		Acks:        o.Acks,
-		Compression: o.Compression,
-		TLSConfig:   o.TLSConfig,
+		Brokers:     c.Brokers,
+		Topic:       c.Topic,
+		ClientID:    c.ClientID,
+		Acks:        c.Acks,
+		Compression: c.Compression,
+		TLSConfig:   c.TLSConfig,
 	}
 }
 
-// kafkaOutputsEqual compares the kafka-specific fields of two Outputs.
-// The caller has already verified that both outputs are of type
-// OutputKafka.  Broker lists are compared order-independently because
+// equal reports whether two kafka output configs are semantically
+// equal.  Broker lists are compared order-independently because
 // reordering brokers in YAML is semantically a no-op.
-func kafkaOutputsEqual(a, b Output) bool {
-	if !kafka.BrokerListsEqual(a.Brokers, b.Brokers) {
+func (c KafkaOutputConfig) equal(o KafkaOutputConfig) bool {
+	if !kafka.BrokerListsEqual(c.Brokers, o.Brokers) {
 		return false
 	}
-	if a.Topic != b.Topic {
+	if c.Topic != o.Topic {
 		return false
 	}
-	if a.ClientID != b.ClientID {
+	if c.ClientID != o.ClientID {
 		return false
 	}
-	if a.Format != b.Format {
+	if c.Format != o.Format {
 		return false
 	}
-	if a.Acks != b.Acks {
+	if c.Acks != o.Acks {
 		return false
 	}
-	if a.Compression != b.Compression {
+	if c.Compression != o.Compression {
 		return false
 	}
-	if a.BufferSize != b.BufferSize {
+	if c.BufferSize != o.BufferSize {
 		return false
 	}
-	return reflect.DeepEqual(a.TLSConfig, b.TLSConfig)
+	return reflect.DeepEqual(c.TLSConfig, o.TLSConfig)
 }
 
 // KafkaOutput delivers serialized events to a Kafka topic via franz-go.
@@ -112,7 +141,7 @@ type KafkaOutput struct {
 	client      *kgo.Client
 	topic       string
 	instance    string // used as the message key
-	format      string // kafka.FormatJSON or kafka.FormatProtobuf
+	format      kafka.Format
 	name        string // "kafka:<sorted-brokers>/<topic>"
 	logger      *slog.Logger
 	drops       prometheus.Counter
@@ -128,15 +157,12 @@ type KafkaOutput struct {
 // does not fail construction; franz-go retries connections in the
 // background and records are buffered until delivery becomes possible.
 func NewKafkaOutput(
-	cfg Output,
+	cfg KafkaOutputConfig,
 	instance string,
 	dropsCounter *prometheus.CounterVec,
 	produceErrors *prometheus.CounterVec,
 	logger *slog.Logger,
 ) (*KafkaOutput, error) {
-	// Shared validation + franz-go option construction lives in the
-	// kafka package so a future Kafka receiver can reuse it.
-	clientOpts := cfg.kafkaClientOptions()
 	if cfg.Topic == "" {
 		return nil, errors.New("kafka output requires a topic")
 	}
@@ -148,7 +174,9 @@ func NewKafkaOutput(
 		return nil, err
 	}
 
-	kopts, err := kafka.BuildOpts(clientOpts, logger)
+	// Shared validation + franz-go option construction lives in the
+	// kafka package so a future Kafka receiver can reuse it.
+	kopts, err := kafka.BuildOpts(cfg.clientOptions(), logger)
 	if err != nil {
 		return nil, err
 	}
@@ -193,25 +221,21 @@ func NewKafkaOutput(
 // Name returns the stable identifier for this output.
 func (ko *KafkaOutput) Name() string { return ko.name }
 
-// WantsProto reports whether this output prefers SendProto over SendEvent.
-func (ko *KafkaOutput) WantsProto() bool { return ko.format == kafka.FormatProtobuf }
-
-// SendEvent queues pre-serialized JSON bytes for delivery.  Used when
-// the output is in JSON format (the default).
-func (ko *KafkaOutput) SendEvent(data []byte) error {
-	// Copy the slice: the caller (marshalAndSend) reuses the JSON buffer
-	// across all destinations within a single event, and the dispatcher
-	// runs asynchronously.
-	cp := append([]byte(nil), data...)
-	return ko.enqueue(cp)
-}
-
-// SendProto serializes the event as protobuf and queues it for delivery.
-// Used when the output is in protobuf format.
-func (ko *KafkaOutput) SendProto(event *eventrecorderpb.Event) (int, error) {
-	data, err := proto.Marshal(event)
+// SendEvent serializes the event in the configured format (JSON or
+// protobuf) and queues it for asynchronous delivery.  It returns the
+// serialized size (for the bytes-written metric).
+func (ko *KafkaOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
+	var (
+		data []byte
+		err  error
+	)
+	if ko.format == kafka.FormatProtobuf {
+		data, err = proto.Marshal(event)
+	} else {
+		data, err = protojson.Marshal(event)
+	}
 	if err != nil {
-		return 0, fmt.Errorf("kafka output: marshalling protobuf event: %w", err)
+		return 0, &serializeError{err: err}
 	}
 	if err := ko.enqueue(data); err != nil {
 		return 0, err
@@ -220,11 +244,11 @@ func (ko *KafkaOutput) SendProto(event *eventrecorderpb.Event) (int, error) {
 }
 
 // enqueue places the value on the local buffer.  Returns an error if
-// the output is already closed (so a SendEvent/SendProto racing with
-// Close cannot land a record on a channel that no dispatcher will
-// drain).  If the buffer is full the event is dropped; the upstream
-// metric records the drop directly so callers do not need to inspect
-// this error to count drops.
+// the output is already closed (so a SendEvent racing with Close cannot
+// land a record on a channel that no dispatcher will drain).  If the
+// buffer is full the event is dropped; the upstream metric records the
+// drop directly so callers do not need to inspect this error to count
+// drops.
 func (ko *KafkaOutput) enqueue(value []byte) error {
 	ko.mu.RLock()
 	defer ko.mu.RUnlock()
@@ -287,7 +311,7 @@ func (ko *KafkaOutput) produce(value []byte) {
 		if err == nil {
 			return
 		}
-		ko.produceErrs.WithLabelValues(ko.name, kafka.ClassifyError(err)).Inc()
+		ko.produceErrs.WithLabelValues(ko.name, string(kafka.ClassifyError(err))).Inc()
 		ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "err", err)
 	})
 }

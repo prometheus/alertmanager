@@ -2075,37 +2075,42 @@ Event recording is configured under the top-level `event_recorder` key.
 
 ### `<event_recorder_config>`
 
+Outputs are grouped by type, one list per destination kind (mirroring the
+way receivers group their integrations).  Every recorded event is sent to
+every output across all lists.
+
 ```yaml
-# A list of output destinations.  All events are sent to every output.
-outputs:
-  [ - <event_recorder_output> ... ]
+# JSONL file outputs.
+file_outputs:
+  [ - <file_output> ... ]
+
+# Webhook outputs.
+webhook_outputs:
+  [ - <webhook_output> ... ]
+
+# Kafka outputs.
+kafka_outputs:
+  [ - <kafka_output> ... ]
 ```
 
-### `<event_recorder_output>`
-
-Each output has a `type` (`file`, `webhook`, or `kafka`) and a set of
-type-specific fields.
-
-#### File output
+#### `<file_output>`
 
 Writes each event as a single JSON line to a file.  The file is reopened
 when the parent directory observes a rename/remove/create on the target
 path (for compatibility with `logrotate` and similar tools).
 
 ```yaml
-type: file
 # Path to the JSONL output file.  Will be created if it does not exist.
 path: <filepath>
 ```
 
-#### Webhook output
+#### `<webhook_output>`
 
 POSTs each event as a JSON body to an HTTP endpoint.  Delivery is
 performed by a bounded worker pool with bounded retries and exponential
 backoff.
 
 ```yaml
-type: webhook
 # URL to POST events to.
 url: <secret>
 
@@ -2126,7 +2131,7 @@ url: <secret>
 [ retry_backoff: <duration> | default = 500ms ]
 ```
 
-#### Kafka output
+#### `<kafka_output>`
 
 Produces each event to a Kafka topic.  Records use the producing
 Alertmanager instance's hostname as the message key, which keeps all
@@ -2138,19 +2143,10 @@ A failure to reach the Kafka brokers at startup is logged at warn level
 but does **not** prevent Alertmanager from starting; the underlying
 client retries connections in the background.
 
-**Topic creation:** Alertmanager does not create the topic itself.  The
-target topic must either already exist on the cluster or the brokers
-must be configured with `auto.create.topics.enable=true` (the Kafka
-default, but explicitly disabled in many production clusters).  When
-the topic is missing on a cluster that disables auto-creation, produce
-attempts fail with `UNKNOWN_TOPIC_OR_PARTITION` and are counted in the
-`alertmanager_event_kafka_produce_errors_total` metric.  Create the
-topic up-front with a tool such as `kafka-topics.sh`, choosing the
-partition count and replication factor appropriate for your event
-throughput and durability requirements.
+The target topic must already exist (or the brokers must be configured to
+auto-create topics); Alertmanager does not create it.
 
 ```yaml
-type: kafka
 # Seed broker list (host:port).  At least one entry is required.
 brokers:
   [ - <string> ... ]

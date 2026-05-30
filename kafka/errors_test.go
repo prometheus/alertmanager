@@ -36,7 +36,7 @@ func TestClassifyError(t *testing.T) {
 	cases := []struct {
 		name string
 		err  error
-		want string
+		want ErrorCategory
 	}{
 		{"nil", nil, ErrorCategoryNone},
 		{"context.Canceled", context.Canceled, ErrorCategoryTimeout},

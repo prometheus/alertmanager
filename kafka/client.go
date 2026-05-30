@@ -121,9 +121,9 @@ func PingInBackground(client *kgo.Client, logger *slog.Logger) {
 	}()
 }
 
-// acksOpt translates the user-facing acks string into a franz-go
-// option.  An empty string defaults to LeaderAck.
-func acksOpt(s string) (kgo.Opt, error) {
+// acksOpt translates the user-facing acks value into a franz-go
+// option.  An empty value defaults to LeaderAck.
+func acksOpt(s Acks) (kgo.Opt, error) {
 	switch s {
 	case "", AcksLeader:
 		return kgo.RequiredAcks(kgo.LeaderAck()), nil
@@ -136,9 +136,9 @@ func acksOpt(s string) (kgo.Opt, error) {
 	}
 }
 
-// compressionCodec translates the user-facing compression string into
+// compressionCodec translates the user-facing compression value into
 // a franz-go codec.
-func compressionCodec(s string) (kgo.CompressionCodec, error) {
+func compressionCodec(s Compression) (kgo.CompressionCodec, error) {
 	switch s {
 	case CompressionNone:
 		return kgo.NoCompression(), nil

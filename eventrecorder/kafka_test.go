@@ -129,8 +129,7 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -142,28 +141,29 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Marshal via the same path marshalAndSend would use.
-	payload, err := protojson.Marshal(sampleEvent())
+	ev := sampleEvent()
+	n, err := ko.SendEvent(ev)
 	require.NoError(t, err)
-	payload = append(payload, '\n')
-
-	require.NoError(t, ko.SendEvent(payload))
+	require.Positive(t, n)
 	require.NoError(t, ko.Close())
 
 	records := readRecords(t, brokers, topic, 1, 5*time.Second)
 	require.Len(t, records, 1)
-	require.JSONEq(t, string(payload), string(records[0].Value))
+
+	var got eventrecorderpb.Event
+	require.NoError(t, protojson.Unmarshal(records[0].Value, &got))
+	require.Equal(t, ev.Instance, got.Instance)
+	require.Equal(t, "v-test", got.GetData().GetAlertmanagerStartupEvent().GetVersion())
 	require.Equal(t, "test-host", string(records[0].Key))
 }
 
-func TestKafkaOutput_SendProto_Protobuf(t *testing.T) {
+func TestKafkaOutput_SendEvent_Protobuf(t *testing.T) {
 	const topic = "amgr-events-proto"
 	cluster := startFakeCluster(t, topic, 1)
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatProtobuf,
@@ -174,13 +174,11 @@ func TestKafkaOutput_SendProto_Protobuf(t *testing.T) {
 		slog.Default(),
 	)
 	require.NoError(t, err)
-	require.True(t, ko.WantsProto())
 
 	ev := sampleEvent()
-	size, err := ko.SendProto(ev)
+	n, err := ko.SendEvent(ev)
 	require.NoError(t, err)
-	require.Positive(t, size)
-
+	require.Positive(t, n)
 	require.NoError(t, ko.Close())
 
 	records := readRecords(t, brokers, topic, 1, 5*time.Second)
@@ -201,8 +199,7 @@ func TestKafkaOutput_KeyIsInstance(t *testing.T) {
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -216,7 +213,8 @@ func TestKafkaOutput_KeyIsInstance(t *testing.T) {
 
 	const n = 5
 	for range n {
-		require.NoError(t, ko.SendEvent([]byte(`{"i":1}`)))
+		_, err := ko.SendEvent(sampleEvent())
+		require.NoError(t, err)
 	}
 	require.NoError(t, ko.Close())
 
@@ -233,8 +231,7 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:       OutputKafka,
+		KafkaOutputConfig{
 			Brokers:    brokers,
 			Topic:      topic,
 			Format:     kafka.FormatJSON,
@@ -255,9 +252,11 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 	ko.wg.Wait()
 
 	// First send fills the size-1 buffer; subsequent sends drop.
-	require.NoError(t, ko.SendEvent([]byte("a")))
+	_, err = ko.SendEvent(sampleEvent())
+	require.NoError(t, err)
 	for range 10 {
-		require.NoError(t, ko.SendEvent([]byte("b")))
+		_, err := ko.SendEvent(sampleEvent())
+		require.NoError(t, err)
 	}
 
 	require.GreaterOrEqual(t, counterValue(t, ko.drops), float64(10))
@@ -273,8 +272,7 @@ func TestKafkaOutput_SendAfterClose(t *testing.T) {
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -289,12 +287,7 @@ func TestKafkaOutput_SendAfterClose(t *testing.T) {
 
 	// SendEvent must report closure rather than silently dropping
 	// onto a buffer that no dispatcher is draining.
-	err = ko.SendEvent([]byte(`{"after":"close"}`))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "closed")
-
-	// SendProto should behave the same way.
-	_, err = ko.SendProto(sampleEvent())
+	_, err = ko.SendEvent(sampleEvent())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "closed")
 }
@@ -305,8 +298,7 @@ func TestKafkaOutput_CloseFlushesQueue(t *testing.T) {
 	brokers := cluster.ListenAddrs()
 
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -320,7 +312,8 @@ func TestKafkaOutput_CloseFlushesQueue(t *testing.T) {
 
 	const n = 10
 	for range n {
-		require.NoError(t, ko.SendEvent([]byte(`{"flush":true}`)))
+		_, err := ko.SendEvent(sampleEvent())
+		require.NoError(t, err)
 	}
 	require.NoError(t, ko.Close())
 
@@ -335,8 +328,7 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 	// the background.
 	start := time.Now()
 	ko, err := NewKafkaOutput(
-		Output{
-			Type:    OutputKafka,
+		KafkaOutputConfig{
 			Brokers: []string{"127.0.0.1:1"},
 			Topic:   "no-broker",
 			Format:  kafka.FormatJSON,
@@ -357,8 +349,7 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 		"NewKafkaOutput must not block on broker reachability; took %s", constructDur)
 
 	// Closing must also be fast even though the background ping is
-	// still in flight: Close cancels the ping context.  Shrink the
-	// flush budget so the test stays fast.
+	// still in flight.  Shrink the flush budget so the test stays fast.
 	ko.flushBudget = 200 * time.Millisecond
 	closeStart := time.Now()
 	require.NoError(t, ko.Close())
@@ -369,16 +360,15 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  Output
+		cfg  KafkaOutputConfig
 	}{
 		{
 			name: "no brokers",
-			cfg:  Output{Type: OutputKafka, Topic: "t", Format: kafka.FormatJSON},
+			cfg:  KafkaOutputConfig{Topic: "t", Format: kafka.FormatJSON},
 		},
 		{
 			name: "empty broker entry",
-			cfg: Output{
-				Type:    OutputKafka,
+			cfg: KafkaOutputConfig{
 				Brokers: []string{"127.0.0.1:9092", ""},
 				Topic:   "t",
 				Format:  kafka.FormatJSON,
@@ -386,23 +376,23 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 		},
 		{
 			name: "no topic",
-			cfg:  Output{Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Format: kafka.FormatJSON},
+			cfg:  KafkaOutputConfig{Brokers: []string{"127.0.0.1:9092"}, Format: kafka.FormatJSON},
 		},
 		{
 			name: "bad format",
-			cfg:  Output{Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Topic: "t", Format: "yaml"},
+			cfg:  KafkaOutputConfig{Brokers: []string{"127.0.0.1:9092"}, Topic: "t", Format: "yaml"},
 		},
 		{
 			name: "bad acks",
-			cfg: Output{
-				Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
+			cfg: KafkaOutputConfig{
+				Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
 				Format: kafka.FormatJSON, Acks: "majority",
 			},
 		},
 		{
 			name: "bad compression",
-			cfg: Output{
-				Type: OutputKafka, Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
+			cfg: KafkaOutputConfig{
+				Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
 				Format: kafka.FormatJSON, Compression: "deflate",
 			},
 		},
@@ -431,53 +421,48 @@ func TestKafkaOutput_NameIsStable(t *testing.T) {
 // --- config tests.
 
 func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
-	a := Config{Outputs: []Output{{
-		Type:    OutputKafka,
+	a := Config{KafkaOutputs: []KafkaOutputConfig{{
 		Brokers: []string{"b:9092", "a:9092"},
 		Topic:   "t",
 		Format:  kafka.FormatJSON,
 	}}}
-	b := Config{Outputs: []Output{{
-		Type:    OutputKafka,
+	b := Config{KafkaOutputs: []KafkaOutputConfig{{
 		Brokers: []string{"a:9092", "b:9092"},
 		Topic:   "t",
 		Format:  kafka.FormatJSON,
 	}}}
 	require.True(t, configEqual(a, b), "broker order must not affect equality")
 
-	b.Outputs[0].Topic = "other"
+	b.KafkaOutputs[0].Topic = "other"
 	require.False(t, configEqual(a, b), "differing topics must compare unequal")
 
-	b.Outputs[0].Topic = "t"
-	b.Outputs[0].Format = kafka.FormatProtobuf
+	b.KafkaOutputs[0].Topic = "t"
+	b.KafkaOutputs[0].Format = kafka.FormatProtobuf
 	require.False(t, configEqual(a, b), "differing formats must compare unequal")
 }
 
-func TestOutput_UnmarshalYAML_Kafka(t *testing.T) {
+func TestKafkaOutputConfig_UnmarshalYAML(t *testing.T) {
 	tests := []struct {
 		name    string
 		yaml    string
 		wantErr bool
-		check   func(t *testing.T, o Output)
+		check   func(t *testing.T, c KafkaOutputConfig)
 	}{
 		{
 			name: "valid minimal kafka",
 			yaml: `
-type: kafka
 brokers: [a:9092, b:9092]
 topic: amgr-events
 `,
-			check: func(t *testing.T, o Output) {
-				require.Equal(t, OutputKafka, o.Type)
-				require.Equal(t, "amgr-events", o.Topic)
+			check: func(t *testing.T, c KafkaOutputConfig) {
+				require.Equal(t, "amgr-events", c.Topic)
 				// Format defaults to "json" when omitted.
-				require.Equal(t, "json", o.Format)
+				require.Equal(t, kafka.FormatJSON, c.Format)
 			},
 		},
 		{
 			name: "valid full kafka",
 			yaml: `
-type: kafka
 brokers: [a:9092]
 topic: t
 client_id: amgr
@@ -486,61 +471,56 @@ acks: all
 compression: zstd
 buffer_size: 4096
 `,
-			check: func(t *testing.T, o Output) {
-				require.Equal(t, kafka.FormatProtobuf, o.Format)
-				require.Equal(t, kafka.AcksAll, o.Acks)
-				require.Equal(t, kafka.CompressionZstd, o.Compression)
-				require.Equal(t, 4096, o.BufferSize)
-				require.Equal(t, "amgr", o.ClientID)
+			check: func(t *testing.T, c KafkaOutputConfig) {
+				require.Equal(t, kafka.FormatProtobuf, c.Format)
+				require.Equal(t, kafka.AcksAll, c.Acks)
+				require.Equal(t, kafka.CompressionZstd, c.Compression)
+				require.Equal(t, 4096, c.BufferSize)
+				require.Equal(t, "amgr", c.ClientID)
 			},
 		},
 		{
 			name:    "missing brokers",
-			yaml:    "type: kafka\ntopic: t\n",
+			yaml:    "topic: t\n",
 			wantErr: true,
 		},
 		{
 			name:    "missing topic",
-			yaml:    "type: kafka\nbrokers: [a:9092]\n",
+			yaml:    "brokers: [a:9092]\n",
 			wantErr: true,
 		},
 		{
 			name:    "empty broker entry",
-			yaml:    "type: kafka\nbrokers: ['']\ntopic: t\n",
+			yaml:    "brokers: ['']\ntopic: t\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad format",
-			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\nformat: yaml\n",
+			yaml:    "brokers: [a:9092]\ntopic: t\nformat: yaml\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad acks",
-			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\nacks: majority\n",
+			yaml:    "brokers: [a:9092]\ntopic: t\nacks: majority\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad compression",
-			yaml:    "type: kafka\nbrokers: [a:9092]\ntopic: t\ncompression: deflate\n",
-			wantErr: true,
-		},
-		{
-			name:    "unknown type",
-			yaml:    "type: nats\n",
+			yaml:    "brokers: [a:9092]\ntopic: t\ncompression: deflate\n",
 			wantErr: true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var o Output
-			err := yaml.Unmarshal([]byte(tc.yaml), &o)
+			var c KafkaOutputConfig
+			err := yaml.Unmarshal([]byte(tc.yaml), &c)
 			if tc.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			if tc.check != nil {
-				tc.check(t, o)
+				tc.check(t, c)
 			}
 		})
 	}
