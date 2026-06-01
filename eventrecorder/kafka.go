@@ -267,8 +267,7 @@ func (ko *KafkaOutput) enqueue(value []byte) error {
 
 // dispatch reads queued payloads and hands them to franz-go for
 // asynchronous production.  A single goroutine is sufficient because
-// kgo.Client.Produce is itself non-blocking (it appends to franz-go's
-// internal batched producer).
+// produce uses kgo.Client.TryProduce, which never blocks (see produce).
 func (ko *KafkaOutput) dispatch() {
 	defer ko.wg.Done()
 	for {
@@ -301,18 +300,32 @@ func (ko *KafkaOutput) drainWork() {
 // produce hands a single record to franz-go.  The promise callback
 // updates per-output metrics; it must be quick (franz-go calls all
 // promises serially from a single goroutine).
+//
+// TryProduce is used instead of Produce so the dispatcher goroutine
+// never blocks: kgo.Client.Produce blocks once the producer's internal
+// buffer (MaxBufferedRecords / MaxBufferedBytes) is full, which an
+// unreachable broker can trigger.  A blocked dispatcher would stall
+// shutdown, since Close waits for it to drain.  TryProduce instead
+// fails the record immediately with kgo.ErrMaxBuffered, which we count
+// as a drop — consistent with the drop-on-full behaviour of our own
+// local buffer.
 func (ko *KafkaOutput) produce(value []byte) {
 	rec := &kgo.Record{
 		Key:   []byte(ko.instance),
 		Value: value,
 		Topic: ko.topic,
 	}
-	ko.client.Produce(context.Background(), rec, func(_ *kgo.Record, err error) {
-		if err == nil {
+	ko.client.TryProduce(context.Background(), rec, func(_ *kgo.Record, err error) {
+		switch {
+		case err == nil:
 			return
+		case errors.Is(err, kgo.ErrMaxBuffered):
+			ko.drops.Inc()
+			ko.logger.Warn("Kafka producer buffer full, dropping event", "output", ko.name)
+		default:
+			ko.produceErrs.WithLabelValues(ko.name, string(kafka.ClassifyError(err))).Inc()
+			ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "err", err)
 		}
-		ko.produceErrs.WithLabelValues(ko.name, string(kafka.ClassifyError(err))).Inc()
-		ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "err", err)
 	})
 }
 
