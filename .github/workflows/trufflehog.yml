@@ -23,4 +23,3 @@ jobs:
       fail-on-verified: "true"
       fail-on-unverified: "false"
       runs-on: ${{ (!github.event.repository.private || github.repository_owner != 'grafana') && 'ubuntu-latest' || 'ubuntu-arm64-small' }}
-    secrets: inherit
