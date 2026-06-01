@@ -106,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return true, notify.RedactURL(err)
 	}
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	shouldRetry, err := n.retrier.Check(resp)
 	if err != nil {
 		return shouldRetry, err
 	}
