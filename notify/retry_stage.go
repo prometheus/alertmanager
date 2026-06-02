@@ -1,4 +1,3 @@
-
 // Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,12 +20,13 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
 )
 
 // RetryStage notifies via passed integration with exponential backoff until it
