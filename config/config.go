@@ -225,12 +225,17 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		}
 	}
 
-	for i, out := range cfg.EventRecorder.Outputs {
-		if out.Type == eventrecorder.OutputFile {
-			cfg.EventRecorder.Outputs[i].Path = join(out.Path)
-		}
+	for i := range cfg.EventRecorder.FileOutputs {
+		cfg.EventRecorder.FileOutputs[i].Path = join(cfg.EventRecorder.FileOutputs[i].Path)
+	}
+	for _, out := range cfg.EventRecorder.WebhookOutputs {
 		if out.HTTPConfig != nil {
 			out.HTTPConfig.SetDirectory(baseDir)
+		}
+	}
+	for _, out := range cfg.EventRecorder.KafkaOutputs {
+		if out.TLSConfig != nil {
+			out.TLSConfig.SetDirectory(baseDir)
 		}
 	}
 }
