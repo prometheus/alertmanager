@@ -147,6 +147,45 @@ func TestApp_TwoConcurrentInstances(t *testing.T) {
 	require.NotEqual(t, a1.Addr(), a2.Addr(), "instances should bind distinct ports")
 }
 
+func TestApp_Addrs(t *testing.T) {
+	// Addrs reports every bound listener address, and Addr returns the
+	// first of them. Bind two ephemeral ports to make sure both the
+	// ordering and the count are honoured.
+	opts := testOptions(t)
+	addrs := []string{"127.0.0.1:0", "127.0.0.1:0"}
+	opts.WebConfig.WebListenAddresses = &addrs
+
+	a, err := New(opts)
+	require.NoError(t, err)
+	defer func() { _ = a.Stop(t.Context()) }()
+
+	got := a.Addrs()
+	require.Len(t, got, 2)
+	for i, addr := range got {
+		require.NotEmpty(t, addr, "Addrs()[%d] should be a concrete bound address", i)
+		// Ephemeral ":0" requests must resolve to a concrete port.
+		require.NotContains(t, addr, ":0", "Addrs()[%d] should not retain the :0 port", i)
+	}
+	require.Equal(t, got[0], a.Addr(), "Addr should equal the first bound address")
+}
+
+func TestApp_Reload(t *testing.T) {
+	// The programmatic Reload re-reads the config through the coordinator
+	// and must succeed for a valid, unchanged configuration.
+	a, err := New(testOptions(t))
+	require.NoError(t, err)
+	defer func() { _ = a.Stop(t.Context()) }()
+
+	require.NoError(t, a.Reload(t.Context()))
+}
+
+func TestApp_Reload_BeforeNewFails(t *testing.T) {
+	// Calling Reload on a zero-value App (no successful New) must return
+	// an error rather than panicking on the nil coordinator.
+	var a App
+	require.Error(t, a.Reload(context.Background()))
+}
+
 func TestApp_EmbeddedReloadDoesNotDeadlock(t *testing.T) {
 	// Regression: when callers use the lifecycle API (New + Start + Stop)
 	// without Run, the /-/reload HTTP handler must not block forever on

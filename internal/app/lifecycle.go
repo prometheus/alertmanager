@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/exporter-toolkit/web"
@@ -28,6 +29,10 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/tracing"
 )
+
+// shutdownTimeout bounds how long Stop waits for the HTTP server to drain
+// in-flight requests before forcing teardown.
+const shutdownTimeout = 5 * time.Second
 
 // App is a running (or runnable) Alertmanager instance built from Options.
 //
@@ -45,13 +50,13 @@ type App struct {
 	logger *slog.Logger
 
 	// Lifecycle dependencies retained for use by Start, Reload, and Stop.
-	coord     *config.Coordinator
-	tracing   *tracing.Manager
-	srv       *http.Server
-	listeners []net.Listener
+	coordinator *config.Coordinator
+	tracingMgr  *tracing.Manager
+	server      *http.Server
+	listeners   []net.Listener
 
 	// webReload is the channel exposed by httpserver.Register for the
-	// /-/reload HTTP endpoint. We read from it in serveLoop.
+	// /-/reload HTTP endpoint. We read from it in reloadRouter.
 	webReload chan chan error
 
 	// srvc carries errors from the HTTP serve goroutine. It is closed
@@ -69,7 +74,9 @@ type App struct {
 	// launched. Stop uses this to decide whether draining a.srvc is
 	// meaningful — if Start never ran, nothing will ever close srvc and
 	// the drain would deadlock (e.g., during setup-failure rollback).
-	started bool
+	// It is atomic because Start and Stop may, in principle, run on
+	// different goroutines.
+	started atomic.Bool
 
 	// routerQuit signals the reload-routing goroutine (started by Start)
 	// to exit; routerDone is closed by that goroutine on exit. Both are
@@ -102,11 +109,11 @@ func New(opts Options) (*App, error) {
 // channel drained by serveLoop. Subsequent calls are no-ops.
 func (a *App) Start() error {
 	a.startedOnce.Do(func() {
-		if a.srv == nil || len(a.listeners) == 0 {
+		if a.server == nil || len(a.listeners) == 0 {
 			a.startErr = errors.New("alertmanager/app: App.Start called before successful New")
 			return
 		}
-		a.started = true
+		a.started.Store(true)
 		a.routerQuit = make(chan struct{})
 		a.routerDone = make(chan struct{})
 
@@ -119,7 +126,7 @@ func (a *App) Start() error {
 		go a.reloadRouter()
 
 		go func() {
-			err := web.ServeMultiple(a.listeners, a.srv, a.opts.WebConfig, a.logger)
+			err := web.ServeMultiple(a.listeners, a.server, a.opts.WebConfig, a.logger)
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				a.logger.Error("Listen error", "err", err)
 				a.srvc <- err
@@ -142,11 +149,11 @@ func (a *App) reloadRouter() {
 		case <-a.routerQuit:
 			return
 		case <-a.opts.Reload:
-			if err := a.coord.Reload(); err != nil {
+			if err := a.coordinator.Reload(); err != nil {
 				a.logger.Error("configuration reload failed", "err", err)
 			}
 		case errc := <-a.webReload:
-			errc <- a.coord.Reload()
+			errc <- a.coordinator.Reload()
 		}
 	}
 }
@@ -172,37 +179,43 @@ func (a *App) Addrs() []string {
 }
 
 // Reload triggers a configuration reload (the programmatic equivalent of
-// SIGHUP). Safe to call concurrently with serveLoop.
+// SIGHUP). Safe to call concurrently with the running App.
 func (a *App) Reload(_ context.Context) error {
-	if a.coord == nil {
+	if a.coordinator == nil {
 		return errors.New("alertmanager/app: App.Reload called before successful New")
 	}
-	return a.coord.Reload()
+	return a.coordinator.Reload()
 }
 
 // Stop gracefully shuts down the App, draining cleanups in reverse
 // registration order so that teardown ordering matches the original
 // defer chain in Run. Safe to call multiple times; safe to call before
 // Start (it will then merely roll back what setup registered).
+//
+// It returns the error (if any) from the graceful HTTP shutdown so
+// callers can observe a failed/timed-out drain; all other teardown steps
+// are best-effort and only logged.
 func (a *App) Stop(ctx context.Context) error {
+	var stopErr error
 	a.stoppedOnce.Do(func() {
 		// Stop accepting new HTTP traffic first so in-flight handlers
 		// don't observe collaborators being torn down underneath them.
-		// The 5s cap is derived from ctx so callers can request faster
-		// shutdown via a tighter deadline. The reload router is still
-		// running at this point so any in-flight /-/reload handler can
-		// complete its send/receive cycle and unblock Shutdown.
-		if a.srv != nil {
-			shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// shutdownTimeout is derived from ctx so callers can request a
+		// faster shutdown via a tighter deadline. The reload router is
+		// still running at this point so any in-flight /-/reload handler
+		// can complete its send/receive cycle and unblock Shutdown.
+		if a.server != nil {
+			shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 			defer cancel()
-			if err := a.srv.Shutdown(shutdownCtx); err != nil {
+			if err := a.server.Shutdown(shutdownCtx); err != nil {
 				a.logger.Warn("graceful HTTP shutdown failed", "err", err)
+				stopErr = err
 			}
 		}
 		// HTTP is fully drained; no new /-/reload requests can arrive.
 		// Terminate the reload router and wait for it to exit before
 		// running cleanups (Coordinator is among them).
-		if a.started {
+		if a.started.Load() {
 			close(a.routerQuit)
 			<-a.routerDone
 		}
@@ -215,7 +228,7 @@ func (a *App) Stop(ctx context.Context) error {
 		// be non-nil here) but only closed by Start's serve goroutine —
 		// without this guard, Stop would deadlock when called from New's
 		// rollback path on setup failure.
-		if a.started && a.srvc != nil {
+		if a.started.Load() && a.srvc != nil {
 			for range a.srvc {
 				// no-op
 			}
@@ -227,7 +240,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.cleanups[i]()
 		}
 	})
-	return nil
+	return stopErr
 }
 
 // onStop registers fn to run when Stop is called. Cleanups run LIFO.
@@ -255,30 +268,4 @@ func (a *App) serveLoop(ctx context.Context) error {
 			return fmt.Errorf("alertmanager: HTTP listener failed: %w", err)
 		}
 	}
-}
-
-// listenAll binds TCP listeners for every address in
-// flags.WebListenAddresses. Embedders that need systemd socket
-// activation or non-TCP listeners (vsock, etc.) should drive
-// Alertmanager via cmd/alertmanager instead.
-func listenAll(flags *web.FlagConfig) ([]net.Listener, error) {
-	if flags.WebSystemdSocket != nil && *flags.WebSystemdSocket {
-		return nil, errors.New("alertmanager/app: systemd socket activation is not supported when embedding; use cmd/alertmanager directly")
-	}
-	if flags.WebListenAddresses == nil || len(*flags.WebListenAddresses) == 0 {
-		return nil, web.ErrNoListeners
-	}
-	addrs := *flags.WebListenAddresses
-	listeners := make([]net.Listener, 0, len(addrs))
-	for _, addr := range addrs {
-		l, err := net.Listen("tcp", addr)
-		if err != nil {
-			for _, prev := range listeners {
-				_ = prev.Close()
-			}
-			return nil, fmt.Errorf("alertmanager/app: listen %q: %w", addr, err)
-		}
-		listeners = append(listeners, l)
-	}
-	return listeners, nil
 }

@@ -65,11 +65,10 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_ = a.Stop(stopCtx)
-	}()
+	// Stop applies its own shutdownTimeout, so a background context is
+	// sufficient here; passing a competing deadline would only confuse
+	// which timeout actually governs the drain.
+	defer func() { _ = a.Stop(context.Background()) }()
 	if err := a.Start(); err != nil {
 		return err
 	}
@@ -197,6 +196,18 @@ func (a *App) setup() error {
 		notificationLog.Maintenance(opts.MaintenanceInterval, filepath.Join(opts.DataDir, "nflog"), stopc, nil)
 	})
 
+	// Register the maintenance teardown as soon as the first maintenance
+	// goroutine is running. Registering it later (e.g., after silence
+	// setup) would leak the already-started goroutine(s) if an
+	// intervening setup step returns an error before the cleanup is
+	// recorded. close(stopc) stops every maintenance goroutine and
+	// wg.Wait blocks until they have all exited; both the nflog and
+	// (subsequently started) silence maintenance goroutines are covered.
+	a.onStop(func() {
+		close(stopc)
+		wg.Wait()
+	})
+
 	groupMarker := marker.NewGroupMarker()
 
 	silenceOpts := silence.Options{
@@ -223,11 +234,6 @@ func (a *App) setup() error {
 	// Start providers before the router potentially sends updates.
 	wg.Go(func() {
 		silences.Maintenance(opts.MaintenanceInterval, filepath.Join(opts.DataDir, "silences"), stopc, nil)
-	})
-
-	a.onStop(func() {
-		close(stopc)
-		wg.Wait()
 	})
 
 	silencer := silence.NewSilencer(silences, logger, eventRec)
@@ -298,11 +304,32 @@ func (a *App) setup() error {
 		return fmt.Errorf("failed to create API: %w", err)
 	}
 
-	amURL, err := extURL(logger, os.Hostname, (*opts.WebConfig.WebListenAddresses)[0], opts.ExternalURL)
+	// Bind listeners up front so that Addr/Addrs report concrete bound
+	// addresses before Start runs and kernel-assigned ":0" ports can be
+	// discovered by callers. Doing this here (rather than at the end of
+	// setup) also lets us derive the external URL from the real bound
+	// address instead of the requested one, which would otherwise carry a
+	// ":0" port for callers that bind ephemeral ports.
+	listeners, err := listenAll(opts.WebConfig)
+	if err != nil {
+		return err
+	}
+	a.listeners = listeners
+	// Close listeners if setup fails after this point. On a successful
+	// run server.Shutdown closes them first, so this is then a harmless
+	// no-op (Close on an already-closed listener just returns an error we
+	// ignore).
+	a.onStop(func() {
+		for _, l := range a.listeners {
+			_ = l.Close()
+		}
+	})
+
+	amURL, err := extURL(logger, os.Hostname, listeners[0].Addr().String(), opts.ExternalURL)
 	if err != nil {
 		return fmt.Errorf("failed to determine external URL: %w", err)
 	}
-	logger.Debug("external url", "externalUrl", amURL.String())
+	logger.Debug("app setup", "external_url", amURL.String())
 
 	waitFunc := func() time.Duration { return 0 }
 	if peer != nil {
@@ -316,13 +343,20 @@ func (a *App) setup() error {
 	}
 
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
-	a.tracing = tracingManager
+	a.tracingMgr = tracingManager
 	a.onStop(tracingManager.Stop)
 
-	var (
-		inhibitor atomic.Pointer[inhibit.Inhibitor]
-		tmpl      *template.Template
-	)
+	var inhibitor atomic.Pointer[inhibit.Inhibitor]
+
+	// Stop the current inhibitor at shutdown. The reload callback swaps
+	// in a fresh inhibitor on every config apply (stopping the previous
+	// one), so without this the most recently installed inhibitor's
+	// goroutine would leak when the App is stopped.
+	a.onStop(func() {
+		if i := inhibitor.Load(); i != nil {
+			i.Stop()
+		}
+	})
 
 	dispMetrics := dispatch.NewDispatcherMetrics(false, reg, ff)
 	pipelineBuilder := notify.NewPipelineBuilder(reg, ff, eventRec)
@@ -332,7 +366,7 @@ func (a *App) setup() error {
 		reg,
 		configLogger,
 	)
-	a.coord = configCoordinator
+	a.coordinator = configCoordinator
 
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		// Reload event recorder outputs first so events emitted during
@@ -340,7 +374,7 @@ func (a *App) setup() error {
 		// dispatcher) go to the new outputs.
 		eventRec.ApplyConfig(conf.EventRecorder)
 
-		tmpl, err = template.FromGlobs(conf.Templates)
+		tmpl, err := template.FromGlobs(conf.Templates)
 		if err != nil {
 			return fmt.Errorf("failed to parse templates: %w", err)
 		}
@@ -468,8 +502,6 @@ func (a *App) setup() error {
 			return fmt.Errorf("failed to apply tracing config: %w", err)
 		}
 
-		go tracingManager.Run()
-
 		return nil
 	})
 
@@ -477,13 +509,20 @@ func (a *App) setup() error {
 		return fmt.Errorf("failed to apply initial configuration: %w", err)
 	}
 
+	// Run the tracing manager exactly once. Manager.Run blocks until the
+	// manager is stopped and only (re)installs the global propagator and
+	// error handler; ApplyConfig (invoked on every reload above) already
+	// swaps the tracer provider in place. Starting it per-reload would
+	// leak a goroutine on each reload.
+	go tracingManager.Run()
+
 	// Default routePrefix to externalURL path if empty.
 	routePrefix := opts.RoutePrefix
 	if routePrefix == "" {
 		routePrefix = amURL.Path
 	}
 	routePrefix = "/" + strings.Trim(routePrefix, "/")
-	logger.Debug("route prefix", "routePrefix", routePrefix)
+	logger.Debug("app setup", "route_prefix", routePrefix)
 
 	router := route.New().WithInstrumentation(m.instrumentHandler)
 	if routePrefix != "/" {
@@ -499,18 +538,10 @@ func (a *App) setup() error {
 
 	mux := apih.Register(router, routePrefix)
 
-	a.srv = &http.Server{
+	a.server = &http.Server{
 		// Instrument all handlers with tracing.
 		Handler: tracing.Middleware(mux),
 	}
-
-	// Bind listeners now so Addr is meaningful before Start runs and
-	// ":0" ports can be discovered by callers.
-	listeners, err := listenAll(opts.WebConfig)
-	if err != nil {
-		return err
-	}
-	a.listeners = listeners
 
 	return nil
 }

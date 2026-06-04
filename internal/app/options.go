@@ -100,5 +100,13 @@ func (o *Options) validate() error {
 	if o.WebConfig == nil || o.WebConfig.WebListenAddresses == nil || len(*o.WebConfig.WebListenAddresses) == 0 {
 		return errors.New("alertmanager/app: Options.WebConfig must contain at least one listen address")
 	}
+	// exporter-toolkit/web dereferences WebConfigFile unconditionally when
+	// serving. The cmd/alertmanager binary always populates it via kingpin,
+	// but a programmatic embedder might not, which would otherwise surface
+	// as a nil-pointer panic deep inside the toolkit rather than a clear
+	// validation error here.
+	if o.WebConfig.WebConfigFile == nil {
+		return errors.New("alertmanager/app: Options.WebConfig.WebConfigFile must be set (use a pointer to an empty string to disable web TLS/auth config)")
+	}
 	return nil
 }
