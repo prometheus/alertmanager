@@ -85,14 +85,17 @@ func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
 }
 
+// WithActiveTimeIntervals populates a context with a slice of active time names.
 func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 	return context.WithValue(ctx, keyActiveTimeIntervals, at)
 }
 
+// WithRouteID populates a context with the route ID.
 func WithRouteID(ctx context.Context, routeID string) context.Context {
 	return context.WithValue(ctx, keyRouteID, routeID)
 }
 
+// WithNotificationReason populates a context with a NotifyReason.
 func WithNotificationReason(ctx context.Context, reason NotifyReason) context.Context {
 	return context.WithValue(ctx, keyNotificationReason, reason)
 }
@@ -167,6 +170,7 @@ func RouteID(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
+// NotificationReason extracts a NotifyReason from the context.
 func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	v, ok := ctx.Value(keyNotificationReason).(NotifyReason)
 	return v, ok
@@ -216,10 +220,13 @@ func GroupMatchers(ctx context.Context) (labels.Matchers, bool) {
 	return v, ok
 }
 
+// WithNflogStore populates a context with a reference to an nflog.Store.
 func WithNflogStore(ctx context.Context, store *nflog.Store) context.Context {
 	return context.WithValue(ctx, keyNflogStore, store)
 }
 
+// NflogStore extracts the nflog.Store from the context. The returned
+// NflogStore is a pointer to a mutable store which remains in the context.
 func NflogStore(ctx context.Context) (*nflog.Store, bool) {
 	v, ok := ctx.Value(keyNflogStore).(*nflog.Store)
 	return v, ok
