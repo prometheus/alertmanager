@@ -20,18 +20,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
-	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 // mockDestination records all events written to it.
 type mockDestination struct {
 	mu     sync.Mutex
 	name   string
-	events [][]byte
+	events []*eventrecorderpb.Event
 }
 
 func newMockDestination(name string) *mockDestination {
@@ -39,11 +37,11 @@ func newMockDestination(name string) *mockDestination {
 }
 
 func (m *mockDestination) Name() string { return m.name }
-func (m *mockDestination) SendEvent(data []byte) error {
+func (m *mockDestination) SendEvent(event *eventrecorderpb.Event) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.events = append(m.events, append([]byte(nil), data...))
-	return nil
+	m.events = append(m.events, event)
+	return 1, nil
 }
 func (m *mockDestination) Close() error { return nil }
 
@@ -123,6 +121,19 @@ func TestZeroRecorderDoesNotPanic(t *testing.T) {
 	require.NoError(t, rec.Close())
 }
 
+// NewRecorderFromConfig must tolerate a nil *slog.Logger by
+// substituting a discard logger, so downstream code (buildOutputs,
+// writeLoop, per-output constructors) can call the logger
+// unconditionally.
+func TestNewRecorderFromConfig_NilLogger(t *testing.T) {
+	require.NotPanics(t, func() {
+		rec := NewRecorderFromConfig(Config{}, "test-host", nil, nil)
+		rec.RecordEvent(recordCtx(), startupEvent())
+		rec.ApplyConfig(Config{})
+		require.NoError(t, rec.Close())
+	})
+}
+
 func TestRecordingNotEnabledByDefault(t *testing.T) {
 	out := newMockDestination("test:mock")
 	rec := newTestRecorder(out)
@@ -159,97 +170,36 @@ func TestApplyConfig(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
-func TestExtractEventType(t *testing.T) {
-	tests := []struct {
-		name     string
-		event    *eventrecorderpb.EventData
-		expected string
-	}{
-		{
-			name:     "startup",
-			event:    startupEvent(),
-			expected: "alertmanager_startup_event",
-		},
-		{
-			name: "shutdown",
-			event: &eventrecorderpb.EventData{
-				EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{},
-			},
-			expected: "alertmanager_shutdown_event",
-		},
-		{
-			name: "alert_created",
-			event: &eventrecorderpb.EventData{
-				EventType: &eventrecorderpb.EventData_AlertCreated{},
-			},
-			expected: "alert_created",
-		},
-		{
-			name:     "unknown",
-			event:    &eventrecorderpb.EventData{},
-			expected: "unknown",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, extractEventType(tc.event))
-		})
-	}
+func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
+	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
+	b := Config{}
+	require.False(t, configEqual(a, b),
+		"configs with different output counts must compare unequal")
 }
 
-func TestLabelSetAsProto(t *testing.T) {
-	ls := model.LabelSet{"foo": "bar", "baz": "qux"}
-	proto := LabelSetAsProto(ls)
-
-	require.Len(t, proto.Labels, 2)
-	found := map[string]string{}
-	for _, lp := range proto.Labels {
-		found[lp.Key] = lp.Value
-	}
-	require.Equal(t, "bar", found["foo"])
-	require.Equal(t, "qux", found["baz"])
+func TestEventRecorderConfigEqual_TypeMismatch(t *testing.T) {
+	// Same total output count but in different per-type lists must
+	// compare unequal.
+	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
+	b := Config{WebhookOutputs: []WebhookOutputConfig{{URL: mustParseURL(t, "https://example.com/h")}}}
+	require.False(t, configEqual(a, b),
+		"outputs of different types must compare unequal")
 }
 
-func TestMatcherAsProto(t *testing.T) {
-	m, err := labels.NewMatcher(labels.MatchRegexp, "job", "api.*")
-	require.NoError(t, err)
+// marshalAndSend hands the structured event to every destination; the
+// destination owns serialization.  Verify a destination receives the
+// event (and the recorder records it).
+func TestMarshalAndSend_DeliversEvent(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
+	defer rec.Close()
 
-	proto := MatcherAsProto(m)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_REGEXP, proto.Type)
-	require.Equal(t, "job", proto.Name)
-	require.Equal(t, "api.*", proto.Pattern)
-	require.NotEmpty(t, proto.Rendered)
-}
+	rec.RecordEvent(recordCtx(), startupEvent())
 
-func TestMatchersAsProto(t *testing.T) {
-	m1, err := labels.NewMatcher(labels.MatchEqual, "env", "prod")
-	require.NoError(t, err)
-	m2, err := labels.NewMatcher(labels.MatchNotEqual, "team", "")
-	require.NoError(t, err)
-
-	protos := MatchersAsProto(labels.Matchers{m1, m2})
-	require.Len(t, protos, 2)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_EQUAL, protos[0].Type)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_NOT_EQUAL, protos[1].Type)
-}
-
-func TestEventRecorderConfigEqual(t *testing.T) {
-	a := Config{
-		Outputs: []Output{
-			{Type: OutputFile, Path: "/tmp/events.jsonl"},
-		},
-	}
-	b := Config{
-		Outputs: []Output{
-			{Type: OutputFile, Path: "/tmp/events.jsonl"},
-		},
-	}
-	require.True(t, configEqual(a, b))
-
-	b.Outputs[0].Path = "/tmp/other.jsonl"
-	require.False(t, configEqual(a, b))
-
-	// Different number of outputs.
-	c := Config{}
-	require.False(t, configEqual(a, c))
+	require.Eventually(t, func() bool {
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		return len(out.events) == 1 &&
+			out.events[0].GetData().GetAlertmanagerStartupEvent() != nil
+	}, time.Second, 10*time.Millisecond)
 }

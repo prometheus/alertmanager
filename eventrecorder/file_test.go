@@ -17,10 +17,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestFileOutput_SendEvent(t *testing.T) {
@@ -33,12 +35,22 @@ func TestFileOutput_SendEvent(t *testing.T) {
 
 	require.Equal(t, "file:"+path, fo.Name())
 
-	require.NoError(t, fo.SendEvent([]byte("{\"a\":1}\n")))
-	require.NoError(t, fo.SendEvent([]byte("{\"b\":2}\n")))
+	n1, err := fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
+	require.Positive(t, n1)
+	n2, err := fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
+	require.Positive(t, n2)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "{\"a\":1}\n{\"b\":2}\n", string(data))
+	// Two JSONL records, each a newline-terminated JSON object.
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	require.Len(t, lines, 2)
+	for _, line := range lines {
+		require.True(t, strings.HasPrefix(line, "{"))
+		require.Contains(t, line, "alertmanagerStartupEvent")
+	}
 }
 
 func TestFileOutput_ReopenAfterRename(t *testing.T) {
@@ -49,7 +61,8 @@ func TestFileOutput_ReopenAfterRename(t *testing.T) {
 	require.NoError(t, err)
 	defer fo.Close()
 
-	require.NoError(t, fo.SendEvent([]byte("before\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 
 	// Simulate logrotate: rename the file away.
 	rotated := filepath.Join(dir, "events.jsonl.1")
@@ -62,16 +75,18 @@ func TestFileOutput_ReopenAfterRename(t *testing.T) {
 		return err == nil
 	}, 5*time.Second, 50*time.Millisecond)
 
-	require.NoError(t, fo.SendEvent([]byte("after\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 
+	// The freshly reopened file holds exactly one record.
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "after\n", string(data))
+	require.Len(t, strings.Split(strings.TrimRight(string(data), "\n"), "\n"), 1)
 
-	// The rotated file should have the original content.
+	// The rotated file holds the record written before rotation.
 	data, err = os.ReadFile(rotated)
 	require.NoError(t, err)
-	require.Equal(t, "before\n", string(data))
+	require.Len(t, strings.Split(strings.TrimRight(string(data), "\n"), "\n"), 1)
 }
 
 func TestFileOutput_ReopenAfterRemove(t *testing.T) {
@@ -82,7 +97,8 @@ func TestFileOutput_ReopenAfterRemove(t *testing.T) {
 	require.NoError(t, err)
 	defer fo.Close()
 
-	require.NoError(t, fo.SendEvent([]byte("first\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 	require.NoError(t, os.Remove(path))
 
 	// Wait for the fsnotify watcher to detect the removal and reopen
@@ -92,11 +108,12 @@ func TestFileOutput_ReopenAfterRemove(t *testing.T) {
 		return err == nil
 	}, 5*time.Second, 50*time.Millisecond)
 
-	require.NoError(t, fo.SendEvent([]byte("second\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.Equal(t, "second\n", string(data))
+	require.Len(t, strings.Split(strings.TrimRight(string(data), "\n"), "\n"), 1)
 }
 
 func TestFileOutput_Close(t *testing.T) {
@@ -106,14 +123,63 @@ func TestFileOutput_Close(t *testing.T) {
 	fo, err := NewFileOutput(path, slog.Default())
 	require.NoError(t, err)
 
-	require.NoError(t, fo.SendEvent([]byte("data\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 	require.NoError(t, fo.Close())
 
 	// Writing after close should fail.
-	require.Error(t, fo.SendEvent([]byte("more\n")))
+	_, err = fo.SendEvent(sampleEvent())
+	require.Error(t, err)
 }
 
 func TestFileOutput_InvalidPath(t *testing.T) {
 	_, err := NewFileOutput("/nonexistent/dir/events.jsonl", slog.Default())
 	require.Error(t, err)
+}
+
+// --- config tests.
+
+func TestFileOutputConfig_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		check   func(t *testing.T, c FileOutputConfig)
+	}{
+		{
+			name: "valid",
+			yaml: "path: /tmp/events.jsonl\n",
+			check: func(t *testing.T, c FileOutputConfig) {
+				require.Equal(t, "/tmp/events.jsonl", c.Path)
+			},
+		},
+		{
+			name:    "missing path",
+			yaml:    "{}\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var c FileOutputConfig
+			err := yaml.Unmarshal([]byte(tc.yaml), &c)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.check != nil {
+				tc.check(t, c)
+			}
+		})
+	}
+}
+
+func TestEventRecorderConfigEqual_File(t *testing.T) {
+	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/events.jsonl"}}}
+	b := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/events.jsonl"}}}
+	require.True(t, configEqual(a, b))
+
+	b.FileOutputs[0].Path = "/tmp/other.jsonl"
+	require.False(t, configEqual(a, b))
 }
