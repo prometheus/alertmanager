@@ -224,10 +224,6 @@ func run() int {
 		}
 	}
 
-	if ff.EnableAutoGOMAXPROCS() {
-		logger.Warn("automaxprocs", "msg", "This flag is deprecated and will be removed in the next release")
-	}
-
 	err = os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
 		logger.Error("Unable to create data directory", "err", err)

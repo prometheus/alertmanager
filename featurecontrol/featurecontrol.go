@@ -27,7 +27,6 @@ const (
 	FeatureClassicMode           = "classic-mode"
 	FeatureUTF8StrictMode        = "utf8-strict-mode"
 	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
-	FeatureAutoGOMAXPROCS        = "auto-gomaxprocs"
 	FeatureEventRecorder         = "event-recorder"
 )
 
@@ -38,7 +37,6 @@ var AllowedFlags = []string{
 	FeatureClassicMode,
 	FeatureUTF8StrictMode,
 	FeatureAutoGOMEMLIMIT,
-	FeatureAutoGOMAXPROCS,
 	FeatureEventRecorder,
 }
 
@@ -49,7 +47,6 @@ type Flagger interface {
 	ClassicMode() bool
 	UTF8StrictMode() bool
 	EnableAutoGOMEMLIMIT() bool
-	EnableAutoGOMAXPROCS() bool
 	EnableEventRecorder() bool
 }
 
@@ -61,7 +58,6 @@ type Flags struct {
 	classicMode                  bool
 	utf8StrictMode               bool
 	enableAutoGOMEMLIMIT         bool
-	enableAutoGOMAXPROCS         bool
 	enableEventRecorder          bool
 }
 
@@ -87,10 +83,6 @@ func (f *Flags) UTF8StrictMode() bool {
 
 func (f *Flags) EnableAutoGOMEMLIMIT() bool {
 	return f.enableAutoGOMEMLIMIT
-}
-
-func (f *Flags) EnableAutoGOMAXPROCS() bool {
-	return f.enableAutoGOMAXPROCS
 }
 
 func (f *Flags) EnableEventRecorder() bool {
@@ -126,12 +118,6 @@ func enableUTF8StrictMode() flagOption {
 func enableAutoGOMEMLIMIT() flagOption {
 	return func(configs *Flags) {
 		configs.enableAutoGOMEMLIMIT = true
-	}
-}
-
-func enableAutoGOMAXPROCS() flagOption {
-	return func(configs *Flags) {
-		configs.enableAutoGOMAXPROCS = true
 	}
 }
 
@@ -175,9 +161,6 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureAutoGOMEMLIMIT:
 			opts = append(opts, enableAutoGOMEMLIMIT())
 			logger.Warn("Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
-		case FeatureAutoGOMAXPROCS:
-			opts = append(opts, enableAutoGOMAXPROCS())
-			logger.Error("Deprecated: auto-gomaxprocs will be removed in v0.33. Removing this flag does not affect behavior, as Go 1.25+ natively handles container CPU quotas.")
 		case FeatureEventRecorder:
 			opts = append(opts, enableEventRecorder())
 			logger.Warn("Experimental event recorder enabled")
@@ -210,7 +193,5 @@ func (n NoopFlags) ClassicMode() bool { return false }
 func (n NoopFlags) UTF8StrictMode() bool { return false }
 
 func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
-
-func (n NoopFlags) EnableAutoGOMAXPROCS() bool { return false }
 
 func (n NoopFlags) EnableEventRecorder() bool { return false }
