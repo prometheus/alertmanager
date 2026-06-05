@@ -4,7 +4,7 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
-## 0.32.2 / 2026-05-25
+## 0.32.2 / 2026-06-05
 
 * [BUGFIX] Fix dispatcher goroutine leaks on destroyed alertgroup swap. #5241
 
