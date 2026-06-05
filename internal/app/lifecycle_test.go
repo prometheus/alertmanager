@@ -174,6 +174,35 @@ func TestApp_serveLoop(t *testing.T) {
 	})
 }
 
+func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
+	// A closed Options.Reload channel must not spin reloadRouter into a
+	// hot loop (which would call coordinator.Reload on every iteration —
+	// here a nil coordinator, so a regression would panic rather than
+	// exit cleanly).
+	reloadCh := make(chan struct{})
+	close(reloadCh)
+
+	a := &App{
+		logger:     promslog.NewNopLogger(),
+		opts:       Options{Reload: reloadCh},
+		routerQuit: make(chan struct{}),
+		routerDone: make(chan struct{}),
+		webReload:  make(chan chan error),
+	}
+
+	go a.reloadRouter()
+	// Give the router a moment; if the closed channel were mishandled it
+	// would busy-loop and dereference the nil coordinator.
+	time.Sleep(20 * time.Millisecond)
+	close(a.routerQuit)
+
+	select {
+	case <-a.routerDone:
+	case <-time.After(time.Second):
+		t.Fatal("reloadRouter did not exit after routerQuit closed")
+	}
+}
+
 func TestApp_ConcurrentStartStop(t *testing.T) {
 	// Regression: Start publishes its lifecycle state and Stop consumes
 	// it; if they race, Stop must never close/receive on a nil channel.

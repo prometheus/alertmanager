@@ -162,11 +162,20 @@ func (a *App) Start() error {
 // send/receive cycle through this goroutine.
 func (a *App) reloadRouter() {
 	defer close(a.routerDone)
+	// Copy the channel so we can disable this case if an embedder closes
+	// it: a receive on a closed channel is always ready and would spin
+	// reloadRouter into a hot loop. A nil channel blocks forever, which
+	// is exactly what we want once Reload is closed.
+	reloadCh := a.opts.Reload
 	for {
 		select {
 		case <-a.routerQuit:
 			return
-		case <-a.opts.Reload:
+		case _, ok := <-reloadCh:
+			if !ok {
+				reloadCh = nil
+				continue
+			}
 			if err := a.coordinator.Reload(); err != nil {
 				a.logger.Error("configuration reload failed", "err", err)
 			}
