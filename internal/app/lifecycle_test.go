@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,15 +91,12 @@ func testOptions(t *testing.T) Options {
 	}
 }
 
-func TestApp_StartStop(t *testing.T) {
-	a, err := New(testOptions(t))
-	require.NoError(t, err)
-	require.NoError(t, a.Start())
-
-	addr := a.Addr()
-	require.NotEmpty(t, addr, "Addr should be populated after Start")
-
-	// Probe /-/healthy with a short retry loop to absorb listener warmup.
+// waitHealthy blocks until the instance at addr serves /-/healthy with a
+// 200, absorbing the brief window between Start returning and the serve
+// goroutine accepting connections. It fails the test if the instance
+// never becomes healthy.
+func waitHealthy(t *testing.T, addr string) {
+	t.Helper()
 	url := "http://" + addr + "/-/healthy"
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(url)
@@ -109,11 +107,48 @@ func TestApp_StartStop(t *testing.T) {
 		_ = resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
 	}, 5*time.Second, 50*time.Millisecond, "instance never became healthy")
+}
+
+func TestApp_StartStop(t *testing.T) {
+	a, err := New(testOptions(t))
+	require.NoError(t, err)
+	require.NoError(t, a.Start())
+
+	addr := a.Addr()
+	require.NotEmpty(t, addr, "Addr should be populated after Start")
+
+	waitHealthy(t, addr)
 
 	require.NoError(t, a.Stop(t.Context()))
 
 	// Stop is idempotent.
 	require.NoError(t, a.Stop(t.Context()))
+}
+
+func TestApp_ConcurrentStartStop(t *testing.T) {
+	// Regression: Start publishes its lifecycle state and Stop consumes
+	// it; if they race, Stop must never close/receive on a nil channel.
+	// Run several iterations under -race to shake out the interleavings.
+	for i := range 20 {
+		a, err := New(testOptions(t))
+		require.NoError(t, err, "iteration %d", i)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_ = a.Start()
+		}()
+		go func() {
+			defer wg.Done()
+			_ = a.Stop(t.Context())
+		}()
+		wg.Wait()
+
+		// Whatever the interleaving, a final Stop must complete cleanly
+		// and leave no lingering goroutines blocked on the router.
+		require.NoError(t, a.Stop(t.Context()), "iteration %d", i)
+	}
 }
 
 func TestApp_TwoSequentialInstances(t *testing.T) {
@@ -195,6 +230,10 @@ func TestApp_EmbeddedReloadDoesNotDeadlock(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, a.Start())
 	defer func() { _ = a.Stop(t.Context()) }()
+
+	// Wait until the listener is actually serving so a premature POST
+	// can't fail with connection refused and masquerade as a deadlock.
+	waitHealthy(t, a.Addr())
 
 	type reloadResult struct {
 		err    error

@@ -71,16 +71,22 @@ type App struct {
 	startedOnce sync.Once
 	startErr    error
 	// started records whether the serve goroutine in Start was actually
-	// launched. Stop uses this to decide whether draining a.srvc is
-	// meaningful — if Start never ran, nothing will ever close srvc and
-	// the drain would deadlock (e.g., during setup-failure rollback).
-	// It is atomic because Start and Stop may, in principle, run on
-	// different goroutines.
+	// launched. Stop uses this to decide whether draining a.srvc and
+	// tearing down the reload router is meaningful — if Start never ran,
+	// nothing will ever close srvc and the drain would deadlock (e.g.,
+	// during setup-failure rollback).
+	//
+	// It is published with Store(true) only *after* routerQuit/routerDone
+	// have been allocated (see Start). Because an atomic Load that
+	// observes that Store also observes everything sequenced before it,
+	// any Stop that sees started==true is guaranteed to see non-nil
+	// channels — so it can never close/receive on a nil channel.
 	started atomic.Bool
 
 	// routerQuit signals the reload-routing goroutine (started by Start)
 	// to exit; routerDone is closed by that goroutine on exit. Both are
-	// allocated in Start and only used when a.started is true.
+	// allocated in Start before started is set and only read when
+	// started.Load() is true.
 	routerQuit chan struct{}
 	routerDone chan struct{}
 
@@ -113,7 +119,13 @@ func (a *App) Start() error {
 			a.startErr = errors.New("alertmanager/app: App.Start called before successful New")
 			return
 		}
-		a.started.Store(true)
+
+		// Allocate the router channels before publishing started. The
+		// Store(true) below is the release that makes these writes
+		// visible: a concurrent Stop that observes started==true via
+		// Load is therefore guaranteed to see non-nil channels and can
+		// never close/receive on nil. (If Stop instead observes
+		// started==false it leaves the router untouched entirely.)
 		a.routerQuit = make(chan struct{})
 		a.routerDone = make(chan struct{})
 
@@ -133,6 +145,10 @@ func (a *App) Start() error {
 			}
 			close(a.srvc)
 		}()
+
+		// Publish last: everything above happens-before this Store and is
+		// thus visible to any Stop whose Load observes it.
+		a.started.Store(true)
 	})
 	return a.startErr
 }
@@ -198,6 +214,12 @@ func (a *App) Reload(_ context.Context) error {
 func (a *App) Stop(ctx context.Context) error {
 	var stopErr error
 	a.stoppedOnce.Do(func() {
+		// Snapshot the started flag once. The atomic Load pairs with the
+		// Store at the end of Start: if it returns true, the
+		// routerQuit/routerDone writes that were sequenced before that
+		// Store are guaranteed visible here, so the channels are non-nil.
+		started := a.started.Load()
+
 		// Stop accepting new HTTP traffic first so in-flight handlers
 		// don't observe collaborators being torn down underneath them.
 		// shutdownTimeout is derived from ctx so callers can request a
@@ -215,7 +237,7 @@ func (a *App) Stop(ctx context.Context) error {
 		// HTTP is fully drained; no new /-/reload requests can arrive.
 		// Terminate the reload router and wait for it to exit before
 		// running cleanups (Coordinator is among them).
-		if a.started.Load() {
+		if started {
 			close(a.routerQuit)
 			<-a.routerDone
 		}
@@ -228,7 +250,7 @@ func (a *App) Stop(ctx context.Context) error {
 		// be non-nil here) but only closed by Start's serve goroutine —
 		// without this guard, Stop would deadlock when called from New's
 		// rollback path on setup failure.
-		if a.started.Load() && a.srvc != nil {
+		if started && a.srvc != nil {
 			for range a.srvc {
 				// no-op
 			}
