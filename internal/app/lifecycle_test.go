@@ -15,6 +15,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -125,6 +126,54 @@ func TestApp_StartStop(t *testing.T) {
 	require.NoError(t, a.Stop(t.Context()))
 }
 
+func TestApp_ClusteredStartStop(t *testing.T) {
+	// Bring up an instance with gossip clustering enabled so the
+	// peer-dependent branches in setup (AddState/Join/Settle/
+	// SetClusterPeer/clusterWait), the reloader's cluster-peer pipeline
+	// wiring, and peer.Leave on shutdown are all exercised.
+	opts := testOptions(t)
+	opts.ClusterBindAddr = "127.0.0.1:0"
+
+	a, err := New(opts)
+	require.NoError(t, err)
+	require.NoError(t, a.Start())
+
+	waitHealthy(t, a.Addr())
+
+	require.NoError(t, a.Stop(t.Context()))
+}
+
+func TestApp_Start_BeforeNewFails(t *testing.T) {
+	// Start on a zero-value App (no successful New) must error rather
+	// than launch goroutines against a nil server/listeners.
+	var a App
+	require.Error(t, a.Start())
+}
+
+func TestApp_serveLoop(t *testing.T) {
+	logger := promslog.NewNopLogger()
+
+	t.Run("listener error is surfaced", func(t *testing.T) {
+		a := &App{logger: logger, srvc: make(chan error, 1)}
+		a.srvc <- errors.New("boom")
+		err := a.serveLoop(context.Background())
+		require.ErrorContains(t, err, "boom")
+	})
+
+	t.Run("clean serve goroutine exit", func(t *testing.T) {
+		a := &App{logger: logger, srvc: make(chan error, 1)}
+		close(a.srvc) // serve goroutine exited without an error
+		require.NoError(t, a.serveLoop(context.Background()))
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		a := &App{logger: logger, srvc: make(chan error, 1)}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		require.NoError(t, a.serveLoop(ctx))
+	})
+}
+
 func TestApp_ConcurrentStartStop(t *testing.T) {
 	// Regression: Start publishes its lifecycle state and Stop consumes
 	// it; if they race, Stop must never close/receive on a nil channel.
@@ -219,6 +268,32 @@ func TestApp_Reload_BeforeNewFails(t *testing.T) {
 	// an error rather than panicking on the nil coordinator.
 	var a App
 	require.Error(t, a.Reload(context.Background()))
+}
+
+func TestApp_Stop_AggregatesCleanupErrors(t *testing.T) {
+	// Stop should run every teardown step even when some fail, and return
+	// their errors joined together (named by step).
+	a := &App{logger: promslog.NewNopLogger()}
+	var order []string
+	a.onStop("first", func() error {
+		order = append(order, "first")
+		return errors.New("boom-first")
+	})
+	a.onStop("second", func() error {
+		order = append(order, "second")
+		return nil
+	})
+	a.onStop("third", func() error {
+		order = append(order, "third")
+		return errors.New("boom-third")
+	})
+
+	err := a.Stop(context.Background())
+	require.Error(t, err)
+	// LIFO: third runs before second before first.
+	require.Equal(t, []string{"third", "second", "first"}, order)
+	require.ErrorContains(t, err, "third: boom-third")
+	require.ErrorContains(t, err, "first: boom-first")
 }
 
 func TestApp_EmbeddedReloadDoesNotDeadlock(t *testing.T) {

@@ -65,8 +65,10 @@ type App struct {
 
 	// cleanups is the LIFO teardown stack: New (via setup) registers
 	// cleanups in source order; Stop drains them in reverse so that
-	// shutdown order mirrors the original `defer` chain in Run.
-	cleanups []func()
+	// shutdown order mirrors the original `defer` chain in Run. Each
+	// entry carries a name so Stop can log which step failed and return
+	// an aggregated error.
+	cleanups []cleanup
 
 	startedOnce sync.Once
 	startErr    error
@@ -203,14 +205,23 @@ func (a *App) Reload(_ context.Context) error {
 	return a.coordinator.Reload()
 }
 
+// cleanup is a single named teardown step on the LIFO shutdown stack.
+// The name is used purely for logging so operators can see which step
+// failed during shutdown.
+type cleanup struct {
+	name string
+	stop func() error
+}
+
 // Stop gracefully shuts down the App, draining cleanups in reverse
 // registration order so that teardown ordering matches the original
 // defer chain in Run. Safe to call multiple times; safe to call before
 // Start (it will then merely roll back what setup registered).
 //
-// It returns the error (if any) from the graceful HTTP shutdown so
-// callers can observe a failed/timed-out drain; all other teardown steps
-// are best-effort and only logged.
+// It returns an aggregated error combining the graceful HTTP shutdown
+// failure (if any) with any errors returned by the teardown steps. Each
+// failing step is also logged with its name; one failing step does not
+// prevent the others from running.
 func (a *App) Stop(ctx context.Context) error {
 	var stopErr error
 	a.stoppedOnce.Do(func() {
@@ -259,15 +270,30 @@ func (a *App) Stop(ctx context.Context) error {
 		// mirroring Go's `defer` semantics so the in-place transform
 		// from `defer X` to `a.onStop(X)` in setup is order-preserving.
 		for i := len(a.cleanups) - 1; i >= 0; i-- {
-			a.cleanups[i]()
+			c := a.cleanups[i]
+			if err := c.stop(); err != nil {
+				a.logger.Warn("teardown step failed", "step", c.name, "err", err)
+				stopErr = errors.Join(stopErr, fmt.Errorf("%s: %w", c.name, err))
+			}
 		}
 	})
 	return stopErr
 }
 
-// onStop registers fn to run when Stop is called. Cleanups run LIFO.
-func (a *App) onStop(fn func()) {
-	a.cleanups = append(a.cleanups, fn)
+// onStop registers a named teardown step to run when Stop is called.
+// Cleanups run LIFO. fn should return an error only for failures worth
+// surfacing to the caller; steps that cannot fail return nil.
+func (a *App) onStop(name string, fn func() error) {
+	a.cleanups = append(a.cleanups, cleanup{name: name, stop: fn})
+}
+
+// trackClose couples a resource with its teardown: it registers c.Close
+// as a named Stop step right where the resource is acquired, so the two
+// can't drift apart (the gap that previously leaked goroutines/handles).
+// Use it for resources whose Close takes no arguments; everything else
+// uses onStop directly.
+func (a *App) trackClose(name string, c interface{ Close() error }) {
+	a.onStop(name, c.Close)
 }
 
 // serveLoop blocks until ctx is cancelled or an HTTP listener fails. It

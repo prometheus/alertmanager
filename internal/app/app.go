@@ -36,7 +36,6 @@ import (
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/config/receiver"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
@@ -47,8 +46,6 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/ui"
 )
@@ -80,14 +77,20 @@ func Run(ctx context.Context, opts Options) error {
 // so the shutdown sequence matches the implicit ordering of the original
 // defer-based Run implementation.
 //
-// The body is deliberately one long function rather than a chain of helpers.
-// Nearly every step depends on locals produced by earlier steps (peer,
-// eventRec, silences, alerts, groupMarker, silencer, notificationLog,
-// disp, inhibitor, tmpl, configCoordinator, waitFunc, timeoutFunc, ...),
-// and the configCoordinator.Subscribe callback closes over most of them.
-// Splitting setup into helpers would force us to either thread a wide
-// state struct between them or promote those locals to App fields; both
-// obscure the dataflow without simplifying anything.
+// The config-scoped subgraph (routes, receivers, pipeline, inhibitor and
+// dispatcher) — everything rebuilt on reload — lives in the reloader type
+// so its subtle swap ordering is isolated and independently testable.
+//
+// What remains here is the construction of the long-lived singletons.
+// It is deliberately one straight-line function rather than a chain of
+// helpers: nearly every step depends on locals produced by earlier ones
+// (peer, eventRec, silences, alerts, groupMarker, silencer,
+// notificationLog, waitFunc, timeoutFunc, ...), so splitting it up would
+// only force us to thread a wide state struct between helpers or promote
+// those locals to App fields, obscuring the dataflow without simplifying
+// anything. The forward dependency order is already enforced by Go's
+// variable scoping, and the matching teardown order by the LIFO onStop
+// stack drained in Stop.
 //
 //nolint:gocyclo // intentional, see comment above.
 func (a *App) setup() error {
@@ -158,7 +161,7 @@ func (a *App) setup() error {
 	if ff.EnableEventRecorder() {
 		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), reg)
 	}
-	a.onStop(func() { eventRec.Close() })
+	a.trackClose("event recorder", eventRec)
 
 	recordCtx := eventrecorder.WithEventRecording(context.Background())
 	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
@@ -169,12 +172,13 @@ func (a *App) setup() error {
 			},
 		},
 	})
-	a.onStop(func() {
+	a.onStop("shutdown event", func() error {
 		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
 			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
 				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
 			},
 		})
+		return nil
 	})
 
 	notificationLogOpts := nflog.Options{
@@ -203,9 +207,10 @@ func (a *App) setup() error {
 	// recorded. close(stopc) stops every maintenance goroutine and
 	// wg.Wait blocks until they have all exited; both the nflog and
 	// (subsequently started) silence maintenance goroutines are covered.
-	a.onStop(func() {
+	a.onStop("maintenance", func() error {
 		close(stopc)
 		wg.Wait()
+		return nil
 	})
 
 	groupMarker := marker.NewGroupMarker()
@@ -244,11 +249,12 @@ func (a *App) setup() error {
 			logger.Warn("unable to join gossip mesh", "err", err)
 		}
 		settleCtx, settleCancel := context.WithTimeout(context.Background(), opts.SettleTimeout)
-		a.onStop(func() {
+		a.onStop("cluster peer leave", func() error {
 			settleCancel()
 			if err := peer.Leave(10 * time.Second); err != nil {
-				logger.Warn("unable to leave gossip mesh", "err", err)
+				return fmt.Errorf("unable to leave gossip mesh: %w", err)
 			}
+			return nil
 		})
 		go peer.Settle(settleCtx, opts.GossipInterval*10)
 		eventRec.SetClusterPeer(peer)
@@ -267,14 +273,19 @@ func (a *App) setup() error {
 	if err != nil {
 		return fmt.Errorf("error creating memory provider: %w", err)
 	}
-	a.onStop(alerts.Close)
-
-	var disp atomic.Pointer[dispatch.Dispatcher]
-	a.onStop(func() {
-		if d := disp.Load(); d != nil {
-			d.Stop()
-		}
+	a.onStop("alerts", func() error {
+		alerts.Close()
+		return nil
 	})
+
+	// disp and inhibitor are swapped on every config reload; they are
+	// owned and torn down by the reloader (see below), but groupFn and
+	// the API mutes closure need to read the current dispatcher/inhibitor
+	// directly, so the pointers live here and are shared with it.
+	var (
+		disp      atomic.Pointer[dispatch.Dispatcher]
+		inhibitor atomic.Pointer[inhibit.Inhibitor]
+	)
 
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return disp.Load().Groups(ctx, routeFilter, alertFilter)
@@ -319,10 +330,11 @@ func (a *App) setup() error {
 	// run server.Shutdown closes them first, so this is then a harmless
 	// no-op (Close on an already-closed listener just returns an error we
 	// ignore).
-	a.onStop(func() {
+	a.onStop("listeners", func() error {
 		for _, l := range a.listeners {
 			_ = l.Close()
 		}
+		return nil
 	})
 
 	amURL, err := extURL(logger, os.Hostname, listeners[0].Addr().String(), opts.ExternalURL)
@@ -344,22 +356,11 @@ func (a *App) setup() error {
 
 	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
 	a.tracingMgr = tracingManager
-	a.onStop(tracingManager.Stop)
-
-	var inhibitor atomic.Pointer[inhibit.Inhibitor]
-
-	// Stop the current inhibitor at shutdown. The reload callback swaps
-	// in a fresh inhibitor on every config apply (stopping the previous
-	// one), so without this the most recently installed inhibitor's
-	// goroutine would leak when the App is stopped.
-	a.onStop(func() {
-		if i := inhibitor.Load(); i != nil {
-			i.Stop()
-		}
+	a.onStop("tracing", func() error {
+		tracingManager.Stop()
+		return nil
 	})
 
-	dispMetrics := dispatch.NewDispatcherMetrics(false, reg, ff)
-	pipelineBuilder := notify.NewPipelineBuilder(reg, ff, eventRec)
 	configLogger := logger.With("component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		opts.ConfigFile,
@@ -368,142 +369,38 @@ func (a *App) setup() error {
 	)
 	a.coordinator = configCoordinator
 
-	configCoordinator.Subscribe(func(conf *config.Config) error {
-		// Reload event recorder outputs first so events emitted during
-		// the rest of this callback (e.g., by stopping the old
-		// dispatcher) go to the new outputs.
-		eventRec.ApplyConfig(conf.EventRecorder)
+	// The reloader owns the config-scoped subgraph (templates, routes,
+	// receivers, pipeline, inhibitor, dispatcher). It rebuilds and swaps
+	// these on every config apply and stops the live inhibitor+dispatcher
+	// at shutdown. The long-lived singletons above are updated in place
+	// (apih.Update, eventRec/tracing ApplyConfig) rather than rebuilt.
+	r := &reloader{
+		logger:                      logger,
+		configLogger:                configLogger,
+		alerts:                      alerts,
+		silencer:                    silencer,
+		groupMarker:                 groupMarker,
+		notificationLog:             notificationLog,
+		eventRec:                    eventRec,
+		apih:                        apih,
+		tracingMgr:                  tracingManager,
+		pipelineBuilder:             notify.NewPipelineBuilder(reg, ff, eventRec),
+		dispMetrics:                 dispatch.NewDispatcherMetrics(false, reg, ff),
+		metrics:                     m,
+		peer:                        peer,
+		waitFunc:                    waitFunc,
+		timeoutFunc:                 timeoutFunc,
+		externalURL:                 amURL,
+		startTime:                   startTime,
+		dispatchStartDelay:          opts.DispatchStartDelay,
+		dispatchMaintenanceInterval: opts.DispatchMaintenanceInterval,
+		retention:                   opts.Retention,
+		disp:                        &disp,
+		inhibitor:                   &inhibitor,
+	}
+	a.onStop("dispatcher+inhibitor", r.stop)
 
-		tmpl, err := template.FromGlobs(conf.Templates)
-		if err != nil {
-			return fmt.Errorf("failed to parse templates: %w", err)
-		}
-		tmpl.ExternalURL = amURL
-
-		// Build the routing tree and record which receivers are used.
-		routes := dispatch.NewRoute(conf.Route, nil)
-		activeReceivers := make(map[string]struct{})
-		routes.Walk(func(r *dispatch.Route) {
-			activeReceivers[r.RouteOpts.Receiver] = struct{}{}
-		})
-
-		// Build the map of receiver to integrations.
-		receivers := make(map[string][]notify.Integration, len(activeReceivers))
-		var integrationsNum int
-		for _, rcv := range conf.Receivers {
-			if _, found := activeReceivers[rcv.Name]; !found {
-				// No need to build a receiver if no route is using it.
-				configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
-				continue
-			}
-			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger)
-			if err != nil {
-				return err
-			}
-			// rcv.Name is guaranteed to be unique across all receivers.
-			receivers[rcv.Name] = integrations
-			integrationsNum += len(integrations)
-		}
-
-		// Build the map of time interval names to time interval definitions.
-		timeIntervals := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals)+len(conf.TimeIntervals))
-		for _, ti := range conf.MuteTimeIntervals {
-			timeIntervals[ti.Name] = ti.TimeIntervals
-		}
-		for _, ti := range conf.TimeIntervals {
-			timeIntervals[ti.Name] = ti.TimeIntervals
-		}
-
-		intervener := timeinterval.NewIntervener(timeIntervals)
-
-		if old := inhibitor.Load(); old != nil {
-			old.Stop()
-		}
-		if old := disp.Load(); old != nil {
-			old.Stop()
-		}
-
-		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, logger, eventRec)
-		inhibitor.Store(newInhibitor)
-
-		// An interface value that holds a nil concrete value is non-nil.
-		// Therefore we explicitly pass an empty interface, to detect if the
-		// cluster is not enabled in notify.
-		var pipelinePeer notify.Peer
-		if peer != nil {
-			pipelinePeer = peer
-		}
-
-		pipeline := pipelineBuilder.New(
-			receivers,
-			waitFunc,
-			newInhibitor,
-			silencer,
-			intervener,
-			groupMarker,
-			notificationLog,
-			pipelinePeer,
-		)
-
-		m.configuredReceivers.Set(float64(len(activeReceivers)))
-		m.configuredIntegrations.Set(float64(integrationsNum))
-		m.configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
-
-		apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-			inhibitor.Load().Mutes(ctx, labels)
-			silencer.Mutes(ctx, labels)
-		})
-
-		newDisp := dispatch.NewDispatcher(
-			alerts,
-			routes,
-			pipeline,
-			groupMarker,
-			timeoutFunc,
-			opts.DispatchMaintenanceInterval,
-			nil,
-			logger,
-			eventRec,
-			dispMetrics,
-		)
-		routes.Walk(func(r *dispatch.Route) {
-			if r.RouteOpts.RepeatInterval > opts.Retention {
-				configLogger.Warn(
-					"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
-					"repeat_interval", r.RouteOpts.RepeatInterval,
-					"retention", opts.Retention,
-					"route", r.Key(),
-				)
-			}
-			if r.RouteOpts.RepeatInterval < r.RouteOpts.GroupInterval {
-				configLogger.Warn(
-					"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
-					"repeat_interval", r.RouteOpts.RepeatInterval,
-					"group_interval", r.RouteOpts.GroupInterval,
-					"route", r.Key(),
-				)
-			}
-		})
-
-		// First, start the inhibitor so the inhibition cache can populate.
-		// Wait for this to load alerts before starting the dispatcher so
-		// we don't accidentally notify for an alert that will be inhibited.
-		go newInhibitor.Run()
-		newInhibitor.WaitForLoading()
-
-		// Next, start the dispatcher and wait for it to load before swapping
-		// the disp pointer. This ensures that the API doesn't see the new
-		// dispatcher before it finishes populating the aggrGroups.
-		go newDisp.Run(startTime.Add(opts.DispatchStartDelay))
-		newDisp.WaitForLoading()
-		disp.Store(newDisp)
-
-		if err := tracingManager.ApplyConfig(conf.TracingConfig); err != nil {
-			return fmt.Errorf("failed to apply tracing config: %w", err)
-		}
-
-		return nil
-	})
+	configCoordinator.Subscribe(r.reload)
 
 	if err := configCoordinator.ApplyConfig(initialConf); err != nil {
 		return fmt.Errorf("failed to apply initial configuration: %w", err)
