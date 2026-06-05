@@ -157,7 +157,6 @@ func (r *reloader) reload(conf *config.Config) error {
 	}
 
 	newInhibitor := inhibit.NewInhibitor(r.alerts, conf.InhibitRules, r.logger, r.eventRec)
-	r.inhibitor.Store(newInhibitor)
 
 	// An interface value that holds a nil concrete value is non-nil.
 	// Therefore we explicitly pass an empty interface, to detect if the
@@ -219,10 +218,17 @@ func (r *reloader) reload(conf *config.Config) error {
 	})
 
 	// First, start the inhibitor so the inhibition cache can populate.
-	// Wait for this to load alerts before starting the dispatcher so
-	// we don't accidentally notify for an alert that will be inhibited.
+	// Wait for it to load alerts before starting the dispatcher so we
+	// don't accidentally notify for an alert that will be inhibited.
+	// Publish it only after loading completes: the API mute callback
+	// reads r.inhibitor.Load(), so swapping earlier would expose an
+	// empty inhibition cache to concurrent requests during a reload (the
+	// pipeline already holds newInhibitor directly, and no dispatcher is
+	// running to drive it yet, so the old inhibitor stays authoritative
+	// for the API until the new one is ready).
 	go newInhibitor.Run()
 	newInhibitor.WaitForLoading()
+	r.inhibitor.Store(newInhibitor)
 
 	// Next, start the dispatcher and wait for it to load before swapping
 	// the disp pointer. This ensures that the API doesn't see the new
