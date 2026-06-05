@@ -291,7 +291,7 @@ func (pb *PipelineBuilder) New(
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
-	ms := NewGossipSettleStage(peer)
+	ms := NewClusterGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
 	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
 	tms := NewTimeMuteStage(intervener, marker, pb.metrics)
@@ -324,7 +324,7 @@ func createReceiverStage(
 			Idx:         uint32(integrations[i].Index()),
 		}
 		var s MultiStage
-		s = append(s, NewWaitStage(wait))
+		s = append(s, NewClusterWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
 		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
@@ -409,54 +409,12 @@ func (fs FanoutStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert
 	return ctx, alerts, errs
 }
 
-// GossipSettleStage waits until the Gossip has settled to forward alerts.
-type GossipSettleStage struct {
-	peer Peer
-}
-
-// NewGossipSettleStage returns a new GossipSettleStage.
-func NewGossipSettleStage(p Peer) *GossipSettleStage {
-	return &GossipSettleStage{peer: p}
-}
-
-func (n *GossipSettleStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	if n.peer != nil {
-		if err := n.peer.WaitReady(ctx); err != nil {
-			return ctx, nil, err
-		}
-	}
-	return ctx, alerts, nil
-}
-
 const (
 	SuppressedReasonSilence            = "silence"
 	SuppressedReasonInhibition         = "inhibition"
 	SuppressedReasonMuteTimeInterval   = "mute_time_interval"
 	SuppressedReasonActiveTimeInterval = "active_time_interval"
 )
-
-// WaitStage waits for a certain amount of time before continuing or until the
-// context is done.
-type WaitStage struct {
-	wait func() time.Duration
-}
-
-// NewWaitStage returns a new WaitStage.
-func NewWaitStage(wait func() time.Duration) *WaitStage {
-	return &WaitStage{
-		wait: wait,
-	}
-}
-
-// Exec implements the Stage interface.
-func (ws *WaitStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	select {
-	case <-time.After(ws.wait()):
-	case <-ctx.Done():
-		return ctx, nil, ctx.Err()
-	}
-	return ctx, alerts, nil
-}
 
 func utcNow() time.Time {
 	return time.Now().UTC()
