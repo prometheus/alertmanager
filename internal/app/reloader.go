@@ -84,14 +84,13 @@ type reloader struct {
 
 // reload rebuilds the config-scoped subgraph from conf and atomically
 // swaps it in. It is registered as the config coordinator's subscriber,
-// so it runs once for the initial config and again on every reload. On
-// error the previously active inhibitor/dispatcher are left in place.
+// so it runs once for the initial config and again on every reload.
+//
+// All fallible work (template/receiver parsing, tracing config) happens
+// before any live state is touched, so a failed reload leaves the
+// previously active configuration — event recorder, inhibitor, dispatcher
+// and tracing — fully intact.
 func (r *reloader) reload(conf *config.Config) error {
-	// Reload event recorder outputs first so events emitted during the
-	// rest of this callback (e.g., by stopping the old dispatcher) go to
-	// the new outputs.
-	r.eventRec.ApplyConfig(conf.EventRecorder)
-
 	tmpl, err := template.FromGlobs(conf.Templates)
 	if err != nil {
 		return fmt.Errorf("failed to parse templates: %w", err)
@@ -133,6 +132,22 @@ func (r *reloader) reload(conf *config.Config) error {
 	}
 
 	intervener := timeinterval.NewIntervener(timeIntervals)
+
+	// Everything above is fallible but side-effect-free on the running
+	// instance. From here down the steps either cannot fail or only
+	// replace live components, so reaching this point means the reload
+	// will succeed.
+	//
+	// Apply tracing first: it is the last step that can fail, and doing
+	// it before stopping the old components keeps them running if it
+	// errors.
+	if err := r.tracingMgr.ApplyConfig(conf.TracingConfig); err != nil {
+		return fmt.Errorf("failed to apply tracing config: %w", err)
+	}
+
+	// Reload event recorder outputs before stopping the old dispatcher so
+	// events emitted while it shuts down go to the new outputs.
+	r.eventRec.ApplyConfig(conf.EventRecorder)
 
 	if old := r.inhibitor.Load(); old != nil {
 		old.Stop()
@@ -215,10 +230,6 @@ func (r *reloader) reload(conf *config.Config) error {
 	go newDisp.Run(r.startTime.Add(r.dispatchStartDelay))
 	newDisp.WaitForLoading()
 	r.disp.Store(newDisp)
-
-	if err := r.tracingMgr.ApplyConfig(conf.TracingConfig); err != nil {
-		return fmt.Errorf("failed to apply tracing config: %w", err)
-	}
 
 	return nil
 }
