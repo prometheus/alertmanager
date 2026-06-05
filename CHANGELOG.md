@@ -4,6 +4,10 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
+## 0.32.2 / 2026-05-25
+
+* [BUGFIX] Fix dispatcher goroutine leaks on destroyed alertgroup swap. #5241
+
 ## 0.32.1 / 2026-04-29
 
 * [BUGFIX] dispatcher: Fix issue with dispatching to a contended route. #5179
