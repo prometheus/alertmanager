@@ -281,8 +281,8 @@ func (a *App) Stop(ctx context.Context) error {
 }
 
 // onStop registers a named teardown step to run when Stop is called.
-// Cleanups run LIFO. fn should return an error only for failures worth
-// surfacing to the caller; steps that cannot fail return nil.
+// Cleanups run in LIFO order. Steps return an error only for failures
+// worth surfacing to the caller; those that cannot fail return nil.
 func (a *App) onStop(name string, fn func() error) {
 	a.cleanups = append(a.cleanups, cleanup{name: name, stop: fn})
 }
