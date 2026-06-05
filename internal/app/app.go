@@ -119,7 +119,13 @@ func (a *App) setup() error {
 		return fmt.Errorf("unable to initialize TLS transport configuration for gossip mesh: %w", err)
 	}
 
-	var peer *cluster.Peer
+	var (
+		peer *cluster.Peer
+		// settleCancel cancels the settle context once Settle starts; it
+		// is a no-op until then so the teardown below can be registered
+		// immediately after the peer exists.
+		settleCancel = func() {}
+	)
 	if opts.ClusterBindAddr != "" {
 		peer, err = cluster.Create(
 			logger.With("component", "cluster"),
@@ -142,6 +148,16 @@ func (a *App) setup() error {
 		if err != nil {
 			return fmt.Errorf("unable to initialize gossip mesh: %w", err)
 		}
+		// Register teardown immediately: a setup step failing between here
+		// and the Join/Settle block below would otherwise leak the peer's
+		// sockets and background goroutines.
+		a.onStop("cluster peer leave", func() error {
+			settleCancel()
+			if err := peer.Leave(10 * time.Second); err != nil {
+				return fmt.Errorf("unable to leave gossip mesh: %w", err)
+			}
+			return nil
+		})
 		m.clusterEnabled.Set(1)
 	}
 
@@ -248,14 +264,8 @@ func (a *App) setup() error {
 		if err := peer.Join(opts.ReconnectInterval, opts.PeerReconnectTimeout); err != nil {
 			logger.Warn("unable to join gossip mesh", "err", err)
 		}
-		settleCtx, settleCancel := context.WithTimeout(context.Background(), opts.SettleTimeout)
-		a.onStop("cluster peer leave", func() error {
-			settleCancel()
-			if err := peer.Leave(10 * time.Second); err != nil {
-				return fmt.Errorf("unable to leave gossip mesh: %w", err)
-			}
-			return nil
-		})
+		settleCtx, cancel := context.WithTimeout(context.Background(), opts.SettleTimeout)
+		settleCancel = cancel // observed by the teardown registered above.
 		go peer.Settle(settleCtx, opts.GossipInterval*10)
 		eventRec.SetClusterPeer(peer)
 	}
