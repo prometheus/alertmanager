@@ -31,6 +31,13 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 )
 
+const (
+	SuppressedReasonSilence            = "silence"
+	SuppressedReasonInhibition         = "inhibition"
+	SuppressedReasonMuteTimeInterval   = "mute_time_interval"
+	SuppressedReasonActiveTimeInterval = "active_time_interval"
+)
+
 // A Muter determines whether a given label set is muted. Implementers that
 // maintain an underlying AlertMarker are expected to update it during a call of
 // Mutes.
