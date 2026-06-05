@@ -102,7 +102,7 @@ func newTestReloader(t *testing.T) *reloader {
 		silencer:                    silencer,
 		groupMarker:                 groupMarker,
 		notificationLog:             nflogger,
-		eventRecorder: rec,
+		eventRecorder:               rec,
 		apih:                        apih,
 		tracingMgr:                  tracing.NewManager(logger),
 		pipelineBuilder:             notify.NewPipelineBuilder(reg, ff, rec),
