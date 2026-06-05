@@ -271,9 +271,15 @@ type Silence struct {
 	Annotations map[string]string `protobuf:"bytes,10,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Multiple matcher sets with OR logic between them.
 	// At least one matcher set must match for the silence to apply.
-	MatcherSets   []*MatcherSet `protobuf:"bytes,11,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MatcherSets []*MatcherSet `protobuf:"bytes,11,rep,name=matcher_sets,json=matcherSets,proto3" json:"matcher_sets,omitempty"`
+	// Multiple receiver matcher sets with OR logic between them.
+	// Receiver matchers apply to the labels of receivers, not alerts. At
+	// least one set of receiver matchers must match for a silence to apply
+	// to alerts that are sent to that receiver. Unlike alert label matcher,
+	// a silence with no receiver matchers applies to ALL recievers.
+	ReceiverMatcherSets []*MatcherSet `protobuf:"bytes,12,rep,name=receiver_matcher_sets,json=receiverMatcherSets,proto3" json:"receiver_matcher_sets,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Silence) Reset() {
@@ -376,6 +382,13 @@ func (x *Silence) GetMatcherSets() []*MatcherSet {
 	return nil
 }
 
+func (x *Silence) GetReceiverMatcherSets() []*MatcherSet {
+	if x != nil {
+		return x.ReceiverMatcherSets
+	}
+	return nil
+}
+
 // MeshSilence wraps a regular silence with an expiration timestamp
 // after which the silence may be garbage collected.
 type MeshSilence struct {
@@ -452,7 +465,7 @@ const file_silence_proto_rawDesc = "" +
 	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"<\n" +
 	"\n" +
 	"MatcherSet\x12.\n" +
-	"\bmatchers\x18\x01 \x03(\v2\x12.silencepb.MatcherR\bmatchers\"\x9c\x04\n" +
+	"\bmatchers\x18\x01 \x03(\v2\x12.silencepb.MatcherR\bmatchers\"\xe7\x04\n" +
 	"\aSilence\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
 	"\bmatchers\x18\x02 \x03(\v2\x12.silencepb.MatcherR\bmatchers\x127\n" +
@@ -466,7 +479,8 @@ const file_silence_proto_rawDesc = "" +
 	"\acomment\x18\t \x01(\tR\acomment\x12E\n" +
 	"\vannotations\x18\n" +
 	" \x03(\v2#.silencepb.Silence.AnnotationsEntryR\vannotations\x128\n" +
-	"\fmatcher_sets\x18\v \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\x1a>\n" +
+	"\fmatcher_sets\x18\v \x03(\v2\x15.silencepb.MatcherSetR\vmatcherSets\x12I\n" +
+	"\x15receiver_matcher_sets\x18\f \x03(\v2\x15.silencepb.MatcherSetR\x13receiverMatcherSets\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"v\n" +
@@ -510,13 +524,14 @@ var file_silence_proto_depIdxs = []int32{
 	2,  // 7: silencepb.Silence.comments:type_name -> silencepb.Comment
 	6,  // 8: silencepb.Silence.annotations:type_name -> silencepb.Silence.AnnotationsEntry
 	3,  // 9: silencepb.Silence.matcher_sets:type_name -> silencepb.MatcherSet
-	4,  // 10: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
-	7,  // 11: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	3,  // 10: silencepb.Silence.receiver_matcher_sets:type_name -> silencepb.MatcherSet
+	4,  // 11: silencepb.MeshSilence.silence:type_name -> silencepb.Silence
+	7,  // 12: silencepb.MeshSilence.expires_at:type_name -> google.protobuf.Timestamp
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_silence_proto_init() }
