@@ -25,8 +25,8 @@ type ClusterGossipSettleStage struct {
 	peer Peer
 }
 
-// NewGossipSettleStage returns a new GossipSettleStage.
-func NewGossipSettleStage(p Peer) *ClusterGossipSettleStage {
+// NewClusterGossipSettleStage returns a new ClusterGossipSettleStage.
+func NewClusterGossipSettleStage(p Peer) *ClusterGossipSettleStage {
 	return &ClusterGossipSettleStage{peer: p}
 }
 
@@ -45,8 +45,8 @@ type ClusterWaitStage struct {
 	wait func() time.Duration
 }
 
-// NewWaitStage returns a new WaitStage.
-func NewWaitStage(wait func() time.Duration) *ClusterWaitStage {
+// NewClusterWaitStage returns a new ClusterWaitStage.
+func NewClusterWaitStage(wait func() time.Duration) *ClusterWaitStage {
 	return &ClusterWaitStage{
 		wait: wait,
 	}

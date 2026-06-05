@@ -291,7 +291,7 @@ func (pb *PipelineBuilder) New(
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
-	ms := NewGossipSettleStage(peer)
+	ms := NewClusterGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
 	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
 	tms := NewTimeMuteStage(intervener, marker, pb.metrics)
@@ -324,7 +324,7 @@ func createReceiverStage(
 			Idx:         uint32(integrations[i].Index()),
 		}
 		var s MultiStage
-		s = append(s, NewWaitStage(wait))
+		s = append(s, NewClusterWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
 		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
