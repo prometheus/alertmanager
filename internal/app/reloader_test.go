@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,7 +32,6 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
@@ -78,10 +76,9 @@ func newTestReloader(t *testing.T) *reloader {
 	})
 	require.NoError(t, err)
 
-	var (
-		disp      atomic.Pointer[dispatch.Dispatcher]
-		inhibitor atomic.Pointer[inhibit.Inhibitor]
-	)
+	// The reloader owns the dispatcher/inhibitor; the API's GroupFunc
+	// reads them through r, which is assigned just below (mirroring setup).
+	var r *reloader
 
 	apih, err := api.New(api.Options{
 		Alerts:          alerts,
@@ -91,7 +88,7 @@ func newTestReloader(t *testing.T) *reloader {
 		Registry:        reg,
 		RequestDuration: m.requestDuration,
 		GroupFunc: func(ctx context.Context, rf func(*dispatch.Route) bool, af func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			return disp.Load().Groups(ctx, rf, af)
+			return r.groups(ctx, rf, af)
 		},
 	})
 	require.NoError(t, err)
@@ -99,18 +96,17 @@ func newTestReloader(t *testing.T) *reloader {
 	extURL, err := url.Parse("http://localhost:9093")
 	require.NoError(t, err)
 
-	return &reloader{
+	r = &reloader{
 		logger:                      logger,
-		configLogger:                logger,
 		alerts:                      alerts,
 		silencer:                    silencer,
 		groupMarker:                 groupMarker,
 		notificationLog:             nflogger,
-		eventRec:                    rec,
+		eventRecorder: rec,
 		apih:                        apih,
 		tracingMgr:                  tracing.NewManager(logger),
 		pipelineBuilder:             notify.NewPipelineBuilder(reg, ff, rec),
-		dispMetrics:                 dispatch.NewDispatcherMetrics(false, reg, ff),
+		dispatcherMetrics:           dispatch.NewDispatcherMetrics(false, reg, ff),
 		metrics:                     m,
 		peer:                        nil,
 		waitFunc:                    func() time.Duration { return 0 },
@@ -120,9 +116,8 @@ func newTestReloader(t *testing.T) *reloader {
 		dispatchStartDelay:          0,
 		dispatchMaintenanceInterval: 30 * time.Second,
 		retention:                   120 * time.Hour,
-		disp:                        &disp,
-		inhibitor:                   &inhibitor,
 	}
+	return r
 }
 
 func mustConfig(t *testing.T) *config.Config {
@@ -138,16 +133,16 @@ func TestReloader_SwapsComponents(t *testing.T) {
 
 	// Initial apply installs a running inhibitor and dispatcher.
 	require.NoError(t, r.reload(mustConfig(t)))
-	disp1 := r.disp.Load()
+	dispatcher1 := r.dispatcher.Load()
 	inh1 := r.inhibitor.Load()
-	require.NotNil(t, disp1)
+	require.NotNil(t, dispatcher1)
 	require.NotNil(t, inh1)
 
 	// A second apply must stop the old pair and publish fresh instances.
 	require.NoError(t, r.reload(mustConfig(t)))
-	require.NotNil(t, r.disp.Load())
+	require.NotNil(t, r.dispatcher.Load())
 	require.NotNil(t, r.inhibitor.Load())
-	require.NotSame(t, disp1, r.disp.Load(), "dispatcher should be replaced on reload")
+	require.NotSame(t, dispatcher1, r.dispatcher.Load(), "dispatcher should be replaced on reload")
 	require.NotSame(t, inh1, r.inhibitor.Load(), "inhibitor should be replaced on reload")
 }
 
@@ -156,7 +151,7 @@ func TestReloader_ErrorLeavesPreviousStateIntact(t *testing.T) {
 	t.Cleanup(func() { _ = r.stop() })
 
 	require.NoError(t, r.reload(mustConfig(t)))
-	disp1 := r.disp.Load()
+	dispatcher1 := r.dispatcher.Load()
 	inh1 := r.inhibitor.Load()
 
 	// A template that fails to parse makes reload error out before it
@@ -167,7 +162,7 @@ func TestReloader_ErrorLeavesPreviousStateIntact(t *testing.T) {
 	conf.Templates = []string{bad}
 
 	require.Error(t, r.reload(conf))
-	require.Same(t, disp1, r.disp.Load(), "dispatcher must be unchanged after a failed reload")
+	require.Same(t, dispatcher1, r.dispatcher.Load(), "dispatcher must be unchanged after a failed reload")
 	require.Same(t, inh1, r.inhibitor.Load(), "inhibitor must be unchanged after a failed reload")
 }
 

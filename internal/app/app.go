@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -40,7 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/httpserver"
-	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
@@ -288,17 +286,13 @@ func (a *App) setup() error {
 		return nil
 	})
 
-	// disp and inhibitor are swapped on every config reload; they are
-	// owned and torn down by the reloader (see below), but groupFn and
-	// the API mutes closure need to read the current dispatcher/inhibitor
-	// directly, so the pointers live here and are shared with it.
-	var (
-		disp      atomic.Pointer[dispatch.Dispatcher]
-		inhibitor atomic.Pointer[inhibit.Inhibitor]
-	)
-
+	// The reloader owns the swappable dispatcher/inhibitor. It is built
+	// further below (it needs apih, which needs the GroupFunc here), so
+	// the API's GroupFunc closes over the r variable: it is only invoked
+	// once the server is serving, long after r is assigned.
+	var r *reloader
 	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Load().Groups(ctx, routeFilter, alertFilter)
+		return r.groups(ctx, routeFilter, alertFilter)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -384,29 +378,26 @@ func (a *App) setup() error {
 	// these on every config apply and stops the live inhibitor+dispatcher
 	// at shutdown. The long-lived singletons above are updated in place
 	// (apih.Update, eventRec/tracing ApplyConfig) rather than rebuilt.
-	r := &reloader{
-		logger:                      logger,
-		configLogger:                configLogger,
+	r = &reloader{
 		alerts:                      alerts,
-		silencer:                    silencer,
-		groupMarker:                 groupMarker,
-		notificationLog:             notificationLog,
-		eventRec:                    eventRec,
 		apih:                        apih,
-		tracingMgr:                  tracingManager,
-		pipelineBuilder:             notify.NewPipelineBuilder(reg, ff, eventRec),
-		dispMetrics:                 dispatch.NewDispatcherMetrics(false, reg, ff),
-		metrics:                     m,
-		peer:                        peer,
-		waitFunc:                    waitFunc,
-		timeoutFunc:                 timeoutFunc,
-		externalURL:                 amURL,
-		startTime:                   startTime,
-		dispatchStartDelay:          opts.DispatchStartDelay,
+		dispatcherMetrics:           dispatch.NewDispatcherMetrics(false, reg, ff),
 		dispatchMaintenanceInterval: opts.DispatchMaintenanceInterval,
+		dispatchStartDelay:          opts.DispatchStartDelay,
+		eventRecorder:               eventRec,
+		externalURL:                 amURL,
+		groupMarker:                 groupMarker,
+		logger:                      logger,
+		metrics:                     m,
+		notificationLog:             notificationLog,
+		peer:                        peer,
+		pipelineBuilder:             notify.NewPipelineBuilder(reg, ff, eventRec),
 		retention:                   opts.Retention,
-		disp:                        &disp,
-		inhibitor:                   &inhibitor,
+		silencer:                    silencer,
+		startTime:                   startTime,
+		timeoutFunc:                 timeoutFunc,
+		tracingMgr:                  tracingManager,
+		waitFunc:                    waitFunc,
 	}
 	a.onStop("dispatcher+inhibitor", r.stop)
 

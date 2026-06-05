@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -278,8 +279,7 @@ func (a *App) Stop(ctx context.Context) error {
 		// Run remaining cleanups in reverse-registration (LIFO) order,
 		// mirroring Go's `defer` semantics so the in-place transform
 		// from `defer X` to `a.onStop(X)` in setup is order-preserving.
-		for i := len(a.cleanups) - 1; i >= 0; i-- {
-			c := a.cleanups[i]
+		for _, c := range slices.Backward(a.cleanups) {
 			if err := c.stop(); err != nil {
 				a.logger.Warn("teardown step failed", "step", c.name, "err", err)
 				stopErr = errors.Join(stopErr, fmt.Errorf("%s: %w", c.name, err))

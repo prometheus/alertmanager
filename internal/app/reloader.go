@@ -23,6 +23,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -50,36 +51,40 @@ import (
 // (stop old, build new, start + wait-for-loading, then publish) — in one
 // cohesive, independently testable place.
 type reloader struct {
-	logger       *slog.Logger
-	configLogger *slog.Logger
+	// Long-lived components: created once during startup.
+	alerts            provider.Alerts
+	apih              *api.API
+	dispatcherMetrics *dispatch.DispatcherMetrics
+	eventRecorder     eventrecorder.Recorder
+	groupMarker       marker.GroupMarker
+	logger            *slog.Logger
+	metrics           *metrics
+	notificationLog   notify.NotificationLog
+	peer              *cluster.Peer
+	pipelineBuilder   *notify.PipelineBuilder
+	silencer          *silence.Silencer
+	tracingMgr        *tracing.Manager
 
-	// Long-lived collaborators, owned by setup and shared with reloader.
-	alerts          provider.Alerts
-	silencer        *silence.Silencer
-	groupMarker     marker.GroupMarker
-	notificationLog notify.NotificationLog
-	eventRec        eventrecorder.Recorder
-	apih            *api.API
-	tracingMgr      *tracing.Manager
-	pipelineBuilder *notify.PipelineBuilder
-	dispMetrics     *dispatch.DispatcherMetrics
-	metrics         *metrics
-	peer            *cluster.Peer
+	// Short-lived components: atomically swapped on every reload.
+	dispatcher atomic.Pointer[dispatch.Dispatcher]
+	inhibitor  atomic.Pointer[inhibit.Inhibitor]
 
+	// Functions and values used during reload.
 	waitFunc    func() time.Duration
 	timeoutFunc func(time.Duration) time.Duration
 	externalURL *url.URL
 	startTime   time.Time
 
+	// Static configuration values.
 	dispatchStartDelay          time.Duration
 	dispatchMaintenanceInterval time.Duration
 	retention                   time.Duration
+}
 
-	// disp and inhibitor hold the currently active components. They are
-	// pointers to the atomic.Pointer values owned by setup so that the
-	// API's groupFn/mutes closures observe the same swaps reload makes.
-	disp      *atomic.Pointer[dispatch.Dispatcher]
-	inhibitor *atomic.Pointer[inhibit.Inhibitor]
+// groups returns the alert groups from the currently active dispatcher.
+// It is wired into the API as its GroupFunc.
+func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	return r.dispatcher.Load().Groups(ctx, routeFilter, alertFilter)
 }
 
 // reload rebuilds the config-scoped subgraph from conf and atomically
@@ -91,6 +96,10 @@ type reloader struct {
 // previously active configuration — event recorder, inhibitor, dispatcher
 // and tracing — fully intact.
 func (r *reloader) reload(conf *config.Config) error {
+	// configLogger tags messages emitted by the reload itself; subsystem
+	// constructors get the base logger and apply their own component tag.
+	configLogger := r.logger.With("component", "configuration")
+
 	tmpl, err := template.FromGlobs(conf.Templates)
 	if err != nil {
 		return fmt.Errorf("failed to parse templates: %w", err)
@@ -110,7 +119,7 @@ func (r *reloader) reload(conf *config.Config) error {
 	for _, rcv := range conf.Receivers {
 		if _, found := activeReceivers[rcv.Name]; !found {
 			// No need to build a receiver if no route is using it.
-			r.configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
+			configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
 			continue
 		}
 		integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, r.logger)
@@ -147,16 +156,16 @@ func (r *reloader) reload(conf *config.Config) error {
 
 	// Reload event recorder outputs before stopping the old dispatcher so
 	// events emitted while it shuts down go to the new outputs.
-	r.eventRec.ApplyConfig(conf.EventRecorder)
+	r.eventRecorder.ApplyConfig(conf.EventRecorder)
 
 	if old := r.inhibitor.Load(); old != nil {
 		old.Stop()
 	}
-	if old := r.disp.Load(); old != nil {
+	if old := r.dispatcher.Load(); old != nil {
 		old.Stop()
 	}
 
-	newInhibitor := inhibit.NewInhibitor(r.alerts, conf.InhibitRules, r.logger, r.eventRec)
+	newInhibitor := inhibit.NewInhibitor(r.alerts, conf.InhibitRules, r.logger, r.eventRecorder)
 
 	// An interface value that holds a nil concrete value is non-nil.
 	// Therefore we explicitly pass an empty interface, to detect if the
@@ -186,7 +195,7 @@ func (r *reloader) reload(conf *config.Config) error {
 		r.silencer.Mutes(ctx, labels)
 	})
 
-	newDisp := dispatch.NewDispatcher(
+	newDispatcher := dispatch.NewDispatcher(
 		r.alerts,
 		routes,
 		pipeline,
@@ -195,12 +204,12 @@ func (r *reloader) reload(conf *config.Config) error {
 		r.dispatchMaintenanceInterval,
 		nil,
 		r.logger,
-		r.eventRec,
-		r.dispMetrics,
+		r.eventRecorder,
+		r.dispatcherMetrics,
 	)
 	routes.Walk(func(rt *dispatch.Route) {
 		if rt.RouteOpts.RepeatInterval > r.retention {
-			r.configLogger.Warn(
+			configLogger.Warn(
 				"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
 				"repeat_interval", rt.RouteOpts.RepeatInterval,
 				"retention", r.retention,
@@ -208,7 +217,7 @@ func (r *reloader) reload(conf *config.Config) error {
 			)
 		}
 		if rt.RouteOpts.RepeatInterval < rt.RouteOpts.GroupInterval {
-			r.configLogger.Warn(
+			configLogger.Warn(
 				"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
 				"repeat_interval", rt.RouteOpts.RepeatInterval,
 				"group_interval", rt.RouteOpts.GroupInterval,
@@ -231,11 +240,11 @@ func (r *reloader) reload(conf *config.Config) error {
 	r.inhibitor.Store(newInhibitor)
 
 	// Next, start the dispatcher and wait for it to load before swapping
-	// the disp pointer. This ensures that the API doesn't see the new
+	// the dispatcher pointer. This ensures that the API doesn't see the new
 	// dispatcher before it finishes populating the aggrGroups.
-	go newDisp.Run(r.startTime.Add(r.dispatchStartDelay))
-	newDisp.WaitForLoading()
-	r.disp.Store(newDisp)
+	go newDispatcher.Run(r.startTime.Add(r.dispatchStartDelay))
+	newDispatcher.WaitForLoading()
+	r.dispatcher.Store(newDispatcher)
 
 	return nil
 }
@@ -247,7 +256,7 @@ func (r *reloader) stop() error {
 	if i := r.inhibitor.Load(); i != nil {
 		i.Stop()
 	}
-	if d := r.disp.Load(); d != nil {
+	if d := r.dispatcher.Load(); d != nil {
 		d.Stop()
 	}
 	return nil
