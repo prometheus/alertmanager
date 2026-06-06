@@ -636,18 +636,19 @@ Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals
 
 > **Note: YAML quoting vs. matcher token quoting**
 >
-> Each entry in a `matchers:` list is a single YAML value. YAML quoting applies
-> to the *entire* matcher string — it does not parse or protect individual tokens
+> Each entry in a `matchers:` list is a single YAML string that Alertmanager
+> parses after the YAML file has been processed. YAML quoting applies to the
+> *entire* matcher string — it does not parse or protect individual tokens
 > within it. The double-quoting described above is handled by Alertmanager's own
 > parser after YAML has already processed the input.
 >
-> - **Plain style** (no surrounding quotes): works when the matcher contains no
+> - **[Plain style](https://yaml.org/spec/1.2.2/#plain-style)** (no surrounding quotes): works when the matcher contains no
 >   YAML special characters (`{`, `}`, `[`, `]`, `,`, `#`, `|`, `>`, `:`).
 >   Example: `env !~ preprod`
-> - **Single-quoted style** (recommended): protects against all YAML special
+> - **[Single-quoted style](https://yaml.org/spec/1.2.2/#single-quoted-style)**: protects against all YAML special
 >   characters and allows literal double quotes inside the matcher.
 >   Example: `'env =~ "prod|staging"'`
-> - **Double-quoted style**: supports YAML escape sequences; literal double quotes
+> - **[Double-quoted style](https://yaml.org/spec/1.2.2/#double-quoted-style)**: supports YAML escape sequences; literal double quotes
 >   inside the value must be escaped as `\"`.
 >   Example: `"env !~ \"uat\""`
 >
