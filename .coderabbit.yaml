@@ -2,3 +2,13 @@
 # docs: https://docs.coderabbit.ai/reference/configuration
 reviews:
   poem: false
+  high_level_summary: false
+  estimated_code_review_effort: false
+  suggested_labels: false
+  suggested_reviewers: false
+  review_status: false
+  in_progress_fortune: false
+  pre_merge_checks:
+    enabled: false
+  finishing_tocuhes:
+    enabled: false
