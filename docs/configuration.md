@@ -641,6 +641,30 @@ Unquoted literals can contain all UTF-8 characters other than the reserved chara
 
 Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
 
+
+> **Note: YAML quoting vs. matcher token quoting**
+>
+> Each entry in a `matchers:` list is a single YAML string that Alertmanager
+> parses after the YAML file has been processed. YAML quoting applies to the
+> *entire* matcher string — it does not parse or protect individual tokens
+> within it. The double-quoting described above is handled by Alertmanager's own
+> parser after YAML has already processed the input.
+>
+> - **[Plain style](https://yaml.org/spec/1.2.2/#plain-style)** (no surrounding quotes): works when the matcher contains no
+>   YAML special characters (`{`, `}`, `[`, `]`, `,`, `#`, `|`, `>`, `:`).
+>   Example: `env !~ preprod`
+> - **[Single-quoted style](https://yaml.org/spec/1.2.2/#single-quoted-style)**: protects against all YAML special
+>   characters and allows literal double quotes inside the matcher.
+>   Example: `'env =~ "prod|staging"'`
+> - **[Double-quoted style](https://yaml.org/spec/1.2.2/#double-quoted-style)**: supports YAML escape sequences; literal double quotes
+>   inside the value must be escaped as `\"`.
+>   Example: `"env !~ \"uat\""`
+>
+> Writing `env =~ "prod"` without surrounding YAML quotes is valid plain-style
+> YAML. The inner double quotes are stripped by Alertmanager's parser and provide
+> **no** protection against YAML special characters. Always quote the entire
+> matcher at the YAML level when the value may contain special characters.
+
 #### Classic matchers
 
 A classic matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a classic matcher consists of three tokens:
