@@ -8,7 +8,3 @@ reviews:
   suggested_reviewers: false
   review_status: false
   in_progress_fortune: false
-  pre_merge_checks:
-    enabled: false
-  finishing_tocuhes:
-    enabled: false
