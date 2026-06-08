@@ -60,36 +60,22 @@ func testOptions(t *testing.T) Options {
 	systemd := false
 	webCfg := ""
 
-	return Options{
-		ConfigFile:                  configPath,
-		DataDir:                     dir,
-		Retention:                   120 * time.Hour,
-		MaintenanceInterval:         15 * time.Minute,
-		AlertGCInterval:             30 * time.Minute,
-		DispatchMaintenanceInterval: 30 * time.Second,
-		WebConfig: &web.FlagConfig{
-			WebListenAddresses: &addrs,
-			WebSystemdSocket:   &systemd,
-			WebConfigFile:      &webCfg,
-		},
-		PeerTimeout:          15 * time.Second,
-		PeersResolveTimeout:  15 * time.Second,
-		GossipInterval:       200 * time.Millisecond,
-		PushPullInterval:     60 * time.Second,
-		TCPTimeout:           10 * time.Second,
-		ProbeTimeout:         500 * time.Millisecond,
-		ProbeInterval:        1 * time.Second,
-		SettleTimeout:        0,
-		ReconnectInterval:    10 * time.Second,
-		PeerReconnectTimeout: 6 * time.Hour,
-		// Empty disables clustering — essential when running multiple
-		// instances in one process.
-		ClusterBindAddr: "",
-
-		Logger:     logger,
-		Registerer: prometheus.NewRegistry(),
-		Flagger:    ff,
+	// Start from DefaultOptions (clustering disabled by default, which is
+	// essential when running multiple instances in one process) and only
+	// override the per-test bits: paths, the ephemeral listener and the
+	// injected dependencies.
+	opts := DefaultOptions()
+	opts.ConfigFile = configPath
+	opts.DataDir = dir
+	opts.WebConfig = &web.FlagConfig{
+		WebListenAddresses: &addrs,
+		WebSystemdSocket:   &systemd,
+		WebConfigFile:      &webCfg,
 	}
+	opts.Logger = logger
+	opts.Registerer = prometheus.NewRegistry()
+	opts.Flagger = ff
+	return opts
 }
 
 // waitHealthy blocks until the instance at addr serves /-/healthy with a
@@ -154,20 +140,20 @@ func TestApp_serveLoop(t *testing.T) {
 	logger := promslog.NewNopLogger()
 
 	t.Run("listener error is surfaced", func(t *testing.T) {
-		a := &App{logger: logger, srvc: make(chan error, 1)}
-		a.srvc <- errors.New("boom")
+		a := &App{logger: logger, serveErrc: make(chan error, 1)}
+		a.serveErrc <- errors.New("boom")
 		err := a.serveLoop(context.Background())
 		require.ErrorContains(t, err, "boom")
 	})
 
 	t.Run("clean serve goroutine exit", func(t *testing.T) {
-		a := &App{logger: logger, srvc: make(chan error, 1)}
-		close(a.srvc) // serve goroutine exited without an error
+		a := &App{logger: logger, serveErrc: make(chan error, 1)}
+		close(a.serveErrc) // serve goroutine exited without an error
 		require.NoError(t, a.serveLoop(context.Background()))
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
-		a := &App{logger: logger, srvc: make(chan error, 1)}
+		a := &App{logger: logger, serveErrc: make(chan error, 1)}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		require.NoError(t, a.serveLoop(ctx))
@@ -204,9 +190,13 @@ func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
 }
 
 func TestApp_ConcurrentStartStop(t *testing.T) {
-	// Regression: Start publishes its lifecycle state and Stop consumes
-	// it; if they race, Stop must never close/receive on a nil channel.
-	// Run several iterations under -race to shake out the interleavings.
+	// Regression: Start and Stop are serialized by a mutex so they cannot
+	// interleave. Whatever the order, Stop must never close/receive on a
+	// nil channel, and a Start losing the race to Stop must not leak its
+	// goroutines (it observes stopped and declines to launch). Run several
+	// iterations under -race to shake out the interleavings; the final
+	// require.NoError below also fails the test if any goroutine is still
+	// blocked on the router (it would deadlock the second Stop).
 	for i := range 20 {
 		a, err := New(testOptions(t))
 		require.NoError(t, err, "iteration %d", i)
@@ -223,10 +213,24 @@ func TestApp_ConcurrentStartStop(t *testing.T) {
 		}()
 		wg.Wait()
 
-		// Whatever the interleaving, a final Stop must complete cleanly
-		// and leave no lingering goroutines blocked on the router.
+		// Stop is idempotent; the second call must return cleanly.
 		require.NoError(t, a.Stop(t.Context()), "iteration %d", i)
 	}
+}
+
+func TestApp_StartAfterStopFails(t *testing.T) {
+	// Once Stop has run, Start must refuse to launch its goroutines (which
+	// would otherwise be leaked, since the only thing that tears them down
+	// has already run). This is the deterministic half of the
+	// Start/Stop-race invariant exercised by TestApp_ConcurrentStartStop.
+	a, err := New(testOptions(t))
+	require.NoError(t, err)
+
+	require.NoError(t, a.Stop(t.Context()))
+
+	err = a.Start()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "called after Stop")
 }
 
 func TestApp_TwoSequentialInstances(t *testing.T) {
@@ -289,14 +293,14 @@ func TestApp_Reload(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = a.Stop(t.Context()) }()
 
-	require.NoError(t, a.Reload(t.Context()))
+	require.NoError(t, a.Reload())
 }
 
 func TestApp_Reload_BeforeNewFails(t *testing.T) {
 	// Calling Reload on a zero-value App (no successful New) must return
 	// an error rather than panicking on the nil coordinator.
 	var a App
-	require.Error(t, a.Reload(context.Background()))
+	require.Error(t, a.Reload())
 }
 
 func TestApp_Stop_AggregatesCleanupErrors(t *testing.T) {
@@ -365,7 +369,7 @@ func TestApp_EmbeddedReloadDoesNotDeadlock(t *testing.T) {
 
 func TestApp_New_SetupFailureDoesNotDeadlock(t *testing.T) {
 	// Regression: setup failure in New triggers the rollback path which
-	// calls Stop. Stop must not block draining a.srvc because Start has
+	// calls Stop. Stop must not block draining a.serveErrc because Start has
 	// not run and nothing will ever close that channel.
 	errCh := make(chan error, 1)
 	go func() {

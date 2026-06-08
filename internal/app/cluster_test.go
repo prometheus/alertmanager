@@ -39,7 +39,7 @@ func newTestPeer(t *testing.T) *cluster.Peer {
 		cluster.DefaultPushPullInterval,
 		cluster.DefaultGossipInterval,
 		cluster.DefaultTCPTimeout,
-		cluster.DefaultProbeTimeout,
+		cluster.DefaultResolvePeersTimeout,
 		cluster.DefaultProbeTimeout,
 		cluster.DefaultProbeInterval,
 		nil,   // TLS transport config
