@@ -104,6 +104,15 @@ func TestOptions_Validate(t *testing.T) {
 		require.NoError(t, o.validate())
 	})
 
+	t.Run("cluster enabled with zero settle timeout is valid", func(t *testing.T) {
+		// SettleTimeout is a context deadline, so 0 ("settle now") is a
+		// valid request; the acceptance tests pass --cluster.settle-timeout=0s.
+		o := valid()
+		o.ClusterBindAddr = DefaultClusterAddr
+		o.SettleTimeout = 0
+		require.NoError(t, o.validate())
+	})
+
 	t.Run("cluster enabled with defaults is valid", func(t *testing.T) {
 		o := valid()
 		o.ClusterBindAddr = DefaultClusterAddr

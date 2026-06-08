@@ -201,8 +201,12 @@ func (o *Options) validate() error {
 		return errors.New("alertmanager/app: Options.WebConfig.WebConfigFile must be set (use a pointer to an empty string to disable web TLS/auth config)")
 	}
 
-	// Cluster timeouts only matter when HA is enabled. When it is, every
-	// interval feeds memberlist tickers/timeouts and must be positive.
+	// Cluster timeouts only matter when HA is enabled. When it is, the
+	// intervals that feed memberlist tickers must be positive. Note that
+	// SettleTimeout is intentionally excluded: it is used as a
+	// context.WithTimeout deadline, so a zero (or negative) value is a
+	// valid request to settle immediately without waiting — the
+	// acceptance tests rely on --cluster.settle-timeout=0s.
 	if o.ClusterBindAddr != "" {
 		for _, f := range []struct {
 			name string
@@ -215,7 +219,6 @@ func (o *Options) validate() error {
 			{"TCPTimeout", o.TCPTimeout},
 			{"ProbeTimeout", o.ProbeTimeout},
 			{"ProbeInterval", o.ProbeInterval},
-			{"SettleTimeout", o.SettleTimeout},
 			{"ReconnectInterval", o.ReconnectInterval},
 			{"PeerReconnectTimeout", o.PeerReconnectTimeout},
 		} {
