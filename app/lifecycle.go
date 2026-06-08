@@ -17,107 +17,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/prometheus/exporter-toolkit/web"
-
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/tracing"
 )
 
 // shutdownTimeout bounds how long Stop waits for the HTTP server to drain
 // in-flight requests before forcing teardown.
 const shutdownTimeout = 5 * time.Second
-
-// App is a running (or runnable) Alertmanager instance built from Options.
-//
-// Compared to the top-level Run function, App exposes lifecycle hooks
-// (Start, Stop, Addr, Reload) so callers — typically tests — can drive an
-// instance without OS signals and discover the actually-bound HTTP
-// address (useful when listening on ":0").
-//
-// Construct an App with New, then call Start to begin serving HTTP. The
-// caller is responsible for calling Stop, ideally via a deferred call so
-// teardown also runs on panic. An App is single-use: calling Start more
-// than once is an error.
-type App struct {
-	opts   Options
-	logger *slog.Logger
-
-	// Lifecycle dependencies retained for use by Start, Reload, and Stop.
-	coordinator *config.Coordinator
-	tracingMgr  *tracing.Manager
-	server      *http.Server
-	listeners   []net.Listener
-
-	// webReload is the channel exposed by httpserver.Register for the
-	// /-/reload HTTP endpoint. We read from it in reloadRouter.
-	webReload chan chan error
-
-	// serveErrc carries errors from the HTTP serve goroutine. It is closed
-	// when the goroutine exits cleanly.
-	serveErrc chan error
-
-	// cleanups is the LIFO teardown stack: New (via setup) registers
-	// cleanups in source order; Stop drains them in reverse so that
-	// shutdown order mirrors the original `defer` chain in Run. Each
-	// entry carries a name so Stop can log which step failed and return
-	// an aggregated error.
-	cleanups []cleanup
-
-	// mtx serializes Start and Stop so they cannot interleave. An atomic
-	// flag alone is insufficient: a Stop that observed started==false
-	// while a concurrent Start had already launched its goroutines (but
-	// not yet recorded the fact) would skip tearing them down and leak
-	// them. Holding mtx for the whole body of each method instead means a
-	// Start racing a Stop either runs entirely before Stop — and is then
-	// torn down by it — or observes stopped and declines to launch
-	// anything at all. mtx also guards started, stopped, startErr, stopErr
-	// and the router channels below.
-	mtx sync.Mutex
-
-	// started records whether Start launched the serve/reload goroutines;
-	// stopped records whether Stop has run. Stop uses started to decide
-	// whether draining serveErrc and tearing down the reload router is
-	// meaningful — if Start never ran, nothing will ever close serveErrc and
-	// the drain would deadlock (e.g. during setup-failure rollback).
-	// Start uses stopped to refuse to launch goroutines after a Stop.
-	started bool
-	stopped bool
-
-	// startErr/stopErr memoise the outcome of the first Start/Stop so
-	// repeated calls are idempotent and return the same result.
-	startErr error
-	stopErr  error
-
-	// routerQuit signals the reload-routing goroutine (started by Start)
-	// to exit; routerDone is closed by that goroutine on exit. Both are
-	// allocated under mtx in Start and only read under mtx in Stop.
-	routerQuit chan struct{}
-	routerDone chan struct{}
-}
-
-// New wires every Alertmanager subsystem according to opts but does not
-// start serving HTTP yet. On error, partial setup is rolled back via the
-// same cleanup stack that Stop would drain on success.
-func New(opts Options) (*App, error) {
-	a := &App{
-		opts:      opts,
-		serveErrc: make(chan error, 1),
-		webReload: make(chan chan error),
-	}
-	if err := a.setup(); err != nil {
-		// Roll back partial setup (Stop is idempotent and nil-safe).
-		_ = a.Stop(context.Background())
-		return nil, err
-	}
-	return a, nil
-}
 
 // Start begins serving HTTP traffic on the listeners established by New.
 // It returns immediately; the listen goroutine signals any error via the
@@ -224,9 +133,24 @@ func (a *App) Addrs() []string {
 // Reload triggers a configuration reload (the programmatic equivalent of
 // SIGHUP). Safe to call concurrently with the running App. The reload is
 // synchronous and not cancellable, so it takes no context.
+//
+// It takes mtx for the duration of the reload so it cannot interleave with
+// Stop: a reload swaps in (and starts) a new dispatcher/inhibitor, whereas
+// Stop's cleanup tears the live ones down. Without this coupling a reload
+// racing Stop could start a fresh dispatcher/inhibitor *after* Stop tore
+// down the old ones, leaking those goroutines. Holding mtx also lets us
+// refuse outright once Stop has begun. (The SIGHUP/HTTP reload paths route
+// through reloadRouter, which Stop drains before running cleanups, so they
+// are already safe; this guards the directly-callable entry point.)
 func (a *App) Reload() error {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
 	if a.coordinator == nil {
 		return errors.New("alertmanager/app: App.Reload called before successful New")
+	}
+	if a.stopped {
+		return errors.New("alertmanager/app: App.Reload called after Stop")
 	}
 	return a.coordinator.Reload()
 }
@@ -280,23 +204,44 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	// HTTP is fully drained; no new /-/reload requests can arrive.
 	// Terminate the reload router and wait for it to exit before
-	// running cleanups (Coordinator is among them).
+	// running cleanups (Coordinator is among them). The wait is bounded
+	// in normal operation (the router exits as soon as routerQuit is
+	// closed), but a stuck coordinator.Reload could block it, so we also
+	// honour ctx: a caller that passed a deadline gets it back instead of
+	// hanging. Abandoning the goroutine is acceptable — the caller chose
+	// the deadline — and we surface it in the returned error.
 	if started {
 		close(a.routerQuit)
-		<-a.routerDone
+		select {
+		case <-a.routerDone:
+		case <-ctx.Done():
+			a.logger.Warn("timed out waiting for reload router to exit; abandoning it", "err", ctx.Err())
+			stopErr = errors.Join(stopErr, fmt.Errorf("reload router shutdown: %w", ctx.Err()))
+		}
 	}
 	// Drain serveErrc so the listen goroutine, if any, exits before we
 	// release listener resources. ServeMultiple returns once all
 	// per-listener Serve calls return (which happens once Shutdown
-	// completes), so this drain is bounded.
+	// completes), so this drain is bounded — but, as above, we also
+	// honour ctx so Stop can't hang here either.
 	//
 	// Guard on `started` because serveErrc is allocated in New (so it can
 	// be non-nil here) but only closed by Start's serve goroutine —
 	// without this guard, Stop would deadlock when called from New's
 	// rollback path on setup failure.
 	if started && a.serveErrc != nil {
-		for range a.serveErrc {
-			// no-op
+	drain:
+		for {
+			select {
+			case _, ok := <-a.serveErrc:
+				if !ok {
+					break drain
+				}
+			case <-ctx.Done():
+				a.logger.Warn("timed out draining serve errors; abandoning the serve goroutine", "err", ctx.Err())
+				stopErr = errors.Join(stopErr, fmt.Errorf("serve drain: %w", ctx.Err()))
+				break drain
+			}
 		}
 	}
 	// Run remaining cleanups in reverse-registration (LIFO) order,
@@ -315,17 +260,13 @@ func (a *App) Stop(ctx context.Context) error {
 // onStop registers a named teardown step to run when Stop is called.
 // Cleanups run in LIFO order. Steps return an error only for failures
 // worth surfacing to the caller; those that cannot fail return nil.
+//
+// The cleanups slice is mutated without locking, so registration is
+// confined to the single-threaded construction phase (setup, called from
+// New before the App is handed to the caller). It is therefore not safe to
+// call once the App may be running, i.e. concurrently with Stop.
 func (a *App) onStop(name string, fn func() error) {
 	a.cleanups = append(a.cleanups, cleanup{name: name, stop: fn})
-}
-
-// trackClose couples a resource with its teardown: it registers c.Close
-// as a named Stop step right where the resource is acquired, so the two
-// can't drift apart (the gap that previously leaked goroutines/handles).
-// Use it for resources whose Close takes no arguments; everything else
-// uses onStop directly.
-func (a *App) trackClose(name string, c interface{ Close() error }) {
-	a.onStop(name, c.Close)
 }
 
 // serveLoop blocks until ctx is cancelled or an HTTP listener fails. It

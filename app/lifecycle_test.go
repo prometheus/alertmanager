@@ -17,10 +17,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
@@ -162,31 +165,56 @@ func TestApp_serveLoop(t *testing.T) {
 
 func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
 	// A closed Options.Reload channel must not spin reloadRouter into a
-	// hot loop (which would call coordinator.Reload on every iteration —
-	// here a nil coordinator, so a regression would panic rather than
-	// exit cleanly).
+	// hot loop calling coordinator.Reload on every iteration. We assert
+	// this deterministically — no sleeps — by counting reloads: a closed
+	// reloadCh must contribute zero, so after N synchronous /-/reload
+	// round-trips the counter must equal exactly N. With the hot-loop
+	// regression it would be far larger.
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "alertmanager.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte(minimalConfig), 0o600))
+
+	var reloads atomic.Int64
+	coord := config.NewCoordinator(configPath, prometheus.NewRegistry(), promslog.NewNopLogger())
+	coord.Subscribe(func(*config.Config) error {
+		reloads.Add(1)
+		return nil
+	})
+
 	reloadCh := make(chan struct{})
 	close(reloadCh)
 
 	a := &App{
-		logger:     promslog.NewNopLogger(),
-		opts:       Options{Reload: reloadCh},
-		routerQuit: make(chan struct{}),
-		routerDone: make(chan struct{}),
-		webReload:  make(chan chan error),
+		logger:      promslog.NewNopLogger(),
+		opts:        Options{Reload: reloadCh},
+		coordinator: coord,
+		routerQuit:  make(chan struct{}),
+		routerDone:  make(chan struct{}),
+		webReload:   make(chan chan error),
 	}
 
 	go a.reloadRouter()
-	// Give the router a moment; if the closed channel were mishandled it
-	// would busy-loop and dereference the nil coordinator.
-	time.Sleep(20 * time.Millisecond)
-	close(a.routerQuit)
 
+	// Drive N synchronous reloads through the /-/reload path. Each send
+	// blocks until reloadRouter has run one coordinator.Reload, so these
+	// are exact, ordered steps with no timing assumptions.
+	const n = 3
+	for range n {
+		errc := make(chan error)
+		a.webReload <- errc
+		require.NoError(t, <-errc)
+	}
+
+	close(a.routerQuit)
 	select {
 	case <-a.routerDone:
 	case <-time.After(time.Second):
 		t.Fatal("reloadRouter did not exit after routerQuit closed")
 	}
+
+	// Read after routerDone (happens-before): the closed reloadCh must
+	// have triggered no reloads of its own.
+	require.Equal(t, int64(n), reloads.Load())
 }
 
 func TestApp_ConcurrentStartStop(t *testing.T) {
@@ -303,6 +331,20 @@ func TestApp_Reload_BeforeNewFails(t *testing.T) {
 	require.Error(t, a.Reload())
 }
 
+func TestApp_ReloadAfterStopFails(t *testing.T) {
+	// Once Stop has run, Reload must refuse: a reload swaps in (and
+	// starts) a new dispatcher/inhibitor, which would leak past a
+	// completed Stop. The mtx + stopped guard turns that into an error.
+	a, err := New(testOptions(t))
+	require.NoError(t, err)
+	require.NoError(t, a.Start())
+	require.NoError(t, a.Stop(t.Context()))
+
+	err = a.Reload()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "called after Stop")
+}
+
 func TestApp_Stop_AggregatesCleanupErrors(t *testing.T) {
 	// Stop should run every teardown step even when some fail, and return
 	// their errors joined together (named by step).
@@ -387,15 +429,21 @@ func TestApp_New_SetupFailureDoesNotDeadlock(t *testing.T) {
 }
 
 func TestApp_Run_ContextCancel(t *testing.T) {
-	// Exercises the Run wrapper end-to-end: cancel ctx and assert it
-	// returns without error and cleanup has run.
+	// Exercises the Run wrapper end-to-end: it must serve, then return
+	// nil (with cleanup run) once ctx is cancelled. Run is opaque (no
+	// Addr), so we pin a concrete listen address and wait for the server
+	// to actually answer /-/healthy before cancelling — a real readiness
+	// signal instead of a sleep.
+	opts := testOptions(t)
+	addr := freeLoopbackAddr(t)
+	addrs := []string{addr}
+	opts.WebConfig.WebListenAddresses = &addrs
+
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, testOptions(t)) }()
+	go func() { done <- Run(ctx, opts) }()
 
-	// Give Run a moment to bind. We can't peek inside it for Addr, but
-	// cancelling is unconditionally safe.
-	time.Sleep(200 * time.Millisecond)
+	waitHealthy(t, addr)
 	cancel()
 
 	select {
@@ -404,4 +452,17 @@ func TestApp_Run_ContextCancel(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Run did not return after ctx cancel")
 	}
+}
+
+// freeLoopbackAddr reserves an ephemeral loopback port and returns it as a
+// host:port string. The listener is closed before returning, so there is a
+// small window before the caller rebinds it; this is the standard trade-off
+// for tests that need to know an address up front (e.g. to poll readiness).
+func freeLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+	return addr
 }

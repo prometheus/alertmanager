@@ -31,9 +31,9 @@ import (
 	"github.com/prometheus/common/version"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
+	"github.com/prometheus/alertmanager/app"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/internal/app"
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
 

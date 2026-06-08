@@ -20,6 +20,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,6 +50,23 @@ import (
 	"github.com/prometheus/alertmanager/ui"
 )
 
+// New wires every Alertmanager subsystem according to opts but does not
+// start serving HTTP yet. On error, partial setup is rolled back via the
+// same cleanup stack that Stop would drain on success.
+func New(opts Options) (*App, error) {
+	a := &App{
+		opts:      opts,
+		serveErrc: make(chan error, 1),
+		webReload: make(chan chan error),
+	}
+	if err := a.setup(); err != nil {
+		// Roll back partial setup (Stop is idempotent and nil-safe).
+		_ = a.Stop(context.Background())
+		return nil, err
+	}
+	return a, nil
+}
+
 // Run starts an Alertmanager instance using opts and blocks until ctx is
 // cancelled or an unrecoverable error occurs. It is a thin wrapper over
 // New + Start + serveLoop + Stop intended for callers that don't need
@@ -68,6 +87,74 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	return a.serveLoop(ctx)
+}
+
+// App is a running (or runnable) Alertmanager instance built from Options.
+//
+// Compared to the top-level Run function, App exposes lifecycle hooks
+// (Start, Stop, Addr, Reload) so callers — typically tests — can drive an
+// instance without OS signals and discover the actually-bound HTTP
+// address (useful when listening on ":0").
+//
+// Construct an App with New, then call Start to begin serving HTTP. The
+// caller is responsible for calling Stop, ideally via a deferred call so
+// teardown also runs on panic. An App is single-use: calling Start more
+// than once is an error.
+type App struct {
+	opts   Options
+	logger *slog.Logger
+
+	// Lifecycle dependencies retained for use by Start, Reload, and Stop.
+	coordinator *config.Coordinator
+	tracingMgr  *tracing.Manager
+	server      *http.Server
+	listeners   []net.Listener
+
+	// webReload is the channel exposed by httpserver.Register for the
+	// /-/reload HTTP endpoint. We read from it in reloadRouter.
+	webReload chan chan error
+
+	// serveErrc carries errors from the HTTP serve goroutine. It is closed
+	// when the goroutine exits cleanly.
+	serveErrc chan error
+
+	// cleanups is the LIFO teardown stack: New (via setup) registers
+	// cleanups in source order; Stop drains them in reverse so that
+	// shutdown order mirrors the original `defer` chain in Run. Each
+	// entry carries a name so Stop can log which step failed and return
+	// an aggregated error.
+	cleanups []cleanup
+
+	// mtx serializes Start and Stop so they cannot interleave. An atomic
+	// flag alone is insufficient: a Stop that observed started==false
+	// while a concurrent Start had already launched its goroutines (but
+	// not yet recorded the fact) would skip tearing them down and leak
+	// them. Holding mtx for the whole body of each method instead means a
+	// Start racing a Stop either runs entirely before Stop — and is then
+	// torn down by it — or observes stopped and declines to launch
+	// anything at all. mtx also guards started, stopped, startErr, stopErr
+	// and the router channels below.
+	mtx sync.Mutex
+
+	// started records whether Start launched the serve/reload goroutines;
+	// stopped records whether Stop has run. Stop uses started to decide
+	// whether draining serveErrc and tearing down the reload router is
+	// meaningful — if Start never ran, nothing will ever close serveErrc and
+	// the drain would deadlock (e.g. during setup-failure rollback).
+	// Start uses stopped to refuse to launch goroutines after a Stop.
+	started bool
+	stopped bool
+
+	// startErr/stopErr memoise the outcome of the first Start/Stop so
+	// repeated calls are idempotent and return the same result.
+	startErr error
+	stopErr  error
+
+	// routerQuit signals the reload-routing goroutine (started by Start)
+	// to exit; routerDone is closed by that goroutine on exit. Both are
+	// allocated under mtx in Start and only read under mtx in Stop.
+	routerQuit chan struct{}
+	routerDone chan struct{}
 }
 
 // setup wires every Alertmanager subsystem and registers their teardown
@@ -175,7 +262,7 @@ func (a *App) setup() error {
 	if ff.EnableEventRecorder() {
 		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), reg)
 	}
-	a.trackClose("event recorder", eventRec)
+	a.onStop("event recorder", eventRec.Close)
 
 	recordCtx := eventrecorder.WithEventRecording(context.Background())
 	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
