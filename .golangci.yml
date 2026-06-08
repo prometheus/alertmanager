@@ -1,5 +1,6 @@
 version: "2"
 linters:
+  default: none
   enable:
     - depguard
     - errorlint
@@ -71,18 +72,12 @@ linters:
         - suite-dont-use-pkg
         - suite-extra-assert-call
   exclusions:
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
     paths:
       - ^.*\.(pb|y)\.go$
     rules:
       - linters:
           - errcheck
         path: _test.go
-    warn-unused: true
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
