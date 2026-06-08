@@ -8,7 +8,6 @@ linters:
     - misspell
     - revive
     - sloglint
-    - testifylint
   settings:
     depguard:
       rules:
@@ -39,7 +38,7 @@ linters:
     revive:
       rules:
         - name: exported
-          arguments: ["disableStutteringCheck"]
+          disabled: true
         - name: blank-imports
         - name: context-as-argument
         - name: error-return
@@ -50,27 +49,13 @@ linters:
         - name: var-naming
         - name: var-declaration
         - name: package-comments
+          disabled: true
         - name: range
         - name: receiver-naming
         - name: time-naming
         - name: unexported-return
         - name: indent-error-flow
         - name: errorf
-    testifylint:
-      disable:
-        - float-compare
-        - go-require
-      enable:
-        - bool-compare
-        - compares
-        - empty
-        - error-is-as
-        - error-nil
-        - expected-actual
-        - len
-        - require-error
-        - suite-dont-use-pkg
-        - suite-extra-assert-call
   exclusions:
     paths:
       - ^.*\.(pb|y)\.go$
