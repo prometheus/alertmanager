@@ -1438,6 +1438,10 @@ PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometh
 # The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
 # It is mutually exclusive with `routing_key_file`.
 routing_key: <tmpl_secret>
+# Also can use:
+#  routing_key:
+#    name: example-pagerduty
+#    key: integration_key
 # Read the Pager Duty routing key from a file.
 # It is mutually exclusive with `routing_key`.
 routing_key_file: <filepath>
