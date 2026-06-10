@@ -7,6 +7,7 @@
 /.release
 /.tarballs
 
+!.gemini/*.yaml
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
