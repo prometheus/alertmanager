@@ -14,7 +14,7 @@
 * [FEATURE] Introduce per aggregation group AlertMarkers and drop Global Alert Marker. #5047
 * [FEATURE] UI: Add support for silence annotations. #5017
 * [FEATURE] api: Add receiver labels and `receiver_matchers` filter to `/api/v2/receivers`, `/api/v2/alerts`, and `/api/v2/alerts/groups`. #5152
-* [FEATURE] eventrecorder: Add structured event recorder behind `--enable-feature=event-recorder`, with file and webhook, and kafka outputs. #5072, #5246
+* [FEATURE] eventrecorder: Add structured event recorder behind `--enable-feature=event-recorder`, with file, webhook, and kafka outputs. #5072, #5246
 * [ENHANCEMENT] Add the `use_aws_http_client` config option to the sns notifier. #5178
 * [ENHANCEMENT] Alertmanager: Push docker images to ghcr docker registry. #5260
 * [ENHANCEMENT] TEMPLATE: Add now function to get current time. #5188
