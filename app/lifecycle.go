@@ -24,8 +24,11 @@ import (
 	"github.com/prometheus/exporter-toolkit/web"
 )
 
-// shutdownTimeout bounds how long Stop waits for the HTTP server to drain
-// in-flight requests before forcing teardown.
+// shutdownTimeout bounds the graceful-teardown phase of Stop: the HTTP
+// server drain plus the subsequent waits for the reload router and serve
+// goroutine to exit. It applies even when the caller's context never
+// cancels (e.g. context.Background()), so Stop always returns in bounded
+// time before running the remaining cleanups.
 const shutdownTimeout = 5 * time.Second
 
 // Start begins serving HTTP traffic on the listeners established by New.
@@ -188,15 +191,22 @@ func (a *App) Stop(ctx context.Context) error {
 	started := a.started
 
 	var stopErr error
+	// Bound the whole teardown by shutdownTimeout. Deriving it from ctx
+	// lets a caller request a faster shutdown via a tighter deadline, but
+	// the WithTimeout guarantees a finite bound even when ctx never
+	// cancels on its own — e.g. the context.Background() passed by Run's
+	// deferred Stop and by New's setup-failure rollback. Using it for the
+	// waits below (not just Shutdown) is what keeps Stop from hanging on a
+	// stuck reload or serve goroutine regardless of the caller's ctx.
+	shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+	defer cancel()
+
 	// Stop accepting new HTTP traffic first so in-flight handlers
-	// don't observe collaborators being torn down underneath them.
-	// shutdownTimeout is derived from ctx so callers can request a
-	// faster shutdown via a tighter deadline. The reload router is
-	// still running at this point so any in-flight /-/reload handler
-	// can complete its send/receive cycle and unblock Shutdown.
+	// don't observe collaborators being torn down underneath them. The
+	// reload router is still running at this point so any in-flight
+	// /-/reload handler can complete its send/receive cycle and unblock
+	// Shutdown.
 	if a.server != nil {
-		shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
-		defer cancel()
 		if err := a.server.Shutdown(shutdownCtx); err != nil {
 			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
 			stopErr = err
@@ -206,24 +216,24 @@ func (a *App) Stop(ctx context.Context) error {
 	// Terminate the reload router and wait for it to exit before
 	// running cleanups (Coordinator is among them). The wait is bounded
 	// in normal operation (the router exits as soon as routerQuit is
-	// closed), but a stuck coordinator.Reload could block it, so we also
-	// honour ctx: a caller that passed a deadline gets it back instead of
-	// hanging. Abandoning the goroutine is acceptable — the caller chose
-	// the deadline — and we surface it in the returned error.
+	// closed), but a stuck coordinator.Reload could block it, so we cap
+	// it with shutdownCtx. Abandoning the goroutine on timeout is
+	// acceptable — teardown is best-effort past this point — and we
+	// surface it in the returned error.
 	if started {
 		close(a.routerQuit)
 		select {
 		case <-a.routerDone:
-		case <-ctx.Done():
-			a.logger.Warn("timed out waiting for reload router to exit; abandoning it", "err", ctx.Err())
-			stopErr = errors.Join(stopErr, fmt.Errorf("reload router shutdown: %w", ctx.Err()))
+		case <-shutdownCtx.Done():
+			a.logger.Warn("timed out waiting for reload router to exit; abandoning it", "err", shutdownCtx.Err())
+			stopErr = errors.Join(stopErr, fmt.Errorf("reload router shutdown: %w", shutdownCtx.Err()))
 		}
 	}
 	// Drain serveErrc so the listen goroutine, if any, exits before we
 	// release listener resources. ServeMultiple returns once all
 	// per-listener Serve calls return (which happens once Shutdown
-	// completes), so this drain is bounded — but, as above, we also
-	// honour ctx so Stop can't hang here either.
+	// completes), so this drain is bounded — but, as above, we also cap
+	// it with shutdownCtx so Stop can't hang here either.
 	//
 	// Guard on `started` because serveErrc is allocated in New (so it can
 	// be non-nil here) but only closed by Start's serve goroutine —
@@ -237,9 +247,9 @@ func (a *App) Stop(ctx context.Context) error {
 				if !ok {
 					break drain
 				}
-			case <-ctx.Done():
-				a.logger.Warn("timed out draining serve errors; abandoning the serve goroutine", "err", ctx.Err())
-				stopErr = errors.Join(stopErr, fmt.Errorf("serve drain: %w", ctx.Err()))
+			case <-shutdownCtx.Done():
+				a.logger.Warn("timed out draining serve errors; abandoning the serve goroutine", "err", shutdownCtx.Err())
+				stopErr = errors.Join(stopErr, fmt.Errorf("serve drain: %w", shutdownCtx.Err()))
 				break drain
 			}
 		}
@@ -278,6 +288,18 @@ func (a *App) serveLoop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			a.logger.Info("Shutting down gracefully")
+			// A listener error may have landed on serveErrc at the same
+			// moment ctx was cancelled; select picks a ready case at
+			// random, so it could choose ctx.Done() and mask the error.
+			// Non-blocking drain to surface it rather than reporting a
+			// clean shutdown over a real failure.
+			select {
+			case err, ok := <-a.serveErrc:
+				if ok {
+					return fmt.Errorf("alertmanager: HTTP listener failed: %w", err)
+				}
+			default:
+			}
 			return nil
 		case err, ok := <-a.serveErrc:
 			if !ok {
