@@ -4,7 +4,7 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
-## 0.33.0-rc.0 / 2026-06-10
+## 0.33.0-rc.0 / 2026-06-11
 
 * [CHANGE] The '--enable-feature=auto-gomaxprocs' option has been removed. This flag had no effect since v0.29 and was deprecated in v0.32. It can be safely removed from any startup scripts. #5090, #5251
 * [CHANGE] Add `group-key-in-metrics` feature flag. #5047
