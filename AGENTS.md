@@ -16,7 +16,8 @@ Alertmanager handles alerts sent by clients such as Prometheus. It deduplicates,
 
 Top‑level packages worth knowing:
 
-- `cmd/alertmanager/` — main binary entry point (`main.go`).
+- `cmd/alertmanager/` — main binary entry point (`main.go`); thin wrapper that parses flags and calls `app`.
+- `app/` — embeddable Alertmanager runtime extracted from `cmd/alertmanager`. Owns the process lifecycle (`New`/`Start`/`Stop`/`Reload`/`Run`), subsystem wiring (`setup`), config-reload subgraph (`reloader`), listeners and `Options`. Lets tests and other binaries run Alertmanager in‑process. See https://github.com/prometheus/alertmanager/issues/406.
 - `cmd/amtool/` — CLI for interacting with the Alertmanager API.
 - `api/` — HTTP API. `api/v2/` is the active API; `api/v1_deprecation_router.go` only returns deprecation responses.
 - `cli/` — `amtool` command implementations.
