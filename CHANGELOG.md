@@ -4,6 +4,24 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
+## 0.33.0 / 2026-06-11
+
+* [CHANGE] The '--enable-feature=auto-gomaxprocs' option has been removed. This flag had no effect since v0.29 and was deprecated in v0.32. It can be safely removed from any startup scripts. #5090, #5251
+* [CHANGE] Add `group-key-in-metrics` feature flag. #5047
+* [CHANGE] Move `AlertMarker`, `GroupMarker` to `marker` package. #5047
+* [CHANGE] Remove `alertmanager_marked_alerts`. #5047
+* [CHANGE] Remove the following from `types` package: `MemMarker`, `AlertState*`, `AlertStatus`. #5047
+* [FEATURE] Introduce per aggregation group AlertMarkers and drop Global Alert Marker. #5047
+* [FEATURE] ui: Add support for silence annotations. #5017
+* [FEATURE] api: Add receiver labels and `receiver_matchers` filter to `/api/v2/receivers`, `/api/v2/alerts`, and `/api/v2/alerts/groups`. #5152
+* [FEATURE] eventrecorder: Add structured event recorder behind `--enable-feature=event-recorder`, with file, webhook, and kafka outputs. #5072, #5246
+* [ENHANCEMENT] Add the `use_aws_http_client` config option to the sns notifier. #5178
+* [ENHANCEMENT] template: Add now function to get current time. #5188
+* [ENHANCEMENT] docs: Clarify YAML quoting vs matcher token quoting in UTF-8 matchers section. #5264
+* [BUGFIX] jira: Allow disabling the resolve transition when `resolve_transition` is not set. #4821
+* [BUGFIX] jira: Include unresolved issues in `wont_fix_resolution` JQL to prevent duplicate issue creation. #5185
+* [BUGFIX] sns: Support the `AWS_CA_BUNDLE` env variable for the sns notifier. #5178
+
 ## 0.32.2 / 2026-06-05
 
 * [BUGFIX] Fix dispatcher goroutine leaks on destroyed alertgroup swap. #5241
