@@ -16,7 +16,6 @@
 * [FEATURE] api: Add receiver labels and `receiver_matchers` filter to `/api/v2/receivers`, `/api/v2/alerts`, and `/api/v2/alerts/groups`. #5152
 * [FEATURE] eventrecorder: Add structured event recorder behind `--enable-feature=event-recorder`, with file, webhook, and kafka outputs. #5072, #5246
 * [ENHANCEMENT] Add the `use_aws_http_client` config option to the sns notifier. #5178
-* [ENHANCEMENT] Alertmanager: Push docker images to ghcr docker registry. #5260
 * [ENHANCEMENT] template: Add now function to get current time. #5188
 * [ENHANCEMENT] docs: Clarify YAML quoting vs matcher token quoting in UTF-8 matchers section. #5264
 * [BUGFIX] jira: Allow disabling the resolve transition when `resolve_transition` is not set. #4821
