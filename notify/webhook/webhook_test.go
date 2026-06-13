@@ -532,3 +532,71 @@ func TestWebhookCustomPayloadString(t *testing.T) {
 		string(capturedPayload),
 	)
 }
+
+// TestWebhookCustomPayloadPreservesYAMLLikeStrings is a regression test for #5302.
+// Label/annotation values that look like YAML (e.g. ending with a colon, or that
+// resemble numbers, booleans or null) must be sent verbatim and not reinterpreted.
+func TestWebhookCustomPayloadPreservesYAMLLikeStrings(t *testing.T) {
+	var capturedPayload []byte
+
+	mockTransport := roundTripFunc(func(req *http.Request) *http.Response {
+		var err error
+		capturedPayload, err = io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       http.NoBody,
+		}
+	})
+
+	u, err := url.Parse("http://localhost")
+	require.NoError(t, err)
+
+	payload := `
+{{- $res := list -}}
+{{- range .Alerts -}}
+{{- $res = append $res .Labels -}}
+{{- end -}}
+{{ toJson $res }}
+`
+
+	conf := &WebhookConfig{
+		URL:        amcommoncfg.SecretTemplateURL(u.String()),
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		Payload:    payload,
+	}
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test1",
+					"id":        "value1:",
+					"num":       "123",
+					"truthy":    "true",
+					"empty":     "null",
+				},
+				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+				GeneratorURL: "http://generator.url",
+			},
+		},
+	}
+	tmpl := test.CreateTmpl(t)
+	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx = notify.WithReceiverName(ctx, "test_receiver")
+
+	n, err := New(conf, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
+	n.client.Transport = mockTransport
+	_, err = n.Notify(ctx, alerts...)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, capturedPayload)
+	require.JSONEq(t,
+		`[{"alertname":"test1","id":"value1:","num":"123","truthy":"true","empty":"null"}]`,
+		string(capturedPayload),
+	)
+}
