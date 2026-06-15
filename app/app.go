@@ -265,19 +265,23 @@ func (a *App) setup() error {
 	a.onStop("event recorder", eventRec.Close)
 
 	recordCtx := eventrecorder.WithEventRecording(context.Background())
-	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
-				Version:      version.Version,
-				BuildContext: version.BuildContext(),
+	eventRec.RecordEvent(recordCtx, func() *eventrecorderpb.EventData {
+		return &eventrecorderpb.EventData{
+			EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
+				AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
+					Version:      version.Version,
+					BuildContext: version.BuildContext(),
+				},
 			},
-		},
+		}
 	})
 	a.onStop("shutdown event", func() error {
-		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
-			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
-				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
-			},
+		eventRec.RecordEvent(recordCtx, func() *eventrecorderpb.EventData {
+			return &eventrecorderpb.EventData{
+				EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
+					AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
+				},
+			}
 		})
 		return nil
 	})

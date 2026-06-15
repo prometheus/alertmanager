@@ -27,6 +27,7 @@ import (
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // RetryStage notifies via passed integration with exponential backoff until it
@@ -178,7 +179,9 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 					l.Info("Notify success")
 				}
 
-				r.recorder.RecordEvent(ctx, NewNotificationEvent(ctx, sent, r.integration))
+				r.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+					return NewNotificationEvent(ctx, sent, r.integration)
+				})
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():

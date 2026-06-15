@@ -223,11 +223,13 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				),
 			)
 
-			ih.recorder.RecordEvent(ctx, eventrecorder.NewInhibitionMutedAlertEvent(
-				[]*eventrecorderpb.InhibitRule{eventrecorder.InhibitRuleAsProto(r.SourceMatchers, r.TargetMatchers, r.Equal)},
-				fp, lset,
-				[]model.Fingerprint{inhibitedByFP},
-			))
+			ih.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+				return eventrecorder.NewInhibitionMutedAlertEvent(
+					[]*eventrecorderpb.InhibitRule{eventrecorder.InhibitRuleAsProto(r.SourceMatchers, r.TargetMatchers, r.Equal)},
+					fp, lset,
+					[]model.Fingerprint{inhibitedByFP},
+				)
+			})
 			return true
 		}
 	}

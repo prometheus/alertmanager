@@ -84,7 +84,7 @@ func TestRecordEvent(t *testing.T) {
 	rec := newTestRecorder(out)
 	defer rec.Close()
 
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 
 	// Wait for the event to be delivered.
 	require.Eventually(t, func() bool {
@@ -98,7 +98,7 @@ func TestRecordEventMultipleDestinations(t *testing.T) {
 	rec := newTestRecorder(out1, out2)
 	defer rec.Close()
 
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 
 	require.Eventually(t, func() bool {
 		return out1.eventCount() == 1 && out2.eventCount() == 1
@@ -107,7 +107,7 @@ func TestRecordEventMultipleDestinations(t *testing.T) {
 
 func TestNopRecorderDoesNotPanic(t *testing.T) {
 	rec := NopRecorder()
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 	rec.ApplyConfig(Config{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
@@ -115,7 +115,7 @@ func TestNopRecorderDoesNotPanic(t *testing.T) {
 
 func TestZeroRecorderDoesNotPanic(t *testing.T) {
 	var rec Recorder
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 	rec.ApplyConfig(Config{})
 	rec.SetClusterPeer(nil)
 	require.NoError(t, rec.Close())
@@ -128,7 +128,7 @@ func TestZeroRecorderDoesNotPanic(t *testing.T) {
 func TestNewRecorderFromConfig_NilLogger(t *testing.T) {
 	require.NotPanics(t, func() {
 		rec := NewRecorderFromConfig(Config{}, "test-host", nil, nil)
-		rec.RecordEvent(recordCtx(), startupEvent())
+		rec.RecordEvent(recordCtx(), startupEvent)
 		rec.ApplyConfig(Config{})
 		require.NoError(t, rec.Close())
 	})
@@ -140,10 +140,10 @@ func TestRecordingNotEnabledByDefault(t *testing.T) {
 	defer rec.Close()
 
 	// Without WithEventRecording, events should be silently discarded.
-	rec.RecordEvent(context.Background(), startupEvent())
+	rec.RecordEvent(context.Background(), startupEvent)
 
 	// Record an event with recording enabled to flush the queue.
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 	require.Eventually(t, func() bool {
 		return out.eventCount() == 1
 	}, time.Second, 10*time.Millisecond)
@@ -155,7 +155,7 @@ func TestApplyConfig(t *testing.T) {
 	defer rec.Close()
 
 	// Record one event to the initial destination.
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 	require.Eventually(t, func() bool {
 		return out1.eventCount() == 1
 	}, time.Second, 10*time.Millisecond)
@@ -164,7 +164,7 @@ func TestApplyConfig(t *testing.T) {
 	rec.ApplyConfig(Config{})
 
 	// Events still flow to the same output after no-op reload.
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 	require.Eventually(t, func() bool {
 		return out1.eventCount() == 2
 	}, time.Second, 10*time.Millisecond)
@@ -194,7 +194,7 @@ func TestMarshalAndSend_DeliversEvent(t *testing.T) {
 	rec := newTestRecorder(out)
 	defer rec.Close()
 
-	rec.RecordEvent(recordCtx(), startupEvent())
+	rec.RecordEvent(recordCtx(), startupEvent)
 
 	require.Eventually(t, func() bool {
 		out.mu.Lock()
