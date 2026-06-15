@@ -807,6 +807,38 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			fn:    identity,
 			want:  nil,
 		},
+		{
+			// Regression test for #5302: a rendered JSON document must be taken
+			// as-is. String leaves that look like YAML (e.g. ending with a colon)
+			// must not be reinterpreted into maps/scalars.
+			title: "rendered JSON keeps string leaves verbatim",
+			input: `[{"alertname":"test1","id":"value1:"}]`,
+			fn:    identity,
+			want: []any{
+				map[string]any{"alertname": "test1", "id": "value1:"},
+			},
+		},
+		{
+			title: "rendered JSON keeps YAML-like scalar strings as strings",
+			input: `{"num":"123","truthy":"true","empty":"null","when":"2026-01-01"}`,
+			fn:    identity,
+			want: map[string]any{
+				"num":    "123",
+				"truthy": "true",
+				"empty":  "null",
+				"when":   "2026-01-01",
+			},
+		},
+		{
+			title: "rendered JSON preserves real scalar types",
+			input: `{"num":123,"truthy":true,"empty":null}`,
+			fn:    identity,
+			want: map[string]any{
+				"num":    123,
+				"truthy": true,
+				"empty":  nil,
+			},
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			got, err := DeepCopyWithTemplate(tc.input, tc.fn)

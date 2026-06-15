@@ -494,7 +494,12 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 				// ignore error, thus the string is not an interface
 				return parsed, ok
 			}
-			return DeepCopyWithTemplate(inlineType, tmplTextFunc)
+			// inlineType holds structured data decoded from the rendered string.
+			// This is already final data, so only normalize it into JSON-compatible
+			// types. It must not be passed back through DeepCopyWithTemplate, because
+			// re-templating and re-parsing its leaf values would reinterpret strings
+			// that merely look like YAML (e.g. "value1:" becoming a map). See #5302.
+			return normalizeYAMLValue(inlineType), nil
 		}
 		return parsed, ok
 
@@ -532,5 +537,41 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		return converted, nil
 	default:
 		return value, nil
+	}
+}
+
+// normalizeYAMLValue recursively converts a value decoded by yaml.Unmarshal into
+// JSON-compatible types: maps become map[string]any (non-string keys are dropped,
+// mirroring DeepCopyWithTemplate) and slices/arrays become []any. Scalar leaves are
+// returned unchanged, so values are never re-templated or re-parsed. This keeps a
+// rendered JSON payload byte-for-byte faithful instead of reinterpreting string
+// values that happen to be valid YAML (see #5302).
+func normalizeYAMLValue(value any) any {
+	if value == nil {
+		return nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+	case reflect.Array, reflect.Slice:
+		converted := make([]any, valueMeta.Len())
+		for i := range converted {
+			converted[i] = normalizeYAMLValue(valueMeta.Index(i).Interface())
+		}
+		return converted
+
+	case reflect.Map:
+		converted := make(map[string]any, valueMeta.Len())
+		for _, keyMeta := range valueMeta.MapKeys() {
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			converted[strKey] = normalizeYAMLValue(valueMeta.MapIndex(keyMeta).Interface())
+		}
+		return converted
+
+	default:
+		return value
 	}
 }
