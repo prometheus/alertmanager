@@ -302,10 +302,16 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 // event is dropped (never blocks the caller).  Recording only occurs
 // when the context has been decorated with WithEventRecording.
 //
+// The event is supplied as a builder function rather than a value so
+// that callers on hot read paths do not pay to construct an event
+// (protobuf conversions, fingerprint slices, etc.) that would only be
+// discarded when recording is disabled.  The builder is invoked only
+// after the recording gates pass, and exactly once.
+//
 // The expensive protojson.Marshal call is deferred to the write-loop
 // goroutine so that the caller's hot path only pays for the proto
 // wrapping and a channel send.
-func (r Recorder) RecordEvent(ctx context.Context, event *eventrecorderpb.EventData) {
+func (r Recorder) RecordEvent(ctx context.Context, build func() *eventrecorderpb.EventData) {
 	if r.core == nil || r.core.events == nil {
 		return
 	}
@@ -313,6 +319,7 @@ func (r Recorder) RecordEvent(ctx context.Context, event *eventrecorderpb.EventD
 		return
 	}
 
+	event := build()
 	eventType := extractEventType(event)
 
 	wrappedEvent := &eventrecorderpb.Event{

@@ -771,7 +771,9 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *alert.Alert) bool {
 		span.RecordError(err)
 		ag.logger.Error(message, "err", err)
 	} else {
-		ag.recorder.RecordEvent(ctx, notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert))
+		ag.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert)
+		})
 	}
 	return true
 }
@@ -839,7 +841,9 @@ func (ag *aggrGroup) recordResolvedEvents(resolved types.AlertSlice) {
 	}
 	groupInfo := ag.alertGroupInfo()
 	for _, a := range resolved {
-		ag.recorder.RecordEvent(ag.ctx, notify.NewAlertResolvedEvent(groupInfo, a))
+		ag.recorder.RecordEvent(ag.ctx, func() *eventrecorderpb.EventData {
+			return notify.NewAlertResolvedEvent(groupInfo, a)
+		})
 	}
 }
 

@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
@@ -347,7 +348,9 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 		a.callback.PostStore(alert, existing)
 
 		if !existing {
-			a.recorder.RecordEvent(ctx, eventrecorder.NewAlertCreatedEvent(alert))
+			a.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+				return eventrecorder.NewAlertCreatedEvent(alert)
+			})
 		}
 
 		metadata := map[string]string{}
