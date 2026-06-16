@@ -22,6 +22,7 @@ require (
 	github.com/go-openapi/errors v0.22.8
 	github.com/go-openapi/loads v0.24.0
 	github.com/go-openapi/runtime v0.32.3
+	github.com/go-openapi/runtime/server-middleware v0.30.0
 	github.com/go-openapi/spec v0.22.5
 	github.com/go-openapi/strfmt v0.26.3
 	github.com/go-openapi/swag v0.26.1
@@ -83,7 +84,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.23.1 // indirect
 	github.com/go-openapi/jsonreference v0.21.6 // indirect
-	github.com/go-openapi/runtime/server-middleware v0.30.0 // indirect
 	github.com/go-openapi/swag/cmdutils v0.26.1 // indirect
 	github.com/go-openapi/swag/conv v0.26.1 // indirect
 	github.com/go-openapi/swag/fileutils v0.26.1 // indirect
