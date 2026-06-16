@@ -17,7 +17,7 @@ require (
 	github.com/coder/quartz v0.3.1
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/emersion/go-smtp v0.24.0
-	github.com/fsnotify/fsnotify v1.10.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-openapi/analysis v0.25.0
 	github.com/go-openapi/errors v0.22.7
 	github.com/go-openapi/loads v0.23.3
