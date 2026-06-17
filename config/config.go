@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -415,9 +416,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				ec.ForceImplicitTLS = c.Global.SMTPForceImplicitTLS
 			}
 		}
-		for _, sc := range rcv.SlackConfigs {
+		for i, sc := range rcv.SlackConfigs {
 			if sc == nil {
-				sc = &SlackConfig{}
+				sc = &slack.Config{}
+				rcv.SlackConfigs[i] = sc
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
@@ -434,6 +436,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 			if sc.APIURL == nil && len(sc.APIURLFile) == 0 && sc.AppToken == "" && len(sc.AppTokenFile) == 0 {
 				return errors.New("no Slack API URL nor App token set either inline or in a file")
+			}
+			if err := sc.ValidateMessageStrategy(); err != nil {
+				return err
 			}
 			if sc.HTTPConfig == nil {
 				// we don't want to change the global http config when setting the receiver's http config, do we do a copy
@@ -955,7 +960,7 @@ type Receiver struct {
 	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*PagerdutyConfig             `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	SlackConfigs      []*slack.Config                `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*OpsGenieConfig              `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`

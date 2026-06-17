@@ -1,0 +1,15 @@
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alerts1'
+        text: 'test'
+        send_resolved: true
+        api_url: 'https://slack.com/api/chat.postMessage'
+        http_config:
+          authorization:
+            credentials: 'xoxb-XXXXXXXXXXXX-XXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXX'
+        threaded_options:
+          resolve_emoji: 'white_check_mark'
