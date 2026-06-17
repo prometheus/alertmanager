@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
+	"github.com/prometheus/alertmanager/notify/msteamsv2"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -965,7 +966,7 @@ type Receiver struct {
 	TelegramConfigs   []*TelegramConfig              `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config             `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`

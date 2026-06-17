@@ -164,14 +164,6 @@ var (
 		Message:              `{{ template "telegram.default.message" . }}`,
 		ParseMode:            "HTML",
 	}
-
-	DefaultMSTeamsV2Config = MSTeamsV2Config{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Title: `{{ template "msteamsv2.default.title" . }}`,
-		Text:  `{{ template "msteamsv2.default.text" . }}`,
-	}
 )
 
 // WebexConfig configures notifications via Webex.
@@ -785,34 +777,6 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		c.ParseMode != "HTML" {
 		return errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
-	return nil
-}
-
-type MSTeamsV2Config struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL                 *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
-	WebhookURLFile             string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
-
-	Title string `yaml:"title,omitempty" json:"title,omitempty"`
-	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
-}
-
-func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultMSTeamsV2Config
-	type plain MSTeamsV2Config
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-
-	if c.WebhookURL == nil && c.WebhookURLFile == "" {
-		return errors.New("one of webhook_url or webhook_url_file must be configured")
-	}
-
-	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
-		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
-	}
-
 	return nil
 }
 
