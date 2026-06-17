@@ -68,6 +68,12 @@ message Silence {
   // Multiple matcher sets with OR logic between them.
   // At least one matcher set must match for the silence to apply.
   repeated MatcherSet matcher_sets = 11;
+  // Multiple receiver matcher sets with OR logic between them.
+  // Receiver matchers apply to the labels of receivers, not alerts. At
+  // least one set of receiver matchers must match for a silence to apply
+  // to alerts that are sent to that receiver. Unlike alert label matcher,
+  // a silence with no receiver matchers applies to ALL receivers.
+  repeated MatcherSet receiver_matcher_sets = 12;
 }
 
 // MeshSilence wraps a regular silence with an expiration timestamp
