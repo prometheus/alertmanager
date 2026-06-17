@@ -29,6 +29,90 @@ import (
 	"github.com/prometheus/sigv4"
 )
 
+// GlobalSlackTemplates holds global default template overrides for Slack.
+// Fields here are applied to every SlackConfig whose corresponding field
+// is not explicitly set, before falling back to built-in defaults.
+type GlobalSlackTemplates struct {
+	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
+	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
+	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	Footer    string `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Color     string `yaml:"color,omitempty" json:"color,omitempty"`
+}
+
+// GlobalEmailTemplates holds global default template overrides for Email.
+type GlobalEmailTemplates struct {
+	Subject string `yaml:"subject,omitempty" json:"subject,omitempty"`
+	HTML    string `yaml:"html,omitempty" json:"html,omitempty"`
+	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+// GlobalPagerDutyTemplates holds global default template overrides for PagerDuty.
+type GlobalPagerDutyTemplates struct {
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Client      string `yaml:"client,omitempty" json:"client,omitempty"`
+	ClientURL   string `yaml:"client_url,omitempty" json:"client_url,omitempty"`
+
+	// Details holds global default template overrides for entries in a
+	// PagerDuty receiver's `details` map.
+	//
+	// Values are stored as Go template strings (unrendered) and will be
+	// template-expanded later during notification rendering.
+	Details map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+}
+
+// GlobalOpsGenieTemplates holds global default template overrides for OpsGenie.
+type GlobalOpsGenieTemplates struct {
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Source      string `yaml:"source,omitempty" json:"source,omitempty"`
+	Note        string `yaml:"note,omitempty" json:"note,omitempty"`
+}
+
+// GlobalVictorOpsTemplates holds global default template overrides for VictorOps.
+type GlobalVictorOpsTemplates struct {
+	MessageType       string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	EntityDisplayName string `yaml:"entity_display_name,omitempty" json:"entity_display_name,omitempty"`
+	StateMessage      string `yaml:"state_message,omitempty" json:"state_message,omitempty"`
+}
+
+// GlobalPushoverTemplates holds global default template overrides for Pushover.
+type GlobalPushoverTemplates struct {
+	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	URL     string `yaml:"url,omitempty" json:"url,omitempty"`
+}
+
+// GlobalWeChatTemplates holds global default template overrides for WeChat.
+type GlobalWeChatTemplates struct {
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+}
+
+// GlobalTelegramTemplates holds global default template overrides for Telegram.
+type GlobalTelegramTemplates struct {
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+// GlobalReceiverTemplates is the container for all per-integration global
+// template overrides. It lives under global.receiver_templates in the config.
+type GlobalReceiverTemplates struct {
+	Slack     *GlobalSlackTemplates     `yaml:"slack,omitempty" json:"slack,omitempty"`
+	Email     *GlobalEmailTemplates     `yaml:"email,omitempty" json:"email,omitempty"`
+	PagerDuty *GlobalPagerDutyTemplates `yaml:"pagerduty,omitempty" json:"pagerduty,omitempty"`
+	OpsGenie  *GlobalOpsGenieTemplates  `yaml:"opsgenie,omitempty" json:"opsgenie,omitempty"`
+	VictorOps *GlobalVictorOpsTemplates `yaml:"victorops,omitempty" json:"victorops,omitempty"`
+	Pushover  *GlobalPushoverTemplates  `yaml:"pushover,omitempty" json:"pushover,omitempty"`
+	WeChat    *GlobalWeChatTemplates    `yaml:"wechat,omitempty" json:"wechat,omitempty"`
+	Telegram  *GlobalTelegramTemplates  `yaml:"telegram,omitempty" json:"telegram,omitempty"`
+}
+
 var (
 
 	// DefaultWebexConfig defines default values for Webex configurations.
@@ -172,6 +256,27 @@ var (
 		Title: `{{ template "msteamsv2.default.title" . }}`,
 		Text:  `{{ template "msteamsv2.default.text" . }}`,
 	}
+
+	DefaultMSTeamsConfig = MSTeamsConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+		Title:   `{{ template "msteams.default.title" . }}`,
+		Summary: `{{ template "msteams.default.summary" . }}`,
+		Text:    `{{ template "msteams.default.text" . }}`,
+	}
+
+	DefaultIncidentioConfig = IncidentioConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
+	DefaultWebhookConfig = WebhookConfig{
+		NotifierConfig: amcommoncfg.NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 )
 
 // WebexConfig configures notifications via Webex.
@@ -273,6 +378,25 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+func (c *EmailConfig) applyTemplates(gt *GlobalEmailTemplates) {
+	if gt != nil {
+		if gt.Subject != "" {
+			if c.Headers == nil {
+				c.Headers = make(map[string]string)
+			}
+			if val, ok := c.Headers["Subject"]; !ok || val == DefaultEmailSubject {
+				c.Headers["Subject"] = gt.Subject
+			}
+		}
+		applyGlobalTemplateOverride(&c.HTML, gt.HTML, DefaultEmailConfig.HTML)
+		// Text default is "", so we can't distinguish omitted vs explicit empty.
+		// Only apply if receiver still has the zero value (omitted).
+		if gt.Text != "" && c.Text == "" {
+			c.Text = gt.Text
+		}
+	}
+}
+
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
@@ -335,12 +459,75 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.Source == "" {
 		c.Source = c.Client
 	}
+	for k, v := range c.Details {
+		if _, ok := v.(string); !ok {
+			return fmt.Errorf("pagerduty_configs details map must contain only string values, but key %q has type %T", k, v)
+		}
+	}
 	for k, v := range DefaultPagerdutyDetails {
 		if _, ok := c.Details[k]; !ok {
 			c.Details[k] = v
 		}
 	}
 	return nil
+}
+
+func (c *PagerdutyConfig) applyTemplates(gt *GlobalPagerDutyTemplates) {
+	if gt == nil {
+		return
+	}
+
+	applyGlobalTemplateOverride(&c.Description, gt.Description, DefaultPagerdutyConfig.Description)
+	applyGlobalTemplateOverride(&c.Client, gt.Client, DefaultPagerdutyConfig.Client)
+	applyGlobalTemplateOverride(&c.ClientURL, gt.ClientURL, DefaultPagerdutyConfig.ClientURL)
+
+	// Merge global template overrides into the receiver `details` map.
+	//
+	// Precedence model:
+	// - built-in defaults < global receiver_templates < per-receiver explicit value
+	//
+	// For "standard" keys present in DefaultPagerdutyDetails, we only override
+	// receiver values when they are still set to the built-in default template
+	// string (so explicit empty-string overrides like `firing: ""` are preserved).
+	//
+	// For arbitrary/custom keys not present in DefaultPagerdutyDetails, we never
+	// override existing per-receiver values; we only add the key if it's absent.
+	if gt.Details == nil {
+		return
+	}
+	if c.Details == nil {
+		c.Details = make(map[string]any)
+	}
+
+	for k, gv := range gt.Details {
+		if gv == "" {
+			// Treat global empty string as "not set" (consistent with applyGlobalTemplateOverride).
+			continue
+		}
+
+		receiverVal, receiverHasKey := c.Details[k]
+		if !receiverHasKey {
+			// Key absent on receiver: global value becomes the default.
+			c.Details[k] = gv
+			continue
+		}
+
+		// Key exists on receiver:
+		// - if it's a standard key, override only when receiver still equals the built-in default
+		// - if it's a custom key, never override an existing per-receiver value
+		builtInVal, builtInHasKey := DefaultPagerdutyDetails[k]
+		if !builtInHasKey {
+			continue
+		}
+		builtInStr, builtInOK := builtInVal.(string)
+		receiverStr, receiverOK := receiverVal.(string)
+		if !builtInOK || !receiverOK {
+			continue
+		}
+		if receiverStr == builtInStr {
+			c.Details[k] = gv
+		}
+	}
 }
 
 // SlackAction configures a single Slack action that is sent with each notification.
@@ -497,6 +684,110 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+func (c *SlackConfig) applyTemplates(gt *GlobalSlackTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.Username, gt.Username, DefaultSlackConfig.Username)
+		applyGlobalTemplateOverride(&c.IconEmoji, gt.IconEmoji, DefaultSlackConfig.IconEmoji)
+		applyGlobalTemplateOverride(&c.IconURL, gt.IconURL, DefaultSlackConfig.IconURL)
+		applyGlobalTemplateOverride(&c.Pretext, gt.Pretext, DefaultSlackConfig.Pretext)
+		applyGlobalTemplateOverride(&c.Title, gt.Title, DefaultSlackConfig.Title)
+		applyGlobalTemplateOverride(&c.TitleLink, gt.TitleLink, DefaultSlackConfig.TitleLink)
+		applyGlobalTemplateOverride(&c.Text, gt.Text, DefaultSlackConfig.Text)
+		applyGlobalTemplateOverride(&c.Fallback, gt.Fallback, DefaultSlackConfig.Fallback)
+		applyGlobalTemplateOverride(&c.Footer, gt.Footer, DefaultSlackConfig.Footer)
+		applyGlobalTemplateOverride(&c.Color, gt.Color, DefaultSlackConfig.Color)
+	}
+}
+
+// IncidentioConfig configures notifications via incident.io.
+type IncidentioConfig struct {
+	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     *amcommoncfg.URL `yaml:"url" json:"url"`
+	URLFile string           `yaml:"url_file" json:"url_file"`
+
+	// AlertSourceToken is the key used to authenticate with the alert source in incident.io.
+	AlertSourceToken     commoncfg.Secret `yaml:"alert_source_token,omitempty" json:"alert_source_token,omitempty"`
+	AlertSourceTokenFile string           `yaml:"alert_source_token_file,omitempty" json:"alert_source_token_file,omitempty"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per incident.io message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts. Note that if the payload exceeds
+	// incident.io's size limits, you will receive a 429 response and alerts
+	// will not be ingested.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultIncidentioConfig
+	type plain IncidentioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	if c.AlertSourceToken != "" && c.AlertSourceTokenFile != "" {
+		return errors.New("at most one of alert_source_token & alert_source_token_file must be configured")
+	}
+	if c.HTTPConfig != nil && c.HTTPConfig.Authorization != nil && (c.AlertSourceToken != "" || c.AlertSourceTokenFile != "") {
+		return errors.New("cannot specify alert_source_token or alert_source_token_file when using http_config.authorization")
+	}
+
+	if (c.HTTPConfig != nil && c.HTTPConfig.Authorization == nil) && c.AlertSourceToken == "" && c.AlertSourceTokenFile == "" {
+		return errors.New("at least one of alert_source_token, alert_source_token_file or http_config.authorization must be configured")
+	}
+	return nil
+}
+
+// WebhookConfig configures notifications via a generic webhook.
+type WebhookConfig struct {
+	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL     SecretTemplateURL `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string            `yaml:"url_file" json:"url_file"`
+
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration  `yaml:"timeout" json:"timeout"`
+	Payload map[string]any `yaml:"payload,omitempty" json:"payload,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultWebhookConfig
+	type plain WebhookConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == "" && c.URLFile == "" {
+		return errors.New("one of url or url_file must be configured")
+	}
+	if c.URL != "" && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	return nil
+}
+
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
@@ -540,6 +831,20 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	return nil
+}
+
+func (c *WechatConfig) applyTemplates(gt *GlobalWeChatTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultWechatConfig.Message)
+		applyGlobalTemplateOverride(&c.AgentID, gt.AgentID, DefaultWechatConfig.AgentID)
+		// MessageType default is "" but UnmarshalYAML normalizes it to "text".
+		// We can't use applyGlobalTemplateOverride since the effective default
+		// differs from the struct zero value. Only apply if receiver has the
+		// post-unmarshal default "text".
+		if gt.MessageType != "" && c.MessageType == "text" {
+			c.MessageType = gt.MessageType
+		}
+	}
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
@@ -600,6 +905,19 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+func (c *OpsGenieConfig) applyTemplates(gt *GlobalOpsGenieTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultOpsGenieConfig.Message)
+		applyGlobalTemplateOverride(&c.Description, gt.Description, DefaultOpsGenieConfig.Description)
+		applyGlobalTemplateOverride(&c.Source, gt.Source, DefaultOpsGenieConfig.Source)
+		// Note default is "", so we can't distinguish omitted vs explicit empty.
+		// Only apply if receiver still has the zero value (omitted).
+		if gt.Note != "" && c.Note == "" {
+			c.Note = gt.Note
+		}
+	}
+}
+
 type OpsGenieConfigResponder struct {
 	// One of those 3 should be filled.
 	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
@@ -650,6 +968,14 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	return nil
+}
+
+func (c *VictorOpsConfig) applyTemplates(gt *GlobalVictorOpsTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.MessageType, gt.MessageType, DefaultVictorOpsConfig.MessageType)
+		applyGlobalTemplateOverride(&c.EntityDisplayName, gt.EntityDisplayName, DefaultVictorOpsConfig.EntityDisplayName)
+		applyGlobalTemplateOverride(&c.StateMessage, gt.StateMessage, DefaultVictorOpsConfig.StateMessage)
+	}
 }
 
 type duration time.Duration
@@ -712,6 +1038,14 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of monospace & html must be configured")
 	}
 	return nil
+}
+
+func (c *PushoverConfig) applyTemplates(gt *GlobalPushoverTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.Title, gt.Title, DefaultPushoverConfig.Title)
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultPushoverConfig.Message)
+		applyGlobalTemplateOverride(&c.URL, gt.URL, DefaultPushoverConfig.URL)
+	}
 }
 
 type SNSConfig struct {
@@ -785,6 +1119,41 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		c.ParseMode != "HTML" {
 		return errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
+	return nil
+}
+
+func (c *TelegramConfig) applyTemplates(gt *GlobalTelegramTemplates) {
+	if gt != nil {
+		applyGlobalTemplateOverride(&c.Message, gt.Message, DefaultTelegramConfig.Message)
+	}
+}
+
+type MSTeamsConfig struct {
+	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL                 *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile             string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
+
+	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = DefaultMSTeamsConfig
+	type plain MSTeamsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.WebhookURL == nil && c.WebhookURLFile == "" {
+		return errors.New("one of webhook_url or webhook_url_file must be configured")
+	}
+
+	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
+		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
+	}
+
 	return nil
 }
 

@@ -121,6 +121,121 @@ func (s *SecretTemplateURL) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// applyGlobalReceiverTemplates merges global template defaults into each
+// receiver config, using the 3-tier priority:
+//
+//	built-in default < global template override < per-receiver explicit value
+func applyGlobalReceiverTemplates(receivers []Receiver, global *GlobalConfig) {
+	var gt *GlobalReceiverTemplates
+	if global != nil {
+		gt = global.ReceiverTemplates
+	}
+
+	for i := range receivers {
+		r := &receivers[i]
+
+		for j := range r.SlackConfigs {
+			if r.SlackConfigs[j] == nil {
+				continue
+			}
+			var slackGt *GlobalSlackTemplates
+			if gt != nil {
+				slackGt = gt.Slack
+			}
+			r.SlackConfigs[j].applyTemplates(slackGt)
+		}
+
+		for j := range r.EmailConfigs {
+			if r.EmailConfigs[j] == nil {
+				continue
+			}
+			var emailGt *GlobalEmailTemplates
+			if gt != nil {
+				emailGt = gt.Email
+			}
+			r.EmailConfigs[j].applyTemplates(emailGt)
+		}
+
+		for j := range r.PagerdutyConfigs {
+			if r.PagerdutyConfigs[j] == nil {
+				continue
+			}
+			var pdGt *GlobalPagerDutyTemplates
+			if gt != nil {
+				pdGt = gt.PagerDuty
+			}
+			r.PagerdutyConfigs[j].applyTemplates(pdGt)
+		}
+
+		for j := range r.OpsGenieConfigs {
+			if r.OpsGenieConfigs[j] == nil {
+				continue
+			}
+			var ogGt *GlobalOpsGenieTemplates
+			if gt != nil {
+				ogGt = gt.OpsGenie
+			}
+			r.OpsGenieConfigs[j].applyTemplates(ogGt)
+		}
+
+		for j := range r.VictorOpsConfigs {
+			if r.VictorOpsConfigs[j] == nil {
+				continue
+			}
+			var voGt *GlobalVictorOpsTemplates
+			if gt != nil {
+				voGt = gt.VictorOps
+			}
+			r.VictorOpsConfigs[j].applyTemplates(voGt)
+		}
+
+		for j := range r.PushoverConfigs {
+			if r.PushoverConfigs[j] == nil {
+				continue
+			}
+			var poGt *GlobalPushoverTemplates
+			if gt != nil {
+				poGt = gt.Pushover
+			}
+			r.PushoverConfigs[j].applyTemplates(poGt)
+		}
+
+		for j := range r.WechatConfigs {
+			if r.WechatConfigs[j] == nil {
+				continue
+			}
+			var wcGt *GlobalWeChatTemplates
+			if gt != nil {
+				wcGt = gt.WeChat
+			}
+			r.WechatConfigs[j].applyTemplates(wcGt)
+		}
+
+		for j := range r.TelegramConfigs {
+			if r.TelegramConfigs[j] == nil {
+				continue
+			}
+			var tcGt *GlobalTelegramTemplates
+			if gt != nil {
+				tcGt = gt.Telegram
+			}
+			r.TelegramConfigs[j].applyTemplates(tcGt)
+		}
+	}
+}
+
+// applyGlobalTemplateOverride sets *dst to gtValue only if *dst is currently exactly equal to defaultVal.
+// This properly distinguishes between an omitted field (which defaults to defaultVal) and an explicit
+// empty string override (like `title: ""`), assuming defaultVal is not literally `""`.
+func applyGlobalTemplateOverride(dst *string, gtValue, defaultVal string) {
+	if gtValue == "" {
+		return
+	}
+	if *dst == defaultVal {
+		*dst = gtValue
+	}
+}
+
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
@@ -372,6 +487,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.Global.MattermostWebhookURL != nil && len(c.Global.MattermostWebhookURLFile) > 0 {
 		return errors.New("at most one of mattermost_webhook_url & mattermost_webhook_url_file must be configured")
 	}
+
+	applyGlobalReceiverTemplates(c.Receivers, c.Global)
 
 	names := map[string]struct{}{}
 
@@ -861,6 +978,9 @@ type GlobalConfig struct {
 	RocketchatTokenIDFile    string                 `yaml:"rocketchat_token_id_file,omitempty" json:"rocketchat_token_id_file,omitempty"`
 	MattermostWebhookURL     *amcommoncfg.SecretURL `yaml:"mattermost_webhook_url,omitempty" json:"mattermost_webhook_url,omitempty"`
 	MattermostWebhookURLFile string                 `yaml:"mattermost_webhook_url_file,omitempty" json:"mattermost_webhook_url_file,omitempty"`
+
+	// per-receiver-type global template overrides
+	ReceiverTemplates *GlobalReceiverTemplates `yaml:"receiver_templates,omitempty" json:"receiver_templates,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
