@@ -21,14 +21,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack/internal/apiurl"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -37,7 +36,7 @@ import (
 const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -49,6 +48,7 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 		logger:       l,
 		client:       client,
 		retrier:      &notify.Retrier{},
+		urlResolver:  apiurl.NewResolver(c.APIURL, c.APIURLFile),
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -95,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		fields := make([]config.SlackField, numFields)
+		fields := make([]Field, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -106,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.SlackField{
+			fields[index] = Field{
 				Title: tmplText(field.Title),
 				Value: tmplText(field.Value),
 				Short: &short,
@@ -117,9 +117,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		actions := make([]config.SlackAction, numActions)
+		actions := make([]Action, numActions)
 		for index, action := range n.conf.Actions {
-			slackAction := config.SlackAction{
+			slackAction := Action{
 				Type:  tmplText(action.Type),
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
@@ -129,7 +129,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &config.SlackConfirmationField{
+				slackAction.ConfirmField = &ConfirmationField{
 					Title:       tmplText(action.ConfirmField.Title),
 					Text:        tmplText(action.ConfirmField.Text),
 					OkText:      tmplText(action.ConfirmField.OkText),
@@ -142,15 +142,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := os.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = strings.TrimSpace(string(content))
+	u, err := n.urlResolver.URLForMethod("")
+	if err != nil {
+		return false, err
 	}
 
 	if n.conf.Timeout > 0 {
@@ -183,7 +177,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			channelId, _ := store.GetStr("channelId")
 			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
 			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
+				updateURL, err := n.urlResolver.URLForMethod("chat.update")
+				if err != nil {
+					return false, err
+				}
+				u = updateURL
 				req.Timestamp = threadTs
 				req.Channel = channelId
 				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
