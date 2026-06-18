@@ -29,7 +29,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -42,7 +41,7 @@ const (
 )
 
 type Notifier struct {
-	conf         *config.MSTeamsV2Config
+	conf         *MSTeamsV2Config
 	tmpl         *template.Template
 	logger       *slog.Logger
 	client       *http.Client
@@ -86,7 +85,7 @@ type teamsMessage struct {
 }
 
 // New returns a new notifier that uses the Microsoft Teams Power Platform connector.
-func New(c *config.MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "msteamsv2", httpOpts...)
 	if err != nil {
 		return nil, err
