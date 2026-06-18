@@ -207,6 +207,9 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 		}
 		outputs = append(outputs, ko)
 	}
+	for range cfg.StdoutOutputs {
+		outputs = append(outputs, &StdoutOutput{})
+	}
 	return outputs
 }
 
