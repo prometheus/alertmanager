@@ -101,3 +101,20 @@ func TestMatchersAsProto(t *testing.T) {
 	require.Equal(t, eventrecorderpb.Matcher_TYPE_EQUAL, protos[0].Type)
 	require.Equal(t, eventrecorderpb.Matcher_TYPE_NOT_EQUAL, protos[1].Type)
 }
+
+func TestInhibitRuleAsProto(t *testing.T) {
+	source, err := labels.NewMatcher(labels.MatchEqual, "severity", "critical")
+	require.NoError(t, err)
+	target, err := labels.NewMatcher(labels.MatchEqual, "severity", "warning")
+	require.NoError(t, err)
+	equal := map[model.LabelName]struct{}{"cluster": {}, "alertname": {}}
+
+	proto := InhibitRuleAsProto("my-rule", labels.Matchers{source}, labels.Matchers{target}, equal)
+
+	require.Equal(t, "my-rule", proto.Name)
+	require.Len(t, proto.SourceMatchers, 1)
+	require.Equal(t, "severity", proto.SourceMatchers[0].Name)
+	require.Len(t, proto.TargetMatchers, 1)
+	require.Equal(t, "severity", proto.TargetMatchers[0].Name)
+	require.Equal(t, []string{"alertname", "cluster"}, proto.EqualLabels)
+}
