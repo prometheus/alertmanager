@@ -1,0 +1,93 @@
+// Copyright The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package status.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/prometheus/alertmanager/api/status/v1;statusv1";
+
+// StatusService exposes Alertmanager instance and cluster status, plus a
+// lightweight health probe distinct from /status that does not contend on
+// internal locks.
+service StatusService {
+  // GetStatus returns the Alertmanager instance and cluster status.
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
+
+  // GetHealth is a lightweight liveness/readiness probe intended for load
+  // balancers. It does not acquire any internal locks.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse) {}
+}
+
+// AlertmanagerStatus is the top-level status payload.
+message AlertmanagerStatus {
+  VersionInfo version_info = 1;
+  AlertmanagerConfig config = 2;
+  ClusterStatus cluster = 3;
+  google.protobuf.Timestamp start_time = 4;
+}
+
+// VersionInfo describes the running Alertmanager binary.
+message VersionInfo {
+  string version = 1;
+  string revision = 2;
+  string branch = 3;
+  string build_user = 4;
+  string build_date = 5;
+  string go_version = 6;
+}
+
+// AlertmanagerConfig carries the currently loaded configuration.
+message AlertmanagerConfig {
+  // Original YAML configuration as a single string.
+  string original = 1;
+}
+
+// ClusterStatus describes the local node's view of the gossip cluster.
+message ClusterStatus {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_DISABLED = 1;
+    STATE_SETTLING = 2;
+    STATE_READY = 3;
+  }
+  // Cluster name, when configured.
+  string name = 1;
+  State state = 2;
+  repeated PeerStatus peers = 3;
+}
+
+// PeerStatus is a single peer in the gossip cluster.
+message PeerStatus {
+  string name = 1;
+  string address = 2;
+}
+
+message GetStatusRequest {}
+message GetStatusResponse {
+  AlertmanagerStatus status = 1;
+}
+
+message GetHealthRequest {}
+message GetHealthResponse {
+  // ready is true once the API has received at least one configuration
+  // update; before that, requests against business-data services may not
+  // reflect the operator's intended configuration.
+  bool ready = 1;
+  // healthy is true while the process is able to serve requests. Always
+  // true at the application level; intended for completeness and parity
+  // with common probe shapes.
+  bool healthy = 2;
+}

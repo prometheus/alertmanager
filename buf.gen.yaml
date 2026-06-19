@@ -4,3 +4,7 @@ plugins:
     out: .
     opt:
       - module=github.com/prometheus/alertmanager
+  - local: ['go', 'tool', '-modfile=internal/tools/go.mod', 'protoc-gen-connect-go']
+    out: .
+    opt:
+      - module=github.com/prometheus/alertmanager
