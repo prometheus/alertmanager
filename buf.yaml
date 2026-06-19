@@ -1,11 +1,13 @@
 # For details on buf.yaml configuration, visit https://buf.build/docs/configuration/v2/buf-yaml
 version: v2
 modules:
-  - path: nflog/nflogpb
-    name: prometheus/alertmanager/nflog
   - path: cluster/clusterpb
     name: prometheus/alertmanager/cluster
-  - path: silence/silencepb
-    name: prometheus/alertmanager/silence
   - path: eventrecorder/eventrecorderpb
     name: prometheus/alertmanager/eventrecorder
+  - path: nflog/nflogpb
+    name: prometheus/alertmanager/nflog
+  - path: proto/public
+    name: prometheus/alertmanager/apiv3
+  - path: silence/silencepb
+    name: prometheus/alertmanager/silence
