@@ -4,7 +4,6 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - main
-# Docker Hub + Quay pushes use their own secrets.
 permissions:
   contents: read
 
@@ -29,7 +28,7 @@ jobs:
     name: Publish main branch artefacts
     runs-on: ubuntu-latest
     permissions:
-      packages: write
+      packages: write  # push the image to GHCR via github.token
     needs: build
     steps:
       - uses: prometheus/promci/publish_main@d9d4f5688814f0b77bf003d07fb8c00507390634 # v0.8.2
