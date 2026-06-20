@@ -98,25 +98,35 @@ func TestStdoutOutput_ImplementsDestination(t *testing.T) {
 // TestStdoutOutput_IntegrationWithRecorder verifies events flow from a
 // Recorder through the StdoutOutput and appear on stdout as JSON lines.
 func TestStdoutOutput_IntegrationWithRecorder(t *testing.T) {
-	out := &StdoutOutput{}
-	rec := newTestRecorder(out)
+	// mirror is a mockDestination used solely to detect when the write
+	// loop has delivered the event, so we know stdout was written.
+	mirror := newMockDestination("test:mirror")
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	old := os.Stdout
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = old })
+
+	rec := newTestRecorder(&StdoutOutput{}, mirror)
 	defer rec.Close()
 
-	var got string
-	done := make(chan struct{})
+	rec.RecordEvent(recordCtx(), startupEvent)
 
-	go func() {
-		defer close(done)
-		got = captureStdout(t, func() {
-			rec.RecordEvent(recordCtx(), startupEvent)
-			// Give the write loop time to drain the event before we close
-			// the pipe and read.
-			time.Sleep(100 * time.Millisecond)
-		})
-	}()
+	// Wait until the write loop has delivered the event to both outputs.
+	require.Eventually(t, func() bool {
+		return mirror.eventCount() == 1
+	}, time.Second, 10*time.Millisecond)
 
-	<-done
-	require.Contains(t, got, "alertmanagerStartupEvent")
+	// Close the write end so io.Copy below can reach EOF.
+	require.NoError(t, w.Close())
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+
+	require.Contains(t, buf.String(), "alertmanagerStartupEvent")
 }
 
 // --- config tests.
