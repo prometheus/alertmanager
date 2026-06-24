@@ -361,10 +361,13 @@ route:
 	)
 
 	// Each group should have pre-computed AlertStatuses. Verify and then
-	// nil them out so the struct comparison below works.
+	// nil them out so the struct comparison below works. The routes in this
+	// test define no labels, so RouteLabels is an empty set; nil it out too.
 	for _, ag := range alertGroups {
 		require.NotNil(t, ag.AlertStatuses)
 		ag.AlertStatuses = nil
+		require.Empty(t, ag.RouteLabels)
+		ag.RouteLabels = nil
 	}
 
 	require.Equal(t, AlertGroups{

@@ -35,10 +35,12 @@ import (
 
 	"github.com/prometheus/alertmanager/alert"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -943,4 +945,63 @@ func TestPostSilences_QuotedMatchers(t *testing.T) {
 	require.Len(t, silProto.MatcherSets, 1)
 	require.Len(t, silProto.MatcherSets[0].Matchers, 1)
 	require.Equal(t, "\"bar\"", silProto.MatcherSets[0].Matchers[0].Pattern)
+}
+
+func TestGetAlertGroupsHandlerRouteLabels(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+    routes:
+      - receiver: team-X
+        labels:
+          team: X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	group := &dispatch.AlertGroup{
+		Labels:      model.LabelSet{"alertname": "Foo"},
+		RouteLabels: model.LabelSet{"team": "X"},
+		Receiver:    "team-X",
+		GroupKey:    "key",
+		RouteID:     "route",
+	}
+
+	api := API{
+		uptime: time.Now(),
+		logger: promslog.NewNopLogger(),
+		alertGroups: func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
+		},
+		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
+			return nil, false
+		},
+	}
+	api.Update(cfg, func(context.Context, model.LabelSet) {})
+
+	r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
+	require.NoError(t, err)
+
+	truePtr := true
+	responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+		HTTPRequest: r,
+		Active:      &truePtr,
+		Silenced:    &truePtr,
+		Inhibited:   &truePtr,
+		Muted:       &truePtr,
+	})
+
+	w := httptest.NewRecorder()
+	responder.WriteResponse(w, runtime.JSONProducer())
+	require.Equal(t, 200, w.Code)
+
+	body, _ := io.ReadAll(w.Result().Body)
+
+	var groups open_api_models.AlertGroups
+	require.NoError(t, json.Unmarshal(body, &groups))
+	require.Len(t, groups, 1)
+	require.Equal(t, open_api_models.LabelSet{"team": "X"}, groups[0].RouteLabels)
 }

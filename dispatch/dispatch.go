@@ -315,6 +315,7 @@ func (d *Dispatcher) LoadingDone() <-chan struct{} {
 type AlertGroup struct {
 	Alerts        alert.AlertSlice
 	Labels        model.LabelSet
+	RouteLabels   model.LabelSet
 	Receiver      string
 	GroupKey      string
 	RouteID       string
@@ -368,10 +369,11 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		// Process the snapshot without holding sync.Map locks
 		for _, ag := range snapshot {
 			alertGroup := &AlertGroup{
-				Labels:   ag.labels,
-				Receiver: receiver,
-				GroupKey: ag.GroupKey(),
-				RouteID:  ag.routeID,
+				Labels:      ag.labels,
+				RouteLabels: ag.RouteLabels(),
+				Receiver:    receiver,
+				GroupKey:    ag.GroupKey(),
+				RouteID:     ag.routeID,
 			}
 
 			alerts := ag.alerts.List()
