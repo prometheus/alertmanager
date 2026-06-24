@@ -59,6 +59,9 @@ If they do, no notifications will be sent out for that alert.
 
 Silences are configured in the web interface of the Alertmanager.
 
+The `alertmanager_alerts_suppressed` metric shows active alerts suppressed by `reason`: `silence` or `inhibition`.
+Alerts suppressed by both are counted once for each reason.
+Enabling the `group-key-in-metrics` feature flag will add the `group_key` label to the metric.
 
 ## Client behavior
 
