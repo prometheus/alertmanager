@@ -136,28 +136,76 @@ func (t *Template) FromGlob(path string) error {
 	return nil
 }
 
-// makeRouteLabelFunc returns a routeLabels template function bound to the given
-// data and execute function. Looking up a route label renders its value as a
-// template, so route label values may themselves reference group labels, other
-// route labels, etc. (including recursively).
-func makeRouteLabelFunc(data any, executeFunc func(string, any) (string, error)) func(string) (string, error) {
-	// The data may be passed either by value or by pointer, so handle both.
-	var castData *Data
-	if d, ok := data.(Data); ok {
-		castData = &d
-	} else if d, ok := data.(*Data); ok {
-		castData = d
+// routeLabelsOf extracts the route labels from template data, which may be
+// passed either by value or by pointer.
+func routeLabelsOf(data any) KV {
+	switch d := data.(type) {
+	case *Data:
+		return d.RouteLabels
+	case Data:
+		return d.RouteLabels
+	default:
+		return nil
 	}
-	return func(name string) (string, error) {
-		if castData == nil {
-			return "", nil
-		}
-		lv, ok := castData.RouteLabels[name]
-		if !ok {
-			return "", nil
-		}
-		return executeFunc(lv, data)
+}
+
+// routeLabelResolver backs the routeLabels template function for a single
+// top-level render. A route label value may itself be a template that
+// references group labels, other route labels, etc., so resolving one can
+// recurse. The resolver renders each label at most once (memo) and tracks which
+// labels are currently being rendered (inProgress) so that a cyclic reference
+// returns a descriptive error instead of recursing until the goroutine stack
+// overflows (which is a fatal, unrecoverable runtime error in Go).
+type routeLabelResolver struct {
+	raw        KV  // raw (possibly templated) label values
+	data       any // data to render label values against
+	exec       func(text string, data any, r *routeLabelResolver) (string, error)
+	memo       map[string]string
+	inProgress map[string]struct{}
+	stack      []string // labels currently being rendered, for the cycle error
+}
+
+func newRouteLabelResolver(data any, exec func(string, any, *routeLabelResolver) (string, error)) *routeLabelResolver {
+	// memo and inProgress are allocated lazily on the first resolve() call, so a
+	// template that never references routeLabels (the common case) pays nothing.
+	return &routeLabelResolver{
+		raw:  routeLabelsOf(data),
+		data: data,
+		exec: exec,
 	}
+}
+
+// resolve renders the named route label, recursing through any routeLabels
+// references it contains. Unknown labels render to the empty string.
+func (r *routeLabelResolver) resolve(name string) (string, error) {
+	raw, ok := r.raw[name]
+	if !ok {
+		return "", nil
+	}
+	if v, ok := r.memo[name]; ok {
+		return v, nil
+	}
+	if _, busy := r.inProgress[name]; busy {
+		cycle := strings.Join(append(append([]string{}, r.stack...), name), " -> ")
+		return "", fmt.Errorf("route label cycle detected: %s", cycle)
+	}
+
+	if r.memo == nil {
+		r.memo = map[string]string{}
+		r.inProgress = map[string]struct{}{}
+	}
+
+	r.inProgress[name] = struct{}{}
+	r.stack = append(r.stack, name)
+	v, err := r.exec(raw, r.data, r)
+	r.stack = r.stack[:len(r.stack)-1]
+	delete(r.inProgress, name)
+	if err != nil {
+		return "", err
+	}
+
+	r.memo[name] = v
+	return v, nil
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
@@ -165,14 +213,16 @@ func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
 		return "", nil
 	}
+	return t.execText(text, data, newRouteLabelResolver(data, t.execText))
+}
+
+func (t *Template) execText(text string, data any, r *routeLabelResolver) (string, error) {
 	tmpl, err := t.text.Clone()
 	if err != nil {
 		return "", err
 	}
 
-	funcs := tmpltext.FuncMap{
-		"routeLabels": makeRouteLabelFunc(data, t.ExecuteTextString),
-	}
+	funcs := tmpltext.FuncMap{"routeLabels": r.resolve}
 
 	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(text)
 	if err != nil {
@@ -188,14 +238,16 @@ func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if html == "" {
 		return "", nil
 	}
+	return t.execHTML(html, data, newRouteLabelResolver(data, t.execHTML))
+}
+
+func (t *Template) execHTML(html string, data any, r *routeLabelResolver) (string, error) {
 	tmpl, err := t.html.Clone()
 	if err != nil {
 		return "", err
 	}
 
-	funcs := tmplhtml.FuncMap{
-		"routeLabels": makeRouteLabelFunc(data, t.ExecuteHTMLString),
-	}
+	funcs := tmplhtml.FuncMap{"routeLabels": r.resolve}
 
 	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(html)
 	if err != nil {
