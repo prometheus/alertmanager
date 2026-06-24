@@ -230,6 +230,19 @@ match_re:
 matchers:
   [ - <matcher> ... ]
 
+# A set of labels that are attached to the route and made available to
+# notification templates via the `routeLabels` template function (and to the
+# `routeLabels` field of the `/api/v2/alerts/groups` API response). Route labels
+# are merged from parent to child routes: a child route inherits its parent's
+# route labels and may override individual labels by redefining them. Unlike
+# group_by, route labels do not affect how alerts are grouped.
+#
+# Label values may themselves be templates that are rendered against the
+# notification data of each alert group (so they can reference group labels,
+# other route labels, etc.).
+labels:
+  [ <labelname>: <tmpl_string>, ... ]
+
 # How long to wait before sending the first notification for a new group of
 # alerts. Allows to wait for alerts to arrive from other rule groups or
 # Prometheus servers, and for one or more inhibiting alerts to arrive and mute

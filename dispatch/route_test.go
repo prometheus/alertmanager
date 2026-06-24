@@ -114,6 +114,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}"},
@@ -131,6 +132,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}"},
@@ -147,6 +149,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
@@ -164,6 +167,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
@@ -181,6 +185,7 @@ routes:
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 				{
 					Receiver:       "notify-productionB",
@@ -189,6 +194,7 @@ routes:
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{
@@ -208,6 +214,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -225,6 +232,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -243,6 +251,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
@@ -464,6 +473,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -481,6 +491,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -497,6 +508,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=~\"team-(B|C)\"}"},
@@ -514,6 +526,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
@@ -531,6 +544,7 @@ routes:
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 				{
 					Receiver:       "notify-productionB",
@@ -539,6 +553,7 @@ routes:
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{
@@ -558,6 +573,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -575,6 +591,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -593,6 +610,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
@@ -700,6 +718,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -717,6 +736,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
@@ -733,6 +753,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
@@ -750,6 +771,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
@@ -767,6 +789,7 @@ routes:
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 				{
 					Receiver:       "notify-productionB",
@@ -775,6 +798,7 @@ routes:
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{
@@ -794,6 +818,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}"},
@@ -811,6 +836,7 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
@@ -829,6 +855,7 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
+					Labels:         def.Labels,
 				},
 			},
 			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
@@ -850,6 +877,96 @@ routes:
 
 		if !reflect.DeepEqual(keys, test.keys) {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.keys, keys)
+		}
+	}
+}
+
+func TestRouteLabelsLoading(t *testing.T) {
+	in := `
+receiver: "notify-def"
+
+routes:
+  - matchers: ['{owner="team-A"}', '{level!="critical"}']
+    labels:
+      team: "team-A"
+    receiver: "notify-A"
+
+    routes:
+      - matchers: ['{env="testing"}', '{baz!~".*quux"}']
+        labels:
+          team: "team-A-testing"
+
+      - matchers: ['{env="production"}']
+        labels:
+          severity: "production"
+  - matchers: ['{owner="team-B"}']
+    receiver: "notify-B"
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Logf("original yaml:\n%s", in)
+		t.Fatal(err)
+	}
+	tree := NewRoute(&ctree, nil)
+
+	tests := []struct {
+		input               model.LabelSet
+		expectedRouteLabels model.LabelSet
+	}{
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+			},
+			expectedRouteLabels: model.LabelSet{
+				"team": "team-A",
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+				"env":   "testing",
+			},
+			expectedRouteLabels: model.LabelSet{
+				"team": "team-A-testing",
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+				"env":   "production",
+			},
+			expectedRouteLabels: model.LabelSet{
+				"team":     "team-A",
+				"severity": "production",
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-B",
+				"env":   "production",
+			},
+			expectedRouteLabels: model.LabelSet{},
+		},
+	}
+
+	for _, test := range tests {
+		var matches []*RouteOpts
+
+		for _, r := range tree.Match(test.input) {
+			matches = append(matches, &r.RouteOpts)
+		}
+
+		// This is just to simplify the tests: we construct the tests with only
+		// one route matching on purpose. In general we can have multiple matches
+		// and multiple route labels, and that is tested in previous unit tests.
+		if len(matches) != 1 {
+			t.Errorf("expected one route, got %d", len(matches))
+			continue
+		}
+
+		if !reflect.DeepEqual(matches[0].Labels, test.expectedRouteLabels) {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.expectedRouteLabels, matches[0].Labels)
 		}
 	}
 }
