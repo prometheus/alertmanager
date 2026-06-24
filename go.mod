@@ -3,6 +3,7 @@ module github.com/prometheus/alertmanager
 go 1.25.0
 
 require (
+	connectrpc.com/connect v1.20.0
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
