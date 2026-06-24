@@ -425,6 +425,7 @@ func init() {
       "type": "object",
       "required": [
         "labels",
+        "routeLabels",
         "receiver",
         "alerts"
       ],
@@ -440,6 +441,9 @@ func init() {
         },
         "receiver": {
           "$ref": "#/definitions/receiverReference"
+        },
+        "routeLabels": {
+          "$ref": "#/definitions/labelSet"
         }
       }
     },
@@ -1330,6 +1334,7 @@ func init() {
       "type": "object",
       "required": [
         "labels",
+        "routeLabels",
         "receiver",
         "alerts"
       ],
@@ -1345,6 +1350,9 @@ func init() {
         },
         "receiver": {
           "$ref": "#/definitions/receiverReference"
+        },
+        "routeLabels": {
+          "$ref": "#/definitions/labelSet"
         }
       }
     },

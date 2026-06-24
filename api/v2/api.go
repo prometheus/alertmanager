@@ -512,9 +512,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 
 		ag := &open_api_models.AlertGroup{
-			Receiver: &open_api_models.ReceiverReference{Name: &alertGroup.Receiver},
-			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
-			Alerts:   make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
+			Receiver:    &open_api_models.ReceiverReference{Name: &alertGroup.Receiver},
+			Labels:      ModelLabelSetToAPILabelSet(alertGroup.Labels),
+			RouteLabels: ModelLabelSetToAPILabelSet(alertGroup.RouteLabels),
+			Alerts:      make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
 		}
 
 		for _, alert := range alertGroup.Alerts {

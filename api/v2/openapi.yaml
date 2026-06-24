@@ -501,6 +501,8 @@ definitions:
     properties:
       labels:
         $ref: '#/definitions/labelSet'
+      routeLabels:
+        $ref: '#/definitions/labelSet'
       receiver:
         $ref: '#/definitions/receiverReference'
       alerts:
@@ -509,6 +511,7 @@ definitions:
           $ref: '#/definitions/gettableAlert'
     required:
       - labels
+      - routeLabels
       - receiver
       - alerts
   alertStatus:
