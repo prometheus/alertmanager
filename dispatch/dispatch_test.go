@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"reflect"
 	"runtime"
 	"sort"
@@ -37,6 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/template"
 )
 
 const testMaintenanceInterval = 30 * time.Second
@@ -163,7 +165,7 @@ func TestAggrGroup(t *testing.T) {
 
 	// Test regular situation where we wait for group_wait to send out alerts.
 	createdAt := time.Now()
-	ag := newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
 	go ag.run(ntfy)
 
 	ctx := context.Background()
@@ -182,7 +184,7 @@ func TestAggrGroup(t *testing.T) {
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
 	createdAt = time.Now()
-	ag = newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
 	go ag.run(ntfy)
 
 	ag.insert(ctx, a1)
@@ -324,7 +326,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -484,7 +486,7 @@ route:
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, reg, nil)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, eventrecorder.NopRecorder(), m)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, eventrecorder.NopRecorder(), m, nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -604,7 +606,7 @@ func TestDispatcherRace(t *testing.T) {
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	route := &Route{}
-	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil))
+	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	dispatcher.Stop()
 }
@@ -633,7 +635,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -686,7 +688,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 
 	ctx := context.Background()
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r, nil))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r, nil), nil)
 	// Manually create the routeAggrGroups structure since we are not calling Run().
 	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
 	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
@@ -695,7 +697,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger())
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
 	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 
 	// Add a resolved alert
@@ -773,7 +775,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	metrics := NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{})
-	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), metrics)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
 	// Don't call Run — put the dispatcher manually in  the DispatcherStateWaitingToStart
 	// state so groupAlert's final switch falls through the default branch and the
 	// aggregation group's run goroutine is never started.
@@ -782,7 +784,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	rounds := 0
 	for rounds < maxRounds && testutil.ToFloat64(metrics.aggrGroupCreationRetries) == 0 {
 		groupLabels := model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("shared-%d", rounds))}
-		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger)
+		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
 		// Mark the store destroyed: empty store + destroyIfEmpty=true.
 		require.NoError(t, destroyedAg.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
 		require.True(t, destroyedAg.destroyed())
@@ -858,14 +860,14 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{}))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{}), nil)
 	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
 	// WaitingToStart so groupAlert won't auto-start the new ag — keeps the
 	// test focused on the displaced group.
 	dispatcher.state.Store(DispatcherStateWaitingToStart)
 
 	groupLabels := model.LabelSet{"alertname": "displaced"}
-	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger)
+	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
 	// Mark destroyed so groupAlert can't insert into it and is forced down
 	// the CAS-replace path.
 	require.NoError(t, displaced.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
@@ -909,7 +911,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
@@ -977,7 +979,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1030,7 +1032,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1111,7 +1113,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	now := time.Now()
 	startDelay := 2 * time.Second
 	startTime := time.Now().Add(startDelay)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(startTime)
 	defer dispatcher.Stop()
 
@@ -1271,4 +1273,142 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 			_ = getGroupLabels(alert, route)
 		}
 	})
+}
+
+// TestRouteLabelsAfterAllAlertsResolved verifies that calling RouteLabels()
+// after all alerts have been resolved and deleted does not panic or return
+// incorrect results. This exercises the race between flush() emptying the
+// alerts store and RouteLabels() attempting to re-render.
+func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
+	lset := model.LabelSet{"alertname": "test"}
+	opts := &RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      10 * time.Millisecond,
+		GroupInterval:  10 * time.Millisecond,
+		RepeatInterval: 1 * time.Hour,
+		Labels: model.LabelSet{
+			"description": "{{ (index .Alerts 0).Labels.alertname }}",
+		},
+	}
+	route := &Route{RouteOpts: *opts}
+
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	ag := newAggrGroup(context.Background(), lset, route, nil,
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+	alertsCh := make(chan alert.AlertSlice)
+	ntfy := func(ctx context.Context, alerts ...*alert.Alert) bool {
+		alertsCh <- alert.AlertSlice(alerts)
+		return true
+	}
+	go ag.run(ntfy)
+	defer ag.stop()
+
+	ctx := context.Background()
+
+	// Insert a firing alert and wait for the first flush.
+	a1 := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
+			StartsAt: time.Now().Add(-time.Hour),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+		UpdatedAt: time.Now(),
+	}
+	ag.insert(ctx, a1)
+
+	select {
+	case <-alertsCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first flush")
+	}
+
+	// Route labels should be rendered from the alert.
+	rl := ag.RouteLabels()
+	require.Equal(t, model.LabelValue("test"), rl["description"],
+		"route label should be rendered from alert")
+
+	// Now resolve the alert and wait for the flush that deletes it.
+	a1r := *a1
+	a1r.EndsAt = time.Now()
+	ag.insert(ctx, &a1r)
+
+	select {
+	case <-alertsCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for resolved flush")
+	}
+
+	// After flush deletes resolved alerts, RouteLabels() must not panic and
+	// should return the last successfully rendered labels.
+	require.NotPanics(t, func() {
+		rl = ag.RouteLabels()
+	}, "RouteLabels() must not panic after all alerts are deleted")
+	require.Equal(t, model.LabelValue("test"), rl["description"],
+		"route label should retain last rendered value after alerts are deleted")
+}
+
+// TestRouteLabelsInsertConcurrentWithRouteLabels verifies that concurrent
+// insert() and RouteLabels() calls don't have race conditions. Run with -race.
+func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
+	lset := model.LabelSet{"alertname": "test"}
+	opts := &RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      1 * time.Hour, // don't flush
+		GroupInterval:  1 * time.Hour,
+		RepeatInterval: 1 * time.Hour,
+		Labels: model.LabelSet{
+			"info": "static-value",
+		},
+	}
+	route := &Route{RouteOpts: *opts}
+
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	ag := newAggrGroup(context.Background(), lset, route, nil,
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+	ctx := context.Background()
+
+	// Hammer insert() and RouteLabels() concurrently. Under -race this will
+	// flag any data race on routeLabels/routeLabelsDirty.
+	var wg sync.WaitGroup
+	const goroutines = 10
+	const iterations = 100
+
+	for range goroutines {
+		wg.Go(func() {
+			for i := range iterations {
+				a := &alert.Alert{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"alertname": "test",
+							"i":         model.LabelValue(fmt.Sprintf("%d", i)),
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+					UpdatedAt: time.Now(),
+				}
+				ag.insert(ctx, a)
+			}
+		})
+	}
+
+	for range goroutines {
+		wg.Go(func() {
+			for range iterations {
+				ag.RouteLabels()
+			}
+		})
+	}
+
+	wg.Wait()
 }
