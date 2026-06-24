@@ -35,3 +35,7 @@ POST /-/reload
 This endpoint triggers a reload of the Alertmanager configuration file.
 
 An alternative way to trigger a configuration reload is by sending a `SIGHUP` to the Alertmanager process.
+
+Configuration can also be reloaded automatically on file change using the
+`--config.auto-reload-interval` flag. See the
+[configuration documentation](configuration.md) for details.
