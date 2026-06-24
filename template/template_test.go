@@ -558,6 +558,49 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: "Simple: rl1 - Templated: key1 - Recursive: key1 recursive",
 		},
+		{
+			title: "routeLabels unknown name renders empty",
+			in:    `[{{ routeLabels "nope" }}]`,
+			data: Data{
+				RouteLabels: KV{"rl1": "rl1"},
+			},
+			exp: "[]",
+		},
+		{
+			title: "routeLabels direct cycle is detected, not a stack overflow",
+			in:    `{{ routeLabels "rl1" }}`,
+			data: Data{
+				RouteLabels: KV{
+					"rl1": `{{ routeLabels "rl2" }}`,
+					"rl2": `{{ routeLabels "rl1" }}`,
+				},
+			},
+			fail: true,
+		},
+		{
+			title: "routeLabels self cycle is detected",
+			in:    `{{ routeLabels "rl1" }}`,
+			data: Data{
+				RouteLabels: KV{
+					"rl1": `{{ routeLabels "rl1" }}`,
+				},
+			},
+			fail: true,
+		},
+		{
+			title: "routeLabels diamond reference renders once per branch",
+			in:    `{{ routeLabels "top" }}`,
+			data: Data{
+				GroupLabels: KV{"x": "v"},
+				RouteLabels: KV{
+					"top":  `{{ routeLabels "a" }}-{{ routeLabels "b" }}`,
+					"a":    `{{ routeLabels "leaf" }}`,
+					"b":    `{{ routeLabels "leaf" }}`,
+					"leaf": `{{ .GroupLabels.x }}`,
+				},
+			},
+			exp: "v-v",
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString

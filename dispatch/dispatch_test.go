@@ -1417,3 +1417,51 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TestRouteLabelsPerGroupOverride verifies that route label rendering is scoped
+// to a single aggregation group: a label that references another label via
+// routeLabels resolves against that group's own (possibly overridden) label
+// set, with no memoization leaking between groups.
+func TestRouteLabelsPerGroupOverride(t *testing.T) {
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	// "description" references "team" via routeLabels. The two groups differ
+	// only in the merged value of "team", as a parent route and a child route
+	// that overrides it would.
+	newGroup := func(team string) *aggrGroup {
+		route := &Route{RouteOpts: RouteOpts{
+			Receiver: "r",
+			GroupBy:  map[model.LabelName]struct{}{"alertname": {}},
+			Labels: model.LabelSet{
+				"team":        model.LabelValue(team),
+				"description": `team is {{ routeLabels "team" }}`,
+			},
+		}}
+		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "x"},
+			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+		ag.insert(context.Background(), &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "x"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+			UpdatedAt: time.Now(),
+		})
+		return ag
+	}
+
+	parent := newGroup("A")
+	child := newGroup("B")
+
+	// Render the child first, then the parent, to make sure neither group's
+	// resolution is influenced by the other's.
+	childLabels := child.RouteLabels()
+	parentLabels := parent.RouteLabels()
+
+	require.Equal(t, model.LabelValue("B"), childLabels["team"])
+	require.Equal(t, model.LabelValue("team is B"), childLabels["description"])
+	require.Equal(t, model.LabelValue("A"), parentLabels["team"])
+	require.Equal(t, model.LabelValue("team is A"), parentLabels["description"])
+}
