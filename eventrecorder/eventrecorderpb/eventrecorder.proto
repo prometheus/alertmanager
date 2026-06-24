@@ -373,6 +373,9 @@ message InhibitRule {
   // Label names whose values must be equal between source and target
   // alerts for the inhibition to take effect.
   repeated string equal_labels = 3;
+
+  // Name is the optional name of the inhibition rule.
+  string name = 4;
 }
 
 // InhibitionMutedAlertEvent is emitted when one or more inhibition

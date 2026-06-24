@@ -174,13 +174,14 @@ func SilenceAsProto(sil *silencepb.Silence) *eventrecorderpb.Silence {
 // InhibitRuleAsProto converts inhibit rule fields to an
 // eventrecorderpb.InhibitRule.  It accepts the individual fields rather
 // than the InhibitRule struct to avoid an import cycle.
-func InhibitRuleAsProto(sourceMatchers, targetMatchers labels.Matchers, equal map[model.LabelName]struct{}) *eventrecorderpb.InhibitRule {
+func InhibitRuleAsProto(name string, sourceMatchers, targetMatchers labels.Matchers, equal map[model.LabelName]struct{}) *eventrecorderpb.InhibitRule {
 	equalLabels := make([]string, 0, len(equal))
 	for label := range equal {
 		equalLabels = append(equalLabels, string(label))
 	}
 	slices.Sort(equalLabels)
 	return &eventrecorderpb.InhibitRule{
+		Name:           name,
 		SourceMatchers: MatchersAsProto(sourceMatchers),
 		TargetMatchers: MatchersAsProto(targetMatchers),
 		EqualLabels:    equalLabels,

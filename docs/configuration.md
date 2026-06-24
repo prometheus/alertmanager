@@ -174,6 +174,9 @@ time_intervals:
 # pass `--enable-feature=event-recorder` on the command line to
 # activate it.  See the Event Recorder section below.
 [ event_recorder: <event_recorder_config> ]
+
+# Optional tracing configuration.  Configures distributed tracing for Alertmanager.
+[ traciing: <tracing_config> ]
 ```
 
 ## Route-related settings
@@ -831,7 +834,7 @@ wechat_configs:
   [ - <wechat_config>, ... ]
 ```
 
-### `<http_config>` (Shared) 
+### `<http_config>` (Shared)
 
 An `http_config` allows configuring the HTTP client that the receiver uses to
 communicate with HTTP-based API services.

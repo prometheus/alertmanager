@@ -4,6 +4,9 @@ on:
     paths:
       - "doc/alertmanager-mixin/**"
 
+permissions:
+  contents: read
+
 jobs:
   mixin:
     name: mixin-lint

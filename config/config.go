@@ -37,6 +37,8 @@ import (
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
+	"github.com/prometheus/alertmanager/notify/msteamsv2"
+	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -476,7 +478,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc == nil {
-				ogc = &OpsGenieConfig{}
+				ogc = &opsgenie.OpsGenieConfig{}
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
 			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
@@ -957,7 +959,7 @@ type Receiver struct {
 	PagerdutyConfigs  []*PagerdutyConfig             `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs   []*OpsGenieConfig              `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
@@ -965,7 +967,7 @@ type Receiver struct {
 	TelegramConfigs   []*TelegramConfig              `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config             `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
