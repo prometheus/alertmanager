@@ -136,6 +136,30 @@ func (t *Template) FromGlob(path string) error {
 	return nil
 }
 
+// makeRouteLabelFunc returns a routeLabels template function bound to the given
+// data and execute function. Looking up a route label renders its value as a
+// template, so route label values may themselves reference group labels, other
+// route labels, etc. (including recursively).
+func makeRouteLabelFunc(data any, executeFunc func(string, any) (string, error)) func(string) (string, error) {
+	// The data may be passed either by value or by pointer, so handle both.
+	var castData *Data
+	if d, ok := data.(Data); ok {
+		castData = &d
+	} else if d, ok := data.(*Data); ok {
+		castData = d
+	}
+	return func(name string) (string, error) {
+		if castData == nil {
+			return "", nil
+		}
+		lv, ok := castData.RouteLabels[name]
+		if !ok {
+			return "", nil
+		}
+		return executeFunc(lv, data)
+	}
+}
+
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
@@ -145,7 +169,12 @@ func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(text)
+
+	funcs := tmpltext.FuncMap{
+		"routeLabels": makeRouteLabelFunc(data, t.ExecuteTextString),
+	}
+
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(text)
 	if err != nil {
 		return "", err
 	}
@@ -163,7 +192,12 @@ func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(html)
+
+	funcs := tmplhtml.FuncMap{
+		"routeLabels": makeRouteLabelFunc(data, t.ExecuteHTMLString),
+	}
+
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(html)
 	if err != nil {
 		return "", err
 	}
@@ -202,6 +236,12 @@ var DefaultFuncs = FuncMap{
 	},
 	"stringSlice": func(s ...string) []string {
 		return s
+	},
+	// routeLabels is a placeholder needed so templates referencing it parse
+	// successfully. It is replaced dynamically with the real implementation in
+	// ExecuteTextString and ExecuteHTMLString.
+	"routeLabels": func(name string) (string, error) {
+		return "", nil
 	},
 	// date returns the text representation of the time in the specified format.
 	"date": func(fmt string, t time.Time) string {
@@ -261,21 +301,21 @@ type Pair struct {
 type Pairs []Pair
 
 // Names returns a list of names of the pairs.
-func (ps Pairs) Names() []string {
+func (ps Pairs) Names() Strings {
 	ns := make([]string, 0, len(ps))
 	for _, p := range ps {
 		ns = append(ns, p.Name)
 	}
-	return ns
+	return Strings(ns)
 }
 
 // Values returns a list of values of the pairs.
-func (ps Pairs) Values() []string {
+func (ps Pairs) Values() Strings {
 	vs := make([]string, 0, len(ps))
 	for _, p := range ps {
 		vs = append(vs, p.Value)
 	}
-	return vs
+	return Strings(vs)
 }
 
 func (ps Pairs) String() string {
@@ -289,6 +329,15 @@ func (ps Pairs) String() string {
 		}
 	}
 	return b.String()
+}
+
+// Strings is a list of strings exposed to templates.
+type Strings []string
+
+// Join makes strings.Join accessible from templates, e.g.
+// {{ .GroupLabels.Values.Join ":" }}.
+func (s Strings) Join(sep string) string {
+	return strings.Join(s, sep)
 }
 
 // KV is a set of key/value string pairs.
@@ -334,12 +383,12 @@ func (kv KV) Remove(keys []string) KV {
 }
 
 // Names returns the names of the label names in the LabelSet.
-func (kv KV) Names() []string {
+func (kv KV) Names() Strings {
 	return kv.SortedPairs().Names()
 }
 
 // Values returns a list of the values in the LabelSet.
-func (kv KV) Values() []string {
+func (kv KV) Values() Strings {
 	return kv.SortedPairs().Values()
 }
 
@@ -361,6 +410,7 @@ type Data struct {
 	GroupLabels       KV `json:"groupLabels"`
 	CommonLabels      KV `json:"commonLabels"`
 	CommonAnnotations KV `json:"commonAnnotations"`
+	RouteLabels       KV `json:"routeLabels"`
 
 	ExternalURL string `json:"externalURL"`
 }
@@ -402,7 +452,7 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
+func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
 	typedAlerts := types.Alerts(alerts...)
 
 	data := &Data{
@@ -413,6 +463,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 		GroupLabels:        KV{},
 		CommonLabels:       KV{},
 		CommonAnnotations:  KV{},
+		RouteLabels:        KV{},
 		ExternalURL:        t.ExternalURL.String(),
 	}
 
@@ -439,6 +490,10 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 
 	for k, v := range groupLabels {
 		data.GroupLabels[string(k)] = string(v)
+	}
+
+	for k, v := range routeLabels {
+		data.RouteLabels[string(k)] = string(v)
 	}
 
 	if len(alerts) >= 1 {

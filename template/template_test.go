@@ -34,7 +34,7 @@ func TestPairNames(t *testing.T) {
 		{"name3", "value3"},
 	}
 
-	expected := []string{"name1", "name2", "name3"}
+	expected := Strings{"name1", "name2", "name3"}
 	require.Equal(t, expected, pairs.Names())
 }
 
@@ -45,7 +45,7 @@ func TestPairValues(t *testing.T) {
 		{"name3", "value3"},
 	}
 
-	expected := []string{"value1", "value2", "value3"}
+	expected := Strings{"value1", "value2", "value3"}
 	require.Equal(t, expected, pairs.Values())
 }
 
@@ -97,7 +97,7 @@ func TestKVRemove(t *testing.T) {
 
 	kv = kv.Remove([]string{"key2", "key4"})
 
-	expected := []string{"key1", "key3"}
+	expected := Strings{"key1", "key3"}
 	require.Equal(t, expected, kv.Names())
 }
 
@@ -143,6 +143,7 @@ func TestData(t *testing.T) {
 	for _, tc := range []struct {
 		receiver    string
 		groupLabels model.LabelSet
+		routeLabels model.LabelSet
 		alerts      []*types.Alert
 
 		exp *Data
@@ -280,9 +281,39 @@ func TestData(t *testing.T) {
 				ExternalURL:        u.String(),
 			},
 		},
+		{
+			// test that route labels are passed through
+			groupLabels: model.LabelSet{
+				"label_a": "a",
+				"label_b": "b",
+			},
+			routeLabels: model.LabelSet{
+				"rlabel_a":     "rvalue a",
+				"rlabel_plain": "plain {}",
+			},
+			exp: &Data{
+				Status:             "resolved",
+				Alerts:             Alerts{},
+				NotificationReason: "first notification",
+				GroupLabels: KV{
+					"label_a": "a",
+					"label_b": "b",
+				},
+				RouteLabels: KV{
+					"rlabel_a":     "rvalue a",
+					"rlabel_plain": "plain {}",
+				},
+				CommonLabels:      KV{},
+				CommonAnnotations: KV{},
+				ExternalURL:       u.String(),
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
-			got := tmpl.Data(tc.receiver, tc.groupLabels, "first notification", tc.alerts...)
+			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.routeLabels, "first notification", tc.alerts...)
+			if tc.exp.RouteLabels == nil {
+				tc.exp.RouteLabels = KV{}
+			}
 			require.Equal(t, tc.exp, got)
 		})
 	}
@@ -508,6 +539,24 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			in:  `{{- $newList := list -}}{{ range .Alerts }}{{ $m := dict "status" .Status "labels" .Labels }}{{ $newList = append $newList $m }}{{ end }}{{ toJson $newList }}`,
 			exp: `[{"labels":null,"status":"firing"},{"labels":null,"status":"resolved"}]`,
+		},
+		{
+			title: "Template using routeLabels",
+			in:    `Simple: {{ routeLabels "rl1" }} - Templated: {{ routeLabels "rl2" }} - Recursive: {{ routeLabels "rl3" }}`,
+			data: Data{
+				GroupLabels: KV{
+					"key1": "key1",
+					"key2": "key2",
+					"key3": "key3",
+					"key4": "key4",
+				},
+				RouteLabels: KV{
+					"rl1": "rl1",
+					"rl2": `{{ .GroupLabels.key1 }}`,
+					"rl3": `{{ routeLabels "rl2" }} recursive`,
+				},
+			},
+			exp: "Simple: rl1 - Templated: key1 - Recursive: key1 recursive",
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
@@ -868,7 +917,7 @@ func BenchmarkTemplateData(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		tmpl.Data("receiver", groupLabels, "firing", alerts...)
+		tmpl.Data("receiver", groupLabels, nil, "firing", alerts...)
 	}
 }
 

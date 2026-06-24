@@ -204,12 +204,16 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 	if !ok {
 		l.Error("Missing group labels")
 	}
+	routeLabels, ok := RouteLabels(ctx)
+	if !ok {
+		l.Error("Missing route labels")
+	}
 	notificationReason, ok := NotificationReason(ctx)
 	if !ok {
 		l.Error("Missing notification reason")
 		notificationReason = ReasonUnknown
 	}
-	return tmpl.Data(recv, groupLabels, notificationReason.String(), alerts...)
+	return tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
 }
 
 func readAll(r io.Reader) string {

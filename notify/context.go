@@ -43,6 +43,7 @@ const (
 	keyAggrGroupID
 	keyFlushID
 	keyGroupMatchers
+	keyRouteLabels
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -68,6 +69,11 @@ func WithResolvedAlerts(ctx context.Context, alerts []uint64) context.Context {
 // WithGroupLabels populates a context with grouping labels.
 func WithGroupLabels(ctx context.Context, lset model.LabelSet) context.Context {
 	return context.WithValue(ctx, keyGroupLabels, lset)
+}
+
+// WithRouteLabels populates a context with route labels.
+func WithRouteLabels(ctx context.Context, rl model.LabelSet) context.Context {
+	return context.WithValue(ctx, keyRouteLabels, rl)
 }
 
 // WithNow populates a context with a now timestamp.
@@ -125,6 +131,13 @@ func GroupKey(ctx context.Context) (string, bool) {
 // second argument is false.
 func GroupLabels(ctx context.Context) (model.LabelSet, bool) {
 	v, ok := ctx.Value(keyGroupLabels).(model.LabelSet)
+	return v, ok
+}
+
+// RouteLabels extracts route labels from the context. Iff none exists, the
+// second argument is false.
+func RouteLabels(ctx context.Context) (model.LabelSet, bool) {
+	v, ok := ctx.Value(keyRouteLabels).(model.LabelSet)
 	return v, ok
 }
 
