@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -79,6 +80,7 @@ type Dispatcher struct {
 
 	logger   *slog.Logger
 	recorder eventrecorder.Recorder
+	tmpl     *template.Template
 
 	startTimer *time.Timer
 	state      atomic.Int32
@@ -110,6 +112,7 @@ func NewDispatcher(
 	logger *slog.Logger,
 	recorder eventrecorder.Recorder,
 	metrics *DispatcherMetrics,
+	tmpl *template.Template,
 ) *Dispatcher {
 	if limits == nil {
 		limits = nilLimits{}
@@ -133,6 +136,7 @@ func NewDispatcher(
 		recorder:            recorder,
 		metrics:             metrics,
 		limits:              limits,
+		tmpl:                tmpl,
 		propagator:          otel.GetTextMapPropagator(),
 	}
 	disp.state.Store(DispatcherStateUnknown)
@@ -478,7 +482,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alert *alert.Alert, route *
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.recorder, d.logger)
+	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.recorder, d.logger, d.tmpl)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -613,6 +617,7 @@ type aggrGroup struct {
 	alerts   *store.Alerts
 	marker   marker.AlertMarker
 	recorder eventrecorder.Recorder
+	tmpl     *template.Template
 	ctx      context.Context
 	cancel   func()
 	done     chan struct{}
@@ -620,6 +625,14 @@ type aggrGroup struct {
 	timeout  func(time.Duration) time.Duration
 	running  atomic.Bool
 	flushIdx uint64
+
+	// mtx guards routeLabels and routeLabelsDirty.
+	mtx sync.RWMutex
+	// routeLabels holds the route labels rendered against the group's current
+	// alerts. They only change when alerts are inserted or deleted, so they are
+	// rendered lazily: routeLabelsDirty marks when a re-render is needed.
+	routeLabels      model.LabelSet
+	routeLabelsDirty bool
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -630,22 +643,25 @@ func newAggrGroup(
 	to func(time.Duration) time.Duration,
 	recorder eventrecorder.Recorder,
 	logger *slog.Logger,
+	tmpl *template.Template,
 ) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
 	ag := &aggrGroup{
-		labels:   labels,
-		routeID:  r.ID(),
-		routeKey: r.Key(),
-		matchers: r.Matchers,
-		opts:     &r.RouteOpts,
-		timeout:  to,
-		alerts:   store.NewAlerts(),
-		marker:   marker.NewAlertMarker(),
-		recorder: recorder,
-		done:     make(chan struct{}),
-		flushIdx: 1,
+		labels:      labels,
+		routeID:     r.ID(),
+		routeKey:    r.Key(),
+		matchers:    r.Matchers,
+		opts:        &r.RouteOpts,
+		timeout:     to,
+		alerts:      store.NewAlerts(),
+		marker:      marker.NewAlertMarker(),
+		recorder:    recorder,
+		tmpl:        tmpl,
+		done:        make(chan struct{}),
+		flushIdx:    1,
+		routeLabels: model.LabelSet{},
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -672,6 +688,70 @@ func (ag *aggrGroup) GroupKey() string {
 
 func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
+}
+
+// renderRouteLabels renders the route's labels as templates against the given
+// alerts and the group's data. A route label value may be a template, so this
+// allows it to reference group labels, other route labels, etc.
+func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
+	if ag.tmpl == nil {
+		return ag.routeLabels
+	}
+
+	renderedRouteLabels := make(model.LabelSet, len(ag.opts.Labels))
+
+	data := ag.tmpl.Data(ag.opts.Receiver, ag.labels, ag.opts.Labels, notify.ReasonUnknown.String(), alerts...)
+
+	logger := ag.logger.With("data", data)
+
+	for label, value := range ag.opts.Labels {
+		v := string(value)
+		if rendered, err := ag.tmpl.ExecuteTextString(v, data); err == nil {
+			renderedRouteLabels[label] = model.LabelValue(rendered)
+			logger.Debug("rendered route label", "label", label, "value", rendered)
+		} else {
+			logger.Error("failed to render route label", "label", label, "value", v, "err", err)
+		}
+	}
+
+	return renderedRouteLabels
+}
+
+// RouteLabels returns the route labels rendered against the group's current
+// alerts. Rendering is lazy: it only happens when the set of alerts has changed
+// since the last render (tracked by routeLabelsDirty).
+func (ag *aggrGroup) RouteLabels() model.LabelSet {
+	upgradedLock := false
+
+	ag.mtx.RLock()
+
+	defer func() {
+		if upgradedLock {
+			ag.mtx.Unlock()
+		} else {
+			ag.mtx.RUnlock()
+		}
+	}()
+
+	if ag.routeLabelsDirty {
+		// Upgrade the lock because we need to update routeLabels.
+		upgradedLock = true
+		ag.mtx.RUnlock()
+		ag.mtx.Lock()
+
+		if ag.routeLabelsDirty {
+			alerts := ag.alerts.List()
+			if len(alerts) > 0 {
+				ag.routeLabels = ag.renderRouteLabels(alerts...)
+			}
+			// If alerts is empty (all resolved/deleted), keep the previously
+			// rendered routeLabels. The group will be garbage-collected on the
+			// next maintenance cycle.
+			ag.routeLabelsDirty = false
+		}
+	}
+
+	return ag.routeLabels
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
@@ -718,6 +798,10 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 					trace.WithSpanKind(trace.SpanKindInternal),
 				)
 				defer span.End()
+
+				// Render route labels against the batch of alerts that we are
+				// about to notify about.
+				ctx = notify.WithRouteLabels(ctx, ag.renderRouteLabels(alerts...))
 
 				success := nf(ctx, alerts...)
 				if !success {
@@ -775,6 +859,9 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *alert.Alert) bool {
 		ag.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert)
 		})
+		ag.mtx.Lock()
+		ag.routeLabelsDirty = true
+		ag.mtx.Unlock()
 	}
 	return true
 }
@@ -825,6 +912,11 @@ func (ag *aggrGroup) flush(notify func(...*alert.Alert) bool) {
 		if err := ag.alerts.DeleteIfNotModified(resolvedSlice, true); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
 		} else {
+			if len(resolvedSlice) > 0 {
+				ag.mtx.Lock()
+				ag.routeLabelsDirty = true
+				ag.mtx.Unlock()
+			}
 			// Delete markers for resolved alerts that are not in the store.
 			for _, alert := range resolvedSlice {
 				_, err := ag.alerts.Get(alert.Fingerprint())
