@@ -2115,6 +2115,10 @@ webhook_outputs:
 # Kafka outputs.
 kafka_outputs:
   [ - <kafka_output> ... ]
+
+# Stdout outputs.
+stdout_outputs:
+  [ - <stdout_output> ... ]
 ```
 
 #### `<file_output>`
@@ -2205,3 +2209,17 @@ topic: <string>
 # connection uses PLAINTEXT.
 [ tls_config: <tls_config> ]
 ```
+
+#### `<stdout_output>`
+
+Writes each event as a single JSON line to stdout.  This is the
+recommended output for container deployments where the runtime log
+driver (Docker, Kubernetes, etc.) captures stdout automatically.
+
+> **Note:** When using `stdout_outputs`, consider also passing
+> `--log.format=json` to Alertmanager.  Without it, Alertmanager's own
+> log lines use logfmt while event records are JSON, producing two
+> distinct formats on the same stream that may complicate downstream
+> log parsing.
+
+This output type takes no additional configuration fields.
