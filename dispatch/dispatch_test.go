@@ -1279,9 +1279,9 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 }
 
 // TestRouteLabelsAfterAllAlertsResolved verifies that calling RouteLabels()
-// after all alerts have been resolved and deleted does not panic or return
-// incorrect results. This exercises the race between flush() emptying the
-// alerts store and RouteLabels() attempting to re-render.
+// after all alerts have been resolved and deleted does not panic. This
+// exercises the cache invalidation in flush() racing RouteLabels() re-rendering
+// against a now-empty alerts store.
 func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	lset := model.LabelSet{"alertname": "test"}
 	opts := &RouteOpts{
@@ -1346,13 +1346,15 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 		t.Fatal("timed out waiting for resolved flush")
 	}
 
-	// After flush deletes resolved alerts, RouteLabels() must not panic and
-	// should return the last successfully rendered labels.
+	// After flush deletes resolved alerts, RouteLabels() must not panic when it
+	// re-renders against the now-empty group. The template references
+	// .Alerts[0], so with no alerts it renders to an empty value rather than
+	// erroring out the caller.
 	require.NotPanics(t, func() {
 		rl = ag.RouteLabels()
 	}, "RouteLabels() must not panic after all alerts are deleted")
-	require.Equal(t, model.LabelValue("test"), rl["description"],
-		"route label should retain last rendered value after alerts are deleted")
+	require.Empty(t, rl["description"],
+		"route label renders empty once the group has no alerts")
 }
 
 // TestRouteLabelsInsertConcurrentWithRouteLabels verifies that concurrent
@@ -1381,7 +1383,7 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	ctx := context.Background()
 
 	// Hammer insert() and RouteLabels() concurrently. Under -race this will
-	// flag any data race on routeLabels/routeLabelsDirty.
+	// flag any data race on the routeLabels cache or its generation counter.
 	var wg sync.WaitGroup
 	const goroutines = 10
 	const iterations = 100

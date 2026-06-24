@@ -628,13 +628,26 @@ type aggrGroup struct {
 	running  atomic.Bool
 	flushIdx uint64
 
-	// mtx guards routeLabels and routeLabelsDirty.
-	mtx sync.RWMutex
-	// routeLabels holds the route labels rendered against the group's current
-	// alerts. They only change when alerts are inserted or deleted, so they are
-	// rendered lazily: routeLabelsDirty marks when a re-render is needed.
-	routeLabels      model.LabelSet
-	routeLabelsDirty bool
+	// routeLabels caches the route labels rendered against the group's current
+	// alerts, for the /api/v2/alerts/groups read path. It is rendered lazily and
+	// kept up to date with a generation counter rather than a lock, so that
+	// invalidation on the hot alert-ingestion path is a single atomic add.
+	//
+	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert set
+	// changes. Each cached render is tagged with the generation it was computed
+	// at; RouteLabels() treats the cache as valid only if its tag still equals
+	// the current generation. A render that races an invalidation is therefore
+	// tagged with a now-stale generation: it may be stored, but the next reader
+	// sees the mismatch and re-renders, so a stale value is never served.
+	routeLabels    atomic.Pointer[renderedRouteLabels]
+	routeLabelsGen atomic.Uint64
+}
+
+// renderedRouteLabels is a cached route-label render tagged with the alert-set
+// generation it was computed at. See aggrGroup.routeLabels.
+type renderedRouteLabels struct {
+	gen    uint64
+	labels model.LabelSet
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -651,19 +664,18 @@ func newAggrGroup(
 		to = func(d time.Duration) time.Duration { return d }
 	}
 	ag := &aggrGroup{
-		labels:      labels,
-		routeID:     r.ID(),
-		routeKey:    r.Key(),
-		matchers:    r.Matchers,
-		opts:        &r.RouteOpts,
-		timeout:     to,
-		alerts:      store.NewAlerts(),
-		marker:      marker.NewAlertMarker(),
-		recorder:    recorder,
-		tmpl:        tmpl,
-		done:        make(chan struct{}),
-		flushIdx:    1,
-		routeLabels: model.LabelSet{},
+		labels:   labels,
+		routeID:  r.ID(),
+		routeKey: r.Key(),
+		matchers: r.Matchers,
+		opts:     &r.RouteOpts,
+		timeout:  to,
+		alerts:   store.NewAlerts(),
+		marker:   marker.NewAlertMarker(),
+		recorder: recorder,
+		tmpl:     tmpl,
+		done:     make(chan struct{}),
+		flushIdx: 1,
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -697,7 +709,7 @@ func (ag *aggrGroup) String() string {
 // allows it to reference group labels, other route labels, etc.
 func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 	if ag.tmpl == nil {
-		return ag.routeLabels
+		return model.LabelSet{}
 	}
 
 	renderedRouteLabels := make(model.LabelSet, len(ag.opts.Labels))
@@ -720,40 +732,51 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 }
 
 // RouteLabels returns the route labels rendered against the group's current
-// alerts. Rendering is lazy: it only happens when the set of alerts has changed
-// since the last render (tracked by routeLabelsDirty).
+// alerts, caching the result. Both the read and the cache update are lock-free.
+// The cache is invalidated by invalidateRouteLabels (a generation bump) after
+// the alert set changes.
+//
+// Concurrent callers that all miss may render redundantly; that is acceptable
+// because the only caller is the (cold) /alerts/groups API path. What must not
+// happen — serving a render that predates an invalidation — is prevented by the
+// generation tag.
 func (ag *aggrGroup) RouteLabels() model.LabelSet {
-	upgradedLock := false
-
-	ag.mtx.RLock()
-
-	defer func() {
-		if upgradedLock {
-			ag.mtx.Unlock()
-		} else {
-			ag.mtx.RUnlock()
-		}
-	}()
-
-	if ag.routeLabelsDirty {
-		// Upgrade the lock because we need to update routeLabels.
-		upgradedLock = true
-		ag.mtx.RUnlock()
-		ag.mtx.Lock()
-
-		if ag.routeLabelsDirty {
-			alerts := ag.alerts.List()
-			if len(alerts) > 0 {
-				ag.routeLabels = ag.renderRouteLabels(alerts...)
-			}
-			// If alerts is empty (all resolved/deleted), keep the previously
-			// rendered routeLabels. The group will be garbage-collected on the
-			// next maintenance cycle.
-			ag.routeLabelsDirty = false
-		}
+	// Load the cached value before the generation: if an invalidation happens
+	// between these two loads, we read the newer generation and treat the cache
+	// as a miss, which is safe. (Loading gen first could let us pair an old gen
+	// with a value cached for that gen and wrongly accept a stale render.)
+	cached := ag.routeLabels.Load()
+	gen := ag.routeLabelsGen.Load()
+	if cached != nil && cached.gen == gen {
+		return cached.labels
 	}
 
-	return ag.routeLabels
+	alerts := ag.alerts.List()
+
+	var labels model.LabelSet
+	if len(alerts) == 0 {
+		// Nothing to render against: e.g. all alerts resolved and deleted and
+		// the group is awaiting GC. Rendering route-label templates that
+		// reference .Alerts against an empty set would only log errors, and
+		// empty groups are excluded from the API response anyway.
+		labels = model.LabelSet{}
+	} else {
+		labels = ag.renderRouteLabels(alerts...)
+	}
+
+	// Tag the render with the generation we observed before reading the alerts.
+	// If an invalidation raced this render, gen is already stale, so the next
+	// reader will see the mismatch and re-render rather than serve stale labels.
+	ag.routeLabels.Store(&renderedRouteLabels{gen: gen, labels: labels})
+	return labels
+}
+
+// invalidateRouteLabels marks the cached route labels stale. It must be called
+// after the group's alert set has changed and the change is visible via
+// ag.alerts, so that any render still in flight is tagged with a generation
+// older than this one and will not be served.
+func (ag *aggrGroup) invalidateRouteLabels() {
+	ag.routeLabelsGen.Add(1)
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
@@ -861,9 +884,8 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *alert.Alert) bool {
 		ag.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert)
 		})
-		ag.mtx.Lock()
-		ag.routeLabelsDirty = true
-		ag.mtx.Unlock()
+		// The alert set changed; the alert is already visible via ag.alerts.
+		ag.invalidateRouteLabels()
 	}
 	return true
 }
@@ -915,9 +937,9 @@ func (ag *aggrGroup) flush(notify func(...*alert.Alert) bool) {
 			ag.logger.Error("error on delete alerts", "err", err)
 		} else {
 			if len(resolvedSlice) > 0 {
-				ag.mtx.Lock()
-				ag.routeLabelsDirty = true
-				ag.mtx.Unlock()
+				// The alert set changed; the deletion is already visible via
+				// ag.alerts.
+				ag.invalidateRouteLabels()
 			}
 			// Delete markers for resolved alerts that are not in the store.
 			for _, alert := range resolvedSlice {
