@@ -75,6 +75,13 @@ In addition to direct access of data (labels and annotations) stored as KV, ther
 | Names | - | []string | Returns the names of the label names in the LabelSet. |
 | Values | - | []string | Returns a list of the values in the LabelSet. |
 
+`Remove` expects a slice of strings. To remove literal keys in a template, use
+the `stringSlice` function:
+
+```
+{{ .Annotations.Remove (stringSlice "summary" "description" "runbook_url") }}
+```
+
 # Functions
 
 Note the [default
