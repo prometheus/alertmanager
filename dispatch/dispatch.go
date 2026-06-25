@@ -718,13 +718,16 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 
 	logger := ag.logger.With("data", data)
 
+	// Render every label through a single shared resolver so a label that
+	// cross-references another (via {{ routeLabels "x" }}) reuses the rendered
+	// value instead of re-rendering it per loop iteration.
+	render := ag.tmpl.RouteLabelRenderer(data)
 	for label, value := range ag.opts.Labels {
-		v := string(value)
-		if rendered, err := ag.tmpl.ExecuteTextString(v, data); err == nil {
+		if rendered, err := render(string(label)); err == nil {
 			renderedRouteLabels[label] = model.LabelValue(rendered)
 			logger.Debug("rendered route label", "label", label, "value", rendered)
 		} else {
-			logger.Error("failed to render route label", "label", label, "value", v, "err", err)
+			logger.Error("failed to render route label", "label", label, "value", string(value), "err", err)
 		}
 	}
 

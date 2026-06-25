@@ -217,6 +217,16 @@ func (r *routeLabelResolver) resolve(name string) (string, error) {
 	return v, nil
 }
 
+// RouteLabelRenderer returns a function that renders a route label by name from
+// data.RouteLabels. All returned renders share a single resolver, so each label
+// — and any label it cross-references via {{ routeLabels "x" }} — is rendered at
+// most once per call to RouteLabelRenderer (and cycles are still detected).
+// It is used by the dispatch-time expansion of a group's route labels, where
+// many labels are rendered against the same data and may reference each other.
+func (t *Template) RouteLabelRenderer(data *Data) func(name string) (string, error) {
+	return newRouteLabelResolver(data, t.execText).resolve
+}
+
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
