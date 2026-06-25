@@ -137,15 +137,16 @@ func (t *Template) FromGlob(path string) error {
 }
 
 // routeLabelsOf extracts the route labels from template data, which may be
-// passed either by value or by pointer.
-func routeLabelsOf(data any) KV {
+// passed either by value or by pointer, along with whether those values are
+// already rendered (and so must be returned verbatim rather than executed).
+func routeLabelsOf(data any) (labels KV, resolved bool) {
 	switch d := data.(type) {
 	case *Data:
-		return d.RouteLabels
+		return d.RouteLabels, d.routeLabelsResolved
 	case Data:
-		return d.RouteLabels
+		return d.RouteLabels, d.routeLabelsResolved
 	default:
-		return nil
+		return nil, false
 	}
 }
 
@@ -157,8 +158,9 @@ func routeLabelsOf(data any) KV {
 // returns a descriptive error instead of recursing until the goroutine stack
 // overflows (which is a fatal, unrecoverable runtime error in Go).
 type routeLabelResolver struct {
-	raw        KV  // raw (possibly templated) label values
-	data       any // data to render label values against
+	raw        KV   // raw (possibly templated) label values
+	resolved   bool // if true, raw values are already rendered; return verbatim
+	data       any  // data to render label values against
 	exec       func(text string, data any, r *routeLabelResolver) (string, error)
 	memo       map[string]string
 	inProgress map[string]struct{}
@@ -168,19 +170,26 @@ type routeLabelResolver struct {
 func newRouteLabelResolver(data any, exec func(string, any, *routeLabelResolver) (string, error)) *routeLabelResolver {
 	// memo and inProgress are allocated lazily on the first resolve() call, so a
 	// template that never references routeLabels (the common case) pays nothing.
+	labels, resolved := routeLabelsOf(data)
 	return &routeLabelResolver{
-		raw:  routeLabelsOf(data),
-		data: data,
-		exec: exec,
+		raw:      labels,
+		resolved: resolved,
+		data:     data,
+		exec:     exec,
 	}
 }
 
 // resolve renders the named route label, recursing through any routeLabels
-// references it contains. Unknown labels render to the empty string.
+// references it contains. Unknown labels render to the empty string. If the
+// values are already rendered (resolved), they are returned verbatim without a
+// second execution.
 func (r *routeLabelResolver) resolve(name string) (string, error) {
 	raw, ok := r.raw[name]
 	if !ok {
 		return "", nil
+	}
+	if r.resolved {
+		return raw, nil
 	}
 	if v, ok := r.memo[name]; ok {
 		return v, nil
@@ -465,6 +474,19 @@ type Data struct {
 	RouteLabels       KV `json:"routeLabels"`
 
 	ExternalURL string `json:"externalURL"`
+
+	// routeLabelsResolved: if true, routeLabels returns RouteLabels values
+	// verbatim instead of executing them as templates. Set via
+	// MarkRouteLabelsResolved. Unexported so it is not reachable from templates
+	// or serialized into JSON webhooks.
+	routeLabelsResolved bool
+}
+
+// MarkRouteLabelsResolved marks d.RouteLabels as already-rendered, so the
+// routeLabels template function returns the values verbatim rather than
+// executing them a second time.
+func MarkRouteLabelsResolved(d *Data) {
+	d.routeLabelsResolved = true
 }
 
 // Alert holds one alert for notification templates.
