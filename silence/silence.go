@@ -1366,9 +1366,11 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
+		b, err := marshalMeshSilence(e)
+		if err != nil {
 			return nil, err
 		}
+		buf.Write(b)
 	}
 	return buf.Bytes(), nil
 }
