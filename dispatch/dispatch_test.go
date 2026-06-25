@@ -1357,6 +1357,66 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 		"route label renders empty once the group has no alerts")
 }
 
+// TestRouteLabelsInNotifyContext verifies that the flush path puts the rendered
+// route labels on the notification context, so notify.RouteLabels(ctx) inside
+// the notify function returns them rendered against the flushed batch.
+func TestRouteLabelsInNotifyContext(t *testing.T) {
+	lset := model.LabelSet{"alertname": "test"}
+	opts := &RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      10 * time.Millisecond,
+		GroupInterval:  10 * time.Millisecond,
+		RepeatInterval: 1 * time.Hour,
+		Labels: model.LabelSet{
+			"team": "ops",
+			"name": "{{ (index .Alerts 0).Labels.alertname }}",
+		},
+	}
+	route := &Route{RouteOpts: *opts}
+
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	ag := newAggrGroup(context.Background(), lset, route, nil,
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+	type result struct {
+		labels model.LabelSet
+		ok     bool
+	}
+	resultCh := make(chan result, 1)
+	ntfy := func(ctx context.Context, alerts ...*alert.Alert) bool {
+		rl, ok := notify.RouteLabels(ctx)
+		select {
+		case resultCh <- result{labels: rl, ok: ok}:
+		default:
+		}
+		return true
+	}
+	go ag.run(ntfy)
+	defer ag.stop()
+
+	ag.insert(context.Background(), &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
+			StartsAt: time.Now().Add(-time.Hour),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+		UpdatedAt: time.Now(),
+	})
+
+	select {
+	case got := <-resultCh:
+		require.True(t, got.ok, "route labels missing from notify context")
+		require.Equal(t, model.LabelValue("ops"), got.labels["team"], "static route label")
+		require.Equal(t, model.LabelValue("test"), got.labels["name"], "templated route label rendered against the batch")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for flush")
+	}
+}
+
 // TestRouteLabelsInsertConcurrentWithRouteLabels verifies that concurrent
 // insert() and RouteLabels() calls don't have race conditions. Run with -race.
 func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
