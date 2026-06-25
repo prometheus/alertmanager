@@ -913,6 +913,12 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 	}
 
+	for k := range r.Labels {
+		if !compat.IsValidLabelName(k) {
+			return fmt.Errorf("invalid label name %q in route labels", k)
+		}
+	}
+
 	for _, l := range r.GroupByStr {
 		if l == "..." {
 			r.GroupByAll = true
