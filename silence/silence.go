@@ -1401,7 +1401,9 @@ func decodeState(r io.Reader) (state, error) {
 // the first matcher set to the matchers field for backward compatibility with
 // older alertmanager versions.
 func prepareSilenceForMarshalling(sil *pb.Silence) {
-	if len(sil.MatcherSets) > 0 {
+	// The nil check is here because of rare cases where this function
+	// is called on a nil silence. It's up to the caller to decide if it's a bug
+	if sil != nil && len(sil.MatcherSets) > 0 {
 		sil.Matchers = sil.MatcherSets[0].Matchers
 	}
 }
