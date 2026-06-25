@@ -618,6 +618,42 @@ func TestTemplateExpansion(t *testing.T) {
 	}
 }
 
+// TestRouteLabelsResolvedNotReExecuted checks that resolved route labels (the
+// notification path) are returned verbatim, so a rendered value containing
+// template metacharacters like {{ $value }} is not executed a second time.
+func TestRouteLabelsResolvedNotReExecuted(t *testing.T) {
+	tmpl, err := New()
+	require.NoError(t, err)
+
+	data := Data{
+		RouteLabels: KV{
+			// An already-rendered value containing template metacharacters.
+			"desc": `disk usage is {{ $value | humanize }}`,
+		},
+	}
+	MarkRouteLabelsResolved(&data)
+
+	got, err := tmpl.ExecuteTextString(`[{{ routeLabels "desc" }}]`, data)
+	require.NoError(t, err)
+	require.Equal(t, `[disk usage is {{ $value | humanize }}]`, got)
+}
+
+// TestRouteLabelsUnresolvedExecuted checks the dispatch-time default: unresolved
+// route label values are executed as templates.
+func TestRouteLabelsUnresolvedExecuted(t *testing.T) {
+	tmpl, err := New()
+	require.NoError(t, err)
+
+	data := Data{
+		GroupLabels: KV{"x": "v"},
+		RouteLabels: KV{"desc": `{{ .GroupLabels.x }}`},
+	}
+
+	got, err := tmpl.ExecuteTextString(`[{{ routeLabels "desc" }}]`, data)
+	require.NoError(t, err)
+	require.Equal(t, `[v]`, got)
+}
+
 func TestTemplateExpansionWithOptions(t *testing.T) {
 	testOptionWithAdditionalFuncs := func(funcs FuncMap) Option {
 		return func(text *tmpltext.Template, html *tmplhtml.Template) {

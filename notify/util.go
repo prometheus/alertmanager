@@ -212,7 +212,10 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 		l.Error("Missing notification reason")
 		notificationReason = ReasonUnknown
 	}
-	return tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
+	data := tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
+	// Route labels are pre-rendered by the dispatcher; don't execute them again.
+	template.MarkRouteLabelsResolved(data)
+	return data
 }
 
 func readAll(r io.Reader) string {
