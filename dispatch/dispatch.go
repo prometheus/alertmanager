@@ -711,7 +711,9 @@ func (ag *aggrGroup) String() string {
 // alerts and the group's data. A route label value may be a template, so this
 // allows it to reference group labels, other route labels, etc.
 func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
-	if ag.tmpl == nil {
+	// Nothing to render when the route has no labels (the common case) or there
+	// is no template engine. Skip building template data, which is O(n_alerts).
+	if len(ag.opts.Labels) == 0 || ag.tmpl == nil {
 		return model.LabelSet{}
 	}
 
