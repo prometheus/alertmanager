@@ -654,6 +654,42 @@ func TestRouteLabelsUnresolvedExecuted(t *testing.T) {
 	require.Equal(t, `[v]`, got)
 }
 
+// TestRouteLabelRendererSharesResolver checks that rendering a group's route
+// labels through a single RouteLabelRenderer renders each label — and any label
+// it cross-references — at most once, rather than re-rendering per label.
+func TestRouteLabelRendererSharesResolver(t *testing.T) {
+	var leafRenders int
+	countLeaf := func() string {
+		leafRenders++
+		return "leaf"
+	}
+	tmpl, err := New(func(text *tmpltext.Template, html *tmplhtml.Template) {
+		text.Funcs(tmpltext.FuncMap{"countLeaf": countLeaf})
+		html.Funcs(tmplhtml.FuncMap{"countLeaf": countLeaf})
+	})
+	require.NoError(t, err)
+
+	// a and b both reference leaf; leaf calls the counter once when rendered.
+	data := &Data{
+		RouteLabels: KV{
+			"a":    `{{ routeLabels "leaf" }}`,
+			"b":    `{{ routeLabels "leaf" }}`,
+			"leaf": `{{ countLeaf }}`,
+		},
+	}
+
+	render := tmpl.RouteLabelRenderer(data)
+	out := map[string]string{}
+	for name := range data.RouteLabels {
+		v, err := render(name)
+		require.NoError(t, err)
+		out[name] = v
+	}
+
+	require.Equal(t, map[string]string{"a": "leaf", "b": "leaf", "leaf": "leaf"}, out)
+	require.Equal(t, 1, leafRenders, "leaf should be rendered exactly once across all labels")
+}
+
 func TestTemplateExpansionWithOptions(t *testing.T) {
 	testOptionWithAdditionalFuncs := func(funcs FuncMap) Option {
 		return func(text *tmpltext.Template, html *tmplhtml.Template) {
