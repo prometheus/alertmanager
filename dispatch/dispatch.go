@@ -368,14 +368,6 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 
 		// Process the snapshot without holding sync.Map locks
 		for _, ag := range snapshot {
-			alertGroup := &AlertGroup{
-				Labels:      ag.labels,
-				RouteLabels: ag.RouteLabels(),
-				Receiver:    receiver,
-				GroupKey:    ag.GroupKey(),
-				RouteID:     ag.routeID,
-			}
-
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*alert.Alert, 0, len(alerts))
 			for _, a := range alerts {
@@ -398,6 +390,17 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			}
 			if len(filteredAlerts) == 0 {
 				continue
+			}
+
+			// Compute RouteLabels() only now that the group will be returned:
+			// it may render templates on a cache miss, which is wasted work for
+			// groups filtered out above.
+			alertGroup := &AlertGroup{
+				Labels:      ag.labels,
+				RouteLabels: ag.RouteLabels(),
+				Receiver:    receiver,
+				GroupKey:    ag.GroupKey(),
+				RouteID:     ag.routeID,
 			}
 			alertGroup.Alerts = filteredAlerts
 			alertGroup.AlertStatuses = make(map[model.Fingerprint]alert.AlertStatus, len(filteredAlerts))
