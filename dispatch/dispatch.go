@@ -714,6 +714,7 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 
 	renderedRouteLabels := make(model.LabelSet, len(ag.opts.Labels))
 
+	// The notification reason is not available to route labels and is passed as ReasonUnknown.
 	data := ag.tmpl.Data(ag.opts.Receiver, ag.labels, ag.opts.Labels, notify.ReasonUnknown.String(), alerts...)
 
 	logger := ag.logger.With("data", data)

@@ -893,6 +893,10 @@ type Route struct {
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 
+	// Labels are attached to a route and inherited by child routes.
+	// Values may be Go templates rendered against the current alert group's
+	// data. Notification-specific fields such as .NotificationReason are
+	// not available; use notification templates for reason-dependent content.
 	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
