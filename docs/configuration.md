@@ -240,6 +240,13 @@ matchers:
 # Label values may themselves be templates that are rendered against the
 # notification data of each alert group (so they can reference group labels,
 # other route labels, etc.).
+#
+# Route labels are rendered per alert group, independently of any individual
+# notification (they are also exposed via the API, where there is no
+# notification at all). Fields that are only meaningful for a specific
+# notification are therefore not available: in particular `.NotificationReason`
+# is always "unknown" in route label templates. Use notification templates for
+# reason-dependent content.
 labels:
   [ <labelname>: <tmpl_string>, ... ]
 
