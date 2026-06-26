@@ -3,6 +3,7 @@ import { useSuspenseAPIQuery } from '@/data/api';
 type Group = {
   alerts: Alert[];
   labels: Record<string, string>;
+  routeLabels: Record<string, string>;
   receiver: Receiver;
 };
 
