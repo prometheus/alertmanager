@@ -249,6 +249,18 @@ matchers:
 # reason-dependent content.
 labels:
   [ <labelname>: <tmpl_string>, ... ]
+# Example: `description` is composed once from a `reason` sub-label. A sub-route
+# overrides only `reason`, computing it from the labels that branch matched on,
+# and the inherited description picks it up automatically:
+#   route:
+#     labels:
+#       reason: '{{ .GroupLabels.alertname }}'
+#       description: '{{ .GroupLabels.alertname }} firing ({{ routeLabels "reason" }})'
+#     routes:
+#       - matchers: [ service="database" ]
+#         group_by: [ alertname, database ]
+#         labels:
+#           reason: 'database {{ .GroupLabels.database }}'
 
 # How long to wait before sending the first notification for a new group of
 # alerts. Allows to wait for alerts to arrive from other rule groups or
