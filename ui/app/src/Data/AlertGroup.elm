@@ -22,6 +22,7 @@ import Json.Encode as Encode
 
 type alias AlertGroup =
     { labels : Dict String String
+    , routeLabels : Dict String String
     , receiver : ReceiverReference
     , alerts : List GettableAlert
     }
@@ -31,6 +32,7 @@ decoder : Decoder AlertGroup
 decoder =
     Decode.succeed AlertGroup
         |> required "labels" (Decode.dict Decode.string)
+        |> required "routeLabels" (Decode.dict Decode.string)
         |> required "receiver" ReceiverReference.decoder
         |> required "alerts" (Decode.list GettableAlert.decoder)
 
@@ -39,6 +41,7 @@ encoder : AlertGroup -> Encode.Value
 encoder model =
     Encode.object
         [ ( "labels", Encode.dict identity Encode.string model.labels )
+        , ( "routeLabels", Encode.dict identity Encode.string model.routeLabels )
         , ( "receiver", ReceiverReference.encoder model.receiver )
         , ( "alerts", Encode.list GettableAlert.encoder model.alerts )
         ]

@@ -230,6 +230,38 @@ match_re:
 matchers:
   [ - <matcher> ... ]
 
+# A set of labels that are attached to the route and made available to
+# notification templates via the `routeLabels` template function (and to the
+# `routeLabels` field of the `/api/v2/alerts/groups` API response). Route labels
+# are merged from parent to child routes: a child route inherits its parent's
+# route labels and may override individual labels by redefining them. Unlike
+# group_by, route labels do not affect how alerts are grouped.
+#
+# Label values may themselves be templates that are rendered against the
+# notification data of each alert group (so they can reference group labels,
+# other route labels, etc.).
+#
+# Route labels are rendered per alert group, independently of any individual
+# notification (they are also exposed via the API, where there is no
+# notification at all). Fields that are only meaningful for a specific
+# notification are therefore not available: in particular `.NotificationReason`
+# is always "unknown" in route label templates. Use notification templates for
+# reason-dependent content.
+labels:
+  [ <labelname>: <tmpl_string>, ... ]
+# Example: `description` is composed once from a `reason` sub-label. A sub-route
+# overrides only `reason`, computing it from the labels that branch matched on,
+# and the inherited description picks it up automatically:
+#   route:
+#     labels:
+#       reason: '{{ .GroupLabels.alertname }}'
+#       description: '{{ .GroupLabels.alertname }} firing ({{ routeLabels "reason" }})'
+#     routes:
+#       - matchers: [ service="database" ]
+#         group_by: [ alertname, database ]
+#         labels:
+#           reason: 'database {{ .GroupLabels.database }}'
+
 # How long to wait before sending the first notification for a new group of
 # alerts. Allows to wait for alerts to arrive from other rule groups or
 # Prometheus servers, and for one or more inhibiting alerts to arrive and mute

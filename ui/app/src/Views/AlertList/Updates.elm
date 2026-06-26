@@ -45,7 +45,7 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                                         |> Dict.toList
                                         |> List.map
                                             (\( labels, alerts_ ) ->
-                                                AlertGroup (Dict.fromList labels) (ReceiverReference "unknown") alerts_
+                                                AlertGroup (Dict.fromList labels) Dict.empty (ReceiverReference "unknown") alerts_
                                             )
 
                                 newGroupBar =
