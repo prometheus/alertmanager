@@ -1197,9 +1197,45 @@ func TestSlackUpdateMessageWebhookURL(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
 	}
-	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
-		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	if err.Error() != slackUpdateMessageError {
+		t.Errorf("Expected: %s\nGot: %s", slackUpdateMessageError, err.Error())
 	}
+}
+
+func TestSlackUpdateMessageWithGlobalAPIURL(t *testing.T) {
+	in := `
+global:
+  slack_api_url: "https://slack.com/api/chat.postMessage"
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].UpdateMessage)
+	require.Equal(t, slackUpdateMessageAPIURL, conf.Receivers[0].SlackConfigs[0].APIURL.String())
+}
+
+func TestSlackUpdateMessageWithGlobalWebhookURL(t *testing.T) {
+	in := `
+global:
+  slack_api_url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.EqualError(t, err, slackUpdateMessageError)
 }
 
 func TestSlackGlobalAppToken(t *testing.T) {
