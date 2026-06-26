@@ -47,6 +47,7 @@ func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
 
 	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers. The command fails if the labelset does not route to the specified receivers.").StringVar(&c.expectedReceivers)
 	routingTestCmd.Flag("tree", "Prints out matching routes tree.").BoolVar(&c.debugTree)
+	routingTestCmd.Flag("test-file", "YAML file containing named test cases with per-alert receiver and inhibition assertions.").StringVar(&c.testFile)
 	routingTestCmd.Arg("labels", "List of labels to be tested against the configured routes.").StringsVar(&c.labels)
 	routingTestCmd.Action(execWithTimeout(c.routingTestAction))
 }
@@ -73,6 +74,19 @@ func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 }
 
 func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseContext) error {
+	// When --test-file is provided, run batch test mode.
+	if c.testFile != "" {
+		passed, err := executeRoutesTestFile(ctx, c.testFile, c.configFile)
+		if err != nil {
+			kingpin.Fatalf("%v\n", err)
+			return err
+		}
+		if !passed {
+			os.Exit(1)
+		}
+		return nil
+	}
+
 	cfg, err := loadAlertmanagerConfig(ctx, alertmanagerURL, c.configFile)
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
