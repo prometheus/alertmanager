@@ -230,7 +230,7 @@ func TestGetTemplateDataWithRouteLabels(t *testing.T) {
 
 	// A route label value containing template metacharacters: the dispatcher
 	// has already rendered route labels, so GetTemplateData must mark them
-	// resolved and the routeLabels function must return them verbatim rather
+	// rendered and the routeLabels function must return them verbatim rather
 	// than executing them a second time.
 	ctx := context.Background()
 	ctx = WithReceiverName(ctx, "test-receiver")

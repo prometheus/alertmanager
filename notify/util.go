@@ -214,7 +214,7 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 	}
 	data := tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
 	// Route labels are pre-rendered by the dispatcher; don't execute them again.
-	template.MarkRouteLabelsResolved(data)
+	template.MarkRouteLabelsRendered(data)
 	return data
 }
 
