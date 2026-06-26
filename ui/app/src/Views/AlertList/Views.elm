@@ -93,25 +93,25 @@ defaultAlertGroups activeId activeGroups expandAll groups =
         [] ->
             Utils.Views.error "No alert groups found"
 
-        [ { labels, receiver, alerts } ] ->
+        [ { labels, routeLabels, receiver, alerts } ] ->
             let
                 labels_ =
                     Dict.toList labels
             in
-            alertGroup activeId (Set.singleton 0) receiver labels_ alerts 0 expandAll
+            alertGroup activeId (Set.singleton 0) receiver labels_ (Dict.toList routeLabels) alerts 0 expandAll
 
         _ ->
             div [ class "pl-5" ]
                 (List.indexedMap
                     (\index group ->
-                        alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) group.alerts index expandAll
+                        alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) (Dict.toList group.routeLabels) group.alerts index expandAll
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Set Int -> ReceiverReference -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
-alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
+alertGroup : Maybe String -> Set Int -> ReceiverReference -> Labels -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
+alertGroup activeId activeGroups receiver labels routeLabels alerts groupId expandAll =
     let
         groupActive =
             expandAll || Set.member groupId activeGroups
@@ -143,6 +143,21 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
                         )
                         labels
 
+        routeLabels_ =
+            List.map
+                (\( key, value ) ->
+                    span
+                        [ class "btn btn-light text-muted mr-1 mb-1"
+                        , style "user-select" "initial"
+                        , style "-moz-user-select" "initial"
+                        , style "-webkit-user-select" "initial"
+                        , style "border-color" "#adb5bd"
+                        , title "Route label"
+                        ]
+                        [ text (key ++ "=\"" ++ value ++ "\"") ]
+                )
+                routeLabels
+
         expandButton =
             expandAlertGroup groupActive groupId receiver
                 |> Html.map (\msg -> MsgForAlertList (ActiveGroups msg))
@@ -161,7 +176,7 @@ alertGroup activeId activeGroups receiver labels alerts groupId expandAll =
             [ span [ class "ml-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
     in
     div []
-        [ div [ class "mb-3" ] (expandButton :: labels_ ++ alertEl)
+        [ div [ class "mb-3" ] (expandButton :: labels_ ++ routeLabels_ ++ alertEl)
         , if groupActive then
             ul [ class "list-group mb-0" ] (List.map (AlertView.view labels activeId) alerts)
 
