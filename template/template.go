@@ -218,6 +218,15 @@ var DefaultFuncs = FuncMap{
 	"now":              time.Now,
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
+	// toDate parses s into a time.Time using the given layout, returning zero time on failure.
+	"toDate": func(layout, s string) time.Time {
+		t, _ := time.ParseInLocation(layout, s, time.UTC)
+		return t
+	},
+	// mustToDate parses s into a time.Time using the given layout, returning an error on failure.
+	"mustToDate": func(layout, s string) (time.Time, error) {
+		return time.ParseInLocation(layout, s, time.UTC)
+	},
 	"toJson": func(v any) (string, error) {
 		bytes, err := json.Marshal(v)
 		if err != nil {

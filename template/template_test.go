@@ -702,6 +702,22 @@ func TestTemplateFuncs(t *testing.T) {
 			},
 		},
 		exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+	}, {
+		title: "Template using toDate with valid input",
+		in:    `{{ toDate "2006-01-02" "2024-03-15" | date "02 Jan 2006" }}`,
+		exp:   "15 Mar 2024",
+	}, {
+		title: "Template using toDate with invalid input returns zero time",
+		in:    `{{ toDate "2006-01-02" "not-a-date" | date "2006" }}`,
+		exp:   "0001",
+	}, {
+		title: "Template using mustToDate with valid input",
+		in:    `{{ mustToDate "2006-01-02" "2024-03-15" | date "02 Jan 2006" }}`,
+		exp:   "15 Mar 2024",
+	}, {
+		title:  "Template using mustToDate with invalid input returns error",
+		in:     `{{ mustToDate "2006-01-02" "not-a-date" }}`,
+		expErr: `template: :1:3: executing "" at <mustToDate "2006-01-02" "not-a-date">: error calling mustToDate: parsing time "not-a-date" as "2006-01-02": cannot parse "not-a-date" as "2006"`,
 	}} {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
