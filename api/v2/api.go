@@ -29,6 +29,7 @@ import (
 	"github.com/go-openapi/analysis"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/runtime/server-middleware/docui"
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
@@ -126,7 +127,7 @@ func NewAPI(
 	openAPI.Middleware = func(b middleware.Builder) http.Handler {
 		// Manually create the context so that we can use the singleton swaggerSpecAnalysis.
 		swaggerContext := middleware.NewRoutableContextWithAnalyzedSpec(swaggerSpec, swaggerSpecAnalysis, openAPI, nil)
-		return middleware.Spec("", swaggerSpec.Raw(), swaggerContext.RoutesHandler(b))
+		return docui.ServeSpec(swaggerSpec.Raw(), swaggerContext.RoutesHandler(b), docui.WithSpecPath("/swagger.json"))
 	}
 
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)

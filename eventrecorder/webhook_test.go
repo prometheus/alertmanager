@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
@@ -58,17 +59,16 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := Output{
-		Type: "webhook",
-		URL:  u,
-	}
+	cfg := WebhookOutputConfig{URL: u}
 	wo, err := NewWebhookOutput(cfg, testWebhookDrops(), slog.Default())
 	require.NoError(t, err)
 	defer wo.Close()
 
 	require.Equal(t, "webhook:"+srv.URL, wo.Name())
 
-	require.NoError(t, wo.SendEvent([]byte(`{"test":"data"}`)))
+	n, err := wo.SendEvent(sampleEvent())
+	require.NoError(t, err)
+	require.Positive(t, n)
 
 	require.Eventually(t, func() bool {
 		mu.Lock()
@@ -77,7 +77,8 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 
 	mu.Lock()
-	require.JSONEq(t, `{"test":"data"}`, string(received[0]))
+	// The POST body is the protojson encoding of the event.
+	require.Contains(t, string(received[0]), "alertmanagerStartupEvent")
 	mu.Unlock()
 }
 
@@ -92,8 +93,7 @@ func TestWebhookOutput_MultipleWorkers(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := Output{
-		Type:    "webhook",
+	cfg := WebhookOutputConfig{
 		URL:     u,
 		Workers: 8,
 	}
@@ -102,7 +102,8 @@ func TestWebhookOutput_MultipleWorkers(t *testing.T) {
 
 	const n = 50
 	for range n {
-		require.NoError(t, wo.SendEvent([]byte(`{}`)))
+		_, err := wo.SendEvent(sampleEvent())
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, wo.Close())
@@ -124,8 +125,7 @@ func TestWebhookOutput_RetryOnFailure(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := Output{
-		Type:         "webhook",
+	cfg := WebhookOutputConfig{
 		URL:          u,
 		MaxRetries:   3,
 		RetryBackoff: model.Duration(10 * time.Millisecond),
@@ -133,7 +133,8 @@ func TestWebhookOutput_RetryOnFailure(t *testing.T) {
 	wo, err := NewWebhookOutput(cfg, testWebhookDrops(), slog.Default())
 	require.NoError(t, err)
 
-	require.NoError(t, wo.SendEvent([]byte(`{"retry":"test"}`)))
+	_, err = wo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 
 	require.NoError(t, wo.Close())
 	require.Equal(t, int64(3), attempts.Load())
@@ -150,8 +151,7 @@ func TestWebhookOutput_DropsAfterMaxRetries(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := Output{
-		Type:         "webhook",
+	cfg := WebhookOutputConfig{
 		URL:          u,
 		MaxRetries:   2,
 		RetryBackoff: model.Duration(10 * time.Millisecond),
@@ -159,7 +159,8 @@ func TestWebhookOutput_DropsAfterMaxRetries(t *testing.T) {
 	wo, err := NewWebhookOutput(cfg, testWebhookDrops(), slog.Default())
 	require.NoError(t, err)
 
-	require.NoError(t, wo.SendEvent([]byte(`{"drop":"test"}`)))
+	_, err = wo.SendEvent(sampleEvent())
+	require.NoError(t, err)
 
 	require.NoError(t, wo.Close())
 	require.Equal(t, int64(2), attempts.Load())
@@ -176,8 +177,7 @@ func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := Output{
-		Type:    "webhook",
+	cfg := WebhookOutputConfig{
 		URL:     u,
 		Workers: 1,
 	}
@@ -185,9 +185,102 @@ func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 	require.NoError(t, err)
 
 	for range 5 {
-		require.NoError(t, wo.SendEvent([]byte(`{}`)))
+		_, err := wo.SendEvent(sampleEvent())
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, wo.Close())
 	require.Equal(t, int64(5), count.Load())
+}
+
+// --- config tests.
+
+func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		check   func(t *testing.T, c WebhookOutputConfig)
+	}{
+		{
+			name: "valid minimal",
+			yaml: "url: https://example.com/hook\n",
+			check: func(t *testing.T, c WebhookOutputConfig) {
+				require.NotNil(t, c.URL)
+				require.Equal(t, "https://example.com/hook", c.URL.String())
+			},
+		},
+		{
+			name: "valid with tunables",
+			yaml: "url: https://example.com/h\ntimeout: 5s\nworkers: 8\nmax_retries: 5\nretry_backoff: 250ms\n",
+			check: func(t *testing.T, c WebhookOutputConfig) {
+				require.Equal(t, model.Duration(5*time.Second), c.Timeout)
+				require.Equal(t, 8, c.Workers)
+				require.Equal(t, 5, c.MaxRetries)
+				require.Equal(t, model.Duration(250*time.Millisecond), c.RetryBackoff)
+			},
+		},
+		{
+			name:    "missing url",
+			yaml:    "{}\n",
+			wantErr: true,
+		},
+		{
+			// SecretURL.UnmarshalYAML treats "<secret>" specially and
+			// installs an empty url.URL{} so that round-tripping a
+			// redacted config (e.g. from the Alertmanager API via
+			// amtool) doesn't fail.  An empty URL must still be
+			// rejected here as it would be unusable at runtime.
+			name:    "placeholder secret url",
+			yaml:    "url: <secret>\n",
+			wantErr: true,
+		},
+		{
+			// Wrong scheme should be rejected by SecretURL.UnmarshalYAML
+			// itself (ParseURL only accepts http/https), so the error
+			// surfaces before our validator runs.
+			name:    "non-http scheme",
+			yaml:    "url: ftp://example.com/\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var c WebhookOutputConfig
+			err := yaml.Unmarshal([]byte(tc.yaml), &c)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.check != nil {
+				tc.check(t, c)
+			}
+		})
+	}
+}
+
+func TestEventRecorderConfigEqual_Webhook(t *testing.T) {
+	a := Config{WebhookOutputs: []WebhookOutputConfig{{
+		URL:        mustParseURL(t, "https://example.com/hook"),
+		Timeout:    model.Duration(10 * time.Second),
+		Workers:    4,
+		MaxRetries: 3,
+	}}}
+	b := Config{WebhookOutputs: []WebhookOutputConfig{{
+		URL:        mustParseURL(t, "https://example.com/hook"),
+		Timeout:    model.Duration(10 * time.Second),
+		Workers:    4,
+		MaxRetries: 3,
+	}}}
+	require.True(t, configEqual(a, b))
+
+	// Differing URL.
+	b.WebhookOutputs[0].URL = mustParseURL(t, "https://example.com/other")
+	require.False(t, configEqual(a, b))
+	b.WebhookOutputs[0].URL = a.WebhookOutputs[0].URL
+
+	// Differing workers.
+	b.WebhookOutputs[0].Workers = 8
+	require.False(t, configEqual(a, b))
 }

@@ -1156,7 +1156,7 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	}
 
 	const expectedErr = `yaml: unmarshal errors:
-  line 16: field teams not found in type config.plain`
+  line 16: field teams not found in type opsgenie.plain`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}

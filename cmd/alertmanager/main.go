@@ -15,119 +15,27 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	promslogflag "github.com/prometheus/common/promslog/flag"
-	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
-	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/app"
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/config/receiver"
-	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/httpserver"
-	"github.com/prometheus/alertmanager/inhibit"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
-	"github.com/prometheus/alertmanager/nflog"
-	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/provider/mem"
-	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/timeinterval"
-	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/ui"
 )
-
-var (
-	requestDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:                            "alertmanager_http_request_duration_seconds",
-			Help:                            "Histogram of latencies for HTTP requests.",
-			Buckets:                         prometheus.DefBuckets,
-			NativeHistogramBucketFactor:     1.1,
-			NativeHistogramMaxBucketNumber:  100,
-			NativeHistogramMinResetDuration: 1 * time.Hour,
-		},
-		[]string{"handler", "method", "code"},
-	)
-	responseSize = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "alertmanager_http_response_size_bytes",
-			Help:    "Histogram of response size for HTTP requests.",
-			Buckets: prometheus.ExponentialBuckets(100, 10, 7),
-		},
-		[]string{"handler", "method"},
-	)
-	clusterEnabled = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "alertmanager_cluster_enabled",
-			Help: "Indicates whether the clustering is enabled or not.",
-		},
-	)
-	configuredReceivers = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "alertmanager_receivers",
-			Help: "Number of configured receivers.",
-		},
-	)
-	configuredIntegrations = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "alertmanager_integrations",
-			Help: "Number of configured integrations.",
-		},
-	)
-	configuredInhibitionRules = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "alertmanager_inhibition_rules",
-			Help: "Number of configured inhibition rules.",
-		},
-	)
-
-	promslogConfig = promslog.Config{}
-)
-
-func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
-	handlerLabel := prometheus.Labels{"handler": handlerName}
-	return promhttp.InstrumentHandlerDuration(
-		requestDuration.MustCurryWith(handlerLabel),
-		promhttp.InstrumentHandlerResponseSize(
-			responseSize.MustCurryWith(handlerLabel),
-			handler,
-		),
-	)
-}
-
-const defaultClusterAddr = "0.0.0.0:9094"
 
 func main() {
 	os.Exit(run())
@@ -150,7 +58,7 @@ func run() int {
 		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 		perAlertNameLimit           = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
-		DispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
+		dispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
@@ -162,7 +70,7 @@ func run() int {
 				Default("0.9").Float64()
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
-				Default(defaultClusterAddr).String()
+				Default(app.DefaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		clusterPeerName        = kingpin.Flag("cluster.peer-name", "Explicit name of the peer, rather than generating a random one").Default("").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
@@ -182,21 +90,16 @@ func run() int {
 		featureFlags           = kingpin.Flag("enable-feature", fmt.Sprintf("Comma-separated experimental features to enable. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").String()
 	)
 
-	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
-
+	promslogConfig := promslog.Config{}
 	promslogflag.AddFlags(kingpin.CommandLine, &promslogConfig)
 	kingpin.CommandLine.UsageWriter(os.Stdout)
-
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	kingpin.Parse()
 
 	logger := promslog.New(&promslogConfig)
 
-	logger.Info("Starting Alertmanager", "version", version.Info())
-	startTime := time.Now()
-
-	logger.Info("Build context", "build_context", version.BuildContext())
+	prometheus.MustRegister(versioncollector.NewCollector("alertmanager"))
 
 	ff, err := featurecontrol.NewFlags(logger, *featureFlags)
 	if err != nil {
@@ -210,7 +113,6 @@ func run() int {
 			logger.Error("--auto-gomemlimit.ratio must be greater than 0 and less than or equal to 1.")
 			return 1
 		}
-
 		if _, err := memlimit.SetGoMemLimitWithOpts(
 			memlimit.WithRatio(*memlimitRatio),
 			memlimit.WithProvider(
@@ -224,499 +126,78 @@ func run() int {
 		}
 	}
 
-	if ff.EnableAutoGOMAXPROCS() {
-		logger.Warn("automaxprocs", "msg", "This flag is deprecated and will be removed in the next release")
-	}
+	// Translate OS signals into context cancellation (SIGINT/SIGTERM) and
+	// reload events (SIGHUP). The app package no longer touches signals
+	// directly so that it can be embedded in tests.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
-	err = os.MkdirAll(*dataDir, 0o777)
-	if err != nil {
-		logger.Error("Unable to create data directory", "err", err)
-		return 1
-	}
-
-	tlsTransportConfig, err := cluster.GetTLSTransportConfig(*tlsConfigFile)
-	if err != nil {
-		logger.Error("unable to initialize TLS transport configuration for gossip mesh", "err", err)
-		return 1
-	}
-	var peer *cluster.Peer
-	if *clusterBindAddr != "" {
-		peer, err = cluster.Create(
-			logger.With("component", "cluster"),
-			prometheus.DefaultRegisterer,
-			*clusterBindAddr,
-			*clusterAdvertiseAddr,
-			*peers,
-			true,
-			*pushPullInterval,
-			*gossipInterval,
-			*tcpTimeout,
-			*peersResolveTimeout,
-			*probeTimeout,
-			*probeInterval,
-			tlsTransportConfig,
-			*allowInsecureAdvertise,
-			*label,
-			*clusterPeerName,
-		)
-		if err != nil {
-			logger.Error("unable to initialize gossip mesh", "err", err)
-			return 1
-		}
-		clusterEnabled.Set(1)
-	}
-
-	stopc := make(chan struct{})
-	var wg sync.WaitGroup
-
-	// Load config once for both event recorder initialization and the first
-	// coordinator apply.  Subsequent reloads (SIGHUP, /-/reload) go
-	// through configCoordinator.Reload() which reads the file again.
-	initialConf, err := config.LoadFile(*configFile)
-	if err != nil {
-		logger.Error("error loading configuration file", "err", err)
-		return 1
-	}
-
-	hostname, _ := os.Hostname()
-	var eventRec eventrecorder.Recorder
-	if ff.EnableEventRecorder() {
-		eventRec = eventrecorder.NewRecorderFromConfig(initialConf.EventRecorder, hostname, logger.With("component", "eventrecorder"), prometheus.DefaultRegisterer)
-	}
-	defer eventRec.Close()
-
-	recordCtx := eventrecorder.WithEventRecording(context.Background())
-	eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
-				Version:      version.Version,
-				BuildContext: version.BuildContext(),
-			},
-		},
-	})
-	defer func() {
-		eventRec.RecordEvent(recordCtx, &eventrecorderpb.EventData{
-			EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
-				AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
-			},
-		})
-	}()
-
-	notificationLogOpts := nflog.Options{
-		SnapshotFile: filepath.Join(*dataDir, "nflog"),
-		Retention:    *retention,
-		Logger:       logger.With("component", "nflog"),
-		Metrics:      prometheus.DefaultRegisterer,
-	}
-
-	notificationLog, err := nflog.New(notificationLogOpts)
-	if err != nil {
-		logger.Error("error creating notification log", "err", err)
-		return 1
-	}
-	if peer != nil {
-		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
-		notificationLog.SetBroadcast(c.Broadcast)
-	}
-
-	wg.Go(func() {
-		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
-	})
-
-	marker := marker.NewGroupMarker()
-
-	silenceOpts := silence.Options{
-		SnapshotFile: filepath.Join(*dataDir, "silences"),
-		Retention:    *retention,
-		Limits: silence.Limits{
-			MaxSilences:         func() int { return *maxSilences },
-			MaxSilenceSizeBytes: func() int { return *maxSilenceSizeBytes },
-		},
-		Logger:        logger.With("component", "silences"),
-		Metrics:       prometheus.DefaultRegisterer,
-		Logging:       *silenceLogging,
-		EventRecorder: eventRec,
-	}
-
-	silences, err := silence.New(silenceOpts)
-	if err != nil {
-		logger.Error("error creating silence", "err", err)
-		return 1
-	}
-	if peer != nil {
-		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
-		silences.SetBroadcast(c.Broadcast)
-	}
-
-	// Start providers before router potentially sends updates.
-	wg.Go(func() {
-		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
-	})
-
-	defer func() {
-		close(stopc)
-		wg.Wait()
-	}()
-
-	silencer := silence.NewSilencer(silences, logger, eventRec)
-
-	// Peer state listeners have been registered, now we can join and get the initial state.
-	if peer != nil {
-		err = peer.Join(
-			*reconnectInterval,
-			*peerReconnectTimeout,
-		)
-		if err != nil {
-			logger.Warn("unable to join gossip mesh", "err", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
-		defer func() {
-			cancel()
-			if err := peer.Leave(10 * time.Second); err != nil {
-				logger.Warn("unable to leave gossip mesh", "err", err)
-			}
-		}()
-		go peer.Settle(ctx, *gossipInterval*10)
-		eventRec.SetClusterPeer(peer)
-	}
-
-	alerts, err := mem.NewAlerts(
-		context.Background(),
-		*alertGCInterval,
-		*perAlertNameLimit,
-		silencer,
-		logger,
-		eventRec,
-		prometheus.DefaultRegisterer,
-		ff,
-	)
-	if err != nil {
-		logger.Error("error creating memory provider", "err", err)
-		return 1
-	}
-	defer alerts.Close()
-
-	var disp atomic.Pointer[dispatch.Dispatcher]
-	defer func() {
-		disp.Load().Stop()
-	}()
-
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return disp.Load().Groups(ctx, routeFilter, alertFilter)
-	}
-
-	// An interface value that holds a nil concrete value is non-nil.
-	// Therefore we explicly pass an empty interface, to detect if the
-	// cluster is not enabled in notify.
-	var clusterPeer cluster.ClusterPeer
-	if peer != nil {
-		clusterPeer = peer
-	}
-
-	api, err := api.New(api.Options{
-		Alerts:          alerts,
-		Silences:        silences,
-		GroupMutedFunc:  marker.Muted,
-		Peer:            clusterPeer,
-		Timeout:         *httpTimeout,
-		Concurrency:     *getConcurrency,
-		Logger:          logger.With("component", "api"),
-		Registry:        prometheus.DefaultRegisterer,
-		RequestDuration: requestDuration,
-		GroupFunc:       groupFn,
-	})
-	if err != nil {
-		logger.Error("failed to create API", "err", err)
-		return 1
-	}
-
-	amURL, err := extURL(logger, os.Hostname, (*webConfig.WebListenAddresses)[0], *externalURL)
-	if err != nil {
-		logger.Error("failed to determine external URL", "err", err)
-		return 1
-	}
-	logger.Debug("external url", "externalUrl", amURL.String())
-
-	waitFunc := func() time.Duration { return 0 }
-	if peer != nil {
-		waitFunc = clusterWait(peer, *peerTimeout)
-	}
-	timeoutFunc := func(d time.Duration) time.Duration {
-		if d < notify.MinTimeout {
-			d = notify.MinTimeout
-		}
-		return d + waitFunc()
-	}
-
-	tracingManager := tracing.NewManager(logger.With("component", "tracing"))
-
-	var (
-		inhibitor atomic.Pointer[inhibit.Inhibitor]
-		tmpl      *template.Template
-	)
-
-	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer, ff)
-	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer, ff, eventRec)
-	configLogger := logger.With("component", "configuration")
-	configCoordinator := config.NewCoordinator(
-		*configFile,
-		prometheus.DefaultRegisterer,
-		configLogger,
-	)
-	configCoordinator.Subscribe(func(conf *config.Config) error {
-		// Reload event recorder outputs first so events emitted during
-		// the rest of this callback (e.g., by stopping the old
-		// dispatcher) go to the new outputs.
-		eventRec.ApplyConfig(conf.EventRecorder)
-
-		tmpl, err = template.FromGlobs(conf.Templates)
-		if err != nil {
-			return fmt.Errorf("failed to parse templates: %w", err)
-		}
-		tmpl.ExternalURL = amURL
-
-		// Build the routing tree and record which receivers are used.
-		routes := dispatch.NewRoute(conf.Route, nil)
-		activeReceivers := make(map[string]struct{})
-		routes.Walk(func(r *dispatch.Route) {
-			activeReceivers[r.RouteOpts.Receiver] = struct{}{}
-		})
-
-		// Build the map of receiver to integrations.
-		receivers := make(map[string][]notify.Integration, len(activeReceivers))
-		var integrationsNum int
-		for _, rcv := range conf.Receivers {
-			if _, found := activeReceivers[rcv.Name]; !found {
-				// No need to build a receiver if no route is using it.
-				configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
-				continue
-			}
-			integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, logger)
-			if err != nil {
-				return err
-			}
-			// rcv.Name is guaranteed to be unique across all receivers.
-			receivers[rcv.Name] = integrations
-			integrationsNum += len(integrations)
-		}
-
-		// Build the map of time interval names to time interval definitions.
-		timeIntervals := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals)+len(conf.TimeIntervals))
-		for _, ti := range conf.MuteTimeIntervals {
-			timeIntervals[ti.Name] = ti.TimeIntervals
-		}
-
-		for _, ti := range conf.TimeIntervals {
-			timeIntervals[ti.Name] = ti.TimeIntervals
-		}
-
-		intervener := timeinterval.NewIntervener(timeIntervals)
-
-		inhibitor.Load().Stop()
-		disp.Load().Stop()
-
-		newInhibitor := inhibit.NewInhibitor(alerts, conf.InhibitRules, logger, eventRec)
-		inhibitor.Store(newInhibitor)
-
-		// An interface value that holds a nil concrete value is non-nil.
-		// Therefore we explicly pass an empty interface, to detect if the
-		// cluster is not enabled in notify.
-		var pipelinePeer notify.Peer
-		if peer != nil {
-			pipelinePeer = peer
-		}
-
-		pipeline := pipelineBuilder.New(
-			receivers,
-			waitFunc,
-			newInhibitor,
-			silencer,
-			intervener,
-			marker,
-			notificationLog,
-			pipelinePeer,
-		)
-
-		configuredReceivers.Set(float64(len(activeReceivers)))
-		configuredIntegrations.Set(float64(integrationsNum))
-		configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
-
-		api.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-			inhibitor.Load().Mutes(ctx, labels)
-			silencer.Mutes(ctx, labels)
-		})
-
-		newDisp := dispatch.NewDispatcher(
-			alerts,
-			routes,
-			pipeline,
-			marker,
-			timeoutFunc,
-			*dispatchMaintenanceInterval,
-			nil,
-			logger,
-			eventRec,
-			dispMetrics,
-		)
-		routes.Walk(func(r *dispatch.Route) {
-			if r.RouteOpts.RepeatInterval > *retention {
-				configLogger.Warn(
-					"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
-					"repeat_interval",
-					r.RouteOpts.RepeatInterval,
-					"retention",
-					*retention,
-					"route",
-					r.Key(),
-				)
-			}
-
-			if r.RouteOpts.RepeatInterval < r.RouteOpts.GroupInterval {
-				configLogger.Warn(
-					"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
-					"repeat_interval",
-					r.RouteOpts.RepeatInterval,
-					"group_interval",
-					r.RouteOpts.GroupInterval,
-					"route",
-					r.Key(),
-				)
-			}
-		})
-
-		// first, start the inhibitor so the inhibition cache can populate
-		// wait for this to load alerts before starting the dispatcher so
-		// we don't accidentially notify for an alert that will be inhibited
-		go newInhibitor.Run()
-		newInhibitor.WaitForLoading()
-
-		// next, start the dispatcher and wait for it to load before swapping the disp pointer.
-		// This ensures that the API doesn't see the new dispatcher before it finishes populating
-		// the aggrGroups
-		go newDisp.Run(startTime.Add(*DispatchStartDelay))
-		newDisp.WaitForLoading()
-		disp.Store(newDisp)
-
-		err = tracingManager.ApplyConfig(conf.TracingConfig)
-		if err != nil {
-			return fmt.Errorf("failed to apply tracing config: %w", err)
-		}
-
-		go tracingManager.Run()
-
-		return nil
-	})
-
-	if err := configCoordinator.ApplyConfig(initialConf); err != nil {
-		return 1
-	}
-
-	// Make routePrefix default to externalURL path if empty string.
-	if *routePrefix == "" {
-		*routePrefix = amURL.Path
-	}
-	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
-	logger.Debug("route prefix", "routePrefix", *routePrefix)
-
-	router := route.New().WithInstrumentation(instrumentHandler)
-	if *routePrefix != "/" {
-		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, *routePrefix, http.StatusFound)
-		})
-		router = router.WithPrefix(*routePrefix)
-	}
-
-	webReload := make(chan chan error)
-
-	ui.Register(router)
-	httpserver.Register(router, webReload)
-
-	mux := api.Register(router, *routePrefix)
-
-	srv := &http.Server{
-		// instrument all handlers with tracing
-		Handler: tracing.Middleware(mux),
-	}
-	srvc := make(chan struct{})
-
-	go func() {
-		if err := web.ListenAndServe(srv, webConfig, logger); !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("Listen error", "err", err)
-			close(srvc)
-		}
-		defer func() {
-			if err := srv.Close(); err != nil {
-				logger.Error("Error on closing the server", "err", err)
-			}
-		}()
-	}()
-
-	var (
-		hup  = make(chan os.Signal, 1)
-		term = make(chan os.Signal, 1)
-	)
+	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(hup)
 
-	for {
-		select {
-		case <-hup:
-			// ignore error, already logged in `reload()`
-			_ = configCoordinator.Reload()
-		case errc := <-webReload:
-			errc <- configCoordinator.Reload()
-		case <-term:
-			logger.Info("Received SIGTERM, exiting gracefully...")
-
-			// shut down the tracing manager to flush any remaining spans.
-			// this blocks for up to 5s
-			tracingManager.Stop()
-
-			return 0
-		case <-srvc:
-			return 1
+	reload := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-hup:
+				select {
+				case reload <- struct{}{}:
+				default:
+				}
+			case <-ctx.Done():
+				return
+			}
 		}
-	}
-}
+	}()
 
-// clusterWait returns a function that inspects the current peer state and returns
-// a duration of one base timeout for each peer with a higher ID than ourselves.
-func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
-	return func() time.Duration {
-		return time.Duration(p.Position()) * timeout
-	}
-}
+	opts := app.Options{
+		ConfigFile:                  *configFile,
+		DataDir:                     *dataDir,
+		Retention:                   *retention,
+		MaintenanceInterval:         *maintenanceInterval,
+		MaxSilences:                 *maxSilences,
+		MaxSilenceSizeBytes:         *maxSilenceSizeBytes,
+		SilenceLogging:              *silenceLogging,
+		AlertGCInterval:             *alertGCInterval,
+		PerAlertNameLimit:           *perAlertNameLimit,
+		DispatchMaintenanceInterval: *dispatchMaintenanceInterval,
+		DispatchStartDelay:          *dispatchStartDelay,
 
-func extURL(logger *slog.Logger, hostnamef func() (string, error), listen, external string) (*url.URL, error) {
-	if external == "" {
-		hostname, err := hostnamef()
-		if err != nil {
-			return nil, err
-		}
-		_, port, err := net.SplitHostPort(listen)
-		if err != nil {
-			return nil, err
-		}
-		if port == "" {
-			logger.Warn("no port found for listen address", "address", listen)
-		}
+		WebConfig:      webConfig,
+		ExternalURL:    *externalURL,
+		RoutePrefix:    *routePrefix,
+		GetConcurrency: *getConcurrency,
+		HTTPTimeout:    *httpTimeout,
 
-		external = fmt.Sprintf("http://%s:%s/", hostname, port)
+		ClusterBindAddr:        *clusterBindAddr,
+		ClusterAdvertiseAddr:   *clusterAdvertiseAddr,
+		ClusterPeerName:        *clusterPeerName,
+		Peers:                  *peers,
+		PeerTimeout:            *peerTimeout,
+		PeersResolveTimeout:    *peersResolveTimeout,
+		GossipInterval:         *gossipInterval,
+		PushPullInterval:       *pushPullInterval,
+		TCPTimeout:             *tcpTimeout,
+		ProbeTimeout:           *probeTimeout,
+		ProbeInterval:          *probeInterval,
+		SettleTimeout:          *settleTimeout,
+		ReconnectInterval:      *reconnectInterval,
+		PeerReconnectTimeout:   *peerReconnectTimeout,
+		TLSConfigFile:          *tlsConfigFile,
+		AllowInsecureAdvertise: *allowInsecureAdvertise,
+		Label:                  *label,
+
+		Logger:     logger,
+		Registerer: prometheus.DefaultRegisterer,
+		Flagger:    ff,
+		Reload:     reload,
 	}
 
-	u, err := url.Parse(external)
-	if err != nil {
-		return nil, err
+	if err := app.Run(ctx, opts); err != nil {
+		logger.Error("alertmanager exited with error", "err", err)
+		return 1
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
-	}
-
-	ppref := strings.TrimRight(u.Path, "/")
-	if ppref != "" && !strings.HasPrefix(ppref, "/") {
-		ppref = "/" + ppref
-	}
-	u.Path = ppref
-
-	return u, nil
+	logger.Info("Received shutdown signal, exiting gracefully...")
+	return 0
 }

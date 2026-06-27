@@ -15,17 +15,93 @@ package eventrecorder
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
+
+// WebhookOutputConfig configures an HTTP webhook event recorder output.
+type WebhookOutputConfig struct {
+	// URL is the endpoint to POST each event to.
+	URL *amcommoncfg.SecretURL `yaml:"url" json:"url"`
+	// HTTPConfig configures the HTTP client used for webhook delivery.
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	// Timeout for webhook HTTP requests (default 10s).
+	Timeout model.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	// Workers is the number of concurrent delivery goroutines (default 4).
+	Workers int `yaml:"workers,omitempty" json:"workers,omitempty"`
+	// MaxRetries is the maximum number of delivery attempts per event
+	// (default 3).
+	MaxRetries int `yaml:"max_retries,omitempty" json:"max_retries,omitempty"`
+	// RetryBackoff is the base backoff between retry attempts (default
+	// 500ms).  Successive attempts use exponential backoff (base *
+	// 2^attempt).
+	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface, validating
+// the webhook output configuration.
+//
+// Note: SecretURL.UnmarshalYAML delegates to ParseURL, which already
+// enforces a non-empty host and an http(s) scheme.  The only way an
+// otherwise-valid config reaches this function with a degenerate URL is
+// via the "<secret>" placeholder shortcut in SecretURL.UnmarshalYAML,
+// which sets URL to an empty url.URL{}.  We catch that case here.
+func (c *WebhookOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain WebhookOutputConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil || c.URL.URL == nil {
+		return errors.New("event_recorder webhook output requires a url")
+	}
+	if c.URL.Scheme == "" || c.URL.Host == "" {
+		return errors.New("event_recorder webhook output requires an absolute http(s) url")
+	}
+	return nil
+}
+
+// equal reports whether two webhook output configs are semantically
+// equal.
+func (c WebhookOutputConfig) equal(o WebhookOutputConfig) bool {
+	aURL, bURL := "", ""
+	if c.URL != nil {
+		aURL = c.URL.String()
+	}
+	if o.URL != nil {
+		bURL = o.URL.String()
+	}
+	if aURL != bURL {
+		return false
+	}
+	if c.Timeout != o.Timeout {
+		return false
+	}
+	if c.Workers != o.Workers {
+		return false
+	}
+	if c.MaxRetries != o.MaxRetries {
+		return false
+	}
+	if c.RetryBackoff != o.RetryBackoff {
+		return false
+	}
+	return reflect.DeepEqual(c.HTTPConfig, o.HTTPConfig)
+}
 
 const (
 	defaultWebhookTimeout      = 10 * time.Second
@@ -57,7 +133,7 @@ type WebhookOutput struct {
 }
 
 // NewWebhookOutput creates a new webhook-based event recorder output.
-func NewWebhookOutput(cfg Output, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
+func NewWebhookOutput(cfg WebhookOutputConfig, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
 	httpCfg := commoncfg.DefaultHTTPClientConfig
 	if cfg.HTTPConfig != nil {
 		httpCfg = *cfg.HTTPConfig
@@ -132,17 +208,22 @@ func (wo *WebhookOutput) Name() string {
 	return wo.name
 }
 
-// SendEvent queues the pre-serialized JSON bytes for delivery by a
-// worker.  If the internal queue is full, the event is dropped and
-// counted via the webhook_drops metric.
-func (wo *WebhookOutput) SendEvent(data []byte) error {
+// SendEvent serializes the event as JSON and queues it for delivery by
+// a worker.  It returns the serialized size (for the bytes-written
+// metric).  If the internal queue is full the event is dropped and
+// counted via the output-drops metric.
+func (wo *WebhookOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
+	data, err := protojson.Marshal(event)
+	if err != nil {
+		return 0, &serializeError{err: err}
+	}
 	select {
 	case wo.work <- data:
 	default:
 		wo.drops.Inc()
 		wo.logger.Warn("Event recorder webhook queue full, dropping event", "output", wo.name)
 	}
-	return nil
+	return len(data), nil
 }
 
 func (wo *WebhookOutput) worker() {

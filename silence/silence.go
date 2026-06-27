@@ -48,6 +48,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -285,9 +286,11 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
 
-				s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceMutedAlertEvent(
-					eventrecorder.SilenceAsProto(sil), fp, lset,
-				))
+				s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+					return eventrecorder.NewSilenceMutedAlertEvent(
+						eventrecorder.SilenceAsProto(sil), fp, lset,
+					)
+				})
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -877,9 +880,11 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 			return err
 		}
 		if changed {
-			s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceUpdatedEvent(
-				eventrecorder.SilenceAsProto(sil),
-			))
+			s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+				return eventrecorder.NewSilenceUpdatedEvent(
+					eventrecorder.SilenceAsProto(sil),
+				)
+			})
 		}
 		return nil
 	}
@@ -925,9 +930,11 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		return err
 	}
 	if added {
-		s.recorder.RecordEvent(ctx, eventrecorder.NewSilenceCreatedEvent(
-			eventrecorder.SilenceAsProto(sil),
-		))
+		s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+			return eventrecorder.NewSilenceCreatedEvent(
+				eventrecorder.SilenceAsProto(sil),
+			)
+		})
 	}
 	return nil
 }
@@ -1359,9 +1366,11 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
+		b, err := marshalMeshSilence(e)
+		if err != nil {
 			return nil, err
 		}
+		buf.Write(b)
 	}
 	return buf.Bytes(), nil
 }
@@ -1392,7 +1401,9 @@ func decodeState(r io.Reader) (state, error) {
 // the first matcher set to the matchers field for backward compatibility with
 // older alertmanager versions.
 func prepareSilenceForMarshalling(sil *pb.Silence) {
-	if len(sil.MatcherSets) > 0 {
+	// The nil check is here because of rare cases where this function
+	// is called on a nil silence. It's up to the caller to decide if it's a bug
+	if sil != nil && len(sil.MatcherSets) > 0 {
 		sil.Matchers = sil.MatcherSets[0].Matchers
 	}
 }

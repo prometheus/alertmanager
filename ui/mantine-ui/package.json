@@ -18,33 +18,33 @@
     "test": "npm run typecheck && npm run check && npm run vitest && npm run build"
   },
   "dependencies": {
-    "@mantine/code-highlight": "^9.1.1",
+    "@mantine/code-highlight": "^9.3.0",
     "@mantine/core": "^9.0.0",
     "@mantine/hooks": "^9.0.0",
-    "@tanstack/react-query": "^5.100.9",
+    "@tanstack/react-query": "^5.101.0",
     "highlight.js": "^11.11.1",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "react-router-dom": "^7.14.2"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.16.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.14",
+    "@biomejs/biome": "^2.5.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^25.6.0",
-    "@types/react": "^19.2.14",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",
-    "postcss": "^8.5.13",
+    "postcss": "^8.5.15",
     "postcss-preset-mantine": "1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "prop-types": "^15.8.1",
     "typescript": "^5.9.3",
-    "vite": "^8.0.10",
+    "vite": "^8.0.16",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.8"
   }
 }

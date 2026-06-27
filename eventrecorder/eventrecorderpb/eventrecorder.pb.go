@@ -1700,7 +1700,9 @@ type InhibitRule struct {
 	TargetMatchers []*Matcher `protobuf:"bytes,2,rep,name=target_matchers,json=targetMatchers,proto3" json:"target_matchers,omitempty"`
 	// Label names whose values must be equal between source and target
 	// alerts for the inhibition to take effect.
-	EqualLabels   []string `protobuf:"bytes,3,rep,name=equal_labels,json=equalLabels,proto3" json:"equal_labels,omitempty"`
+	EqualLabels []string `protobuf:"bytes,3,rep,name=equal_labels,json=equalLabels,proto3" json:"equal_labels,omitempty"`
+	// Name is the optional name of the inhibition rule.
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1754,6 +1756,13 @@ func (x *InhibitRule) GetEqualLabels() []string {
 		return x.EqualLabels
 	}
 	return nil
+}
+
+func (x *InhibitRule) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
 }
 
 // InhibitionMutedAlertEvent is emitted when one or more inhibition
@@ -1938,11 +1947,12 @@ const file_eventrecorder_proto_rawDesc = "" +
 	"\x16SilenceMutedAlertEvent\x122\n" +
 	"\asilence\x18\x01 \x01(\v2\x18.eventrecorderpb.SilenceR\asilence\x12<\n" +
 	"\vmuted_alert\x18\x02 \x01(\v2\x1b.eventrecorderpb.MutedAlertR\n" +
-	"mutedAlert\"\xb6\x01\n" +
+	"mutedAlert\"\xca\x01\n" +
 	"\vInhibitRule\x12A\n" +
 	"\x0fsource_matchers\x18\x01 \x03(\v2\x18.eventrecorderpb.MatcherR\x0esourceMatchers\x12A\n" +
 	"\x0ftarget_matchers\x18\x02 \x03(\v2\x18.eventrecorderpb.MatcherR\x0etargetMatchers\x12!\n" +
-	"\fequal_labels\x18\x03 \x03(\tR\vequalLabels\"\xd5\x01\n" +
+	"\fequal_labels\x18\x03 \x03(\tR\vequalLabels\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\"\xd5\x01\n" +
 	"\x19InhibitionMutedAlertEvent\x12A\n" +
 	"\rinhibit_rules\x18\x01 \x03(\v2\x1c.eventrecorderpb.InhibitRuleR\finhibitRules\x12<\n" +
 	"\vmuted_alert\x18\x02 \x01(\v2\x1b.eventrecorderpb.MutedAlertR\n" +

@@ -4,6 +4,9 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - v*
+permissions:
+  contents: read
+
 jobs:
   ci:
     name: Run ci
@@ -17,25 +20,30 @@ jobs:
         thread: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     needs: ci
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ui-dist
           path: ui/app/dist
-      - uses: prometheus/promci/build@9c86752f3395e08c57719af549cc455d8e2c2514 # v0.7.0
+      - uses: prometheus/promci/build@d9d4f5688814f0b77bf003d07fb8c00507390634 # v0.8.2
         with:
           parallelism: 12
           thread: ${{ matrix.thread }}
   publish_release:
     name: Publish release artefacts
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create the GitHub release
+      packages: write  # push the image to GHCR via github.token
     needs: build
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: prometheus/promci/publish_release@9c86752f3395e08c57719af549cc455d8e2c2514 # v0.7.0
+      - uses: prometheus/promci/publish_release@d9d4f5688814f0b77bf003d07fb8c00507390634 # v0.8.2
         with:
           docker_hub_login: ${{ secrets.docker_hub_login }}
           docker_hub_password: ${{ secrets.docker_hub_password }}
+          ghcr_io_password: ${{ github.token }}
           quay_io_login: ${{ secrets.quay_io_login }}
           quay_io_password: ${{ secrets.quay_io_password }}
-          github_token: ${{ secrets.PROMBOT_GITHUB_TOKEN }}
+          github_token: ${{ github.token }}
