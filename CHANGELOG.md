@@ -1,8 +1,7 @@
 ## main / (unreleased)
 
-* [CHANGE] ...
-* [FEATURE] ...
-* [ENHANCEMENT] ...
+* [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated.
+* [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
 * [BUGFIX] webhook: Keep custom `payload` string values verbatim instead of reinterpreting JSON leaves that look like YAML (e.g. values ending with a colon). #5302
 
 ## 0.33.0 / 2026-06-12
