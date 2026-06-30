@@ -447,6 +447,41 @@ receivers:
 	}
 }
 
+func TestRouteLabelsInvalidLabelName(t *testing.T) {
+	in := `
+route:
+  receiver: team-X-mails
+  labels:
+    "-invalid-": value
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := `invalid label name "-invalid-" in route labels`
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestRouteLabelsValidLabelName(t *testing.T) {
+	in := `
+route:
+  receiver: team-X-mails
+  labels:
+    team: team-X
+    severity: "{{ .GroupLabels.severity }}"
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+	require.NoError(t, err)
+}
+
 func TestRootRouteExists(t *testing.T) {
 	in := `
 receivers:

@@ -1,0 +1,62 @@
+# Example showing route `labels`.
+#
+# Route labels are attached to a route, inherited by child routes, and may be
+# overridden per route. They are rendered per alert group and exposed to
+# notification templates via the `routeLabels` function (and in the
+# `routeLabels` field of the /api/v2/alerts/groups API response).
+#
+# The pattern shown here: a `description` is composed once at the root from a
+# `reason` sub-label. Each subtree overrides only `reason`, computing it from
+# the labels that branch matched on. The shared description picks up the new
+# reason automatically, so the per-branch routes never restate the surrounding
+# wording.
+
+templates:
+  - '/etc/alertmanager/template/*.tmpl'
+
+route:
+  group_by: ['alertname']
+  receiver: default
+  # `description` is defined once and built from `reason`. Child routes only
+  # override `reason`; they inherit this description unchanged.
+  labels:
+    reason: '{{ .GroupLabels.alertname }}'
+    description: '{{ .GroupLabels.alertname }} firing ({{ routeLabels "reason" }})'
+  routes:
+    # Database alerts are grouped by the affected database, so the reason can be
+    # computed from that branch's grouping label.
+    - matchers:
+        - service="database"
+      receiver: dba
+      group_by: ['alertname', 'database']
+      labels:
+        reason: 'database {{ .GroupLabels.database }}'
+
+    # Network link alerts match on both endpoints; the reason names the link.
+    - matchers:
+        - link_a_device=~".+"
+        - link_z_device=~".+"
+      receiver: network
+      group_by: ['alertname', 'link_a_device', 'link_z_device']
+      labels:
+        reason: '{{ .GroupLabels.link_a_device }} <-> {{ .GroupLabels.link_z_device }}'
+
+receivers:
+  # The webhook payload includes the rendered route labels under "routeLabels".
+  - name: default
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/'
+  - name: dba
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/'
+  - name: network
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/'
+
+# A notification template just renders the shared description:
+#
+#   {{ define "route_labels.text" }}{{ routeLabels "description" }}{{ end }}
+#
+# For a generic alert this renders e.g. "HighLatency firing (HighLatency)";
+# for the database branch "DiskFull firing (database orders)"; for the link
+# branch "LinkDown firing (switch-a <-> switch-b)" -- only `reason` changed.

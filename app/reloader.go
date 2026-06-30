@@ -206,6 +206,7 @@ func (r *reloader) reload(conf *config.Config) error {
 		r.logger,
 		r.eventRecorder,
 		r.dispatcherMetrics,
+		tmpl,
 	)
 	routes.Walk(func(rt *dispatch.Route) {
 		if rt.RouteOpts.RepeatInterval > r.retention {

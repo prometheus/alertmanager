@@ -16,6 +16,7 @@ package dispatch
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +37,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupBy:           map[model.LabelName]struct{}{},
 	GroupByAll:        false,
 	MuteTimeIntervals: []string{},
+	Labels:            model.LabelSet{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -70,6 +72,15 @@ func newRoute(cr *config.Route, parent *Route, counter *int) *Route {
 	opts := DefaultRouteOpts
 	if parent != nil {
 		opts = parent.RouteOpts
+	}
+
+	// Merge parent route labels and cr.Labels into opts.Labels. Always merge
+	// into a fresh LabelSet so we never mutate the parent's map.
+	if len(cr.Labels) != 0 {
+		merged := model.LabelSet{}
+		maps.Copy(merged, opts.Labels)
+		maps.Copy(merged, cr.Labels)
+		opts.Labels = merged
 	}
 
 	if cr.Receiver != "" {
@@ -249,6 +260,9 @@ type RouteOpts struct {
 
 	// A list of time intervals for which the route is active.
 	ActiveTimeIntervals []string
+
+	// Merged labels from this route and all of its parent routes.
+	Labels model.LabelSet
 }
 
 func (ro *RouteOpts) String() string {
