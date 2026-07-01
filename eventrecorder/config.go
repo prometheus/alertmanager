@@ -23,12 +23,13 @@ type Config struct {
 	FileOutputs    []FileOutputConfig    `yaml:"file_outputs,omitempty" json:"file_outputs,omitempty"`
 	WebhookOutputs []WebhookOutputConfig `yaml:"webhook_outputs,omitempty" json:"webhook_outputs,omitempty"`
 	KafkaOutputs   []KafkaOutputConfig   `yaml:"kafka_outputs,omitempty" json:"kafka_outputs,omitempty"`
+	StdoutOutputs  []StdoutOutputConfig  `yaml:"stdout_outputs,omitempty" json:"stdout_outputs,omitempty"`
 }
 
 // totalOutputs returns the number of configured outputs across all
 // destination kinds.
 func (c Config) totalOutputs() int {
-	return len(c.FileOutputs) + len(c.WebhookOutputs) + len(c.KafkaOutputs)
+	return len(c.FileOutputs) + len(c.WebhookOutputs) + len(c.KafkaOutputs) + len(c.StdoutOutputs)
 }
 
 // configEqual compares two Config values by their semantically
@@ -38,7 +39,8 @@ func (c Config) totalOutputs() int {
 func configEqual(a, b Config) bool {
 	if len(a.FileOutputs) != len(b.FileOutputs) ||
 		len(a.WebhookOutputs) != len(b.WebhookOutputs) ||
-		len(a.KafkaOutputs) != len(b.KafkaOutputs) {
+		len(a.KafkaOutputs) != len(b.KafkaOutputs) ||
+		len(a.StdoutOutputs) != len(b.StdoutOutputs) {
 		return false
 	}
 	for i := range a.FileOutputs {
@@ -53,6 +55,11 @@ func configEqual(a, b Config) bool {
 	}
 	for i := range a.KafkaOutputs {
 		if !a.KafkaOutputs[i].equal(b.KafkaOutputs[i]) {
+			return false
+		}
+	}
+	for i := range a.StdoutOutputs {
+		if !a.StdoutOutputs[i].equal(b.StdoutOutputs[i]) {
 			return false
 		}
 	}
