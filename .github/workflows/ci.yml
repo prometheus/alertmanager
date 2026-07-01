@@ -83,6 +83,6 @@ jobs:
         with:
           name: ui-dist
           path: ui/app/dist
-      - uses: prometheus/promci-setup@5af30ba8c199a91d6c04ebdc3c48e630e355f62d # v0.1.0
+      - uses: prometheus/promci-setup@3e5cd31b34b8ae19efa8f071c5e3cdb44884a7f8 # v0.2.1
       - run: make
       - run: git diff --exit-code
