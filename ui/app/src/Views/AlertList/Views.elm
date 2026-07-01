@@ -7,6 +7,8 @@ import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Html.Keyed
+import Html.Lazy exposing (lazy4)
 import Set exposing (Set)
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
@@ -83,8 +85,13 @@ view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroup
                     [ i [ class "fa fa-plus mr-3" ] [], text "Expand all groups" ]
                 )
             ]
-        , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
+        , lazy4 alertGroupsView activeId activeGroups expandAll alertGroups
         ]
+
+
+alertGroupsView : Maybe String -> Set Int -> Bool -> ApiData (List AlertGroup) -> Html Msg
+alertGroupsView activeId activeGroups expandAll alertGroups =
+    Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
 
 
 defaultAlertGroups : Maybe String -> Set Int -> Bool -> List AlertGroup -> Html Msg
@@ -101,13 +108,23 @@ defaultAlertGroups activeId activeGroups expandAll groups =
             alertGroup activeId (Set.singleton 0) receiver labels_ (Dict.toList routeLabels) alerts 0 expandAll
 
         _ ->
-            div [ class "pl-5" ]
+            Html.Keyed.node "div"
+                [ class "pl-5" ]
                 (List.indexedMap
                     (\index group ->
-                        alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) (Dict.toList group.routeLabels) group.alerts index expandAll
+                        ( groupKey group
+                        , alertGroup activeId activeGroups group.receiver (Dict.toList group.labels) (Dict.toList group.routeLabels) group.alerts index expandAll
+                        )
                     )
                     groups
                 )
+
+
+groupKey : AlertGroup -> String
+groupKey group =
+    group.receiver.name
+        ++ ":"
+        ++ String.join "," (List.map (\( key, value ) -> key ++ "=" ++ value) (Dict.toList group.labels))
 
 
 alertGroup : Maybe String -> Set Int -> ReceiverReference -> Labels -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
@@ -178,7 +195,8 @@ alertGroup activeId activeGroups receiver labels routeLabels alerts groupId expa
     div []
         [ div [ class "mb-3" ] (expandButton :: labels_ ++ routeLabels_ ++ alertEl)
         , if groupActive then
-            ul [ class "list-group mb-0" ] (List.map (AlertView.view labels activeId) alerts)
+            Html.Keyed.ul [ class "list-group mb-0" ]
+                (List.map (\alert -> ( alert.fingerprint, AlertView.view labels activeId alert )) alerts)
 
           else
             text ""
