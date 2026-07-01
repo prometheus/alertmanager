@@ -20,7 +20,7 @@ jobs:
         thread: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     needs: ci
     steps:
-      - uses: prometheus/promci/build@d9d4f5688814f0b77bf003d07fb8c00507390634 # v0.8.2
+      - uses: prometheus/promci/build@13941414d409d227afd67544e5d306827db5a1a2 # v0.8.5
         with:
           parallelism: 12
           thread: ${{ matrix.thread }}
