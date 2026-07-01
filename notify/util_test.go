@@ -252,3 +252,24 @@ func TestGetTemplateDataWithRouteLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ops|value is {{ $value }}", got)
 }
+
+func TestGetFailureReasonFromStatusCode(t *testing.T) {
+	for _, tc := range []struct {
+		statusCode int
+		expected   Reason
+	}{
+		{http.StatusUnauthorized, AuthErrorReason},
+		{http.StatusForbidden, AuthErrorReason},
+		{http.StatusTooManyRequests, RateLimitedReason},
+		{http.StatusBadRequest, ClientErrorReason},
+		{http.StatusNotFound, ClientErrorReason},
+		{http.StatusInternalServerError, ServerErrorReason},
+		{http.StatusServiceUnavailable, ServerErrorReason},
+		{http.StatusOK, DefaultReason},
+		{http.StatusMovedPermanently, DefaultReason},
+	} {
+		t.Run(http.StatusText(tc.statusCode), func(t *testing.T) {
+			require.Equal(t, tc.expected, GetFailureReasonFromStatusCode(tc.statusCode))
+		})
+	}
+}
