@@ -39,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
+	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -968,7 +969,7 @@ type Receiver struct {
 	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
-	PagerdutyConfigs  []*PagerdutyConfig             `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
