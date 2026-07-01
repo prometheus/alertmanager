@@ -42,7 +42,7 @@ require (
 	github.com/prometheus/sigv4 v0.4.1
 	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.11.1
-	github.com/twmb/franz-go v1.21.2
+	github.com/twmb/franz-go v1.21.5
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260515175617-8268a5d078c0
 	github.com/twmb/franz-go/plugin/kslog v1.0.0
 	github.com/xlab/treeprint v1.2.0
