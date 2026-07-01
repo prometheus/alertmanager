@@ -50,7 +50,8 @@ func TestSlackRetry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
@@ -178,6 +179,13 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			expectedReason: notify.ClientErrorReason,
 			expectedRetry:  false,
 			expectedErr:    "error response from Slack: no_channel",
+		},
+		{
+			name:           "with a 429 status code",
+			statusCode:     http.StatusTooManyRequests,
+			expectedReason: notify.ClientErrorReason,
+			expectedRetry:  true,
+			expectedErr:    "unexpected status code 429",
 		},
 		{
 			name:         "successful JSON response",
@@ -351,4 +359,110 @@ func TestSlackMessageField(t *testing.T) {
 	if _, err := notifier.Notify(ctx); err != nil {
 		t.Fatal("Notify failed:", err)
 	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected time.Duration
+	}{
+		{name: "valid integer", value: "30", expected: 30 * time.Second},
+		{name: "empty string", value: "", expected: 0},
+		{name: "non-integer", value: "abc", expected: 0},
+		{name: "negative", value: "-5", expected: 0},
+		{name: "zero", value: "0", expected: 0},
+		{name: "float value", value: "1.5", expected: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, parseRetryAfter(tt.value))
+		})
+	}
+}
+
+func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
+	apiurl, _ := url.Parse("https://slack.com/post.Message")
+	notifier, err := New(
+		&config.SlackConfig{
+			NotifierConfig: config.NotifierConfig{},
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+			APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
+			Channel:        "channelname",
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+		resp := httptest.NewRecorder()
+		resp.Header().Set("Retry-After", "1")
+		resp.WriteHeader(http.StatusTooManyRequests)
+		return resp.Result(), nil
+	}
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	start := time.Now()
+	retry, err := notifier.Notify(ctx, alert1)
+	elapsed := time.Since(start)
+
+	require.True(t, retry)
+	require.Error(t, err)
+	require.GreaterOrEqual(t, elapsed, 1*time.Second, "should have waited at least 1 second for Retry-After")
+}
+
+func TestNotifier_Notify_RetryAfterContextCancelled(t *testing.T) {
+	apiurl, _ := url.Parse("https://slack.com/post.Message")
+	notifier, err := New(
+		&config.SlackConfig{
+			NotifierConfig: config.NotifierConfig{},
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+			APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
+			Channel:        "channelname",
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+		resp := httptest.NewRecorder()
+		resp.Header().Set("Retry-After", "2")
+		resp.WriteHeader(http.StatusTooManyRequests)
+		return resp.Result(), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	// Cancel context after a short delay to interrupt the Retry-After sleep.
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	start := time.Now()
+	retry, err := notifier.Notify(ctx, alert1)
+	elapsed := time.Since(start)
+
+	require.True(t, retry)
+	require.Error(t, err)
+	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
 }
