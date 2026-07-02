@@ -151,7 +151,7 @@ func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *rec
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	metrics := NewDispatcherMetrics(false, reg, nil)
 
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
 
 	return dispatcher, alerts, recorder
 }

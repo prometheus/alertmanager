@@ -15,15 +15,21 @@ package notify
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"reflect"
 	"runtime"
 	"testing"
 
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/template"
 )
 
 func TestTruncate(t *testing.T) {
@@ -213,6 +219,57 @@ func TestRetrierCheck(t *testing.T) {
 				return
 			}
 			require.EqualError(t, err, tc.expectedErr)
+		})
+	}
+}
+
+func TestGetTemplateDataWithRouteLabels(t *testing.T) {
+	tmpl, err := template.New()
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	// A route label value containing template metacharacters: the dispatcher
+	// has already rendered route labels, so GetTemplateData must mark them
+	// rendered and the routeLabels function must return them verbatim rather
+	// than executing them a second time.
+	ctx := context.Background()
+	ctx = WithReceiverName(ctx, "test-receiver")
+	ctx = WithGroupKey(ctx, "test-key")
+	ctx = WithGroupLabels(ctx, model.LabelSet{"alertname": "Test"})
+	ctx = WithNotificationReason(ctx, ReasonFirstNotification)
+	ctx = WithRouteLabels(ctx, model.LabelSet{
+		"team": "ops",
+		"desc": "value is {{ $value }}",
+	})
+
+	data := GetTemplateData(ctx, tmpl, nil, promslog.NewNopLogger())
+
+	require.Equal(t, "ops", data.RouteLabels["team"])
+	require.Equal(t, "value is {{ $value }}", data.RouteLabels["desc"])
+
+	// The routeLabels template function returns the values verbatim.
+	got, err := tmpl.ExecuteTextString(`{{ routeLabels "team" }}|{{ routeLabels "desc" }}`, data)
+	require.NoError(t, err)
+	require.Equal(t, "ops|value is {{ $value }}", got)
+}
+
+func TestGetFailureReasonFromStatusCode(t *testing.T) {
+	for _, tc := range []struct {
+		statusCode int
+		expected   Reason
+	}{
+		{http.StatusUnauthorized, AuthErrorReason},
+		{http.StatusForbidden, AuthErrorReason},
+		{http.StatusTooManyRequests, RateLimitedReason},
+		{http.StatusBadRequest, ClientErrorReason},
+		{http.StatusNotFound, ClientErrorReason},
+		{http.StatusInternalServerError, ServerErrorReason},
+		{http.StatusServiceUnavailable, ServerErrorReason},
+		{http.StatusOK, DefaultReason},
+		{http.StatusMovedPermanently, DefaultReason},
+	} {
+		t.Run(http.StatusText(tc.statusCode), func(t *testing.T) {
+			require.Equal(t, tc.expected, GetFailureReasonFromStatusCode(tc.statusCode))
 		})
 	}
 }

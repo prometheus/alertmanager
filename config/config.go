@@ -892,6 +892,12 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+
+	// Labels are attached to a route and inherited by child routes.
+	// Values may be Go templates rendered against the current alert group's
+	// data. Notification-specific fields such as .NotificationReason are
+	// not available; use notification templates for reason-dependent content.
+	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
@@ -904,6 +910,12 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	for k := range r.Match {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.Labels {
+		if !compat.IsValidLabelName(k) {
+			return fmt.Errorf("invalid label name %q in route labels", k)
 		}
 	}
 
