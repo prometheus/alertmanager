@@ -168,3 +168,55 @@ func TestWebexTemplating(t *testing.T) {
 		})
 	}
 }
+
+func TestWebexFailureReason(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		statusCode     int
+		expectedReason notify.Reason
+	}{
+		{
+			name:           "client error",
+			statusCode:     http.StatusBadRequest,
+			expectedReason: notify.ClientErrorReason,
+		},
+		{
+			name:           "server error",
+			statusCode:     http.StatusInternalServerError,
+			expectedReason: notify.ServerErrorReason,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			notifier, err := New(
+				&config.WebexConfig{
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					APIURL:     &amcommoncfg.URL{URL: u},
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			ctx := notify.WithGroupKey(context.Background(), "1")
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			_, err = notifier.Notify(ctx, alert)
+			var reasonError *notify.ErrorWithReason
+			require.ErrorAs(t, err, &reasonError)
+			require.Equal(t, tc.expectedReason, reasonError.Reason)
+		})
+	}
+}
