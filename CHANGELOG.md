@@ -4,6 +4,12 @@
 * [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
 * [BUGFIX] webhook: Keep custom `payload` string values verbatim instead of reinterpreting JSON leaves that look like YAML (e.g. values ending with a colon). #5302
 
+## 0.32.3 / 2026-07-03
+
+* [BUGFIX] doc: fix missing `notification_reason` field in webhook documentation (#5329)
+* [BUGFIX] silences: fix silences snapshot missing legacy matchers field. This caused a bug that prevented older alertmanager versions from reading newer snapshots unnecessarily. (#5330)
+* [BUGFIX] silence with no matchers should populate an empty array in API response (#5331)
+
 ## 0.33.0 / 2026-06-12
 
 * [CHANGE] The '--enable-feature=auto-gomaxprocs' option has been removed. This flag had no effect since v0.29 and was deprecated in v0.32. It can be safely removed from any startup scripts. #5090, #5251
