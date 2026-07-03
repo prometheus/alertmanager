@@ -1350,11 +1350,16 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	// re-renders against the now-empty group. The template references
 	// .Alerts[0], so with no alerts it renders to an empty value rather than
 	// erroring out the caller.
-	require.NotPanics(t, func() {
+	//
+	// The deletion happens on the flush goroutine after the notify function
+	// returns, so it races the channel receive above. Poll until the empty
+	// render is observable; require.Eventually also fails the test if any call
+	// panics.
+	require.Eventually(t, func() bool {
 		rl = ag.RouteLabels()
-	}, "RouteLabels() must not panic after all alerts are deleted")
-	require.Empty(t, rl["description"],
-		"route label renders empty once the group has no alerts")
+		return rl["description"] == ""
+	}, 2*time.Second, 10*time.Millisecond,
+		"route label should render empty once the group has no alerts")
 }
 
 // TestRouteLabelsInNotifyContext verifies that the flush path puts the rendered
