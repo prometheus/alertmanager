@@ -38,6 +38,7 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 		Silence: open_api_models.Silence{
 			StartsAt:    &start,
 			EndsAt:      &end,
+			Matchers:    open_api_models.Matchers{},
 			Comment:     &s.Comment,
 			CreatedBy:   &s.CreatedBy,
 			Annotations: s.Annotations,

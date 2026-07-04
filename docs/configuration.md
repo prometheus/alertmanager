@@ -1944,6 +1944,7 @@ endpoint:
   "commonLabels": <object>,
   "commonAnnotations": <object>,
   "externalURL": <string>,           // backlink to the Alertmanager.
+  "notification_reason": <string>,   // string represent the reason this notification was generated
   "alerts": [
     {
       "status": "<resolved|firing>",
