@@ -4,6 +4,7 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - release-*
+  workflow_dispatch:
 permissions:
   contents: read
 
