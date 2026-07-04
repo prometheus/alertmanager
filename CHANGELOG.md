@@ -4,7 +4,13 @@
 * [FEATURE] ...
 * [ENHANCEMENT] ...
 
-## 0.32.2 / 2026-05-25
+## 0.32.3 / 2026-07-04
+
+* [BUGFIX] doc: fix missing `notification_reason` field in webhook documentation (#5329)
+* [BUGFIX] silences: fix silences snapshot missing legacy matchers field. This caused a bug that prevented older alertmanager versions from reading newer snapshots unnecessarily. (#5330)
+* [BUGFIX] silence with no matchers should populate an empty array in API response (#5331)
+
+## 0.32.2 / 2026-06-05
 
 * [BUGFIX] Fix dispatcher goroutine leaks on destroyed alertgroup swap. #5241
 
