@@ -1,0 +1,27 @@
+---
+name: Build release branch
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - release-*
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Run ci
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build Alertmanager for all architectures
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        thread: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    needs: ci
+    steps:
+      - uses: prometheus/promci/build@13941414d409d227afd67544e5d306827db5a1a2 # v0.8.5
+        with:
+          parallelism: 12
+          thread: ${{ matrix.thread }}
