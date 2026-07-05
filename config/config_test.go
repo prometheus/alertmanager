@@ -766,6 +766,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   amcommoncfg.MustParseURL("https://api.opsgenie.com/"),
+			JSMOpsAPIURL:     amcommoncfg.MustParseURL("https://api.atlassian.com/jsm/ops/api/"),
 			WeChatAPIURL:     amcommoncfg.MustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL:  amcommoncfg.MustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 			TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
@@ -919,6 +920,10 @@ receivers:
 		{
 			integration: "slack_configs",
 			expectedErr: "no Slack API URL nor App token set either inline or in a file",
+		},
+		{
+			integration: "jsmops_configs",
+			expectedErr: "missing cloud_id in jsmops_config",
 		},
 		{
 			integration: "opsgenie_configs",
@@ -1195,6 +1200,18 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}
+}
+
+func TestJSMOpsDefaultAPIURL(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.jsmops-default-apiurl.yml")
+	require.NoError(t, err)
+
+	globalURL := conf.Global.JSMOpsAPIURL
+	// Receiver 0 omits api_url so it should inherit the global URL.
+	require.Equal(t, globalURL.String(), conf.Receivers[0].JSMOpsConfigs[0].APIURL.String())
+	// Receiver 1 overrides api_url so it should NOT equal the global URL.
+	require.NotEqual(t, globalURL.String(), conf.Receivers[1].JSMOpsConfigs[0].APIURL.String())
+	require.Equal(t, "https://override.jsmops.example.com/", conf.Receivers[1].JSMOpsConfigs[0].APIURL.String())
 }
 
 func TestSlackBothAPIURLAndFile(t *testing.T) {

@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/jsmops"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
@@ -178,6 +179,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	cfg.Global.HTTPConfig.SetDirectory(baseDir)
 	for _, receiver := range cfg.Receivers {
 		for _, cfg := range receiver.OpsGenieConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.JSMOpsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 		for _, cfg := range receiver.PagerdutyConfigs {
@@ -494,6 +498,19 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("no global OpsGenie API Key set either inline or in a file")
 			}
 		}
+		for _, jc := range rcv.JSMOpsConfigs {
+			if jc == nil {
+				return errors.New("missing cloud_id in jsmops_config")
+			}
+			jc.HTTPConfig = cmp.Or(jc.HTTPConfig, c.Global.HTTPConfig)
+			jc.APIURL = cmp.Or(jc.APIURL, c.Global.JSMOpsAPIURL)
+			if jc.APIURL == nil {
+				return errors.New("no global JSM Ops URL set")
+			}
+			if !strings.HasSuffix(jc.APIURL.Path, "/") {
+				jc.APIURL.Path += "/"
+			}
+		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc == nil {
 				wcc = &WechatConfig{}
@@ -738,6 +755,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPTLSConfig:    &defaultSMTPTLSConfig,
 		PagerdutyURL:     amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:   amcommoncfg.MustParseURL("https://api.opsgenie.com/"),
+		JSMOpsAPIURL:     amcommoncfg.MustParseURL("https://api.atlassian.com/jsm/ops/api/"),
 		WeChatAPIURL:     amcommoncfg.MustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL:  amcommoncfg.MustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
@@ -845,6 +863,7 @@ type GlobalConfig struct {
 	OpsGenieAPIURL           *amcommoncfg.URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey           commoncfg.Secret       `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	OpsGenieAPIKeyFile       string                 `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	JSMOpsAPIURL             *amcommoncfg.URL       `yaml:"jsmops_api_url,omitempty" json:"jsmops_api_url,omitempty"`
 	WeChatAPIURL             *amcommoncfg.URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret          commoncfg.Secret       `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPISecretFile      string                 `yaml:"wechat_api_secret_file,omitempty" json:"wechat_api_secret_file,omitempty"`
@@ -972,6 +991,7 @@ type Receiver struct {
 	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	JSMOpsConfigs     []*jsmops.JSMOpsConfig         `yaml:"jsmops_configs,omitempty" json:"jsmops_configs,omitempty"`
 	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
