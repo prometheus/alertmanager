@@ -77,7 +77,7 @@ func (c *JSMOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("missing cloud_id in jsmops_config")
 	}
 
-	for _, r := range c.Responders {
+	for i, r := range c.Responders {
 		if r.ID == "" && r.Username == "" && r.Name == "" {
 			return fmt.Errorf("jsmOpsConfig responder %v has to have at least one of id, username or name specified", r)
 		}
@@ -87,8 +87,8 @@ func (c *JSMOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			return fmt.Errorf("jsmOpsConfig responder %v type contains invalid template syntax: %w", r, err)
 		}
 		if !isTemplated {
-			r.Type = strings.ToLower(r.Type)
-			if !jsmopsTypeMatcher.MatchString(r.Type) {
+			c.Responders[i].Type = strings.ToLower(r.Type)
+			if !jsmopsTypeMatcher.MatchString(c.Responders[i].Type) {
 				return fmt.Errorf("jsmOpsConfig responder %v type does not match valid options %s", r, jsmopsValidTypesRe)
 			}
 		}

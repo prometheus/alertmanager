@@ -194,6 +194,11 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 				continue
 			}
 
+			if responder.ID == "" && responder.Name == "" && responder.Username == "" {
+				// Skip responders with no identifier after templating.
+				continue
+			}
+
 			if responder.Type == "teams" {
 				teams := safeSplit(responder.Name, ",")
 				for _, team := range teams {
