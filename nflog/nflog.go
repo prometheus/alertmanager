@@ -30,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/promslog"
@@ -174,8 +173,6 @@ func (s *Store) Delete(key string) {
 
 // Log holds the notification log state for alerts that have been notified.
 type Log struct {
-	clock quartz.Clock
-
 	logger    *slog.Logger
 	metrics   *metrics
 	retention time.Duration
@@ -347,7 +344,6 @@ func New(o Options) (*Log, error) {
 	}
 
 	l := &Log{
-		clock:     quartz.NewReal(),
 		retention: o.Retention,
 		logger:    promslog.NewNopLogger(),
 		st:        state{},
@@ -381,7 +377,7 @@ func New(o Options) (*Log, error) {
 }
 
 func (l *Log) now() time.Time {
-	return l.clock.Now()
+	return time.Now()
 }
 
 // Maintenance garbage collects the notification log state at the given interval. If the snapshot
@@ -393,7 +389,7 @@ func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan str
 		l.logger.Error("interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := l.clock.NewTicker(interval)
+	t := time.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc

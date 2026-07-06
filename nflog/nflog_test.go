@@ -21,11 +21,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 
-	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
@@ -34,8 +34,7 @@ import (
 )
 
 func TestLogGC(t *testing.T) {
-	mockClock := quartz.NewMock(t)
-	now := mockClock.Now()
+	now := time.Now()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
@@ -49,7 +48,6 @@ func TestLogGC(t *testing.T) {
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
 		},
-		clock:   mockClock,
 		metrics: newMetrics(prometheus.NewRegistry()),
 	}
 	n, err := l.GC()
@@ -64,8 +62,7 @@ func TestLogGC(t *testing.T) {
 
 func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	mockClock := quartz.NewMock(t)
-	now := mockClock.Now().UTC()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -139,46 +136,46 @@ func TestLogSnapshot(t *testing.T) {
 }
 
 func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "snapshot")
-	require.NoError(t, err, "creating temp file failed")
-	stopc := make(chan struct{})
-	reg := prometheus.NewPedanticRegistry()
-	opts := Options{
-		Metrics:      reg,
-		SnapshotFile: f.Name(),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "snapshot")
+		require.NoError(t, err, "creating temp file failed")
+		stopc := make(chan struct{})
+		reg := prometheus.NewPedanticRegistry()
+		opts := Options{
+			Metrics:      reg,
+			SnapshotFile: f.Name(),
+		}
 
-	l, err := New(opts)
-	clock := quartz.NewMock(t)
-	l.clock = clock
-	require.NoError(t, err)
+		l, err := New(opts)
+		require.NoError(t, err)
 
-	var calls atomic.Int32
-	var wg sync.WaitGroup
+		var calls atomic.Int32
+		var wg sync.WaitGroup
 
-	wg.Go(func() {
-		l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-			calls.Add(1)
-			return 0, nil
+		wg.Go(func() {
+			l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+				calls.Add(1)
+				return 0, nil
+			})
 		})
-	})
-	gosched()
+		gosched()
 
-	// Before the first tick, no maintenance executed.
-	clock.Advance(99 * time.Millisecond)
-	require.EqualValues(t, 0, calls.Load())
+		// Before the first tick, no maintenance executed.
+		time.Sleep(99 * time.Millisecond)
+		require.EqualValues(t, 0, calls.Load())
 
-	// Tick once.
-	clock.Advance(1 * time.Millisecond)
-	require.Eventually(t, func() bool { return calls.Load() == 1 }, 5*time.Second, time.Second)
+		// Tick once.
+		time.Sleep(1 * time.Millisecond)
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
 
-	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
-	close(stopc)
-	wg.Wait()
+		// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
+		close(stopc)
+		wg.Wait()
 
-	require.EqualValues(t, 2, calls.Load())
-	// Check the maintenance metrics.
-	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+		require.EqualValues(t, 2, calls.Load())
+		// Check the maintenance metrics.
+		require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
 # HELP alertmanager_nflog_maintenance_errors_total How many maintenances were executed for the notification log that failed.
 # TYPE alertmanager_nflog_maintenance_errors_total counter
 alertmanager_nflog_maintenance_errors_total 0
@@ -186,6 +183,7 @@ alertmanager_nflog_maintenance_errors_total 0
 # TYPE alertmanager_nflog_maintenance_total counter
 alertmanager_nflog_maintenance_total 2
 `), "alertmanager_nflog_maintenance_total", "alertmanager_nflog_maintenance_errors_total"))
+	})
 }
 
 func TestReplaceFile(t *testing.T) {
@@ -217,8 +215,7 @@ func TestReplaceFile(t *testing.T) {
 }
 
 func TestStateMerge(t *testing.T) {
-	mockClock := quartz.NewMock(t)
-	now := mockClock.Now()
+	now := time.Now()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
@@ -279,8 +276,7 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	mockClock := quartz.NewMock(t)
-	now := mockClock.Now().UTC()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
