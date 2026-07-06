@@ -13,23 +13,12 @@
 
 // Package eventrecorder provides a structured event recorder for
 // significant Alertmanager events.  Events are serialized as JSON and
-// fanned out to one or more configured destinations (JSONL file,
-// webhook, kafka).
+// fanned out to one or more configured destinations.
 //
 // RecordEvent never blocks the caller: events are serialized and
 // placed on a bounded in-memory queue.  A background goroutine
 // drains the queue and sends to destinations.  If the queue is full,
 // events are dropped and a metric is incremented.
-//
-// Package layout:
-//
-//   - recorder.go    Recorder core: types, write loop, fan-out.
-//   - metrics.go     Prometheus metric definitions.
-//   - events.go      Pure proto-conversion helpers and event constructors.
-//   - config.go      Top-level Config: per-type output lists + equality.
-//   - file.go        File output and its config.
-//   - webhook.go     Webhook output and its config.
-//   - kafka.go       Kafka output and its config.
 package eventrecorder
 
 import (
@@ -206,6 +195,9 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 			continue
 		}
 		outputs = append(outputs, ko)
+	}
+	for range cfg.StdoutOutputs {
+		outputs = append(outputs, &StdoutOutput{})
 	}
 	return outputs
 }

@@ -276,7 +276,7 @@ type Silence struct {
 	// Receiver matchers apply to the labels of receivers, not alerts. At
 	// least one set of receiver matchers must match for a silence to apply
 	// to alerts that are sent to that receiver. Unlike alert label matcher,
-	// a silence with no receiver matchers applies to ALL recievers.
+	// a silence with no receiver matchers applies to ALL receivers.
 	ReceiverMatcherSets []*MatcherSet `protobuf:"bytes,12,rep,name=receiver_matcher_sets,json=receiverMatcherSets,proto3" json:"receiver_matcher_sets,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
