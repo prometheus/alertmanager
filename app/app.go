@@ -527,9 +527,16 @@ func (a *App) setup() error {
 
 	mux := apih.Register(router, routePrefix)
 
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	protocols.SetUnencryptedHTTP2(true)
 	a.server = &http.Server{
 		// Instrument all handlers with tracing.
-		Handler: tracing.Middleware(mux),
+		Handler:           tracing.Middleware(mux),
+		Protocols:         protocols,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       90 * time.Second,
 	}
 
 	return nil

@@ -71,6 +71,7 @@ func NewStatusServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+StatusServiceGetStatusProcedure,
 			connect.WithSchema(statusServiceMethods.ByName("GetStatus")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -103,6 +104,7 @@ func NewStatusServiceHandler(svc StatusServiceHandler, opts ...connect.HandlerOp
 		StatusServiceGetStatusProcedure,
 		svc.GetStatus,
 		connect.WithSchema(statusServiceMethods.ByName("GetStatus")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/status.v3.StatusService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
