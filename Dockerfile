@@ -15,12 +15,10 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
     go build \
-    -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
     ./cmd/alertmanager && \
     go build \
-    -mod=vendor \
     -ldflags="-X github.com/prometheus/common/version.Version=$(cat VERSION) \
     -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
     ./cmd/amtool
