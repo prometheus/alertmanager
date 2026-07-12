@@ -1469,8 +1469,15 @@ JSM Ops (Jira Service Management Operations) notifications are sent via the
 [JSM Ops REST API](https://developer.atlassian.com/cloud/jira/service-desk-ops/rest/v2/intro/).
 This receiver is the migration target for the deprecated `opsgenie` receiver.
 
-Authentication is configured entirely via the `http_config` block (using `basic_auth`
-with an Atlassian account email and API token, or `oauth2`). There is no `api_key` field.
+Authentication is configured entirely via the `http_config` block, using `basic_auth`
+with an Atlassian account email and API token. There is no `api_key` field.
+
+Note: the JSM Ops REST API supports basic authentication and OAuth 2.0
+authorization code grants (3LO). Alertmanager's `oauth2` HTTP client
+configuration implements the client credentials grant, which this API does not
+support, so `basic_auth` is the only working authentication method. Atlassian
+account API tokens have a maximum lifetime of one year and must be rotated
+before they expire.
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1523,7 +1530,6 @@ responders:
 # The HTTP client's configuration. You must use this configuration to supply
 # authentication credentials. For Atlassian Cloud, use basic_auth with the
 # Atlassian account email as the username and an API token as the password.
-# OAuth 2.0 (3LO) is also supported via the oauth2 field.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
