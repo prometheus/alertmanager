@@ -1814,3 +1814,103 @@ func TestMattermostNoWebhookURL(t *testing.T) {
 		t.Errorf("Expected: %s\nGot: %s", "missing webhook_url or webhook_url_file on mattermost_config", err.Error())
 	}
 }
+
+// TestMSTeamsV2GlobalProxyInheritedWhenNoLocalHTTPConfig checks that the global
+// proxy_url is used when the receiver has no http_config set.
+func TestMSTeamsV2GlobalProxyInheritedWhenNoLocalHTTPConfig(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig == nil {
+		t.Fatal("expected HTTPConfig to be non-nil")
+	}
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected global proxy_url to be inherited")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://proxy.example.com:3128" {
+		t.Errorf("expected proxy_url %q, got %q", "http://proxy.example.com:3128", got)
+	}
+}
+
+// TestMSTeamsV2GlobalProxyInheritedWhenPartialHTTPConfig checks that the global
+// proxy_url is used when the receiver sets a partial http_config with no proxy.
+func TestMSTeamsV2GlobalProxyInheritedWhenPartialHTTPConfig(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+    http_config:
+      follow_redirects: true
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig == nil {
+		t.Fatal("expected HTTPConfig to be non-nil")
+	}
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected global proxy_url to be inherited into partial http_config")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://proxy.example.com:3128" {
+		t.Errorf("expected proxy_url %q, got %q", "http://proxy.example.com:3128", got)
+	}
+}
+
+// TestMSTeamsV2LocalProxyTakesPrecedence checks that a receiver-level proxy_url
+// is not overwritten by the global one.
+func TestMSTeamsV2LocalProxyTakesPrecedence(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://global-proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+    http_config:
+      proxy_url: "http://local-proxy.example.com:8080"
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected proxy_url to be set")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://local-proxy.example.com:8080" {
+		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
+	}
+}
