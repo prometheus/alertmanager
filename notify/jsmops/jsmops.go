@@ -254,7 +254,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			if err != nil {
 				return nil, true, err
 			}
-			requests = append(requests, req)
+			requests = append(requests, req.WithContext(ctx))
 
 			updateDescriptionURL := n.conf.APIURL.JoinPath(n.conf.CloudID, "v1", "alerts", alias, "description")
 			q = updateDescriptionURL.Query()
