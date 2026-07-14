@@ -23,7 +23,6 @@ import (
 	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -59,12 +58,12 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 	for _, tc := range []struct {
 		title     string
 		errMsg    string
-		updateCfg func(*config.SNSConfig)
+		updateCfg func(*SNSConfig)
 	}{
 		{
 			title:  "with invalid Attribute template",
 			errMsg: "execute 'attributes' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.Attributes = map[string]string{
 					"attribName1": "{{ template \"unknown_template\" . }}",
 				}
@@ -73,48 +72,48 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 		{
 			title:  "with invalid TopicArn template",
 			errMsg: "execute 'topic_arn' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.TopicARN = "{{ template \"unknown_template\" . }}"
 			},
 		},
 		{
 			title:  "with invalid PhoneNumber template",
 			errMsg: "execute 'phone_number' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.PhoneNumber = "{{ template \"unknown_template\" . }}"
 			},
 		},
 		{
 			title:  "with invalid Message template",
 			errMsg: "execute 'message' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.Message = "{{ template \"unknown_template\" . }}"
 			},
 		},
 		{
 			title:  "with invalid Subject template",
 			errMsg: "execute 'subject' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.Subject = "{{ template \"unknown_template\" . }}"
 			},
 		},
 		{
 			title:  "with invalid APIUrl template",
 			errMsg: "execute 'api_url' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.APIUrl = "{{ template \"unknown_template\" . }}"
 			},
 		},
 		{
 			title:  "with invalid TargetARN template",
 			errMsg: "execute 'target_arn' template",
-			updateCfg: func(cfg *config.SNSConfig) {
+			updateCfg: func(cfg *SNSConfig) {
 				cfg.TargetARN = "{{ template \"unknown_template\" . }}"
 			},
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
-			snsCfg := &config.SNSConfig{
+			snsCfg := &SNSConfig{
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				TopicARN:   "TestTopic",
 				Sigv4: sigv4.SigV4Config{
