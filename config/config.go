@@ -41,6 +41,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
+	"github.com/prometheus/alertmanager/notify/rocketchat"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
@@ -621,22 +622,22 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("no global Jira Cloud URL set")
 			}
 		}
-		for _, rocketchat := range rcv.RocketchatConfigs {
-			if rocketchat == nil {
-				rocketchat = &RocketchatConfig{}
+		for _, rocketchatcfg := range rcv.RocketchatConfigs {
+			if rocketchatcfg == nil {
+				rocketchatcfg = &rocketchat.RocketchatConfig{}
 			}
-			rocketchat.HTTPConfig = cmp.Or(rocketchat.HTTPConfig, c.Global.HTTPConfig)
-			rocketchat.APIURL = cmp.Or(rocketchat.APIURL, c.Global.RocketchatAPIURL)
+			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
+			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
 
-			rocketchat.TokenID = cmp.Or(rocketchat.TokenID, c.Global.RocketchatTokenID)
-			rocketchat.TokenIDFile = cmp.Or(rocketchat.TokenIDFile, c.Global.RocketchatTokenIDFile)
-			if rocketchat.TokenID == nil && len(rocketchat.TokenIDFile) == 0 {
+			rocketchatcfg.TokenID = cmp.Or(rocketchatcfg.TokenID, c.Global.RocketchatTokenID)
+			rocketchatcfg.TokenIDFile = cmp.Or(rocketchatcfg.TokenIDFile, c.Global.RocketchatTokenIDFile)
+			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
 				return errors.New("no global Rocketchat TokenID set either inline or in a file")
 			}
 
-			rocketchat.Token = cmp.Or(rocketchat.Token, c.Global.RocketchatToken)
-			rocketchat.TokenFile = cmp.Or(rocketchat.TokenFile, c.Global.RocketchatTokenFile)
-			if rocketchat.Token == nil && len(rocketchat.TokenFile) == 0 {
+			rocketchatcfg.Token = cmp.Or(rocketchatcfg.Token, c.Global.RocketchatToken)
+			rocketchatcfg.TokenFile = cmp.Or(rocketchatcfg.TokenFile, c.Global.RocketchatTokenFile)
+			if rocketchatcfg.Token == nil && len(rocketchatcfg.TokenFile) == 0 {
 				return errors.New("no global Rocketchat Token set either inline or in a file")
 			}
 		}
@@ -995,7 +996,7 @@ type Receiver struct {
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	RocketchatConfigs []*rocketchat.RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
