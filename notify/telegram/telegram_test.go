@@ -33,7 +33,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -41,27 +40,20 @@ import (
 
 func TestTelegramUnmarshal(t *testing.T) {
 	in := `
-route:
-  receiver: test
-receivers:
-- name: test
-  telegram_configs:
-  - chat_id: 1234
-    bot_token: secret
-    message_thread_id: 1357
+  chat_id: 1234
+  bot_token: secret
+  message_thread_id: 1357
+  api_url: https://api.telegram.org
 `
-	var c config.Config
+	var c TelegramConfig
 	err := yaml.Unmarshal([]byte(in), &c)
 	require.NoError(t, err)
 
-	require.Len(t, c.Receivers, 1)
-	require.Len(t, c.Receivers[0].TelegramConfigs, 1)
-
-	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
-	require.Equal(t, commoncfg.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
-	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
-	require.Equal(t, 1357, c.Receivers[0].TelegramConfigs[0].MessageThreadID)
-	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
+	require.Equal(t, "https://api.telegram.org", c.APIUrl.String())
+	require.Equal(t, commoncfg.Secret("secret"), c.BotToken)
+	require.Equal(t, int64(1234), c.ChatID)
+	require.Equal(t, 1357, c.MessageThreadID)
+	require.Equal(t, "HTML", c.ParseMode)
 }
 
 func TestTelegramRetry(t *testing.T) {
@@ -73,7 +65,7 @@ func TestTelegramRetry(t *testing.T) {
 		},
 	}
 	notifier, err := New(
-		&config.TelegramConfig{
+		&TelegramConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIUrl:     &fakeURL,
 		},
@@ -98,12 +90,12 @@ func TestTelegramNotify(t *testing.T) {
 
 	for _, tc := range []struct {
 		name    string
-		cfg     config.TelegramConfig
+		cfg     TelegramConfig
 		expText string
 	}{
 		{
 			name: "No escaping by default",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				BotToken:   commoncfg.Secret(token),
@@ -112,7 +104,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "Characters escaped in HTML mode",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				ParseMode:  "HTML",
 				Message:    "<code>x < y</code>",
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -122,7 +114,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "Bot token from file",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				Message:      "test",
 				HTTPConfig:   &commoncfg.HTTPClientConfig{},
 				BotTokenFile: fileWithToken.Name(),
@@ -131,7 +123,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "HTML mode with too-large message",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				ParseMode:  "HTML",
 				Message:    strings.Repeat("x", 5000),
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -142,7 +134,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "Default mode with too-large message",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				Message:    strings.Repeat("y", 5000),
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				BotToken:   commoncfg.Secret(token),
@@ -151,7 +143,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "HTML mode with message smaller than limit",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				ParseMode:  "HTML",
 				Message:    strings.Repeat("a", 100),
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -161,7 +153,7 @@ func TestTelegramNotify(t *testing.T) {
 		},
 		{
 			name: "Default mode with message smaller than limit",
-			cfg: config.TelegramConfig{
+			cfg: TelegramConfig{
 				Message:    strings.Repeat("b", 100),
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				BotToken:   commoncfg.Secret(token),

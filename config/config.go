@@ -39,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
+	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
@@ -985,7 +986,7 @@ type Receiver struct {
 	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs        []*SNSConfig                   `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs   []*TelegramConfig              `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
