@@ -36,7 +36,6 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -44,7 +43,7 @@ import (
 
 // Notifier implements a Notifier for SNS notifications.
 type Notifier struct {
-	conf    *config.SNSConfig
+	conf    *SNSConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  aws.HTTPClient
@@ -52,7 +51,7 @@ type Notifier struct {
 }
 
 // New returns a new SNS notification handler.
-func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := newSNSHTTPClient(c, httpOpts...)
 	if err != nil {
 		return nil, err
@@ -73,7 +72,7 @@ func New(c *config.SNSConfig, t *template.Template, l *slog.Logger, httpOpts ...
 //
 // AWS_CA_BUNDLE is handled by the aws sdk's resolveCustomCABundle function,
 // so we don't need to handle it manually when building the client.
-func newSNSHTTPClient(c *config.SNSConfig, httpOpts ...commoncfg.HTTPClientOption) (aws.HTTPClient, error) {
+func newSNSHTTPClient(c *SNSConfig, httpOpts ...commoncfg.HTTPClientOption) (aws.HTTPClient, error) {
 	if c.UseAWSHTTPClient || os.Getenv("AWS_CA_BUNDLE") != "" {
 		return newAWSBuildableClient(c)
 	}
@@ -85,7 +84,7 @@ func newSNSHTTPClient(c *config.SNSConfig, httpOpts ...commoncfg.HTTPClientOptio
 // HTTPClientConfig knobs (BasicAuth, OAuth2, FollowRedirects, EnableHTTP2,
 // HTTPHeaders, etc.) are intentionally not propagated: AWS uses sigv4 so
 // auth knobs are irrelevant, and the rest are managed by the SDK itself.
-func newAWSBuildableClient(c *config.SNSConfig) (*awshttp.BuildableClient, error) {
+func newAWSBuildableClient(c *SNSConfig) (*awshttp.BuildableClient, error) {
 	tlsConfig, err := commoncfg.NewTLSConfig(&c.HTTPConfig.TLSConfig)
 	if err != nil {
 		return nil, fmt.Errorf("build SNS TLS config: %w", err)
