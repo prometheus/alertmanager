@@ -108,7 +108,7 @@ This example is explained in further detail in this [blogpost](https://prometheu
 The HTML body of an email notification can use a named template from an external file.
 Create `/etc/alertmanager/templates/email.tmpl` with the following content:
 
-```
+```html
 {{ define "email.myorg.html" }}
 <!DOCTYPE html>
 <html>
@@ -137,7 +137,7 @@ Create `/etc/alertmanager/templates/email.tmpl` with the following content:
 
 Load the template file and reference its name from the email receiver's `html` field:
 
-```
+```yaml
 global:
   smtp_smarthost: 'smtp.example.org:587'
   smtp_from: 'alertmanager@example.org'
