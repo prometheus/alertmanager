@@ -112,8 +112,18 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	// the ticker retries indefinitely until the context is canceled.
 	b := backoff.NewExponentialBackOff()
 
-	tick := backoff.NewTicker(b)
-	defer tick.Stop()
+	stopTimer := func(timer *time.Timer) {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+
+	// Fire immediately for the first attempt.
+	attemptTimer := time.NewTimer(0)
+	defer stopTimer(attemptTimer)
 
 	var (
 		i    = 0
@@ -147,7 +157,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 		}
 
 		select {
-		case <-tick.C:
+		case <-attemptTimer.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			i++
@@ -160,12 +170,35 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
-						// Log the error if the context isn't done and the error isn't the same as before.
-						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
+					nextDelay := b.NextBackOff()
+
+					// Defensive: NextBackOff only returns Stop when MaxElapsedTime > 0,
+					// which we don't set, but guard against future config changes.
+					if nextDelay == backoff.Stop {
+						return ctx, nil, fmt.Errorf("%s/%s: notify retry stopped after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 					}
-					// Save this error to be able to return the last seen error by an
-					// integration upon context timeout.
+
+					var e *ErrorWithReason
+					if errors.As(err, &e) && e.Reason == RateLimitedReason && e.RetryAfter > 0 {
+						nextDelay = e.RetryAfter
+						l.Warn("Notify attempt failed, honoring Retry-After", "attempts", i, "retry_after", e.RetryAfter, "err", err)
+					} else {
+						// Subtract the attempt duration so the next attempt fires at
+						// approximately attempt_start + backoff, matching the behavior
+						// of the previous backoff.Ticker (which started counting from
+						// when the tick was consumed, not when the attempt finished).
+						nextDelay -= dur
+						if nextDelay < 0 {
+							nextDelay = 0
+						}
+						if iErr == nil || err.Error() != iErr.Error() {
+							// Log if context isn't done and the error differs from last time.
+							l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
+						}
+					}
+
+					attemptTimer.Reset(nextDelay)
+					// Save the error to return the last seen error on context timeout.
 					iErr = err
 				}
 			} else {
