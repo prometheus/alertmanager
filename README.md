@@ -405,6 +405,15 @@ To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CO
 
 ![](doc/arch.svg)
 
+Alert generators send alerts to the API, which stores them in the alert
+provider. The dispatcher subscribes to the provider, routes and groups alerts,
+and sends each group through the notification pipeline. The pipeline waits for
+the configured timing, filters silenced and inhibited alerts, deduplicates
+notifications, retries delivery to receivers, and records successful sends in
+the notification log. In high availability mode, peers use gossip to replicate
+silences and the notification log. Alerts themselves are not gossiped, so each
+alert generator must send alerts to every Alertmanager instance.
+
 ## License
 
 Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/main/LICENSE).
