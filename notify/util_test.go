@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -270,6 +271,194 @@ func TestGetFailureReasonFromStatusCode(t *testing.T) {
 	} {
 		t.Run(http.StatusText(tc.statusCode), func(t *testing.T) {
 			require.Equal(t, tc.expected, GetFailureReasonFromStatusCode(tc.statusCode))
+		})
+	}
+}
+
+func TestCheckResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		retrier     Retrier
+		response    *http.Response
+		retry       bool
+		expectedErr string
+		reason      Reason
+	}{
+		{
+			name: "2xx success",
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString("ok")),
+			},
+			retry: false,
+		},
+		{
+			name: "204 no content",
+			response: &http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(bytes.NewBuffer(nil)),
+			},
+			retry: false,
+		},
+		{
+			name: "400 bad request",
+			response: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(bytes.NewBufferString("invalid request")),
+			},
+			retry:       false,
+			expectedErr: "unexpected status code 400: invalid request",
+			reason:      ClientErrorReason,
+		},
+		{
+			name: "401 unauthorized",
+			response: &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Body:       io.NopCloser(bytes.NewBuffer(nil)),
+			},
+			retry:       false,
+			expectedErr: "unexpected status code 401",
+			reason:      AuthErrorReason,
+		},
+		{
+			name: "429 without Retry-After",
+			response: &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString("too many requests")),
+			},
+			retry:       true,
+			expectedErr: "unexpected status code 429: too many requests",
+			reason:      RateLimitedReason,
+		},
+		{
+			name:    "429 in RetryCodes uses RateLimitedReason",
+			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			response: &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewBufferString("too many requests")),
+			},
+			retry:       true,
+			expectedErr: "unexpected status code 429: too many requests",
+			reason:      RateLimitedReason,
+		},
+		{
+			name: "503 service unavailable",
+			response: &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       io.NopCloser(bytes.NewBufferString("retry later")),
+			},
+			retry:       true,
+			expectedErr: "unexpected status code 503: retry later",
+			reason:      ServerErrorReason,
+		},
+		{
+			name: "502 bad gateway with broken body",
+			response: &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(&brokenReader{}),
+			},
+			retry:       true,
+			expectedErr: "unexpected status code 502",
+			reason:      ServerErrorReason,
+		},
+		{
+			name:    "non-retryable code in RetryCodes (e.g. 409)",
+			retrier: Retrier{RetryCodes: []int{http.StatusConflict}},
+			response: &http.Response{
+				StatusCode: http.StatusConflict,
+				Body:       io.NopCloser(bytes.NewBufferString("conflict")),
+			},
+			retry:       true,
+			expectedErr: "unexpected status code 409: conflict",
+			reason:      ClientErrorReason,
+		},
+		{
+			name:        "nil response",
+			response:    nil,
+			retry:       false,
+			expectedErr: "nil HTTP response",
+			reason:      DefaultReason,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			retry, err := tc.retrier.CheckResponse(tc.response)
+			require.Equal(t, tc.retry, retry)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.expectedErr)
+			var e *ErrorWithReason
+			require.ErrorAs(t, err, &e)
+			require.Equal(t, tc.reason, e.Reason)
+		})
+	}
+}
+
+func TestCheckResponseRetryAfterPropagation(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		retryAfterHeader      string
+		useHTTPDate           bool
+		expectedRetryAfter    time.Duration
+		expectExactRetryAfter bool
+	}{
+		{
+			name:                  "integer seconds",
+			retryAfterHeader:      "7",
+			expectedRetryAfter:    7 * time.Second,
+			expectExactRetryAfter: true,
+		},
+		{
+			name:                  "zero seconds is treated as no Retry-After",
+			retryAfterHeader:      "0",
+			expectedRetryAfter:    0,
+			expectExactRetryAfter: true,
+		},
+		{
+			name:               "HTTP-date in the future",
+			useHTTPDate:        true,
+			expectedRetryAfter: 2 * time.Second,
+		},
+		{
+			name:                  "absent header means zero RetryAfter",
+			retryAfterHeader:      "",
+			expectedRetryAfter:    0,
+			expectExactRetryAfter: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			header := make(http.Header)
+			if tc.useHTTPDate {
+				header.Set("Retry-After", time.Now().Add(tc.expectedRetryAfter).UTC().Format(http.TimeFormat))
+			} else if tc.retryAfterHeader != "" {
+				header.Set("Retry-After", tc.retryAfterHeader)
+			}
+
+			resp := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     header,
+				Body:       io.NopCloser(bytes.NewBufferString("too many requests")),
+			}
+
+			retry, err := (&Retrier{}).CheckResponse(resp)
+			require.True(t, retry)
+			require.Error(t, err)
+
+			var e *ErrorWithReason
+			require.ErrorAs(t, err, &e)
+			require.Equal(t, RateLimitedReason, e.Reason)
+
+			if tc.expectExactRetryAfter {
+				require.Equal(t, tc.expectedRetryAfter, e.RetryAfter)
+				return
+			}
+			// HTTP-date parsing depends on wall-clock timing; assert a positive
+			// value close to the requested duration.
+			require.Greater(t, e.RetryAfter, time.Duration(0))
+			require.InDelta(t, tc.expectedRetryAfter.Seconds(), e.RetryAfter.Seconds(), 1.0)
 		})
 	}
 }

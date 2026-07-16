@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
@@ -239,6 +241,28 @@ type Retrier struct {
 	RetryCodes []int
 }
 
+// parseRetryAfter parses the Retry-After header value, which can be either
+// a delay in seconds (integer) or an HTTP-date. Returns zero if absent or unparseable.
+func parseRetryAfter(h http.Header) time.Duration {
+	val := h.Get("Retry-After")
+	if val == "" {
+		return 0
+	}
+	// Try integer seconds first.
+	if secs, err := strconv.Atoi(val); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	// Try HTTP-date format.
+	if t, err := http.ParseTime(val); err == nil {
+		d := time.Until(t)
+		if d < 0 {
+			return 0
+		}
+		return d
+	}
+	return 0
+}
+
 // Check returns a boolean indicating whether the request should be retried
 // and an optional error if the request has failed. If body is not nil, it will
 // be included in the error message.
@@ -264,10 +288,62 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	return retry, errors.New(s)
 }
 
+// CheckResponse returns a boolean indicating whether the request should be
+// retried and an optional ErrorWithReason if the request has failed.
+// Unlike Check, it accepts the full *http.Response so it can parse the
+// Retry-After header on 429 responses and attach it to the returned error.
+func (r *Retrier) CheckResponse(resp *http.Response) (bool, error) {
+	if resp == nil {
+		return false, NewErrorWithReason(DefaultReason, errors.New("nil HTTP response"))
+	}
+
+	// 2xx responses are always successful.
+	if resp.StatusCode/100 == 2 {
+		return false, nil
+	}
+
+	s := fmt.Sprintf("unexpected status code %v", resp.StatusCode)
+	var details string
+	if r.CustomDetailsFunc != nil {
+		details = r.CustomDetailsFunc(resp.StatusCode, resp.Body)
+	} else {
+		details = readAll(resp.Body)
+	}
+	if details != "" {
+		s = fmt.Sprintf("%s: %s", s, details)
+	}
+
+	// Codes in RetryCodes are retriable regardless of class, except 429
+	// which is handled separately below to attach Retry-After.
+	if slices.Contains(r.RetryCodes, resp.StatusCode) && resp.StatusCode != http.StatusTooManyRequests {
+		return true, NewErrorWithReason(GetFailureReasonFromStatusCode(resp.StatusCode), errors.New(s))
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		e := NewErrorWithReason(RateLimitedReason, errors.New(s))
+		if d := parseRetryAfter(resp.Header); d > 0 {
+			e.RetryAfter = d
+		}
+		return true, e
+	}
+
+	if resp.StatusCode/100 == 4 {
+		return false, NewErrorWithReason(GetFailureReasonFromStatusCode(resp.StatusCode), errors.New(s))
+	}
+
+	// 5xx responses are always retried.
+	if resp.StatusCode/100 == 5 {
+		return true, NewErrorWithReason(ServerErrorReason, errors.New(s))
+	}
+
+	return false, NewErrorWithReason(GetFailureReasonFromStatusCode(resp.StatusCode), errors.New(s))
+}
+
 type ErrorWithReason struct {
 	Err error
 
-	Reason Reason
+	Reason     Reason
+	RetryAfter time.Duration
 }
 
 func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
