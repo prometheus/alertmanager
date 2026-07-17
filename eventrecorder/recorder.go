@@ -107,9 +107,9 @@ type cfgUpdateMsg struct {
 // destination a pre-encoded JSON blob — avoids the footgun of, say, a
 // protobuf-configured Kafka output silently shipping a JSON payload.
 type Destination interface {
-	// Name returns a stable identifier for this destination, suitable
-	// for use as a Prometheus label value (e.g. "file:/var/log/events.jsonl"
-	// or "webhook:https://example.com/hook").
+	// Name returns the type and configured name for this destination,
+	// suitable for use as a Prometheus label value (e.g. "file:archive"
+	// or "webhook:primary").
 	Name() string
 	// SendEvent encodes and delivers the event.  It returns the number
 	// of payload bytes written (for the bytes-written metric) and any
@@ -168,11 +168,15 @@ func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r p
 
 // buildOutputs creates Destination implementations from the given config.
 func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) []Destination {
+	if err := cfg.validate(); err != nil {
+		logger.Error("Invalid event recorder output configuration")
+		return nil
+	}
 	var outputs []Destination
 	for _, fc := range cfg.FileOutputs {
-		fo, err := NewFileOutput(fc.Path, logger)
+		fo, err := NewFileOutput(fc, logger)
 		if err != nil {
-			logger.Error("Failed to create file event recorder output", "path", fc.Path, "err", err)
+			logger.Error("Failed to create file event recorder output", "output", safeOutputIdentifier("file", fc.Name), "path", fc.Path, "err", err)
 			continue
 		}
 		outputs = append(outputs, fo)
@@ -180,7 +184,7 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 	for _, wc := range cfg.WebhookOutputs {
 		wo, err := NewWebhookOutput(wc, m.outputDrops, logger)
 		if err != nil {
-			logger.Error("Failed to create webhook event recorder output", "url", sanitizeSecretURL(wc.URL), "err", err)
+			logger.Error("Failed to create webhook event recorder output", "output", safeOutputIdentifier("webhook", wc.Name))
 			continue
 		}
 		outputs = append(outputs, wo)
@@ -188,13 +192,18 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 	for _, kc := range cfg.KafkaOutputs {
 		ko, err := NewKafkaOutput(kc, instance, m.outputDrops, m.kafkaProduceErrors, logger)
 		if err != nil {
-			logger.Error("Failed to create kafka event recorder output", "brokers", kc.Brokers, "topic", kc.Topic, "err", err)
+			logger.Error("Failed to create kafka event recorder output", "output", safeOutputIdentifier("kafka", kc.Name))
 			continue
 		}
 		outputs = append(outputs, ko)
 	}
-	for range cfg.StdoutOutputs {
-		outputs = append(outputs, &StdoutOutput{})
+	for _, sc := range cfg.StdoutOutputs {
+		so, err := NewStdoutOutput(sc)
+		if err != nil {
+			logger.Error("Failed to create stdout event recorder output", "output", safeOutputIdentifier("stdout", sc.Name))
+			continue
+		}
+		outputs = append(outputs, so)
 	}
 	return outputs
 }
@@ -213,7 +222,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 	defer func() {
 		for _, out := range outputs {
 			if err := out.Close(); err != nil && c.logger != nil {
-				c.logger.Error("Failed to close event recorder output", "err", err)
+				c.logger.Error("Failed to close event recorder output", "output", out.Name())
 			}
 		}
 	}()
@@ -231,7 +240,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 					c.logger.Error("Failed to reload event recorder outputs; keeping existing outputs")
 					for _, out := range newOutputs {
 						if err := out.Close(); err != nil {
-							c.logger.Error("Failed to close partially-built event recorder output", "err", err)
+							c.logger.Error("Failed to close partially-built event recorder output", "output", out.Name())
 						}
 					}
 					close(update.done)
@@ -242,7 +251,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 				currentCfg = update.cfg
 				for _, out := range oldOutputs {
 					if err := out.Close(); err != nil {
-						c.logger.Error("Failed to close old event recorder output", "err", err)
+						c.logger.Error("Failed to close old event recorder output", "output", out.Name())
 					}
 				}
 				c.logger.Info("Event recorder configuration reloaded", "outputs", len(outputs))
@@ -277,7 +286,7 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 				c.metrics.eventSerializeErrors.WithLabelValues(req.event.typeName()).Inc()
 			}
 			c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "error").Inc()
-			c.logger.Error("Failed to write event", "event_type", req.event.typeName(), "output", name, "err", err)
+			c.logger.Error("Failed to write event", "event_type", req.event.typeName(), "output", name)
 			continue
 		}
 		c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "success").Inc()

@@ -53,7 +53,8 @@ receivers:
 - name: default
 event_recorder:
   webhook_outputs:
-  - url: https://stream-id.ingest.cloudflare.com
+  - name: pipelines
+    url: https://stream-id.ingest.cloudflare.com
     batch: true
     http_config:
       authorization:
@@ -61,6 +62,7 @@ event_recorder:
 `)
 	require.NoError(t, err)
 	require.Len(t, cfg.EventRecorder.WebhookOutputs, 1)
+	require.Equal(t, "pipelines", cfg.EventRecorder.WebhookOutputs[0].Name)
 	require.True(t, cfg.EventRecorder.WebhookOutputs[0].Batch)
 
 	resolveFilepaths("/etc/alertmanager", cfg)

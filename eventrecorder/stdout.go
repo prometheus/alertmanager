@@ -14,17 +14,29 @@
 package eventrecorder
 
 import (
+	"errors"
 	"os"
 )
 
 // StdoutOutputConfig configures a stdout event recorder output.
-// There are no required fields; the presence of an entry in
-// stdout_outputs is sufficient to enable the output.
-type StdoutOutputConfig struct{}
+type StdoutOutputConfig struct {
+	// Name identifies this output in metrics and logs.
+	Name string `yaml:"name" json:"name"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface, validating
+// the stdout output configuration.
+func (c *StdoutOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain StdoutOutputConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return errors.New("invalid event_recorder stdout output configuration")
+	}
+	_, err := outputIdentifier("stdout", c.Name)
+	return err
+}
 
 // equal reports whether two stdout output configs are semantically equal.
-// All StdoutOutputConfig values are identical since the type carries no fields.
-func (c StdoutOutputConfig) equal(_ StdoutOutputConfig) bool { return true }
+func (c StdoutOutputConfig) equal(o StdoutOutputConfig) bool { return c.Name == o.Name }
 
 // StdoutOutput writes events as newline-delimited JSON to os.Stdout.
 // This is the recommended output for container deployments where stdout
@@ -32,10 +44,21 @@ func (c StdoutOutputConfig) equal(_ StdoutOutputConfig) bool { return true }
 //
 // Each event is serialized with protojson and followed by a newline so
 // log collectors receive one self-contained JSON object per line.
-type StdoutOutput struct{}
+type StdoutOutput struct {
+	name string
+}
+
+// NewStdoutOutput creates a stdout event recorder output.
+func NewStdoutOutput(cfg StdoutOutputConfig) (*StdoutOutput, error) {
+	name, err := outputIdentifier("stdout", cfg.Name)
+	if err != nil {
+		return nil, err
+	}
+	return &StdoutOutput{name: name}, nil
+}
 
 // Name returns the stable identifier used in Prometheus metric labels.
-func (s *StdoutOutput) Name() string { return "stdout" }
+func (s *StdoutOutput) Name() string { return s.name }
 
 // SendEvent serializes the event as a JSON line and writes it to stdout.
 // It returns the byte count written (including the trailing newline) and

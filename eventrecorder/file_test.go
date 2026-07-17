@@ -29,11 +29,11 @@ func TestFileOutput_SendEvent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
 
-	fo, err := NewFileOutput(path, slog.Default())
+	fo, err := NewFileOutput(FileOutputConfig{Name: "primary", Path: path}, slog.Default())
 	require.NoError(t, err)
 	defer fo.Close()
 
-	require.Equal(t, "file:"+path, fo.Name())
+	require.Equal(t, "file:primary", fo.Name())
 
 	n1, err := fo.SendEvent(sampleEvent())
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestFileOutput_ReopenAfterRename(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
 
-	fo, err := NewFileOutput(path, slog.Default())
+	fo, err := NewFileOutput(FileOutputConfig{Name: "rotate", Path: path}, slog.Default())
 	require.NoError(t, err)
 	defer fo.Close()
 
@@ -93,7 +93,7 @@ func TestFileOutput_ReopenAfterRemove(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
 
-	fo, err := NewFileOutput(path, slog.Default())
+	fo, err := NewFileOutput(FileOutputConfig{Name: "remove", Path: path}, slog.Default())
 	require.NoError(t, err)
 	defer fo.Close()
 
@@ -120,7 +120,7 @@ func TestFileOutput_Close(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
 
-	fo, err := NewFileOutput(path, slog.Default())
+	fo, err := NewFileOutput(FileOutputConfig{Name: "close", Path: path}, slog.Default())
 	require.NoError(t, err)
 
 	_, err = fo.SendEvent(sampleEvent())
@@ -133,7 +133,7 @@ func TestFileOutput_Close(t *testing.T) {
 }
 
 func TestFileOutput_InvalidPath(t *testing.T) {
-	_, err := NewFileOutput("/nonexistent/dir/events.jsonl", slog.Default())
+	_, err := NewFileOutput(FileOutputConfig{Name: "invalid", Path: "/nonexistent/dir/events.jsonl"}, slog.Default())
 	require.Error(t, err)
 }
 
@@ -148,14 +148,20 @@ func TestFileOutputConfig_UnmarshalYAML(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			yaml: "path: /tmp/events.jsonl\n",
+			yaml: "name: primary\npath: /tmp/events.jsonl\n",
 			check: func(t *testing.T, c FileOutputConfig) {
+				require.Equal(t, "primary", c.Name)
 				require.Equal(t, "/tmp/events.jsonl", c.Path)
 			},
 		},
 		{
 			name:    "missing path",
-			yaml:    "{}\n",
+			yaml:    "name: primary\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing name",
+			yaml:    "path: /tmp/events.jsonl\n",
 			wantErr: true,
 		},
 	}
@@ -176,10 +182,13 @@ func TestFileOutputConfig_UnmarshalYAML(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual_File(t *testing.T) {
-	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/events.jsonl"}}}
-	b := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/events.jsonl"}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Name: "primary", Path: "/tmp/events.jsonl"}}}
+	b := Config{FileOutputs: []FileOutputConfig{{Name: "primary", Path: "/tmp/events.jsonl"}}}
 	require.True(t, configEqual(a, b))
 
 	b.FileOutputs[0].Path = "/tmp/other.jsonl"
+	require.False(t, configEqual(a, b))
+	b.FileOutputs[0].Path = a.FileOutputs[0].Path
+	b.FileOutputs[0].Name = "secondary"
 	require.False(t, configEqual(a, b))
 }
