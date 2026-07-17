@@ -58,6 +58,11 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the SNSConfig for correctness.
+func (c *SNSConfig) Validate() error {
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
