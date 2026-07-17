@@ -94,6 +94,11 @@ func (c *JiraConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
+	return c.Validate()
+}
+
+// Validate checks the JiraConfig for correctness.
+func (c *JiraConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("missing project in jira_config")
 	}
