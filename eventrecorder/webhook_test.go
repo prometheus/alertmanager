@@ -14,6 +14,7 @@
 package eventrecorder
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
@@ -43,6 +45,15 @@ func mustParseURL(t *testing.T, raw string) *amcommoncfg.SecretURL {
 	u, err := url.Parse(raw)
 	require.NoError(t, err)
 	return &amcommoncfg.SecretURL{URL: u}
+}
+
+func readRequestBody(t *testing.T, r *http.Request) []byte {
+	t.Helper()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Errorf("failed to read request body: %v", err)
+	}
+	return body
 }
 
 func TestWebhookOutput_SendEvent(t *testing.T) {
@@ -78,6 +89,8 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 
 	mu.Lock()
 	// The POST body is the protojson encoding of the event.
+	var event map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(received[0], &event))
 	require.Contains(t, string(received[0]), "alertmanagerStartupEvent")
 	mu.Unlock()
 }
@@ -108,6 +121,171 @@ func TestWebhookOutput_MultipleWorkers(t *testing.T) {
 
 	require.NoError(t, wo.Close())
 	require.Equal(t, int64(n), count.Load())
+}
+
+func TestWebhookOutput_Batching(t *testing.T) {
+	requests := make(chan []byte, 3)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- readRequestBody(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		URL:                mustParseURL(t, srv.URL),
+		Workers:            4,
+		Batch:              true,
+		BatchMaxEvents:     3,
+		BatchFlushInterval: model.Duration(time.Hour),
+	}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+
+	for range 3 {
+		_, err := out.SendEvent(sampleEvent())
+		require.NoError(t, err)
+	}
+	require.NoError(t, out.Close())
+
+	var events []json.RawMessage
+	require.NoError(t, json.Unmarshal(<-requests, &events))
+	require.Len(t, events, 3)
+	require.Empty(t, requests)
+}
+
+func TestWebhookOutput_BatchingFlushesOnInterval(t *testing.T) {
+	requests := make(chan []byte, 2)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- readRequestBody(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		URL:                mustParseURL(t, srv.URL),
+		Workers:            1,
+		Batch:              true,
+		BatchMaxEvents:     10,
+		BatchFlushInterval: model.Duration(10 * time.Millisecond),
+	}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+	defer out.Close()
+
+	for range 2 {
+		_, err := out.SendEvent(sampleEvent())
+		require.NoError(t, err)
+	}
+
+	select {
+	case body := <-requests:
+		var events []json.RawMessage
+		require.NoError(t, json.Unmarshal(body, &events))
+		require.Len(t, events, 2)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for batch interval flush")
+	}
+}
+
+func TestWebhookOutput_BatchingByEncodedSize(t *testing.T) {
+	requests := make(chan []byte, 3)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- readRequestBody(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	event := sampleEvent()
+	encoded, err := protojson.Marshal(event)
+	require.NoError(t, err)
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		URL:                mustParseURL(t, srv.URL),
+		Workers:            1,
+		Batch:              true,
+		BatchMaxEvents:     10,
+		BatchMaxBytes:      2*len(encoded) + 2, // One byte below two events plus JSON framing.
+		BatchFlushInterval: model.Duration(time.Hour),
+	}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+
+	for range 2 {
+		_, err := out.SendEvent(event)
+		require.NoError(t, err)
+	}
+	require.NoError(t, out.Close())
+
+	for range 2 {
+		var events []json.RawMessage
+		require.NoError(t, json.Unmarshal(<-requests, &events))
+		require.Len(t, events, 1)
+	}
+	require.Empty(t, requests)
+}
+
+func TestWebhookOutput_BatchingCloseFlushesPartialBatch(t *testing.T) {
+	requests := make(chan []byte, 2)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- readRequestBody(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		URL:                mustParseURL(t, srv.URL),
+		Workers:            1,
+		Batch:              true,
+		BatchMaxEvents:     10,
+		BatchFlushInterval: model.Duration(time.Hour),
+	}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+
+	for range 2 {
+		_, err := out.SendEvent(sampleEvent())
+		require.NoError(t, err)
+	}
+	require.NoError(t, out.Close())
+
+	var events []json.RawMessage
+	require.NoError(t, json.Unmarshal(<-requests, &events))
+	require.Len(t, events, 2)
+}
+
+func TestWebhookOutput_BatchingRetriesWholeBatch(t *testing.T) {
+	requests := make(chan []byte, 3)
+	attempt := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- readRequestBody(t, r)
+		attempt++
+		if attempt == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		URL:                mustParseURL(t, srv.URL),
+		Workers:            1,
+		MaxRetries:         2,
+		RetryBackoff:       model.Duration(time.Millisecond),
+		Batch:              true,
+		BatchMaxEvents:     2,
+		BatchFlushInterval: model.Duration(time.Hour),
+	}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+
+	for range 2 {
+		_, err := out.SendEvent(sampleEvent())
+		require.NoError(t, err)
+	}
+	require.NoError(t, out.Close())
+
+	first := <-requests
+	second := <-requests
+	require.JSONEq(t, string(first), string(second))
+	var events []json.RawMessage
+	require.NoError(t, json.Unmarshal(second, &events))
+	require.Len(t, events, 2)
+	require.Empty(t, requests)
 }
 
 func TestWebhookOutput_RetryOnFailure(t *testing.T) {
@@ -221,6 +399,21 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 			},
 		},
 		{
+			name: "valid with batching",
+			yaml: "url: https://example.com/h\nbatch: true\nbatch_max_events: 200\nbatch_max_bytes: 2097152\nbatch_flush_interval: 500ms\n",
+			check: func(t *testing.T, c WebhookOutputConfig) {
+				require.True(t, c.Batch)
+				require.Equal(t, 200, c.BatchMaxEvents)
+				require.Equal(t, 2097152, c.BatchMaxBytes)
+				require.Equal(t, model.Duration(500*time.Millisecond), c.BatchFlushInterval)
+			},
+		},
+		{
+			name:    "batch settings without batching",
+			yaml:    "url: https://example.com/h\nbatch_max_events: 200\n",
+			wantErr: true,
+		},
+		{
 			name:    "missing url",
 			yaml:    "{}\n",
 			wantErr: true,
@@ -283,4 +476,13 @@ func TestEventRecorderConfigEqual_Webhook(t *testing.T) {
 	// Differing workers.
 	b.WebhookOutputs[0].Workers = 8
 	require.False(t, configEqual(a, b))
+	b.WebhookOutputs[0].Workers = a.WebhookOutputs[0].Workers
+	b.WebhookOutputs[0].Batch = true
+	require.False(t, configEqual(a, b))
+
+	a.WebhookOutputs[0].Batch = true
+	b.WebhookOutputs[0].BatchMaxEvents = defaultHTTPBatchMaxEvents
+	b.WebhookOutputs[0].BatchMaxBytes = defaultHTTPBatchMaxBytes
+	b.WebhookOutputs[0].BatchFlushInterval = model.Duration(defaultHTTPBatchInterval)
+	require.True(t, configEqual(a, b))
 }

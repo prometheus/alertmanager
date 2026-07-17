@@ -45,6 +45,30 @@ func TestLoadEmptyString(t *testing.T) {
 	}
 }
 
+func TestEventRecorderWebhookBatchingConfig(t *testing.T) {
+	cfg, err := Load(`
+route:
+  receiver: default
+receivers:
+- name: default
+event_recorder:
+  webhook_outputs:
+  - url: https://stream-id.ingest.cloudflare.com
+    batch: true
+    http_config:
+      authorization:
+        credentials_file: pipeline-token
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.EventRecorder.WebhookOutputs, 1)
+	require.True(t, cfg.EventRecorder.WebhookOutputs[0].Batch)
+
+	resolveFilepaths("/etc/alertmanager", cfg)
+	auth := cfg.EventRecorder.WebhookOutputs[0].HTTPConfig.Authorization
+	require.NotNil(t, auth)
+	require.Equal(t, "/etc/alertmanager/pipeline-token", auth.CredentialsFile)
+}
+
 func TestDefaultReceiverExists(t *testing.T) {
 	in := `
 route:

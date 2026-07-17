@@ -170,7 +170,8 @@ time_intervals:
 # Optional event recorder configuration.  Captures significant
 # Alertmanager events (startup/shutdown, alert lifecycle, silences,
 # notifications) and ships them to one or more outputs (file, webhook,
-# kafka).  Recording is gated behind the `event-recorder` feature flag;
+# Kafka, stdout). Recording is gated behind the
+# `event-recorder` feature flag;
 # pass `--enable-feature=event-recorder` on the command line to
 # activate it.  See the Event Recorder section below.
 [ event_recorder: <event_recorder_config> ]
@@ -2174,6 +2175,10 @@ POSTs each event as a JSON body to an HTTP endpoint.  Delivery is
 performed by a bounded worker pool with bounded retries and exponential
 backoff.
 
+Retries resend the entire event or batch, so receivers should tolerate
+duplicate events after ambiguous failures. With multiple workers, requests
+may complete out of order; set `workers: 1` when request ordering matters.
+
 ```yaml
 # URL to POST events to.
 url: <secret>
@@ -2187,12 +2192,43 @@ url: <secret>
 # Number of concurrent delivery workers.
 [ workers: <int> | default = 4 ]
 
-# Maximum number of delivery attempts per event.
+# Maximum number of delivery attempts per event or batch.
 [ max_retries: <int> | default = 3 ]
 
 # Base backoff between retries; subsequent attempts use exponential
 # backoff (base * 2^attempt) capped at 30s.
 [ retry_backoff: <duration> | default = 500ms ]
+
+# Send events in JSON arrays instead of posting each event as an individual
+# JSON object. This changes the webhook payload contract and must only be
+# enabled when the receiving endpoint accepts arrays.
+[ batch: <boolean> | default = false ]
+
+# Maximum number of events in one request when batching is enabled.
+[ batch_max_events: <int> | default = 100 ]
+
+# Soft maximum encoded request size in bytes when batching is enabled. A
+# single event larger than the limit is sent alone.
+[ batch_max_bytes: <int> | default = 1048576 ]
+
+# Maximum time an incomplete batch waits before delivery.
+[ batch_flush_interval: <duration> | default = 100ms ]
+```
+
+For example, [Cloudflare Pipelines streams](https://developers.cloudflare.com/pipelines/streams/writing-to-streams/)
+accept JSON arrays through their HTTP ingestion endpoints and can be configured
+as a batched webhook output:
+
+```yaml
+event_recorder:
+  webhook_outputs:
+  - url: https://<stream-id>.ingest.cloudflare.com
+    batch: true
+    http_config:
+      # The token must have the "Workers Pipeline Send" permission when
+      # authentication is enabled for the stream.
+      authorization:
+        credentials: <api_token>
 ```
 
 #### `<kafka_output>`

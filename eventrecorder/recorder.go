@@ -183,7 +183,7 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 	for _, wc := range cfg.WebhookOutputs {
 		wo, err := NewWebhookOutput(wc, m.outputDrops, logger)
 		if err != nil {
-			logger.Error("Failed to create webhook event recorder output", "url", wc.URL, "err", err)
+			logger.Error("Failed to create webhook event recorder output", "url", sanitizeSecretURL(wc.URL), "err", err)
 			continue
 		}
 		outputs = append(outputs, wo)

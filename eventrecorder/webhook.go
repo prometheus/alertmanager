@@ -51,6 +51,14 @@ type WebhookOutputConfig struct {
 	// 500ms).  Successive attempts use exponential backoff (base *
 	// 2^attempt).
 	RetryBackoff model.Duration `yaml:"retry_backoff,omitempty" json:"retry_backoff,omitempty"`
+	// Batch enables sending events as JSON arrays instead of individual objects.
+	Batch bool `yaml:"batch,omitempty" json:"batch,omitempty"`
+	// BatchMaxEvents is the maximum number of events in one request (default 100).
+	BatchMaxEvents int `yaml:"batch_max_events,omitempty" json:"batch_max_events,omitempty"`
+	// BatchMaxBytes is the soft maximum encoded request size (default 1 MiB).
+	BatchMaxBytes int `yaml:"batch_max_bytes,omitempty" json:"batch_max_bytes,omitempty"`
+	// BatchFlushInterval is the maximum time an incomplete batch waits (default 100ms).
+	BatchFlushInterval model.Duration `yaml:"batch_flush_interval,omitempty" json:"batch_flush_interval,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface, validating
@@ -71,6 +79,12 @@ func (c *WebhookOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if c.URL.Scheme == "" || c.URL.Host == "" {
 		return errors.New("event_recorder webhook output requires an absolute http(s) url")
+	}
+	if c.BatchMaxEvents < 0 || c.BatchMaxBytes < 0 || c.BatchFlushInterval < 0 {
+		return errors.New("event_recorder webhook batch settings cannot be negative")
+	}
+	if !c.Batch && (c.BatchMaxEvents != 0 || c.BatchMaxBytes != 0 || c.BatchFlushInterval != 0) {
+		return errors.New("event_recorder webhook batch settings require batch: true")
 	}
 	return nil
 }
@@ -100,6 +114,15 @@ func (c WebhookOutputConfig) equal(o WebhookOutputConfig) bool {
 	if c.RetryBackoff != o.RetryBackoff {
 		return false
 	}
+	if c.Batch != o.Batch {
+		return false
+	}
+	if c.Batch && !httpBatchConfigsEqual(
+		newHTTPBatchConfig(c.BatchMaxEvents, c.BatchMaxBytes, c.BatchFlushInterval),
+		newHTTPBatchConfig(o.BatchMaxEvents, o.BatchMaxBytes, o.BatchFlushInterval),
+	) {
+		return false
+	}
 	return reflect.DeepEqual(c.HTTPConfig, o.HTTPConfig)
 }
 
@@ -109,6 +132,9 @@ const (
 	defaultWebhookMaxRetries   = 3
 	defaultWebhookRetryBackoff = 500 * time.Millisecond
 	defaultWebhookMaxBackoff   = 30 * time.Second
+	defaultHTTPBatchMaxEvents  = 100
+	defaultHTTPBatchMaxBytes   = 1 << 20
+	defaultHTTPBatchInterval   = 100 * time.Millisecond
 	webhookQueueSize           = 1024
 )
 
@@ -121,19 +147,58 @@ type WebhookOutput struct {
 	client       *http.Client
 	url          string
 	name         string
+	kind         string
+	batch        *httpBatchConfig
 	maxRetries   int
 	retryBackoff time.Duration
 	maxBackoff   time.Duration
 	logger       *slog.Logger
 	drops        prometheus.Counter
 	work         chan []byte
+	batches      chan []byte
 	done         chan struct{}
 	cancel       chan struct{} // closed after drain to abort remaining retries
 	wg           sync.WaitGroup
 }
 
+type httpBatchConfig struct {
+	maxEvents     int
+	maxBytes      int
+	flushInterval time.Duration
+}
+
 // NewWebhookOutput creates a new webhook-based event recorder output.
 func NewWebhookOutput(cfg WebhookOutputConfig, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
+	var batch *httpBatchConfig
+	if cfg.Batch {
+		batch = newHTTPBatchConfig(cfg.BatchMaxEvents, cfg.BatchMaxBytes, cfg.BatchFlushInterval)
+	}
+	return newWebhookOutput(cfg, "webhook", batch, dropsCounter, logger)
+}
+
+func newHTTPBatchConfig(maxEvents, maxBytes int, flushInterval model.Duration) *httpBatchConfig {
+	batch := &httpBatchConfig{
+		maxEvents:     defaultHTTPBatchMaxEvents,
+		maxBytes:      defaultHTTPBatchMaxBytes,
+		flushInterval: defaultHTTPBatchInterval,
+	}
+	if maxEvents > 0 {
+		batch.maxEvents = maxEvents
+	}
+	if maxBytes > 0 {
+		batch.maxBytes = maxBytes
+	}
+	if flushInterval > 0 {
+		batch.flushInterval = time.Duration(flushInterval)
+	}
+	return batch
+}
+
+func httpBatchConfigsEqual(a, b *httpBatchConfig) bool {
+	return *a == *b
+}
+
+func newWebhookOutput(cfg WebhookOutputConfig, kind string, batch *httpBatchConfig, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
 	httpCfg := commoncfg.DefaultHTTPClientConfig
 	if cfg.HTTPConfig != nil {
 		httpCfg = *cfg.HTTPConfig
@@ -141,7 +206,7 @@ func NewWebhookOutput(cfg WebhookOutputConfig, dropsCounter *prometheus.CounterV
 
 	client, err := commoncfg.NewClientFromConfig(httpCfg, "eventrecorder")
 	if err != nil {
-		return nil, fmt.Errorf("creating HTTP client for event recorder webhook: %w", err)
+		return nil, fmt.Errorf("creating HTTP client for event recorder %s: %w", kind, err)
 	}
 
 	timeout := defaultWebhookTimeout
@@ -166,23 +231,36 @@ func NewWebhookOutput(cfg WebhookOutputConfig, dropsCounter *prometheus.CounterV
 	}
 
 	urlStr := cfg.URL.String()
+	name := fmt.Sprintf("%s:%s", kind, sanitizeURL(urlStr))
 	wo := &WebhookOutput{
 		client:       client,
 		url:          urlStr,
-		name:         fmt.Sprintf("webhook:%s", sanitizeURL(urlStr)),
+		name:         name,
+		kind:         kind,
+		batch:        batch,
 		maxRetries:   maxRetries,
 		retryBackoff: retryBackoff,
 		maxBackoff:   defaultWebhookMaxBackoff,
 		logger:       logger,
-		drops:        dropsCounter.WithLabelValues(fmt.Sprintf("webhook:%s", sanitizeURL(urlStr))),
+		drops:        dropsCounter.WithLabelValues(name),
 		work:         make(chan []byte, webhookQueueSize),
 		done:         make(chan struct{}),
 		cancel:       make(chan struct{}),
 	}
 
-	for range workers {
+	if batch != nil {
 		wo.wg.Add(1)
-		go wo.worker()
+		wo.batches = make(chan []byte, workers)
+		go wo.batchLoop()
+		for range workers {
+			wo.wg.Add(1)
+			go wo.batchDeliveryWorker()
+		}
+	} else {
+		for range workers {
+			wo.wg.Add(1)
+			go wo.worker()
+		}
 	}
 
 	return wo, nil
@@ -200,6 +278,13 @@ func sanitizeURL(raw string) string {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return u.String()
+}
+
+func sanitizeSecretURL(u *amcommoncfg.SecretURL) string {
+	if u == nil || u.URL == nil {
+		return "<missing>"
+	}
+	return sanitizeURL(u.String())
 }
 
 // Name returns a stable identifier for this output.  The URL is
@@ -221,7 +306,7 @@ func (wo *WebhookOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
 	case wo.work <- data:
 	default:
 		wo.drops.Inc()
-		wo.logger.Warn("Event recorder webhook queue full, dropping event", "output", wo.name)
+		wo.logger.Warn("Event recorder HTTP output queue full, dropping event", "output", wo.name)
 	}
 	return len(data), nil
 }
@@ -246,13 +331,97 @@ func (wo *WebhookOutput) worker() {
 	}
 }
 
+func (wo *WebhookOutput) batchLoop() {
+	defer wo.wg.Done()
+	defer close(wo.batches)
+
+	batch := make([][]byte, 0, min(wo.batch.maxEvents, webhookQueueSize))
+	batchSize := 2 // Opening and closing brackets.
+	var timer *time.Timer
+	var timerC <-chan time.Time
+
+	stopTimer := func() {
+		if timer != nil {
+			timer.Stop()
+			timer = nil
+			timerC = nil
+		}
+	}
+	flush := func() {
+		stopTimer()
+		if len(batch) == 0 {
+			return
+		}
+		wo.batches <- jsonArray(batch, batchSize)
+		batch = batch[:0]
+		batchSize = 2
+	}
+	add := func(data []byte) {
+		additionalSize := len(data)
+		if len(batch) > 0 {
+			additionalSize++ // Comma separator.
+		}
+		if len(batch) > 0 && (len(batch) >= wo.batch.maxEvents || batchSize+additionalSize > wo.batch.maxBytes) {
+			flush()
+			additionalSize = len(data)
+		}
+		batch = append(batch, data)
+		batchSize += additionalSize
+		if len(batch) == 1 {
+			timer = time.NewTimer(wo.batch.flushInterval)
+			timerC = timer.C
+		}
+		if len(batch) >= wo.batch.maxEvents || batchSize >= wo.batch.maxBytes {
+			flush()
+		}
+	}
+
+	for {
+		select {
+		case data := <-wo.work:
+			add(data)
+		case <-timerC:
+			flush()
+		case <-wo.done:
+			for {
+				select {
+				case data := <-wo.work:
+					add(data)
+				default:
+					flush()
+					return
+				}
+			}
+		}
+	}
+}
+
+func (wo *WebhookOutput) batchDeliveryWorker() {
+	defer wo.wg.Done()
+	for data := range wo.batches {
+		wo.postWithRetry(data)
+	}
+}
+
+func jsonArray(events [][]byte, size int) []byte {
+	data := make([]byte, 0, size)
+	data = append(data, '[')
+	for i, event := range events {
+		if i > 0 {
+			data = append(data, ',')
+		}
+		data = append(data, event...)
+	}
+	return append(data, ']')
+}
+
 func (wo *WebhookOutput) postWithRetry(data []byte) {
 	for attempt := range wo.maxRetries {
 		err := wo.post(data)
 		if err == nil {
 			return
 		}
-		wo.logger.Warn("Event recorder webhook POST failed", "output", wo.name, "attempt", attempt+1, "err", err)
+		wo.logger.Warn("Event recorder HTTP output POST failed", "output", wo.name, "attempt", attempt+1, "err", err)
 		if attempt < wo.maxRetries-1 {
 			backoff := min(wo.retryBackoff<<attempt, wo.maxBackoff)
 			select {
@@ -263,13 +432,13 @@ func (wo *WebhookOutput) postWithRetry(data []byte) {
 			}
 		}
 	}
-	wo.logger.Error("Event recorder webhook POST failed after retries, dropping event", "output", wo.name, "retries", wo.maxRetries)
+	wo.logger.Error("Event recorder HTTP output POST failed after retries, dropping event", "output", wo.name, "retries", wo.maxRetries)
 }
 
 func (wo *WebhookOutput) post(data []byte) error {
 	resp, err := wo.client.Post(wo.url, "application/json", bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("event recorder webhook POST failed: %w", err)
+		return fmt.Errorf("event recorder %s POST failed: %w", wo.kind, err)
 	}
 	defer func() {
 		io.Copy(io.Discard, resp.Body)
@@ -277,7 +446,7 @@ func (wo *WebhookOutput) post(data []byte) error {
 	}()
 
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("event recorder webhook returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("event recorder %s returned HTTP %d", wo.kind, resp.StatusCode)
 	}
 	return nil
 }
