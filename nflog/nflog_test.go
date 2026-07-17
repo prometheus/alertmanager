@@ -158,7 +158,14 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 				return 0, nil
 			})
 		})
-		gosched()
+		stopped := false
+		defer func() {
+			if !stopped {
+				close(stopc)
+				wg.Wait()
+			}
+		}()
+		synctest.Wait()
 
 		// Before the first tick, no maintenance executed.
 		time.Sleep(99 * time.Millisecond)
@@ -172,6 +179,7 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 		// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 		close(stopc)
 		wg.Wait()
+		stopped = true
 
 		require.EqualValues(t, 2, calls.Load())
 		// Check the maintenance metrics.
@@ -379,10 +387,4 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
-}
-
-// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
-// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
-func gosched() {
-	time.Sleep(1 * time.Millisecond)
 }
