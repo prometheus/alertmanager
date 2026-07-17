@@ -57,6 +57,11 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the WebhookConfig for correctness.
+func (c *WebhookConfig) Validate() error {
 	if c.URL == "" && c.URLFile == "" {
 		return errors.New("one of url or url_file must be configured")
 	}
