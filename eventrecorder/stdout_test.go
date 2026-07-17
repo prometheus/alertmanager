@@ -47,12 +47,14 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestStdoutOutput_Name(t *testing.T) {
-	out := &StdoutOutput{}
-	require.Equal(t, "stdout", out.Name())
+	out, err := NewStdoutOutput(StdoutOutputConfig{Name: "primary"})
+	require.NoError(t, err)
+	require.Equal(t, "stdout:primary", out.Name())
 }
 
 func TestStdoutOutput_SendEvent(t *testing.T) {
-	out := &StdoutOutput{}
+	out, err := NewStdoutOutput(StdoutOutputConfig{Name: "send"})
+	require.NoError(t, err)
 
 	got := captureStdout(t, func() {
 		n, err := out.SendEvent(sampleEvent())
@@ -67,7 +69,8 @@ func TestStdoutOutput_SendEvent(t *testing.T) {
 }
 
 func TestStdoutOutput_SendEventTwice(t *testing.T) {
-	out := &StdoutOutput{}
+	out, err := NewStdoutOutput(StdoutOutputConfig{Name: "twice"})
+	require.NoError(t, err)
 
 	got := captureStdout(t, func() {
 		_, err := out.SendEvent(sampleEvent())
@@ -85,7 +88,8 @@ func TestStdoutOutput_SendEventTwice(t *testing.T) {
 }
 
 func TestStdoutOutput_Close(t *testing.T) {
-	out := &StdoutOutput{}
+	out, err := NewStdoutOutput(StdoutOutputConfig{Name: "close"})
+	require.NoError(t, err)
 	require.NoError(t, out.Close(), "Close must be a no-op and return nil")
 }
 
@@ -109,7 +113,9 @@ func TestStdoutOutput_IntegrationWithRecorder(t *testing.T) {
 	os.Stdout = w
 	t.Cleanup(func() { os.Stdout = old })
 
-	rec := newTestRecorder(&StdoutOutput{}, mirror)
+	out, err := NewStdoutOutput(StdoutOutputConfig{Name: "integration"})
+	require.NoError(t, err)
+	rec := newTestRecorder(out, mirror)
 	defer rec.Close()
 
 	rec.RecordEvent(recordCtx(), startupEvent)
@@ -132,22 +138,23 @@ func TestStdoutOutput_IntegrationWithRecorder(t *testing.T) {
 // --- config tests.
 
 func TestStdoutOutputConfig_Equal(t *testing.T) {
-	// All StdoutOutputConfig values compare equal since the type has no fields.
-	a := StdoutOutputConfig{}
-	b := StdoutOutputConfig{}
+	a := StdoutOutputConfig{Name: "primary"}
+	b := StdoutOutputConfig{Name: "primary"}
 	require.True(t, a.equal(b))
+	b.Name = "secondary"
+	require.False(t, a.equal(b))
 }
 
 func TestEventRecorderConfig_StdoutInTotalOutputs(t *testing.T) {
 	cfg := Config{
-		StdoutOutputs: []StdoutOutputConfig{{}},
+		StdoutOutputs: []StdoutOutputConfig{{Name: "primary"}},
 	}
 	require.Equal(t, 1, cfg.totalOutputs())
 }
 
 func TestEventRecorderConfigEqual_Stdout(t *testing.T) {
-	a := Config{StdoutOutputs: []StdoutOutputConfig{{}}}
-	b := Config{StdoutOutputs: []StdoutOutputConfig{{}}}
+	a := Config{StdoutOutputs: []StdoutOutputConfig{{Name: "primary"}}}
+	b := Config{StdoutOutputs: []StdoutOutputConfig{{Name: "primary"}}}
 	require.True(t, configEqual(a, b))
 
 	// Removing the stdout output makes them unequal.
@@ -157,16 +164,17 @@ func TestEventRecorderConfigEqual_Stdout(t *testing.T) {
 
 func TestEventRecorderConfigEqual_StdoutVsFile(t *testing.T) {
 	// Same total count but in different per-type lists must compare unequal.
-	a := Config{StdoutOutputs: []StdoutOutputConfig{{}}}
-	b := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/events.jsonl"}}}
+	a := Config{StdoutOutputs: []StdoutOutputConfig{{Name: "primary"}}}
+	b := Config{FileOutputs: []FileOutputConfig{{Name: "primary", Path: "/tmp/events.jsonl"}}}
 	require.False(t, configEqual(a, b))
 }
 
 func TestStdoutOutputConfig_UnmarshalYAML(t *testing.T) {
-	// An empty map is the natural YAML representation of a
-	// StdoutOutputConfig since it carries no fields.
-	raw := "stdout_outputs:\n  - {}\n"
+	raw := "stdout_outputs:\n  - name: primary\n"
 	var cfg Config
 	require.NoError(t, yaml.Unmarshal([]byte(raw), &cfg))
 	require.Len(t, cfg.StdoutOutputs, 1)
+	require.Equal(t, "primary", cfg.StdoutOutputs[0].Name)
+
+	require.Error(t, yaml.Unmarshal([]byte("stdout_outputs:\n  - {}\n"), &cfg))
 }
