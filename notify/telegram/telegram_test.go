@@ -33,9 +33,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestTelegramUnmarshal(t *testing.T) {
@@ -182,7 +182,7 @@ func TestTelegramNotify(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			retry, err := notifier.Notify(ctx, []*alert.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -261,7 +261,7 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			retry, err := notifier.Notify(ctx, []*alert.Alert{
 				{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"lbl1": "val1"},
