@@ -1504,8 +1504,8 @@ service_key_file: <filepath>
 # A set of arbitrary key/value pairs that provide further detail about the incident.
 # Nested key/value pairs are accepted when using PagerDuty integration type `Events API v2`.
 [ details: { <string>: <tmpl_string>, ... } | default = {
-  firing:       '{{ .Alerts.Firing | toJSON }}'
-  resolved:     '{{ .Alerts.Resolved | toJSON }}'
+  firing:       '{{ .Alerts.Firing | toJson }}'
+  resolved:     '{{ .Alerts.Resolved | toJson }}'
   num_firing:   '{{ .Alerts.Firing | len }}'
   num_resolved: '{{ .Alerts.Resolved | len }}'
 } ]
