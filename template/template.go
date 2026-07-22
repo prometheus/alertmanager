@@ -485,6 +485,10 @@ type Data struct {
 	Status   string `json:"status"`
 	Alerts   Alerts `json:"alerts"`
 
+	// GroupKey is the grouping key of the alert group, matching the webhook
+	// payload field of the same name.
+	GroupKey string `json:"groupKey"`
+
 	NotificationReason string `json:"notification_reason"`
 
 	GroupLabels       KV `json:"groupLabels"`
