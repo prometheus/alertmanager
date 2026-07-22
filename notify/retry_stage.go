@@ -144,7 +144,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			}
 
 			if iErr != nil {
-				return ctx, nil, iReason, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+				return ctx, nil, iReason, NewErrorWithIntegration(r.groupName, r.integration.String(),
+					fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr))
 			}
 			return ctx, nil, DefaultReason, nil
 		default:
@@ -164,7 +165,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			if err := verdict.Err(); err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
 				if !verdict.ShouldRetry() {
-					return ctx, alerts, verdict.Reason(), fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
+					return ctx, alerts, verdict.Reason(), NewErrorWithIntegration(r.groupName, r.integration.String(),
+						fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err))
 				}
 				if ctx.Err() == nil {
 					if iErr == nil || err.Error() != iErr.Error() {
