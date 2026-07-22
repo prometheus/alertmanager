@@ -140,7 +140,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			}
 
 			if iErr != nil {
-				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+				return ctx, nil, NewErrorWithIntegration(r.groupName, r.integration.String(),
+					fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr))
 			}
 			return ctx, nil, nil
 		default:
@@ -157,7 +158,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
 				if !retry {
-					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
+					return ctx, alerts, NewErrorWithIntegration(r.groupName, r.integration.String(),
+						fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err))
 				}
 				if ctx.Err() == nil {
 					if iErr == nil || err.Error() != iErr.Error() {
