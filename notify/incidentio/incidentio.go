@@ -173,10 +173,9 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		metadata = make(map[string]string, len(n.conf.Metadata))
 		for k, v := range n.conf.Metadata {
 			metadata[k] = tmpl(v)
-		}
-
-		if tmplErr != nil {
-			return false, fmt.Errorf("failed to render metadata templates: %w", tmplErr)
+			if tmplErr != nil {
+				return false, fmt.Errorf("failed to render metadata templates: %w", tmplErr)
+			}
 		}
 	}
 
