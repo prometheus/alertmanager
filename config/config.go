@@ -529,7 +529,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
 			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
-				return errors.New("no global VictorOps URL set")
+				return errors.New("no global Splunk On-Call URL set")
 			}
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
@@ -537,7 +537,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			voc.APIKey = cmp.Or(voc.APIKey, c.Global.VictorOpsAPIKey)
 			voc.APIKeyFile = cmp.Or(voc.APIKeyFile, c.Global.VictorOpsAPIKeyFile)
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
-				return errors.New("no global VictorOps API Key set")
+				return errors.New("no global Splunk On-Call API key set")
 			}
 		}
 		for _, sns := range rcv.SNSConfigs {
