@@ -537,14 +537,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
 			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
-				return errors.New("no global VictorOps URL set")
+				return errors.New("no global Splunk On-Call URL set")
 			}
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
 			}
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
 				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0 {
-					return errors.New("no global VictorOps API Key set")
+					return errors.New("no global Splunk On-Call API key set")
 				}
 				voc.APIKey = c.Global.VictorOpsAPIKey
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile

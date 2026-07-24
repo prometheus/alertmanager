@@ -110,10 +110,10 @@ global:
   [ slack_app_token_file: <filepath> ]
   [ slack_app_url: <string> ]
 
-  # The default API key to use when talking to the VictorOps API.
+  # The default API key to use when talking to the Splunk On-Call API.
   # It is mutually exclusive with `victorops_api_key_file`.
   [ victorops_api_key: <secret> ]
-  # Reads the default API key to use when talking to the VictorOps API from a file.
+  # Reads the default API key to use when talking to the Splunk On-Call API from a file.
   # It is mutually exclusive with `victorops_api_key`.
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
@@ -1904,21 +1904,24 @@ attributes:
 
 ### `<victorops_config>`
 
-VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
+Splunk On-Call (formerly VictorOps) notifications are sent through the
+[Splunk On-Call REST endpoint integration](https://help.splunk.com/en/splunk-enterprise/alert-and-respond/splunk-on-call/integrations-with-splunk-on-call/rest-endpoint-integration-for-splunk-on-call).
+The `victorops_config` name and related `victorops_*` global fields are retained
+for backward compatibility.
 
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The API key to use when talking to the VictorOps API.
+# The API key to use when talking to the Splunk On-Call API.
 # It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
 
-# Reads the API key to use when talking to the VictorOps API from a file.
+# Reads the API key to use when talking to the Splunk On-Call API from a file.
 # It is mutually exclusive with `api_key`.
 [ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
-# The VictorOps API URL.
+# The Splunk On-Call API URL.
 [ api_url: <string> | default = global.victorops_api_url ]
 
 # A key used to map the alert to a team.
