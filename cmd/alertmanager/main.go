@@ -29,7 +29,6 @@ import (
 	"syscall"
 	"time"
 
-	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -152,7 +151,7 @@ func run() int {
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
-				Default(defaultClusterAddr).String()
+			Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr   = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		peers                  = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout            = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
@@ -177,11 +176,7 @@ func run() int {
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	// Read any other flags from EXTRA_ARGS.
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-	if extraArgs, err := exportsetup.ExtraArgs(); err != nil {
-		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
-		kingpin.CommandLine.Usage(os.Args[1:])
-		os.Exit(2)
-	} else if _, err := kingpin.CommandLine.Parse(append(os.Args[1:], extraArgs...)); err != nil {
+	if _, err := kingpin.CommandLine.Parse(os.Args[1:]); err != nil {
 		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		kingpin.CommandLine.Usage(os.Args[1:])
 		os.Exit(2)
