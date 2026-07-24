@@ -20,10 +20,8 @@
 // producer buffers, consumer group orchestration, message
 // serialisation) live in the calling package.
 //
-// At the moment the only consumer of this package is the event
-// recorder's Kafka output (eventrecorder/kafka.go).  A future Kafka
-// receiver (see github.com/prometheus/alertmanager/issues/1996) is the
-// other intended user.
+// The event recorder's Kafka output and the Kafka notification receiver
+// both use this package.
 package kafka
 
 import (
