@@ -22,7 +22,7 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// DefaultVictorOpsConfig defines default values for VictorOps configurations.
+// DefaultVictorOpsConfig defines default values for Splunk On-Call configurations.
 var DefaultVictorOpsConfig = VictorOpsConfig{
 	NotifierConfig: amcommoncfg.NotifierConfig{
 		VSendResolved: true,
@@ -33,7 +33,8 @@ var DefaultVictorOpsConfig = VictorOpsConfig{
 	MonitoringTool:    `{{ template "victorops.default.monitoring_tool" . }}`,
 }
 
-// VictorOpsConfig configures notifications via VictorOps.
+// VictorOpsConfig configures notifications through Splunk On-Call.
+// The type name is retained for configuration compatibility.
 type VictorOpsConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
 
