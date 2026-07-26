@@ -19,129 +19,101 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
 )
 
-func TestReloadSuccess(t *testing.T) {
-	reloadCh := make(chan chan error)
-	router := route.New()
-	Register(router, reloadCh)
-
+// serveReload runs the reload handler in a separate goroutine and returns
+// the recorder plus a channel closed when the handler returns.
+func serveReload(ctx context.Context, router *route.Router) (*httptest.ResponseRecorder, <-chan struct{}) {
+	w := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		req := httptest.NewRequest("POST", "/-/reload", nil)
-		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/-/reload", nil).WithContext(ctx)
 		router.ServeHTTP(w, req)
-		require.Equal(t, http.StatusOK, w.Code)
 	}()
+	return w, done
+}
 
-	errc := <-reloadCh
-	errc <- nil
+func TestReloadSuccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
 
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("handler did not return")
-	}
+		w, done := serveReload(t.Context(), router)
+
+		errc := <-reloadCh
+		errc <- nil
+
+		<-done
+		require.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestReloadError(t *testing.T) {
-	reloadCh := make(chan chan error)
-	router := route.New()
-	Register(router, reloadCh)
+	synctest.Test(t, func(t *testing.T) {
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		req := httptest.NewRequest("POST", "/-/reload", nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w, done := serveReload(t.Context(), router)
+
+		errc := <-reloadCh
+		errc <- errors.New("bad config")
+
+		<-done
 		require.Equal(t, http.StatusInternalServerError, w.Code)
 		require.Contains(t, w.Body.String(), "bad config")
-	}()
-
-	errc := <-reloadCh
-	errc <- errors.New("bad config")
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("handler did not return")
-	}
+	})
 }
 
 func TestReloadClientDisconnectBeforeEnqueue(t *testing.T) {
-	// reloadCh is never consumed, so the handler blocks on enqueue.
-	// Cancelling the context should unblock it.
-	reloadCh := make(chan chan error)
-	router := route.New()
-	Register(router, reloadCh)
+	synctest.Test(t, func(t *testing.T) {
+		// reloadCh is never consumed, so the handler blocks on enqueue.
+		// Cancelling the context should unblock it.
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		req := httptest.NewRequest("POST", "/-/reload", nil).WithContext(ctx)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		ctx, cancel := context.WithCancel(t.Context())
+		w, done := serveReload(ctx, router)
+
+		// Wait until the handler is durably blocked on the reloadCh send.
+		synctest.Wait()
+		cancel()
+
+		<-done
 		require.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	}()
-
-	// Give the handler time to block on reloadCh send.
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("handler did not unblock after context cancellation")
-	}
+	})
 }
 
 func TestReloadClientDisconnectDuringReload(t *testing.T) {
-	// The handler enqueues successfully but the client disconnects
-	// before the reload result arrives. The buffered channel ensures
-	// the main goroutine (sender) does not block.
-	reloadCh := make(chan chan error)
-	router := route.New()
-	Register(router, reloadCh)
+	synctest.Test(t, func(t *testing.T) {
+		// The handler enqueues successfully but the client disconnects
+		// before the reload result arrives. The buffered channel ensures
+		// the sender does not block.
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		req := httptest.NewRequest("POST", "/-/reload", nil).WithContext(ctx)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		ctx, cancel := context.WithCancel(t.Context())
+		w, done := serveReload(ctx, router)
+
+		errc := <-reloadCh
+		cancel()
+
+		<-done
 		require.Equal(t, http.StatusUnprocessableEntity, w.Code)
-	}()
 
-	errc := <-reloadCh
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("handler did not unblock after context cancellation")
-	}
-
-	// Simulate the main goroutine sending the result after the handler
-	// has already returned. This must not block thanks to the buffered channel.
-	sendDone := make(chan struct{})
-	go func() {
-		defer close(sendDone)
+		// Simulate the reloader sending the result after the handler has
+		// already returned. This must not block thanks to the buffered
+		// channel; if it did, synctest would report a deadlock.
 		errc <- nil
-	}()
-
-	select {
-	case <-sendDone:
-	case <-time.After(5 * time.Second):
-		t.Fatal("sender blocked on errc — channel must be buffered")
-	}
+	})
 }
 
 func TestDebugHandlersWithRoutePrefix(t *testing.T) {
