@@ -34,7 +34,7 @@ func Register(r *route.Router, reloadCh chan<- chan error) {
 		select {
 		case reloadCh <- errc:
 		case <-req.Context().Done():
-			http.Error(w, req.Context().Err().Error(), http.StatusUnprocessableEntity)
+			http.Error(w, req.Context().Err().Error(), http.StatusServiceUnavailable)
 			return
 		}
 
@@ -44,7 +44,7 @@ func Register(r *route.Router, reloadCh chan<- chan error) {
 				http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 			}
 		case <-req.Context().Done():
-			http.Error(w, req.Context().Err().Error(), http.StatusUnprocessableEntity)
+			http.Error(w, req.Context().Err().Error(), http.StatusServiceUnavailable)
 		}
 	})
 
