@@ -87,7 +87,7 @@ func TestReloadClientDisconnectBeforeEnqueue(t *testing.T) {
 		cancel()
 
 		<-done
-		require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	})
 }
 
@@ -107,7 +107,7 @@ func TestReloadClientDisconnectDuringReload(t *testing.T) {
 		cancel()
 
 		<-done
-		require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 		// Simulate the reloader sending the result after the handler has
 		// already returned. This must not block thanks to the buffered
