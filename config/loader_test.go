@@ -17,9 +17,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,22 +39,11 @@ func TestFileLoader(t *testing.T) {
 	})
 
 	t.Run("unreadable file", func(t *testing.T) {
+		// Use a directory path which is guaranteed to fail when trying to read as a file
 		dir := t.TempDir()
-		badPath := filepath.Join(dir, "bad.yml")
-		f, _ := os.Create(badPath)
-		f.Close()
-		// On Windows, setting permissions to 0o000 may not prevent reading.
-		// Instead, we can simulate an unreadable file by using a non-existent path.
-		// Alternatively, we can skip this test on Windows.
-		// For now, we'll skip this test on Windows.
-		if runtime.GOOS == "windows" {
-			t.Skip("Skipping unreadable file test on Windows")
-		}
-		os.Chmod(badPath, 0o000)
-		loader := NewFileLoader(badPath)
+		loader := NewFileLoader(dir) // Directory paths cannot be read as files
 		_, err := loader.Load(context.Background())
 		require.Error(t, err)
-		os.Chmod(badPath, 0o600)
 	})
 }
 

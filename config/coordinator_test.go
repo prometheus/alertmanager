@@ -47,8 +47,8 @@ func TestCoordinatorRegistersMetrics(t *testing.T) {
 }
 
 func TestCoordinatorNotifiesSubscribers(t *testing.T) {
-    callBackCalled := false
-    c := NewCoordinator(NewFileLoader("testdata/conf.good.yml"), "testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
+	callBackCalled := false
+	c := NewCoordinator(NewFileLoader("testdata/conf.good.yml"), "testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
 	c.Subscribe(func(*Config) error {
 		callBackCalled = true
 		return nil
@@ -65,8 +65,8 @@ func TestCoordinatorNotifiesSubscribers(t *testing.T) {
 }
 
 func TestCoordinatorFailReloadWhenSubscriberFails(t *testing.T) {
-    errMessage := "something happened"
-    c := NewCoordinator(NewFileLoader("testdata/conf.good.yml"), "testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
+	errMessage := "something happened"
+	c := NewCoordinator(NewFileLoader("testdata/conf.good.yml"), "testdata/conf.good.yml", prometheus.NewRegistry(), promslog.NewNopLogger())
 
 	c.Subscribe(func(*Config) error {
 		return errors.New(errMessage)

@@ -50,6 +50,8 @@ const (
 // fields default to their zero value (which generally matches the kingpin
 // flag default).
 type Options struct {
+	// ConfigHTTPURL specifies the HTTP URL to load the Alertmanager configuration from.
+	// It is mutually exclusive with ConfigFile - exactly one must be specified.
 	ConfigHTTPURL string
 	// Storage and lifecycle.
 	ConfigFile                  string
