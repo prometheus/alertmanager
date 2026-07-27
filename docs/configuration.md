@@ -39,10 +39,36 @@ To specify which configuration file to load, use the `--config.file` flag.
 ./alertmanager --config.file=alertmanager.yml
 ```
 
+Alternatively, you can load configuration from an HTTP endpoint using the `--config.http-url` flag:
+
+```bash
+./alertmanager --config.http-url=http://config-server/config.yaml
+```
+
+Note: `--config.file` and `--config.http-url` are mutually exclusive - exactly one must be specified.
+
+
 The file is written in the [YAML format](http://en.wikipedia.org/wiki/YAML),
 defined by the scheme described below.
 Brackets indicate that a parameter is optional. For non-list parameters the
 value is set to the specified default.
+
+## HTTP Configuration
+
+Instead of loading configuration from a local file, Alertmanager can load it from an HTTP endpoint:
+
+```bash
+./alertmanager --config.http-url=http://config-server/config.yaml
+```
+
+The HTTP endpoint must:
+- Return a valid YAML configuration
+- Respond with HTTP 200 status code
+- Be accessible from the Alertmanager process
+
+Note: The `--config.file` and `--config.http-url` flags are mutually exclusive. Exactly one configuration source must be specified.
+
+Configuration reload via `SIGHUP` or `POST /-/reload` works the same way with HTTP configuration - it will fetch the latest configuration from the HTTP endpoint.
 
 Generic placeholders are defined as follows:
 
