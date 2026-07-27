@@ -683,7 +683,20 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
-	psils, _, err := api.silences.Query(ctx)
+	// Build the state filter. Params are always non-nil (defaults to true) so
+	// we only add a state to the query when the caller has not excluded it.
+	var states []silence.SilenceState
+	if *params.Active {
+		states = append(states, silence.SilenceStateActive)
+	}
+	if *params.Expired {
+		states = append(states, silence.SilenceStateExpired)
+	}
+	if *params.Pending {
+		states = append(states, silence.SilenceStatePending)
+	}
+
+	psils, _, err := api.silences.Query(ctx, silence.QState(states...))
 	if err != nil {
 		logger.Error("Failed to get silences", "err", err)
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
@@ -694,32 +707,13 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
-		silence, err := GettableSilenceFromProto(ps)
+		sil, err := GettableSilenceFromProto(ps)
 		if err != nil {
 			logger.Error("Failed to unmarshal silence from proto", "err", err)
 			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
 		}
-		sils = append(sils, &silence)
+		sils = append(sils, &sil)
 	}
-
-	// Filter by silence state. params.Active/Expired/Pending are always non-nil
-	// because NewGetSilencesParams() initialises them to true; the filter is a
-	// no-op unless the caller explicitly passes false.
-	var filtered open_api_models.GettableSilences
-	for _, sil := range sils {
-		state := string(*sil.Status.State)
-		if !*params.Active && state == "active" {
-			continue
-		}
-		if !*params.Expired && state == "expired" {
-			continue
-		}
-		if !*params.Pending && state == "pending" {
-			continue
-		}
-		filtered = append(filtered, sil)
-	}
-	sils = filtered
 
 	SortSilences(sils)
 
