@@ -2008,6 +2008,12 @@ There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
 
+For an example of using `payload` to send notifications to a service that
+doesn't have a dedicated receiver, such as [Gotify](https://gotify.net), see
+[`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
+More webhook payload examples, including one for Microsoft Teams, can be
+found in [`examples/webhook`](https://github.com/prometheus/alertmanager/tree/main/examples/webhook).
+
 ### `<incidentio_config>`
 
 incident.io notifications are sent via the [incident.io Alert Sources API](https://api-docs.incident.io/tag/Alert-Sources-V2#operation/Alert%20Sources%20V2_Create).
