@@ -48,7 +48,8 @@ func run() int {
 	}
 
 	var (
-		configFile                  = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configFile                  = kingpin.Flag("config.file", "Alertmanager configuration file name.").String()
+		configHTTPURL               = kingpin.Flag("config.http-url", "Alertmanager configuration URL (mutually exclusive with --config.file).").String()
 		dataDir                     = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention                   = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval         = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
@@ -100,6 +101,14 @@ func run() int {
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	kingpin.Parse()
+
+	// Validate exactly one configuration source is provided.
+	if *configFile == "" && *configHTTPURL == "" {
+		kingpin.Fatalf("Need to configure one of the following --config.file or --config.http-url")
+	}
+	if *configFile != "" && *configHTTPURL != "" {
+		kingpin.Fatalf("Need to configure only one of the following --config.file or --config.http-url")
+	}
 
 	logger := promslog.New(&promslogConfig)
 
@@ -164,6 +173,7 @@ func run() int {
 
 	opts := app.Options{
 		ConfigFile:                  *configFile,
+		ConfigHTTPURL:               *configHTTPURL,
 		DataDir:                     *dataDir,
 		Retention:                   *retention,
 		MaintenanceInterval:         *maintenanceInterval,

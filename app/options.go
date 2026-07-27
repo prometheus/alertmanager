@@ -50,6 +50,7 @@ const (
 // fields default to their zero value (which generally matches the kingpin
 // flag default).
 type Options struct {
+	ConfigHTTPURL string
 	// Storage and lifecycle.
 	ConfigFile                  string
 	DataDir                     string
@@ -111,7 +112,7 @@ type Options struct {
 // Flagger) and a WebConfig before passing the result to New or Run.
 func DefaultOptions() Options {
 	return Options{
-		ConfigFile:                  DefaultConfigFile,
+		ConfigFile:                  "",
 		DataDir:                     DefaultDataDir,
 		Retention:                   DefaultRetention,
 		MaintenanceInterval:         DefaultMaintenanceInterval,
@@ -158,8 +159,11 @@ func (o *Options) validate() error {
 	}
 
 	// Storage and config paths.
-	if o.ConfigFile == "" {
-		return errors.New("alertmanager/app: Options.ConfigFile is required")
+	if o.ConfigFile == "" && o.ConfigHTTPURL == "" {
+		return errors.New("alertmanager/app: exactly one of Options.ConfigFile or Options.ConfigHTTPURL must be set")
+	}
+	if o.ConfigFile != "" && o.ConfigHTTPURL != "" {
+		return errors.New("alertmanager/app: Options.ConfigFile and Options.ConfigHTTPURL are mutually exclusive")
 	}
 	if o.DataDir == "" {
 		return errors.New("alertmanager/app: Options.DataDir is required")
