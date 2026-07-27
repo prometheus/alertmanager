@@ -52,8 +52,7 @@ func SanitizeURL(rawURL string) string {
 		password, _ := parsed.User.Password()
 		if password != "" {
 			// Replace password with ***
-			userInfo := strings.Replace(rawURL, password, "***", 1)
-			return userInfo
+			rawURL = strings.Replace(rawURL, password, "***", 1)
 		}
 	}
 
@@ -61,7 +60,7 @@ func SanitizeURL(rawURL string) string {
 	if parsed.RawQuery != "" {
 		// This is a simple approach - in production you might want more sophisticated
 		// secret detection, but for logging purposes this provides basic protection
-		return strings.Replace(rawURL, parsed.RawQuery, "[redacted]", 1)
+		rawURL = strings.Replace(rawURL, parsed.RawQuery, "[redacted]", 1)
 	}
 
 	return rawURL
