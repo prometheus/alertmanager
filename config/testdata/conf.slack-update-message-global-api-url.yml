@@ -1,0 +1,12 @@
+global:
+  slack_api_url: "https://slack.com/api/chat.postMessage"
+
+route:
+  receiver: foo
+
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        send_resolved: true
+        update_message: true
