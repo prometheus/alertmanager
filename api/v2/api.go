@@ -702,6 +702,25 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		sils = append(sils, &silence)
 	}
 
+	// Filter by silence state. params.Active/Expired/Pending are always non-nil
+	// because NewGetSilencesParams() initialises them to true; the filter is a
+	// no-op unless the caller explicitly passes false.
+	var filtered open_api_models.GettableSilences
+	for _, sil := range sils {
+		state := string(*sil.Status.State)
+		if !*params.Active && state == "active" {
+			continue
+		}
+		if !*params.Expired && state == "expired" {
+			continue
+		}
+		if !*params.Pending && state == "pending" {
+			continue
+		}
+		filtered = append(filtered, sil)
+	}
+	sils = filtered
+
 	SortSilences(sils)
 
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
