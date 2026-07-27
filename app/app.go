@@ -246,28 +246,30 @@ func (a *App) setup() error {
 		m.clusterEnabled.Set(1)
 	}
 
-stopc := make(chan struct{})
-    var wg sync.WaitGroup
-    var loader config.ConfigLoader
-    if opts.ConfigHTTPURL != "" {
-        loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
-        logger.Info("Starting Alertmanager in HTTP configuration mode", "source", opts.ConfigHTTPURL)
-    } else {
-        loader = config.NewFileLoader(opts.ConfigFile)
-        logger.Info("Starting Alertmanager in file configuration mode", "source", opts.ConfigFile)
-    }
+	stopc := make(chan struct{})
+	var wg sync.WaitGroup
+	var loader config.ConfigLoader
+	if opts.ConfigHTTPURL != "" {
+		loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
+		// Sanitize URL for logging to avoid credential leakage
+		sanitizedURL := config.SanitizeURL(opts.ConfigHTTPURL)
+		logger.Info("Starting Alertmanager in HTTP configuration mode", "source", sanitizedURL)
+	} else {
+		loader = config.NewFileLoader(opts.ConfigFile)
+		logger.Info("Starting Alertmanager in file configuration mode", "source", opts.ConfigFile)
+	}
 
-    // Load config once for both event recorder initialization and the
-    // first coordinator apply. Subsequent reloads go through
-    // configCoordinator.Reload() which reads the file again.
-    data, err := loader.Load(context.Background())
-    if err != nil {
-        return fmt.Errorf("error loading configuration: %w", err)
-    }
-    initialConf, err := config.Load(string(data))
-    if err != nil {
-        return fmt.Errorf("error loading configuration file: %w", err)
-    }
+	// Load config once for both event recorder initialization and the
+	// first coordinator apply. Subsequent reloads go through
+	// configCoordinator.Reload() which reads the file again.
+	data, err := loader.Load(context.Background())
+	if err != nil {
+		return fmt.Errorf("error loading configuration: %w", err)
+	}
+	initialConf, err := config.Load(string(data))
+	if err != nil {
+		return fmt.Errorf("error loading configuration file: %w", err)
+	}
 
 	hostname, _ := os.Hostname()
 	var eventRec eventrecorder.Recorder
@@ -469,17 +471,17 @@ stopc := make(chan struct{})
 	})
 
 	configLogger := logger.With("component", "configuration")
-    if opts.ConfigHTTPURL != "" {
-        loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
-    } else {
-        loader = config.NewFileLoader(opts.ConfigFile)
-    }
-    configCoordinator := config.NewCoordinator(
-        loader,
-        opts.ConfigFile,
-        reg,
-        configLogger,
-    )
+	if opts.ConfigHTTPURL != "" {
+		loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
+	} else {
+		loader = config.NewFileLoader(opts.ConfigFile)
+	}
+	configCoordinator := config.NewCoordinator(
+		loader,
+		opts.ConfigFile,
+		reg,
+		configLogger,
+	)
 	a.coordinator = configCoordinator
 
 	// The reloader owns the config-scoped subgraph (templates, routes,

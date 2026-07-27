@@ -28,10 +28,10 @@ import (
 // Coordinator coordinates Alertmanager configurations beyond the lifetime of a
 // single configuration.
 type Coordinator struct {
-    loader ConfigLoader
-    configFilePath string
-    configSource   string // Either file path or HTTP URL for logging
-    logger         *slog.Logger
+	loader         ConfigLoader
+	configFilePath string
+	configSource   string // Either file path or HTTP URL for logging
+	logger         *slog.Logger
 
 	// Protects config and subscribers
 	mutex       sync.Mutex
@@ -47,19 +47,20 @@ type Coordinator struct {
 // path. It does not yet load the configuration from file. This is done in
 // `Reload()`.
 func NewCoordinator(loader ConfigLoader, configFilePath string, r prometheus.Registerer, l *slog.Logger) *Coordinator {
-    // Determine the source string for logging
-    source := configFilePath
-    if source == "" {
-        // If configFilePath is empty, we're using HTTP
-        if fl, ok := loader.(*httpLoader); ok {
-            source = fl.url
-        }
-    }
-    c := &Coordinator{
-        loader:          loader,
-        configFilePath: configFilePath,
-        configSource:   source,
-        logger:          l,
+	// Determine the source string for logging
+	source := configFilePath
+	if source == "" {
+		// If configFilePath is empty, we're using HTTP
+		if fl, ok := loader.(*httpLoader); ok {
+			// Sanitize the URL for logging to avoid credential leakage
+			source = SanitizeURL(fl.url)
+		}
+	}
+	c := &Coordinator{
+		loader:         loader,
+		configFilePath: configFilePath,
+		configSource:   source,
+		logger:         l,
 	}
 
 	c.registerMetrics(r)
@@ -124,33 +125,33 @@ func (c *Coordinator) Reload() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-c.logger.Info(
-        "Loading configuration",
-        "source", c.configSource,
-    )
+	c.logger.Info(
+		"Loading configuration",
+		"source", c.configSource,
+	)
 	if err := c.loadFromFile(); err != nil {
-c.logger.Error(
-            "Loading configuration failed",
-            "source", c.configSource,
-            "err", err,
-        )
+		c.logger.Error(
+			"Loading configuration failed",
+			"source", c.configSource,
+			"err", err,
+		)
 		c.configSuccessMetric.Set(0)
 		return err
 	}
-c.logger.Info(
-        "Completed loading of configuration",
-        "source", c.configSource,
-    )
+	c.logger.Info(
+		"Completed loading of configuration",
+		"source", c.configSource,
+	)
 
-    if err := c.notifySubscribers(); err != nil {
-        c.logger.Error(
-            "one or more config change subscribers failed to apply new config",
-            "source", c.configSource,
-            "err", err,
-        )
-        c.configSuccessMetric.Set(0)
-        return err
-    }
+	if err := c.notifySubscribers(); err != nil {
+		c.logger.Error(
+			"one or more config change subscribers failed to apply new config",
+			"source", c.configSource,
+			"err", err,
+		)
+		c.configSuccessMetric.Set(0)
+		return err
+	}
 
 	c.configSuccessMetric.Set(1)
 	c.configSuccessTimeMetric.SetToCurrentTime()
