@@ -95,7 +95,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, fmt.Errorf("read token_file: %w", err)
 		}
-		token = string(content)
+		// Trim trailing newlines from editors like vim that append them by default.
+		token = strings.TrimSpace(string(content))
 	}
 	if n.conf.UserKey != "" {
 		userKey = string(n.conf.UserKey)
@@ -104,7 +105,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, fmt.Errorf("read user_key_file: %w", err)
 		}
-		userKey = string(content)
+		userKey = strings.TrimSpace(string(content))
 	}
 
 	parameters := url.Values{}
