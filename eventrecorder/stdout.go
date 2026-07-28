@@ -15,10 +15,6 @@ package eventrecorder
 
 import (
 	"os"
-
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // StdoutOutputConfig configures a stdout event recorder output.
@@ -45,8 +41,8 @@ func (s *StdoutOutput) Name() string { return "stdout" }
 // It returns the byte count written (including the trailing newline) and
 // any write error encountered.  A serialization failure is wrapped in
 // serializeError so the recorder attributes it to the correct metric.
-func (s *StdoutOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
-	data, err := protojson.Marshal(event)
+func (s *StdoutOutput) SendEvent(event Event) (int, error) {
+	data, err := event.MarshalJSON()
 	if err != nil {
 		return 0, &serializeError{err: err}
 	}

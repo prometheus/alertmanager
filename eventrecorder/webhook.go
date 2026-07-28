@@ -28,10 +28,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // WebhookOutputConfig configures an HTTP webhook event recorder output.
@@ -297,8 +295,8 @@ func (wo *WebhookOutput) Name() string {
 // a worker.  It returns the serialized size (for the bytes-written
 // metric).  If the internal queue is full the event is dropped and
 // counted via the output-drops metric.
-func (wo *WebhookOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
-	data, err := protojson.Marshal(event)
+func (wo *WebhookOutput) SendEvent(event Event) (int, error) {
+	data, err := event.MarshalJSON()
 	if err != nil {
 		return 0, &serializeError{err: err}
 	}

@@ -47,7 +47,6 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -285,9 +284,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
 
-				s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+				s.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 					return eventrecorder.NewSilenceMutedAlertEvent(
-						eventrecorder.SilenceAsProto(sil), fp, lset,
+						sil, fp, lset,
 					)
 				})
 			default:
@@ -876,10 +875,8 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 			return err
 		}
 		if changed {
-			s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
-				return eventrecorder.NewSilenceUpdatedEvent(
-					eventrecorder.SilenceAsProto(sil),
-				)
+			s.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
+				return eventrecorder.NewSilenceUpdatedEvent(sil)
 			})
 		}
 		return nil
@@ -926,10 +923,8 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		return err
 	}
 	if added {
-		s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
-			return eventrecorder.NewSilenceCreatedEvent(
-				eventrecorder.SilenceAsProto(sil),
-			)
+		s.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
+			return eventrecorder.NewSilenceCreatedEvent(sil)
 		})
 	}
 	return nil

@@ -29,7 +29,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -223,9 +222,9 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				),
 			)
 
-			ih.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				return eventrecorder.NewInhibitionMutedAlertEvent(
-					[]*eventrecorderpb.InhibitRule{eventrecorder.InhibitRuleAsProto(r.Name, r.SourceMatchers, r.TargetMatchers, r.Equal)},
+					[]eventrecorder.InhibitRule{eventrecorder.NewInhibitRule(r.Name, r.SourceMatchers, r.TargetMatchers, r.Equal)},
 					fp, lset,
 					[]model.Fingerprint{inhibitedByFP},
 				)
