@@ -21,15 +21,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // mockDestination records all events written to it.
 type mockDestination struct {
 	mu     sync.Mutex
 	name   string
-	events []*eventrecorderpb.Event
+	events []Event
 }
 
 func newMockDestination(name string) *mockDestination {
@@ -37,7 +35,7 @@ func newMockDestination(name string) *mockDestination {
 }
 
 func (m *mockDestination) Name() string { return m.name }
-func (m *mockDestination) SendEvent(event *eventrecorderpb.Event) (int, error) {
+func (m *mockDestination) SendEvent(event Event) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, event)
@@ -51,17 +49,15 @@ func (m *mockDestination) eventCount() int {
 	return len(m.events)
 }
 
-func startupEvent() *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
-				Version: "test",
-			},
-		},
-	}
+func startupEvent() Event {
+	return NewAlertmanagerStartupEvent("test", "")
 }
 
 func newTestRecorder(outputs ...Destination) Recorder {
+	return newTestRecorderWithConfig(Config{}, outputs...)
+}
+
+func newTestRecorderWithConfig(cfg Config, outputs ...Destination) Recorder {
 	core := &sharedRecorder{
 		instance:  "test",
 		logger:    slog.Default(),
@@ -71,7 +67,7 @@ func newTestRecorder(outputs ...Destination) Recorder {
 		done:      make(chan struct{}),
 	}
 	core.wg.Add(1)
-	go core.writeLoop(outputs, Config{})
+	go core.writeLoop(outputs, cfg)
 	return Recorder{core: core}
 }
 
@@ -186,6 +182,37 @@ func TestEventRecorderConfigEqual_TypeMismatch(t *testing.T) {
 		"outputs of different types must compare unequal")
 }
 
+func TestRecorderOutputSchema(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
+	defer rec.Close()
+
+	rec.RecordEvent(recordCtx(), startupEvent)
+	require.Eventually(t, func() bool {
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		if len(out.events) != 1 {
+			return false
+		}
+		return out.events[0].message != nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestRecordEventDoesNotMutateBuiltEvent(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
+	defer rec.Close()
+
+	built := NewAlertmanagerShutdownEvent()
+	rec.RecordEvent(recordCtx(), func() Event { return built })
+	require.Eventually(t, func() bool { return out.eventCount() == 1 }, time.Second, 10*time.Millisecond)
+
+	require.Nil(t, built.message.Timestamp)
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	require.NotNil(t, out.events[0].message.Timestamp)
+}
+
 // marshalAndSend hands the structured event to every destination; the
 // destination owns serialization.  Verify a destination receives the
 // event (and the recorder records it).
@@ -199,7 +226,9 @@ func TestMarshalAndSend_DeliversEvent(t *testing.T) {
 	require.Eventually(t, func() bool {
 		out.mu.Lock()
 		defer out.mu.Unlock()
-		return len(out.events) == 1 &&
-			out.events[0].GetData().GetAlertmanagerStartupEvent() != nil
+		if len(out.events) != 1 {
+			return false
+		}
+		return out.events[0].message.GetData().GetAlertmanagerStartupEvent() != nil
 	}, time.Second, 10*time.Millisecond)
 }

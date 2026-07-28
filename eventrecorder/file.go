@@ -22,9 +22,6 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // FileOutputConfig configures a JSONL file event recorder output.
@@ -173,8 +170,8 @@ func (fo *FileOutput) watchLoop(ready chan<- error) {
 // SendEvent serializes the event as a JSON line and appends it to the
 // file.  It returns the number of bytes written (including the trailing
 // newline) for the bytes-written metric.
-func (fo *FileOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
-	data, err := protojson.Marshal(event)
+func (fo *FileOutput) SendEvent(event Event) (int, error) {
+	data, err := event.MarshalJSON()
 	if err != nil {
 		return 0, &serializeError{err: err}
 	}

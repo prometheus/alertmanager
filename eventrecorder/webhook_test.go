@@ -194,7 +194,7 @@ func TestWebhookOutput_BatchingByEncodedSize(t *testing.T) {
 	defer srv.Close()
 
 	event := sampleEvent()
-	encoded, err := protojson.Marshal(event)
+	encoded, err := protojson.Marshal(event.protoMessage())
 	require.NoError(t, err)
 	out, err := NewWebhookOutput(WebhookOutputConfig{
 		URL:                mustParseURL(t, srv.URL),

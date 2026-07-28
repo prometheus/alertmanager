@@ -14,107 +14,147 @@
 package eventrecorder
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/alert"
+	events "github.com/prometheus/alertmanager/eventrecorder/events/v2"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 )
 
-func TestExtractEventType(t *testing.T) {
-	tests := []struct {
-		name     string
-		event    *eventrecorderpb.EventData
-		expected string
-	}{
-		{
-			name:     "startup",
-			event:    startupEvent(),
-			expected: "alertmanager_startup_event",
-		},
-		{
-			name: "shutdown",
-			event: &eventrecorderpb.EventData{
-				EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{},
-			},
-			expected: "alertmanager_shutdown_event",
-		},
-		{
-			name: "alert_created",
-			event: &eventrecorderpb.EventData{
-				EventType: &eventrecorderpb.EventData_AlertCreated{},
-			},
-			expected: "alert_created",
-		},
-		{
-			name:     "unknown",
-			event:    &eventrecorderpb.EventData{},
-			expected: "unknown",
-		},
-		{
-			name:     "nil",
-			event:    nil,
-			expected: "unknown",
-		},
+func TestAlertEventSnapshotsLabels(t *testing.T) {
+	a := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"alertname": "Down", "severity": "warning"}, Annotations: model.LabelSet{"summary": "test"},
+		StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
+	}}
+	event := NewAlertCreatedEvent(a)
+
+	a.Labels["severity"] = "critical"
+	a.Annotations["summary"] = "changed"
+
+	got := event.message.GetData().GetAlertCreated().Alert
+	require.Equal(t, "warning", got.Labels["severity"])
+	require.Equal(t, "test", got.Annotations["summary"])
+}
+
+func TestSilenceEventSnapshotsAnnotationsAndMatchers(t *testing.T) {
+	silence := &silencepb.Silence{
+		Annotations: map[string]string{"owner": "ops"},
+		MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{{
+			Type: silencepb.Matcher_EQUAL, Name: "service", Pattern: "api",
+		}}}},
+		ReceiverMatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{{
+			Type: silencepb.Matcher_EQUAL, Name: "team", Pattern: "platform",
+		}}}},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, extractEventType(tc.event))
-		})
-	}
+	event := NewSilenceCreatedEvent(silence)
+
+	silence.Annotations["owner"] = "changed"
+	silence.MatcherSets[0].Matchers[0].Pattern = "changed"
+	silence.ReceiverMatcherSets[0].Matchers[0].Pattern = "changed"
+
+	got := event.message.GetData().GetSilenceCreated().Silence
+	require.Equal(t, "ops", got.Annotations["owner"])
+	require.Equal(t, "api", got.Matchers[0].Pattern)
+	require.Equal(t, "platform", got.ReceiverMatcherSets[0].Matchers[0].Pattern)
 }
 
-func TestLabelSetAsProto(t *testing.T) {
-	ls := model.LabelSet{"foo": "bar", "baz": "qux"}
-	proto := LabelSetAsProto(ls)
-
-	require.Len(t, proto.Labels, 2)
-	found := map[string]string{}
-	for _, lp := range proto.Labels {
-		found[lp.Key] = lp.Value
-	}
-	require.Equal(t, "bar", found["foo"])
-	require.Equal(t, "qux", found["baz"])
-}
-
-func TestMatcherAsProto(t *testing.T) {
-	m, err := labels.NewMatcher(labels.MatchRegexp, "job", "api.*")
-	require.NoError(t, err)
-
-	proto := MatcherAsProto(m)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_REGEXP, proto.Type)
-	require.Equal(t, "job", proto.Name)
-	require.Equal(t, "api.*", proto.Pattern)
-	require.NotEmpty(t, proto.Rendered)
-}
-
-func TestMatchersAsProto(t *testing.T) {
-	m1, err := labels.NewMatcher(labels.MatchEqual, "env", "prod")
-	require.NoError(t, err)
-	m2, err := labels.NewMatcher(labels.MatchNotEqual, "team", "")
-	require.NoError(t, err)
-
-	protos := MatchersAsProto(labels.Matchers{m1, m2})
-	require.Len(t, protos, 2)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_EQUAL, protos[0].Type)
-	require.Equal(t, eventrecorderpb.Matcher_TYPE_NOT_EQUAL, protos[1].Type)
-}
-
-func TestInhibitRuleAsProto(t *testing.T) {
+func TestInhibitRuleSnapshot(t *testing.T) {
 	source, err := labels.NewMatcher(labels.MatchEqual, "severity", "critical")
 	require.NoError(t, err)
 	target, err := labels.NewMatcher(labels.MatchEqual, "severity", "warning")
 	require.NoError(t, err)
 	equal := map[model.LabelName]struct{}{"cluster": {}, "alertname": {}}
 
-	proto := InhibitRuleAsProto("my-rule", labels.Matchers{source}, labels.Matchers{target}, equal)
+	rule := NewInhibitRule("my-rule", labels.Matchers{source}, labels.Matchers{target}, equal)
+	delete(equal, "cluster")
 
-	require.Equal(t, "my-rule", proto.Name)
-	require.Len(t, proto.SourceMatchers, 1)
-	require.Equal(t, "severity", proto.SourceMatchers[0].Name)
-	require.Len(t, proto.TargetMatchers, 1)
-	require.Equal(t, "severity", proto.TargetMatchers[0].Name)
-	require.Equal(t, []string{"alertname", "cluster"}, proto.EqualLabels)
+	require.Equal(t, "my-rule", rule.message.Name)
+	require.Equal(t, []string{"alertname", "cluster"}, rule.message.EqualLabels)
+	require.Equal(t, "severity", rule.message.SourceMatchers[0].Name)
+}
+
+func TestEventTypeName(t *testing.T) {
+	require.Equal(t, "unknown", (Event{}).typeName())
+	require.Equal(t, "alert_created", NewAlertCreatedEvent(nil).typeName())
+}
+
+func TestConstructorsHandleNilMatchers(t *testing.T) {
+	require.NotPanics(t, func() {
+		group := NewAlertGroup("", nil, "", "", labels.Matchers{nil}, "")
+		require.Empty(t, group.message.Matchers)
+		event := NewSilenceCreatedEvent(&silencepb.Silence{
+			Matchers:            []*silencepb.Matcher{nil},
+			MatcherSets:         []*silencepb.MatcherSet{nil, {Matchers: []*silencepb.Matcher{nil}}},
+			ReceiverMatcherSets: []*silencepb.MatcherSet{nil, {Matchers: []*silencepb.Matcher{nil}}},
+		})
+		silence := event.message.GetData().GetSilenceCreated().Silence
+		require.Empty(t, silence.Matchers)
+		require.Len(t, silence.MatcherSets, 1)
+		require.Empty(t, silence.MatcherSets[0].Matchers)
+		require.Len(t, silence.ReceiverMatcherSets, 1)
+		require.Empty(t, silence.ReceiverMatcherSets[0].Matchers)
+		_, err := event.MarshalJSON()
+		require.NoError(t, err)
+		_, err = event.MarshalProtobuf()
+		require.NoError(t, err)
+	})
+}
+
+func TestSilenceEventPreservesLegacyMatchers(t *testing.T) {
+	event := NewSilenceCreatedEvent(&silencepb.Silence{
+		Matchers: []*silencepb.Matcher{{Type: silencepb.Matcher_REGEXP, Name: "service", Pattern: "api.*"}},
+		MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{{
+			Type: silencepb.Matcher_EQUAL, Name: "fallback", Pattern: "ignored",
+		}}}},
+	})
+
+	got := event.message.GetData().GetSilenceCreated().Silence.Matchers
+	require.Len(t, got, 1)
+	require.Equal(t, "service", got[0].Name)
+	require.Equal(t, "api.*", got[0].Pattern)
+}
+
+func TestSilenceMatcherUnknownTypeHasNoRenderedValue(t *testing.T) {
+	matcher := silenceMatcherToEvents(&silencepb.Matcher{Type: silencepb.Matcher_Type(99), Name: "service", Pattern: "api"})
+	require.Equal(t, events.Matcher_TYPE_UNSPECIFIED, matcher.Type)
+	require.Empty(t, matcher.Rendered)
+}
+
+func TestNilMatchersAreAbsentFromJSON(t *testing.T) {
+	event := NewAlertGroupedEvent(NewAlertGroup("", nil, "", "", labels.Matchers{nil}, ""), NewGroupedAlertReference(1))
+	data, err := event.MarshalJSON()
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	groupInfo := decoded["data"].(map[string]any)["alertGrouped"].(map[string]any)["groupInfo"].(map[string]any)
+	require.NotContains(t, groupInfo, "matchers")
+}
+
+func TestEventConstructors(t *testing.T) {
+	group := NewAlertGroup("", nil, "", "", nil, "")
+	grouped := NewGroupedAlertReference(1)
+	rule := NewInhibitRule("", nil, nil, nil)
+	constructed := []Event{
+		NewAlertmanagerStartupEvent("", ""),
+		NewAlertmanagerShutdownEvent(),
+		NewAlertCreatedEvent(nil),
+		NewAlertGroupedEvent(group, grouped),
+		NewAlertResolvedEvent(group, grouped),
+		NewNotificationEvent(Notification{Group: group}),
+		NewSilenceMutedAlertEvent(nil, 0, nil),
+		NewSilenceCreatedEvent(nil),
+		NewSilenceUpdatedEvent(nil),
+		NewInhibitionMutedAlertEvent([]InhibitRule{rule}, 0, nil, nil),
+	}
+
+	for _, event := range constructed {
+		require.NotNil(t, event.message.GetData().EventType)
+	}
 }
