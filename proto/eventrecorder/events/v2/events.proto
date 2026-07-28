@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+package events.v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/prometheus/alertmanager/eventrecorder/events/v2;eventsv2";
+
+// Event is the top-level envelope written to each event recorder output.
+message Event {
+  google.protobuf.Timestamp timestamp = 1 [json_name = "@timestamp"];
+  string instance = 2;
+  EventData data = 3;
+  uint64 cluster_position = 4;
+}
+
+// EventData carries the payload for a single event recorder entry.
+message EventData {
+  oneof event_type {
+    AlertmanagerStartupEvent alertmanager_startup_event = 1;
+    AlertmanagerShutdownEvent alertmanager_shutdown_event = 2;
+    AlertCreatedEvent alert_created = 3;
+    AlertResolvedEvent alert_resolved = 4;
+    AlertGroupedEvent alert_grouped = 5;
+    NotificationEvent notification = 6;
+    SilenceCreatedEvent silence_created = 7;
+    SilenceUpdatedEvent silence_updated = 8;
+    SilenceMutedAlertEvent silence_muted_alert = 9;
+    InhibitionMutedAlertEvent inhibition_muted_alert = 10;
+  }
+}
+
+// AlertmanagerStartupEvent is emitted once when the process starts.
+message AlertmanagerStartupEvent {
+  string version = 1;
+  string build_context = 2;
+}
+
+// AlertmanagerShutdownEvent is emitted when the process shuts down gracefully.
+message AlertmanagerShutdownEvent {}
+
+// Alert represents a snapshot of an alert at the time the event was recorded.
+message Alert {
+  uint64 fingerprint = 1;
+  string name = 2;
+  map<string, string> labels = 3;
+  map<string, string> annotations = 4;
+  google.protobuf.Timestamp starts_at = 5;
+  google.protobuf.Timestamp ends_at = 6;
+  bool resolved = 7;
+}
+
+// GroupedAlert is a reference to an alert within an aggregation group.
+message GroupedAlert {
+  uint64 hash = 1;
+  optional Alert details = 2;
+}
+
+// AlertGroupInfo describes an alert's aggregation group context.
+message AlertGroupInfo {
+  string group_key = 1;
+  map<string, string> group_labels = 2;
+  string group_id = 3;
+  string receiver_name = 4;
+  repeated Matcher matchers = 5;
+  string group_uuid = 6;
+}
+
+// AlertCreatedEvent is emitted when a new alert is inserted.
+message AlertCreatedEvent {
+  Alert alert = 1;
+}
+
+// AlertResolvedEvent is emitted when a resolved alert leaves its group.
+message AlertResolvedEvent {
+  GroupedAlert alert = 1;
+  AlertGroupInfo group_info = 2;
+}
+
+// AlertGroupedEvent is emitted when an alert first enters a group.
+message AlertGroupedEvent {
+  GroupedAlert alert = 1;
+  AlertGroupInfo group_info = 2;
+}
+
+// NotifyReason describes why a notification was sent.
+enum NotifyReason {
+  NOTIFY_REASON_UNSPECIFIED = 0;
+  NOTIFY_REASON_FIRST_NOTIFICATION = 1;
+  NOTIFY_REASON_NEW_ALERTS_IN_GROUP = 2;
+  NOTIFY_REASON_NEW_RESOLVED_ALERTS = 3;
+  NOTIFY_REASON_ALL_ALERTS_RESOLVED = 4;
+  NOTIFY_REASON_REPEAT_INTERVAL_ELAPSED = 5;
+}
+
+// Integration identifies a notification integration.
+message Integration {
+  string name = 1;
+  int64 index = 2;
+}
+
+// NotificationEvent is emitted after a notification is delivered.
+message NotificationEvent {
+  repeated GroupedAlert alerts = 1;
+  repeated GroupedAlert firing_alerts = 2;
+  repeated GroupedAlert resolved_alerts = 3;
+  repeated GroupedAlert muted_alerts = 4;
+  AlertGroupInfo group_info = 5;
+  google.protobuf.Duration repeat_interval = 6;
+  NotifyReason reason = 7;
+  uint64 flush_id = 8;
+  Integration integration = 9;
+}
+
+// Silence is a snapshot of a silence definition.
+message Silence {
+  string id = 1;
+  repeated Matcher matchers = 2;
+  map<string, string> annotations = 3;
+  google.protobuf.Timestamp starts_at = 4;
+  google.protobuf.Timestamp ends_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  string created_by = 7;
+  string comment = 8;
+  repeated MatcherSet matcher_sets = 9;
+  repeated MatcherSet receiver_matcher_sets = 10;
+}
+
+// Matcher defines a single label matching rule.
+message Matcher {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_EQUAL = 1;
+    TYPE_REGEXP = 2;
+    TYPE_NOT_EQUAL = 3;
+    TYPE_NOT_REGEXP = 4;
+  }
+
+  Type type = 1;
+  string name = 2;
+  string pattern = 3;
+  string rendered = 4;
+}
+
+// MatcherSet is a conjunction of matchers.
+message MatcherSet {
+  repeated Matcher matchers = 1;
+}
+
+// SilenceCreatedEvent is emitted when a silence is created.
+message SilenceCreatedEvent {
+  Silence silence = 1;
+}
+
+// SilenceUpdatedEvent is emitted when a silence is modified.
+message SilenceUpdatedEvent {
+  Silence silence = 1;
+}
+
+// MutedAlert identifies an alert suppressed by a silence or inhibition rule.
+message MutedAlert {
+  map<string, string> labels = 1;
+  uint64 fingerprint = 2;
+}
+
+// SilenceMutedAlertEvent is emitted when a silence suppresses an alert.
+message SilenceMutedAlertEvent {
+  Silence silence = 1;
+  MutedAlert muted_alert = 2;
+}
+
+// InhibitRule is a snapshot of an inhibition rule definition.
+message InhibitRule {
+  repeated Matcher source_matchers = 1;
+  repeated Matcher target_matchers = 2;
+  repeated string equal_labels = 3;
+  string name = 4;
+}
+
+// InhibitionMutedAlertEvent is emitted when inhibition suppresses an alert.
+message InhibitionMutedAlertEvent {
+  repeated InhibitRule inhibit_rules = 1;
+  MutedAlert muted_alert = 2;
+  repeated uint64 inhibiting_fingerprints = 3;
+}

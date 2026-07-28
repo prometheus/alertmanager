@@ -13,131 +13,102 @@
 
 package notify
 
-// This file contains helpers for constructing event recorder protobuf messages
+// This file contains helpers for constructing event recorder events
 // from the notification pipeline context.  It lives in the notify package
 // because it accesses unexported context keys (keyFiringAlerts, etc.).
 
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/durationpb"
-
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/types"
 )
 
-func groupedAlertAsProto(alert *types.Alert) *eventrecorderpb.GroupedAlert {
-	return &eventrecorderpb.GroupedAlert{
-		Hash:    hashAlert(alert),
-		Details: eventrecorder.AlertAsProto(alert),
-	}
+func groupedAlertEvent(alert *types.Alert) eventrecorder.GroupedAlert {
+	return eventrecorder.NewGroupedAlert(hashAlert(alert), alert)
 }
 
-func extractAlertGroupInfo(ctx context.Context) *eventrecorderpb.AlertGroupInfo {
+func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
 	groupKey, _ := ExtractGroupKey(ctx)
 	receiverName, _ := ReceiverName(ctx)
 	groupLabels, _ := GroupLabels(ctx)
 	groupMatchers, _ := GroupMatchers(ctx)
 	aggrGroupID, _ := AggrGroupID(ctx)
 
-	return &eventrecorderpb.AlertGroupInfo{
-		GroupKey:     groupKey.String(),
-		GroupLabels:  eventrecorder.LabelSetAsProto(groupLabels),
-		GroupId:      groupKey.Hash(),
-		ReceiverName: receiverName,
-		Matchers:     eventrecorder.MatchersAsProto(groupMatchers),
-		GroupUuid:    aggrGroupID,
-	}
+	return eventrecorder.NewAlertGroup(
+		groupKey.String(), groupLabels, groupKey.Hash(), receiverName, groupMatchers, aggrGroupID,
+	)
 }
 
-func extractGroupedAlerts(ctx context.Context, key notifyKey) []*eventrecorderpb.GroupedAlert {
-	var result []*eventrecorderpb.GroupedAlert
+func extractGroupedAlerts(ctx context.Context, key notifyKey) []eventrecorder.GroupedAlert {
+	var result []eventrecorder.GroupedAlert
 	if list, ok := ctx.Value(key).([]uint64); ok {
 		for _, hash := range list {
-			result = append(result, &eventrecorderpb.GroupedAlert{Hash: hash})
+			result = append(result, eventrecorder.NewGroupedAlertReference(hash))
 		}
 	}
 	return result
 }
 
-func extractMutedGroupedAlerts(ctx context.Context) []*eventrecorderpb.GroupedAlert {
-	var result []*eventrecorderpb.GroupedAlert
+func extractMutedGroupedAlerts(ctx context.Context) []eventrecorder.GroupedAlert {
+	var result []eventrecorder.GroupedAlert
 	if muted, ok := MutedAlerts(ctx); ok {
 		for hash := range muted {
-			result = append(result, &eventrecorderpb.GroupedAlert{Hash: hash})
+			result = append(result, eventrecorder.NewGroupedAlertReference(hash))
 		}
 	}
 	return result
 }
 
-func notifyReasonToProto(reason NotifyReason) eventrecorderpb.NotifyReason {
+func notifyReasonToEvent(reason NotifyReason) eventrecorder.NotificationReason {
 	switch reason {
 	case ReasonFirstNotification:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_FIRST_NOTIFICATION
+		return eventrecorder.NotificationReasonFirstNotification
 	case ReasonNewAlertsInGroup:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_NEW_ALERTS_IN_GROUP
+		return eventrecorder.NotificationReasonNewAlertsInGroup
 	case ReasonAllAlertsResolved:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_ALL_ALERTS_RESOLVED
+		return eventrecorder.NotificationReasonAllAlertsResolved
 	case ReasonNewResolvedAlerts:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_NEW_RESOLVED_ALERTS
+		return eventrecorder.NotificationReasonNewResolvedAlerts
 	case ReasonRepeatIntervalElapsed:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_REPEAT_INTERVAL_ELAPSED
+		return eventrecorder.NotificationReasonRepeatIntervalElapsed
 	default:
-		return eventrecorderpb.NotifyReason_NOTIFY_REASON_UNSPECIFIED
+		return eventrecorder.NotificationReasonUnspecified
 	}
 }
 
-// NewNotificationEvent constructs a NotificationEvent from the pipeline
+// NewNotificationEvent constructs notification event data from the pipeline
 // context after a successful notification delivery.
-func NewNotificationEvent(ctx context.Context, alerts []*types.Alert, integration Integration) *eventrecorderpb.EventData {
-	groupedAlerts := make([]*eventrecorderpb.GroupedAlert, 0, len(alerts))
+func NewNotificationEvent(ctx context.Context, alerts []*types.Alert, integration Integration) eventrecorder.EventData {
+	groupedAlerts := make([]eventrecorder.GroupedAlert, 0, len(alerts))
 	for _, alert := range alerts {
-		groupedAlerts = append(groupedAlerts, groupedAlertAsProto(alert))
+		groupedAlerts = append(groupedAlerts, groupedAlertEvent(alert))
 	}
 
 	notifyReason, _ := NotificationReason(ctx)
 	repeatInterval, _ := RepeatInterval(ctx)
 	flushID, _ := FlushID(ctx)
 
-	notification := &eventrecorderpb.NotificationEvent{
+	return eventrecorder.NewNotificationEvent(eventrecorder.Notification{
 		Alerts:         groupedAlerts,
 		FiringAlerts:   extractGroupedAlerts(ctx, keyFiringAlerts),
 		ResolvedAlerts: extractGroupedAlerts(ctx, keyResolvedAlerts),
 		MutedAlerts:    extractMutedGroupedAlerts(ctx),
-		GroupInfo:      extractAlertGroupInfo(ctx),
-		RepeatInterval: durationpb.New(repeatInterval),
-		Reason:         notifyReasonToProto(notifyReason),
-		FlushId:        flushID,
-		Integration: &eventrecorderpb.Integration{
-			Name:  integration.Name(),
-			Index: int64(integration.Index()),
-		},
-	}
-
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_Notification{Notification: notification},
-	}
+		Group:          extractAlertGroupInfo(ctx),
+		RepeatInterval: repeatInterval,
+		Reason:         notifyReasonToEvent(notifyReason),
+		FlushID:        flushID,
+		Integration:    integration.Name(),
+		IntegrationIdx: int64(integration.Index()),
+	})
 }
 
-func NewAlertResolvedEvent(groupInfo *eventrecorderpb.AlertGroupInfo, alert *types.Alert) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertResolved{
-			AlertResolved: &eventrecorderpb.AlertResolvedEvent{
-				Alert:     groupedAlertAsProto(alert),
-				GroupInfo: groupInfo,
-			},
-		},
-	}
+// NewAlertResolvedEvent constructs alert-resolved event data.
+func NewAlertResolvedEvent(groupInfo eventrecorder.AlertGroup, alert *types.Alert) eventrecorder.EventData {
+	return eventrecorder.NewAlertResolvedEvent(groupInfo, groupedAlertEvent(alert))
 }
 
-func NewAlertGroupedEvent(groupInfo *eventrecorderpb.AlertGroupInfo, alert *types.Alert) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertGrouped{
-			AlertGrouped: &eventrecorderpb.AlertGroupedEvent{
-				Alert:     groupedAlertAsProto(alert),
-				GroupInfo: groupInfo,
-			},
-		},
-	}
+// NewAlertGroupedEvent constructs alert-grouped event data.
+func NewAlertGroupedEvent(groupInfo eventrecorder.AlertGroup, alert *types.Alert) eventrecorder.EventData {
+	return eventrecorder.NewAlertGroupedEvent(groupInfo, groupedAlertEvent(alert))
 }
