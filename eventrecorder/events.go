@@ -11,282 +11,386 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file contains pure-functional helpers that convert internal
-// Alertmanager types into eventrecorderpb messages, plus convenience
-// constructors for the EventData oneof variants.  None of these
-// functions touch the Recorder; they are imported and called by the
-// dispatch, silence, inhibit, and provider packages to build event
-// payloads that are then handed to Recorder.RecordEvent.
-
 package eventrecorder
 
 import (
+	"maps"
 	"slices"
-	"strings"
+	"time"
 
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/alert"
+	events "github.com/prometheus/alertmanager/eventrecorder/events/v2"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	silencepb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
-// LabelSetAsProto converts a model.LabelSet to an eventrecorderpb.LabelSet.
-// Labels are sorted by name for deterministic output.
-func LabelSetAsProto(ls model.LabelSet) *eventrecorderpb.LabelSet {
-	names := make([]model.LabelName, 0, len(ls))
-	for k := range ls {
-		names = append(names, k)
-	}
-	slices.SortFunc(names, func(a, b model.LabelName) int {
-		return strings.Compare(string(a), string(b))
-	})
-	pairs := make([]*eventrecorderpb.LabelPair, 0, len(ls))
-	for _, k := range names {
-		pairs = append(pairs, &eventrecorderpb.LabelPair{Key: string(k), Value: string(ls[k])})
-	}
-	return &eventrecorderpb.LabelSet{Labels: pairs}
+// Event is an immutable event recorder payload. Its protobuf representation is
+// private so destinations cannot be passed arbitrary protobuf messages.
+type Event struct {
+	message   *events.Event
+	eventType string
 }
 
-// AlertAsProto converts a types.Alert to an eventrecorderpb.Alert.
-func AlertAsProto(alert *types.Alert) *eventrecorderpb.Alert {
-	return &eventrecorderpb.Alert{
-		Fingerprint: uint64(alert.Fingerprint()),
-		Name:        alert.Name(),
-		Labels:      LabelSetAsProto(alert.Labels),
-		Annotations: LabelSetAsProto(alert.Annotations),
-		StartsAt:    timestamppb.New(alert.StartsAt),
-		EndsAt:      timestamppb.New(alert.EndsAt),
-		Resolved:    alert.Resolved(),
-	}
+// MarshalJSON serializes the event using its protobuf schema.
+func (e Event) MarshalJSON() ([]byte, error) {
+	return protojson.Marshal(e.message)
 }
 
-// MatcherAsProto converts a single *labels.Matcher to its protobuf
-// representation.
-func MatcherAsProto(m *labels.Matcher) *eventrecorderpb.Matcher {
-	var matcherType eventrecorderpb.Matcher_Type
-	switch m.Type {
-	case labels.MatchEqual:
-		matcherType = eventrecorderpb.Matcher_TYPE_EQUAL
-	case labels.MatchNotEqual:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_EQUAL
-	case labels.MatchRegexp:
-		matcherType = eventrecorderpb.Matcher_TYPE_REGEXP
-	case labels.MatchNotRegexp:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_REGEXP
-	default:
-		matcherType = eventrecorderpb.Matcher_TYPE_UNSPECIFIED
-	}
-	return &eventrecorderpb.Matcher{
-		Type:     matcherType,
-		Name:     m.Name,
-		Pattern:  m.Value,
-		Rendered: m.String(),
-	}
+// MarshalProtobuf serializes the event using its protobuf schema.
+func (e Event) MarshalProtobuf() ([]byte, error) {
+	return proto.Marshal(e.message)
 }
 
-// MatchersAsProto converts a slice of matchers to their protobuf
-// representations.
-func MatchersAsProto(matchers labels.Matchers) []*eventrecorderpb.Matcher {
-	result := make([]*eventrecorderpb.Matcher, len(matchers))
-	for i, m := range matchers {
-		result[i] = MatcherAsProto(m)
+func (e Event) typeName() string {
+	if e.eventType == "" {
+		return "unknown"
 	}
-	return result
+	return e.eventType
 }
 
-// SilenceMatcherAsProto converts a silencepb.Matcher to an
-// eventrecorderpb.Matcher.
-func SilenceMatcherAsProto(m *silencepb.Matcher) *eventrecorderpb.Matcher {
-	var matcherType eventrecorderpb.Matcher_Type
-	switch m.Type {
-	case silencepb.Matcher_EQUAL:
-		matcherType = eventrecorderpb.Matcher_TYPE_EQUAL
-	case silencepb.Matcher_REGEXP:
-		matcherType = eventrecorderpb.Matcher_TYPE_REGEXP
-	case silencepb.Matcher_NOT_EQUAL:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_EQUAL
-	case silencepb.Matcher_NOT_REGEXP:
-		matcherType = eventrecorderpb.Matcher_TYPE_NOT_REGEXP
-	default:
-		matcherType = eventrecorderpb.Matcher_TYPE_UNSPECIFIED
-	}
-
-	var rendered string
-	var matchType labels.MatchType
-	switch m.Type {
-	case silencepb.Matcher_EQUAL:
-		matchType = labels.MatchEqual
-	case silencepb.Matcher_NOT_EQUAL:
-		matchType = labels.MatchNotEqual
-	case silencepb.Matcher_REGEXP:
-		matchType = labels.MatchRegexp
-	case silencepb.Matcher_NOT_REGEXP:
-		matchType = labels.MatchNotRegexp
-	default:
-		matchType = labels.MatchEqual
-	}
-	if lm, err := labels.NewMatcher(matchType, m.Name, m.Pattern); err == nil {
-		rendered = lm.String()
-	}
-
-	return &eventrecorderpb.Matcher{
-		Type:     matcherType,
-		Name:     m.Name,
-		Pattern:  m.Pattern,
-		Rendered: rendered,
-	}
+func (e Event) protoMessage() proto.Message {
+	return e.message
 }
 
-// SilenceAsProto converts a silencepb.Silence to an
-// eventrecorderpb.Silence.
-func SilenceAsProto(sil *silencepb.Silence) *eventrecorderpb.Silence {
-	matcherSets := make([]*eventrecorderpb.MatcherSet, len(sil.MatcherSets))
-	for i, ms := range sil.MatcherSets {
-		matcherSet := &eventrecorderpb.MatcherSet{
-			Matchers: make([]*eventrecorderpb.Matcher, len(ms.Matchers)),
-		}
-		for j, m := range ms.Matchers {
-			matcherSet.Matchers[j] = SilenceMatcherAsProto(m)
-		}
-		matcherSets[i] = matcherSet
+func (e Event) withMetadata(timestamp *timestamppb.Timestamp, instance string, clusterPosition uint64) Event {
+	if e.message == nil {
+		return e
 	}
-
-	var matchers []*eventrecorderpb.Matcher
-	if len(matcherSets) > 0 {
-		matchers = matcherSets[0].Matchers
+	e.message = &events.Event{
+		Timestamp: timestamp, Instance: instance, Data: e.message.Data, ClusterPosition: clusterPosition,
 	}
-
-	return &eventrecorderpb.Silence{
-		Id:          sil.Id,
-		Matchers:    matchers,
-		MatcherSets: matcherSets,
-		StartsAt:    sil.StartsAt,
-		EndsAt:      sil.EndsAt,
-		UpdatedAt:   sil.UpdatedAt,
-		CreatedBy:   sil.CreatedBy,
-		Comment:     sil.Comment,
-	}
+	return e
 }
 
-// InhibitRuleAsProto converts inhibit rule fields to an
-// eventrecorderpb.InhibitRule.  It accepts the individual fields rather
-// than the InhibitRule struct to avoid an import cycle.
-func InhibitRuleAsProto(name string, sourceMatchers, targetMatchers labels.Matchers, equal map[model.LabelName]struct{}) *eventrecorderpb.InhibitRule {
+// AlertGroup is an immutable aggregation-group snapshot.
+type AlertGroup struct {
+	message *events.AlertGroupInfo
+}
+
+// GroupedAlert is an immutable grouped-alert snapshot.
+type GroupedAlert struct {
+	message *events.GroupedAlert
+}
+
+// InhibitRule is an immutable inhibition-rule snapshot.
+type InhibitRule struct {
+	message *events.InhibitRule
+}
+
+// NotificationReason describes why a notification was sent.
+type NotificationReason int
+
+const (
+	NotificationReasonUnspecified NotificationReason = iota
+	NotificationReasonFirstNotification
+	NotificationReasonNewAlertsInGroup
+	NotificationReasonNewResolvedAlerts
+	NotificationReasonAllAlertsResolved
+	NotificationReasonRepeatIntervalElapsed
+)
+
+// Notification contains the snapshots used to construct a notification event.
+type Notification struct {
+	Alerts         []GroupedAlert
+	FiringAlerts   []GroupedAlert
+	ResolvedAlerts []GroupedAlert
+	MutedAlerts    []GroupedAlert
+	Group          AlertGroup
+	RepeatInterval time.Duration
+	Reason         NotificationReason
+	FlushID        uint64
+	Integration    string
+	IntegrationIdx int64
+}
+
+// NewAlertGroup snapshots aggregation-group metadata.
+func NewAlertGroup(groupKey string, groupLabels model.LabelSet, groupID, receiverName string, matchers labels.Matchers, groupUUID string) AlertGroup {
+	return AlertGroup{message: &events.AlertGroupInfo{
+		GroupKey: groupKey, GroupLabels: labelSetMap(groupLabels), GroupId: groupID,
+		ReceiverName: receiverName, Matchers: matchersToEvents(matchers), GroupUuid: groupUUID,
+	}}
+}
+
+// NewGroupedAlert snapshots an alert and its notification-pipeline hash.
+func NewGroupedAlert(hash uint64, a *alert.Alert) GroupedAlert {
+	return GroupedAlert{message: &events.GroupedAlert{Hash: hash, Details: alertToEvents(a)}}
+}
+
+// NewGroupedAlertReference snapshots a hash-only grouped-alert reference.
+func NewGroupedAlertReference(hash uint64) GroupedAlert {
+	return GroupedAlert{message: &events.GroupedAlert{Hash: hash}}
+}
+
+// NewAlertmanagerStartupEvent constructs a startup event.
+func NewAlertmanagerStartupEvent(version, buildContext string) Event {
+	return newEvent("alertmanager_startup_event", &events.EventData{EventType: &events.EventData_AlertmanagerStartupEvent{
+		AlertmanagerStartupEvent: &events.AlertmanagerStartupEvent{Version: version, BuildContext: buildContext},
+	}})
+}
+
+// NewAlertmanagerShutdownEvent constructs a shutdown event.
+func NewAlertmanagerShutdownEvent() Event {
+	return newEvent("alertmanager_shutdown_event", &events.EventData{EventType: &events.EventData_AlertmanagerShutdownEvent{
+		AlertmanagerShutdownEvent: &events.AlertmanagerShutdownEvent{},
+	}})
+}
+
+// NewAlertCreatedEvent constructs an alert-created event.
+func NewAlertCreatedEvent(a *alert.Alert) Event {
+	return newEvent("alert_created", &events.EventData{EventType: &events.EventData_AlertCreated{
+		AlertCreated: &events.AlertCreatedEvent{Alert: alertToEvents(a)},
+	}})
+}
+
+// NewAlertGroupedEvent constructs an alert-grouped event.
+func NewAlertGroupedEvent(group AlertGroup, groupedAlert GroupedAlert) Event {
+	return newEvent("alert_grouped", &events.EventData{EventType: &events.EventData_AlertGrouped{
+		AlertGrouped: &events.AlertGroupedEvent{Alert: groupedAlert.message, GroupInfo: group.message},
+	}})
+}
+
+// NewAlertResolvedEvent constructs an alert-resolved event.
+func NewAlertResolvedEvent(group AlertGroup, groupedAlert GroupedAlert) Event {
+	return newEvent("alert_resolved", &events.EventData{EventType: &events.EventData_AlertResolved{
+		AlertResolved: &events.AlertResolvedEvent{Alert: groupedAlert.message, GroupInfo: group.message},
+	}})
+}
+
+// NewNotificationEvent constructs a notification event.
+func NewNotificationEvent(notification Notification) Event {
+	return newEvent("notification", &events.EventData{EventType: &events.EventData_Notification{
+		Notification: &events.NotificationEvent{
+			Alerts: groupedAlertsToEvents(notification.Alerts), FiringAlerts: groupedAlertsToEvents(notification.FiringAlerts),
+			ResolvedAlerts: groupedAlertsToEvents(notification.ResolvedAlerts), MutedAlerts: groupedAlertsToEvents(notification.MutedAlerts),
+			GroupInfo: notification.Group.message, RepeatInterval: durationpb.New(notification.RepeatInterval),
+			Reason: notificationReasonToEvents(notification.Reason), FlushId: notification.FlushID,
+			Integration: &events.Integration{Name: notification.Integration, Index: notification.IntegrationIdx},
+		},
+	}})
+}
+
+// NewSilenceMutedAlertEvent constructs a silence-muted-alert event.
+func NewSilenceMutedAlertEvent(silence *silencepb.Silence, fp model.Fingerprint, labelSet model.LabelSet) Event {
+	return newEvent("silence_muted_alert", &events.EventData{EventType: &events.EventData_SilenceMutedAlert{
+		SilenceMutedAlert: &events.SilenceMutedAlertEvent{Silence: silenceToEvents(silence), MutedAlert: &events.MutedAlert{
+			Fingerprint: uint64(fp), Labels: labelSetMap(labelSet),
+		}},
+	}})
+}
+
+// NewSilenceCreatedEvent constructs a silence-created event.
+func NewSilenceCreatedEvent(silence *silencepb.Silence) Event {
+	return newEvent("silence_created", &events.EventData{EventType: &events.EventData_SilenceCreated{
+		SilenceCreated: &events.SilenceCreatedEvent{Silence: silenceToEvents(silence)},
+	}})
+}
+
+// NewSilenceUpdatedEvent constructs a silence-updated event.
+func NewSilenceUpdatedEvent(silence *silencepb.Silence) Event {
+	return newEvent("silence_updated", &events.EventData{EventType: &events.EventData_SilenceUpdated{
+		SilenceUpdated: &events.SilenceUpdatedEvent{Silence: silenceToEvents(silence)},
+	}})
+}
+
+// NewInhibitRule snapshots an inhibition rule.
+func NewInhibitRule(name string, sourceMatchers, targetMatchers labels.Matchers, equal map[model.LabelName]struct{}) InhibitRule {
 	equalLabels := make([]string, 0, len(equal))
 	for label := range equal {
 		equalLabels = append(equalLabels, string(label))
 	}
 	slices.Sort(equalLabels)
-	return &eventrecorderpb.InhibitRule{
-		Name:           name,
-		SourceMatchers: MatchersAsProto(sourceMatchers),
-		TargetMatchers: MatchersAsProto(targetMatchers),
-		EqualLabels:    equalLabels,
-	}
+	return InhibitRule{message: &events.InhibitRule{
+		Name: name, SourceMatchers: matchersToEvents(sourceMatchers), TargetMatchers: matchersToEvents(targetMatchers), EqualLabels: equalLabels,
+	}}
 }
 
-// NewAlertCreatedEvent constructs an AlertCreated event.
-func NewAlertCreatedEvent(alert *types.Alert) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertCreated{
-			AlertCreated: &eventrecorderpb.AlertCreatedEvent{
-				Alert: AlertAsProto(alert),
-			},
-		},
-	}
-}
-
-// NewSilenceMutedAlertEvent constructs a SilenceMutedAlert event.
-func NewSilenceMutedAlertEvent(silence *eventrecorderpb.Silence, fp model.Fingerprint, lset model.LabelSet) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceMutedAlert{
-			SilenceMutedAlert: &eventrecorderpb.SilenceMutedAlertEvent{
-				Silence: silence,
-				MutedAlert: &eventrecorderpb.MutedAlert{
-					Fingerprint: uint64(fp),
-					Labels:      LabelSetAsProto(lset),
-				},
-			},
-		},
-	}
-}
-
-// NewSilenceCreatedEvent constructs a SilenceCreated event.
-func NewSilenceCreatedEvent(silence *eventrecorderpb.Silence) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceCreated{
-			SilenceCreated: &eventrecorderpb.SilenceCreatedEvent{
-				Silence: silence,
-			},
-		},
-	}
-}
-
-// NewSilenceUpdatedEvent constructs a SilenceUpdated event.
-func NewSilenceUpdatedEvent(silence *eventrecorderpb.Silence) *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_SilenceUpdated{
-			SilenceUpdated: &eventrecorderpb.SilenceUpdatedEvent{
-				Silence: silence,
-			},
-		},
-	}
-}
-
-// NewInhibitionMutedAlertEvent constructs an InhibitionMutedAlert event.
-func NewInhibitionMutedAlertEvent(rules []*eventrecorderpb.InhibitRule, fp model.Fingerprint, lset model.LabelSet, inhibitingFPs []model.Fingerprint) *eventrecorderpb.EventData {
+// NewInhibitionMutedAlertEvent constructs an inhibition-muted-alert event.
+func NewInhibitionMutedAlertEvent(rules []InhibitRule, fp model.Fingerprint, labelSet model.LabelSet, inhibitingFPs []model.Fingerprint) Event {
 	fps := make([]uint64, len(inhibitingFPs))
-	for i, f := range inhibitingFPs {
-		fps[i] = uint64(f)
+	for i, fingerprint := range inhibitingFPs {
+		fps[i] = uint64(fingerprint)
 	}
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_InhibitionMutedAlert{
-			InhibitionMutedAlert: &eventrecorderpb.InhibitionMutedAlertEvent{
-				InhibitRules: rules,
-				MutedAlert: &eventrecorderpb.MutedAlert{
-					Fingerprint: uint64(fp),
-					Labels:      LabelSetAsProto(lset),
-				},
-				InhibitingFingerprints: fps,
-			},
+	eventRules := make([]*events.InhibitRule, len(rules))
+	for i, rule := range rules {
+		eventRules[i] = rule.message
+	}
+	return newEvent("inhibition_muted_alert", &events.EventData{EventType: &events.EventData_InhibitionMutedAlert{
+		InhibitionMutedAlert: &events.InhibitionMutedAlertEvent{
+			InhibitRules: eventRules, MutedAlert: &events.MutedAlert{Fingerprint: uint64(fp), Labels: labelSetMap(labelSet)},
+			InhibitingFingerprints: fps,
 		},
+	}})
+}
+
+func newEvent(eventType string, data *events.EventData) Event {
+	return Event{message: &events.Event{Data: data}, eventType: eventType}
+}
+
+func labelSetMap(labelSet model.LabelSet) map[string]string {
+	result := make(map[string]string, len(labelSet))
+	for name, value := range labelSet {
+		result[string(name)] = string(value)
+	}
+	return result
+}
+
+func stringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(values))
+	maps.Copy(result, values)
+	return result
+}
+
+func alertToEvents(a *alert.Alert) *events.Alert {
+	if a == nil {
+		return nil
+	}
+	return &events.Alert{
+		Fingerprint: uint64(a.Fingerprint()), Name: a.Name(), Labels: labelSetMap(a.Labels), Annotations: labelSetMap(a.Annotations),
+		StartsAt: timestamppb.New(a.StartsAt), EndsAt: timestamppb.New(a.EndsAt), Resolved: a.Resolved(),
 	}
 }
 
-// extractEventType returns the proto oneof field name for the event
-// type (e.g. "alert_created", "notification").  It uses a type switch
-// on the generated oneof wrapper types, avoiding proto reflection.
-// A nil input is reported as "unknown" so logging and metric paths
-// stay panic-free.
-func extractEventType(event *eventrecorderpb.EventData) string {
-	if event == nil {
-		return "unknown"
+func matchersToEvents(matchers labels.Matchers) []*events.Matcher {
+	result := make([]*events.Matcher, 0, len(matchers))
+	for _, matcher := range matchers {
+		if matcher == nil {
+			continue
+		}
+		result = append(result, &events.Matcher{Type: matcherTypeToEvents(matcher.Type), Name: matcher.Name, Pattern: matcher.Value, Rendered: matcher.String()})
 	}
-	switch event.EventType.(type) {
-	case *eventrecorderpb.EventData_AlertmanagerStartupEvent:
-		return "alertmanager_startup_event"
-	case *eventrecorderpb.EventData_AlertmanagerShutdownEvent:
-		return "alertmanager_shutdown_event"
-	case *eventrecorderpb.EventData_AlertCreated:
-		return "alert_created"
-	case *eventrecorderpb.EventData_AlertResolved:
-		return "alert_resolved"
-	case *eventrecorderpb.EventData_AlertGrouped:
-		return "alert_grouped"
-	case *eventrecorderpb.EventData_Notification:
-		return "notification"
-	case *eventrecorderpb.EventData_SilenceCreated:
-		return "silence_created"
-	case *eventrecorderpb.EventData_SilenceUpdated:
-		return "silence_updated"
-	case *eventrecorderpb.EventData_SilenceMutedAlert:
-		return "silence_muted_alert"
-	case *eventrecorderpb.EventData_InhibitionMutedAlert:
-		return "inhibition_muted_alert"
+	return result
+}
+
+func matcherTypeToEvents(matcherType labels.MatchType) events.Matcher_Type {
+	switch matcherType {
+	case labels.MatchEqual:
+		return events.Matcher_TYPE_EQUAL
+	case labels.MatchNotEqual:
+		return events.Matcher_TYPE_NOT_EQUAL
+	case labels.MatchRegexp:
+		return events.Matcher_TYPE_REGEXP
+	case labels.MatchNotRegexp:
+		return events.Matcher_TYPE_NOT_REGEXP
 	default:
-		return "unknown"
+		return events.Matcher_TYPE_UNSPECIFIED
+	}
+}
+
+func silenceToEvents(silence *silencepb.Silence) *events.Silence {
+	if silence == nil {
+		return nil
+	}
+	matcherSets := silenceMatcherSetsToEvents(silence.MatcherSets)
+	receiverMatcherSets := silenceMatcherSetsToEvents(silence.ReceiverMatcherSets)
+	matchers := silenceMatchersToEvents(silence.Matchers)
+	if len(matchers) == 0 && len(matcherSets) > 0 {
+		matchers = matcherSets[0].Matchers
+	}
+	return &events.Silence{
+		Id: silence.Id, Matchers: matchers, Annotations: stringMap(silence.Annotations), StartsAt: cloneTimestamp(silence.StartsAt),
+		EndsAt: cloneTimestamp(silence.EndsAt), UpdatedAt: cloneTimestamp(silence.UpdatedAt), CreatedBy: silence.CreatedBy,
+		Comment: silence.Comment, MatcherSets: matcherSets, ReceiverMatcherSets: receiverMatcherSets,
+	}
+}
+
+func silenceMatcherSetsToEvents(sets []*silencepb.MatcherSet) []*events.MatcherSet {
+	result := make([]*events.MatcherSet, 0, len(sets))
+	for _, set := range sets {
+		if set == nil {
+			continue
+		}
+		result = append(result, &events.MatcherSet{Matchers: silenceMatchersToEvents(set.Matchers)})
+	}
+	return result
+}
+
+func silenceMatchersToEvents(matchers []*silencepb.Matcher) []*events.Matcher {
+	result := make([]*events.Matcher, 0, len(matchers))
+	for _, matcher := range matchers {
+		if matcher == nil {
+			continue
+		}
+		result = append(result, silenceMatcherToEvents(matcher))
+	}
+	return result
+}
+
+func silenceMatcherToEvents(matcher *silencepb.Matcher) *events.Matcher {
+	if matcher == nil {
+		return nil
+	}
+	eventType := events.Matcher_TYPE_UNSPECIFIED
+	switch matcher.Type {
+	case silencepb.Matcher_EQUAL:
+		eventType = events.Matcher_TYPE_EQUAL
+	case silencepb.Matcher_REGEXP:
+		eventType = events.Matcher_TYPE_REGEXP
+	case silencepb.Matcher_NOT_EQUAL:
+		eventType = events.Matcher_TYPE_NOT_EQUAL
+	case silencepb.Matcher_NOT_REGEXP:
+		eventType = events.Matcher_TYPE_NOT_REGEXP
+	}
+	return &events.Matcher{Type: eventType, Name: matcher.Name, Pattern: matcher.Pattern, Rendered: silenceMatcherRendered(matcher)}
+}
+
+func silenceMatcherRendered(matcher *silencepb.Matcher) string {
+	var matcherType labels.MatchType
+	switch matcher.Type {
+	case silencepb.Matcher_EQUAL:
+		matcherType = labels.MatchEqual
+	case silencepb.Matcher_REGEXP:
+		matcherType = labels.MatchRegexp
+	case silencepb.Matcher_NOT_EQUAL:
+		matcherType = labels.MatchNotEqual
+	case silencepb.Matcher_NOT_REGEXP:
+		matcherType = labels.MatchNotRegexp
+	default:
+		return ""
+	}
+	rendered := ""
+	if parsed, err := labels.NewMatcher(matcherType, matcher.Name, matcher.Pattern); err == nil {
+		rendered = parsed.String()
+	}
+	return rendered
+}
+
+func cloneTimestamp(timestamp *timestamppb.Timestamp) *timestamppb.Timestamp {
+	if timestamp == nil {
+		return nil
+	}
+	return timestamppb.New(timestamp.AsTime())
+}
+
+func groupedAlertsToEvents(alerts []GroupedAlert) []*events.GroupedAlert {
+	result := make([]*events.GroupedAlert, len(alerts))
+	for i, groupedAlert := range alerts {
+		result[i] = groupedAlert.message
+	}
+	return result
+}
+
+func notificationReasonToEvents(reason NotificationReason) events.NotifyReason {
+	switch reason {
+	case NotificationReasonFirstNotification:
+		return events.NotifyReason_NOTIFY_REASON_FIRST_NOTIFICATION
+	case NotificationReasonNewAlertsInGroup:
+		return events.NotifyReason_NOTIFY_REASON_NEW_ALERTS_IN_GROUP
+	case NotificationReasonNewResolvedAlerts:
+		return events.NotifyReason_NOTIFY_REASON_NEW_RESOLVED_ALERTS
+	case NotificationReasonAllAlertsResolved:
+		return events.NotifyReason_NOTIFY_REASON_ALL_ALERTS_RESOLVED
+	case NotificationReasonRepeatIntervalElapsed:
+		return events.NotifyReason_NOTIFY_REASON_REPEAT_INTERVAL_ELAPSED
+	default:
+		return events.NotifyReason_NOTIFY_REASON_UNSPECIFIED
 	}
 }
