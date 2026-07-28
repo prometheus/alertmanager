@@ -1,4 +1,4 @@
-// Copyright 2024 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -116,6 +116,24 @@ func TestHTTPLoader(t *testing.T) {
 		data, err := loader.Load(context.Background())
 		require.NoError(t, err)
 		require.NotEmpty(t, data)
+	})
+
+	t.Run("percent-encoded credentials", func(t *testing.T) {
+		// Test with percent-encoded credentials in URL
+		username := "testuser"
+		password := "p%40ssw%40rd" // p@ssw@rd with @ symbols percent-encoded
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("route:\n  receiver: test\nreceivers:\n- name: test"))
+		}))
+		defer srv.Close()
+
+		// Create URL with percent-encoded credentials
+		urlWithCreds := srv.URL + "?username=" + username + "&password=" + password
+		loader := NewHTTPLoader(urlWithCreds)
+		data, err := loader.Load(context.Background())
+		require.NoError(t, err)
+		require.Contains(t, string(data), "receiver: test")
 	})
 }
 

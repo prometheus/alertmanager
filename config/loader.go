@@ -1,3 +1,16 @@
+// Copyright The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package config provides configuration loading utilities.
 package config
 
@@ -51,15 +64,24 @@ func SanitizeURL(rawURL string) string {
 	if parsed.User != nil {
 		password, _ := parsed.User.Password()
 		if password != "" {
-			// Replace password with ***
-			rawURL = strings.Replace(rawURL, password, "***", 1)
+			// Use Go's built-in URL redaction for percent-encoded passwords
+			if strings.Contains(password, "%") {
+				// This is a percent-encoded password, use Redacted() method
+				redactedURL := parsed.Redacted()
+				if redactedURL == "" {
+					// Fallback to manual replacement if Redacted() fails
+					redactedURL = strings.Replace(rawURL, password, "***", 1)
+				}
+			} else {
+				// Regular password, use manual replacement
+				rawURL = strings.Replace(rawURL, password, "***", 1)
+			}
 		}
 	}
 
 	// Redact query parameters that might contain secrets
 	if parsed.RawQuery != "" {
-		// This is a simple approach - in production you might want more sophisticated
-		// secret detection, but for logging purposes this provides basic protection
+		// This provides basic protection for logging.
 		rawURL = strings.Replace(rawURL, parsed.RawQuery, "[redacted]", 1)
 	}
 
