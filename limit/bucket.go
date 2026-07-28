@@ -97,6 +97,21 @@ func NewBucket[V comparable](capacity int) *Bucket[V] {
 	}
 }
 
+// Remove deletes the value from the bucket, freeing its slot.
+// It returns true if the value was present.
+func (b *Bucket[V]) Remove(value V) bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	item, ok := b.index[value]
+	if !ok {
+		return false
+	}
+	heap.Remove(&b.items, item.index)
+	delete(b.index, value)
+	return true
+}
+
 // IsStale returns true if the latest item in the bucket is expired.
 func (b *Bucket[V]) IsStale() (stale bool) {
 	b.mtx.Lock()

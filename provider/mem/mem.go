@@ -28,13 +28,13 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const alertChannelLength = 200
@@ -69,13 +69,13 @@ type AlertStoreCallback interface {
 	// alert is not stored.
 	// Existing flag indicates whether alert has existed before (and is only updated) or not.
 	// If alert has existed before, then alert passed to PreStore is result of merging existing alert with new alert.
-	PreStore(alert *types.Alert, existing bool) error
+	PreStore(alert *alert.Alert, existing bool) error
 
 	// PostStore is called after alert has been put into store.
-	PostStore(alert *types.Alert, existing bool)
+	PostStore(alert *alert.Alert, existing bool)
 
 	// PostDelete is called after alert have been removed from the store due to alert garbage collection.
-	PostDelete(alert *types.Alert)
+	PostDelete(alert *alert.Alert)
 
 	// PostGC is called after alerts have been removed from the store due to alert garbage collection.
 	PostGC(fingerprints model.Fingerprints)
@@ -97,6 +97,7 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 	if a.flagger.EnableAlertNamesInMetrics() {
 		labels = append(labels, "alertname")
 	}
+	labels = append(labels, "state")
 	a.alertsLimitedTotal = promauto.With(r).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "alertmanager_alerts_limited_total",
@@ -194,7 +195,7 @@ func (a *Alerts) gc() {
 	a.callback.PostGC(ff)
 }
 
-func (a *Alerts) gcAlerts() []*types.Alert {
+func (a *Alerts) gcAlerts() []*alert.Alert {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	return a.alerts.GC()
@@ -247,7 +248,7 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
-func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+func (a *Alerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.AlertIterator) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -292,14 +293,14 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 }
 
 // Get returns the alert for a given fingerprint.
-func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+func (a *Alerts) Get(fp model.Fingerprint) (*alert.Alert, error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	return a.alerts.Get(fp)
 }
 
 // Put adds the given alert to the set.
-func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
+func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -340,6 +341,11 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 				if a.flagger.EnableAlertNamesInMetrics() {
 					labels = append(labels, alert.Name())
 				}
+				state := "firing"
+				if alert.Resolved() {
+					state = "resolved"
+				}
+				labels = append(labels, state)
 				a.alertsLimitedTotal.WithLabelValues(labels...).Inc()
 			}
 			continue
@@ -374,7 +380,7 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 
 type noopCallback struct{}
 
-func (n noopCallback) PreStore(_ *types.Alert, _ bool) error { return nil }
-func (n noopCallback) PostStore(_ *types.Alert, _ bool)      {}
-func (n noopCallback) PostDelete(_ *types.Alert)             {}
+func (n noopCallback) PreStore(_ *alert.Alert, _ bool) error { return nil }
+func (n noopCallback) PostStore(_ *alert.Alert, _ bool)      {}
+func (n noopCallback) PostDelete(_ *alert.Alert)             {}
 func (n noopCallback) PostGC(_ model.Fingerprints)           {}

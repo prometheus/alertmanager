@@ -21,12 +21,12 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/alert"
 )
 
 func TestSetGet(t *testing.T) {
 	a := NewAlerts()
-	alert := &types.Alert{
+	alert := &alert.Alert{
 		UpdatedAt: time.Now(),
 	}
 	require.NoError(t, a.Set(alert))
@@ -40,7 +40,7 @@ func TestSetGet(t *testing.T) {
 func TestDeleteIfNotModified(t *testing.T) {
 	t.Run("unmodified alert should be deleted", func(t *testing.T) {
 		a := NewAlerts()
-		a1 := &types.Alert{
+		a1 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"foo": "bar",
@@ -51,7 +51,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 		require.NoError(t, a.Set(a1))
 
 		// a1 should be deleted as it has not been modified.
-		a.DeleteIfNotModified(types.AlertSlice{a1}, false)
+		a.DeleteIfNotModified(alert.AlertSlice{a1}, false)
 		got, err := a.Get(a1.Fingerprint())
 		require.Equal(t, ErrNotFound, err)
 		require.Nil(t, got)
@@ -59,7 +59,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 
 	t.Run("modified alert should not be deleted", func(t *testing.T) {
 		a := NewAlerts()
-		a1 := &types.Alert{
+		a1 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"foo": "bar",
@@ -71,7 +71,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 
 		// Make a copy of a1 that is older, but do not put it.
 		// We want to make sure a1 is not deleted.
-		a2 := &types.Alert{
+		a2 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"foo": "bar",
@@ -80,7 +80,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 			UpdatedAt: time.Now().Add(-time.Second),
 		}
 		require.True(t, a2.UpdatedAt.Before(a1.UpdatedAt))
-		a.DeleteIfNotModified(types.AlertSlice{a2}, false)
+		a.DeleteIfNotModified(alert.AlertSlice{a2}, false)
 		// a1 should not be deleted.
 		got, err := a.Get(a1.Fingerprint())
 		require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 
 		// Make another copy of a1 that is older, but do not put it.
 		// We want to make sure a2 is not deleted here either.
-		a3 := &types.Alert{
+		a3 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"foo": "bar",
@@ -97,7 +97,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 			UpdatedAt: time.Now().Add(time.Second),
 		}
 		require.True(t, a3.UpdatedAt.After(a1.UpdatedAt))
-		a.DeleteIfNotModified(types.AlertSlice{a3}, false)
+		a.DeleteIfNotModified(alert.AlertSlice{a3}, false)
 		// a1 should not be deleted.
 		got, err = a.Get(a1.Fingerprint())
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 
 	t.Run("should not delete other alerts", func(t *testing.T) {
 		a := NewAlerts()
-		a1 := &types.Alert{
+		a1 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"foo": "bar",
@@ -114,7 +114,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 			},
 			UpdatedAt: time.Now(),
 		}
-		a2 := &types.Alert{
+		a2 := &alert.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"bar": "baz",
@@ -126,7 +126,7 @@ func TestDeleteIfNotModified(t *testing.T) {
 		require.NoError(t, a.Set(a2))
 
 		// Deleting a1 should not delete a2.
-		require.NoError(t, a.DeleteIfNotModified(types.AlertSlice{a1}, true))
+		require.NoError(t, a.DeleteIfNotModified(alert.AlertSlice{a1}, true))
 		// a1 should be deleted.
 		got, err := a.Get(a1.Fingerprint())
 		require.Equal(t, ErrNotFound, err)
@@ -139,10 +139,59 @@ func TestDeleteIfNotModified(t *testing.T) {
 	})
 }
 
+func TestPerAlertLimitResolved(t *testing.T) {
+	newAlert := func(instance string, resolved bool) *alert.Alert {
+		end := time.Now().Add(time.Hour)
+		if resolved {
+			end = time.Now().Add(-time.Hour)
+		}
+		return &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "Test", "instance": model.LabelValue(instance)},
+				StartsAt: time.Now().Add(-2 * time.Hour),
+				EndsAt:   end,
+			},
+			UpdatedAt: time.Now(),
+		}
+	}
+
+	t.Run("resolved frees the slot held by an admitted firing alert", func(t *testing.T) {
+		a := NewAlerts().WithPerAlertLimit(1)
+
+		// The first firing alert is admitted and fills the bucket.
+		require.NoError(t, a.Set(newAlert("server1", false)))
+
+		// A second firing alert is limited while the bucket is full.
+		require.ErrorIs(t, a.Set(newAlert("server2", false)), ErrLimited)
+
+		// Resolving the admitted alert frees its slot and is stored.
+		require.NoError(t, a.Set(newAlert("server1", true)))
+
+		// The freed slot now admits another firing alert.
+		require.NoError(t, a.Set(newAlert("server2", false)))
+	})
+
+	t.Run("resolved without an admitted firing counterpart is dropped", func(t *testing.T) {
+		a := NewAlerts().WithPerAlertLimit(1)
+
+		require.ErrorIs(t, a.Set(newAlert("ghost", true)), ErrLimited)
+		require.Zero(t, a.Len())
+	})
+
+	t.Run("resolving twice drops the duplicate resolution", func(t *testing.T) {
+		a := NewAlerts().WithPerAlertLimit(1)
+
+		require.NoError(t, a.Set(newAlert("server1", false)))
+		require.NoError(t, a.Set(newAlert("server1", true)))
+		// The slot was already freed by the first resolution.
+		require.ErrorIs(t, a.Set(newAlert("server1", true)), ErrLimited)
+	})
+}
+
 func TestGC(t *testing.T) {
 	now := time.Now()
-	newAlert := func(key string, start, end time.Duration) *types.Alert {
-		return &types.Alert{
+	newAlert := func(key string, start, end time.Duration) *alert.Alert {
+		return &alert.Alert{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{model.LabelName(key): "b"},
 				StartsAt: now.Add(start * time.Minute),
@@ -150,11 +199,11 @@ func TestGC(t *testing.T) {
 			},
 		}
 	}
-	active := []*types.Alert{
+	active := []*alert.Alert{
 		newAlert("b", 10, 20),
 		newAlert("c", -10, 10),
 	}
-	resolved := []*types.Alert{
+	resolved := []*alert.Alert{
 		newAlert("a", -10, -5),
 		newAlert("d", -10, -1),
 	}
@@ -164,7 +213,7 @@ func TestGC(t *testing.T) {
 		done        = make(chan struct{})
 		ctx, cancel = context.WithCancel(context.Background())
 	)
-	s.SetGCCallback(func(a []*types.Alert) {
+	s.SetGCCallback(func(a []*alert.Alert) {
 		n += len(a)
 		if n >= len(resolved) {
 			cancel()
