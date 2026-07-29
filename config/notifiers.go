@@ -200,7 +200,10 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	// Header names are case-insensitive, check for collisions.
+	// Header names are case insensitive. The normalization loop below
+	// detects duplicates and builds a canonical header map in one pass.
+	// Both the detection and the normalization stay here rather than in
+	// Validate to avoid iterating over the headers a second time.
 	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
 		normalized := textproto.CanonicalMIMEHeaderKey(h)
