@@ -3,7 +3,7 @@ This page describes the release process and the currently planned schedule for u
 
 ## Release Schedule
 
-Release cadence of first pre-releases being cut is 12 weeks.
+Release cadence of first pre-releases being cut is approximately 8 weeks.
 
 | release series | date (year-month-day) | release shepherd                          |
 |----------------|-----------------------|-------------------------------------------|
@@ -14,7 +14,8 @@ Release cadence of first pre-releases being cut is 12 weeks.
 | v0.30          | 2025-12-12            | Solomon Jacobs (Github: @SoloJacobs)      |
 | v0.31          | 2026-01-31            | Solomon Jacobs (Github: @SoloJacobs)      |
 | v0.32          | 2026-04-08            | Solomon Jacobs (Github: @SoloJacobs)      |
-| v0.33          | 2026-06-08            | **volunteer welcome**                     |
+| v0.33          | 2026-06-08            | Ethan Hunter (Github: @Spaceman1701)      |
+| v0.34          | 2026-08-12            | Solomon Jacobs (Github: @SoloJacobs)      |
 
 If you are interested in volunteering please create a pull request against the [prometheus/alertmanager](https://github.com/prometheus/alertmanager) repository and propose yourself for the release of your choice.
 
