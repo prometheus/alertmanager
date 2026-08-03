@@ -35,9 +35,9 @@ require (
 	github.com/mdlayher/vsock v1.3.0
 	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid/v2 v2.1.1
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.69.0
+	github.com/prometheus/common v0.70.1
 	github.com/prometheus/exporter-toolkit v0.17.1
 	github.com/prometheus/sigv4 v0.4.1
 	github.com/rs/cors v1.11.1
@@ -106,7 +106,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
@@ -115,7 +115,7 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
