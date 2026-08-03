@@ -57,6 +57,12 @@ type TLSTransport struct {
 	tlsServerCfg *tls.Config
 	tlsClientCfg *tls.Config
 
+	// peerHostnames maps resolved IP:port addresses back to the original
+	// hostname provided by the user. This is used to set the TLS ServerName
+	// to the hostname instead of the IP, enabling proper certificate
+	// validation against DNS SANs.
+	peerHostnames map[string]string
+
 	packetsSent prometheus.Counter
 	packetsRcvd prometheus.Counter
 	streamsSent prometheus.Counter
@@ -136,6 +142,13 @@ func NewTLSTransport(
 	return t, nil
 }
 
+// SetPeerHostnames sets the mapping from resolved IP:port addresses to the
+// original hostname provided by the user. This allows the TLS transport to
+// use the hostname for certificate verification instead of the IP address.
+func (t *TLSTransport) SetPeerHostnames(hostnames map[string]string) {
+	t.peerHostnames = hostnames
+}
+
 // FinalAdvertiseAddr is given the user's configured values (which
 // might be empty) and returns the desired IP and port to advertise to
 // the rest of the cluster.
@@ -204,7 +217,7 @@ func (t *TLSTransport) Shutdown() error {
 // from the pool, and writes to it. It also returns a timestamp of when
 // the packet was written.
 func (t *TLSTransport) WriteTo(b []byte, addr string) (time.Time, error) {
-	conn, err := t.connPool.borrowConnection(addr, DefaultTCPTimeout)
+	conn, err := t.connPool.borrowConnection(addr, DefaultTCPTimeout, t.peerHostnames[addr])
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
 		return time.Now(), fmt.Errorf("failed to dial: %w", err)
@@ -222,7 +235,16 @@ func (t *TLSTransport) WriteTo(b []byte, addr string) (time.Time, error) {
 // DialTimeout is used to create a connection that allows memberlist
 // to perform two-way communications with a peer.
 func (t *TLSTransport) DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
-	conn, err := dialTLSConn(addr, timeout, t.tlsClientCfg)
+	tlsCfg := t.tlsClientCfg
+	if host, ok := t.peerHostnames[addr]; ok {
+		// Clone the TLS config and set ServerName to the original hostname
+		// so that certificate validation checks against DNS SANs instead of
+		// IP SANs. See https://github.com/prometheus/alertmanager/issues/5112.
+		clone := tlsCfg.Clone()
+		clone.ServerName = host
+		tlsCfg = clone
+	}
+	conn, err := dialTLSConn(addr, timeout, tlsCfg)
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
 		return nil, fmt.Errorf("failed to dial: %w", err)
