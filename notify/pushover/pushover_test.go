@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -30,7 +29,7 @@ import (
 
 func TestPushoverRetry(t *testing.T) {
 	notifier, err := New(
-		&config.PushoverConfig{
+		&PushoverConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -49,7 +48,7 @@ func TestPushoverRedactedURL(t *testing.T) {
 
 	key, token := "user_key", "token"
 	notifier, err := New(
-		&config.PushoverConfig{
+		&PushoverConfig{
 			UserKey:    commoncfg.Secret(key),
 			Token:      commoncfg.Secret(token),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -74,7 +73,7 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.PushoverConfig{
+		&PushoverConfig{
 			UserKeyFile: f.Name(),
 			Token:       commoncfg.Secret("token"),
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
@@ -99,7 +98,7 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.PushoverConfig{
+		&PushoverConfig{
 			UserKey:    commoncfg.Secret("user key"),
 			TokenFile:  f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -121,7 +120,7 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.PushoverConfig{
+		&PushoverConfig{
 			UserKey:    commoncfg.Secret("user_key"),
 			Token:      commoncfg.Secret("token"),
 			Monospace:  true,
