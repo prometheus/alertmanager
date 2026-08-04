@@ -160,6 +160,93 @@ func TestGetSilencesHandler(t *testing.T) {
 	}
 }
 
+func boolPtr(b bool) *bool { return &b }
+
+func TestGetSilencesHandlerStateFilter(t *testing.T) {
+	now := timestamppb.Now()
+	silences := newSilences(t)
+	m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+
+	// active silence: starts in the past, ends in the future.
+	activeSil := &silencepb.Silence{
+		MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{m}}},
+		StartsAt:    timestamppb.New(now.AsTime().Add(-time.Hour)),
+		EndsAt:      timestamppb.New(now.AsTime().Add(time.Hour)),
+		UpdatedAt:   now,
+	}
+	require.NoError(t, silences.Set(t.Context(), activeSil))
+
+	// pending silence: starts in the future.
+	pendingSil := &silencepb.Silence{
+		MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{m}}},
+		StartsAt:    timestamppb.New(now.AsTime().Add(time.Hour)),
+		EndsAt:      timestamppb.New(now.AsTime().Add(2 * time.Hour)),
+		UpdatedAt:   now,
+	}
+	require.NoError(t, silences.Set(t.Context(), pendingSil))
+
+	// expired silence: explicitly expired via Expire().
+	expiredSil := &silencepb.Silence{
+		MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{m}}},
+		StartsAt:    timestamppb.New(now.AsTime().Add(-time.Hour)),
+		EndsAt:      timestamppb.New(now.AsTime().Add(time.Hour)),
+		UpdatedAt:   now,
+	}
+	require.NoError(t, silences.Set(t.Context(), expiredSil))
+	require.NoError(t, silences.Expire(t.Context(), expiredSil.Id))
+
+	api := API{
+		uptime:   time.Now(),
+		silences: silences,
+		logger:   promslog.NewNopLogger(),
+	}
+
+	callHandler := func(active, expired, pending *bool) []*open_api_models.GettableSilence {
+		r, err := http.NewRequest("GET", "/api/v2/silences", nil)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.getSilencesHandler(silence_ops.GetSilencesParams{
+			HTTPRequest: r,
+			Active:      active,
+			Expired:     expired,
+			Pending:     pending,
+		})
+		responder.WriteResponse(w, p)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp []*open_api_models.GettableSilence
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		return resp
+	}
+
+	stateSet := func(sils []*open_api_models.GettableSilence) map[string]bool {
+		states := make(map[string]bool, len(sils))
+		for _, s := range sils {
+			states[string(*s.Status.State)] = true
+		}
+		return states
+	}
+
+	// No filter params (all true) - all three states returned.
+	require.Len(t, callHandler(boolPtr(true), boolPtr(true), boolPtr(true)), 3)
+
+	// active=false - active silences excluded.
+	got := stateSet(callHandler(boolPtr(false), boolPtr(true), boolPtr(true)))
+	require.False(t, got["active"])
+	require.True(t, got["expired"] || got["pending"])
+
+	// expired=false - expired silences excluded.
+	got = stateSet(callHandler(boolPtr(true), boolPtr(false), boolPtr(true)))
+	require.False(t, got["expired"])
+
+	// pending=false - pending silences excluded.
+	got = stateSet(callHandler(boolPtr(true), boolPtr(true), boolPtr(false)))
+	require.False(t, got["pending"])
+
+	// all false - empty result.
+	require.Empty(t, callHandler(boolPtr(false), boolPtr(false), boolPtr(false)))
+}
+
 func TestDeleteSilenceHandler(t *testing.T) {
 	now := timestamppb.Now()
 	silences := newSilences(t)
@@ -364,11 +451,11 @@ func getSilences(
 	r, err := http.NewRequest("GET", "/api/v2/silences", nil)
 	require.NoError(t, err)
 
+	params := silence_ops.NewGetSilencesParams()
+	params.HTTPRequest = r
+
 	p := runtime.TextProducer()
-	responder := handlerFunc(silence_ops.GetSilencesParams{
-		HTTPRequest: r,
-		Filter:      nil,
-	})
+	responder := handlerFunc(params)
 	responder.WriteResponse(w, p)
 }
 

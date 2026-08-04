@@ -329,6 +329,27 @@ func init() {
             "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
             "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include active silences in results. If false, excludes active silences.",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include expired silences in results. If false, excludes expired silences.",
+            "name": "expired",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include pending silences in results. If false, excludes pending silences.",
+            "name": "pending",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1228,6 +1249,27 @@ func init() {
             "collectionFormat": "multi",
             "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include active silences in results. If false, excludes active silences.",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include expired silences in results. If false, excludes expired silences.",
+            "name": "expired",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include pending silences in results. If false, excludes pending silences.",
+            "name": "pending",
             "in": "query"
           }
         ],

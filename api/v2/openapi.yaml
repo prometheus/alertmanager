@@ -70,6 +70,21 @@ paths:
           collectionFormat: multi
           items:
             type: string
+        - in: query
+          name: active
+          type: boolean
+          description: Include active silences in results. If false, excludes active silences.
+          default: true
+        - in: query
+          name: expired
+          type: boolean
+          description: Include expired silences in results. If false, excludes expired silences.
+          default: true
+        - in: query
+          name: pending
+          type: boolean
+          description: Include pending silences in results. If false, excludes pending silences.
+          default: true
     post:
       tags:
         - silence
