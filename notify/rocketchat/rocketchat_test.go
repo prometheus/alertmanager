@@ -24,14 +24,13 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
 func TestRocketchatRetry(t *testing.T) {
 	secret := commoncfg.Secret("xxxxx")
 	notifier, err := New(
-		&config.RocketchatConfig{
+		&RocketchatConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			Token:      &secret,
 			TokenID:    &secret,
@@ -54,7 +53,7 @@ func TestGettingRocketchatTokenFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	_, err = New(
-		&config.RocketchatConfig{
+		&RocketchatConfig{
 			TokenFile:   f.Name(),
 			TokenIDFile: f.Name(),
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},

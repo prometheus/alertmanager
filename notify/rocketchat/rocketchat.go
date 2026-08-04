@@ -26,7 +26,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -35,7 +34,7 @@ import (
 const maxTitleLenRunes = 1024
 
 type Notifier struct {
-	conf    *config.RocketchatConfig
+	conf    *RocketchatConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -50,28 +49,28 @@ type Notifier struct {
 //
 // https://rocket.chat/docs/developer-guides/rest-api/chat/postmessage/
 type Attachment struct {
-	Title     string                              `json:"title,omitempty"`
-	TitleLink string                              `json:"title_link,omitempty"`
-	Text      string                              `json:"text,omitempty"`
-	ImageURL  string                              `json:"image_url,omitempty"`
-	ThumbURL  string                              `json:"thumb_url,omitempty"`
-	Color     string                              `json:"color,omitempty"`
-	Fields    []config.RocketchatAttachmentField  `json:"fields,omitempty"`
-	Actions   []config.RocketchatAttachmentAction `json:"actions,omitempty"`
+	Title     string                       `json:"title,omitempty"`
+	TitleLink string                       `json:"title_link,omitempty"`
+	Text      string                       `json:"text,omitempty"`
+	ImageURL  string                       `json:"image_url,omitempty"`
+	ThumbURL  string                       `json:"thumb_url,omitempty"`
+	Color     string                       `json:"color,omitempty"`
+	Fields    []RocketchatAttachmentField  `json:"fields,omitempty"`
+	Actions   []RocketchatAttachmentAction `json:"actions,omitempty"`
 }
 
 // PostMessage Payload for postmessage rest API
 //
 // https://rocket.chat/docs/developer-guides/rest-api/chat/postmessage/
 type PostMessage struct {
-	Channel     string                              `json:"channel,omitempty"`
-	Text        string                              `json:"text,omitempty"`
-	ParseUrls   bool                                `json:"parseUrls,omitempty"`
-	Alias       string                              `json:"alias,omitempty"`
-	Emoji       string                              `json:"emoji,omitempty"`
-	Avatar      string                              `json:"avatar,omitempty"`
-	Attachments []Attachment                        `json:"attachments,omitempty"`
-	Actions     []config.RocketchatAttachmentAction `json:"actions,omitempty"`
+	Channel     string                       `json:"channel,omitempty"`
+	Text        string                       `json:"text,omitempty"`
+	ParseUrls   bool                         `json:"parseUrls,omitempty"`
+	Alias       string                       `json:"alias,omitempty"`
+	Emoji       string                       `json:"emoji,omitempty"`
+	Avatar      string                       `json:"avatar,omitempty"`
+	Attachments []Attachment                 `json:"attachments,omitempty"`
+	Actions     []RocketchatAttachmentAction `json:"actions,omitempty"`
 }
 
 type rocketchatRoundTripper struct {
@@ -87,7 +86,7 @@ func (t *rocketchatRoundTripper) RoundTrip(req *http.Request) (res *http.Respons
 }
 
 // New returns a new Rocketchat notification handler.
-func New(c *config.RocketchatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *RocketchatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "rocketchat", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -114,7 +113,7 @@ func New(c *config.RocketchatConfig, t *template.Template, l *slog.Logger, httpO
 	}, nil
 }
 
-func getTokenID(c *config.RocketchatConfig) (string, error) {
+func getTokenID(c *RocketchatConfig) (string, error) {
 	if len(c.TokenIDFile) > 0 {
 		content, err := os.ReadFile(c.TokenIDFile)
 		if err != nil {
@@ -125,7 +124,7 @@ func getTokenID(c *config.RocketchatConfig) (string, error) {
 	return string(*c.TokenID), nil
 }
 
-func getToken(c *config.RocketchatConfig) (string, error) {
+func getToken(c *RocketchatConfig) (string, error) {
 	if len(c.TokenFile) > 0 {
 		content, err := os.ReadFile(c.TokenFile)
 		if err != nil {
@@ -171,7 +170,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		fields := make([]config.RocketchatAttachmentField, numFields)
+		fields := make([]RocketchatAttachmentField, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -182,7 +181,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.RocketchatAttachmentField{
+			fields[index] = RocketchatAttachmentField{
 				Title: tmplText(field.Title),
 				Value: tmplText(field.Value),
 				Short: &short,
@@ -192,9 +191,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		actions := make([]config.RocketchatAttachmentAction, numActions)
+		actions := make([]RocketchatAttachmentAction, numActions)
 		for index, action := range n.conf.Actions {
-			actions[index] = config.RocketchatAttachmentAction{
+			actions[index] = RocketchatAttachmentAction{
 				Type: "button", // Only button type is supported
 				Text: tmplText(action.Text),
 				URL:  tmplText(action.URL),
