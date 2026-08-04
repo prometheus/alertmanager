@@ -29,6 +29,8 @@ import (
 
 // FileOutputConfig configures a JSONL file event recorder output.
 type FileOutputConfig struct {
+	// Name identifies this output in metrics and logs.
+	Name string `yaml:"name" json:"name"`
 	// Path is the JSONL file to append events to.  Created if absent.
 	Path string `yaml:"path" json:"path"`
 }
@@ -38,6 +40,9 @@ type FileOutputConfig struct {
 func (c *FileOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain FileOutputConfig
 	if err := unmarshal((*plain)(c)); err != nil {
+		return errors.New("invalid event_recorder file output configuration")
+	}
+	if _, err := outputIdentifier("file", c.Name); err != nil {
 		return err
 	}
 	if c.Path == "" {
@@ -48,7 +53,7 @@ func (c *FileOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // equal reports whether two file output configs are semantically equal.
 func (c FileOutputConfig) equal(o FileOutputConfig) bool {
-	return c.Path == o.Path
+	return c.Name == o.Name && c.Path == o.Path
 }
 
 // FileOutput writes pre-serialized JSON event bytes to a JSONL file.
@@ -56,6 +61,7 @@ func (c FileOutputConfig) equal(o FileOutputConfig) bool {
 // logrotate).
 type FileOutput struct {
 	path   string
+	name   string
 	mu     sync.Mutex
 	f      *os.File
 	closed bool
@@ -66,20 +72,28 @@ type FileOutput struct {
 
 // Name returns a stable identifier for this output.
 func (fo *FileOutput) Name() string {
-	return fmt.Sprintf("file:%s", fo.path)
+	return fo.name
 }
 
-// NewFileOutput creates a new file-based event recorder output at the given
-// path.  The file is watched with fsnotify so that external log
+// NewFileOutput creates a new file-based event recorder output. The file is
+// watched with fsnotify so that external log
 // rotation tools (e.g., logrotate) trigger an immediate reopen.
-func NewFileOutput(path string, logger *slog.Logger) (*FileOutput, error) {
-	f, err := openAppend(path)
+func NewFileOutput(cfg FileOutputConfig, logger *slog.Logger) (*FileOutput, error) {
+	name, err := outputIdentifier("file", cfg.Name)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Path == "" {
+		return nil, errors.New("file output requires a path")
+	}
+	f, err := openAppend(cfg.Path)
 	if err != nil {
 		return nil, err
 	}
 
 	fo := &FileOutput{
-		path:   path,
+		path:   cfg.Path,
+		name:   name,
 		f:      f,
 		logger: logger,
 		done:   make(chan struct{}),
@@ -111,7 +125,7 @@ func (fo *FileOutput) reopen() {
 	}
 	f, err := openAppend(fo.path)
 	if err != nil {
-		fo.logger.Error("Failed to reopen event recorder file", "path", fo.path, "err", err)
+		fo.logger.Error("Failed to reopen event recorder file", "output", fo.name, "path", fo.path, "err", err)
 		return
 	}
 	fo.f = f
@@ -163,7 +177,7 @@ func (fo *FileOutput) watchLoop(ready chan<- error) {
 			if !ok {
 				return
 			}
-			fo.logger.Error("fsnotify error on event recorder directory", "err", err)
+			fo.logger.Error("fsnotify error on event recorder directory", "output", fo.name, "path", fo.path, "err", err)
 		case <-fo.done:
 			return
 		}

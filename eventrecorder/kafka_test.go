@@ -14,9 +14,11 @@
 package eventrecorder
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +35,29 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/kafka"
 )
+
+type synchronizedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (b *synchronizedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *synchronizedBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Len()
+}
+
+func (b *synchronizedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
+}
 
 // --- helpers.
 
@@ -130,6 +155,7 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "json",
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -164,6 +190,7 @@ func TestKafkaOutput_SendEvent_Protobuf(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "protobuf",
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatProtobuf,
@@ -200,6 +227,7 @@ func TestKafkaOutput_KeyIsInstance(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "key",
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -232,6 +260,7 @@ func TestKafkaOutput_DropsOnFullBuffer(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:       "drops",
 			Brokers:    brokers,
 			Topic:      topic,
 			Format:     kafka.FormatJSON,
@@ -273,6 +302,7 @@ func TestKafkaOutput_SendAfterClose(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "after-close",
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -299,6 +329,7 @@ func TestKafkaOutput_CloseFlushesQueue(t *testing.T) {
 
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "flush",
 			Brokers: brokers,
 			Topic:   topic,
 			Format:  kafka.FormatJSON,
@@ -326,9 +357,12 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 	// must succeed and Name() must be well-formed.  Importantly, the
 	// constructor must NOT block on the ping timeout — that runs in
 	// the background.
+	var logs synchronizedBuffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	start := time.Now()
 	ko, err := NewKafkaOutput(
 		KafkaOutputConfig{
+			Name:    "unreachable",
 			Brokers: []string{"127.0.0.1:1"},
 			Topic:   "no-broker",
 			Format:  kafka.FormatJSON,
@@ -336,12 +370,12 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 		"test-host",
 		testOutputDrops(),
 		testKafkaProduceErrors(),
-		slog.Default(),
+		logger,
 	)
 	constructDur := time.Since(start)
 	require.NoError(t, err)
 	require.NotNil(t, ko)
-	require.Equal(t, "kafka:127.0.0.1:1/no-broker", ko.Name())
+	require.Equal(t, "kafka:unreachable", ko.Name())
 
 	// Construction must return well before the ping timeout (5s).
 	// 1s is generous for CI but still 5x faster than the timeout.
@@ -355,6 +389,12 @@ func TestKafkaOutput_ContinuesOnInitialPingFailure(t *testing.T) {
 	require.NoError(t, ko.Close())
 	require.Less(t, time.Since(closeStart), 2*time.Second,
 		"Close must abort the in-flight ping")
+	require.Eventually(t, func() bool {
+		return logs.Len() > 0
+	}, time.Second, 10*time.Millisecond)
+	require.Contains(t, logs.String(), "kafka:unreachable")
+	require.NotContains(t, logs.String(), "127.0.0.1:1")
+	require.NotContains(t, logs.String(), "no-broker")
 }
 
 func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
@@ -364,11 +404,12 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 	}{
 		{
 			name: "no brokers",
-			cfg:  KafkaOutputConfig{Topic: "t", Format: kafka.FormatJSON},
+			cfg:  KafkaOutputConfig{Name: "test", Topic: "t", Format: kafka.FormatJSON},
 		},
 		{
 			name: "empty broker entry",
 			cfg: KafkaOutputConfig{
+				Name:    "test",
 				Brokers: []string{"127.0.0.1:9092", ""},
 				Topic:   "t",
 				Format:  kafka.FormatJSON,
@@ -376,15 +417,20 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 		},
 		{
 			name: "no topic",
-			cfg:  KafkaOutputConfig{Brokers: []string{"127.0.0.1:9092"}, Format: kafka.FormatJSON},
+			cfg:  KafkaOutputConfig{Name: "test", Brokers: []string{"127.0.0.1:9092"}, Format: kafka.FormatJSON},
+		},
+		{
+			name: "no name",
+			cfg:  KafkaOutputConfig{Brokers: []string{"127.0.0.1:9092"}, Topic: "t", Format: kafka.FormatJSON},
 		},
 		{
 			name: "bad format",
-			cfg:  KafkaOutputConfig{Brokers: []string{"127.0.0.1:9092"}, Topic: "t", Format: "yaml"},
+			cfg:  KafkaOutputConfig{Name: "test", Brokers: []string{"127.0.0.1:9092"}, Topic: "t", Format: "yaml"},
 		},
 		{
 			name: "bad acks",
 			cfg: KafkaOutputConfig{
+				Name:    "test",
 				Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
 				Format: kafka.FormatJSON, Acks: "majority",
 			},
@@ -392,6 +438,7 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 		{
 			name: "bad compression",
 			cfg: KafkaOutputConfig{
+				Name:    "test",
 				Brokers: []string{"127.0.0.1:9092"}, Topic: "t",
 				Format: kafka.FormatJSON, Compression: "deflate",
 			},
@@ -405,28 +452,17 @@ func TestKafkaOutput_RejectsBadConfig(t *testing.T) {
 	}
 }
 
-func TestKafkaOutput_NameIsStable(t *testing.T) {
-	// The Name() format ("kafka:<sorted-brokers>/<topic>") is composed
-	// here in eventrecorder; broker-list sorting is handled by the
-	// shared kafka package (and tested there).  This test pins the
-	// composition formula so reordering brokers in YAML doesn't change
-	// the Prometheus label value.
-	const topic = "topic"
-	a := "kafka:" + kafka.BrokerList([]string{"b:9092", "a:9092"}) + "/" + topic
-	b := "kafka:" + kafka.BrokerList([]string{"a:9092", "b:9092"}) + "/" + topic
-	require.Equal(t, a, b)
-	require.Equal(t, "kafka:a:9092,b:9092/topic", a)
-}
-
 // --- config tests.
 
 func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
 	a := Config{KafkaOutputs: []KafkaOutputConfig{{
+		Name:    "test",
 		Brokers: []string{"b:9092", "a:9092"},
 		Topic:   "t",
 		Format:  kafka.FormatJSON,
 	}}}
 	b := Config{KafkaOutputs: []KafkaOutputConfig{{
+		Name:    "test",
 		Brokers: []string{"a:9092", "b:9092"},
 		Topic:   "t",
 		Format:  kafka.FormatJSON,
@@ -439,6 +475,10 @@ func TestEventRecorderConfigEqual_KafkaBrokerOrder(t *testing.T) {
 	b.KafkaOutputs[0].Topic = "t"
 	b.KafkaOutputs[0].Format = kafka.FormatProtobuf
 	require.False(t, configEqual(a, b), "differing formats must compare unequal")
+
+	b.KafkaOutputs[0].Format = kafka.FormatJSON
+	b.KafkaOutputs[0].Name = "other"
+	require.False(t, configEqual(a, b), "differing names must compare unequal")
 }
 
 func TestKafkaOutputConfig_UnmarshalYAML(t *testing.T) {
@@ -451,10 +491,12 @@ func TestKafkaOutputConfig_UnmarshalYAML(t *testing.T) {
 		{
 			name: "valid minimal kafka",
 			yaml: `
+name: primary
 brokers: [a:9092, b:9092]
 topic: amgr-events
 `,
 			check: func(t *testing.T, c KafkaOutputConfig) {
+				require.Equal(t, "primary", c.Name)
 				require.Equal(t, "amgr-events", c.Topic)
 				// Format defaults to "json" when omitted.
 				require.Equal(t, kafka.FormatJSON, c.Format)
@@ -463,6 +505,7 @@ topic: amgr-events
 		{
 			name: "valid full kafka",
 			yaml: `
+name: secondary
 brokers: [a:9092]
 topic: t
 client_id: amgr
@@ -481,32 +524,37 @@ buffer_size: 4096
 		},
 		{
 			name:    "missing brokers",
-			yaml:    "topic: t\n",
+			yaml:    "name: test\ntopic: t\n",
 			wantErr: true,
 		},
 		{
 			name:    "missing topic",
-			yaml:    "brokers: [a:9092]\n",
+			yaml:    "name: test\nbrokers: [a:9092]\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing name",
+			yaml:    "brokers: [a:9092]\ntopic: t\n",
 			wantErr: true,
 		},
 		{
 			name:    "empty broker entry",
-			yaml:    "brokers: ['']\ntopic: t\n",
+			yaml:    "name: test\nbrokers: ['']\ntopic: t\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad format",
-			yaml:    "brokers: [a:9092]\ntopic: t\nformat: yaml\n",
+			yaml:    "name: test\nbrokers: [a:9092]\ntopic: t\nformat: yaml\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad acks",
-			yaml:    "brokers: [a:9092]\ntopic: t\nacks: majority\n",
+			yaml:    "name: test\nbrokers: [a:9092]\ntopic: t\nacks: majority\n",
 			wantErr: true,
 		},
 		{
 			name:    "bad compression",
-			yaml:    "brokers: [a:9092]\ntopic: t\ncompression: deflate\n",
+			yaml:    "name: test\nbrokers: [a:9092]\ntopic: t\ncompression: deflate\n",
 			wantErr: true,
 		},
 	}

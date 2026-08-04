@@ -53,7 +53,8 @@ receivers:
 - name: default
 event_recorder:
   webhook_outputs:
-  - url: https://stream-id.ingest.cloudflare.com
+  - name: pipelines
+    url: https://stream-id.ingest.cloudflare.com
     batch: true
     http_config:
       authorization:

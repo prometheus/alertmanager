@@ -14,6 +14,7 @@
 package eventrecorder
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
@@ -134,6 +136,58 @@ func TestNewRecorderFromConfig_NilLogger(t *testing.T) {
 	})
 }
 
+func TestBuildOutputs_LogsFilePathButNotKafkaConfig(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	cfg := Config{
+		FileOutputs: []FileOutputConfig{{
+			Name: "archive",
+			Path: "/missing/private/file/events.jsonl",
+		}},
+		KafkaOutputs: []KafkaOutputConfig{{
+			Name:    "events",
+			Brokers: []string{"private-broker.example:9092"},
+			Topic:   "private-topic",
+			Format:  "invalid",
+		}},
+	}
+
+	outputs := buildOutputs(cfg, "test", newMetrics(nil), logger)
+	require.Empty(t, outputs)
+	require.Contains(t, logs.String(), "file:archive")
+	require.Contains(t, logs.String(), "kafka:events")
+	require.Contains(t, logs.String(), "/missing/private/file/events.jsonl")
+	require.NotContains(t, logs.String(), "private-broker.example:9092")
+	require.NotContains(t, logs.String(), "private-topic")
+}
+
+func TestEventRecorderConfigRejectsDuplicateOutputNames(t *testing.T) {
+	var cfg Config
+	err := yaml.Unmarshal([]byte(`
+file_outputs:
+- name: archive
+  path: /tmp/one
+- name: archive
+  path: /tmp/two
+`), &cfg)
+	require.ErrorContains(t, err, "duplicated")
+}
+
+func TestOutputIdentifier(t *testing.T) {
+	id, err := outputIdentifier("webhook", "primary.eu-1")
+	require.NoError(t, err)
+	require.Equal(t, "webhook:primary.eu-1", id)
+
+	for _, name := range []string{"", "private/path", "https://secret.example", "line\nbreak"} {
+		_, err := outputIdentifier("webhook", name)
+		require.Error(t, err)
+		if name != "" {
+			require.NotContains(t, err.Error(), name)
+		}
+		require.Equal(t, "webhook:<invalid>", safeOutputIdentifier("webhook", name))
+	}
+}
+
 func TestRecordingNotEnabledByDefault(t *testing.T) {
 	out := newMockDestination("test:mock")
 	rec := newTestRecorder(out)
@@ -171,7 +225,7 @@ func TestApplyConfig(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
-	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Name: "a", Path: "/tmp/a"}}}
 	b := Config{}
 	require.False(t, configEqual(a, b),
 		"configs with different output counts must compare unequal")
@@ -180,8 +234,8 @@ func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
 func TestEventRecorderConfigEqual_TypeMismatch(t *testing.T) {
 	// Same total output count but in different per-type lists must
 	// compare unequal.
-	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
-	b := Config{WebhookOutputs: []WebhookOutputConfig{{URL: mustParseURL(t, "https://example.com/h")}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Name: "a", Path: "/tmp/a"}}}
+	b := Config{WebhookOutputs: []WebhookOutputConfig{{Name: "b", URL: mustParseURL(t, "https://example.com/h")}}}
 	require.False(t, configEqual(a, b),
 		"outputs of different types must compare unequal")
 }
