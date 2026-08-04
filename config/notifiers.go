@@ -24,8 +24,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-
-	"github.com/prometheus/sigv4"
 )
 
 var (
@@ -115,15 +113,6 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
-	}
-
-	// DefaultSNSConfig defines default values for SNS configurations.
-	DefaultSNSConfig = SNSConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Subject: `{{ template "sns.default.subject" . }}`,
-		Message: `{{ template "sns.default.message" . }}`,
 	}
 )
 
@@ -525,38 +514,6 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if c.HTML && c.Monospace {
 		return errors.New("at most one of monospace & html must be configured")
-	}
-	return nil
-}
-
-type SNSConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIUrl      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Sigv4       sigv4.SigV4Config `yaml:"sigv4" json:"sigv4"`
-	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
-	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
-	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
-	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
-	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
-	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
-	// UseAWSHTTPClient forces the AWS SDK's BuildableClient instead of
-	// alertmanager's tracing-wrapped HTTP client. Auto-enabled when AWS_CA_BUNDLE
-	// is set; set explicitly when configuring ca_bundle via shared AWS config.
-	UseAWSHTTPClient bool `yaml:"use_aws_http_client,omitempty" json:"use_aws_http_client,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultSNSConfig
-	type plain SNSConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
-		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
 	return nil
 }
