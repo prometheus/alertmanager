@@ -273,3 +273,53 @@ func TestGetFailureReasonFromStatusCode(t *testing.T) {
 		})
 	}
 }
+
+func TestTmplTextWithLogger_LogsOnError(t *testing.T) {
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+
+	data := &template.Data{}
+	var tmplErr error
+
+	var buf bytes.Buffer
+	logger := promslog.New(&promslog.Config{Writer: &buf})
+
+	tmplFn := TmplTextWithLogger(tmpl, data, &tmplErr, logger)
+
+	// An unclosed action causes a parse/execute error.
+	result := tmplFn("{{ .Missing")
+
+	require.Error(t, tmplErr)
+	require.Empty(t, result)
+	logOutput := buf.String()
+	require.Contains(t, logOutput, "template execution failed")
+	require.Contains(t, logOutput, "{{ .Missing")   // template name is logged
+	require.Contains(t, logOutput, tmplErr.Error()) // rendering error is logged
+
+	// Subsequent calls must short-circuit without logging again.
+	buf.Reset()
+	_ = tmplFn("{{ .AnotherField }}")
+	require.Empty(t, buf.String(), "no second log expected after first error")
+}
+
+func TestTmplHTMLWithLogger_LogsOnError(t *testing.T) {
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+
+	data := &template.Data{}
+	var tmplErr error
+
+	var buf bytes.Buffer
+	logger := promslog.New(&promslog.Config{Writer: &buf})
+
+	tmplFn := TmplHTMLWithLogger(tmpl, data, &tmplErr, logger)
+
+	result := tmplFn("{{ .Missing")
+
+	require.Error(t, tmplErr)
+	require.Empty(t, result)
+	logOutput := buf.String()
+	require.Contains(t, logOutput, "template execution failed")
+	require.Contains(t, logOutput, "{{ .Missing")   // template name is logged
+	require.Contains(t, logOutput, tmplErr.Error()) // rendering error is logged
+}

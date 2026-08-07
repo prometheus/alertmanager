@@ -81,8 +81,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		err     error
 		message string
 	)
-	tmpl := notify.TmplText(n.tmpl, data, &err)
-	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &err, logger)
+	tmplHTML := notify.TmplHTMLWithLogger(n.tmpl, data, &err, logger)
 
 	var (
 		token   string

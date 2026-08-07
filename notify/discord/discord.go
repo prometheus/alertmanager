@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	alerts := types.Alerts(as...)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
-	tmpl := notify.TmplText(n.tmpl, data, &err)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &err, logger)
 	if err != nil {
 		return false, err
 	}

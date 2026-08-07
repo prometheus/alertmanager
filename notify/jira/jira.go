@@ -77,7 +77,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		tmplTextErr  error
 		data         = notify.GetTemplateData(ctx, n.tmpl, as, logger)
-		tmplText     = notify.TmplText(n.tmpl, data, &tmplTextErr)
+		tmplText     = notify.TmplTextWithLogger(n.tmpl, data, &tmplTextErr, logger)
 		tmplTextFunc = func(tmpl string) (string, error) {
 			return tmplText(tmpl), tmplTextErr
 		}

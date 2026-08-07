@@ -104,7 +104,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
+		tmpl    = notify.TmplTextWithLogger(n.tmpl, data, &tmplErr, n.logger)
 	)
 
 	client, err := n.createSNSClient(ctx, tmpl, &tmplErr)
