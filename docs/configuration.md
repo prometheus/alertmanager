@@ -845,6 +845,8 @@ msteamsv2_configs:
   [ - <msteamsv2_config>, ... ]
 jira_configs:
   [ - <jira_config>, ... ]
+kafka_configs:
+  [ - <kafka_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 pagerduty_configs:
@@ -2007,6 +2009,45 @@ endpoint:
 There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
+
+### `<kafka_config>`
+
+The Kafka receiver produces one record for each Alertmanager notification group.
+The record key is the notification's group key, keeping notifications for the
+same group on the same partition. The record value is a JSON object using the
+same version 4 format as the [webhook receiver](#webhook_config). The
+`truncatedAlerts` field is always zero because the Kafka receiver sends every
+alert in the group.
+
+The target topic must already exist, unless the brokers are configured to
+automatically create topics. Alertmanager does not create it.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# Seed Kafka brokers in host:port form. At least one broker is required.
+brokers:
+  [ - <string> ... ]
+
+# Topic to produce notifications to.
+topic: <string>
+
+# Client identifier reported to the brokers.
+[ client_id: <string> | default = "alertmanager" ]
+
+# Producer acknowledgement level. With "none", broker-side delivery failures
+# cannot be reported to Alertmanager. "leader" waits for the partition leader.
+# "all" waits for all in-sync replicas and enables idempotent writes.
+[ acks: <"none" | "leader" | "all"> | default = "leader" ]
+
+# Compression codec for record batches. When omitted, batches are uncompressed.
+[ compression: <"none" | "gzip" | "snappy" | "lz4" | "zstd"> ]
+
+# TLS configuration for broker connections. When unset, connections use
+# PLAINTEXT.
+[ tls_config: <tls_config> ]
+```
 
 ### `<incidentio_config>`
 
