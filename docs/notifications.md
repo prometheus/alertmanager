@@ -87,6 +87,8 @@ templating.
 | Name             | Arguments                  | Description |
 | ---------------- | -------------------------- | ----------- |
 | append           | slice []any, args ...any   | Returns a new slice with the provided arguments appended to the provided slice. |
+| base64decode     | text string                | [base64.URLEncoding.DecodeString](https://pkg.go.dev/encoding/base64#Encoding.DecodeString), decodes a URL-safe base64 encoded string, and the error if it happened. |
+| base64encode     | text string                | [base64.URLEncoding.EncodeToString](https://pkg.go.dev/encoding/base64#Encoding.EncodeToString), returns the URL-safe base64 encoding of a string, e.g. for use in a query parameter. |
 | date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
 | dict             | values ...any              | Returns a map of string to any, constructed from the variadic list of key-value pairs. The number of arguments must be even, and the keys must be strings. |
 | humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
