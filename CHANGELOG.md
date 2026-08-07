@@ -1,5 +1,7 @@
 ## main / (unreleased)
 
+* [CHANGE] api: Remove the `/api/v1/` deprecation responder. These endpoints have returned `410 Gone` since 0.27.0; requests to `/api/v1/` are no longer handled.
+* [FEATURE] api: Add an experimental ConnectRPC API served alongside `/api/v2/` under the version-neutral `/api/` prefix, exposing the Connect, gRPC, and gRPC-Web protocols plus the gRPC Health Checking Protocol and server reflection. The first service is `status.v3.StatusService`.
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated.
 * [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
 * [ENHANCEMENT] eventrecorder: Add optional webhook batching.
