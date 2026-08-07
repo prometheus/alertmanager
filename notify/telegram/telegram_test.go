@@ -205,3 +205,78 @@ func TestTelegramNotify(t *testing.T) {
 		})
 	}
 }
+
+func TestTelegramNotifyFailureReason(t *testing.T) {
+	token := "secret"
+
+	for _, tc := range []struct {
+		name           string
+		response       string
+		expectedReason notify.Reason
+	}{
+		{
+			name:           "Unauthorized is classified as auth error",
+			response:       `{"ok":false,"error_code":401,"description":"Unauthorized"}`,
+			expectedReason: notify.AuthErrorReason,
+		},
+		{
+			name:           "Blocked by user is classified as auth error",
+			response:       `{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`,
+			expectedReason: notify.AuthErrorReason,
+		},
+		{
+			name:           "Chat not found is classified as client error",
+			response:       `{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`,
+			expectedReason: notify.ClientErrorReason,
+		},
+		{
+			name:           "Internal server error is classified as server error",
+			response:       `{"ok":false,"error_code":500,"description":"Internal Server Error"}`,
+			expectedReason: notify.ServerErrorReason,
+		},
+		{
+			name:           "Flood control is classified as rate limited",
+			response:       `{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5","parameters":{"retry_after":5}}`,
+			expectedReason: notify.RateLimitedReason,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(tc.response))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			cfg := config.TelegramConfig{
+				Message:    "test",
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+				APIUrl:     &amcommoncfg.URL{URL: u},
+			}
+
+			notifier, err := New(&cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			retry, err := notifier.Notify(ctx, []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"lbl1": "val1"},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}...)
+
+			require.True(t, retry)
+			require.Error(t, err)
+
+			var reasonError *notify.ErrorWithReason
+			require.ErrorAs(t, err, &reasonError)
+			require.Equal(t, tc.expectedReason, reasonError.Reason)
+		})
+	}
+}

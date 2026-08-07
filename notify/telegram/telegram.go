@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -118,11 +119,27 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
-		return true, err
+		return true, wrapWithFailureReason(err)
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
 	return false, nil
+}
+
+// wrapWithFailureReason classifies errors returned by the Telegram Bot API so
+// that the failed notifications metric is labeled with the failure reason.
+// Errors that telebot does not surface in a structured form are returned as-is
+// and fall back to the default reason.
+func wrapWithFailureReason(err error) error {
+	var floodErr telebot.FloodError
+	if errors.As(err, &floodErr) {
+		return notify.NewErrorWithReason(notify.RateLimitedReason, err)
+	}
+	var apiErr *telebot.Error
+	if errors.As(err, &apiErr) {
+		return notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(apiErr.Code), err)
+	}
+	return err
 }
 
 func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
