@@ -2166,6 +2166,12 @@ stdout_outputs:
   [ - <stdout_output> ... ]
 ```
 
+Every output uses the schema in `proto/eventrecorder/events/v2/events.proto`.
+Alert labels, alert annotations, group labels, silence annotations, and
+muted-alert labels are encoded as maps. Protobuf consumers must use the Go
+package `github.com/prometheus/alertmanager/eventrecorder/events/v2` or bindings
+generated from that schema.
+
 #### `<file_output>`
 
 Writes each event as a single JSON line to a file.  The file is reopened
@@ -2225,7 +2231,10 @@ url: <secret>
 
 For example, [Cloudflare Pipelines streams](https://developers.cloudflare.com/pipelines/streams/writing-to-streams/)
 accept JSON arrays through their HTTP ingestion endpoints and can be configured
-as a batched webhook output:
+as a batched webhook output. Because the event timestamp field is named
+`@timestamp`, quote it when referencing it from the pipeline SQL. A complete
+fan-out example is available under
+[`doc/examples/cloudflare-pipelines`](https://github.com/prometheus/alertmanager/blob/main/doc/examples/cloudflare-pipelines/README.md).
 
 ```yaml
 event_recorder:
@@ -2268,7 +2277,7 @@ topic: <string>
 # On-the-wire encoding for each record value: "json" (protojson) or
 # "protobuf" (binary proto).  JSON is the default for symmetry with the
 # file and webhook outputs; consumers that already use the
-# eventrecorder.proto schema may prefer protobuf for compactness.
+# selected event recorder protobuf schema may prefer protobuf for compactness.
 [ format: <"json" | "protobuf"> | default = "json" ]
 
 # Producer acknowledgement level.  "leader" matches the franz-go default

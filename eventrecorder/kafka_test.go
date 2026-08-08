@@ -30,7 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	events "github.com/prometheus/alertmanager/eventrecorder/events/v2"
 	"github.com/prometheus/alertmanager/kafka"
 )
 
@@ -106,19 +106,19 @@ func counterValue(t *testing.T, c prometheus.Counter) float64 {
 	return m.GetCounter().GetValue()
 }
 
-func sampleEvent() *eventrecorderpb.Event {
-	return &eventrecorderpb.Event{
+func sampleEvent() Event {
+	return Event{message: &events.Event{
 		Timestamp: timestamppb.New(time.Unix(1700000000, 0)),
 		Instance:  "test-host",
-		Data: &eventrecorderpb.EventData{
-			EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-				AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
+		Data: &events.EventData{
+			EventType: &events.EventData_AlertmanagerStartupEvent{
+				AlertmanagerStartupEvent: &events.AlertmanagerStartupEvent{
 					Version:      "v-test",
 					BuildContext: "test-build",
 				},
 			},
 		},
-	}
+	}, eventType: "alertmanager_startup_event"}
 }
 
 // --- tests.
@@ -142,6 +142,7 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 	require.NoError(t, err)
 
 	ev := sampleEvent()
+	evpb := ev.protoMessage().(*events.Event)
 	n, err := ko.SendEvent(ev)
 	require.NoError(t, err)
 	require.Positive(t, n)
@@ -150,9 +151,9 @@ func TestKafkaOutput_SendEvent_JSON(t *testing.T) {
 	records := readRecords(t, brokers, topic, 1, 5*time.Second)
 	require.Len(t, records, 1)
 
-	var got eventrecorderpb.Event
+	var got events.Event
 	require.NoError(t, protojson.Unmarshal(records[0].Value, &got))
-	require.Equal(t, ev.Instance, got.Instance)
+	require.Equal(t, evpb.Instance, got.Instance)
 	require.Equal(t, "v-test", got.GetData().GetAlertmanagerStartupEvent().GetVersion())
 	require.Equal(t, "test-host", string(records[0].Key))
 }
@@ -176,6 +177,7 @@ func TestKafkaOutput_SendEvent_Protobuf(t *testing.T) {
 	require.NoError(t, err)
 
 	ev := sampleEvent()
+	evpb := ev.protoMessage().(*events.Event)
 	n, err := ko.SendEvent(ev)
 	require.NoError(t, err)
 	require.Positive(t, n)
@@ -184,10 +186,10 @@ func TestKafkaOutput_SendEvent_Protobuf(t *testing.T) {
 	records := readRecords(t, brokers, topic, 1, 5*time.Second)
 	require.Len(t, records, 1)
 
-	var got eventrecorderpb.Event
+	var got events.Event
 	require.NoError(t, proto.Unmarshal(records[0].Value, &got))
-	require.Equal(t, ev.Instance, got.Instance)
-	require.Equal(t, ev.Timestamp.AsTime().Unix(), got.Timestamp.AsTime().Unix())
+	require.Equal(t, evpb.Instance, got.Instance)
+	require.Equal(t, evpb.Timestamp.AsTime().Unix(), got.Timestamp.AsTime().Unix())
 	require.Equal(t, "v-test", got.GetData().GetAlertmanagerStartupEvent().GetVersion())
 	require.Equal(t, "test-host", string(records[0].Key))
 }

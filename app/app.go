@@ -39,7 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/httpserver"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
@@ -265,23 +264,12 @@ func (a *App) setup() error {
 	a.onStop("event recorder", eventRec.Close)
 
 	recordCtx := eventrecorder.WithEventRecording(context.Background())
-	eventRec.RecordEvent(recordCtx, func() *eventrecorderpb.EventData {
-		return &eventrecorderpb.EventData{
-			EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-				AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
-					Version:      version.Version,
-					BuildContext: version.BuildContext(),
-				},
-			},
-		}
+	eventRec.RecordEvent(recordCtx, func() eventrecorder.Event {
+		return eventrecorder.NewAlertmanagerStartupEvent(version.Version, version.BuildContext())
 	})
 	a.onStop("shutdown event", func() error {
-		eventRec.RecordEvent(recordCtx, func() *eventrecorderpb.EventData {
-			return &eventrecorderpb.EventData{
-				EventType: &eventrecorderpb.EventData_AlertmanagerShutdownEvent{
-					AlertmanagerShutdownEvent: &eventrecorderpb.AlertmanagerShutdownEvent{},
-				},
-			}
+		eventRec.RecordEvent(recordCtx, func() eventrecorder.Event {
+			return eventrecorder.NewAlertmanagerShutdownEvent()
 		})
 		return nil
 	})
