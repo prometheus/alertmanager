@@ -1,0 +1,28 @@
+global:
+  jsmops_api_url: https://custom.jsmops.example.com/
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  receiver: team-Y-jsmops
+  routes:
+    - match:
+        service: foo
+      receiver: team-X-jsmops
+receivers:
+  - name: 'team-X-jsmops'
+    jsmops_configs:
+      - cloud_id: 'cloud-id-1'
+        http_config:
+          basic_auth:
+            username: user1
+            password: pass1
+  - name: 'team-Y-jsmops'
+    jsmops_configs:
+      - cloud_id: 'cloud-id-2'
+        api_url: https://override.jsmops.example.com/
+        http_config:
+          basic_auth:
+            username: user2
+            password: pass2

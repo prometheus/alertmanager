@@ -117,6 +117,7 @@ global:
   [ opsgenie_api_key: <secret> ]
   [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
+  [ jsmops_api_url: <string> | default = "https://api.atlassian.com/jsm/ops/api/" ]
   [ rocketchat_api_url: <string> | default = "https://open.rocket.chat/" ]
   # The default Rocketchat sender token. It is mutually exclusive with `rocketchat_token_file`.
   [ rocketchat_token: <secret> ]
@@ -847,6 +848,8 @@ jira_configs:
   [ - <jira_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
+jsmops_configs:
+  [ - <jsmops_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 incidentio_configs:
@@ -1450,6 +1453,92 @@ responders:
 ```
 
 #### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# One of `team`, `teams`, `user`, `escalation` or `schedule`.
+#
+# The `teams` responder is configured using the `name` field above.
+# This field can contain a comma-separated list of team names.
+# If the list is empty, no responders are configured.
+type: <tmpl_string>
+```
+
+### `<jsmops_config>`
+
+JSM Ops (Jira Service Management Operations) notifications are sent via the
+[JSM Ops REST API](https://developer.atlassian.com/cloud/jira/service-desk-ops/rest/v2/intro/).
+This receiver is the migration target for the deprecated `opsgenie` receiver.
+
+Authentication is configured entirely via the `http_config` block, using `basic_auth`
+with an Atlassian account email and API token. There is no `api_key` field.
+
+Note: the JSM Ops REST API supports basic authentication and OAuth 2.0
+authorization code grants (3LO). Alertmanager's `oauth2` HTTP client
+configuration implements the client credentials grant, which this API does not
+support, so `basic_auth` is the only working authentication method. Atlassian
+account API tokens have a maximum lifetime of one year and must be rotated
+before they expire.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Atlassian Cloud ID used as a path variable in the JSM Ops API URL.
+# This is a required field.
+cloud_id: <string>
+
+# The base URL for JSM Ops API requests.
+[ api_url: <string> | default = global.jsmops_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> | default = '{{ template "jsmops.default.message" . }}' ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "jsmops.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "jsmops.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether to update message and description of the alert in JSM Ops if it already exists.
+# By default, the alert is never updated in JSM Ops, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# Optional field that can be used to specify which domain alert is related to.
+[ entity: <tmpl_string> ]
+
+# Comma separated list of actions that will be available for the alert.
+[ actions: <tmpl_string> ]
+
+# The HTTP client's configuration. You must use this configuration to supply
+# authentication credentials. For Atlassian Cloud, use basic_auth with the
+# Atlassian account email as the username and an API token as the password.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+The `responders` field uses the same format as `<opsgenie_config>`:
 
 ```yaml
 # Exactly one of these fields should be defined.
