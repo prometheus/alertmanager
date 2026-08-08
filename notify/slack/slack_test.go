@@ -352,3 +352,87 @@ func TestSlackMessageField(t *testing.T) {
 		t.Fatal("Notify failed:", err)
 	}
 }
+
+func TestSlackBlockKitPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+
+		if got := body["channel"]; got != "#block-kit" {
+			t.Errorf("expected channel %q, got %v", "#block-kit", got)
+		}
+		if got := body["text"]; got != "BlockKit resolved" {
+			t.Errorf("expected text %q, got %v", "BlockKit resolved", got)
+		}
+
+		blocks, ok := body["blocks"].([]any)
+		if !ok {
+			t.Errorf("expected blocks array in payload")
+		} else if len(blocks) != 1 {
+			t.Errorf("expected one block, got %d", len(blocks))
+		}
+
+		if _, hasAttachments := body["attachments"]; hasAttachments {
+			t.Errorf("did not expect legacy attachments in block kit payload")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	useBlockKit := true
+	u, _ := url.Parse(server.URL)
+	conf := &config.SlackConfig{
+		APIURL:         &amcommoncfg.SecretURL{URL: u},
+		Channel:        "#block-kit",
+		MessageText:    "BlockKit {{ .Status }}",
+		BlocKitEnabeld: &useBlockKit,
+		BlocKitPayload: []any{
+			map[string]any{
+				"type": "section",
+				"text": map[string]any{
+					"type": "mrkdwn",
+					"text": "*Alert payload from Block Kit*",
+				},
+			},
+		},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = u
+
+	notifier, err := New(conf, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := notify.WithGroupKey(context.Background(), "group-1")
+	_, err = notifier.Notify(ctx)
+	require.NoError(t, err)
+}
+
+func TestSlackBlockKitPayloadInvalid(t *testing.T) {
+	useBlockKit := true
+	u, _ := url.Parse("https://slack.com/api/chat.postMessage")
+	notifier, err := New(
+		&config.SlackConfig{
+			APIURL:         &amcommoncfg.SecretURL{URL: u},
+			Channel:        "#channelname",
+			BlocKitEnabeld: &useBlockKit,
+			BlocKitPayload: `{"text": "{{ if }}`,
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := notify.WithGroupKey(context.Background(), "1")
+	_, err = notifier.Notify(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to render block kit payload")
+}

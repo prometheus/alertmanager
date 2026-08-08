@@ -33,9 +33,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
-const maxTitleLenRunes = 1024
-
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
@@ -64,83 +61,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	logger.Debug("extracted group key")
 
 	var (
-		data     = notify.GetTemplateData(ctx, n.tmpl, as, logger)
-		tmplText = notify.TmplText(n.tmpl, data, &err)
+		data        = notify.GetTemplateData(ctx, n.tmpl, as, logger)
+		tmplTextErr error
+		tmplText    = notify.TmplText(n.tmpl, data, &tmplTextErr)
 	)
-	var markdownIn []string
-
-	if len(n.conf.MrkdwnIn) == 0 {
-		markdownIn = []string{"fallback", "pretext", "text"}
-	} else {
-		markdownIn = n.conf.MrkdwnIn
-	}
-
-	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
-	if truncated {
-		logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
-	}
-	att := &attachment{
-		Title:      title,
-		TitleLink:  tmplText(n.conf.TitleLink),
-		Pretext:    tmplText(n.conf.Pretext),
-		Text:       tmplText(n.conf.Text),
-		Fallback:   tmplText(n.conf.Fallback),
-		CallbackID: tmplText(n.conf.CallbackID),
-		ImageURL:   tmplText(n.conf.ImageURL),
-		ThumbURL:   tmplText(n.conf.ThumbURL),
-		Footer:     tmplText(n.conf.Footer),
-		Color:      tmplText(n.conf.Color),
-		MrkdwnIn:   markdownIn,
-	}
-
-	numFields := len(n.conf.Fields)
-	if numFields > 0 {
-		fields := make([]config.SlackField, numFields)
-		for index, field := range n.conf.Fields {
-			// Check if short was defined for the field otherwise fallback to the global setting
-			var short bool
-			if field.Short != nil {
-				short = *field.Short
-			} else {
-				short = n.conf.ShortFields
-			}
-
-			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.SlackField{
-				Title: tmplText(field.Title),
-				Value: tmplText(field.Value),
-				Short: &short,
-			}
-		}
-		att.Fields = fields
-	}
-
-	numActions := len(n.conf.Actions)
-	if numActions > 0 {
-		actions := make([]config.SlackAction, numActions)
-		for index, action := range n.conf.Actions {
-			slackAction := config.SlackAction{
-				Type:  tmplText(action.Type),
-				Text:  tmplText(action.Text),
-				URL:   tmplText(action.URL),
-				Style: tmplText(action.Style),
-				Name:  tmplText(action.Name),
-				Value: tmplText(action.Value),
-			}
-
-			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &config.SlackConfirmationField{
-					Title:       tmplText(action.ConfirmField.Title),
-					Text:        tmplText(action.ConfirmField.Text),
-					OkText:      tmplText(action.ConfirmField.OkText),
-					DismissText: tmplText(action.ConfirmField.DismissText),
-				}
-			}
-
-			actions[index] = slackAction
-		}
-		att.Actions = actions
-	}
 
 	var u string
 	if n.conf.APIURL != nil {
@@ -159,15 +83,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ctx = postCtx
 	}
 
-	req := &request{
-		Channel:     tmplText(n.conf.Channel),
-		Username:    tmplText(n.conf.Username),
-		IconEmoji:   tmplText(n.conf.IconEmoji),
-		IconURL:     tmplText(n.conf.IconURL),
-		LinkNames:   n.conf.LinkNames,
-		Text:        tmplText(n.conf.MessageText),
-		Attachments: []attachment{*att},
+	useBlockKit := n.conf.BlocKitEnabeld != nil && *n.conf.BlocKitEnabeld
+	req := composePlainRequest(n.conf, tmplText, logger)
+	payload := any(req)
+	channelForError := req.Channel
+	var bkPayload map[string]any
+
+	if useBlockKit {
+		bkPayload, err = composeBlockKitPayload(n.conf.BlocKitPayload, tmplText(n.conf.Channel), tmplText(n.conf.MessageText), tmplText, &tmplTextErr)
+		if err != nil {
+			return false, fmt.Errorf("failed to render block kit payload: %w", err)
+		}
+		payload = bkPayload
+		channelForError = tmplText(n.conf.Channel)
 	}
+	logger.Debug("payload", "payload", payload)
 
 	// If a notification for this alert group has already been sent and `update_message` config is set
 	// edit API endpoint and payload to update notification instead of sending a new one.
@@ -184,14 +114,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
 			if threadTs != "" && channelId != "" {
 				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
+				if useBlockKit {
+					if err := setBlockKitPayloadStringValue(bkPayload, "ts", threadTs); err != nil {
+						return false, fmt.Errorf("cannot set ts in block kit payload: %w", err)
+					}
+					if err := setBlockKitPayloadStringValue(bkPayload, "channel", channelId); err != nil {
+						return false, fmt.Errorf("cannot set channel in block kit payload: %w", err)
+					}
+					channelForError = channelId
+				} else {
+					req.Timestamp = threadTs
+					req.Channel = channelId
+					channelForError = req.Channel
+				}
 				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
 			}
 		}
 	}
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
 		return false, err
 	}
 
@@ -208,13 +149,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		err = fmt.Errorf("channel %q: %w", channelForError, err)
 		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
 	retry, err = n.slackResponseHandler(resp, store)
 	if err != nil {
-		err = fmt.Errorf("channel %q: %w", req.Channel, err)
+		err = fmt.Errorf("channel %q: %w", channelForError, err)
 		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
 	}
 	return retry, nil
