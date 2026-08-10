@@ -50,7 +50,7 @@ You can also load configuration from an HTTP endpoint:
 $ ./alertmanager --config.http-url=http://config-server/config.yaml
 ```
 
-Note: `--config.file` and `--config.http-url` are mutually exclusive - exactly one must be specified.
+Note: `--config.file` defaults to `alertmanager.yml`. `--config.http-url` takes precedence when set. Do not pass both flags explicitly.
 
 ## Example
 

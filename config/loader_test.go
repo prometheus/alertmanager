@@ -146,7 +146,7 @@ func TestCoordinatorReloadWithHTTP(t *testing.T) {
 	defer srv.Close()
 
 	loader := NewHTTPLoader(srv.URL)
-	coord := NewCoordinator(loader, srv.URL, prometheus.NewRegistry(), promslog.NewNopLogger())
+	coord := NewCoordinator(loader, prometheus.NewRegistry(), promslog.NewNopLogger())
 
 	var called bool
 	coord.Subscribe(func(*Config) error {
@@ -166,7 +166,7 @@ func TestCoordinatorReloadWithHTTPFailure(t *testing.T) {
 	defer srv.Close()
 
 	loader := NewHTTPLoader(srv.URL)
-	coord := NewCoordinator(loader, srv.URL, prometheus.NewRegistry(), promslog.NewNopLogger())
+	coord := NewCoordinator(loader, prometheus.NewRegistry(), promslog.NewNopLogger())
 
 	var called bool
 	coord.Subscribe(func(*Config) error {

@@ -25,10 +25,14 @@ import (
 	"time"
 )
 
+const defaultHTTPConfigTimeout = 30 * time.Second
+
 // ConfigLoader abstracts where the raw configuration bytes come from.
 type ConfigLoader interface {
 	// Load returns the raw configuration bytes.
 	Load(ctx context.Context) ([]byte, error)
+	// Source returns an identifier for this loader suitable for logs (credentials redacted for HTTP).
+	Source() string
 }
 
 // fileLoader loads configuration from a local file.
@@ -36,6 +40,9 @@ type fileLoader struct{ path string }
 
 // NewFileLoader creates a ConfigLoader that reads from the given file path.
 func NewFileLoader(p string) ConfigLoader { return &fileLoader{path: p} }
+
+// Source implements ConfigLoader.
+func (f *fileLoader) Source() string { return f.path }
 
 // Load implements ConfigLoader for file-based configuration.
 // It reads the configuration file from the filesystem and returns the raw bytes.
@@ -53,52 +60,35 @@ type httpLoader struct{ url string }
 
 // SanitizeURL redacts any credentials from the URL for logging purposes.
 func SanitizeURL(rawURL string) string {
-	// Try to parse the URL to extract credentials
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		// If parsing fails, just return the original URL
 		return rawURL
 	}
 
-	// Redact password from URL
+	sanitized := rawURL
 	if parsed.User != nil {
-		password, _ := parsed.User.Password()
-		if password != "" {
-			// Use Go's built-in URL redaction for percent-encoded passwords
-			if strings.Contains(password, "%") {
-				// This is a percent-encoded password, use Redacted() method
-				redactedURL := parsed.Redacted()
-				if redactedURL == "" {
-					// Fallback to manual replacement if Redacted() fails
-					redactedURL = strings.Replace(rawURL, password, "***", 1)
-				}
-			} else {
-				// Regular password, use manual replacement
-				rawURL = strings.Replace(rawURL, password, "***", 1)
-			}
-		}
+		sanitized = parsed.Redacted()
 	}
 
-	// Redact query parameters that might contain secrets
 	if parsed.RawQuery != "" {
-		// This provides basic protection for logging.
-		rawURL = strings.Replace(rawURL, parsed.RawQuery, "[redacted]", 1)
+		sanitized = strings.Replace(sanitized, parsed.RawQuery, "[redacted]", 1)
 	}
 
-	return rawURL
+	return sanitized
 }
 
 // NewHTTPLoader creates a ConfigLoader that fetches the configuration from the given URL.
 func NewHTTPLoader(u string) ConfigLoader { return &httpLoader{url: u} }
 
+// Source implements ConfigLoader.
+func (h *httpLoader) Source() string { return SanitizeURL(h.url) }
+
 // Load implements ConfigLoader for HTTP-based configuration.
-// It fetches the configuration from the specified HTTP URL with proper timeouts
-// and size limits. The URL is sanitized to prevent credential leakage in logs.
+// It fetches the configuration from the specified HTTP URL with a request timeout.
 // Errors are wrapped to preserve the error chain for proper error handling.
 func (h *httpLoader) Load(ctx context.Context) ([]byte, error) {
-	// Create a client with timeout to prevent hanging
 	client := &http.Client{
-		Timeout: 30 * time.Second, // 30 second timeout for the entire request
+		Timeout: defaultHTTPConfigTimeout,
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
@@ -108,9 +98,7 @@ func (h *httpLoader) Load(ctx context.Context) ([]byte, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		// Sanitize URL from error to avoid credential leakage in logs
-		sanitizedErr := fmt.Errorf("HTTP request failed: %w", err)
-		return nil, sanitizedErr
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -118,18 +106,9 @@ func (h *httpLoader) Load(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
 	}
 
-	// Limit response body size to prevent memory issues
-	// 10MB should be more than enough for any reasonable configuration
-	const maxConfigSize = 10 * 1024 * 1024 // 10MB
-	limitedReader := io.LimitReader(resp.Body, maxConfigSize)
-	data, err := io.ReadAll(limitedReader)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HTTP response body: %w", err)
-	}
-
-	// Check if we hit the size limit
-	if len(data) >= maxConfigSize {
-		return nil, fmt.Errorf("configuration size exceeds maximum limit of %d bytes", maxConfigSize)
 	}
 
 	return data, nil
