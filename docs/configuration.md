@@ -45,7 +45,7 @@ Alternatively, you can load configuration from an HTTP endpoint using the `--con
 ./alertmanager --config.http-url=http://config-server/config.yaml
 ```
 
-Note: `--config.file` and `--config.http-url` are mutually exclusive - exactly one must be specified.
+Note: `--config.file` defaults to `alertmanager.yml`. `--config.http-url` takes precedence when set. Do not pass both flags explicitly.
 
 
 The file is written in the [YAML format](http://en.wikipedia.org/wiki/YAML),
@@ -66,7 +66,7 @@ The HTTP endpoint must:
 - Respond with HTTP 200 status code
 - Be accessible from the Alertmanager process
 
-Note: The `--config.file` and `--config.http-url` flags are mutually exclusive. Exactly one configuration source must be specified.
+Note: `--config.file` defaults to `alertmanager.yml`. `--config.http-url` takes precedence when set. Do not pass both flags explicitly.
 
 Configuration reload via `SIGHUP` or `POST /-/reload` works the same way with HTTP configuration - it will fetch the latest configuration from the HTTP endpoint.
 

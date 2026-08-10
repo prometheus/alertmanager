@@ -251,12 +251,10 @@ func (a *App) setup() error {
 	var loader config.ConfigLoader
 	if opts.ConfigHTTPURL != "" {
 		loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
-		// Sanitize URL for logging to avoid credential leakage
-		sanitizedURL := config.SanitizeURL(opts.ConfigHTTPURL)
-		logger.Info("Starting Alertmanager in HTTP configuration mode", "source", sanitizedURL)
+		logger.Info("Starting Alertmanager in HTTP configuration mode", "source", loader.Source())
 	} else {
 		loader = config.NewFileLoader(opts.ConfigFile)
-		logger.Info("Starting Alertmanager in file configuration mode", "source", opts.ConfigFile)
+		logger.Info("Starting Alertmanager in file configuration mode", "source", loader.Source())
 	}
 
 	// Load config once for both event recorder initialization and the
@@ -471,17 +469,7 @@ func (a *App) setup() error {
 	})
 
 	configLogger := logger.With("component", "configuration")
-	if opts.ConfigHTTPURL != "" {
-		loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
-	} else {
-		loader = config.NewFileLoader(opts.ConfigFile)
-	}
-	configCoordinator := config.NewCoordinator(
-		loader,
-		opts.ConfigFile,
-		reg,
-		configLogger,
-	)
+	configCoordinator := config.NewCoordinator(loader, reg, configLogger)
 	a.coordinator = configCoordinator
 
 	// The reloader owns the config-scoped subgraph (templates, routes,

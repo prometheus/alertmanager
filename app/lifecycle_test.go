@@ -175,7 +175,7 @@ func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(minimalConfig), 0o600))
 
 	var reloads atomic.Int64
-	coord := config.NewCoordinator(config.NewFileLoader(configPath), configPath, prometheus.NewRegistry(), promslog.NewNopLogger())
+	coord := config.NewCoordinator(config.NewFileLoader(configPath), prometheus.NewRegistry(), promslog.NewNopLogger())
 	coord.Subscribe(func(*config.Config) error {
 		reloads.Add(1)
 		return nil

@@ -114,7 +114,7 @@ type Options struct {
 // Flagger) and a WebConfig before passing the result to New or Run.
 func DefaultOptions() Options {
 	return Options{
-		ConfigFile:                  "",
+		ConfigFile:                  DefaultConfigFile,
 		DataDir:                     DefaultDataDir,
 		Retention:                   DefaultRetention,
 		MaintenanceInterval:         DefaultMaintenanceInterval,
