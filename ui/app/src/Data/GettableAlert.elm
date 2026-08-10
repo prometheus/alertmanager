@@ -13,7 +13,7 @@
 module Data.GettableAlert exposing (GettableAlert, decoder, encoder)
 
 import Data.AlertStatus as AlertStatus exposing (AlertStatus)
-import Data.Receiver as Receiver exposing (Receiver)
+import Data.ReceiverReference as ReceiverReference exposing (ReceiverReference)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -25,7 +25,7 @@ type alias GettableAlert =
     { labels : Dict String String
     , generatorURL : Maybe String
     , annotations : Dict String String
-    , receivers : List Receiver
+    , receivers : List ReceiverReference
     , fingerprint : String
     , startsAt : DateTime
     , updatedAt : DateTime
@@ -40,7 +40,7 @@ decoder =
         |> required "labels" (Decode.dict Decode.string)
         |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
         |> required "annotations" (Decode.dict Decode.string)
-        |> required "receivers" (Decode.list Receiver.decoder)
+        |> required "receivers" (Decode.list ReceiverReference.decoder)
         |> required "fingerprint" Decode.string
         |> required "startsAt" DateTime.decoder
         |> required "updatedAt" DateTime.decoder
@@ -54,7 +54,7 @@ encoder model =
         [ ( "labels", Encode.dict identity Encode.string model.labels )
         , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
         , ( "annotations", Encode.dict identity Encode.string model.annotations )
-        , ( "receivers", Encode.list Receiver.encoder model.receivers )
+        , ( "receivers", Encode.list ReceiverReference.encoder model.receivers )
         , ( "fingerprint", Encode.string model.fingerprint )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "updatedAt", DateTime.encoder model.updatedAt )

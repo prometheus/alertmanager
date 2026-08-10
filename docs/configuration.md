@@ -118,16 +118,22 @@ global:
   [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
   [ rocketchat_api_url: <string> | default = "https://open.rocket.chat/" ]
+  # The default Rocketchat sender token. It is mutually exclusive with `rocketchat_token_file`.
   [ rocketchat_token: <secret> ]
+  # Read the default Rocketchat sender token from a file. It is mutually exclusive with `rocketchat_token`.
   [ rocketchat_token_file: <filepath> ]
+  # The default Rocketchat sender token ID. It is mutually exclusive with `rocketchat_token_id_file`.
   [ rocketchat_token_id: <secret> ]
+  # Read the default Rocketchat sender token ID from a file. It is mutually exclusive with `rocketchat_token_id`.
   [ rocketchat_token_id_file: <filepath> ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_secret_file: <string> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  # The default Telegram bot token. It is mutually exclusive with `telegram_bot_token_file`.
   [ telegram_bot_token: <secret> ]
+  # The default configuration to read the Telegram bot token from a file. It is mutually exclusive with `telegram_bot_token`.
   [ telegram_bot_token_file: <string> ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   [ mattermost_webhook_url: <secret> ]
@@ -164,6 +170,18 @@ mute_time_intervals:
 # A list of time intervals for muting/activating routes.
 time_intervals:
   [ - <time_interval> ... ]
+
+# Optional event recorder configuration.  Captures significant
+# Alertmanager events (startup/shutdown, alert lifecycle, silences,
+# notifications) and ships them to one or more outputs (file, webhook,
+# Kafka, stdout). Recording is gated behind the
+# `event-recorder` feature flag;
+# pass `--enable-feature=event-recorder` on the command line to
+# activate it.  See the Event Recorder section below.
+[ event_recorder: <event_recorder_config> ]
+
+# Optional tracing configuration.  Configures distributed tracing for Alertmanager.
+[ traciing: <tracing_config> ]
 ```
 
 ## Route-related settings
@@ -216,6 +234,38 @@ match_re:
 # A list of matchers that an alert has to fulfill to match the node.
 matchers:
   [ - <matcher> ... ]
+
+# A set of labels that are attached to the route and made available to
+# notification templates via the `routeLabels` template function (and to the
+# `routeLabels` field of the `/api/v2/alerts/groups` API response). Route labels
+# are merged from parent to child routes: a child route inherits its parent's
+# route labels and may override individual labels by redefining them. Unlike
+# group_by, route labels do not affect how alerts are grouped.
+#
+# Label values may themselves be templates that are rendered against the
+# notification data of each alert group (so they can reference group labels,
+# other route labels, etc.).
+#
+# Route labels are rendered per alert group, independently of any individual
+# notification (they are also exposed via the API, where there is no
+# notification at all). Fields that are only meaningful for a specific
+# notification are therefore not available: in particular `.NotificationReason`
+# is always "unknown" in route label templates. Use notification templates for
+# reason-dependent content.
+labels:
+  [ <labelname>: <tmpl_string>, ... ]
+# Example: `description` is composed once from a `reason` sub-label. A sub-route
+# overrides only `reason`, computing it from the labels that branch matched on,
+# and the inherited description picks it up automatically:
+#   route:
+#     labels:
+#       reason: '{{ .GroupLabels.alertname }}'
+#       description: '{{ .GroupLabels.alertname }} firing ({{ routeLabels "reason" }})'
+#     routes:
+#       - matchers: [ service="database" ]
+#         group_by: [ alertname, database ]
+#         labels:
+#           reason: 'database {{ .GroupLabels.database }}'
 
 # How long to wait before sending the first notification for a new group of
 # alerts. Allows to wait for alerts to arrive from other rule groups or
@@ -617,7 +667,7 @@ Found:
  - 0 templates
 ```
 
-### `<matcher>`
+### `<matcher>` (Shared)
 
 #### UTF-8 matchers
 
@@ -630,6 +680,30 @@ A UTF-8 matcher consists of three tokens:
 Unquoted literals can contain all UTF-8 characters other than the reserved characters. The reserved characters include whitespace and all characters in ``` { } ! = ~ , \ " ' ` ```. For example, `foo`, `[a-zA-Z]+`, and `Προμηθεύς` (Prometheus in Greek) are all examples of valid unquoted literals. However, `foo!` is not a valid literal as `!` is a reserved character.
 
 Double-quoted strings can contain all UTF-8 characters. Unlike unquoted literals, there are no reserved characters. However, literal double quotes and backslashes must be escaped with a single backslash. For example, to match the regular expression `\d+` the backslash must be escaped `"\\d+"`. This is because double-quoted strings follow the same rules as Go's [string literals](https://go.dev/ref/spec#String_literals). Double-quoted strings also support UTF-8 code points. For example, `"foo!"`, `"bar,baz"`, `"\"baz qux\""` and `"\xf0\x9f\x99\x82"`.
+
+
+> **Note: YAML quoting vs. matcher token quoting**
+>
+> Each entry in a `matchers:` list is a single YAML string that Alertmanager
+> parses after the YAML file has been processed. YAML quoting applies to the
+> *entire* matcher string — it does not parse or protect individual tokens
+> within it. The double-quoting described above is handled by Alertmanager's own
+> parser after YAML has already processed the input.
+>
+> - **[Plain style](https://yaml.org/spec/1.2.2/#plain-style)** (no surrounding quotes): works when the matcher contains no
+>   YAML special characters (`{`, `}`, `[`, `]`, `,`, `#`, `|`, `>`, `:`).
+>   Example: `env !~ preprod`
+> - **[Single-quoted style](https://yaml.org/spec/1.2.2/#single-quoted-style)**: protects against all YAML special
+>   characters and allows literal double quotes inside the matcher.
+>   Example: `'env =~ "prod|staging"'`
+> - **[Double-quoted style](https://yaml.org/spec/1.2.2/#double-quoted-style)**: supports YAML escape sequences; literal double quotes
+>   inside the value must be escaped as `\"`.
+>   Example: `"env !~ \"uat\""`
+>
+> Writing `env =~ "prod"` without surrounding YAML quotes is valid plain-style
+> YAML. The inner double quotes are stripped by Alertmanager's parser and provide
+> **no** protection against YAML special characters. Always quote the entire
+> matcher at the YAML level when the value may contain special characters.
 
 #### Classic matchers
 
@@ -754,6 +828,10 @@ Note: As part of lifting the past moratorium on new receivers it was agreed that
 # The unique name of the receiver.
 name: <string>
 
+# Labels attached to this receiver for querying and filtering.
+labels:
+  [ <labelname>: <labelvalue>, ... ]
+
 # Configurations for several notification integrations.
 discord_configs:
   [ - <discord_config>, ... ]
@@ -793,7 +871,7 @@ wechat_configs:
   [ - <wechat_config>, ... ]
 ```
 
-### `<http_config>`
+### `<http_config>` (Shared)
 
 An `http_config` allows configuring the HTTP client that the receiver uses to
 communicate with HTTP-based API services.
@@ -852,7 +930,7 @@ http_headers:
   [ <http_header> ]
 ```
 
-#### `<http_header>`
+#### `<http_header>` (Shared)
 
 ```yaml
 # Header name.
@@ -865,7 +943,7 @@ http_headers:
     [ files: [<string>, ...] ]
 ```
 
-#### `<oauth2>`
+#### `<oauth2>` (Shared)
 
 OAuth 2.0 authentication using the client credentials grant type.
 Alertmanager fetches an access token from the specified endpoint with
@@ -907,7 +985,7 @@ tls_config:
   [ <string>: [<secret>, ...] ] ]
 ```
 
-#### `<tls_config>`
+#### `<tls_config>` (Shared)
 
 A `tls_config` allows configuring TLS connections.
 
@@ -1463,7 +1541,7 @@ links:
 [ timeout: <duration> | default = 0s ]
 ```
 
-#### `<image_config>`
+#### `<image_config>` (PagerDuty)
 
 The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-images-property).
 
@@ -1473,7 +1551,7 @@ src: <tmpl_string>
 alt: <tmpl_string>
 ```
 
-#### `<link_config>`
+#### `<link_config>` (PagerDuty)
 
 The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-links-property).
 
@@ -1627,8 +1705,8 @@ The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-m
 channel: <tmpl_string>
 
 # API request data as defined by the Slack webhook API.
-[ icon_emoji: <tmpl_string> ]
-[ icon_url: <tmpl_string> ]
+[ icon_emoji: <tmpl_string> | default = '{{ template "slack.default.iconemoji" . }}' ]
+[ icon_url: <tmpl_string> | default = '{{ template "slack.default.iconurl" . }}' ]
 [ link_names: <boolean> | default = false ]
 # The text content of the Slack message.
 # If set, this is sent as the top-level 'text' field in the Slack payload.
@@ -1639,7 +1717,7 @@ channel: <tmpl_string>
 actions:
   [ <action_config> ... ]
 [ callback_id: <tmpl_string> | default = '{{ template "slack.default.callbackid" . }}' ]
-[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ color: <tmpl_string> | default = '{{ template "slack.default.color" . }}' ]
 [ fallback: <tmpl_string> | default = '{{ template "slack.default.fallback" . }}' ]
 fields:
   [ <field_config> ... ]
@@ -1667,7 +1745,7 @@ fields:
 [ update_message: <boolean> | default = false ]
 ```
 
-#### `<action_config>`
+#### `<action_config>` (Slack)
 
 The fields are documented in the Slack API documentation for [message attachments](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/) and [interactive messages](https://docs.slack.dev/legacy/legacy-messaging/legacy-interactive-message-field-guide/#action_fields).
 
@@ -1683,7 +1761,7 @@ type: <tmpl_string>
 [ style: <tmpl_string> | default = '' ]
 ```
 
-##### `<action_confirm_field_config>`
+##### `<action_confirm_field_config>` (Slack)
 
 The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
 
@@ -1694,7 +1772,7 @@ text: <tmpl_string>
 [ title: <tmpl_string> | default '' ]
 ```
 
-#### `<field_config>`
+#### `<field_config>` (Slack)
 
 The fields are documented in the [Slack API documentation](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
@@ -1744,9 +1822,22 @@ attributes:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# Force the AWS SDK's HTTP client (BuildableClient) instead of the default
+# tracing-wrapped client. Required when the AWS SDK needs to inject a custom
+# CA bundle (e.g. via `ca_bundle` in the AWS shared config). Auto-enabled
+# when the AWS_CA_BUNDLE environment variable is set.
+#
+# When this flag is set tracing is disabled for SNS requests, and only the
+# `tls_config` and proxy fields of `http_config` are honored. Other
+# `http_config` knobs (basic_auth, oauth2, authorization, follow_redirects,
+# enable_http2, http_headers) are silently ignored — most are irrelevant for
+# AWS calls (which use SigV4) but if you depend on them for SNS, do not enable
+# this.
+[ use_aws_http_client: <boolean> | default = false ]
 ```
 
-#### `<sigv4_config>`
+#### `<sigv4_config>` (SNS)
 
 ```yaml
 # The AWS region. If blank, the region from the default credentials chain is used.
@@ -1762,6 +1853,10 @@ attributes:
 
 # AWS Role ARN, an alternative to using AWS API keys.
 [ role_arn: <string> ]
+
+# AWS External ID used when assuming a role.
+# Can only be used with role_arn.
+[ external_id: <string> ]
 ```
 
 ### `<telegram_config>`
@@ -1893,6 +1988,7 @@ endpoint:
   "commonLabels": <object>,
   "commonAnnotations": <object>,
   "externalURL": <string>,           // backlink to the Alertmanager.
+  "notification_reason": <string>,   // string represent the reason this notification was generated
   "alerts": [
     {
       "status": "<resolved|firing>",
@@ -2030,3 +2126,180 @@ room_id: <tmpl_string>
 # The tracing timeout.
 [ timeout: <duration> | default = 0s ]
 ```
+
+## Event Recorder
+
+The event recorder captures significant Alertmanager events (process start
+and shutdown, alert lifecycle transitions, silence creation, notification
+delivery, and mute/inhibit suppressions) and fans them out to one or more
+destinations.  Each event is encoded as a structured payload that includes
+a timestamp, the producing instance's hostname, the cluster position (when
+HA clustering is enabled), and the event-specific data.
+
+The recorder is gated behind the `event-recorder` feature flag — pass
+`--enable-feature=event-recorder` on the command line to activate it.
+When the flag is not set, the recorder silently discards all events.
+
+Event recording is configured under the top-level `event_recorder` key.
+
+### `<event_recorder_config>`
+
+Outputs are grouped by type, one list per destination kind (mirroring the
+way receivers group their integrations).  Every recorded event is sent to
+every output across all lists.
+
+```yaml
+# JSONL file outputs.
+file_outputs:
+  [ - <file_output> ... ]
+
+# Webhook outputs.
+webhook_outputs:
+  [ - <webhook_output> ... ]
+
+# Kafka outputs.
+kafka_outputs:
+  [ - <kafka_output> ... ]
+
+# Stdout outputs.
+stdout_outputs:
+  [ - <stdout_output> ... ]
+```
+
+#### `<file_output>`
+
+Writes each event as a single JSON line to a file.  The file is reopened
+when the parent directory observes a rename/remove/create on the target
+path (for compatibility with `logrotate` and similar tools).
+
+```yaml
+# Path to the JSONL output file.  Will be created if it does not exist.
+path: <filepath>
+```
+
+#### `<webhook_output>`
+
+POSTs each event as a JSON body to an HTTP endpoint.  Delivery is
+performed by a bounded worker pool with bounded retries and exponential
+backoff.
+
+Retries resend the entire event or batch, so receivers should tolerate
+duplicate events after ambiguous failures. With multiple workers, requests
+may complete out of order; set `workers: 1` when request ordering matters.
+
+```yaml
+# URL to POST events to.
+url: <secret>
+
+# HTTP client configuration (TLS, basic auth, OAuth, proxies, ...).
+[ http_config: <http_config> ]
+
+# HTTP request timeout.
+[ timeout: <duration> | default = 10s ]
+
+# Number of concurrent delivery workers.
+[ workers: <int> | default = 4 ]
+
+# Maximum number of delivery attempts per event or batch.
+[ max_retries: <int> | default = 3 ]
+
+# Base backoff between retries; subsequent attempts use exponential
+# backoff (base * 2^attempt) capped at 30s.
+[ retry_backoff: <duration> | default = 500ms ]
+
+# Send events in JSON arrays instead of posting each event as an individual
+# JSON object. This changes the webhook payload contract and must only be
+# enabled when the receiving endpoint accepts arrays.
+[ batch: <boolean> | default = false ]
+
+# Maximum number of events in one request when batching is enabled.
+[ batch_max_events: <int> | default = 100 ]
+
+# Soft maximum encoded request size in bytes when batching is enabled. A
+# single event larger than the limit is sent alone.
+[ batch_max_bytes: <int> | default = 1048576 ]
+
+# Maximum time an incomplete batch waits before delivery.
+[ batch_flush_interval: <duration> | default = 100ms ]
+```
+
+For example, [Cloudflare Pipelines streams](https://developers.cloudflare.com/pipelines/streams/writing-to-streams/)
+accept JSON arrays through their HTTP ingestion endpoints and can be configured
+as a batched webhook output:
+
+```yaml
+event_recorder:
+  webhook_outputs:
+  - url: https://<stream-id>.ingest.cloudflare.com
+    batch: true
+    http_config:
+      # The token must have the "Workers Pipeline Send" permission when
+      # authentication is enabled for the stream.
+      authorization:
+        credentials: <api_token>
+```
+
+#### `<kafka_output>`
+
+Produces each event to a Kafka topic.  Records use the producing
+Alertmanager instance's hostname as the message key, which keeps all
+events from a single instance on the same partition and preserves their
+relative ordering.  Delivery is asynchronous and bounded: when the local
+buffer is full, events are dropped.
+
+A failure to reach the Kafka brokers at startup is logged at warn level
+but does **not** prevent Alertmanager from starting; the underlying
+client retries connections in the background.
+
+The target topic must already exist (or the brokers must be configured to
+auto-create topics); Alertmanager does not create it.
+
+```yaml
+# Seed broker list (host:port).  At least one entry is required.
+brokers:
+  [ - <string> ... ]
+
+# Topic to produce events to.
+topic: <string>
+
+# Client identifier reported to the brokers.
+[ client_id: <string> | default = "alertmanager" ]
+
+# On-the-wire encoding for each record value: "json" (protojson) or
+# "protobuf" (binary proto).  JSON is the default for symmetry with the
+# file and webhook outputs; consumers that already use the
+# eventrecorder.proto schema may prefer protobuf for compactness.
+[ format: <"json" | "protobuf"> | default = "json" ]
+
+# Producer acknowledgement level.  "leader" matches the franz-go default
+# and minimizes Alertmanager's exposure to Kafka latency.  "all" enables
+# the idempotent producer for at-least-once durability at the cost of
+# higher latency.
+[ acks: <"none" | "leader" | "all"> | default = "leader" ]
+
+# Compression codec for record batches.  When omitted, batches are sent
+# uncompressed.
+[ compression: <"none" | "gzip" | "snappy" | "lz4" | "zstd"> ]
+
+# Capacity of the local buffer between the event recorder and franz-go.
+# Events are dropped when this buffer is full.
+[ buffer_size: <int> | default = 1024 ]
+
+# TLS configuration for the broker connection.  When unset, the
+# connection uses PLAINTEXT.
+[ tls_config: <tls_config> ]
+```
+
+#### `<stdout_output>`
+
+Writes each event as a single JSON line to stdout.  This is the
+recommended output for container deployments where the runtime log
+driver (Docker, Kubernetes, etc.) captures stdout automatically.
+
+> **Note:** When using `stdout_outputs`, consider also passing
+> `--log.format=json` to Alertmanager.  Without it, Alertmanager's own
+> log lines use logfmt while event records are JSON, producing two
+> distinct formats on the same stream that may complicate downstream
+> log parsing.
+
+This output type takes no additional configuration fields.

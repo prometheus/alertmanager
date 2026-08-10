@@ -15,6 +15,9 @@ package alert
 
 import (
 	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -109,6 +112,41 @@ func (as AlertSlice) Less(i, j int) bool {
 }
 func (as AlertSlice) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
 func (as AlertSlice) Len() int      { return len(as) }
+
+// LogValue implements slog.LogValuer. It returns a summary of alert counts per alertname,
+// e.g. "MyAlert: 3, OtherAlert: 1".
+func (as AlertSlice) LogValue() slog.Value {
+	if len(as) == 0 {
+		return slog.StringValue("")
+	}
+
+	counts := make(map[string]int, len(as))
+	order := make([]string, 0, len(as))
+
+	for _, a := range as {
+		name := string(a.Labels[model.AlertNameLabel])
+		if _, exists := counts[name]; !exists {
+			order = append(order, name)
+		}
+		counts[name]++
+	}
+
+	var sb strings.Builder
+	// Pre-size the builder to reduce re-allocations.
+	// Rough guess: (avg name length + ": " + "count" + ", ") * unique alerts
+	sb.Grow(len(order) * 20)
+
+	for i, name := range order {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(name)
+		sb.WriteString(": ")
+		sb.WriteString(strconv.Itoa(counts[name]))
+	}
+
+	return slog.StringValue(sb.String())
+}
 
 // Alerts turns a sequence of internal alerts into a list of
 // exposable model.Alert structures.

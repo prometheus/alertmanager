@@ -89,6 +89,10 @@ func TestNewTLSTransport(t *testing.T) {
 			tlsConfFile: "testdata/tls_config_with_missing_client.yml",
 			bindAddr:    localhost,
 		},
+		{
+			tlsConfFile: "testdata/tls_config_with_null_client.yml",
+			err:         "missing 'tls_client_config' entry in the TLS configuration",
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			transport, err := newTLSTransport(tc.tlsConfFile, tc.bindAddr, tc.bindPort)

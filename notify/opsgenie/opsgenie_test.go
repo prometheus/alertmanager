@@ -30,7 +30,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -38,7 +37,7 @@ import (
 
 func TestOpsGenieRetry(t *testing.T) {
 	notifier, err := New(
-		&config.OpsGenieConfig{
+		&OpsGenieConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -59,7 +58,7 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 
 	key := "key"
 	notifier, err := New(
-		&config.OpsGenieConfig{
+		&OpsGenieConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKey:     commoncfg.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -84,7 +83,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.OpsGenieConfig{
+		&OpsGenieConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKeyFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -107,21 +106,21 @@ func TestOpsGenie(t *testing.T) {
 
 	for _, tc := range []struct {
 		title string
-		cfg   *config.OpsGenieConfig
+		cfg   *OpsGenieConfig
 
 		expectedEmptyAlertBody string
 		expectedBody           string
 	}{
 		{
 			title: "config without details",
-			cfg: &config.OpsGenieConfig{
+			cfg: &OpsGenieConfig{
 				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
 				Message:     `{{ .CommonLabels.Message }}`,
 				Description: `{{ .CommonLabels.Description }}`,
 				Source:      `{{ .CommonLabels.Source }}`,
-				Responders: []config.OpsGenieConfigResponder{
+				Responders: []OpsGenieConfigResponder{
 					{
 						Name: `{{ .CommonLabels.ResponderName1 }}`,
 						Type: `{{ .CommonLabels.ResponderType1 }}`,
@@ -147,7 +146,7 @@ func TestOpsGenie(t *testing.T) {
 		},
 		{
 			title: "config with details",
-			cfg: &config.OpsGenieConfig{
+			cfg: &OpsGenieConfig{
 				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
@@ -157,7 +156,7 @@ func TestOpsGenie(t *testing.T) {
 				Details: map[string]string{
 					"Description": `adjusted {{ .CommonLabels.Description }}`,
 				},
-				Responders: []config.OpsGenieConfigResponder{
+				Responders: []OpsGenieConfigResponder{
 					{
 						Name: `{{ .CommonLabels.ResponderName1 }}`,
 						Type: `{{ .CommonLabels.ResponderType1 }}`,
@@ -183,7 +182,7 @@ func TestOpsGenie(t *testing.T) {
 		},
 		{
 			title: "config with multiple teams",
-			cfg: &config.OpsGenieConfig{
+			cfg: &OpsGenieConfig{
 				NotifierConfig: amcommoncfg.NotifierConfig{
 					VSendResolved: true,
 				},
@@ -193,7 +192,7 @@ func TestOpsGenie(t *testing.T) {
 				Details: map[string]string{
 					"Description": `adjusted {{ .CommonLabels.Description }}`,
 				},
-				Responders: []config.OpsGenieConfigResponder{
+				Responders: []OpsGenieConfigResponder{
 					{
 						Name: `{{ .CommonLabels.ResponderName3 }}`,
 						Type: `{{ .CommonLabels.ResponderType3 }}`,
@@ -281,7 +280,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	tmpl := test.CreateTmpl(t)
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+	opsGenieConfigWithUpdate := OpsGenieConfig{
 		Message:      `{{ .CommonLabels.Message }}`,
 		Description:  `{{ .CommonLabels.Description }}`,
 		UpdateAlerts: true,
@@ -327,7 +326,7 @@ func TestOpsGenieApiKeyFile(t *testing.T) {
 	tmpl := test.CreateTmpl(t)
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+	opsGenieConfigWithUpdate := OpsGenieConfig{
 		APIKeyFile: `./api_key_file`,
 		APIURL:     &amcommoncfg.URL{URL: u},
 		HTTPConfig: &commoncfg.HTTPClientConfig{},

@@ -27,7 +27,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -39,7 +38,7 @@ const maxTextLenRunes = 16383
 
 // Notifier implements a Notifier for Mattermost notifications.
 type Notifier struct {
-	conf    *config.MattermostConfig
+	conf    *MattermostConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -49,7 +48,7 @@ type Notifier struct {
 }
 
 // New returns a new Mattermost notifier.
-func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *MattermostConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "mattermost", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -68,34 +67,34 @@ func New(c *config.MattermostConfig, t *template.Template, l *slog.Logger, httpO
 // request is the request for sending a Mattermost notification.
 // https://developers.mattermost.com/integrate/webhooks/incoming/#parameters
 type request struct {
-	Text        string                     `json:"text,omitempty"`
-	Channel     string                     `json:"channel,omitempty"`
-	Username    string                     `json:"username,omitempty"`
-	IconURL     string                     `json:"icon_url,omitempty"`
-	IconEmoji   string                     `json:"icon_emoji,omitempty"`
-	Attachments []attachment               `json:"attachments,omitempty"`
-	Type        string                     `json:"type,omitempty"`
-	Props       *config.MattermostProps    `json:"props,omitempty"`
-	Priority    *config.MattermostPriority `json:"priority,omitempty"`
+	Text        string              `json:"text,omitempty"`
+	Channel     string              `json:"channel,omitempty"`
+	Username    string              `json:"username,omitempty"`
+	IconURL     string              `json:"icon_url,omitempty"`
+	IconEmoji   string              `json:"icon_emoji,omitempty"`
+	Attachments []attachment        `json:"attachments,omitempty"`
+	Type        string              `json:"type,omitempty"`
+	Props       *MattermostProps    `json:"props,omitempty"`
+	Priority    *MattermostPriority `json:"priority,omitempty"`
 }
 
 // attachment is used to display a richly-formatted message block for compatibility with Slack.
 // https://developers.mattermost.com/integrate/reference/message-attachments/
 type attachment struct {
-	Fallback   string                   `json:"fallback,omitempty"`
-	Color      string                   `json:"color,omitempty"`
-	Pretext    string                   `json:"pretext,omitempty"`
-	Text       string                   `json:"text,omitempty"`
-	AuthorName string                   `json:"author_name,omitempty"`
-	AuthorLink string                   `json:"author_link,omitempty"`
-	AuthorIcon string                   `json:"author_icon,omitempty"`
-	Title      string                   `json:"title,omitempty"`
-	TitleLink  string                   `json:"title_link,omitempty"`
-	Fields     []config.MattermostField `json:"fields,omitempty"`
-	ThumbURL   string                   `json:"thumb_url,omitempty"`
-	Footer     string                   `json:"footer,omitempty"`
-	FooterIcon string                   `json:"footer_icon,omitempty"`
-	ImageURL   string                   `json:"image_url,omitempty"`
+	Fallback   string            `json:"fallback,omitempty"`
+	Color      string            `json:"color,omitempty"`
+	Pretext    string            `json:"pretext,omitempty"`
+	Text       string            `json:"text,omitempty"`
+	AuthorName string            `json:"author_name,omitempty"`
+	AuthorLink string            `json:"author_link,omitempty"`
+	AuthorIcon string            `json:"author_icon,omitempty"`
+	Title      string            `json:"title,omitempty"`
+	TitleLink  string            `json:"title_link,omitempty"`
+	Fields     []MattermostField `json:"fields,omitempty"`
+	ThumbURL   string            `json:"thumb_url,omitempty"`
+	Footer     string            `json:"footer,omitempty"`
+	FooterIcon string            `json:"footer_icon,omitempty"`
+	ImageURL   string            `json:"image_url,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -163,7 +162,7 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 	}
 
 	if n.conf.Priority != nil && n.conf.Priority.Priority != "" {
-		req.Priority = &config.MattermostPriority{
+		req.Priority = &MattermostPriority{
 			Priority:                tmpl(n.conf.Priority.Priority),
 			RequestedAck:            n.conf.Priority.RequestedAck,
 			PersistentNotifications: n.conf.Priority.PersistentNotifications,
@@ -171,7 +170,7 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 	}
 
 	if n.conf.Props != nil && n.conf.Props.Card != "" {
-		req.Props = &config.MattermostProps{
+		req.Props = &MattermostProps{
 			Card: tmpl(n.conf.Props.Card),
 		}
 	}
@@ -198,9 +197,9 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 
 			lenFields := len(cfgAtt.Fields)
 			if lenFields > 0 {
-				att.Fields = make([]config.MattermostField, lenFields)
+				att.Fields = make([]MattermostField, lenFields)
 				for idxField, field := range cfgAtt.Fields {
-					att.Fields[idxField] = config.MattermostField{
+					att.Fields[idxField] = MattermostField{
 						Title: tmpl(field.Title),
 						Value: tmpl(field.Value),
 						Short: field.Short,
@@ -231,9 +230,9 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 
 		lenFields := len(n.conf.Fields)
 		if lenFields > 0 {
-			att.Fields = make([]config.MattermostField, lenFields)
+			att.Fields = make([]MattermostField, lenFields)
 			for idxField, field := range n.conf.Fields {
-				att.Fields[idxField] = config.MattermostField{
+				att.Fields[idxField] = MattermostField{
 					Title: tmpl(field.Title),
 					Value: tmpl(field.Value),
 					Short: field.Short,

@@ -34,7 +34,7 @@ func TestPairNames(t *testing.T) {
 		{"name3", "value3"},
 	}
 
-	expected := []string{"name1", "name2", "name3"}
+	expected := Strings{"name1", "name2", "name3"}
 	require.Equal(t, expected, pairs.Names())
 }
 
@@ -45,7 +45,7 @@ func TestPairValues(t *testing.T) {
 		{"name3", "value3"},
 	}
 
-	expected := []string{"value1", "value2", "value3"}
+	expected := Strings{"value1", "value2", "value3"}
 	require.Equal(t, expected, pairs.Values())
 }
 
@@ -97,7 +97,7 @@ func TestKVRemove(t *testing.T) {
 
 	kv = kv.Remove([]string{"key2", "key4"})
 
-	expected := []string{"key1", "key3"}
+	expected := Strings{"key1", "key3"}
 	require.Equal(t, expected, kv.Names())
 }
 
@@ -143,6 +143,7 @@ func TestData(t *testing.T) {
 	for _, tc := range []struct {
 		receiver    string
 		groupLabels model.LabelSet
+		routeLabels model.LabelSet
 		alerts      []*types.Alert
 
 		exp *Data
@@ -280,9 +281,39 @@ func TestData(t *testing.T) {
 				ExternalURL:        u.String(),
 			},
 		},
+		{
+			// test that route labels are passed through
+			groupLabels: model.LabelSet{
+				"label_a": "a",
+				"label_b": "b",
+			},
+			routeLabels: model.LabelSet{
+				"rlabel_a":     "rvalue a",
+				"rlabel_plain": "plain {}",
+			},
+			exp: &Data{
+				Status:             "resolved",
+				Alerts:             Alerts{},
+				NotificationReason: "first notification",
+				GroupLabels: KV{
+					"label_a": "a",
+					"label_b": "b",
+				},
+				RouteLabels: KV{
+					"rlabel_a":     "rvalue a",
+					"rlabel_plain": "plain {}",
+				},
+				CommonLabels:      KV{},
+				CommonAnnotations: KV{},
+				ExternalURL:       u.String(),
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
-			got := tmpl.Data(tc.receiver, tc.groupLabels, "first notification", tc.alerts...)
+			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.routeLabels, "first notification", tc.alerts...)
+			if tc.exp.RouteLabels == nil {
+				tc.exp.RouteLabels = KV{}
+			}
 			require.Equal(t, tc.exp, got)
 		})
 	}
@@ -463,6 +494,133 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: `[{"status":"firing","labels":null,"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
 		},
+		{
+			title: "Template using base64encode",
+			in:    `{{ "test" | base64encode }}`,
+			exp:   "dGVzdA==",
+		},
+		{
+			title: "Template using base64encode produces a URL-safe alphabet",
+			in:    `{{ "flush>>" | base64encode }}`,
+			exp:   "Zmx1c2g-Pg==",
+		},
+		{
+			title: "Template using base64decode",
+			in:    `{{ "dGVzdA==" | base64decode }}`,
+			exp:   "test",
+		},
+		{
+			title: "Template using base64decode with invalid input",
+			in:    `{{ "not-valid-base64!" | base64decode }}`,
+			fail:  true,
+		},
+		{
+			title: "Template creates empty dict when using dict on nil",
+			in:    `{{- $test := dict -}}{{ $test }}`,
+			exp:   "map[]",
+		},
+		{
+			title: "Template creates dict with args",
+			in:    `{{- $test := dict "a" 1 "b" 2 "c" 3 -}}{{ $test }}`,
+			exp:   "map[a:1 b:2 c:3]",
+		},
+		{
+			title: "Template using dict with odd number of arguments",
+			in:    `{{ dict "a" }}`,
+			fail:  true,
+		},
+		{
+			title: "Template using dict with non-string key",
+			in:    `{{ dict 1 "value" }}`,
+			fail:  true,
+		},
+		{
+			title: "Template creates empty list when using list on nil",
+			in:    `{{- $test := list -}}{{ $test }}`,
+			exp:   "[]",
+		},
+		{
+			title: "Template creates list with args",
+			in:    `{{- $test := list "a" "b" "c" -}}{{ $test }}`,
+			exp:   "[a b c]",
+		},
+		{
+			title: "Template appends to list",
+			in:    `{{- $test := list "a" "b" -}}{{ $test = append $test "c" "d" -}}{{ $test }}`,
+			exp:   "[a b c d]",
+		},
+		{
+			title: "Compose json array using list and append",
+			data: Data{
+				Alerts: Alerts{
+					{Status: "firing"},
+					{Status: "resolved"},
+				},
+			},
+			in:  `{{- $newList := list -}}{{ range .Alerts }}{{ $m := dict "status" .Status "labels" .Labels }}{{ $newList = append $newList $m }}{{ end }}{{ toJson $newList }}`,
+			exp: `[{"labels":null,"status":"firing"},{"labels":null,"status":"resolved"}]`,
+		},
+		{
+			title: "Template using routeLabels",
+			in:    `Simple: {{ routeLabels "rl1" }} - Templated: {{ routeLabels "rl2" }} - Recursive: {{ routeLabels "rl3" }}`,
+			data: Data{
+				GroupLabels: KV{
+					"key1": "key1",
+					"key2": "key2",
+					"key3": "key3",
+					"key4": "key4",
+				},
+				RouteLabels: KV{
+					"rl1": "rl1",
+					"rl2": `{{ .GroupLabels.key1 }}`,
+					"rl3": `{{ routeLabels "rl2" }} recursive`,
+				},
+			},
+			exp: "Simple: rl1 - Templated: key1 - Recursive: key1 recursive",
+		},
+		{
+			title: "routeLabels unknown name renders empty",
+			in:    `[{{ routeLabels "nope" }}]`,
+			data: Data{
+				RouteLabels: KV{"rl1": "rl1"},
+			},
+			exp: "[]",
+		},
+		{
+			title: "routeLabels direct cycle is detected, not a stack overflow",
+			in:    `{{ routeLabels "rl1" }}`,
+			data: Data{
+				RouteLabels: KV{
+					"rl1": `{{ routeLabels "rl2" }}`,
+					"rl2": `{{ routeLabels "rl1" }}`,
+				},
+			},
+			fail: true,
+		},
+		{
+			title: "routeLabels self cycle is detected",
+			in:    `{{ routeLabels "rl1" }}`,
+			data: Data{
+				RouteLabels: KV{
+					"rl1": `{{ routeLabels "rl1" }}`,
+				},
+			},
+			fail: true,
+		},
+		{
+			title: "routeLabels diamond reference renders once per branch",
+			in:    `{{ routeLabels "top" }}`,
+			data: Data{
+				GroupLabels: KV{"x": "v"},
+				RouteLabels: KV{
+					"top":  `{{ routeLabels "a" }}-{{ routeLabels "b" }}`,
+					"a":    `{{ routeLabels "leaf" }}`,
+					"b":    `{{ routeLabels "leaf" }}`,
+					"leaf": `{{ .GroupLabels.x }}`,
+				},
+			},
+			exp: "v-v",
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString
@@ -478,6 +636,78 @@ func TestTemplateExpansion(t *testing.T) {
 			require.Equal(t, tc.exp, got)
 		})
 	}
+}
+
+// TestRouteLabelsRenderedNotReExecuted checks that already-rendered route labels
+// (the notification path) are returned verbatim, so a rendered value containing
+// template metacharacters like {{ $value }} is not executed a second time.
+func TestRouteLabelsRenderedNotReExecuted(t *testing.T) {
+	tmpl, err := New()
+	require.NoError(t, err)
+
+	data := Data{
+		RouteLabels: KV{
+			// An already-rendered value containing template metacharacters.
+			"desc": `disk usage is {{ $value | humanize }}`,
+		},
+	}
+	MarkRouteLabelsRendered(&data)
+
+	got, err := tmpl.ExecuteTextString(`[{{ routeLabels "desc" }}]`, data)
+	require.NoError(t, err)
+	require.Equal(t, `[disk usage is {{ $value | humanize }}]`, got)
+}
+
+// TestRouteLabelsUnrenderedExecuted checks the dispatch-time default:
+// not-yet-rendered route label values are executed as templates.
+func TestRouteLabelsUnrenderedExecuted(t *testing.T) {
+	tmpl, err := New()
+	require.NoError(t, err)
+
+	data := Data{
+		GroupLabels: KV{"x": "v"},
+		RouteLabels: KV{"desc": `{{ .GroupLabels.x }}`},
+	}
+
+	got, err := tmpl.ExecuteTextString(`[{{ routeLabels "desc" }}]`, data)
+	require.NoError(t, err)
+	require.Equal(t, `[v]`, got)
+}
+
+// TestRouteLabelRendererSharesResolver checks that rendering a group's route
+// labels through a single RouteLabelRenderer renders each label — and any label
+// it cross-references — at most once, rather than re-rendering per label.
+func TestRouteLabelRendererSharesResolver(t *testing.T) {
+	var leafRenders int
+	countLeaf := func() string {
+		leafRenders++
+		return "leaf"
+	}
+	tmpl, err := New(func(text *tmpltext.Template, html *tmplhtml.Template) {
+		text.Funcs(tmpltext.FuncMap{"countLeaf": countLeaf})
+		html.Funcs(tmplhtml.FuncMap{"countLeaf": countLeaf})
+	})
+	require.NoError(t, err)
+
+	// a and b both reference leaf; leaf calls the counter once when rendered.
+	data := &Data{
+		RouteLabels: KV{
+			"a":    `{{ routeLabels "leaf" }}`,
+			"b":    `{{ routeLabels "leaf" }}`,
+			"leaf": `{{ countLeaf }}`,
+		},
+	}
+
+	render := tmpl.RouteLabelRenderer(data)
+	out := map[string]string{}
+	for name := range data.RouteLabels {
+		v, err := render(name)
+		require.NoError(t, err)
+		out[name] = v
+	}
+
+	require.Equal(t, map[string]string{"a": "leaf", "b": "leaf", "leaf": "leaf"}, out)
+	require.Equal(t, 1, leafRenders, "leaf should be rendered exactly once across all labels")
 }
 
 func TestTemplateExpansionWithOptions(t *testing.T) {
@@ -656,6 +886,22 @@ func TestTemplateFuncs(t *testing.T) {
 			},
 		},
 		exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+	}, {
+		title: "Template using toDate with valid input",
+		in:    `{{ toDate "2006-01-02" "2024-03-15" | date "02 Jan 2006" }}`,
+		exp:   "15 Mar 2024",
+	}, {
+		title: "Template using toDate with invalid input returns zero time",
+		in:    `{{ toDate "2006-01-02" "not-a-date" | date "2006" }}`,
+		exp:   "0001",
+	}, {
+		title: "Template using mustToDate with valid input",
+		in:    `{{ mustToDate "2006-01-02" "2024-03-15" | date "02 Jan 2006" }}`,
+		exp:   "15 Mar 2024",
+	}, {
+		title:  "Template using mustToDate with invalid input returns error",
+		in:     `{{ mustToDate "2006-01-02" "not-a-date" }}`,
+		expErr: `template: :1:3: executing "" at <mustToDate "2006-01-02" "not-a-date">: error calling mustToDate: parsing time "not-a-date" as "2006-01-02": cannot parse "not-a-date" as "2006"`,
 	}} {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
@@ -674,6 +920,37 @@ func TestTemplateFuncs(t *testing.T) {
 			wg.Wait()
 		})
 	}
+}
+
+func TestTemplateNow(t *testing.T) {
+	tmpl, err := FromGlobs([]string{})
+	require.NoError(t, err)
+
+	const (
+		layout   = "2006-01-02T15:04:05-0700"
+		tmplExpr = `{{ now | date "2006-01-02T15:04:05-0700" }}`
+		window   = 3 * time.Second
+	)
+
+	wg := sync.WaitGroup{}
+	for range 10 {
+		wg.Go(func() {
+			before := time.Now()
+			got, err := tmpl.ExecuteTextString(tmplExpr, nil)
+			require.NoError(t, err)
+
+			parsed, parseErr := time.Parse(layout, got)
+			require.NoError(t, parseErr)
+
+			// The rendered value is second-precision; allow up to 1s behind
+			// the captured start time, plus a forward execution window.
+			lowerBound := before.Add(-1 * time.Second)
+			upperBound := before.Add(window)
+			require.False(t, parsed.Before(lowerBound), "parsed now %v is before lower bound %v", parsed, lowerBound)
+			require.False(t, parsed.After(upperBound), "parsed now %v is after upper bound %v", parsed, upperBound)
+		})
+	}
+	wg.Wait()
 }
 
 func TestDeepCopyWithTemplate(t *testing.T) {
@@ -757,6 +1034,38 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			fn:    identity,
 			want:  nil,
 		},
+		{
+			// Regression test for #5302: a rendered JSON document must be taken
+			// as-is. String leaves that look like YAML (e.g. ending with a colon)
+			// must not be reinterpreted into maps/scalars.
+			title: "rendered JSON keeps string leaves verbatim",
+			input: `[{"alertname":"test1","id":"value1:"}]`,
+			fn:    identity,
+			want: []any{
+				map[string]any{"alertname": "test1", "id": "value1:"},
+			},
+		},
+		{
+			title: "rendered JSON keeps YAML-like scalar strings as strings",
+			input: `{"num":"123","truthy":"true","empty":"null","when":"2026-01-01"}`,
+			fn:    identity,
+			want: map[string]any{
+				"num":    "123",
+				"truthy": "true",
+				"empty":  "null",
+				"when":   "2026-01-01",
+			},
+		},
+		{
+			title: "rendered JSON preserves real scalar types",
+			input: `{"num":123,"truthy":true,"empty":null}`,
+			fn:    identity,
+			want: map[string]any{
+				"num":    123,
+				"truthy": true,
+				"empty":  nil,
+			},
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			got, err := DeepCopyWithTemplate(tc.input, tc.fn)
@@ -786,7 +1095,7 @@ func BenchmarkTemplateData(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		tmpl.Data("receiver", groupLabels, "firing", alerts...)
+		tmpl.Data("receiver", groupLabels, nil, "firing", alerts...)
 	}
 }
 

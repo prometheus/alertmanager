@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/notify/webhook"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -38,7 +39,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 					},
@@ -58,7 +59,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		{
 			receiver: config.Receiver{
 				Name: "foo",
-				WebhookConfigs: []*config.WebhookConfig{
+				WebhookConfigs: []*webhook.WebhookConfig{
 					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{
 							TLSConfig: commoncfg.TLSConfig{

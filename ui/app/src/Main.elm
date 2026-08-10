@@ -116,9 +116,6 @@ init flags url key =
             url.path
             apiUrl
             libUrl
-            Loading
-            Loading
-            Loading
             defaultCreator
             groupExpandAll
             key

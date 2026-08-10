@@ -16,7 +16,9 @@ package template
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -135,16 +137,114 @@ func (t *Template) FromGlob(path string) error {
 	return nil
 }
 
+// routeLabelsOf extracts the route labels from template data, which may be
+// passed either by value or by pointer, along with whether those values are
+// already rendered (and so must be returned verbatim rather than executed).
+func routeLabelsOf(data any) (labels KV, rendered bool) {
+	switch d := data.(type) {
+	case *Data:
+		return d.RouteLabels, d.routeLabelsRendered
+	case Data:
+		return d.RouteLabels, d.routeLabelsRendered
+	default:
+		return nil, false
+	}
+}
+
+// routeLabelResolver backs the routeLabels template function for a single
+// top-level render. A route label value may itself be a template that
+// references group labels, other route labels, etc., so resolving one can
+// recurse. The resolver renders each label at most once (memo) and tracks which
+// labels are currently being rendered (inProgress) so that a cyclic reference
+// returns a descriptive error instead of recursing until the goroutine stack
+// overflows (which is a fatal, unrecoverable runtime error in Go).
+type routeLabelResolver struct {
+	raw        KV   // raw (possibly templated) label values
+	rendered   bool // if true, raw values are already rendered; return verbatim
+	data       any  // data to render label values against
+	exec       func(text string, data any, r *routeLabelResolver) (string, error)
+	memo       map[string]string
+	inProgress map[string]struct{}
+	stack      []string // labels currently being rendered, for the cycle error
+}
+
+func newRouteLabelResolver(data any, exec func(string, any, *routeLabelResolver) (string, error)) *routeLabelResolver {
+	// memo and inProgress are allocated lazily on the first resolve() call, so a
+	// template that never references routeLabels (the common case) pays nothing.
+	labels, rendered := routeLabelsOf(data)
+	return &routeLabelResolver{
+		raw:      labels,
+		rendered: rendered,
+		data:     data,
+		exec:     exec,
+	}
+}
+
+// resolve renders the named route label, recursing through any routeLabels
+// references it contains. Unknown labels render to the empty string. If the
+// values are already rendered, they are returned verbatim without a second
+// execution.
+func (r *routeLabelResolver) resolve(name string) (string, error) {
+	raw, ok := r.raw[name]
+	if !ok {
+		return "", nil
+	}
+	if r.rendered {
+		return raw, nil
+	}
+	if v, ok := r.memo[name]; ok {
+		return v, nil
+	}
+	if _, busy := r.inProgress[name]; busy {
+		cycle := strings.Join(append(append([]string{}, r.stack...), name), " -> ")
+		return "", fmt.Errorf("route label cycle detected: %s", cycle)
+	}
+
+	if r.memo == nil {
+		r.memo = map[string]string{}
+		r.inProgress = map[string]struct{}{}
+	}
+
+	r.inProgress[name] = struct{}{}
+	r.stack = append(r.stack, name)
+	v, err := r.exec(raw, r.data, r)
+	r.stack = r.stack[:len(r.stack)-1]
+	delete(r.inProgress, name)
+	if err != nil {
+		return "", err
+	}
+
+	r.memo[name] = v
+	return v, nil
+}
+
+// RouteLabelRenderer returns a function that renders a route label by name from
+// data.RouteLabels. All returned renders share a single resolver, so each label
+// — and any label it cross-references via {{ routeLabels "x" }} — is rendered at
+// most once per call to RouteLabelRenderer (and cycles are still detected).
+// It is used by the dispatch-time expansion of a group's route labels, where
+// many labels are rendered against the same data and may reference each other.
+func (t *Template) RouteLabelRenderer(data *Data) func(name string) (string, error) {
+	return newRouteLabelResolver(data, t.execText).resolve
+}
+
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteTextString(text string, data any) (string, error) {
 	if text == "" {
 		return "", nil
 	}
+	return t.execText(text, data, newRouteLabelResolver(data, t.execText))
+}
+
+func (t *Template) execText(text string, data any, r *routeLabelResolver) (string, error) {
 	tmpl, err := t.text.Clone()
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(text)
+
+	funcs := tmpltext.FuncMap{"routeLabels": r.resolve}
+
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(text)
 	if err != nil {
 		return "", err
 	}
@@ -158,11 +258,18 @@ func (t *Template) ExecuteHTMLString(html string, data any) (string, error) {
 	if html == "" {
 		return "", nil
 	}
+	return t.execHTML(html, data, newRouteLabelResolver(data, t.execHTML))
+}
+
+func (t *Template) execHTML(html string, data any, r *routeLabelResolver) (string, error) {
 	tmpl, err := t.html.Clone()
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(html)
+
+	funcs := tmplhtml.FuncMap{"routeLabels": r.resolve}
+
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Funcs(funcs).Parse(html)
 	if err != nil {
 		return "", err
 	}
@@ -202,6 +309,12 @@ var DefaultFuncs = FuncMap{
 	"stringSlice": func(s ...string) []string {
 		return s
 	},
+	// routeLabels is a placeholder needed so templates referencing it parse
+	// successfully. It is replaced dynamically with the real implementation in
+	// ExecuteTextString and ExecuteHTMLString.
+	"routeLabels": func(name string) (string, error) {
+		return "", nil
+	},
 	// date returns the text representation of the time in the specified format.
 	"date": func(fmt string, t time.Time) string {
 		return t.Format(fmt)
@@ -214,14 +327,62 @@ var DefaultFuncs = FuncMap{
 		}
 		return t.In(loc), nil
 	},
+	"now":              time.Now,
 	"since":            time.Since,
 	"humanizeDuration": commonTemplates.HumanizeDuration,
+	// toDate parses s into a time.Time using the given layout, returning zero time on failure.
+	"toDate": func(layout, s string) time.Time {
+		t, _ := time.ParseInLocation(layout, s, time.UTC)
+		return t
+	},
+	// mustToDate parses s into a time.Time using the given layout, returning an error on failure.
+	"mustToDate": func(layout, s string) (time.Time, error) {
+		return time.ParseInLocation(layout, s, time.UTC)
+	},
 	"toJson": func(v any) (string, error) {
 		bytes, err := json.Marshal(v)
 		if err != nil {
 			return "", err
 		}
 		return string(bytes), nil
+	},
+	// base64encode and base64decode use the URL-safe alphabet so the result
+	// can be embedded directly in a URL query parameter, e.g. to build a
+	// silence link for an external dashboard.
+	"base64encode": func(text string) string {
+		return base64.URLEncoding.EncodeToString([]byte(text))
+	},
+	"base64decode": func(text string) (string, error) {
+		decoded, err := base64.URLEncoding.DecodeString(text)
+		if err != nil {
+			return "", err
+		}
+		return string(decoded), nil
+	},
+	"list": func(args ...any) ([]any, error) {
+		if args == nil {
+			return []any{}, nil
+		}
+		return args, nil
+	},
+	"append": func(slice []any, args ...any) []any {
+		return append(slice, args...)
+	},
+	"dict": func(values ...any) (map[string]any, error) {
+		if len(values)%2 != 0 {
+			return nil, fmt.Errorf("dict requires an even number of arguments")
+		}
+
+		res := make(map[string]any, len(values)/2)
+		for i := 0; i < len(values); i += 2 {
+			key, ok := values[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict keys must be strings")
+			}
+			res[key] = values[i+1]
+		}
+
+		return res, nil
 	},
 }
 
@@ -234,21 +395,21 @@ type Pair struct {
 type Pairs []Pair
 
 // Names returns a list of names of the pairs.
-func (ps Pairs) Names() []string {
+func (ps Pairs) Names() Strings {
 	ns := make([]string, 0, len(ps))
 	for _, p := range ps {
 		ns = append(ns, p.Name)
 	}
-	return ns
+	return Strings(ns)
 }
 
 // Values returns a list of values of the pairs.
-func (ps Pairs) Values() []string {
+func (ps Pairs) Values() Strings {
 	vs := make([]string, 0, len(ps))
 	for _, p := range ps {
 		vs = append(vs, p.Value)
 	}
-	return vs
+	return Strings(vs)
 }
 
 func (ps Pairs) String() string {
@@ -262,6 +423,15 @@ func (ps Pairs) String() string {
 		}
 	}
 	return b.String()
+}
+
+// Strings is a list of strings exposed to templates.
+type Strings []string
+
+// Join makes strings.Join accessible from templates, e.g.
+// {{ .GroupLabels.Values.Join ":" }}.
+func (s Strings) Join(sep string) string {
+	return strings.Join(s, sep)
 }
 
 // KV is a set of key/value string pairs.
@@ -307,12 +477,12 @@ func (kv KV) Remove(keys []string) KV {
 }
 
 // Names returns the names of the label names in the LabelSet.
-func (kv KV) Names() []string {
+func (kv KV) Names() Strings {
 	return kv.SortedPairs().Names()
 }
 
 // Values returns a list of the values in the LabelSet.
-func (kv KV) Values() []string {
+func (kv KV) Values() Strings {
 	return kv.SortedPairs().Values()
 }
 
@@ -334,8 +504,22 @@ type Data struct {
 	GroupLabels       KV `json:"groupLabels"`
 	CommonLabels      KV `json:"commonLabels"`
 	CommonAnnotations KV `json:"commonAnnotations"`
+	RouteLabels       KV `json:"routeLabels"`
 
 	ExternalURL string `json:"externalURL"`
+
+	// routeLabelsRendered: if true, routeLabels returns RouteLabels values
+	// verbatim instead of executing them as templates. Set via
+	// MarkRouteLabelsRendered. Unexported so it is not reachable from templates
+	// or serialized into JSON webhooks.
+	routeLabelsRendered bool
+}
+
+// MarkRouteLabelsRendered marks d.RouteLabels as already-rendered, so the
+// routeLabels template function returns the values verbatim rather than
+// executing them a second time.
+func MarkRouteLabelsRendered(d *Data) {
+	d.routeLabelsRendered = true
 }
 
 // Alert holds one alert for notification templates.
@@ -375,7 +559,7 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
+func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
 	typedAlerts := types.Alerts(alerts...)
 
 	data := &Data{
@@ -386,6 +570,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 		GroupLabels:        KV{},
 		CommonLabels:       KV{},
 		CommonAnnotations:  KV{},
+		RouteLabels:        KV{},
 		ExternalURL:        t.ExternalURL.String(),
 	}
 
@@ -412,6 +597,10 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, notificationRea
 
 	for k, v := range groupLabels {
 		data.GroupLabels[string(k)] = string(v)
+	}
+
+	for k, v := range routeLabels {
+		data.RouteLabels[string(k)] = string(v)
 	}
 
 	if len(alerts) >= 1 {
@@ -473,7 +662,12 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 			if strings.TrimSpace(parsed) == "" {
 				return parsed, ok
 			}
-			return DeepCopyWithTemplate(inlineType, tmplTextFunc)
+			// inlineType holds structured data decoded from the rendered string.
+			// This is already final data, so only normalize it into JSON-compatible
+			// types. It must not be passed back through DeepCopyWithTemplate, because
+			// re-templating and re-parsing its leaf values would reinterpret strings
+			// that merely look like YAML (e.g. "value1:" becoming a map). See #5302.
+			return normalizeYAMLValue(inlineType), nil
 		}
 		return parsed, ok
 
@@ -511,5 +705,41 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		return converted, nil
 	default:
 		return value, nil
+	}
+}
+
+// normalizeYAMLValue recursively converts a value decoded by yaml.Unmarshal into
+// JSON-compatible types: maps become map[string]any (non-string keys are dropped,
+// mirroring DeepCopyWithTemplate) and slices/arrays become []any. Scalar leaves are
+// returned unchanged, so values are never re-templated or re-parsed. This keeps a
+// rendered JSON payload byte-for-byte faithful instead of reinterpreting string
+// values that happen to be valid YAML (see #5302).
+func normalizeYAMLValue(value any) any {
+	if value == nil {
+		return nil
+	}
+
+	valueMeta := reflect.ValueOf(value)
+	switch valueMeta.Kind() {
+	case reflect.Array, reflect.Slice:
+		converted := make([]any, valueMeta.Len())
+		for i := range converted {
+			converted[i] = normalizeYAMLValue(valueMeta.Index(i).Interface())
+		}
+		return converted
+
+	case reflect.Map:
+		converted := make(map[string]any, valueMeta.Len())
+		for _, keyMeta := range valueMeta.MapKeys() {
+			strKey, isString := keyMeta.Interface().(string)
+			if !isString {
+				continue
+			}
+			converted[strKey] = normalizeYAMLValue(valueMeta.MapIndex(keyMeta).Interface())
+		}
+		return converted
+
+	default:
+		return value
 	}
 }

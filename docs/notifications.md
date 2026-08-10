@@ -6,7 +6,7 @@ sort_rank: 7
 Prometheus creates and sends alerts to the Alertmanager which then sends notifications out to different receivers based on their labels.
 A receiver can be one of many integrations including: Slack, PagerDuty, email, or a custom integration via the generic webhook interface.
 
-The notifications sent to receivers are constructed via templates. The Alertmanager comes with default templates but they can also be customized.
+The notifications sent to receivers are constructed via templates. The Alertmanager comes with [default templates](https://github.com/prometheus/alertmanager/blob/main/template/default.tmpl) but they can also be customized.
 To avoid confusion it's important to note that the Alertmanager templates differ from [templating in Prometheus](https://prometheus.io/docs/visualization/template_reference/), however Prometheus templating also includes the templating in alert rule labels/annotations.
 
 
@@ -27,6 +27,7 @@ Note that some fields are evaluated as text, and others as HTML which will affec
 | GroupLabels | [KV](#kv) | The labels these alerts were grouped by. |
 | CommonLabels | [KV](#kv) | The labels common to all of the alerts. |
 | CommonAnnotations | [KV](#kv) | Set of common annotations to all of the alerts. Used for longer additional strings of information about the alert. |
+| RouteLabels | [KV](#kv) | The route [`labels`](configuration.md#route) attached to this alert group. Usually accessed via the `routeLabels` function below. |
 | ExternalURL | string | Backlink to the Alertmanager that sent the notification. |
 
 The `Alerts` type exposes functions for filtering alerts:
@@ -85,11 +86,18 @@ templating.
 
 | Name             | Arguments                  | Description |
 | ---------------- | -------------------------- | ----------- |
+| append           | slice []any, args ...any   | Returns a new slice with the provided arguments appended to the provided slice. |
+| base64decode     | text string                | [base64.URLEncoding.DecodeString](https://pkg.go.dev/encoding/base64#Encoding.DecodeString), decodes a URL-safe base64 encoded string, and the error if it happened. |
+| base64encode     | text string                | [base64.URLEncoding.EncodeToString](https://pkg.go.dev/encoding/base64#Encoding.EncodeToString), returns the URL-safe base64 encoding of a string, e.g. for use in a query parameter. |
 | date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
+| dict             | values ...any              | Returns a map of string to any, constructed from the variadic list of key-value pairs. The number of arguments must be even, and the keys must be strings. |
 | humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
 | join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
+| list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
+| now              |                            | [time.Now](https://pkg.go.dev/time#Now), returns the current local time. |
 | reReplaceAll     | pattern, replacement, text | [Regexp.ReplaceAllString](http://golang.org/pkg/regexp/#Regexp.ReplaceAllString) Regexp substitution, unanchored. |
+| routeLabels      | name string                | Returns the value of the named route [label](configuration.md#route) for this alert group, or "" if unset. |
 | safeHtml         | text string                | [html/template.HTML](https://golang.org/pkg/html/template/#HTML), Marks string as HTML not requiring auto-escaping. |
 | safeUrl          | text string                | [html/template.URL](https://golang.org/pkg/html/template/#URL), Marks string as URL not requiring auto-escaping. |
 | since            | time.Time                  | [time.Since](https://pkg.go.dev/time#Since), returns the duration of how much time passed from the provided time till the current system time. |

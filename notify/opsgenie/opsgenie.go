@@ -27,7 +27,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -38,7 +37,7 @@ const maxMessageLenRunes = 130
 
 // Notifier implements a Notifier for OpsGenie notifications.
 type Notifier struct {
-	conf    *config.OpsGenieConfig
+	conf    *OpsGenieConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -46,7 +45,7 @@ type Notifier struct {
 }
 
 // New returns a new OpsGenie notifier.
-func New(c *config.OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err

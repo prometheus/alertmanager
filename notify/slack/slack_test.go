@@ -130,7 +130,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		{
 			name:           "with a 4xx status code",
 			statusCode:     http.StatusUnauthorized,
-			expectedReason: notify.ClientErrorReason,
+			expectedReason: notify.AuthErrorReason,
 			expectedRetry:  false,
 			expectedErr:    "unexpected status code 401",
 		},

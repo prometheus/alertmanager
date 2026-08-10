@@ -101,6 +101,9 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "$ref": "#/parameters/receiverMatchers"
           }
         ],
         "responses": {
@@ -199,6 +202,9 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "$ref": "#/parameters/receiverMatchers"
           }
         ],
         "responses": {
@@ -224,6 +230,11 @@ func init() {
           "receiver"
         ],
         "operationId": "getReceivers",
+        "parameters": [
+          {
+            "$ref": "#/parameters/receiverMatchers"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Get receivers response",
@@ -233,6 +244,9 @@ func init() {
                 "$ref": "#/definitions/receiver"
               }
             }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
           }
         }
       }
@@ -314,6 +328,27 @@ func init() {
             "collectionFormat": "multi",
             "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include active silences in results. If false, excludes active silences.",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include expired silences in results. If false, excludes expired silences.",
+            "name": "expired",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include pending silences in results. If false, excludes pending silences.",
+            "name": "pending",
             "in": "query"
           }
         ],
@@ -411,6 +446,7 @@ func init() {
       "type": "object",
       "required": [
         "labels",
+        "routeLabels",
         "receiver",
         "alerts"
       ],
@@ -425,7 +461,10 @@ func init() {
           "$ref": "#/definitions/labelSet"
         },
         "receiver": {
-          "$ref": "#/definitions/receiver"
+          "$ref": "#/definitions/receiverReference"
+        },
+        "routeLabels": {
+          "$ref": "#/definitions/labelSet"
         }
       }
     },
@@ -559,7 +598,7 @@ func init() {
             "receivers": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/receiver"
+                "$ref": "#/definitions/receiverReference"
               }
             },
             "startsAt": {
@@ -721,6 +760,20 @@ func init() {
         "name"
       ],
       "properties": {
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "receiverReference": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
         "name": {
           "type": "string"
         }
@@ -804,6 +857,18 @@ func init() {
           "type": "string"
         }
       }
+    }
+  },
+  "parameters": {
+    "receiverMatchers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "collectionFormat": "multi",
+      "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+      "name": "receiver_matchers",
+      "in": "query"
     }
   },
   "responses": {
@@ -909,6 +974,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1019,6 +1094,16 @@ func init() {
             "description": "A regex matching receivers to filter alerts by",
             "name": "receiver",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1050,6 +1135,18 @@ func init() {
           "receiver"
         ],
         "operationId": "getReceivers",
+        "parameters": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+            "name": "receiver_matchers",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Get receivers response",
@@ -1058,6 +1155,12 @@ func init() {
               "items": {
                 "$ref": "#/definitions/receiver"
               }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -1146,6 +1249,27 @@ func init() {
             "collectionFormat": "multi",
             "description": "A matcher expression to filter silences. For example ` + "`" + `alertname=\"MyAlert\"` + "`" + `. It can be repeated to apply multiple matchers.",
             "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include active silences in results. If false, excludes active silences.",
+            "name": "active",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include expired silences in results. If false, excludes expired silences.",
+            "name": "expired",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "default": true,
+            "description": "Include pending silences in results. If false, excludes pending silences.",
+            "name": "pending",
             "in": "query"
           }
         ],
@@ -1252,6 +1376,7 @@ func init() {
       "type": "object",
       "required": [
         "labels",
+        "routeLabels",
         "receiver",
         "alerts"
       ],
@@ -1266,7 +1391,10 @@ func init() {
           "$ref": "#/definitions/labelSet"
         },
         "receiver": {
-          "$ref": "#/definitions/receiver"
+          "$ref": "#/definitions/receiverReference"
+        },
+        "routeLabels": {
+          "$ref": "#/definitions/labelSet"
         }
       }
     },
@@ -1400,7 +1528,7 @@ func init() {
             "receivers": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/receiver"
+                "$ref": "#/definitions/receiverReference"
               }
             },
             "startsAt": {
@@ -1562,6 +1690,20 @@ func init() {
         "name"
       ],
       "properties": {
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "receiverReference": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
         "name": {
           "type": "string"
         }
@@ -1645,6 +1787,18 @@ func init() {
           "type": "string"
         }
       }
+    }
+  },
+  "parameters": {
+    "receiverMatchers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "collectionFormat": "multi",
+      "description": "A matcher expression to filter by receiver labels. For example ` + "`" + `owner=\"my-team\"` + "`" + `. Can be repeated to apply multiple matchers.",
+      "name": "receiver_matchers",
+      "in": "query"
     }
   },
   "responses": {

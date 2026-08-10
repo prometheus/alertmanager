@@ -72,3 +72,50 @@ body:
       label: Logs
       description: Insert Prometheus and Alertmanager logs relevant to the issue here.
       render: text
+  - type: markdown
+    attributes:
+      value: |
+        ## Performance issues
+
+        The fields below are only relevant if you are reporting a performance issue (e.g. high CPU or memory usage). You can skip them otherwise.
+
+        You can upload the captured profiles to https://pprof.me/ and share the link to the profile diff between the previous and current versions.
+  - type: textarea
+    attributes:
+      label: CPU profiles
+      description: |
+        Please attach CPU profiles from both the previous version (where performance was acceptable) and the current version (where you observe the regression). This helps us compare and identify the cause.
+
+        See the upstream Go documentation on diagnostics for how to capture profiles: https://go.dev/doc/diagnostics. You can capture a CPU profile with:
+
+        `go tool pprof http://<alertmanager-host>:9093/debug/pprof/profile?seconds=30`
+  - type: textarea
+    attributes:
+      label: Memory profiles
+      description: |
+        Please attach memory (heap) profiles from both the previous version (where performance was acceptable) and the current version (where you observe the regression).
+
+        See the upstream Go documentation on diagnostics: https://go.dev/doc/diagnostics. You can capture a heap profile with:
+
+        `go tool pprof http://<alertmanager-host>:9093/debug/pprof/heap`
+  - type: input
+    attributes:
+      label: Number of alerts
+      description: Approximate number of alerts Alertmanager is handling when the issue occurs.
+  - type: input
+    attributes:
+      label: Number of silences
+      description: Approximate number of silences configured when the issue occurs.
+  - type: markdown
+    attributes:
+      value: |
+        ## Using prometheus-operator?
+
+        If you deploy Alertmanager via [prometheus-operator](https://github.com/prometheus-operator/prometheus-operator), please confirm the checklist below before opening the issue.
+  - type: checkboxes
+    attributes:
+      label: prometheus-operator checklist
+      description: Only applicable if you use prometheus-operator to manage Alertmanager.
+      options:
+        - label: I have confirmed this issue is not caused by a missing feature in prometheus-operator.
+        - label: I have reproduced this issue when running Alertmanager directly (without prometheus-operator).

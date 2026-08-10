@@ -1,7 +1,9 @@
-import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AppShell, Button, Group, Menu, Text } from '@mantine/core';
+import { Link, NavLink, Route, Routes } from 'react-router-dom';
+
 import { AlertsPage } from '@/pages/Alerts.page';
 import { SilencesPage } from '@/pages/Silences.page';
+
 import classes from './Header.module.css';
 
 const navLinkXPadding = 'md';

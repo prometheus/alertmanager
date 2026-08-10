@@ -25,7 +25,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"gopkg.in/telebot.v3"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -36,7 +35,7 @@ const maxMessageLenRunes = 4096
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
-	conf    *config.TelegramConfig
+	conf    *TelegramConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *telebot.Bot
@@ -44,7 +43,7 @@ type Notifier struct {
 }
 
 // New returns a new Telegram notification handler.
-func New(conf *config.TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	httpclient, err := notify.NewClientWithTracing(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err

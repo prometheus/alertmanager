@@ -30,19 +30,10 @@ Alertmanager will now be reachable at http://localhost:9093/.
 
 ### Compiling the binary
 
-You can either `go install` it:
+Building from source requires [Go](https://golang.org/) and [Node.js](https://nodejs.org/) (with npm).
+Clone the repository and build manually:
 
 ```
-$ go install github.com/prometheus/alertmanager/cmd/...@latest
-# cd $GOPATH/src/github.com/prometheus/alertmanager
-$ alertmanager --config.file=<your_file>
-```
-
-Or clone the repository and build manually:
-
-```
-$ mkdir -p $GOPATH/src/github.com/prometheus
-$ cd $GOPATH/src/github.com/prometheus
 $ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
 $ make build
@@ -336,7 +327,7 @@ and it prints out all receivers the alert would match ordered and separated by `
 Example of usage:
 ```
 # View routing tree of remote Alertmanager
-$ amtool config routes --alertmanager.url=http://localhost:9090
+$ amtool config routes --alertmanager.url=http://localhost:9093
 
 # Test if alert matches expected receiver
 $ amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X

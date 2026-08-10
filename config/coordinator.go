@@ -16,6 +16,7 @@ package config
 import (
 	"crypto/md5"
 	"encoding/binary"
+	"errors"
 	"log/slog"
 	"sync"
 
@@ -125,6 +126,38 @@ func (c *Coordinator) Reload() error {
 		"Completed loading of configuration file",
 		"file", c.configFilePath,
 	)
+
+	if err := c.notifySubscribers(); err != nil {
+		c.logger.Error(
+			"one or more config change subscribers failed to apply new config",
+			"file", c.configFilePath,
+			"err", err,
+		)
+		c.configSuccessMetric.Set(0)
+		return err
+	}
+
+	c.configSuccessMetric.Set(1)
+	c.configSuccessTimeMetric.SetToCurrentTime()
+	hash := md5HashAsMetricValue([]byte(c.config.original))
+	c.configHashMetric.Set(hash)
+
+	return nil
+}
+
+// ApplyConfig accepts an already-loaded configuration, stores it, and
+// notifies all subscribers.  Use this for the initial load so the file
+// is only read once.
+func (c *Coordinator) ApplyConfig(conf *Config) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if conf == nil {
+		c.configSuccessMetric.Set(0)
+		return errors.New("nil config passed to ApplyConfig")
+	}
+
+	c.config = conf
 
 	if err := c.notifySubscribers(); err != nil {
 		c.logger.Error(

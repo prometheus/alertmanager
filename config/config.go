@@ -30,7 +30,18 @@ import (
 	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
+	"github.com/prometheus/alertmanager/notify/discord"
+	"github.com/prometheus/alertmanager/notify/incidentio"
+	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/mattermost"
+	"github.com/prometheus/alertmanager/notify/msteams"
+	"github.com/prometheus/alertmanager/notify/msteamsv2"
+	"github.com/prometheus/alertmanager/notify/opsgenie"
+	"github.com/prometheus/alertmanager/notify/pagerduty"
+	"github.com/prometheus/alertmanager/notify/telegram"
+	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -217,6 +228,20 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 	}
+
+	for i := range cfg.EventRecorder.FileOutputs {
+		cfg.EventRecorder.FileOutputs[i].Path = join(cfg.EventRecorder.FileOutputs[i].Path)
+	}
+	for _, out := range cfg.EventRecorder.WebhookOutputs {
+		if out.HTTPConfig != nil {
+			out.HTTPConfig.SetDirectory(baseDir)
+		}
+	}
+	for _, out := range cfg.EventRecorder.KafkaOutputs {
+		if out.TLSConfig != nil {
+			out.TLSConfig.SetDirectory(baseDir)
+		}
+	}
 }
 
 // MuteTimeInterval represents a named set of time intervals for which a route should be muted.
@@ -267,6 +292,8 @@ type Config struct {
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
 	TracingConfig tracing.TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
+
+	EventRecorder eventrecorder.Config `yaml:"event_recorder,omitempty" json:"event_recorder,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -453,7 +480,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc == nil {
-				ogc = &OpsGenieConfig{}
+				ogc = &opsgenie.OpsGenieConfig{}
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
 			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
@@ -567,7 +594,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if msteamsv2 == nil {
 				return errors.New("missing msteamsv2 config")
 			}
-			msteamsv2.HTTPConfig = cmp.Or(msteamsv2.HTTPConfig, c.Global.HTTPConfig)
+			if msteamsv2.HTTPConfig == nil {
+				// copy the global config so receiver-level mutations don't affect it
+				httpCfg := *c.Global.HTTPConfig
+				msteamsv2.HTTPConfig = &httpCfg
+			} else if msteamsv2.HTTPConfig.ProxyURL.URL == nil {
+				// receiver has a partial http_config but no proxy_url set,
+				// so inherit only the proxy_url from global, leaving any
+				// other proxy fields the receiver set (NoProxy, etc.) intact
+				msteamsv2.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
+			}
 			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
 			}
@@ -867,6 +903,12 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+
+	// Labels are attached to a route and inherited by child routes.
+	// Values may be Go templates rendered against the current alert group's
+	// data. Notification-specific fields such as .NotificationReason are
+	// not available; use notification templates for reason-dependent content.
+	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
@@ -879,6 +921,12 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	for k := range r.Match {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.Labels {
+		if !compat.IsValidLabelName(k) {
+			return fmt.Errorf("invalid label name %q in route labels", k)
 		}
 	}
 
@@ -925,25 +973,27 @@ func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
+	// Labels attached to this receiver for querying and filtering.
+	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
-	DiscordConfigs    []*DiscordConfig    `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	IncidentioConfigs []*IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
-	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs        []*SNSConfig        `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs   []*TelegramConfig   `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig      `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs    []*MSTeamsConfig    `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
-	MSTeamsV2Configs  []*MSTeamsV2Config  `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
-	JiraConfigs       []*JiraConfig       `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
-	MattermostConfigs []*MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
+	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
+	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	SNSConfigs        []*SNSConfig                   `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
+	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
+	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -955,5 +1005,12 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.Name == "" {
 		return errors.New("missing name in receiver")
 	}
+	if c.Labels == nil {
+		c.Labels = make(map[string]string)
+	}
+	if v, ok := c.Labels["name"]; ok && v != c.Name {
+		return fmt.Errorf("receiver label \"name\" must match receiver name %q, got %q", c.Name, v)
+	}
+	c.Labels["name"] = c.Name
 	return nil
 }

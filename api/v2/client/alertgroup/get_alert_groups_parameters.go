@@ -112,6 +112,12 @@ type GetAlertGroupsParams struct {
 	*/
 	Receiver *string
 
+	/* ReceiverMatchers.
+
+	   A matcher expression to filter by receiver labels. For example `owner="my-team"`. Can be repeated to apply multiple matchers.
+	*/
+	ReceiverMatchers []string
+
 	/* Silenced.
 
 	   Include silenced alerts within the returned groups. If false, excludes silenced alerts from groups. Note that true (default) shows both silenced and non-silenced alerts.
@@ -248,6 +254,17 @@ func (o *GetAlertGroupsParams) SetReceiver(receiver *string) {
 	o.Receiver = receiver
 }
 
+// WithReceiverMatchers adds the receiverMatchers to the get alert groups params
+func (o *GetAlertGroupsParams) WithReceiverMatchers(receiverMatchers []string) *GetAlertGroupsParams {
+	o.SetReceiverMatchers(receiverMatchers)
+	return o
+}
+
+// SetReceiverMatchers adds the receiverMatchers to the get alert groups params
+func (o *GetAlertGroupsParams) SetReceiverMatchers(receiverMatchers []string) {
+	o.ReceiverMatchers = receiverMatchers
+}
+
 // WithSilenced adds the silenced to the get alert groups params
 func (o *GetAlertGroupsParams) WithSilenced(silenced *bool) *GetAlertGroupsParams {
 	o.SetSilenced(silenced)
@@ -346,6 +363,17 @@ func (o *GetAlertGroupsParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 		}
 	}
 
+	if o.ReceiverMatchers != nil {
+
+		// binding items for receiver_matchers
+		joinedReceiverMatchers := o.bindParamReceiverMatchers(reg)
+
+		// query array param receiver_matchers
+		if err := r.SetQueryParam("receiver_matchers", joinedReceiverMatchers...); err != nil {
+			return err
+		}
+	}
+
 	if o.Silenced != nil {
 
 		// query param silenced
@@ -384,4 +412,21 @@ func (o *GetAlertGroupsParams) bindParamFilter(formats strfmt.Registry) []string
 	filterIS := swag.JoinByFormat(filterIC, "multi")
 
 	return filterIS
+}
+
+// bindParamGetAlertGroups binds the parameter receiver_matchers
+func (o *GetAlertGroupsParams) bindParamReceiverMatchers(formats strfmt.Registry) []string {
+	receiverMatchersIR := o.ReceiverMatchers
+
+	var receiverMatchersIC []string
+	for _, receiverMatchersIIR := range receiverMatchersIR { // explode []string
+
+		receiverMatchersIIV := receiverMatchersIIR // string as string
+		receiverMatchersIC = append(receiverMatchersIC, receiverMatchersIIV)
+	}
+
+	// items.CollectionFormat: "multi"
+	receiverMatchersIS := swag.JoinByFormat(receiverMatchersIC, "multi")
+
+	return receiverMatchersIS
 }

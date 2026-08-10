@@ -1,9 +1,87 @@
 ## main / (unreleased)
 
-* [CHANGE] ...
-* [FEATURE] ...
-* [ENHANCEMENT] ...
-* [BUGFIX] Use dispatcher tick time when evaluating repeat interval in dedup stage. #2461
+* [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated.
+* [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
+* [ENHANCEMENT] eventrecorder: Add optional webhook batching.
+* [BUGFIX] webhook: Keep custom `payload` string values verbatim instead of reinterpreting JSON leaves that look like YAML (e.g. values ending with a colon). #5302
+
+## 0.33.1 / 2026-07-04
+
+* [BUGFIX] doc: fix missing `notification_reason` field in webhook documentation (#5329)
+* [BUGFIX] silences: fix silences snapshot missing legacy matchers field. This caused a bug that prevented older alertmanager versions from reading newer snapshots unnecessarily. (#5330)
+* [BUGFIX] silence with no matchers should populate an empty array in API response (#5331)
+
+## 0.32.3 / 2026-07-04
+
+* [BUGFIX] doc: fix missing `notification_reason` field in webhook documentation (#5329)
+* [BUGFIX] silences: fix silences snapshot missing legacy matchers field. This caused a bug that prevented older alertmanager versions from reading newer snapshots unnecessarily. (#5330)
+* [BUGFIX] silence with no matchers should populate an empty array in API response (#5331)
+
+## 0.33.0 / 2026-06-12
+
+* [CHANGE] The '--enable-feature=auto-gomaxprocs' option has been removed. This flag had no effect since v0.29 and was deprecated in v0.32. It can be safely removed from any startup scripts. #5090, #5251
+* [CHANGE] Add `group-key-in-metrics` feature flag. #5047
+* [CHANGE] Move `AlertMarker`, `GroupMarker` to `marker` package. #5047
+* [CHANGE] Remove `alertmanager_marked_alerts`. #5047
+* [CHANGE] Remove the following from `types` package: `MemMarker`, `AlertState*`, `AlertStatus`. #5047
+* [FEATURE] Introduce per aggregation group AlertMarkers and drop Global Alert Marker. #5047
+* [FEATURE] ui: Add support for silence annotations. #5017
+* [FEATURE] api: Add receiver labels and `receiver_matchers` filter to `/api/v2/receivers`, `/api/v2/alerts`, and `/api/v2/alerts/groups`. #5152
+* [FEATURE] eventrecorder: Add structured event recorder behind `--enable-feature=event-recorder`, with file, webhook, and kafka outputs. #5072, #5246
+* [ENHANCEMENT] Add the `use_aws_http_client` config option to the sns notifier. #5178
+* [ENHANCEMENT] template: Add now function to get current time. #5188
+* [ENHANCEMENT] docs: Clarify YAML quoting vs matcher token quoting in UTF-8 matchers section. #5264
+* [BUGFIX] jira: Allow disabling the resolve transition when `resolve_transition` is not set. #4821
+* [BUGFIX] jira: Include unresolved issues in `wont_fix_resolution` JQL to prevent duplicate issue creation. #5185
+* [BUGFIX] sns: Support the `AWS_CA_BUNDLE` env variable for the sns notifier. #5178
+
+## 0.32.2 / 2026-06-05
+
+* [BUGFIX] Fix dispatcher goroutine leaks on destroyed alertgroup swap. #5241
+
+## 0.32.1 / 2026-04-29
+
+* [BUGFIX] dispatcher: Fix issue with dispatching to a contended route. #5179
+* [BUGFIX] ui: Provide prebuilt ui assets in release. #5191
+* [ENHANCEMENT] ui: Support building artifacts in containers with Docker or Podman. #5102
+
+## 0.32.0 / 2026-04-08
+
+* [CHANGE] `go get github.com/prometheus/alertmanager/ui` will now fail as compiled UI assets are no longer checked into the repository. Downstream builds that rely on these assets being present in the source tree must now build the UI from source. #5113
+* [CHANGE] The '--enable-feature=auto-gomaxprocs' option is deprecated and will be removed in v0.33. This flag currently has no effect and can be safely removed from any startup scripts. #5090
+* [CHANGE] Update internal function signatures across multiple packages. This affects any project that integrates `Alertmanager` code.
+* [ENHANCEMENT] Add static asset caching. #5113
+* [ENHANCEMENT] Reduce memory allocations through pre-sizing collections and batch allocation. #5020
+* [ENHANCEMENT] Replace help with documentation in navigation bar. #4943
+* [ENHANCEMENT] docs(ha): Update high availability documentation. #5136
+* [ENHANCEMENT] docs: Add `auth_secret_file` for smtp in document. #5036
+* [ENHANCEMENT] docs: Add description for global `telegram_bot_token`. #5114
+* [ENHANCEMENT] docs: Add note about notifier timeouts. #5077
+* [ENHANCEMENT] docs: Fix `force_implicit_tls` config field name. #5030
+* [ENHANCEMENT] docs: Link community supported integrations. #4978
+* [ENHANCEMENT] docs: Remove duplicate header. #5034
+* [ENHANCEMENT] docs: Update mutual tls reference in high availability documentation. #5120
+* [ENHANCEMENT] tracing: Use noop spans when tracing disabled. #5118
+* [ENHANCEMENT] ui: Serve pre-compressed assets. #5133
+* [FEATURE] Add silence annotations. #4965
+* [FEATURE] Add silence logging option. #4163
+* [FEATURE] Add support for multiple matcher set silences. #4957
+* [FEATURE] Add the reason for notifying in dedup stage. #4971
+* [FEATURE] mattermost: Flatten attachments into top-level config. #5009
+* [FEATURE] mattermost: Support global webhook url. #4998
+* [FEATURE] slack: Add default color from template. #5014
+* [FEATURE] slack: Allow receiver to edit existing messages. #5007
+* [FEATURE] template: Add dict, map and append functions. #5093
+* [FEATURE] webhook: Add full payload templating support for notifier. #5011
+* [BUGFIX] config: Check for empty cluster tls client config. #5126
+* [BUGFIX] config: Don't crash upon reading empty config for notifier. #4979
+* [BUGFIX] config: Fix ipv6 address handling in hostport.string(). #5040
+* [BUGFIX] mattermost: Omit empty text field in notifications. #4985
+* [BUGFIX] telegram: Send fallback message when notification exceeds character limit. #5074
+* [BUGFIX] tracing: Properly shutdown tracer provider. #5131
+* [BUGFIX] ui: Fix escaping for matcher values with quotes. #4862
+* [BUGFIX] ui: Handle special chars in silence regex-matchers. #4942
+* [BUGFIX] ui: Support utf-8 label names in matchers. #5089
 
 ## 0.31.1 / 2026-02-11
 

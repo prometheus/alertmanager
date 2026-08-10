@@ -23,8 +23,11 @@ import Views.SilenceForm.Types
         , fromDateTimePicker
         , fromMatchersAndCommentAndTime
         , fromSilence
+        , hasAnnotationKey
+        , parseAnnotation
         , parseEndsAt
         , toSilence
+        , validateAnnotations
         , validateForm
         , validateMatchers
         )
@@ -169,6 +172,39 @@ updateForm msg form =
                 | viewDateTimePicker = False
             }
 
+        UpdateAnnotationText text ->
+            { form | annotationText = text }
+
+        AddAnnotation ->
+            case parseAnnotation form.annotationText of
+                Just (( key, _ ) as annotation) ->
+                    if hasAnnotationKey key form.annotations then
+                        -- Don't add if the key already exists
+                        form
+
+                    else
+                        { form
+                            | annotations = form.annotations ++ [ annotation ]
+                            , annotationText = ""
+                        }
+
+                Nothing ->
+                    form
+
+        DeleteAnnotation setAnnotationText annotation ->
+            { form
+                | annotations = List.filter ((/=) annotation) form.annotations
+                , annotationText =
+                    if setAnnotationText then
+                        Tuple.first annotation ++ "=" ++ Tuple.second annotation
+
+                    else
+                        form.annotationText
+            }
+
+        Noop ->
+            form
+
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
 update msg model basePath apiUrl =
@@ -189,6 +225,7 @@ update msg model basePath apiUrl =
                         | silenceId = Failure "Could not submit the form, Silence is not yet valid."
                         , form = validateForm model.form
                         , filterBarValid = validateMatchers model.filterBar
+                        , annotationsValid = validateAnnotations model.form
                       }
                     , Cmd.none
                     )
@@ -215,6 +252,7 @@ update msg model basePath apiUrl =
               , silenceId = Initial
               , filterBar = FilterBar.initFilterBar matchers
               , filterBarValid = Utils.FormValidation.Initial
+              , annotationsValid = Utils.FormValidation.Valid
               , key = model.key
               , firstDayOfWeek = model.firstDayOfWeek
               }
@@ -228,6 +266,7 @@ update msg model basePath apiUrl =
             ( { form = fromSilence silence model.firstDayOfWeek
               , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
               , filterBarValid = Utils.FormValidation.Initial
+              , annotationsValid = Utils.FormValidation.Valid
               , silenceId = model.silenceId
               , alerts = Initial
               , activeAlertId = Nothing
@@ -270,10 +309,15 @@ update msg model basePath apiUrl =
             )
 
         UpdateField fieldMsg ->
+            let
+                updatedForm =
+                    updateForm fieldMsg model.form
+            in
             ( { model
-                | form = updateForm fieldMsg model.form
+                | form = updatedForm
                 , alerts = Initial
                 , silenceId = Initial
+                , annotationsValid = validateAnnotations updatedForm
               }
             , Cmd.none
             )

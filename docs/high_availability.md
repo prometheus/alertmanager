@@ -274,7 +274,7 @@ alertmanager \
   --cluster.peer=am-1.example.com:9094 \
   --cluster.peer=am-2.example.com:9094 \
   --cluster.peer=am-3.example.com:9094 \
-  --cluster.advertise-address=$(hostname):9094 \
+  --cluster.advertise-address=192.0.2.1:9094 \
   --cluster.peer-timeout=15s \
   --cluster.gossip-interval=200ms \
   --cluster.pushpull-interval=60s
@@ -283,7 +283,7 @@ alertmanager \
 Key flags:
 - `--cluster.listen-address` - Bind address for cluster communication (default: `0.0.0.0:9094`)
 - `--cluster.peer` - List of peer addresses (can be repeated)
-- `--cluster.advertise-address` - Address advertised to peers (auto-detected if omitted)
+- `--cluster.advertise-address` - IP address (not hostname) advertised to peers in `<ip>:<port>` format (auto-detected if omitted)
 - `--cluster.peer-timeout` - Wait time per peer position for deduplication (default: `15s`)
 - `--cluster.gossip-interval` - How often to gossip (default: `200ms`)
 - `--cluster.pushpull-interval` - Full state sync interval (default: `60s`)
@@ -361,7 +361,7 @@ alertmanager \
   --cluster.tls-config=/etc/alertmanager/cluster-tls.yml
 ```
 
-See [Secure Cluster Traffic](../doc/design/secure-cluster-traffic.md) for details.
+See the [Gossip Traffic section](https://prometheus.io/docs/alerting/latest/https/#gossip-traffic) for mutual TLS configuration.
 
 ### Persistence
 
@@ -393,7 +393,8 @@ On restart:
 
 4. **Unroutable advertise addresses**
    - If `--cluster.advertise-address` is not set, Alertmanager tries to auto-detect
-   - For cloud/NAT environments, explicitly set a routable address
+   - The value must be an IP address in `<ip>:<port>` format — **hostnames are not supported**. Using a hostname will log a warning, and startup will continue with the advertise address unset or incorrect, resulting in cluster communication failures
+   - For cloud/NAT environments, explicitly set a routable IP address (e.g. `--cluster.advertise-address=192.0.2.1:9094`)
 
 5. **Mismatched cluster configurations**
    - All instances should have the same `--cluster.peer-timeout` and gossip settings
@@ -480,5 +481,5 @@ Look for:
 ## Further Reading
 
 - [Alertmanager Configuration](configuration.md)
-- [Secure Cluster Traffic Design](../doc/design/secure-cluster-traffic.md)
+- [Secure Cluster Traffic Design](https://github.com/prometheus/alertmanager/blob/main/doc/design/secure-cluster-traffic.md)
 - [Hashicorp Memberlist Documentation](https://github.com/hashicorp/memberlist)

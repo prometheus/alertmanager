@@ -14,6 +14,8 @@
 package alert
 
 import (
+	"bytes"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strconv"
@@ -330,5 +332,69 @@ func TestAlertSliceSort(t *testing.T) {
 		if !reflect.DeepEqual(tc.alerts, tc.exp) {
 			t.Fatalf("expected %v but got %v", tc.exp, tc.alerts)
 		}
+	}
+}
+
+func TestAlertSliceLogValue(t *testing.T) {
+	makeAlert := func(name string) *Alert {
+		return &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					model.AlertNameLabel: model.LabelValue(name),
+				},
+			},
+		}
+	}
+
+	cases := []struct {
+		name   string
+		alerts AlertSlice
+		want   string
+	}{
+		{
+			name:   "empty",
+			alerts: AlertSlice{},
+			want:   "",
+		},
+		{
+			name:   "single alert",
+			alerts: AlertSlice{makeAlert("CPUHigh")},
+			want:   "CPUHigh: 1",
+		},
+		{
+			name: "multiple same name",
+			alerts: AlertSlice{
+				makeAlert("CPUHigh"),
+				makeAlert("CPUHigh"),
+				makeAlert("CPUHigh"),
+			},
+			want: "CPUHigh: 3",
+		},
+		{
+			name: "multiple different names",
+			alerts: AlertSlice{
+				makeAlert("CPUHigh"),
+				makeAlert("MemoryLow"),
+				makeAlert("CPUHigh"),
+				makeAlert("DiskFull"),
+				makeAlert("MemoryLow"),
+			},
+			want: "CPUHigh: 2, MemoryLow: 2, DiskFull: 1",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.alerts.LogValue().String()
+			if got != tc.want {
+				t.Errorf("LogValue() = %q, want %q", got, tc.want)
+			}
+
+			// Exercise through slog to see the actual log output.
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			logger.Debug("flushing", "numAlerts", len(tc.alerts), "alerts", tc.alerts)
+			t.Logf("slog output: %s", buf.String())
+		})
 	}
 }

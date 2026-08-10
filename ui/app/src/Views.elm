@@ -1,9 +1,7 @@
 module Views exposing (view)
 
-import Html exposing (Html, div, node, text)
-import Html.Attributes exposing (class, href, rel, style)
-import Html.Events exposing (on)
-import Json.Decode exposing (succeed)
+import Html exposing (Html, div)
+import Html.Attributes exposing (class)
 import Types exposing (Model, Msg(..), Route(..))
 import Utils.Filter exposing (emptySilenceFormGetParams)
 import Utils.Types exposing (ApiData(..))
@@ -21,55 +19,9 @@ import Views.Status.Views as Status
 view : Model -> Html Msg
 view model =
     div []
-        [ renderCSS model.libUrl
-        , case ( model.bootstrapCSS, model.fontAwesomeCSS, model.elmDatepickerCSS ) of
-            ( Success _, Success _, Success _ ) ->
-                div []
-                    [ navBar model.route
-                    , div [ class "container pb-4" ] [ currentView model ]
-                    ]
-
-            ( Failure err, _, _ ) ->
-                failureView model err
-
-            ( _, Failure err, _ ) ->
-                failureView model err
-
-            ( _, _, Failure err ) ->
-                failureView model err
-
-            _ ->
-                text ""
-        ]
-
-
-failureView : Model -> String -> Html Msg
-failureView model err =
-    div []
-        [ div [ style "padding" "40px", style "color" "red" ] [ text err ]
-        , navBar model.route
+        [ navBar model.route
         , div [ class "container pb-4" ] [ currentView model ]
         ]
-
-
-renderCSS : String -> Html Msg
-renderCSS assetsUrl =
-    div []
-        [ cssNode (assetsUrl ++ "lib/bootstrap-4.6.2-dist/css/bootstrap.min.css") BootstrapCSSLoaded
-        , cssNode (assetsUrl ++ "lib/font-awesome-4.7.0/css/font-awesome.min.css") FontAwesomeCSSLoaded
-        , cssNode (assetsUrl ++ "lib/elm-datepicker/css/elm-datepicker.css") ElmDatepickerCSSLoaded
-        ]
-
-
-cssNode : String -> (ApiData String -> Msg) -> Html Msg
-cssNode url msg =
-    node "link"
-        [ href url
-        , rel "stylesheet"
-        , on "load" (succeed (msg (Success url)))
-        , on "error" (succeed (msg (Failure ("Failed to load CSS from: " ++ url))))
-        ]
-        []
 
 
 currentView : Model -> Html Msg

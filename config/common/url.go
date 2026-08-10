@@ -152,8 +152,8 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// containsTemplating checks if the string contains template syntax.
-func containsTemplating(s string) (bool, error) {
+// ContainsTemplating checks if the string contains template syntax.
+func ContainsTemplating(s string) (bool, error) {
 	if !strings.Contains(s, "{{") {
 		return false, nil
 	}
@@ -196,7 +196,7 @@ func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	// Check if the URL contains template syntax
-	isTemplated, err := containsTemplating(urlStr)
+	isTemplated, err := ContainsTemplating(urlStr)
 	if err != nil {
 		return fmt.Errorf("invalid template syntax: %w", err)
 	}

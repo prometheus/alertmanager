@@ -45,6 +45,30 @@ func TestLoadEmptyString(t *testing.T) {
 	}
 }
 
+func TestEventRecorderWebhookBatchingConfig(t *testing.T) {
+	cfg, err := Load(`
+route:
+  receiver: default
+receivers:
+- name: default
+event_recorder:
+  webhook_outputs:
+  - url: https://stream-id.ingest.cloudflare.com
+    batch: true
+    http_config:
+      authorization:
+        credentials_file: pipeline-token
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.EventRecorder.WebhookOutputs, 1)
+	require.True(t, cfg.EventRecorder.WebhookOutputs[0].Batch)
+
+	resolveFilepaths("/etc/alertmanager", cfg)
+	auth := cfg.EventRecorder.WebhookOutputs[0].HTTPConfig.Authorization
+	require.NotNil(t, auth)
+	require.Equal(t, "/etc/alertmanager/pipeline-token", auth.CredentialsFile)
+}
+
 func TestDefaultReceiverExists(t *testing.T) {
 	in := `
 route:
@@ -146,6 +170,125 @@ receivers:
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestReceiverLabelsAutoPopulatesName(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels == nil {
+		t.Fatal("expected labels to be initialized, got nil")
+	}
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+}
+
+func TestReceiverLabelsPreservesUserLabels(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    owner: my-team
+    kind: heartbeat
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+	if rcv.Labels["owner"] != "my-team" {
+		t.Errorf("expected labels[\"owner\"] = \"my-team\", got %q", rcv.Labels["owner"])
+	}
+	if rcv.Labels["kind"] != "heartbeat" {
+		t.Errorf("expected labels[\"kind\"] = \"heartbeat\", got %q", rcv.Labels["kind"])
+	}
+}
+
+func TestReceiverLabelsNameConflict(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    name: 'different-name'
+`
+	_, err := Load(in)
+
+	expected := `receiver label "name" must match receiver name "team-X", got "different-name"`
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestReceiverLabelsNameMatchesExplicitly(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  labels:
+    name: 'team-X'
+    owner: my-team
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["name"] != "team-X" {
+		t.Errorf("expected labels[\"name\"] = \"team-X\", got %q", rcv.Labels["name"])
+	}
+	if rcv.Labels["owner"] != "my-team" {
+		t.Errorf("expected labels[\"owner\"] = \"my-team\", got %q", rcv.Labels["owner"])
+	}
+}
+
+func TestReceiverLabelsAllowsHyphensAndUTF8(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-slack
+
+receivers:
+- name: 'team-X-slack'
+  labels:
+    owning-team: team-X-slack
+    kind: heartbeat
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rcv := cfg.Receivers[0]
+	if rcv.Labels["owning-team"] != "team-X-slack" {
+		t.Errorf("expected labels[\"owning-team\"] = \"team-X-slack\", got %q", rcv.Labels["owning-team"])
 	}
 }
 
@@ -326,6 +469,41 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
+}
+
+func TestRouteLabelsInvalidLabelName(t *testing.T) {
+	in := `
+route:
+  receiver: team-X-mails
+  labels:
+    "-invalid-": value
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := `invalid label name "-invalid-" in route labels`
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestRouteLabelsValidLabelName(t *testing.T) {
+	in := `
+route:
+  receiver: team-X-mails
+  labels:
+    team: team-X
+    severity: "{{ .GroupLabels.severity }}"
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+	require.NoError(t, err)
 }
 
 func TestRootRouteExists(t *testing.T) {
@@ -646,7 +824,8 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		},
 		Receivers: []Receiver{
 			{
-				Name: "team-X-mails",
+				Name:   "team-X-mails",
+				Labels: map[string]string{"name": "team-X-mails"},
 				EmailConfigs: []*EmailConfig{
 					{
 						To:         "team-X+alerts@example.org",
@@ -1036,7 +1215,7 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	}
 
 	const expectedErr = `yaml: unmarshal errors:
-  line 16: field teams not found in type config.plain`
+  line 16: field teams not found in type opsgenie.plain`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}
@@ -1640,5 +1819,105 @@ func TestMattermostNoWebhookURL(t *testing.T) {
 	}
 	if err.Error() != "missing webhook_url or webhook_url_file on mattermost_config" {
 		t.Errorf("Expected: %s\nGot: %s", "missing webhook_url or webhook_url_file on mattermost_config", err.Error())
+	}
+}
+
+// TestMSTeamsV2GlobalProxyInheritedWhenNoLocalHTTPConfig checks that the global
+// proxy_url is used when the receiver has no http_config set.
+func TestMSTeamsV2GlobalProxyInheritedWhenNoLocalHTTPConfig(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig == nil {
+		t.Fatal("expected HTTPConfig to be non-nil")
+	}
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected global proxy_url to be inherited")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://proxy.example.com:3128" {
+		t.Errorf("expected proxy_url %q, got %q", "http://proxy.example.com:3128", got)
+	}
+}
+
+// TestMSTeamsV2GlobalProxyInheritedWhenPartialHTTPConfig checks that the global
+// proxy_url is used when the receiver sets a partial http_config with no proxy.
+func TestMSTeamsV2GlobalProxyInheritedWhenPartialHTTPConfig(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+    http_config:
+      follow_redirects: true
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig == nil {
+		t.Fatal("expected HTTPConfig to be non-nil")
+	}
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected global proxy_url to be inherited into partial http_config")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://proxy.example.com:3128" {
+		t.Errorf("expected proxy_url %q, got %q", "http://proxy.example.com:3128", got)
+	}
+}
+
+// TestMSTeamsV2LocalProxyTakesPrecedence checks that a receiver-level proxy_url
+// is not overwritten by the global one.
+func TestMSTeamsV2LocalProxyTakesPrecedence(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: "http://global-proxy.example.com:3128"
+
+route:
+  receiver: teams
+
+receivers:
+- name: teams
+  msteamsv2_configs:
+  - webhook_url: "https://example.webhook.office.com/webhookb2/test"
+    http_config:
+      proxy_url: "http://local-proxy.example.com:8080"
+`
+	cfg, err := Load(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rc := cfg.Receivers[0].MSTeamsV2Configs[0]
+	if rc.HTTPConfig.ProxyURL.URL == nil {
+		t.Fatal("expected proxy_url to be set")
+	}
+	if got := rc.HTTPConfig.ProxyURL.String(); got != "http://local-proxy.example.com:8080" {
+		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
 	}
 }

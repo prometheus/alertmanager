@@ -59,9 +59,6 @@ type Options struct {
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences
-	// AlertStatusFunc is used be the API to retrieve the AlertStatus of an
-	// alert. Mandatory.
-	AlertStatusFunc func(model.Fingerprint) types.AlertStatus
 	// GroupMutedFunc is used be the API to know if an alert is muted.
 	// Mandatory.
 	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
@@ -95,9 +92,6 @@ func (o Options) validate() error {
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
 	}
-	if o.AlertStatusFunc == nil {
-		return errors.New("mandatory field AlertStatusFunc not set")
-	}
 	if o.GroupMutedFunc == nil {
 		return errors.New("mandatory field GroupMutedFunc not set")
 	}
@@ -125,7 +119,6 @@ func New(opts Options) (*API, error) {
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
-		opts.AlertStatusFunc,
 		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,

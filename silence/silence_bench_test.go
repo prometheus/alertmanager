@@ -22,15 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface for
@@ -71,9 +70,7 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	silences.clock = clock
-	now := clock.Now()
+	now := time.Now()
 
 	// Calculate interval to intersperse matching silences
 	var interval int
@@ -95,7 +92,7 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 					Pattern: "bar",
 				}},
 				StartsAt: timestamppb.New(now),
-				EndsAt:   timestamppb.New(now.Add(time.Minute)),
+				EndsAt:   timestamppb.New(now.Add(24 * time.Hour)),
 			}
 			matchingCreated++
 		} else {
@@ -107,24 +104,18 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 					Pattern: "job" + strconv.Itoa(i),
 				}},
 				StartsAt: timestamppb.New(now),
-				EndsAt:   timestamppb.New(now.Add(time.Minute)),
+				EndsAt:   timestamppb.New(now.Add(24 * time.Hour)),
 			}
 		}
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(silences, m, promslog.NewNopLogger())
+	s := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	for b.Loop() {
 		s.Mutes(context.Background(), model.LabelSet{"foo": "bar"})
 	}
 	b.StopTimer()
-
-	// The alert should be marked as silenced for each matching silence.
-	activeIDs, silenced := m.Silenced(model.LabelSet{"foo": "bar"}.Fingerprint())
-	require.True(b, silenced || matchingSilences == 0)
-	require.Len(b, activeIDs, matchingSilences)
 }
 
 // BenchmarkMutesIncremental tests the incremental query optimization when a small
@@ -146,9 +137,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 			silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 			require.NoError(b, err)
 
-			clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-			silences.clock = clock
-			now := clock.Now()
+			now := time.Now()
 
 			// Create base set of silences - most don't match, some do
 			// This simulates a realistic production scenario
@@ -187,8 +176,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 				require.NoError(b, silences.Set(b.Context(), s))
 			}
 
-			marker := types.NewMarker(prometheus.NewRegistry())
-			silencer := NewSilencer(silences, marker, promslog.NewNopLogger())
+			silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 			// Warm up: Establish cache state (cachedEntry.version = current version)
 			// This simulates a system that has been running for a while
@@ -270,9 +258,7 @@ func benchmarkQuery(b *testing.B, numSilences int) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	s.clock = clock
-	now := clock.Now()
+	now := time.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
@@ -339,9 +325,7 @@ func benchmarkQueryParallel(b *testing.B, numSilences int) {
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	s.clock = clock
-	now := clock.Now()
+	now := time.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
@@ -420,9 +404,7 @@ func benchmarkQueryWithConcurrentAdds(b *testing.B, initialSilences int, addRati
 	s, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	s.clock = clock
-	now := clock.Now()
+	now := time.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
@@ -515,9 +497,7 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 	silences, err := New(Options{Metrics: prometheus.NewRegistry()})
 	require.NoError(b, err)
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	silences.clock = clock
-	now := clock.Now()
+	now := time.Now()
 
 	// Create silences that will match the alert
 	for range numSilences {
@@ -528,13 +508,12 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 				Pattern: "bar",
 			}},
 			StartsAt: timestamppb.New(now),
-			EndsAt:   timestamppb.New(now.Add(time.Minute)),
+			EndsAt:   timestamppb.New(now.Add(24 * time.Hour)),
 		}
 		require.NoError(b, silences.Set(b.Context(), s))
 	}
 
-	m := types.NewMarker(prometheus.NewRegistry())
-	silencer := NewSilencer(silences, m, promslog.NewNopLogger())
+	silencer := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
 	b.ResetTimer()
 
@@ -575,8 +554,7 @@ func BenchmarkGC(b *testing.B) {
 func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
 	b.ReportAllocs()
 
-	clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
-	now := clock.Now()
+	now := time.Now()
 
 	numExpired := int(float64(numSilences) * expiredRatio)
 	numActive := numSilences - numExpired
@@ -631,7 +609,6 @@ func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
 			Metrics: prometheus.NewRegistry(),
 		})
 		require.NoError(b, err)
-		s.clock = clock
 
 		for _, sil := range sils {
 			s.st[sil.Silence.Id] = sil

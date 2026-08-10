@@ -31,7 +31,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -41,7 +40,7 @@ var testWebhookURL, _ = url.Parse("https://mattermost.example.com/hooks/xxxxxxxx
 
 func TestMattermostRetry(t *testing.T) {
 	notifier, err := New(
-		&config.MattermostConfig{
+		&MattermostConfig{
 			WebhookURL: &amcommoncfg.SecretURL{URL: testWebhookURL},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -71,19 +70,19 @@ func TestMattermostTemplating(t *testing.T) {
 
 	for _, tc := range []struct {
 		title string
-		cfg   *config.MattermostConfig
+		cfg   *MattermostConfig
 
 		retry  bool
 		errMsg string
 	}{
 		{
 			title: "text with default templating",
-			cfg:   &config.DefaultMattermostConfig,
+			cfg:   &DefaultMattermostConfig,
 			retry: false,
 		},
 		{
 			title: "text with templating errors",
-			cfg: &config.MattermostConfig{
+			cfg: &MattermostConfig{
 				Text: "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
@@ -126,7 +125,7 @@ func TestMattermostRedactedURL(t *testing.T) {
 
 	secret := "secret"
 	notifier, err := New(
-		&config.MattermostConfig{
+		&MattermostConfig{
 			WebhookURL: &amcommoncfg.SecretURL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -148,7 +147,7 @@ func TestMattermostReadingURLFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.MattermostConfig{
+		&MattermostConfig{
 			WebhookURLFile: f.Name(),
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
@@ -199,9 +198,9 @@ func TestMattermost_Notify(t *testing.T) {
 	type testcase struct {
 		name        string
 		text        string
-		props       *config.MattermostProps
-		priority    *config.MattermostPriority
-		attachments []*config.MattermostAttachment
+		props       *MattermostProps
+		priority    *MattermostPriority
+		attachments []*MattermostAttachment
 		result      string
 	}
 	tests := []testcase{
@@ -213,7 +212,7 @@ func TestMattermost_Notify(t *testing.T) {
 		{
 			name:     "with text and props",
 			text:     "Test Text",
-			props:    &config.MattermostProps{Card: "Test Card"},
+			props:    &MattermostProps{Card: "Test Card"},
 			priority: nil,
 			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"props\":{\"card\":\"Test Card\"}}\n",
 		},
@@ -221,14 +220,14 @@ func TestMattermost_Notify(t *testing.T) {
 			name:     "with text and priority standard",
 			text:     "Test Text",
 			props:    nil,
-			priority: &config.MattermostPriority{Priority: "standard", RequestedAck: true, PersistentNotifications: true},
+			priority: &MattermostPriority{Priority: "standard", RequestedAck: true, PersistentNotifications: true},
 			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"priority\":{\"priority\":\"standard\"}}\n",
 		},
 		{
 			name:     "with text, props and priority",
 			text:     "Test Text",
-			props:    &config.MattermostProps{Card: "Test Card"},
-			priority: &config.MattermostPriority{Priority: "urgent"},
+			props:    &MattermostProps{Card: "Test Card"},
+			priority: &MattermostPriority{Priority: "urgent"},
 			result:   "{\"attachments\":[{\"text\":\"Test Text\"}],\"props\":{\"card\":\"Test Card\"},\"priority\":{\"priority\":\"urgent\"}}\n",
 		},
 		{
@@ -239,7 +238,7 @@ func TestMattermost_Notify(t *testing.T) {
 		{
 			name: "with empty text and attachments - should omit text field",
 			text: "",
-			attachments: []*config.MattermostAttachment{
+			attachments: []*MattermostAttachment{
 				{
 					Title: "Test Attachment",
 					Text:  "Attachment Text",
@@ -250,7 +249,7 @@ func TestMattermost_Notify(t *testing.T) {
 		{
 			name: "with text and attachments",
 			text: "Test Text",
-			attachments: []*config.MattermostAttachment{
+			attachments: []*MattermostAttachment{
 				{
 					Title: "Test Attachment",
 					Text:  "Attachment Text",
@@ -263,7 +262,7 @@ func TestMattermost_Notify(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a MattermostConfig with the WebhookURLFile set
-			cfg := &config.MattermostConfig{
+			cfg := &MattermostConfig{
 				WebhookURLFile: tempFile.Name(),
 				HTTPConfig:     &commoncfg.HTTPClientConfig{},
 				Text:           tc.text,

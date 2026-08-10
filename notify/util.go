@@ -204,12 +204,18 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 	if !ok {
 		l.Error("Missing group labels")
 	}
+	// Route labels are optional (a route may have none, and some callers omit
+	// them); absence is not an error and a nil LabelSet is handled downstream.
+	routeLabels, _ := RouteLabels(ctx)
 	notificationReason, ok := NotificationReason(ctx)
 	if !ok {
 		l.Error("Missing notification reason")
 		notificationReason = ReasonUnknown
 	}
-	return tmpl.Data(recv, groupLabels, notificationReason.String(), alerts...)
+	data := tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
+	// Route labels are pre-rendered by the dispatcher; don't execute them again.
+	template.MarkRouteLabelsRendered(data)
+	return data
 }
 
 func readAll(r io.Reader) string {
@@ -284,6 +290,8 @@ const (
 	ServerErrorReason
 	ContextCanceledReason
 	ContextDeadlineExceededReason
+	AuthErrorReason
+	RateLimitedReason
 )
 
 func (s Reason) String() string {
@@ -298,16 +306,34 @@ func (s Reason) String() string {
 		return "contextCanceled"
 	case ContextDeadlineExceededReason:
 		return "contextDeadlineExceeded"
+	case AuthErrorReason:
+		return "authError"
+	case RateLimitedReason:
+		return "rateLimited"
 	default:
 		panic(fmt.Sprintf("unknown Reason: %d", s))
 	}
 }
 
 // possibleFailureReasonCategory is a list of possible failure reason.
-var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String(), ContextCanceledReason.String(), ContextDeadlineExceededReason.String()}
+var possibleFailureReasonCategory = []string{
+	DefaultReason.String(),
+	ClientErrorReason.String(),
+	ServerErrorReason.String(),
+	ContextCanceledReason.String(),
+	ContextDeadlineExceededReason.String(),
+	AuthErrorReason.String(),
+	RateLimitedReason.String(),
+}
 
 // GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
 func GetFailureReasonFromStatusCode(statusCode int) Reason {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return AuthErrorReason
+	case http.StatusTooManyRequests:
+		return RateLimitedReason
+	}
 	if statusCode/100 == 4 {
 		return ClientErrorReason
 	}

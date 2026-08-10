@@ -13,7 +13,7 @@
 module Data.AlertGroup exposing (AlertGroup, decoder, encoder)
 
 import Data.GettableAlert as GettableAlert exposing (GettableAlert)
-import Data.Receiver as Receiver exposing (Receiver)
+import Data.ReceiverReference as ReceiverReference exposing (ReceiverReference)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -22,7 +22,8 @@ import Json.Encode as Encode
 
 type alias AlertGroup =
     { labels : Dict String String
-    , receiver : Receiver
+    , routeLabels : Dict String String
+    , receiver : ReceiverReference
     , alerts : List GettableAlert
     }
 
@@ -31,7 +32,8 @@ decoder : Decoder AlertGroup
 decoder =
     Decode.succeed AlertGroup
         |> required "labels" (Decode.dict Decode.string)
-        |> required "receiver" Receiver.decoder
+        |> required "routeLabels" (Decode.dict Decode.string)
+        |> required "receiver" ReceiverReference.decoder
         |> required "alerts" (Decode.list GettableAlert.decoder)
 
 
@@ -39,6 +41,7 @@ encoder : AlertGroup -> Encode.Value
 encoder model =
     Encode.object
         [ ( "labels", Encode.dict identity Encode.string model.labels )
-        , ( "receiver", Receiver.encoder model.receiver )
+        , ( "routeLabels", Encode.dict identity Encode.string model.routeLabels )
+        , ( "receiver", ReceiverReference.encoder model.receiver )
         , ( "alerts", Encode.list GettableAlert.encoder model.alerts )
         ]

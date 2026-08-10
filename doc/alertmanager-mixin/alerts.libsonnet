@@ -162,6 +162,22 @@
               description: '{{ $value | humanizePercentage }} of Alertmanager instances within the %(alertmanagerClusterName)s cluster have restarted at least 5 times in the last 10m.' % $._config,
             },
           },
+          {
+            alert: 'AlertmanagerClusterFailedPeers',
+            expr: |||
+              # Without max_over_time, failed scrapes could create false negatives, see
+              # https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0 for details.
+              max_over_time(alertmanager_cluster_failed_peers{%(alertmanagerSelector)s}[5m]) > 0
+            ||| % $._config,
+            'for': '15m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              summary: 'An Alertmanager instance has failed peers in the cluster.',
+              description: 'Alertmanager %(alertmanagerName)s has {{ $value }} failed peers in the %(alertmanagerClusterName)s cluster.' % $._config,
+            },
+          },
         ],
       },
     ],

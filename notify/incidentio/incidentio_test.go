@@ -32,7 +32,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -40,7 +39,7 @@ import (
 
 func TestIncidentIORetry(t *testing.T) {
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URL:              &amcommoncfg.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
@@ -62,7 +61,7 @@ func TestIncidentIORedactedURL(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
@@ -85,7 +84,7 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URLFile:          f.Name(),
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
@@ -138,7 +137,7 @@ func TestIncidentIONotify(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URL:              &amcommoncfg.URL{URL: u},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
@@ -219,7 +218,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			require.NoError(t, err)
 
 			notifier, err := New(
-				&config.IncidentioConfig{
+				&IncidentioConfig{
 					URL:              &amcommoncfg.URL{URL: u},
 					HTTPConfig:       &commoncfg.HTTPClientConfig{},
 					AlertSourceToken: "test-token",
@@ -308,7 +307,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	logger := promslog.NewNopLogger()
 
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URL:              &amcommoncfg.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",
@@ -384,7 +383,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	logger := promslog.NewNopLogger()
 
 	notifier, err := New(
-		&config.IncidentioConfig{
+		&IncidentioConfig{
 			URL:              &amcommoncfg.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}},
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			AlertSourceToken: "test-token",

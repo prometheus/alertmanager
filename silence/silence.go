@@ -28,16 +28,15 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/coder/quartz"
 	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -45,14 +44,18 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/silence")
+var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/silence")
 
 // ErrNotFound is returned if a silence was not found.
 var ErrNotFound = errors.New("silence not found")
@@ -140,22 +143,21 @@ func (s versionIndex) findVersionGreaterThan(version int) (index int, found bool
 	return startIdx, startIdx < len(s)
 }
 
-// Silencer binds together a AlertMarker and a Silences to implement the Muter
-// interface.
+// Silencer holds Silences and implements the Muter interface.
 type Silencer struct {
 	silences *Silences
 	cache    *cache
-	marker   types.AlertMarker
 	logger   *slog.Logger
+	recorder eventrecorder.Recorder
 }
 
 // NewSilencer returns a new Silencer.
-func NewSilencer(silences *Silences, marker types.AlertMarker, logger *slog.Logger) *Silencer {
+func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder.Recorder) *Silencer {
 	return &Silencer{
 		silences: silences,
 		cache:    &cache{entries: map[model.Fingerprint]*cacheEntry{}},
-		marker:   marker,
 		logger:   logger,
+		recorder: recorder,
 	}
 }
 
@@ -169,6 +171,16 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+
+	// Track the silences to set on marker
+	var markedSilences []string
+	defer func() {
+		// Get the marker from context and set the silences on it if any.
+		m, ok := marker.FromContext(ctx)
+		if ok {
+			m.SetSilenced(fp, markedSilences)
+		}
+	}()
 
 	// Get the cached entry for this fingerprint.
 	cachedEntry := s.cache.get(fp)
@@ -242,7 +254,6 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.cache.set(fp, newCacheEntry(newVersion))
-		s.marker.SetActiveOrSilenced(fp, nil)
 		span.AddEvent("No silences to match", trace.WithAttributes(
 			attribute.Int("alerting.silences.count", totalSilences),
 		))
@@ -273,6 +284,12 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			case SilenceStateActive:
 				activeIDs = append(activeIDs, sil.Id)
 				allIDs = append(allIDs, sil.Id)
+
+				s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+					return eventrecorder.NewSilenceMutedAlertEvent(
+						eventrecorder.SilenceAsProto(sil), fp, lset,
+					)
+				})
 			default:
 				// Do nothing, silence has expired in the meantime.
 			}
@@ -285,11 +302,8 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		"active", len(activeIDs),
 		"pending", len(allIDs)-len(activeIDs),
 	)
-	// TODO: remove this sort once the marker is removed.
-	sort.Strings(activeIDs)
 
 	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
-	s.marker.SetActiveOrSilenced(fp, activeIDs)
 
 	t := trace.WithAttributes(
 		attribute.Int("alerting.silences.active.count", len(activeIDs)),
@@ -299,6 +313,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 	mutes := len(activeIDs) > 0
 	if mutes {
+		markedSilences = activeIDs
 		span.AddEvent("Silencer mutes alert", t)
 	} else {
 		span.AddEvent("Silencer does not mute alert", t)
@@ -307,9 +322,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 }
 
 // The following methods implement mem.AlertStoreCallback.
-func (s *Silencer) PreStore(_ *types.Alert, _ bool) error { return nil }
-func (s *Silencer) PostStore(_ *types.Alert, _ bool)      {}
-func (s *Silencer) PostDelete(alert *types.Alert)         {}
+func (s *Silencer) PreStore(_ *alert.Alert, _ bool) error { return nil }
+func (s *Silencer) PostStore(_ *alert.Alert, _ bool)      {}
+func (s *Silencer) PostDelete(alert *alert.Alert)         {}
 func (s *Silencer) PostGC(ff model.Fingerprints) {
 	for _, fp := range ff {
 		s.cache.delete(fp)
@@ -318,12 +333,11 @@ func (s *Silencer) PostGC(ff model.Fingerprints) {
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
-	clock quartz.Clock
-
 	logger    *slog.Logger
 	metrics   *metrics
 	retention time.Duration
 	limits    Limits
+	logging   bool
 
 	mtx       sync.RWMutex
 	st        state
@@ -331,6 +345,7 @@ type Silences struct {
 	broadcast func([]byte)
 	mi        matcherIndex
 	vi        versionIndex
+	recorder  eventrecorder.Recorder
 }
 
 // Limits contains the limits for silences.
@@ -487,9 +502,14 @@ type Options struct {
 	Retention time.Duration
 	Limits    Limits
 
+	Logging bool
+
 	// A logger used by background processing.
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
+
+	// EventRecorder records silence-related events to the event recorder.
+	EventRecorder eventrecorder.Recorder
 }
 
 func (o *Options) validate() error {
@@ -506,14 +526,15 @@ func New(o Options) (*Silences, error) {
 	}
 
 	s := &Silences{
-		clock:     quartz.NewReal(),
 		mi:        make(matcherIndex, 512),
 		vi:        make(versionIndex, 0, 512),
 		logger:    promslog.NewNopLogger(),
 		retention: o.Retention,
 		limits:    o.Limits,
+		logging:   o.Logging,
 		broadcast: func([]byte) {},
 		st:        state{},
+		recorder:  o.EventRecorder,
 	}
 	if o.Metrics == nil {
 		return nil, errors.New("Options.Metrics is nil")
@@ -545,7 +566,7 @@ func New(o Options) (*Silences, error) {
 }
 
 func (s *Silences) nowUTC() time.Time {
-	return s.clock.Now().UTC()
+	return time.Now().UTC()
 }
 
 // updateSizeMetrics updates the size metrics for state, matcher index, and version index.
@@ -567,7 +588,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		s.logger.Error("interval or stop signal are missing - not running maintenance")
 		return
 	}
-	t := s.clock.NewTicker(interval)
+	t := time.NewTicker(interval)
 	defer t.Stop()
 
 	var doMaintenance MaintenanceFunc
@@ -605,7 +626,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 			s.metrics.maintenanceErrorsTotal.Inc()
 			return err
 		}
-		s.logger.Debug("Maintenance done", "duration", s.clock.Since(start), "size", size)
+		s.logger.Debug("Maintenance done", "duration", time.Since(start), "size", size)
 		return nil
 	}
 
@@ -802,18 +823,20 @@ func (s *Silences) toMeshSilence(sil *pb.Silence) *pb.MeshSilence {
 	}
 }
 
-func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) error {
+func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) (changed, added bool, err error) {
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
-		return err
+		return false, false, err
 	}
-	_, added := s.st.merge(msil, now)
+	changed, added = s.st.merge(msil, now)
 	if added {
 		s.indexSilence(msil.Silence)
 		s.updateSizeMetrics()
 	}
-	s.broadcast(b)
-	return nil
+	if changed {
+		s.broadcast(b)
+	}
+	return changed, added, nil
 }
 
 // Set the specified silence. If a silence with the ID already exists and the modification
@@ -845,7 +868,21 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
 		}
-		return s.setSilence(msil, now)
+		if s.logging {
+			s.logSilence("update silence", sil)
+		}
+		changed, _, err := s.setSilence(msil, now)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+				return eventrecorder.NewSilenceUpdatedEvent(
+					eventrecorder.SilenceAsProto(sil),
+				)
+			})
+		}
+		return nil
 	}
 
 	// If we got here it's either a new silence or a replacing one (which would
@@ -881,7 +918,21 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		}
 	}
 
-	return s.setSilence(msil, now)
+	if s.logging {
+		s.logSilence("create silence", sil)
+	}
+	_, added, err := s.setSilence(msil, now)
+	if err != nil {
+		return err
+	}
+	if added {
+		s.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+			return eventrecorder.NewSilenceCreatedEvent(
+				eventrecorder.SilenceAsProto(sil),
+			)
+		})
+	}
+	return nil
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -948,7 +999,11 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = timestamppb.New(now)
 	}
 	sil.UpdatedAt = timestamppb.New(now)
-	return s.setSilence(s.toMeshSilence(sil), now)
+	if s.logging {
+		s.logSilence("expire silence", sil)
+	}
+	_, _, err := s.setSilence(s.toMeshSilence(sil), now)
+	return err
 }
 
 // QueryParam expresses parameters along which silences are queried.
@@ -1307,9 +1362,11 @@ func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
 	for _, e := range s {
-		if _, err := protodelim.MarshalTo(&buf, e); err != nil {
+		b, err := marshalMeshSilence(e)
+		if err != nil {
 			return nil, err
 		}
+		buf.Write(b)
 	}
 	return buf.Bytes(), nil
 }
@@ -1340,7 +1397,9 @@ func decodeState(r io.Reader) (state, error) {
 // the first matcher set to the matchers field for backward compatibility with
 // older alertmanager versions.
 func prepareSilenceForMarshalling(sil *pb.Silence) {
-	if len(sil.MatcherSets) > 0 {
+	// The nil check is here because of rare cases where this function
+	// is called on a nil silence. It's up to the caller to decide if it's a bug
+	if sil != nil && len(sil.MatcherSets) > 0 {
 		sil.Matchers = sil.MatcherSets[0].Matchers
 	}
 }
@@ -1401,4 +1460,37 @@ func openReplace(filename string) (*replaceFile, error) {
 		filename: filename,
 	}
 	return rf, nil
+}
+
+// logging silence status changes.
+//
+// XXX: This rewrites some code present in cli/format/format.go,
+// labelsMatcher() and cli/format/format_extended.go,
+// FormatSilences(). Refactoring this seems a little out of scope for
+// now.
+func (s *Silences) logSilence(msg string, sil *pb.Silence) {
+	var listMatchers []string
+	matcherTypeOperator := map[string]string{
+		"EQUAL":      "=",
+		"REGEXP":     "=~",
+		"NOT_EQUAL":  "!=",
+		"NOT_REGEXP": "!~",
+	}
+	for _, ms := range sil.MatcherSets {
+		for _, matcher := range ms.Matchers {
+			m := matcher.Name + matcherTypeOperator[matcher.Type.String()] + matcher.Pattern
+			listMatchers = append(listMatchers, m)
+		}
+	}
+	strMatchers := strings.Join(listMatchers, `,`)
+
+	s.logger.Info(
+		msg,
+		"Id", sil.Id,
+		"CreatedBy", sil.CreatedBy,
+		"Comment", sil.Comment,
+		"StartsAt", sil.StartsAt.AsTime().Format(time.RFC3339),
+		"EndsAt", sil.EndsAt.AsTime().Format(time.RFC3339),
+		"Matchers", strMatchers,
+	)
 }

@@ -1,7 +1,8 @@
 // import { IconAlertTriangle } from "@tabler/icons-react";
-import { Component, ErrorInfo, ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+
 import { Alert } from '@mantine/core';
+import { useLocation } from 'react-router-dom';
 
 interface Props {
   children?: ReactNode;

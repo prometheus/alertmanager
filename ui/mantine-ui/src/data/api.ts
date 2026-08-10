@@ -1,4 +1,4 @@
-import { QueryKey, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { type QueryKey, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
 // TODO(@sysadmind): Infer this from the current location.
 // We don't have a good strategy for storing global settings yet.
@@ -43,13 +43,15 @@ const createQueryFn =
   async ({ signal }: { signal: AbortSignal }) => {
     const queryParams = new URLSearchParams();
     if (params) {
-      Object.entries(params).forEach(([key, value]) => {
+      for (const [key, value] of Object.entries(params)) {
         if (Array.isArray(value)) {
-          value.forEach((v) => queryParams.append(key, v));
+          for (const v of value) {
+            queryParams.append(key, v);
+          }
         } else {
           queryParams.set(key, value);
         }
-      });
+      }
     }
     const queryString = params ? `?${queryParams.toString()}` : '';
 

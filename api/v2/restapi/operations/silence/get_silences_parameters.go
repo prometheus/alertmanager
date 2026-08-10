@@ -26,14 +26,29 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
 )
 
 // NewGetSilencesParams creates a new GetSilencesParams object
-//
-// There are no default values defined in the spec.
+// with the default values initialized.
 func NewGetSilencesParams() GetSilencesParams {
 
-	return GetSilencesParams{}
+	var (
+		// initialize parameters with default values
+
+		activeDefault  = bool(true)
+		expiredDefault = bool(true)
+
+		pendingDefault = bool(true)
+	)
+
+	return GetSilencesParams{
+		Active: &activeDefault,
+
+		Expired: &expiredDefault,
+
+		Pending: &pendingDefault,
+	}
 }
 
 // GetSilencesParams contains all the bound params for the get silences operation
@@ -44,11 +59,29 @@ type GetSilencesParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
+	/*Include active silences in results. If false, excludes active silences.
+	  In: query
+	  Default: true
+	*/
+	Active *bool
+
+	/*Include expired silences in results. If false, excludes expired silences.
+	  In: query
+	  Default: true
+	*/
+	Expired *bool
+
 	/*A matcher expression to filter silences. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	  In: query
 	  Collection Format: multi
 	*/
 	Filter []string
+
+	/*Include pending silences in results. If false, excludes pending silences.
+	  In: query
+	  Default: true
+	*/
+	Pending *bool
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -61,13 +94,76 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 	o.HTTPRequest = r
 	qs := runtime.Values(r.URL.Query())
 
+	qActive, qhkActive, _ := qs.GetOK("active")
+	if err := o.bindActive(qActive, qhkActive, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qExpired, qhkExpired, _ := qs.GetOK("expired")
+	if err := o.bindExpired(qExpired, qhkExpired, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
 	qFilter, qhkFilter, _ := qs.GetOK("filter")
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qPending, qhkPending, _ := qs.GetOK("pending")
+	if err := o.bindPending(qPending, qhkPending, route.Formats); err != nil {
 		res = append(res, err)
 	}
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+// bindActive binds and validates parameter Active from query.
+func (o *GetSilencesParams) bindActive(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetSilencesParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("active", "query", "bool", raw)
+	}
+	o.Active = &value
+
+	return nil
+}
+
+// bindExpired binds and validates parameter Expired from query.
+func (o *GetSilencesParams) bindExpired(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetSilencesParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("expired", "query", "bool", raw)
+	}
+	o.Expired = &value
+
 	return nil
 }
 
@@ -89,6 +185,30 @@ func (o *GetSilencesParams) bindFilter(rawData []string, hasKey bool, formats st
 	}
 
 	o.Filter = filterIR
+
+	return nil
+}
+
+// bindPending binds and validates parameter Pending from query.
+func (o *GetSilencesParams) bindPending(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		// Default values have been previously initialized by NewGetSilencesParams()
+		return nil
+	}
+
+	value, err := swag.ConvertBool(raw)
+	if err != nil {
+		return errors.InvalidType("pending", "query", "bool", raw)
+	}
+	o.Pending = &value
 
 	return nil
 }

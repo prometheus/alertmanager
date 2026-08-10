@@ -29,7 +29,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -52,7 +51,7 @@ const (
 
 // Notifier implements a Notifier for Discord notifications.
 type Notifier struct {
-	conf       *config.DiscordConfig
+	conf       *DiscordConfig
 	tmpl       *template.Template
 	logger     *slog.Logger
 	client     *http.Client
@@ -61,7 +60,7 @@ type Notifier struct {
 }
 
 // New returns a new Discord notifier.
-func New(c *config.DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "discord", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -179,7 +178,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 	return false, nil
 }
