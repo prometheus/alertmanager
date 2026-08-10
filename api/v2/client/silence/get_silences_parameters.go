@@ -76,11 +76,35 @@ GetSilencesParams contains all the parameters to send to the API endpoint
 */
 type GetSilencesParams struct {
 
+	/* Active.
+
+	   Include active silences in results. If false, excludes active silences.
+
+	   Default: true
+	*/
+	Active *bool
+
+	/* Expired.
+
+	   Include expired silences in results. If false, excludes expired silences.
+
+	   Default: true
+	*/
+	Expired *bool
+
 	/* Filter.
 
 	   A matcher expression to filter silences. For example `alertname="MyAlert"`. It can be repeated to apply multiple matchers.
 	*/
 	Filter []string
+
+	/* Pending.
+
+	   Include pending silences in results. If false, excludes pending silences.
+
+	   Default: true
+	*/
+	Pending *bool
 
 	timeout    time.Duration
 	Context    context.Context
@@ -99,7 +123,24 @@ func (o *GetSilencesParams) WithDefaults() *GetSilencesParams {
 //
 // All values with no default are reset to their zero value.
 func (o *GetSilencesParams) SetDefaults() {
-	// no default values defined for this parameter
+	var (
+		activeDefault = bool(true)
+
+		expiredDefault = bool(true)
+
+		pendingDefault = bool(true)
+	)
+
+	val := GetSilencesParams{
+		Active:  &activeDefault,
+		Expired: &expiredDefault,
+		Pending: &pendingDefault,
+	}
+
+	val.timeout = o.timeout
+	val.Context = o.Context
+	val.HTTPClient = o.HTTPClient
+	*o = val
 }
 
 // WithTimeout adds the timeout to the get silences params
@@ -135,6 +176,28 @@ func (o *GetSilencesParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
+// WithActive adds the active to the get silences params
+func (o *GetSilencesParams) WithActive(active *bool) *GetSilencesParams {
+	o.SetActive(active)
+	return o
+}
+
+// SetActive adds the active to the get silences params
+func (o *GetSilencesParams) SetActive(active *bool) {
+	o.Active = active
+}
+
+// WithExpired adds the expired to the get silences params
+func (o *GetSilencesParams) WithExpired(expired *bool) *GetSilencesParams {
+	o.SetExpired(expired)
+	return o
+}
+
+// SetExpired adds the expired to the get silences params
+func (o *GetSilencesParams) SetExpired(expired *bool) {
+	o.Expired = expired
+}
+
 // WithFilter adds the filter to the get silences params
 func (o *GetSilencesParams) WithFilter(filter []string) *GetSilencesParams {
 	o.SetFilter(filter)
@@ -146,6 +209,17 @@ func (o *GetSilencesParams) SetFilter(filter []string) {
 	o.Filter = filter
 }
 
+// WithPending adds the pending to the get silences params
+func (o *GetSilencesParams) WithPending(pending *bool) *GetSilencesParams {
+	o.SetPending(pending)
+	return o
+}
+
+// SetPending adds the pending to the get silences params
+func (o *GetSilencesParams) SetPending(pending *bool) {
+	o.Pending = pending
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetSilencesParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -153,6 +227,40 @@ func (o *GetSilencesParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		return err
 	}
 	var res []error
+
+	if o.Active != nil {
+
+		// query param active
+		var qrActive bool
+
+		if o.Active != nil {
+			qrActive = *o.Active
+		}
+		qActive := swag.FormatBool(qrActive)
+		if qActive != "" {
+
+			if err := r.SetQueryParam("active", qActive); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.Expired != nil {
+
+		// query param expired
+		var qrExpired bool
+
+		if o.Expired != nil {
+			qrExpired = *o.Expired
+		}
+		qExpired := swag.FormatBool(qrExpired)
+		if qExpired != "" {
+
+			if err := r.SetQueryParam("expired", qExpired); err != nil {
+				return err
+			}
+		}
+	}
 
 	if o.Filter != nil {
 
@@ -162,6 +270,23 @@ func (o *GetSilencesParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		// query array param filter
 		if err := r.SetQueryParam("filter", joinedFilter...); err != nil {
 			return err
+		}
+	}
+
+	if o.Pending != nil {
+
+		// query param pending
+		var qrPending bool
+
+		if o.Pending != nil {
+			qrPending = *o.Pending
+		}
+		qPending := swag.FormatBool(qrPending)
+		if qPending != "" {
+
+			if err := r.SetQueryParam("pending", qPending); err != nil {
+				return err
+			}
 		}
 	}
 

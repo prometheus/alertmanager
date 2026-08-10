@@ -495,6 +495,26 @@ func TestTemplateExpansion(t *testing.T) {
 			exp: `[{"status":"firing","labels":null,"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
 		},
 		{
+			title: "Template using base64encode",
+			in:    `{{ "test" | base64encode }}`,
+			exp:   "dGVzdA==",
+		},
+		{
+			title: "Template using base64encode produces a URL-safe alphabet",
+			in:    `{{ "flush>>" | base64encode }}`,
+			exp:   "Zmx1c2g-Pg==",
+		},
+		{
+			title: "Template using base64decode",
+			in:    `{{ "dGVzdA==" | base64decode }}`,
+			exp:   "test",
+		},
+		{
+			title: "Template using base64decode with invalid input",
+			in:    `{{ "not-valid-base64!" | base64decode }}`,
+			fail:  true,
+		},
+		{
 			title: "Template creates empty dict when using dict on nil",
 			in:    `{{- $test := dict -}}{{ $test }}`,
 			exp:   "map[]",
