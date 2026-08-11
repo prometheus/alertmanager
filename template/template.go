@@ -16,6 +16,7 @@ package template
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	tmplhtml "html/template"
@@ -344,6 +345,19 @@ var DefaultFuncs = FuncMap{
 			return "", err
 		}
 		return string(bytes), nil
+	},
+	// base64encode and base64decode use the URL-safe alphabet so the result
+	// can be embedded directly in a URL query parameter, e.g. to build a
+	// silence link for an external dashboard.
+	"base64encode": func(text string) string {
+		return base64.URLEncoding.EncodeToString([]byte(text))
+	},
+	"base64decode": func(text string) (string, error) {
+		decoded, err := base64.URLEncoding.DecodeString(text)
+		if err != nil {
+			return "", err
+		}
+		return string(decoded), nil
 	},
 	"list": func(args ...any) ([]any, error) {
 		if args == nil {
