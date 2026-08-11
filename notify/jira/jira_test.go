@@ -488,7 +488,10 @@ func TestJiraNotify(t *testing.T) {
 		customFieldAssetFn func(t *testing.T, issue map[string]any)
 		searchResponse     issueSearchResult
 		issue              issue
-		errMsg             string
+		// issueUpdate is the expected update.labels block on an update (PUT)
+		// request; nil for all cases except update_mode: merge scenarios.
+		issueUpdate *issueUpdate
+		errMsg      string
 	}{
 		{
 			title: "create new issue",
@@ -714,6 +717,251 @@ func TestJiraNotify(t *testing.T) {
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
 				_, hasLabels := issue["labels"]
 				require.False(t, hasLabels, "labels should not be present in update request")
+			},
+			errMsg: "",
+		},
+		{
+			// B5: update existing issue with update_mode: merge sends
+			// update.labels add-operations instead of replacing fields.labels.
+			title: "update existing issue with update_mode merge",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "{{ .CommonLabels.issue_type }}",
+				Project:     "{{ .CommonLabels.project }}",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:     []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					UpdateMode: JiraLabelUpdateMerge,
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{
+					{
+						Key: "MONITORING-1",
+						Fields: &issueFields{
+							Summary:     stringPtr("Original Summary"),
+							Description: jiraStringDescription("Original Description"),
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "MONITORING-1",
+			},
+			issueUpdate: &issueUpdate{
+				Labels: []labelOp{
+					{Add: "ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}"},
+					{Add: "alertmanager"},
+					{Add: "test"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				// C1: labels must NOT be present in fields when merging.
+				_, hasLabels := issue["labels"]
+				require.False(t, hasLabels, "labels should not be present in fields when update_mode is merge")
+			},
+			errMsg: "",
+		},
+		{
+			// B6: enable_update: false wins over update_mode: merge - labels
+			// are skipped entirely, not merged.
+			title: "update existing issue with disabled labels wins over update_mode merge",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "{{ .CommonLabels.issue_type }}",
+				Project:     "{{ .CommonLabels.project }}",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:       []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					EnableUpdate: boolPtr(false),
+					UpdateMode:   JiraLabelUpdateMerge,
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{
+					{
+						Key: "MONITORING-1",
+						Fields: &issueFields{
+							Summary:     stringPtr("Original Summary"),
+							Description: jiraStringDescription("Original Description"),
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "MONITORING-1",
+			},
+			issueUpdate: nil,
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				// C2: labels must not be present when enable_update is false,
+				// regardless of update_mode.
+				_, hasLabels := issue["labels"]
+				require.False(t, hasLabels, "labels should not be present in fields when enable_update is false")
+			},
+			errMsg: "",
+		},
+		{
+			// B7: update existing issue with update_mode: replace (explicit,
+			// same effective behavior as the default/unset case).
+			title: "update existing issue with update_mode replace",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "{{ .CommonLabels.issue_type }}",
+				Project:     "{{ .CommonLabels.project }}",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:     []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					UpdateMode: JiraLabelUpdateReplace,
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{
+					{
+						Key: "MONITORING-1",
+						Fields: &issueFields{
+							Summary:     stringPtr("Original Summary"),
+							Description: jiraStringDescription("Original Description"),
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "MONITORING-1",
+			},
+			issueUpdate: nil,
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				// C3: labels ARE present (replaced) when update_mode is
+				// replace, and update.labels is absent.
+				_, hasLabels := issue["labels"]
+				require.True(t, hasLabels, "labels should be present in fields when update_mode is replace")
+			},
+			errMsg: "",
+		},
+		{
+			// B8: create-path is unaffected by update_mode - fields.labels is
+			// always set on create, and update is always nil (no PUT).
+			title: "create new issue with update_mode merge config",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "Incident",
+				Project:     "OPS",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:     []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					UpdateMode: JiraLabelUpdateMerge,
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
+					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				_, hasLabels := issue["labels"]
+				require.True(t, hasLabels, "labels must be present on create regardless of update_mode")
 			},
 			errMsg: "",
 		},
@@ -1083,6 +1331,15 @@ func TestJiraNotify(t *testing.T) {
 					if err != nil {
 						panic(err)
 					}
+
+					var decoded issue
+					if err := json.Unmarshal(body, &decoded); err != nil {
+						panic(err)
+					}
+					// Only assert the new update.labels block here; existing
+					// per-field checks (labels present/absent, etc.) already
+					// run via customFieldAssetFn below on the raw JSON.
+					require.Equal(t, tc.issueUpdate, decoded.Update)
 
 					var raw map[string]any
 					if err := json.Unmarshal(body, &raw); err != nil {
@@ -1462,36 +1719,65 @@ func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
 		wantValues          []string
 		wantEnableUpdate    bool
 		wantEnableUpdateNil bool
+		wantUpdateMode      JiraLabelUpdateMode
+		wantErr             string
 	}{
 		{
 			name:             "legacy list",
 			yaml:             "labels: [a, b]\n",
 			wantValues:       []string{"a", "b"},
 			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateReplace,
 		},
 		{
 			name:             "legacy flow list",
 			yaml:             "labels: ['x']\n",
 			wantValues:       []string{"x"},
 			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateReplace,
 		},
 		{
 			name:             "object values only",
 			yaml:             "labels:\n  values: [a]\n",
 			wantValues:       []string{"a"},
 			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateReplace,
 		},
 		{
 			name:             "object enable_update false",
 			yaml:             "labels:\n  enable_update: false\n  values: [a]\n",
 			wantValues:       []string{"a"},
 			wantEnableUpdate: false,
+			wantUpdateMode:   JiraLabelUpdateReplace,
 		},
 		{
 			name:             "object enable_update true",
 			yaml:             "labels:\n  enable_update: true\n  values: [a]\n",
 			wantValues:       []string{"a"},
 			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateReplace,
+		},
+		{
+			// A7: update_mode: merge is accepted.
+			name:             "object update_mode merge",
+			yaml:             "labels:\n  update_mode: merge\n  values: [a]\n",
+			wantValues:       []string{"a"},
+			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateMerge,
+		},
+		{
+			// A8: update_mode: replace is accepted (same as default).
+			name:             "object update_mode replace",
+			yaml:             "labels:\n  update_mode: replace\n  values: [a]\n",
+			wantValues:       []string{"a"},
+			wantEnableUpdate: true,
+			wantUpdateMode:   JiraLabelUpdateReplace,
+		},
+		{
+			// A9: unknown update_mode is rejected.
+			name:    "object update_mode invalid",
+			yaml:    "labels:\n  update_mode: bogus\n  values: [a]\n",
+			wantErr: "unknown labels.update_mode, must be replace or merge",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1499,9 +1785,14 @@ func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
 				Labels JiraLabelsConfig `yaml:"labels"`
 			}
 			err := yaml.Unmarshal([]byte(tc.yaml), &cfg)
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, tc.wantValues, cfg.Labels.Values)
 			require.Equal(t, tc.wantEnableUpdate, cfg.Labels.EnableUpdateValue())
+			require.Equal(t, tc.wantUpdateMode, cfg.Labels.UpdateModeValue())
 			if tc.wantEnableUpdateNil {
 				require.Nil(t, cfg.Labels.EnableUpdate)
 			}
@@ -1515,5 +1806,6 @@ func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
 		require.Empty(t, cfg.Labels.Values)
 		require.True(t, cfg.Labels.EnableUpdateValue())
 		require.Nil(t, cfg.Labels.EnableUpdate)
+		require.Equal(t, JiraLabelUpdateReplace, cfg.Labels.UpdateModeValue())
 	})
 }

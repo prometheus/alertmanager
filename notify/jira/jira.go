@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
-		logger.Debug("updating existing issue", "issue_key", existingIssue.Key, "summary_update_enabled", n.conf.Summary.EnableUpdateValue(), "description_update_enabled", n.conf.Description.EnableUpdateValue(), "labels_update_enabled", n.conf.Labels.EnableUpdateValue())
+		logger.Debug("updating existing issue", "issue_key", existingIssue.Key, "summary_update_enabled", n.conf.Summary.EnableUpdateValue(), "description_update_enabled", n.conf.Description.EnableUpdateValue(), "labels_update_enabled", n.conf.Labels.EnableUpdateValue(), "labels_update_mode", string(n.conf.Labels.UpdateModeValue()))
 	}
 
 	requestBody, err := n.prepareIssueRequestBody(ctx, logger, key.Hash(), tmplTextFunc)
@@ -117,7 +117,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			requestBody.Fields.Summary = nil
 		}
 		if !n.conf.Labels.EnableUpdateValue() {
+			// enable_update: false always wins over update_mode: labels are
+			// skipped entirely, never merged.
 			requestBody.Fields.Labels = nil
+		} else if n.conf.Labels.UpdateModeValue() == JiraLabelUpdateMerge {
+			// Move labels out of fields.labels (which would replace them)
+			// into update.labels add-operations, so existing labels
+			// (manually or automation-added) are preserved.
+			labels := requestBody.Fields.Labels
+			requestBody.Fields.Labels = nil
+			ops := make([]labelOp, 0, len(labels))
+			for _, l := range labels {
+				ops = append(ops, labelOp{Add: l})
+			}
+			requestBody.Update = &issueUpdate{Labels: ops}
 		}
 	}
 

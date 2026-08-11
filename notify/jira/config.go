@@ -43,11 +43,28 @@ type JiraFieldConfig struct {
 	EnableUpdate *bool `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
 }
 
+// JiraLabelUpdateMode controls how labels are written when updating an
+// existing issue.
+type JiraLabelUpdateMode string
+
+const (
+	// JiraLabelUpdateReplace overwrites fields.labels with the configured
+	// values (default, matches historic behavior).
+	JiraLabelUpdateReplace JiraLabelUpdateMode = "replace"
+	// JiraLabelUpdateMerge appends the configured values via Jira's
+	// update.labels add operations, never removing existing labels.
+	JiraLabelUpdateMerge JiraLabelUpdateMode = "merge"
+)
+
 // JiraLabelsConfig configures issue labels. Supports legacy YAML list form
 // or an object with enable_update (same pattern as JiraFieldConfig).
 type JiraLabelsConfig struct {
 	Values       []string `yaml:"values,omitempty" json:"values,omitempty"`
 	EnableUpdate *bool    `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
+	// UpdateMode controls how labels are updated on an existing issue: replace
+	// (default, overwrites fields.labels) or merge (add-only, never removes
+	// labels). Ignored when EnableUpdate is false.
+	UpdateMode JiraLabelUpdateMode `yaml:"update_mode,omitempty" json:"update_mode,omitempty"`
 }
 
 type JiraConfig struct {
@@ -86,6 +103,15 @@ func (l *JiraLabelsConfig) EnableUpdateValue() bool {
 	return *l.EnableUpdate
 }
 
+// UpdateModeValue returns the effective label update mode, defaulting to
+// replace when unset.
+func (l *JiraLabelsConfig) UpdateModeValue() JiraLabelUpdateMode {
+	if l.UpdateMode == "" {
+		return JiraLabelUpdateReplace
+	}
+	return l.UpdateMode
+}
+
 // Supports both the legacy list and the new object form.
 func (l *JiraLabelsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	// Legacy: labels: [ "a", "b" ] → Values (full backward compatibility).
@@ -94,9 +120,15 @@ func (l *JiraLabelsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		l.Values = legacy
 		return nil
 	}
-	// Object: labels: { enable_update, values: [...] }
+	// Object: labels: { enable_update, update_mode, values: [...] }
 	type plain JiraLabelsConfig
-	return unmarshal((*plain)(l))
+	if err := unmarshal((*plain)(l)); err != nil {
+		return err
+	}
+	if l.UpdateMode != "" && l.UpdateMode != JiraLabelUpdateReplace && l.UpdateMode != JiraLabelUpdateMerge {
+		return errors.New("unknown labels.update_mode, must be replace or merge")
+	}
+	return nil
 }
 
 // Supports both the legacy string and the new object form.

@@ -1,6 +1,7 @@
 ## main / (unreleased)
 
 * [ENHANCEMENT] jira: Allow disabling label updates on existing issues via `labels.enable_update` (legacy `labels:` list form unchanged).
+* [ENHANCEMENT] jira: Add `labels.update_mode` (`replace`|`merge`) so label updates on existing issues can add configured labels without removing manually or automation-added ones.
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated.
 * [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
 * [ENHANCEMENT] eventrecorder: Add optional webhook batching.
