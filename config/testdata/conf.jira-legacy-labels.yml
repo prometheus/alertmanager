@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+  jira_api_url: 'https://jira.example.com'
+
+route:
+  receiver: default
+
+receivers:
+  - name: default
+    jira_configs:
+      - project: OPS
+        issue_type: Bug
+        labels:
+          - alertmanager
+          - '{{ .CommonLabels.severity }}'

@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
@@ -497,7 +498,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -532,6 +533,54 @@ func TestJiraNotify(t *testing.T) {
 			errMsg:             "",
 		},
 		{
+			title: "create new issue with disabled labels still sets labels",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "Incident",
+				Project:     "OPS",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:       []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					EnableUpdate: boolPtr(false),
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     stringPtr("[FIRING:1] test (vm1 critical)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Labels:      []string{"ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}", "alertmanager", "test"},
+					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				_, hasLabels := issue["labels"]
+				require.True(t, hasLabels, "labels must be present on create even when enable_update is false")
+			},
+			errMsg: "",
+		},
+		{
 			title: "update existing issue with disabled summary and description",
 			cfg: &JiraConfig{
 				Summary: JiraFieldConfig{
@@ -545,7 +594,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "{{ .CommonLabels.issue_type }}",
 				Project:           "{{ .CommonLabels.project }}",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -603,6 +652,72 @@ func TestJiraNotify(t *testing.T) {
 			errMsg: "",
 		},
 		{
+			title: "update existing issue with disabled labels",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:   "{{ .CommonLabels.issue_type }}",
+				Project:     "{{ .CommonLabels.project }}",
+				Priority:    `{{ template "jira.default.priority" . }}`,
+				Labels: JiraLabelsConfig{
+					Values:       []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+					EnableUpdate: boolPtr(false),
+				},
+				ReopenDuration:    model.Duration(1 * time.Hour),
+				ReopenTransition:  "REOPEN",
+				ResolveTransition: "CLOSE",
+				WontFixResolution: "WONTFIX",
+			},
+			alert: &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"alertname":  "test",
+						"instance":   "vm1",
+						"severity":   "critical",
+						"project":    "MONITORING",
+						"issue_type": "MINOR",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			},
+			searchResponse: issueSearchResult{
+				Issues: []issue{
+					{
+						Key: "MONITORING-1",
+						Fields: &issueFields{
+							Summary:     stringPtr("Original Summary"),
+							Description: jiraStringDescription("Original Description"),
+							Status: &issueStatus{
+								Name: "Open",
+								StatusCategory: struct {
+									Key string `json:"key"`
+								}{
+									Key: "open",
+								},
+							},
+						},
+					},
+				},
+			},
+			issue: issue{
+				Key: "MONITORING-1",
+				Fields: &issueFields{
+					Summary:     stringPtr("[FIRING:1] test (vm1 critical MONITORING MINOR)"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - issue_type = MINOR\n  - project = MONITORING\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Issuetype:   &idNameValue{Name: "MINOR"},
+					Labels:      nil,
+					Project:     &issueProject{Key: "MONITORING"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				_, hasLabels := issue["labels"]
+				require.False(t, hasLabels, "labels should not be present in update request")
+			},
+			errMsg: "",
+		},
+		{
 			title: "create new issue with template project and issue type",
 			cfg: &JiraConfig{
 				Summary:           JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
@@ -610,7 +725,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "{{ .CommonLabels.issue_type }}",
 				Project:           "{{ .CommonLabels.project }}",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -654,7 +769,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:   "Incident",
 				Project:     "OPS",
 				Priority:    `{{ template "jira.default.priority" . }}`,
-				Labels:      []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:      JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				Fields: map[string]any{
 					"components":        map[any]any{"name": "Monitoring"},
 					"customfield_10001": "value",
@@ -719,7 +834,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -774,7 +889,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -828,7 +943,7 @@ func TestJiraNotify(t *testing.T) {
 				IssueType:         "Incident",
 				Project:           "OPS",
 				Priority:          `{{ template "jira.default.priority" . }}`,
-				Labels:            []string{"alertmanager", "{{ .GroupLabels.alertname }}"},
+				Labels:            JiraLabelsConfig{Values: []string{"alertmanager", "{{ .GroupLabels.alertname }}"}},
 				ReopenDuration:    model.Duration(1 * time.Hour),
 				ReopenTransition:  "REOPEN",
 				ResolveTransition: "CLOSE",
@@ -1281,7 +1396,7 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 				Description: JiraFieldConfig{Template: tc.descriptionTemplate},
 				IssueType:   "Incident",
 				Project:     "OPS",
-				Labels:      []string{"alertmanager"},
+				Labels:      JiraLabelsConfig{Values: []string{"alertmanager"}},
 				Priority:    `{{ template "jira.default.priority" . }}`,
 				APIURL: &amcommoncfg.URL{
 					URL: &url.URL{
@@ -1337,4 +1452,68 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 			require.JSONEq(t, tc.descriptionTemplate, string(issue.Fields.Description.RawJSONDescription))
 		})
 	}
+}
+
+func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                string
+		yaml                string
+		wantValues          []string
+		wantEnableUpdate    bool
+		wantEnableUpdateNil bool
+	}{
+		{
+			name:             "legacy list",
+			yaml:             "labels: [a, b]\n",
+			wantValues:       []string{"a", "b"},
+			wantEnableUpdate: true,
+		},
+		{
+			name:             "legacy flow list",
+			yaml:             "labels: ['x']\n",
+			wantValues:       []string{"x"},
+			wantEnableUpdate: true,
+		},
+		{
+			name:             "object values only",
+			yaml:             "labels:\n  values: [a]\n",
+			wantValues:       []string{"a"},
+			wantEnableUpdate: true,
+		},
+		{
+			name:             "object enable_update false",
+			yaml:             "labels:\n  enable_update: false\n  values: [a]\n",
+			wantValues:       []string{"a"},
+			wantEnableUpdate: false,
+		},
+		{
+			name:             "object enable_update true",
+			yaml:             "labels:\n  enable_update: true\n  values: [a]\n",
+			wantValues:       []string{"a"},
+			wantEnableUpdate: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg struct {
+				Labels JiraLabelsConfig `yaml:"labels"`
+			}
+			err := yaml.Unmarshal([]byte(tc.yaml), &cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantValues, cfg.Labels.Values)
+			require.Equal(t, tc.wantEnableUpdate, cfg.Labels.EnableUpdateValue())
+			if tc.wantEnableUpdateNil {
+				require.Nil(t, cfg.Labels.EnableUpdate)
+			}
+		})
+	}
+
+	t.Run("omit labels key", func(t *testing.T) {
+		var cfg JiraConfig
+		err := yaml.Unmarshal([]byte("project: OPS\nissue_type: Bug\n"), &cfg)
+		require.NoError(t, err)
+		require.Empty(t, cfg.Labels.Values)
+		require.True(t, cfg.Labels.EnableUpdateValue())
+		require.Nil(t, cfg.Labels.EnableUpdate)
+	})
 }

@@ -1330,8 +1330,18 @@ project: <string>
 ]
 
 # Labels to be added to the issue.
+# Legacy list form (fully supported; updates replace all labels on existing issues):
 labels:
   [ - <tmpl_string> ... ]
+
+# Or object form (required to set enable_update):
+[ labels:
+    # If set to false, labels are not written when updating an existing issue (create still sets labels).
+    [ enable_update: <boolean> | default = true ]
+    # Label templates (same as the legacy list items).
+    values:
+      [ - <tmpl_string> ... ]
+]
 
 # Priority of the issue.
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
@@ -1365,13 +1375,27 @@ fields:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-The `labels` field is a list of labels added to the issue. Template expressions are supported. For example:
+The `labels` field configures labels added to the issue. Template expressions are supported.
+
+Legacy list form (default behavior: create and update both set `fields.labels`, replacing any existing labels on update):
 
 ```yaml
 labels:
   - 'alertmanager'
   - '{{ .CommonLabels.severity }}'
 ```
+
+Object form, for example to leave labels unchanged on update (similar to jiralert):
+
+```yaml
+labels:
+  enable_update: false
+  values:
+    - 'alertmanager'
+    - '{{ .CommonLabels.severity }}'
+```
+
+`enable_update: false` only affects updates (HTTP PUT); create still writes labels including the `ALERT{…}` group-key label. Flags such as `enable_update` require the object form; the legacy list cannot express them.
 
 #### `<jira_field>`
 
