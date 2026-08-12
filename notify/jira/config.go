@@ -43,6 +43,13 @@ type JiraFieldConfig struct {
 	EnableUpdate *bool `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
 }
 
+// JiraLabelsConfig configures issue labels. Supports legacy YAML list form
+// or an object with enable_update (same pattern as JiraFieldConfig).
+type JiraLabelsConfig struct {
+	Values       []string `yaml:"values,omitempty" json:"values,omitempty"`
+	EnableUpdate *bool    `yaml:"enable_update,omitempty" json:"enable_update,omitempty"`
+}
+
 type JiraConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
@@ -50,12 +57,12 @@ type JiraConfig struct {
 	APIURL  *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	APIType string           `yaml:"api_type,omitempty" json:"api_type,omitempty"`
 
-	Project     string          `yaml:"project,omitempty" json:"project,omitempty"`
-	Summary     JiraFieldConfig `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Description JiraFieldConfig `yaml:"description,omitempty" json:"description,omitempty"`
-	Labels      []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Priority    string          `yaml:"priority,omitempty" json:"priority,omitempty"`
-	IssueType   string          `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
+	Project     string           `yaml:"project,omitempty" json:"project,omitempty"`
+	Summary     JiraFieldConfig  `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description JiraFieldConfig  `yaml:"description,omitempty" json:"description,omitempty"`
+	Labels      JiraLabelsConfig `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Priority    string           `yaml:"priority,omitempty" json:"priority,omitempty"`
+	IssueType   string           `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
 	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
 	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
@@ -70,6 +77,26 @@ func (f *JiraFieldConfig) EnableUpdateValue() bool {
 		return true
 	}
 	return *f.EnableUpdate
+}
+
+func (l *JiraLabelsConfig) EnableUpdateValue() bool {
+	if l.EnableUpdate == nil {
+		return true
+	}
+	return *l.EnableUpdate
+}
+
+// Supports both the legacy list and the new object form.
+func (l *JiraLabelsConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	// Legacy: labels: [ "a", "b" ] → Values (full backward compatibility).
+	var legacy []string
+	if err := unmarshal(&legacy); err == nil {
+		l.Values = legacy
+		return nil
+	}
+	// Object: labels: { enable_update, values: [...] }
+	type plain JiraLabelsConfig
+	return unmarshal((*plain)(l))
 }
 
 // Supports both the legacy string and the new object form.
