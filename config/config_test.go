@@ -1921,3 +1921,15 @@ receivers:
 		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
 	}
 }
+
+func TestLoadJiraLegacyLabelsList(t *testing.T) {
+	cfg, err := LoadFile("testdata/conf.jira-legacy-labels.yml")
+	require.NoError(t, err)
+	require.Len(t, cfg.Receivers, 1)
+	require.Len(t, cfg.Receivers[0].JiraConfigs, 1)
+
+	jc := cfg.Receivers[0].JiraConfigs[0]
+	require.Equal(t, []string{"alertmanager", "{{ .CommonLabels.severity }}"}, jc.Labels.Values)
+	require.True(t, jc.Labels.EnableUpdateValue())
+	require.Nil(t, jc.Labels.EnableUpdate)
+}

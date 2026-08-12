@@ -1330,8 +1330,23 @@ project: <string>
 ]
 
 # Labels to be added to the issue.
+# Legacy list form (fully supported; updates replace all labels on existing issues):
 labels:
   [ - <tmpl_string> ... ]
+
+# Or object form (required to set enable_update):
+[ labels:
+    # If set to false, labels are not written when updating an existing issue (create still sets labels).
+    [ enable_update: <boolean> | default = true ]
+    # Controls how labels are written when updating an existing issue: "replace"
+    # overwrites all labels (default, matches legacy behavior); "merge" only adds
+    # the configured labels via Jira's update.labels operations, never removing
+    # existing labels. Ignored (labels are skipped) if enable_update is false.
+    [ update_mode: <string> | default = "replace" ]
+    # Label templates (same as the legacy list items).
+    values:
+      [ - <tmpl_string> ... ]
+]
 
 # Priority of the issue.
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
@@ -1365,13 +1380,39 @@ fields:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-The `labels` field is a list of labels added to the issue. Template expressions are supported. For example:
+The `labels` field configures labels added to the issue. Template expressions are supported.
+
+Legacy list form (default behavior: create and update both set `fields.labels`, replacing any existing labels on update):
 
 ```yaml
 labels:
   - 'alertmanager'
   - '{{ .CommonLabels.severity }}'
 ```
+
+Object form, for example to leave labels unchanged on update (similar to jiralert):
+
+```yaml
+labels:
+  enable_update: false
+  values:
+    - 'alertmanager'
+    - '{{ .CommonLabels.severity }}'
+```
+
+`enable_update: false` only affects updates (HTTP PUT); create still writes labels including the `ALERT{…}` group-key label. Flags such as `enable_update` and `update_mode` require the object form; the legacy list cannot express them.
+
+Object form with `update_mode: merge`, to add the configured labels to an existing issue without removing any labels added manually or by Jira automation:
+
+```yaml
+labels:
+  update_mode: merge
+  values:
+    - 'alertmanager'
+    - '{{ .CommonLabels.severity }}'
+```
+
+`update_mode: merge` sends the configured labels as `update.labels` add operations instead of replacing `fields.labels`, so labels never present in the Alertmanager config are preserved across updates. `update_mode: replace` (the default) keeps the existing overwrite behavior. `update_mode` only affects updates; create always sets `fields.labels` directly regardless of `update_mode`. If both `enable_update: false` and `update_mode: merge` are set, `enable_update: false` wins: labels are skipped entirely on update, not merged.
 
 #### `<jira_field>`
 

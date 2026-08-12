@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		path = "issue/" + existingIssue.Key
 		method = http.MethodPut
-		logger.Debug("updating existing issue", "issue_key", existingIssue.Key, "summary_update_enabled", n.conf.Summary.EnableUpdateValue(), "description_update_enabled", n.conf.Description.EnableUpdateValue())
+		logger.Debug("updating existing issue", "issue_key", existingIssue.Key, "summary_update_enabled", n.conf.Summary.EnableUpdateValue(), "description_update_enabled", n.conf.Description.EnableUpdateValue(), "labels_update_enabled", n.conf.Labels.EnableUpdateValue(), "labels_update_mode", string(n.conf.Labels.UpdateModeValue()))
 	}
 
 	requestBody, err := n.prepareIssueRequestBody(ctx, logger, key.Hash(), tmplTextFunc)
@@ -115,6 +115,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		if !n.conf.Summary.EnableUpdateValue() {
 			requestBody.Fields.Summary = nil
+		}
+		if !n.conf.Labels.EnableUpdateValue() {
+			// enable_update: false always wins over update_mode: labels are
+			// skipped entirely, never merged.
+			requestBody.Fields.Labels = nil
+		} else if n.conf.Labels.UpdateModeValue() == JiraLabelUpdateMerge {
+			// Move labels out of fields.labels (which would replace them)
+			// into update.labels add-operations, so existing labels
+			// (manually or automation-added) are preserved.
+			labels := requestBody.Fields.Labels
+			requestBody.Fields.Labels = nil
+			ops := make([]labelOp, 0, len(labels))
+			for _, l := range labels {
+				ops = append(ops, labelOp{Add: l})
+			}
+			requestBody.Update = &issueUpdate{Labels: ops}
 		}
 	}
 
@@ -158,7 +174,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		Project:   &issueProject{Key: project},
 		Issuetype: &idNameValue{Name: issueType},
 		Summary:   &summary,
-		Labels:    make([]string, 0, len(n.conf.Labels)+1),
+		Labels:    make([]string, 0, len(n.conf.Labels.Values)+1),
 		Fields:    fieldsWithStringKeys,
 	}}
 
@@ -192,7 +208,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 
 	requestBody.Fields.Description = description
 
-	for i, label := range n.conf.Labels {
+	for i, label := range n.conf.Labels.Values {
 		label, err = tmplTextFunc(label)
 		if err != nil {
 			return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)

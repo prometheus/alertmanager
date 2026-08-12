@@ -24,6 +24,18 @@ type issue struct {
 	Key        string       `json:"key,omitempty"`
 	Fields     *issueFields `json:"fields,omitempty"`
 	Transition *idNameValue `json:"transition,omitempty"`
+	Update     *issueUpdate `json:"update,omitempty"`
+}
+
+// issueUpdate represents Jira's "update" operations block, used to append to
+// (rather than overwrite) a field such as labels.
+type issueUpdate struct {
+	Labels []labelOp `json:"labels,omitempty"`
+}
+
+// labelOp represents a single Jira label update operation, e.g. {"add": "foo"}.
+type labelOp struct {
+	Add string `json:"add"`
 }
 
 type issueFields struct {
