@@ -1714,13 +1714,12 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name                string
-		yaml                string
-		wantValues          []string
-		wantEnableUpdate    bool
-		wantEnableUpdateNil bool
-		wantUpdateMode      JiraLabelUpdateMode
-		wantErr             string
+		name             string
+		yaml             string
+		wantValues       []string
+		wantEnableUpdate bool
+		wantUpdateMode   JiraLabelUpdateMode
+		wantErr          string
 	}{
 		{
 			name:             "legacy list",
@@ -1793,9 +1792,6 @@ func TestJiraLabelsConfigUnmarshalYAML(t *testing.T) {
 			require.Equal(t, tc.wantValues, cfg.Labels.Values)
 			require.Equal(t, tc.wantEnableUpdate, cfg.Labels.EnableUpdateValue())
 			require.Equal(t, tc.wantUpdateMode, cfg.Labels.UpdateModeValue())
-			if tc.wantEnableUpdateNil {
-				require.Nil(t, cfg.Labels.EnableUpdate)
-			}
 		})
 	}
 

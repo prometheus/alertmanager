@@ -35,7 +35,7 @@ type issueUpdate struct {
 
 // labelOp represents a single Jira label update operation, e.g. {"add": "foo"}.
 type labelOp struct {
-	Add string `json:"add,omitempty"`
+	Add string `json:"add"`
 }
 
 type issueFields struct {

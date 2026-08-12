@@ -112,7 +112,7 @@ func (l *JiraLabelsConfig) UpdateModeValue() JiraLabelUpdateMode {
 	return l.UpdateMode
 }
 
-// Supports both the legacy list and the new object form.
+// UnmarshalYAML supports both the legacy list form and the new object form.
 func (l *JiraLabelsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	// Legacy: labels: [ "a", "b" ] → Values (full backward compatibility).
 	var legacy []string
