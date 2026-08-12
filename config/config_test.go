@@ -1091,8 +1091,8 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
-	if err.Error() != "no global VictorOps API Key set" {
-		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
+	if err.Error() != "no global Splunk On-Call API key set" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Splunk On-Call API key set", err.Error())
 	}
 }
 

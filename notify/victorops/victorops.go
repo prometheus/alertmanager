@@ -32,10 +32,11 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
+// The Splunk On-Call incident fields glossary documents a 20480-character limit.
+// https://help.splunk.com/en/splunk-enterprise/alert-and-respond/splunk-on-call/alerts/incident-fields-glossary
 const maxMessageLenRunes = 20480
 
-// Notifier implements a Notifier for VictorOps notifications.
+// Notifier implements a Notifier for Splunk On-Call notifications.
 type Notifier struct {
 	conf    *config.VictorOpsConfig
 	tmpl    *template.Template
@@ -44,7 +45,7 @@ type Notifier struct {
 	retrier *notify.Retrier
 }
 
-// New returns a new VictorOps notifier.
+// New returns a new Splunk On-Call notifier.
 func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
@@ -109,7 +110,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return shouldRetry, err
 }
 
-// Create the JSON payload to be sent to the VictorOps API.
+// createVictorOpsPayload creates the JSON payload sent to the Splunk On-Call API.
 func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
