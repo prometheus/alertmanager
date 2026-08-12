@@ -1,5 +1,6 @@
 ## main / (unreleased)
 
+* [FEATURE] Add `jsmops` (Jira Service Management Operations) receiver as the migration target for the deprecated `opsgenie` receiver.
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated.
 * [ENHANCEMENT] notify: The discord and webex integrations now report a failure `reason` on `alertmanager_notifications_failed_total`.
 * [ENHANCEMENT] eventrecorder: Add optional webhook batching.
