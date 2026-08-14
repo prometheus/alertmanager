@@ -2188,8 +2188,9 @@ duplicate events after ambiguous failures. With multiple workers, requests
 may complete out of order; set `workers: 1` when request ordering matters.
 
 ```yaml
-# URL to POST events to.
-url: <secret>
+# URL to POST events to. Exactly one of url or url_file must be configured.
+[ url: <secret> ]
+[ url_file: <filepath> ]
 
 # HTTP client configuration (TLS, basic auth, OAuth, proxies, ...).
 [ http_config: <http_config> ]
@@ -2225,19 +2226,8 @@ url: <secret>
 
 For example, [Cloudflare Pipelines streams](https://developers.cloudflare.com/pipelines/streams/writing-to-streams/)
 accept JSON arrays through their HTTP ingestion endpoints and can be configured
-as a batched webhook output:
-
-```yaml
-event_recorder:
-  webhook_outputs:
-  - url: https://<stream-id>.ingest.cloudflare.com
-    batch: true
-    http_config:
-      # The token must have the "Workers Pipeline Send" permission when
-      # authentication is enabled for the stream.
-      authorization:
-        credentials: <api_token>
-```
+as a batched webhook output. See the [Cloudflare Pipelines example](https://github.com/prometheus/alertmanager/tree/main/doc/examples/cloudflare-pipelines)
+for a complete setup and configuration.
 
 #### `<kafka_output>`
 
