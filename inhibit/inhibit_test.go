@@ -57,11 +57,13 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	now := time.Now()
 	cases := []struct {
-		name    string
-		initial map[model.Fingerprint]*alert.Alert
-		equal   model.LabelNames
-		input   model.LabelSet
-		result  bool
+		name                 string
+		initial              map[model.Fingerprint]*alert.Alert
+		equal                model.LabelNames
+		targetMatchers       labels.Matchers
+		input                model.LabelSet
+		excludeTwoSidedMatch bool
+		result               bool
 	}{
 		{
 			name:    "no source alerts",
@@ -141,14 +143,41 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			input:  model.LabelSet{"a": "b"},
 			result: false,
 		},
+		{
+			name: "matching source-only alert still inhibits when newest equal source is two-sided",
+			initial: map[model.Fingerprint]*alert.Alert{
+				1: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"s": "1", "e": "1"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+				2: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(2 * time.Hour),
+					},
+				},
+			},
+			equal:          model.LabelNames{"e"},
+			targetMatchers: labels.Matchers{{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+			input:          model.LabelSet{"s": "1", "t": "1", "e": "1"},
+			// The indexed two-sided source must be ignored, but the source-only
+			// alert with the same equal labels should still inhibit the target.
+			excludeTwoSidedMatch: true,
+			result:               true,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Equal:          map[model.LabelName]struct{}{},
+				TargetMatchers: c.targetMatchers,
+				scache:         store.NewAlerts(),
+				sindex:         newIndex(),
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
@@ -158,7 +187,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 				r.updateIndex(v)
 			}
 
-			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
+			if _, have := r.hasEqual(c.input, c.excludeTwoSidedMatch, time.Now()); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
