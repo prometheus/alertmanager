@@ -2038,7 +2038,7 @@ topic: <string>
 
 # Producer acknowledgement level. With "none", broker-side delivery failures
 # cannot be reported to Alertmanager. "leader" waits for the partition leader.
-# "all" waits for all in-sync replicas and enables idempotent writes.
+# "all" waits for all in-sync replicas.
 [ acks: <"none" | "leader" | "all"> | default = "leader" ]
 
 # Compression codec for record batches. When omitted, batches are uncompressed.
@@ -2313,9 +2313,8 @@ topic: <string>
 [ format: <"json" | "protobuf"> | default = "json" ]
 
 # Producer acknowledgement level.  "leader" matches the franz-go default
-# and minimizes Alertmanager's exposure to Kafka latency.  "all" enables
-# the idempotent producer for at-least-once durability at the cost of
-# higher latency.
+# and minimizes Alertmanager's exposure to Kafka latency.  "all" waits for
+# all in-sync replicas at the cost of higher latency.
 [ acks: <"none" | "leader" | "all"> | default = "leader" ]
 
 # Compression codec for record batches.  When omitted, batches are sent
