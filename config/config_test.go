@@ -1025,6 +1025,8 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 
 	require.Equal(t, "/tmp/globaluserpassword", config.Receivers[0].EmailConfigs[0].AuthPasswordFile, "first email should use password file /tmp/globaluserpassword")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[0].AuthPassword, "password field should be empty when file provided")
+	require.Equal(t, "/tmp/globalusersecret", config.Receivers[0].EmailConfigs[0].AuthSecretFile, "first email should use secret file /tmp/globalusersecret")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[0].AuthSecret, "secret field should be empty when file provided")
 
 	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[1].AuthPassword, "password field should be empty when file provided")
@@ -1033,8 +1035,10 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
 
 	require.Equal(t, commoncfg.Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[3].AuthSecretFile, "fourth email should not inherit the global secret file when a secret is provided")
 
 	require.Equal(t, "/tmp/localuser4secret", config.Receivers[0].EmailConfigs[4].AuthSecretFile, "fifth email should use secret file /tmp/localuser4secret")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[4].AuthSecret, "fifth email should not inherit the global secret when a secret file is provided")
 }
 
 func TestGroupByAll(t *testing.T) {

@@ -409,8 +409,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
 			}
-			ec.AuthSecret = cmp.Or(ec.AuthSecret, c.Global.SMTPAuthSecret)
-			ec.AuthSecretFile = cmp.Or(ec.AuthSecretFile, c.Global.SMTPAuthSecretFile)
+			if ec.AuthSecret == "" && ec.AuthSecretFile == "" {
+				ec.AuthSecret = c.Global.SMTPAuthSecret
+				ec.AuthSecretFile = c.Global.SMTPAuthSecretFile
+			}
 			ec.AuthIdentity = cmp.Or(ec.AuthIdentity, c.Global.SMTPAuthIdentity)
 			if ec.RequireTLS == nil {
 				ec.RequireTLS = new(bool)
