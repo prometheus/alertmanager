@@ -21,3 +21,10 @@ type NotifierConfig struct {
 func (nc *NotifierConfig) SendResolved() bool {
 	return nc.VSendResolved
 }
+
+// Validator is the interface that wraps the Validate method for notifier
+// configurations. Notifier config types implement this interface to provide
+// per-type validation logic that can be called independently of YAML unmarshaling.
+type Validator interface {
+	Validate() error
+}

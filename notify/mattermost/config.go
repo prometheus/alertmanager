@@ -60,6 +60,11 @@ func (c *MattermostField) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the MattermostField for correctness.
+func (c *MattermostField) Validate() error {
 	if c.Title == "" {
 		return errors.New("missing title in Mattermost field configuration")
 	}
@@ -130,6 +135,11 @@ func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
+	return c.Validate()
+}
+
+// Validate checks the MattermostConfig for correctness.
+func (c *MattermostConfig) Validate() error {
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
 	}

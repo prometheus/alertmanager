@@ -53,6 +53,11 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
+	return c.Validate()
+}
+
+// Validate checks the DiscordConfig for correctness.
+func (c *DiscordConfig) Validate() error {
 	if c.WebhookURL == nil && c.WebhookURLFile == "" {
 		return errors.New("one of webhook_url or webhook_url_file must be configured")
 	}
