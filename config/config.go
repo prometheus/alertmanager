@@ -488,17 +488,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				ogc = &opsgenie.OpsGenieConfig{}
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
-			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
 			if ogc.APIURL == nil {
-				return errors.New("no global OpsGenie URL set")
+				if c.Global.OpsGenieAPIURL == nil {
+					return errors.New("no global OpsGenie URL set")
+				}
+				ogc.APIURL = c.Global.OpsGenieAPIURL
 			}
 			if !strings.HasSuffix(ogc.APIURL.Path, "/") {
 				ogc.APIURL.Path += "/"
 			}
-			ogc.APIKey = cmp.Or(ogc.APIKey, c.Global.OpsGenieAPIKey)
-			ogc.APIKeyFile = cmp.Or(ogc.APIKeyFile, c.Global.OpsGenieAPIKeyFile)
 			if ogc.APIKey == "" && len(ogc.APIKeyFile) == 0 {
-				return errors.New("no global OpsGenie API Key set either inline or in a file")
+				if c.Global.OpsGenieAPIKey == "" && len(c.Global.OpsGenieAPIKeyFile) == 0 {
+					return errors.New("no global OpsGenie API Key set either inline or in a file")
+				}
+				ogc.APIKey = c.Global.OpsGenieAPIKey
+				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
@@ -533,17 +537,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("missing victorops config")
 			}
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
-			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
-				return errors.New("no global VictorOps URL set")
+				if c.Global.VictorOpsAPIURL == nil {
+					return errors.New("no global VictorOps URL set")
+				}
+				voc.APIURL = c.Global.VictorOpsAPIURL
 			}
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
 			}
-			voc.APIKey = cmp.Or(voc.APIKey, c.Global.VictorOpsAPIKey)
-			voc.APIKeyFile = cmp.Or(voc.APIKeyFile, c.Global.VictorOpsAPIKeyFile)
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
-				return errors.New("no global VictorOps API Key set")
+				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0 {
+					return errors.New("no global VictorOps API Key set")
+				}
+				voc.APIKey = c.Global.VictorOpsAPIKey
+				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
 		for _, sns := range rcv.SNSConfigs {
@@ -628,18 +636,22 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				rocketchatcfg = &rocketchat.RocketchatConfig{}
 			}
 			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
-			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
-
-			rocketchatcfg.TokenID = cmp.Or(rocketchatcfg.TokenID, c.Global.RocketchatTokenID)
-			rocketchatcfg.TokenIDFile = cmp.Or(rocketchatcfg.TokenIDFile, c.Global.RocketchatTokenIDFile)
-			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
-				return errors.New("no global Rocketchat TokenID set either inline or in a file")
+			if rocketchatcfg.APIURL == nil {
+				rocketchatcfg.APIURL = c.Global.RocketchatAPIURL
 			}
-
-			rocketchatcfg.Token = cmp.Or(rocketchatcfg.Token, c.Global.RocketchatToken)
-			rocketchatcfg.TokenFile = cmp.Or(rocketchatcfg.TokenFile, c.Global.RocketchatTokenFile)
+			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
+				if c.Global.RocketchatTokenID == nil && len(c.Global.RocketchatTokenIDFile) == 0 {
+					return errors.New("no global Rocketchat TokenID set either inline or in a file")
+				}
+				rocketchatcfg.TokenID = c.Global.RocketchatTokenID
+				rocketchatcfg.TokenIDFile = c.Global.RocketchatTokenIDFile
+			}
 			if rocketchatcfg.Token == nil && len(rocketchatcfg.TokenFile) == 0 {
-				return errors.New("no global Rocketchat Token set either inline or in a file")
+				if c.Global.RocketchatToken == nil && len(c.Global.RocketchatTokenFile) == 0 {
+					return errors.New("no global Rocketchat Token set either inline or in a file")
+				}
+				rocketchatcfg.Token = c.Global.RocketchatToken
+				rocketchatcfg.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
