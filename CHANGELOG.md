@@ -1,5 +1,8 @@
 ## main / (unreleased)
 
+* [CHANGE] limit: `alertmanager_alerts_limited_total` now has a `state` label (`firing`/`resolved`) to distinguish dropped firing alerts from dropped resolved notifications. Dashboards/alerts using this metric must be updated.
+* [CHANGE] limit: With `--alerts.per-alertname-limit` set, a resolved notification is only forwarded if its firing counterpart was previously admitted (which frees its slot); resolved notifications with no admitted firing alert are now dropped.
+
 ## 0.34.0 / 2026-08-16
 
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated. #5332

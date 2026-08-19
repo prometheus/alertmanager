@@ -29,7 +29,13 @@ use the `--silences.max-silences` flag.
 You can limit the maximum size of individual silences with `--silences.max-silence-size-bytes`,
 where the unit is in bytes.
 
-Both limits are disabled by default.
+To limit the maximum number of active alerts per alertname, use the
+`--alerts.per-alertname-limit` flag. When the limit is reached, new firing alerts
+for that alertname are dropped. Resolved notifications are only forwarded when
+their firing counterpart was previously admitted; otherwise they are dropped. See
+[Alert limits](alertmanager.md#alert-limits-optional) for details.
+
+All limits are disabled by default.
 
 ## Configuration file introduction
 
