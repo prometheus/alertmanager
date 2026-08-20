@@ -1932,6 +1932,11 @@ routing_key: <tmpl_string>
 # The monitoring tool the state message is from.
 [ monitoring_tool: <tmpl_string> | default = '{{ template "victorops.default.monitoring_tool" . }}' ]
 
+# Optional custom fields sent with the notification. The names `routing_key`,
+# `message_type`, `state_message`, `entity_display_name`, `monitoring_tool`,
+# `entity_id`, and `entity_state` are reserved and cannot be used as keys.
+[ custom_fields: { <string>: <tmpl_string>, ... } ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
