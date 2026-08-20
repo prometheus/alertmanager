@@ -185,7 +185,7 @@ time_intervals:
 [ event_recorder: <event_recorder_config> ]
 
 # Optional tracing configuration.  Configures distributed tracing for Alertmanager.
-[ traciing: <tracing_config> ]
+[ tracing: <tracing_config> ]
 ```
 
 ## Route-related settings
