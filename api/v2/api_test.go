@@ -160,8 +160,6 @@ func TestGetSilencesHandler(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool { return &b }
-
 func TestGetSilencesHandlerStateFilter(t *testing.T) {
 	now := timestamppb.Now()
 	silences := newSilences(t)
@@ -228,23 +226,23 @@ func TestGetSilencesHandlerStateFilter(t *testing.T) {
 	}
 
 	// No filter params (all true) - all three states returned.
-	require.Len(t, callHandler(boolPtr(true), boolPtr(true), boolPtr(true)), 3)
+	require.Len(t, callHandler(new(true), new(true), new(true)), 3)
 
 	// active=false - active silences excluded.
-	got := stateSet(callHandler(boolPtr(false), boolPtr(true), boolPtr(true)))
+	got := stateSet(callHandler(new(false), new(true), new(true)))
 	require.False(t, got["active"])
 	require.True(t, got["expired"] || got["pending"])
 
 	// expired=false - expired silences excluded.
-	got = stateSet(callHandler(boolPtr(true), boolPtr(false), boolPtr(true)))
+	got = stateSet(callHandler(new(true), new(false), new(true)))
 	require.False(t, got["expired"])
 
 	// pending=false - pending silences excluded.
-	got = stateSet(callHandler(boolPtr(true), boolPtr(true), boolPtr(false)))
+	got = stateSet(callHandler(new(true), new(true), new(false)))
 	require.False(t, got["pending"])
 
 	// all false - empty result.
-	require.Empty(t, callHandler(boolPtr(false), boolPtr(false), boolPtr(false)))
+	require.Empty(t, callHandler(new(false), new(false), new(false)))
 }
 
 func TestDeleteSilenceHandler(t *testing.T) {

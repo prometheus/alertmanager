@@ -383,7 +383,7 @@ fields:
 		{
 			Title: "first",
 			Value: "hello",
-			Short: newBoolPointer(true),
+			Short: new(true),
 		},
 		{
 			Title: "second",
@@ -393,7 +393,7 @@ fields:
 		{
 			Title: "third",
 			Value: "slack field test",
-			Short: newBoolPointer(false),
+			Short: new(false),
 		},
 	}
 
@@ -554,10 +554,6 @@ http_config:
 			require.Equal(t, tt.expected, err)
 		})
 	}
-}
-
-func newBoolPointer(b bool) *bool {
-	return &b
 }
 
 func TestEmailConfig_UnmarshalYAML(t *testing.T) {

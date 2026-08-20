@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repository. Keep this file concise
 
 Alertmanager handles alerts sent by clients such as Prometheus. It deduplicates, groups, routes, silences, and inhibits alerts, and dispatches them to receiver integrations (email, PagerDuty, Slack, webhook, etc.).
 
-- Language: Go (see `go.mod` for the required version, currently `go 1.25`).
+- Language: Go (see `go.mod` for the required version, currently `go 1.26`).
 - Frontend (legacy): Elm app under `ui/app/` (Node version pinned in `.nvmrc`).
 - Frontend (new): React + TypeScript + Mantine under `ui/mantine-ui/`.
 - API: OpenAPI v2 spec in `api/v2/openapi.yaml`; Go server/client/models are generated via `scripts/swagger.sh`.
