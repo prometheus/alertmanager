@@ -1142,12 +1142,19 @@ func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int,
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-	// This could probably be optimized.
-	sils, _, err := s.Query(ctx, QState(states...))
-	if err != nil {
-		return -1, err
+
+	now := s.nowUTC()
+	count := 0
+
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	for _, sv := range s.vi {
+		if slices.Contains(states, getState(s.st[sv.id].Silence, now)) {
+			count++
+		}
 	}
-	return len(sils), nil
+	return count, nil
 }
 
 // query executes the given query and returns the resulting silences.
