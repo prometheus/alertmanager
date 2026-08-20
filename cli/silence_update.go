@@ -73,7 +73,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			if err != nil {
 				return err
 			}
-			startsAt := strfmt.DateTime(startsAtTime)
+			startsAt := strfmt.DateTime(startsAtTime.UTC())
 			sil.StartsAt = &startsAt
 		}
 
@@ -82,7 +82,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			if err != nil {
 				return err
 			}
-			endsAt := strfmt.DateTime(endsAtTime)
+			endsAt := strfmt.DateTime(endsAtTime.UTC())
 			sil.EndsAt = &endsAt
 		} else if c.duration != "" {
 			d, err := model.ParseDuration(c.duration)
