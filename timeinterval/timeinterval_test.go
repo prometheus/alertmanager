@@ -144,11 +144,7 @@ var timeIntervalTestCases = []struct {
 		},
 	},
 	{
-		// Negative days of month must resolve against the true month length,
-		// even in a location whose month contains a daylight-saving transition.
-		// March 2021 in America/New_York springs forward on the 14th, so the
-		// month spans 743 wall-clock hours; the last day is still the 31st, and
-		// a last-day mute (-1) must fire on the 31st, not the 30th.
+		// Last-day mutes should not shift during spring-forward months.
 		timeInterval: TimeInterval{
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -1, End: -1}}},
 			Location:    &Location{mustLoadLocation("America/New_York")},

@@ -474,13 +474,7 @@ var (
 
 // Given a time, determines the number of days in the month that time occurs in.
 func daysInMonth(t time.Time) int {
-	// Day 0 of the following month normalizes to the last day of t's month,
-	// so its day-of-month is the number of days in the month. This is
-	// calendar arithmetic and stays correct across daylight-saving
-	// transitions. Deriving the count from an elapsed duration instead
-	// (monthEnd.Sub(monthStart).Hours()/24) undercounts by one in a
-	// spring-forward month, which spans 743 wall-clock hours rather than 744.
-	return time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, t.Location()).Day()
+	return time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()).Day()
 }
 
 func clamp(n, min, max int) int {
