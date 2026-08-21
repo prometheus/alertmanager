@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/kafka"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
@@ -482,6 +483,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("missing incidentio config")
 			}
 			iio.HTTPConfig = cmp.Or(iio.HTTPConfig, c.Global.HTTPConfig)
+		}
+		for _, kafka := range rcv.KafkaConfigs {
+			if kafka == nil {
+				return errors.New("missing kafka config")
+			}
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc == nil {
@@ -984,6 +990,7 @@ type Receiver struct {
 	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
 	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
+	KafkaConfigs      []*kafka.Config                `yaml:"kafka_configs,omitempty" json:"kafka_configs,omitempty"`
 	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
