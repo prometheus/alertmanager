@@ -248,11 +248,23 @@ func (a *App) setup() error {
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
+	var loader config.ConfigLoader
+	if opts.ConfigHTTPURL != "" {
+		loader = config.NewHTTPLoader(opts.ConfigHTTPURL)
+		logger.Info("Starting Alertmanager in HTTP configuration mode", "source", loader.Source())
+	} else {
+		loader = config.NewFileLoader(opts.ConfigFile)
+		logger.Info("Starting Alertmanager in file configuration mode", "source", loader.Source())
+	}
 
 	// Load config once for both event recorder initialization and the
 	// first coordinator apply. Subsequent reloads go through
 	// configCoordinator.Reload() which reads the file again.
-	initialConf, err := config.LoadFile(opts.ConfigFile)
+	data, err := loader.Load(context.Background())
+	if err != nil {
+		return fmt.Errorf("error loading configuration: %w", err)
+	}
+	initialConf, err := config.Load(string(data))
 	if err != nil {
 		return fmt.Errorf("error loading configuration file: %w", err)
 	}
@@ -457,11 +469,7 @@ func (a *App) setup() error {
 	})
 
 	configLogger := logger.With("component", "configuration")
-	configCoordinator := config.NewCoordinator(
-		opts.ConfigFile,
-		reg,
-		configLogger,
-	)
+	configCoordinator := config.NewCoordinator(loader, reg, configLogger)
 	a.coordinator = configCoordinator
 
 	// The reloader owns the config-scoped subgraph (templates, routes,

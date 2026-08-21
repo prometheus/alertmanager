@@ -50,6 +50,9 @@ const (
 // fields default to their zero value (which generally matches the kingpin
 // flag default).
 type Options struct {
+	// ConfigHTTPURL specifies the HTTP URL to load the Alertmanager configuration from.
+	// It is mutually exclusive with ConfigFile - exactly one must be specified.
+	ConfigHTTPURL string
 	// Storage and lifecycle.
 	ConfigFile                  string
 	DataDir                     string
@@ -158,8 +161,11 @@ func (o *Options) validate() error {
 	}
 
 	// Storage and config paths.
-	if o.ConfigFile == "" {
-		return errors.New("alertmanager/app: Options.ConfigFile is required")
+	if o.ConfigFile == "" && o.ConfigHTTPURL == "" {
+		return errors.New("alertmanager/app: exactly one of Options.ConfigFile or Options.ConfigHTTPURL must be set")
+	}
+	if o.ConfigFile != "" && o.ConfigHTTPURL != "" {
+		return errors.New("alertmanager/app: Options.ConfigFile and Options.ConfigHTTPURL are mutually exclusive")
 	}
 	if o.DataDir == "" {
 		return errors.New("alertmanager/app: Options.DataDir is required")
