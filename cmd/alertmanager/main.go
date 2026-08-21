@@ -15,12 +15,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/alecthomas/kingpin/v2"
@@ -48,15 +52,17 @@ func run() int {
 	}
 
 	var (
-		configFile                  = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
-		dataDir                     = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
-		retention                   = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
-		maintenanceInterval         = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
-		maxSilences                 = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
-		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
-		silenceLogging              = kingpin.Flag("log.silences", "Enable logging silences. If it is enabled, the status change of silence will be logged").Bool()
-		alertGCInterval             = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
-		perAlertNameLimit           = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
+		configFile               = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configAutoReloadInterval = kingpin.Flag("config.auto-reload-interval", "Interval for checking and automatically reloading the Alertmanager configuration file. Set to 0 to disable.").Default("0s").Duration()
+		dataDir                  = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
+		retention                = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
+		maintenanceInterval      = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
+		maxSilences              = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
+		maxSilenceSizeBytes      = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
+		silenceLogging           = kingpin.Flag("log.silences", "Enable logging silences. If it is enabled, the status change of silence will be logged").Bool()
+		alertGCInterval          = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		perAlertNameLimit        = kingpin.Flag("alerts.per-alertname-limit", "Maximum number of alerts per alertname. If negative or zero, no limit is set.").Default("0").Int()
+
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
 		dispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
@@ -151,6 +157,18 @@ func run() int {
 		}
 	}()
 
+	// Start the auto-reload watcher if the interval is non-zero.
+	if *configAutoReloadInterval > 0 {
+		if *clusterBindAddr != "" {
+			// In cluster mode each node reloads independently, which can
+			// lead to nodes temporarily serving different configurations.
+			// Warn so operators can take this into account.
+			logger.Warn("--config.auto-reload-interval is set with cluster mode enabled; nodes may reload at different times and temporarily serve different configurations", "interval", *configAutoReloadInterval)
+		}
+		logger.Info("Auto-reload enabled: checking for configuration changes", "interval", *configAutoReloadInterval, "file", *configFile)
+		go runConfigWatcher(ctx, *configFile, *configAutoReloadInterval, reload, logger)
+	}
+
 	opts := app.Options{
 		ConfigFile:                  *configFile,
 		DataDir:                     *dataDir,
@@ -200,4 +218,75 @@ func run() int {
 	}
 	logger.Info("Received shutdown signal, exiting gracefully...")
 	return 0
+}
+
+// configFileChecksum reads the file at path and returns its SHA256 hex digest.
+// It returns an error if the file cannot be read.
+func configFileChecksum(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading config file for checksum: %w", err)
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// runConfigWatcher polls the config file checksum every interval and triggers
+// a reload via reloadCh when a change is detected. It exits when ctx is
+// cancelled. Interval must be > 0; callers are responsible for checking this.
+func runConfigWatcher(
+	ctx context.Context,
+	configFile string,
+	interval time.Duration,
+	reloadCh chan<- struct{},
+	logger *slog.Logger,
+) {
+	// Compute the initial checksum at startup so we only reload on *changes*,
+	// not on the first tick unconditionally.
+	lastChecksum, err := configFileChecksum(configFile)
+	hasChecksum := err == nil
+	if err != nil {
+		// Log but don't abort - the coordinator already validated the file at
+		// startup, so this is a transient read error. We'll retry next tick.
+		logger.Warn("Auto-reload: failed to compute initial config checksum", "file", configFile, "err", err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Auto-reload: watcher stopped", "file", configFile)
+			return
+		case <-ticker.C:
+			checksum, err := configFileChecksum(configFile)
+			if err != nil {
+				logger.Warn("Auto-reload: failed to read config file", "file", configFile, "err", err)
+				continue // don't update lastChecksum; retry next tick
+			}
+
+			if !hasChecksum {
+				// Startup read failed; seed the baseline now without reloading.
+				lastChecksum = checksum
+				hasChecksum = true
+				continue
+			}
+
+			if checksum == lastChecksum {
+				continue // no change
+			}
+
+			logger.Info("Auto-reload: config file changed, reloading", "file", configFile)
+
+			// Trigger a reload via the same channel used by SIGHUP. Non-blocking
+			// send: if a reload is already queued, skip and try again next tick.
+			select {
+			case reloadCh <- struct{}{}:
+				lastChecksum = checksum
+			default:
+				// Reload already pending; try again on the next tick.
+			}
+		}
+	}
 }
