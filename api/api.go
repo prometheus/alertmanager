@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"runtime"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"github.com/prometheus/common/route"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	apiconnect "github.com/prometheus/alertmanager/api/connect"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -41,8 +43,8 @@ import (
 
 // API represents all APIs of Alertmanager.
 type API struct {
-	v2                *apiv2.API
-	deprecationRouter *V1DeprecationRouter
+	v2      *apiv2.API
+	connect *apiconnect.API
 
 	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
@@ -116,6 +118,7 @@ func New(opts Options) (*API, error) {
 		concurrency = max(runtime.GOMAXPROCS(0), 8)
 	}
 
+	// The Connect API is always mounted alongside API v2.
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
@@ -128,6 +131,7 @@ func New(opts Options) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	connect := apiconnect.NewAPI(opts.Peer, l.With("api", "connect"))
 
 	requestsInFlight := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:        "alertmanager_http_requests_in_flight",
@@ -149,8 +153,8 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
+		connect:                  connect,
 		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -167,16 +171,24 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
-	// TODO(gotjosh) API V1 was removed as of version 0.27, when we reach 1.0.0 we should removed these deprecation warnings.
-	api.deprecationRouter.Register(r.WithPrefix("/api/v1"))
-
 	mux := http.NewServeMux()
-	mux.Handle("/", api.limitHandler(r))
+	connectHandler := api.connect.Handler()
+	grpcHandler := api.instrumentHandler("", connectHandler)
+	prefixedConnectHandler := api.concurrencyLimitHandler(connectHandler)
+	webHandler := api.limitHandler(r)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isGRPCRequest(r) {
+			grpcHandler.ServeHTTP(w, r)
+			return
+		}
+		webHandler.ServeHTTP(w, r)
+	}))
 
 	apiPrefix := ""
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
+
 	mux.Handle(
 		apiPrefix+"/api/v2/",
 		api.instrumentHandler(
@@ -190,17 +202,59 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 		),
 	)
 
+	// Connect and gRPC-Web procedures are fully-qualified and carry their own
+	// service version (e.g. /status.v3.StatusService/GetStatus), so mount them
+	// behind a version-neutral /api/ prefix. Native gRPC remains at the root so
+	// standard clients do not need path-prefix support. The more specific
+	// /api/v2/ pattern above wins via longest-prefix matching.
+	mux.Handle(
+		apiPrefix+"/api/",
+		api.instrumentHandler(
+			apiPrefix,
+			http.StripPrefix(apiPrefix+"/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if isGRPCRequest(r) {
+					http.NotFound(w, r)
+					return
+				}
+				prefixedConnectHandler.ServeHTTP(w, r)
+			})),
+		),
+	)
+
 	return mux
+}
+
+func isGRPCRequest(r *http.Request) bool {
+	if r.ProtoMajor != 2 {
+		return false
+	}
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && (mediaType == "application/grpc" || strings.HasPrefix(mediaType, "application/grpc+"))
 }
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
 func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Context, labels model.LabelSet)) {
-	api.v2.Update(cfg, setAlertStatus)
+	if api.v2 != nil {
+		api.v2.Update(cfg, setAlertStatus)
+	}
+	if api.connect != nil {
+		api.connect.Update(cfg)
+	}
 }
 
 func (api *API) limitHandler(h http.Handler) http.Handler {
-	concLimiter := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
+	limited := api.concurrencyLimitHandler(h)
+	if api.timeout <= 0 {
+		return limited
+	}
+	return http.TimeoutHandler(limited, api.timeout, fmt.Sprintf(
+		"Exceeded configured timeout of %v.\n", api.timeout,
+	))
+}
+
+func (api *API) concurrencyLimitHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
 		if req.Method == http.MethodGet { // Only limit concurrency of GETs.
 			select {
 			case api.inFlightSem <- struct{}{}: // All good, carry on.
@@ -219,12 +273,6 @@ func (api *API) limitHandler(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(rsp, req)
 	})
-	if api.timeout <= 0 {
-		return concLimiter
-	}
-	return http.TimeoutHandler(concLimiter, api.timeout, fmt.Sprintf(
-		"Exceeded configured timeout of %v.\n", api.timeout,
-	))
 }
 
 func (api *API) instrumentHandler(prefix string, h http.Handler) http.Handler {

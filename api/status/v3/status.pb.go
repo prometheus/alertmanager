@@ -520,9 +520,9 @@ const file_status_v3_status_proto_rawDesc = "" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\"\x12\n" +
 	"\x10GetStatusRequest\"J\n" +
 	"\x11GetStatusResponse\x125\n" +
-	"\x06status\x18\x01 \x01(\v2\x1d.status.v3.AlertmanagerStatusR\x06status2Y\n" +
-	"\rStatusService\x12H\n" +
-	"\tGetStatus\x12\x1b.status.v3.GetStatusRequest\x1a\x1c.status.v3.GetStatusResponse\"\x00B;Z9github.com/prometheus/alertmanager/api/status/v3;statusv3b\x06proto3"
+	"\x06status\x18\x01 \x01(\v2\x1d.status.v3.AlertmanagerStatusR\x06status2\\\n" +
+	"\rStatusService\x12K\n" +
+	"\tGetStatus\x12\x1b.status.v3.GetStatusRequest\x1a\x1c.status.v3.GetStatusResponse\"\x03\x90\x02\x01B;Z9github.com/prometheus/alertmanager/api/status/v3;statusv3b\x06proto3"
 
 var (
 	file_status_v3_status_proto_rawDescOnce sync.Once
