@@ -76,14 +76,14 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	var (
 		err         error
 		data        = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
-		tmpl        = notify.TmplText(n.tmpl, data, &err)
+		tmpl        = notify.TmplTextWithLogger(n.tmpl, data, &err, logger)
 		messageText string
 		truncated   bool
 	)
 
 	switch n.conf.ParseMode {
 	case "HTML":
-		tmpl = notify.TmplHTML(n.tmpl, data, &err)
+		tmpl = notify.TmplHTMLWithLogger(n.tmpl, data, &err, logger)
 		messageText = tmpl(n.conf.Message)
 		if err != nil {
 			return false, err

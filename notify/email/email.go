@@ -215,7 +215,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
+		tmpl    = notify.TmplTextWithLogger(n.tmpl, data, &tmplErr, n.logger)
 	)
 	from := tmpl(n.conf.From)
 	if tmplErr != nil {

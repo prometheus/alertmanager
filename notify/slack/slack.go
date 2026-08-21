@@ -65,7 +65,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, logger)
-		tmplText = notify.TmplText(n.tmpl, data, &err)
+		tmplText = notify.TmplTextWithLogger(n.tmpl, data, &err, logger)
 	)
 	var markdownIn []string
 

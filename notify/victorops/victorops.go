@@ -71,7 +71,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var err error
 	var (
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-		tmpl   = notify.TmplText(n.tmpl, data, &err)
+		tmpl   = notify.TmplTextWithLogger(n.tmpl, data, &err, n.logger)
 		apiURL = n.conf.APIURL.Copy()
 	)
 
@@ -125,7 +125,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	var (
 		alerts = types.Alerts(as...)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-		tmpl   = notify.TmplText(n.tmpl, data, &err)
+		tmpl   = notify.TmplTextWithLogger(n.tmpl, data, &err, n.logger)
 
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
