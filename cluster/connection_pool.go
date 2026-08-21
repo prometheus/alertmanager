@@ -48,7 +48,9 @@ func newConnectionPool(tlsClientCfg *tls.Config) (*connectionPool, error) {
 
 // borrowConnection returns a *tlsConn from the pool. The connection does not
 // need to be returned to the pool because each connection has its own locking.
-func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration) (*tlsConn, error) {
+// If hostname is non-empty, it is used as the TLS ServerName for certificate
+// validation instead of the IP address from addr.
+func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration, hostname string) (*tlsConn, error) {
 	pool.mtx.Lock()
 	defer pool.mtx.Unlock()
 	if pool.cache == nil {
@@ -59,7 +61,13 @@ func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration)
 	if exists && conn.alive() {
 		return conn, nil
 	}
-	conn, err := dialTLSConn(addr, timeout, pool.tlsConfig)
+	tlsCfg := pool.tlsConfig
+	if hostname != "" {
+		clone := tlsCfg.Clone()
+		clone.ServerName = hostname
+		tlsCfg = clone
+	}
+	conn, err := dialTLSConn(addr, timeout, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
