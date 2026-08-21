@@ -160,7 +160,7 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 			logger.Warn("UTF-8 strict mode enabled")
 		case FeatureAutoGOMEMLIMIT:
 			opts = append(opts, enableAutoGOMEMLIMIT())
-			logger.Warn("Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
+			logger.Info("Automatically set GOMEMLIMIT to match the Linux container or system memory limit.")
 		case FeatureEventRecorder:
 			opts = append(opts, enableEventRecorder())
 			logger.Warn("Experimental event recorder enabled")
