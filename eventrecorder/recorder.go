@@ -33,7 +33,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 const (
@@ -69,12 +68,9 @@ type Recorder struct {
 }
 
 // writeRequest is a single event queued for background serialization
-// and writing.  It carries the proto message so that the expensive
-// protojson.Marshal call happens in the write-loop goroutine, not on
-// the caller's hot path.
+// and writing.
 type writeRequest struct {
-	event     *eventrecorderpb.Event
-	eventType string
+	event Event
 }
 
 // sharedRecorder holds the mutable state shared by all copies of a
@@ -104,7 +100,8 @@ type cfgUpdateMsg struct {
 
 // Destination is a single event destination.  Each implementation
 // owns its own serialization: it receives the structured event and is
-// responsible for encoding it (e.g. JSON or protobuf) and delivering it.
+// responsible for encoding it with Event.MarshalJSON or
+// Event.MarshalProtobuf and delivering it.
 //
 // Owning serialization per destination — rather than handing every
 // destination a pre-encoded JSON blob — avoids the footgun of, say, a
@@ -119,7 +116,7 @@ type Destination interface {
 	// delivery error.  A serialization failure should be returned
 	// wrapped in *serializeError so the recorder can attribute it to
 	// the serialize-errors metric.
-	SendEvent(event *eventrecorderpb.Event) (size int, err error)
+	SendEvent(event Event) (size int, err error)
 	io.Closer
 }
 
@@ -278,14 +275,14 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 		if err != nil {
 			var se *serializeError
 			if errors.As(err, &se) {
-				c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
+				c.metrics.eventSerializeErrors.WithLabelValues(req.event.typeName()).Inc()
 			}
-			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
-			c.logger.Error("Failed to write event", "event_type", req.eventType, "output", name, "err", err)
+			c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "error").Inc()
+			c.logger.Error("Failed to write event", "event_type", req.event.typeName(), "output", name, "err", err)
 			continue
 		}
-		c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "success").Inc()
-		c.metrics.eventRecorderBytesWritten.WithLabelValues(req.eventType, name).Add(float64(size))
+		c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "success").Inc()
+		c.metrics.eventRecorderBytesWritten.WithLabelValues(req.event.typeName(), name).Add(float64(size))
 	}
 }
 
@@ -296,39 +293,33 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 //
 // The event is supplied as a builder function rather than a value so
 // that callers on hot read paths do not pay to construct an event
-// (protobuf conversions, fingerprint slices, etc.) that would only be
+// (alert snapshots, fingerprint slices, etc.) that would only be
 // discarded when recording is disabled.  The builder is invoked only
 // after the recording gates pass, and exactly once.
 //
 // The expensive protojson.Marshal call is deferred to the write-loop
-// goroutine so that the caller's hot path only pays for the proto
-// wrapping and a channel send.
-func (r Recorder) RecordEvent(ctx context.Context, build func() *eventrecorderpb.EventData) {
+// goroutine so that the caller's hot path only pays for snapshot construction
+// and a channel send.
+func (r Recorder) RecordEvent(ctx context.Context, build func() Event) {
 	if r.core == nil || r.core.events == nil {
 		return
 	}
 	if !EventRecordingEnabled(ctx) {
 		return
 	}
-
 	event := build()
-	eventType := extractEventType(event)
-
-	wrappedEvent := &eventrecorderpb.Event{
-		Timestamp: timestamppb.Now(),
-		Instance:  r.core.instance,
-		Data:      event,
-	}
-
+	clusterPosition := uint64(0)
 	if peer := r.core.peer.Load(); peer != nil {
-		wrappedEvent.ClusterPosition = uint32(peer.Position())
+		clusterPosition = uint64(peer.Position())
 	}
+	event = event.withMetadata(timestamppb.Now(), r.core.instance, clusterPosition)
+	request := writeRequest{event: event}
 
 	select {
-	case r.core.events <- writeRequest{event: wrappedEvent, eventType: eventType}:
+	case r.core.events <- request:
 	default:
 		// Queue full; drop event to avoid blocking alertmanager.
-		r.core.metrics.eventsDropped.WithLabelValues(eventType).Inc()
+		r.core.metrics.eventsDropped.WithLabelValues(event.typeName()).Inc()
 	}
 }
 
