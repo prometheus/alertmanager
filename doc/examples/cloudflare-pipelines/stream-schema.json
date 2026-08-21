@@ -1,0 +1,24 @@
+{
+  "fields": [
+    {
+      "name": "@timestamp",
+      "type": "timestamp",
+      "required": true
+    },
+    {
+      "name": "instance",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "clusterPosition",
+      "type": "int64",
+      "required": false
+    },
+    {
+      "name": "data",
+      "type": "json",
+      "required": true
+    }
+  ]
+}

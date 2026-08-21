@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -93,6 +94,25 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 	require.NoError(t, json.Unmarshal(received[0], &event))
 	require.Contains(t, string(received[0]), "alertmanagerStartupEvent")
 	mu.Unlock()
+}
+
+func TestWebhookOutput_ReadsURLFromFile(t *testing.T) {
+	var count atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		count.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	urlFile := t.TempDir() + "/url"
+	require.NoError(t, os.WriteFile(urlFile, []byte(srv.URL+"\n"), 0o600))
+
+	wo, err := NewWebhookOutput(WebhookOutputConfig{URLFile: urlFile}, testWebhookDrops(), slog.Default())
+	require.NoError(t, err)
+	_, err = wo.SendEvent(sampleEvent())
+	require.NoError(t, err)
+	require.NoError(t, wo.Close())
+	require.Equal(t, int64(1), count.Load())
 }
 
 func TestWebhookOutput_MultipleWorkers(t *testing.T) {
@@ -387,6 +407,19 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 				require.NotNil(t, c.URL)
 				require.Equal(t, "https://example.com/hook", c.URL.String())
 			},
+		},
+		{
+			name: "valid url file",
+			yaml: "url_file: /run/secrets/webhook-url\n",
+			check: func(t *testing.T, c WebhookOutputConfig) {
+				require.Nil(t, c.URL)
+				require.Equal(t, "/run/secrets/webhook-url", c.URLFile)
+			},
+		},
+		{
+			name:    "url and url file",
+			yaml:    "url: https://example.com/hook\nurl_file: /run/secrets/webhook-url\n",
+			wantErr: true,
 		},
 		{
 			name: "valid with tunables",

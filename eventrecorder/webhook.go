@@ -21,7 +21,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +39,8 @@ import (
 // WebhookOutputConfig configures an HTTP webhook event recorder output.
 type WebhookOutputConfig struct {
 	// URL is the endpoint to POST each event to.
-	URL *amcommoncfg.SecretURL `yaml:"url" json:"url"`
+	URL     *amcommoncfg.SecretURL `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string                 `yaml:"url_file,omitempty" json:"url_file,omitempty"`
 	// HTTPConfig configures the HTTP client used for webhook delivery.
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	// Timeout for webhook HTTP requests (default 10s).
@@ -74,10 +77,13 @@ func (c *WebhookOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil || c.URL.URL == nil {
-		return errors.New("event_recorder webhook output requires a url")
+	if c.URL == nil && c.URLFile == "" {
+		return errors.New("event_recorder webhook output requires one of url or url_file")
 	}
-	if c.URL.Scheme == "" || c.URL.Host == "" {
+	if c.URL != nil && c.URLFile != "" {
+		return errors.New("at most one of url & url_file must be configured")
+	}
+	if c.URL != nil && (c.URL.URL == nil || c.URL.Scheme == "" || c.URL.Host == "") {
 		return errors.New("event_recorder webhook output requires an absolute http(s) url")
 	}
 	if c.BatchMaxEvents < 0 || c.BatchMaxBytes < 0 || c.BatchFlushInterval < 0 {
@@ -99,7 +105,7 @@ func (c WebhookOutputConfig) equal(o WebhookOutputConfig) bool {
 	if o.URL != nil {
 		bURL = o.URL.String()
 	}
-	if aURL != bURL {
+	if aURL != bURL || c.URLFile != o.URLFile {
 		return false
 	}
 	if c.Timeout != o.Timeout {
@@ -146,6 +152,7 @@ const (
 type WebhookOutput struct {
 	client       *http.Client
 	url          string
+	urlFile      string
 	name         string
 	kind         string
 	batch        *httpBatchConfig
@@ -230,11 +237,16 @@ func newWebhookOutput(cfg WebhookOutputConfig, kind string, batch *httpBatchConf
 		retryBackoff = time.Duration(cfg.RetryBackoff)
 	}
 
-	urlStr := cfg.URL.String()
-	name := fmt.Sprintf("%s:%s", kind, sanitizeURL(urlStr))
+	urlStr := ""
+	name := fmt.Sprintf("%s:url_file:%s", kind, cfg.URLFile)
+	if cfg.URL != nil {
+		urlStr = cfg.URL.String()
+		name = fmt.Sprintf("%s:%s", kind, sanitizeURL(urlStr))
+	}
 	wo := &WebhookOutput{
 		client:       client,
 		url:          urlStr,
+		urlFile:      cfg.URLFile,
 		name:         name,
 		kind:         kind,
 		batch:        batch,
@@ -436,7 +448,19 @@ func (wo *WebhookOutput) postWithRetry(data []byte) {
 }
 
 func (wo *WebhookOutput) post(data []byte) error {
-	resp, err := wo.client.Post(wo.url, "application/json", bytes.NewReader(data))
+	urlStr := wo.url
+	if wo.urlFile != "" {
+		content, err := os.ReadFile(wo.urlFile)
+		if err != nil {
+			return fmt.Errorf("read event recorder webhook url_file: %w", err)
+		}
+		u, err := amcommoncfg.ParseURL(strings.TrimSpace(string(content)))
+		if err != nil {
+			return fmt.Errorf("parse event recorder webhook url_file: %w", err)
+		}
+		urlStr = u.String()
+	}
+	resp, err := wo.client.Post(urlStr, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("event recorder %s POST failed: %w", wo.kind, err)
 	}
