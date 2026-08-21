@@ -1747,6 +1747,20 @@ fields:
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
 # Webhook URLs do not support updates.
 [ update_message: <boolean> | default = false ]
+
+# Enables Slack Block Kit layout instead of the legacy attachment format.
+[ use_block_kit: <boolean> | default = false ]
+
+# A list of Block Kit block objects rendered as the 'blocks' field of the Slack API payload.
+# Template expressions in string values are expanded with the same data available to other
+# tmpl_string fields. The channel and fallback text come from the top-level 'channel' and
+# 'message_text' fields respectively.
+# See https://api.slack.com/reference/block-kit/blocks for the block schema.
+# NOTE: String values that render to a YAML/JSON mapping (e.g. "key: value") are parsed into
+# a map structure by the template engine. Avoid bare 'key: value' patterns in rendered text;
+# use a different separator or quote the value in the template if needed.
+block_kit_payload:
+  [ - <block_object>, ... ]
 ```
 
 #### `<action_config>` (Slack)
@@ -1785,6 +1799,35 @@ title: <tmpl_string>
 value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
+
+#### Block Kit example
+
+When `use_block_kit: true` the `block_kit_payload` field accepts a list of [Block Kit block objects](https://api.slack.com/reference/block-kit/blocks). The `channel` and fallback `message_text` are set at the top level of the receiver config as usual.
+
+```yaml
+slack_configs:
+  - api_url: 'https://slack.com/api/chat.postMessage'
+    http_config:
+      authorization:
+        credentials: '<bot-token>'
+    channel: '#alerts'
+    message_text: 'fallback string'
+    use_block_kit: true
+    block_kit_payload:
+      - type: header
+        text:
+          type: plain_text
+          text: '{{ .CommonAnnotations.SortedPairs.Values | join " " | printf "%q" }}'
+      - type: section
+        text:
+          type: mrkdwn
+          text: |-
+            *Alert:* {{ .CommonAnnotations.description }} - Severity: {{ .CommonLabels.severity_id }}
+
+            *Description:* {{ .CommonAnnotations.description }}
+```
+
+> **Note:** String values inside `block_kit_payload` are rendered as Go templates and then passed through a YAML parser. A rendered value that matches the `key: value` pattern (colon followed by a space) will be interpreted as a YAML mapping and converted to a map rather than remaining a plain string. To keep such text as a string, avoid the bare `key: value` pattern in rendered output or use a template that wraps the value in quotes (e.g. `{{ .Value | printf "%q" }}`).
 
 ### `<sns_config>`
 
