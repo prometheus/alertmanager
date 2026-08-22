@@ -249,7 +249,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			if err != nil {
 				return nil, true, err
 			}
-			requests = append(requests, req)
+			requests = append(requests, req.WithContext(ctx))
 
 			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
 			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
