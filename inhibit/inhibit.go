@@ -397,6 +397,24 @@ func (r *InhibitRule) findEqualSourceAlert(lset model.LabelSet, now time.Time) (
 	return nil, false
 }
 
+func (r *InhibitRule) findEqualSourceAlertFromCache(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time) (*types.Alert, bool) {
+	equalsFP := r.fingerprintEquals(lset)
+	for _, alert := range r.scache.List() {
+		if alert.ResolvedAt(now) {
+			continue
+		}
+		if r.fingerprintEquals(alert.Labels) != equalsFP {
+			continue
+		}
+		if excludeTwoSidedMatch && r.TargetMatchers.Matches(alert.Labels) {
+			continue
+		}
+		return alert, true
+	}
+
+	return nil, false
+}
+
 func (r *InhibitRule) gcCallback(alerts []*types.Alert) {
 	for _, a := range alerts {
 		fp := r.fingerprintEquals(a.Labels)
@@ -412,7 +430,11 @@ func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, n
 	equal, found := r.findEqualSourceAlert(lset, now)
 	if found {
 		if excludeTwoSidedMatch && r.TargetMatchers.Matches(equal.Labels) {
-			return model.Fingerprint(0), false
+			equal, found = r.findEqualSourceAlertFromCache(lset, excludeTwoSidedMatch, now)
+			if !found {
+				return model.Fingerprint(0), false
+			}
+			return equal.Fingerprint(), true
 		}
 		return equal.Fingerprint(), found
 	}
