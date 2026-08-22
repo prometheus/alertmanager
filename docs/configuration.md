@@ -839,6 +839,8 @@ labels:
 # Configurations for several notification integrations.
 discord_configs:
   [ - <discord_config>, ... ]
+gotify_configs:
+  [ - <gotify_config>, ... ]
 email_configs:
   [ - <email_config>, ... ]
 mattermost_configs:
@@ -1620,6 +1622,47 @@ token_file: <filepath>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<gotify_config>`
+
+Gotify notifications are sent via the [Gotify message API](https://gotify.net/docs/pushmsg).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# Gotify server URL to send the request to.
+# Typically: https://gotify.example.com/message
+# url and url_file are mutually exclusive.
+url: <string>
+url_file: <filepath>
+
+# The Gotify application token.
+# token and token_file are mutually exclusive.
+token: <secret>
+token_file: <filepath>
+
+# Notification title.
+[ title: <tmpl_string> | default = '{{ template "gotify.default.title" . }}' ]
+
+# Notification message.
+[ message: <tmpl_string> | default = '{{ template "gotify.default.message" . }}' ]
+
+# Priority.
+[ priority: <tmpl_string> | default = '{{ if eq .Status "firing" }}5{{ else }}0{{ end }}' ]
+
+# Message content type. Used to populate Gotify message extras.
+[ content_type: <string> | default = 'text/plain' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+
+# The maximum time to wait for a gotify request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 ### `<rocketchat_config>`

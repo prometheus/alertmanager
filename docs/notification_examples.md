@@ -6,6 +6,25 @@ sort_rank: 8
 The following are all different examples of alerts and corresponding Alertmanager configuration file setups (alertmanager.yml).
 Each use the [Go templating](http://golang.org/pkg/text/template/) system.
 
+## Sending notifications to Gotify
+
+In this example we configure a Gotify receiver using an application token.
+
+```
+route:
+  receiver: 'gotify-notifications'
+
+receivers:
+- name: 'gotify-notifications'
+  gotify_configs:
+  - url: 'http://localhost:8080/message'
+    token: '<gotify_application_token>'
+    title: '{{ template "gotify.default.title" . }}'
+    message: '{{ template "gotify.default.message" . }}'
+    priority: '{{ if eq .Status "firing" }}5{{ else }}0{{ end }}'
+    content_type: 'text/plain'
+```
+
 ## Customizing Slack notifications
 
 In this example we've customised our Slack notification to send a URL to our organisation's wiki on how to deal with the particular alert that's been sent.

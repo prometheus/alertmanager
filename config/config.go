@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/notify/discord"
+	"github.com/prometheus/alertmanager/notify/gotify"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
@@ -210,6 +211,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 		for _, cfg := range receiver.DiscordConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.GotifyConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 		for _, cfg := range receiver.WebexConfigs {
@@ -575,6 +579,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
 				return errors.New("no discord webhook URL or URLFile provided")
 			}
+		}
+		for _, gotifyCfg := range rcv.GotifyConfigs {
+			if gotifyCfg == nil {
+				return errors.New("missing gotify config")
+			}
+			gotifyCfg.HTTPConfig = cmp.Or(gotifyCfg.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, webex := range rcv.WebexConfigs {
 			if webex == nil {
@@ -982,6 +992,7 @@ type Receiver struct {
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
 	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
+	GotifyConfigs     []*gotify.GotifyConfig         `yaml:"gotify_configs,omitempty" json:"gotify_configs,omitempty"`
 	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
