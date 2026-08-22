@@ -1,5 +1,7 @@
 ## main / (unreleased)
 
+* [ENHANCEMENT] doc: Document wildcard CORS default and security considerations for API v2. #5455
+
 ## 0.34.0 / 2026-08-16
 
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated. #5332

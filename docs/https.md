@@ -12,6 +12,28 @@ Currently TLS is supported for the HTTP traffic and gossip traffic.
 
 To specify which web configuration file to load, use the `--web.config.file` flag.
 
+### CORS (Cross-Origin Resource Sharing)
+
+By default, Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *` on all endpoints.
+This allows any origin to make cross-origin requests to the Alertmanager API. While convenient for development,
+this default may not be suitable for production environments where you want to restrict access to specific origins.
+
+The current CORS behavior is configured using the `github.com/rs/cors` library with default settings,
+which allows all origins and common HTTP methods.
+
+**Security Considerations**: The wildcard CORS policy allows any website to make requests to your Alertmanager API.
+If your Alertmanager is exposed to the internet or to untrusted networks, you should consider restricting CORS
+by fronting Alertmanager with a reverse proxy (such as nginx or Apache) that can enforce stricter CORS policies
+based on your security requirements.
+
+For production deployments, it is recommended to:
+1. Use a reverse proxy to enforce CORS policies
+2. Implement authentication to protect API endpoints
+3. Restrict network access to Alertmanager using firewalls or VPC rules
+
+**Note**: The wildcard CORS default is a legacy configuration from the initial CORS implementation in PR #1667.
+Future API versions (such as v3) may adopt a more restrictive default as part of security hardening efforts.
+
 The file is written in [YAML format](https://en.wikipedia.org/wiki/YAML),
 defined by the scheme described below.
 Brackets indicate that a parameter is optional. For non-list parameters the
