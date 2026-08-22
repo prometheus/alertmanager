@@ -143,6 +143,19 @@ var timeIntervalTestCases = []struct {
 			"31 Oct 21 21:00 +0000",
 		},
 	},
+	{
+		// Last-day mutes should not shift during spring-forward months.
+		timeInterval: TimeInterval{
+			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -1, End: -1}}},
+			Location:    &Location{mustLoadLocation("America/New_York")},
+		},
+		validTimeStrings: []string{
+			"31 Mar 21 12:00 -0400",
+		},
+		invalidTimeStrings: []string{
+			"30 Mar 21 12:00 -0400",
+		},
+	},
 }
 
 var timeStringTestCases = []struct {

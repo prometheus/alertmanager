@@ -474,10 +474,7 @@ var (
 
 // Given a time, determines the number of days in the month that time occurs in.
 func daysInMonth(t time.Time) int {
-	monthStart := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
-	monthEnd := monthStart.AddDate(0, 1, 0)
-	diff := monthEnd.Sub(monthStart)
-	return int(diff.Hours() / 24)
+	return time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()).Day()
 }
 
 func clamp(n, min, max int) int {
