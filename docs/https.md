@@ -14,14 +14,19 @@ To specify which web configuration file to load, use the `--web.config.file` fla
 
 ### CORS (Cross-Origin Resource Sharing)
 
-Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *` and allows the
-`GET`, `POST`, and `HEAD` methods.
+Alertmanager applies CORS middleware to requests routed to `/api/v2/`. For requests
+with an `Origin` header, it responds with `Access-Control-Allow-Origin: *`. The
+default CORS configuration permits the `GET`, `POST`, and `HEAD` methods.
 
-See Prometheus's [security model](https://prometheus.io/docs/operating/security/)
+The wildcard origin allows browsers without credentials to read responses from any
+origin. It does not bypass Alertmanager authentication or authorization. Browsers
+reject credentialed CORS responses using `Access-Control-Allow-Origin: *`.
+CORS is not CSRF protection.
+
+To apply a restricted origin to mutating endpoints with a reverse proxy, remove or
+replace Alertmanager's `Access-Control-Allow-Origin` header before setting the custom
+value. See Prometheus's [security model](https://prometheus.io/docs/operating/security/)
 for API security considerations.
-
-To apply a custom CORS policy with a reverse proxy, remove or replace Alertmanager's
-`Access-Control-Allow-Origin` header before setting a custom value.
 The file is written in [YAML format](https://en.wikipedia.org/wiki/YAML),
 defined by the scheme described below.
 Brackets indicate that a parameter is optional. For non-list parameters the
