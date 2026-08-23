@@ -23,10 +23,13 @@ origin. It does not bypass Alertmanager authentication or authorization. Browser
 reject credentialed CORS responses using `Access-Control-Allow-Origin: *`.
 CORS is not CSRF protection.
 
-To apply a restricted origin to mutating endpoints with a reverse proxy, remove or
-replace Alertmanager's `Access-Control-Allow-Origin` header before setting the custom
-value. See Prometheus's [security model](https://prometheus.io/docs/operating/security/)
-for API security considerations.
+To set a restricted origin with a reverse proxy, remove or replace Alertmanager's
+`Access-Control-Allow-Origin` header before setting the custom value. This only
+restricts browser reads; it does not block cross-origin mutating requests. The proxy
+must reject unauthorized cross-origin mutating requests, or an explicit CSRF
+protection policy must be used. See Prometheus's
+[security model](https://prometheus.io/docs/operating/security/) for API security
+considerations.
 The file is written in [YAML format](https://en.wikipedia.org/wiki/YAML),
 defined by the scheme described below.
 Brackets indicate that a parameter is optional. For non-list parameters the
