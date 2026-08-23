@@ -62,8 +62,7 @@ func addSilenceWorker(ctx context.Context, sclient silence.ClientService, silenc
 		sid := s.ID
 		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)
 		postOk, err := sclient.PostSilences(params)
-		var e *silence.PostSilencesNotFound
-		if errors.As(err, &e) {
+		if _, ok := errors.AsType[*silence.PostSilencesNotFound](err); ok {
 			// silence doesn't exists yet, retry to create as a new one
 			params.Silence.ID = ""
 			postOk, err = sclient.PostSilences(params)

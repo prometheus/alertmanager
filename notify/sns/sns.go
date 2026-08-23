@@ -110,8 +110,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err != nil {
 		// V2 error handling is different. We don't have awserr.RequestFailure.
 		// We can check for a generic smithy.APIError to see if it's a service error.
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 			// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
 			var respErr *smithyhttp.ResponseError
 			if errors.As(err, &respErr) && respErr.Response != nil {
@@ -131,8 +130,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	publishOutput, err := client.Publish(ctx, publishInput)
 	if err != nil {
 		// V2 error handling uses errors.As to inspect the error chain.
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 			var statusCode int
 			var respErr *smithyhttp.ResponseError
 			// Try to extract the HTTP status code for the retrier.

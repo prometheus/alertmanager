@@ -44,8 +44,7 @@ func ClassifyError(err error) ErrorCategory {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return ErrorCategoryTimeout
 	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](err); ok {
 		if netErr.Timeout() {
 			return ErrorCategoryTimeout
 		}

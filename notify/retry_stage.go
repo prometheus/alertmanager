@@ -76,8 +76,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		var e *ErrorWithReason
-		if errors.As(err, &e) {
+		if e, ok := errors.AsType[*ErrorWithReason](err); ok {
 			failureReason = e.Reason.String()
 		}
 		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason)...).Inc()
