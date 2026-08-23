@@ -488,11 +488,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				ogc = &opsgenie.OpsGenieConfig{}
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
+			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
 			if ogc.APIURL == nil {
-				if c.Global.OpsGenieAPIURL == nil {
-					return errors.New("no global OpsGenie URL set")
-				}
-				ogc.APIURL = c.Global.OpsGenieAPIURL
+				return errors.New("no global OpsGenie URL set")
 			}
 			if !strings.HasSuffix(ogc.APIURL.Path, "/") {
 				ogc.APIURL.Path += "/"
@@ -537,11 +535,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("missing victorops config")
 			}
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
+			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
-				if c.Global.VictorOpsAPIURL == nil {
-					return errors.New("no global VictorOps URL set")
-				}
-				voc.APIURL = c.Global.VictorOpsAPIURL
+				return errors.New("no global VictorOps URL set")
 			}
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
@@ -636,9 +632,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				rocketchatcfg = &rocketchat.RocketchatConfig{}
 			}
 			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
-			if rocketchatcfg.APIURL == nil {
-				rocketchatcfg.APIURL = c.Global.RocketchatAPIURL
-			}
+			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
 			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
 				if c.Global.RocketchatTokenID == nil && len(c.Global.RocketchatTokenIDFile) == 0 {
 					return errors.New("no global Rocketchat TokenID set either inline or in a file")
