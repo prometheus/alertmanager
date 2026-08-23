@@ -14,22 +14,14 @@ To specify which web configuration file to load, use the `--web.config.file` fla
 
 ### CORS (Cross-Origin Resource Sharing)
 
-By default, Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *`.
-This allows any origin to make cross-origin requests to the API v2 endpoints. While convenient for development,
-this default may not be suitable for production environments where you want to restrict access to specific origins.
+Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *` and allows the
+`GET`, `POST`, and `HEAD` methods.
 
-The current CORS behavior is configured using the `github.com/rs/cors` library with default settings,
-which allows all origins and the `GET`, `POST`, and `HEAD` methods.
+See Prometheus's [security model](https://prometheus.io/docs/operating/security/)
+for API security considerations.
 
-**Important Security Notes**:
-
-- Alertmanager's API [security and trust model](https://prometheus.io/docs/operating/security/) is documented by Prometheus.
-- Browsers reject credentialed requests (requests with cookies, HTTP authentication, or client certificates) when the response includes `Access-Control-Allow-Origin: *`. For credentialed requests, the origin must be explicitly specified.
-- If you use a reverse proxy to implement custom CORS policies, the proxy must remove or replace Alertmanager's existing `Access-Control-Allow-Origin` header. Simply appending additional headers will result in invalid CORS responses (browsers reject responses with multiple Access-Control-Allow-Origin headers).
-
-**Note**: The wildcard CORS default is a legacy configuration from the initial CORS implementation in PR #1667.
-Future API versions (such as v3) may adopt a more restrictive default as part of security hardening efforts.
-
+To apply a custom CORS policy with a reverse proxy, remove or replace Alertmanager's
+`Access-Control-Allow-Origin` header before setting a custom value.
 The file is written in [YAML format](https://en.wikipedia.org/wiki/YAML),
 defined by the scheme described below.
 Brackets indicate that a parameter is optional. For non-list parameters the
