@@ -14,27 +14,18 @@ To specify which web configuration file to load, use the `--web.config.file` fla
 
 ### CORS (Cross-Origin Resource Sharing)
 
-By default, Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *` on all endpoints.
-This allows any origin to make cross-origin requests to the Alertmanager API. While convenient for development,
+By default, Alertmanager's API v2 responds with `Access-Control-Allow-Origin: *`.
+This allows any origin to make cross-origin requests to the API v2 endpoints. While convenient for development,
 this default may not be suitable for production environments where you want to restrict access to specific origins.
 
 The current CORS behavior is configured using the `github.com/rs/cors` library with default settings,
-which allows all origins and common HTTP methods.
+which allows all origins and the `GET`, `POST`, and `HEAD` methods.
 
 **Important Security Notes**:
 
-- The wildcard CORS policy allows non-credentialed browser reads from any origin, but it does not bypass authentication or act as access control. Alertmanager's existing authentication and authorization mechanisms still apply.
+- Alertmanager's API [security and trust model](https://prometheus.io/docs/operating/security/) is documented by Prometheus.
 - Browsers reject credentialed requests (requests with cookies, HTTP authentication, or client certificates) when the response includes `Access-Control-Allow-Origin: *`. For credentialed requests, the origin must be explicitly specified.
 - If you use a reverse proxy to implement custom CORS policies, the proxy must remove or replace Alertmanager's existing `Access-Control-Allow-Origin` header. Simply appending additional headers will result in invalid CORS responses (browsers reject responses with multiple Access-Control-Allow-Origin headers).
-
-**Security Considerations**: If your Alertmanager is exposed to the internet or to untrusted networks, you should consider restricting CORS
-by fronting Alertmanager with a reverse proxy (such as nginx or Apache) that can enforce stricter CORS policies
-based on your security requirements.
-
-For production deployments, it is recommended to:
-1. Use a reverse proxy to enforce CORS policies by removing/replacing Alertmanager's wildcard header
-2. Implement authentication to protect API endpoints
-3. Restrict network access to Alertmanager using firewalls or VPC rules
 
 **Note**: The wildcard CORS default is a legacy configuration from the initial CORS implementation in PR #1667.
 Future API versions (such as v3) may adopt a more restrictive default as part of security hardening efforts.
