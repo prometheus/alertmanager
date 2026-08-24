@@ -41,6 +41,9 @@ import (
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
+	"github.com/prometheus/alertmanager/notify/pushover"
+	"github.com/prometheus/alertmanager/notify/rocketchat"
+	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/timeinterval"
@@ -498,10 +501,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if !strings.HasSuffix(ogc.APIURL.Path, "/") {
 				ogc.APIURL.Path += "/"
 			}
-			ogc.APIKey = cmp.Or(ogc.APIKey, c.Global.OpsGenieAPIKey)
-			ogc.APIKeyFile = cmp.Or(ogc.APIKeyFile, c.Global.OpsGenieAPIKeyFile)
 			if ogc.APIKey == "" && len(ogc.APIKeyFile) == 0 {
-				return errors.New("no global OpsGenie API Key set either inline or in a file")
+				if c.Global.OpsGenieAPIKey == "" && len(c.Global.OpsGenieAPIKeyFile) == 0 {
+					return errors.New("no global OpsGenie API Key set either inline or in a file")
+				}
+				ogc.APIKey = c.Global.OpsGenieAPIKey
+				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
@@ -543,10 +548,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
 			}
-			voc.APIKey = cmp.Or(voc.APIKey, c.Global.VictorOpsAPIKey)
-			voc.APIKeyFile = cmp.Or(voc.APIKeyFile, c.Global.VictorOpsAPIKeyFile)
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
-				return errors.New("no global VictorOps API Key set")
+				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0 {
+					return errors.New("no global VictorOps API Key set")
+				}
+				voc.APIKey = c.Global.VictorOpsAPIKey
+				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
 		for _, sns := range rcv.SNSConfigs {
@@ -626,23 +633,25 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("no global Jira Cloud URL set")
 			}
 		}
-		for _, rocketchat := range rcv.RocketchatConfigs {
-			if rocketchat == nil {
-				rocketchat = &RocketchatConfig{}
+		for _, rocketchatcfg := range rcv.RocketchatConfigs {
+			if rocketchatcfg == nil {
+				rocketchatcfg = &rocketchat.RocketchatConfig{}
 			}
-			rocketchat.HTTPConfig = cmp.Or(rocketchat.HTTPConfig, c.Global.HTTPConfig)
-			rocketchat.APIURL = cmp.Or(rocketchat.APIURL, c.Global.RocketchatAPIURL)
-
-			rocketchat.TokenID = cmp.Or(rocketchat.TokenID, c.Global.RocketchatTokenID)
-			rocketchat.TokenIDFile = cmp.Or(rocketchat.TokenIDFile, c.Global.RocketchatTokenIDFile)
-			if rocketchat.TokenID == nil && len(rocketchat.TokenIDFile) == 0 {
-				return errors.New("no global Rocketchat TokenID set either inline or in a file")
+			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
+			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
+			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
+				if c.Global.RocketchatTokenID == nil && len(c.Global.RocketchatTokenIDFile) == 0 {
+					return errors.New("no global Rocketchat TokenID set either inline or in a file")
+				}
+				rocketchatcfg.TokenID = c.Global.RocketchatTokenID
+				rocketchatcfg.TokenIDFile = c.Global.RocketchatTokenIDFile
 			}
-
-			rocketchat.Token = cmp.Or(rocketchat.Token, c.Global.RocketchatToken)
-			rocketchat.TokenFile = cmp.Or(rocketchat.TokenFile, c.Global.RocketchatTokenFile)
-			if rocketchat.Token == nil && len(rocketchat.TokenFile) == 0 {
-				return errors.New("no global Rocketchat Token set either inline or in a file")
+			if rocketchatcfg.Token == nil && len(rocketchatcfg.TokenFile) == 0 {
+				if c.Global.RocketchatToken == nil && len(c.Global.RocketchatTokenFile) == 0 {
+					return errors.New("no global Rocketchat Token set either inline or in a file")
+				}
+				rocketchatcfg.Token = c.Global.RocketchatToken
+				rocketchatcfg.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
@@ -993,15 +1002,15 @@ type Receiver struct {
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs   []*PushoverConfig              `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	PushoverConfigs   []*pushover.PushoverConfig     `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-	SNSConfigs        []*SNSConfig                   `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	SNSConfigs        []*sns.SNSConfig               `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
-	RocketchatConfigs []*RocketchatConfig            `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	RocketchatConfigs []*rocketchat.RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
 }
 

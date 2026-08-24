@@ -630,3 +630,46 @@ func benchmarkGC(b *testing.B, numSilences int, expiredRatio float64) {
 		b.StartTimer()
 	}
 }
+
+// BenchmarkCountState benchmarks counting silences by state, which is what the
+// alertmanager_silences gauges do on every scrape.
+func BenchmarkCountState(b *testing.B) {
+	b.Run("100 silences", func(b *testing.B) {
+		benchmarkCountState(b, 100)
+	})
+	b.Run("1000 silences", func(b *testing.B) {
+		benchmarkCountState(b, 1000)
+	})
+	b.Run("10000 silences", func(b *testing.B) {
+		benchmarkCountState(b, 10000)
+	})
+}
+
+func benchmarkCountState(b *testing.B, numSilences int) {
+	s, err := New(Options{Metrics: prometheus.NewRegistry()})
+	require.NoError(b, err)
+
+	now := time.Now()
+
+	for i := range numSilences {
+		sil := &silencepb.Silence{
+			Matchers: []*silencepb.Matcher{
+				{Type: silencepb.Matcher_EQUAL, Name: "aaaa", Pattern: strconv.Itoa(i)},
+			},
+			StartsAt:  timestamppb.New(now.Add(-time.Minute)),
+			EndsAt:    timestamppb.New(now.Add(time.Hour)),
+			UpdatedAt: timestamppb.New(now.Add(-time.Hour)),
+		}
+		require.NoError(b, s.Set(b.Context(), sil))
+	}
+
+	ctx := b.Context()
+
+	count, err := s.CountState(ctx, SilenceStateActive)
+	require.NoError(b, err)
+	require.Equal(b, numSilences, count)
+
+	for b.Loop() {
+		_, _ = s.CountState(ctx, SilenceStateActive)
+	}
+}

@@ -405,6 +405,11 @@ To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CO
 
 ![](doc/arch.svg)
 
+This diagram shows how incoming alerts are grouped, routed, and delivered to
+configured receivers. See the
+[Alertmanager architecture overview](docs/alertmanager.md#architecture) for
+details.
+
 ## License
 
 Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/main/LICENSE).

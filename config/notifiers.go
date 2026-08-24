@@ -24,8 +24,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-
-	"github.com/prometheus/sigv4"
 )
 
 var (
@@ -67,18 +65,6 @@ var (
 		CallbackID: `{{ template "slack.default.callbackid" . }}`,
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
-	// DefaultRocketchatConfig defines default values for Rocketchat configurations.
-	DefaultRocketchatConfig = RocketchatConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: false,
-		},
-		Color:     `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
-		Emoji:     `{{ template "rocketchat.default.emoji" . }}`,
-		IconURL:   `{{ template "rocketchat.default.iconurl" . }}`,
-		Text:      `{{ template "rocketchat.default.text" . }}`,
-		Title:     `{{ template "rocketchat.default.title" . }}`,
-		TitleLink: `{{ template "rocketchat.default.titlelink" . }}`,
-	}
 
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
@@ -101,29 +87,6 @@ var (
 		StateMessage:      `{{ template "victorops.default.state_message" . }}`,
 		EntityDisplayName: `{{ template "victorops.default.entity_display_name" . }}`,
 		MonitoringTool:    `{{ template "victorops.default.monitoring_tool" . }}`,
-	}
-
-	// DefaultPushoverConfig defines default values for Pushover configurations.
-	DefaultPushoverConfig = PushoverConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Title:    `{{ template "pushover.default.title" . }}`,
-		Message:  `{{ template "pushover.default.message" . }}`,
-		URL:      `{{ template "pushover.default.url" . }}`,
-		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
-		Retry:    duration(1 * time.Minute),
-		Expire:   duration(1 * time.Hour),
-		HTML:     false,
-	}
-
-	// DefaultSNSConfig defines default values for SNS configurations.
-	DefaultSNSConfig = SNSConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Subject: `{{ template "sns.default.subject" . }}`,
-		Message: `{{ template "sns.default.message" . }}`,
 	}
 )
 
@@ -464,167 +427,5 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 	}
 
-	return nil
-}
-
-type duration time.Duration
-
-func (d *duration) UnmarshalText(text []byte) error {
-	parsed, err := time.ParseDuration(string(text))
-	if err == nil {
-		*d = duration(parsed)
-	}
-	return err
-}
-
-func (d duration) MarshalText() ([]byte, error) {
-	return []byte(time.Duration(d).String()), nil
-}
-
-type PushoverConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	UserKey     commoncfg.Secret `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	UserKeyFile string           `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
-	Token       commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string           `yaml:"token_file,omitempty" json:"token_file,omitempty"`
-	Title       string           `yaml:"title,omitempty" json:"title,omitempty"`
-	Message     string           `yaml:"message,omitempty" json:"message,omitempty"`
-	URL         string           `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle    string           `yaml:"url_title,omitempty" json:"url_title,omitempty"`
-	Device      string           `yaml:"device,omitempty" json:"device,omitempty"`
-	Sound       string           `yaml:"sound,omitempty" json:"sound,omitempty"`
-	Priority    string           `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry       duration         `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire      duration         `yaml:"expire,omitempty" json:"expire,omitempty"`
-	TTL         duration         `yaml:"ttl,omitempty" json:"ttl,omitempty"`
-	HTML        bool             `yaml:"html,omitempty" json:"html,omitempty"`
-	Monospace   bool             `yaml:"monospace,omitempty" json:"monospace,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultPushoverConfig
-	type plain PushoverConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.UserKey == "" && c.UserKeyFile == "" {
-		return errors.New("one of user_key or user_key_file must be configured")
-	}
-	if c.UserKey != "" && c.UserKeyFile != "" {
-		return errors.New("at most one of user_key & user_key_file must be configured")
-	}
-	if c.Token == "" && c.TokenFile == "" {
-		return errors.New("one of token or token_file must be configured")
-	}
-	if c.Token != "" && c.TokenFile != "" {
-		return errors.New("at most one of token & token_file must be configured")
-	}
-	if c.HTML && c.Monospace {
-		return errors.New("at most one of monospace & html must be configured")
-	}
-	return nil
-}
-
-type SNSConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIUrl      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Sigv4       sigv4.SigV4Config `yaml:"sigv4" json:"sigv4"`
-	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
-	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
-	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
-	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
-	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
-	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
-	// UseAWSHTTPClient forces the AWS SDK's BuildableClient instead of
-	// alertmanager's tracing-wrapped HTTP client. Auto-enabled when AWS_CA_BUNDLE
-	// is set; set explicitly when configuring ca_bundle via shared AWS config.
-	UseAWSHTTPClient bool `yaml:"use_aws_http_client,omitempty" json:"use_aws_http_client,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultSNSConfig
-	type plain SNSConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
-		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
-	}
-	return nil
-}
-
-type RocketchatAttachmentField struct {
-	Short *bool  `json:"short"`
-	Title string `json:"title,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
-const (
-	ProcessingTypeSendMessage        = "sendMessage"
-	ProcessingTypeRespondWithMessage = "respondWithMessage"
-)
-
-type RocketchatAttachmentAction struct {
-	Type               string `json:"type,omitempty"`
-	Text               string `json:"text,omitempty"`
-	URL                string `json:"url,omitempty"`
-	ImageURL           string `json:"image_url,omitempty"`
-	IsWebView          bool   `json:"is_webview"`
-	WebviewHeightRatio string `json:"webview_height_ratio,omitempty"`
-	Msg                string `json:"msg,omitempty"`
-	MsgInChatWindow    bool   `json:"msg_in_chat_window"`
-	MsgProcessingType  string `json:"msg_processing_type,omitempty"`
-}
-
-// RocketchatConfig configures notifications via Rocketchat.
-type RocketchatConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL      *amcommoncfg.URL  `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	TokenID     *commoncfg.Secret `yaml:"token_id,omitempty" json:"token_id,omitempty"`
-	TokenIDFile string            `yaml:"token_id_file,omitempty" json:"token_id_file,omitempty"`
-	Token       *commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string            `yaml:"token_file,omitempty" json:"token_file,omitempty"`
-
-	// RocketChat channel override, (like #other-channel or @username).
-	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
-
-	Color       string                        `yaml:"color,omitempty" json:"color,omitempty"`
-	Title       string                        `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink   string                        `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Text        string                        `yaml:"text,omitempty" json:"text,omitempty"`
-	Fields      []*RocketchatAttachmentField  `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ShortFields bool                          `yaml:"short_fields" json:"short_fields,omitempty"`
-	Emoji       string                        `yaml:"emoji,omitempty" json:"emoji,omitempty"`
-	IconURL     string                        `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	ImageURL    string                        `yaml:"image_url,omitempty" json:"image_url,omitempty"`
-	ThumbURL    string                        `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	LinkNames   bool                          `yaml:"link_names" json:"link_names,omitempty"`
-	Actions     []*RocketchatAttachmentAction `yaml:"actions,omitempty" json:"actions,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultRocketchatConfig
-	type plain RocketchatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.Token != nil && len(c.TokenFile) > 0 {
-		return errors.New("at most one of token & token_file must be configured")
-	}
-	if c.TokenID != nil && len(c.TokenIDFile) > 0 {
-		return errors.New("at most one of token_id & token_id_file must be configured")
-	}
 	return nil
 }

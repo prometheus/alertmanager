@@ -14,6 +14,8 @@
 # Needs to be defined before including Makefile.common to auto-generate targets
 DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 
+GOLANGCI_LINT_VERSION := v2.13.1
+
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app

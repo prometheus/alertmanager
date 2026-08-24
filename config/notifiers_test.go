@@ -193,98 +193,6 @@ custom_fields:
 	}
 }
 
-func TestPushoverUserKeyIsPresent(t *testing.T) {
-	in := `
-user_key: ''
-`
-	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "one of user_key or user_key_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestPushoverUserKeyOrUserKeyFile(t *testing.T) {
-	in := `
-user_key: 'user key'
-user_key_file: /pushover/user_key
-`
-	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "at most one of user_key & user_key_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestPushoverTokenIsPresent(t *testing.T) {
-	in := `
-user_key: '<user_key>'
-token: ''
-`
-	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "one of token or token_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestPushoverTokenOrTokenFile(t *testing.T) {
-	in := `
-token: 'pushover token'
-token_file: /pushover/token
-user_key: 'user key'
-`
-	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "at most one of token & token_file must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestPushoverHTMLOrMonospace(t *testing.T) {
-	in := `
-token: 'pushover token'
-user_key: 'user key'
-html: true
-monospace: true
-`
-	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "at most one of monospace & html must be configured"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
 func TestLoadSlackConfiguration(t *testing.T) {
 	tests := []struct {
 		in       string
@@ -475,7 +383,7 @@ fields:
 		{
 			Title: "first",
 			Value: "hello",
-			Short: newBoolPointer(true),
+			Short: new(true),
 		},
 		{
 			Title: "second",
@@ -485,7 +393,7 @@ fields:
 		{
 			Title: "third",
 			Value: "slack field test",
-			Short: newBoolPointer(false),
+			Short: new(false),
 		},
 	}
 
@@ -598,92 +506,6 @@ actions:
 	}
 }
 
-func TestSNS(t *testing.T) {
-	for _, tc := range []struct {
-		in  string
-		err bool
-	}{
-		{
-			// Valid configuration without sigv4.
-			in:  `target_arn: target`,
-			err: false,
-		},
-		{
-			// Valid configuration without sigv4.
-			in:  `topic_arn: topic`,
-			err: false,
-		},
-		{
-			// Valid configuration with sigv4.
-			in: `phone_number: phone
-sigv4:
-    access_key: abc
-    secret_key: abc
-`,
-			err: false,
-		},
-		{
-			// at most one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
-			in: `topic_arn: topic
-target_arn: target
-`,
-			err: true,
-		},
-		{
-			// at most one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
-			in: `topic_arn: topic
-phone_number: phone
-`,
-			err: true,
-		},
-		{
-			// one of 'target_arn', 'topic_arn' or 'phone_number' must be provided without sigv4.
-			in:  "{}",
-			err: true,
-		},
-		{
-			// one of 'target_arn', 'topic_arn' or 'phone_number' must be provided with sigv4.
-			in: `sigv4:
-    access_key: abc
-    secret_key: abc
-`,
-			err: true,
-		},
-		{
-			// 'secret_key' must be provided with 'access_key'.
-			in: `topic_arn: topic
-sigv4:
-    access_key: abc
-`,
-			err: true,
-		},
-		{
-			// 'access_key' must be provided with 'secret_key'.
-			in: `topic_arn: topic
-sigv4:
-    secret_key: abc
-`,
-			err: true,
-		},
-	} {
-		t.Run("", func(t *testing.T) {
-			var cfg SNSConfig
-			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
-			if err != nil {
-				if !tc.err {
-					t.Errorf("expecting no error, got %q", err)
-				}
-				return
-			}
-
-			if tc.err {
-				t.Logf("%#v", cfg)
-				t.Error("expecting error, got none")
-			}
-		})
-	}
-}
-
 func TestWeChatTypeMatcher(t *testing.T) {
 	good := []string{"text", "markdown"}
 	for _, g := range good {
@@ -732,10 +554,6 @@ http_config:
 			require.Equal(t, tt.expected, err)
 		})
 	}
-}
-
-func newBoolPointer(b bool) *bool {
-	return &b
 }
 
 func TestEmailConfig_UnmarshalYAML(t *testing.T) {

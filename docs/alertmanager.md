@@ -14,6 +14,16 @@ The following describes the core concepts the Alertmanager implements. Consult
 the [configuration documentation](configuration.md) to learn how to use them
 in more detail.
 
+## Architecture
+
+Alert generators send alerts to Alertmanager's API. Alertmanager stores active
+alerts, groups and routes them according to its configuration, applies
+inhibition and silences, and sends notifications through configured receivers.
+
+In a high-availability deployment, every Alertmanager instance receives alerts
+independently, while silences and notification state are replicated between
+peers. See [High Availability](high_availability.md) for details.
+
 ## Grouping
 
 Grouping categorizes alerts of similar nature into a single notification. This

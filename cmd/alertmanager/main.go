@@ -66,8 +66,12 @@ func run() int {
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
-		memlimitRatio = kingpin.Flag("auto-gomemlimit.ratio", "The ratio of reserved GOMEMLIMIT memory to the detected maximum container or system memory. The value must be greater than 0 and less than or equal to 1.").
+		memlimitEnable = kingpin.Flag("auto-gomemlimit", "Automatically set GOMEMLIMIT to match Linux container or system memory limit").
+				Default("false").Bool()
+		memlimitRatio = kingpin.Flag("auto-gomemlimit.ratio", "The ratio of reserved GOMEMLIMIT memory to the detected maximum container or system memory.").
 				Default("0.9").Float64()
+		memlimitRefreshInterval = kingpin.Flag("auto-gomemlimit.refresh-interval", "Interval at which to re-detect the container or system memory limit and update GOMEMLIMIT accordingly. Useful when the limit can change at runtime, e.g. with a Vertical Pod Autoscaler. Set to 0 to detect the limit only once at startup. Note that a downward change in the limit can cause a temporary increase in garbage collection activity. Only used when --auto-gomemlimit is set.").
+					Default("0s").Duration()
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(app.DefaultClusterAddr).String()
@@ -108,19 +112,26 @@ func run() int {
 	}
 	compat.InitFromFlags(logger, ff)
 
-	if ff.EnableAutoGOMEMLIMIT() {
+	if *memlimitEnable || ff.EnableAutoGOMEMLIMIT() {
 		if *memlimitRatio <= 0.0 || *memlimitRatio > 1.0 {
 			logger.Error("--auto-gomemlimit.ratio must be greater than 0 and less than or equal to 1.")
 			return 1
 		}
+		if *memlimitRefreshInterval < 0 {
+			logger.Error("--auto-gomemlimit.refresh-interval must not be negative.")
+			return 1
+		}
+
 		if _, err := memlimit.SetGoMemLimitWithOpts(
 			memlimit.WithRatio(*memlimitRatio),
+			memlimit.WithRefreshInterval(*memlimitRefreshInterval),
 			memlimit.WithProvider(
 				memlimit.ApplyFallback(
 					memlimit.FromCgroup,
 					memlimit.FromSystem,
 				),
 			),
+			memlimit.WithLogger(logger.With("component", "automemlimit")),
 		); err != nil {
 			logger.Warn("automemlimit", "msg", "Failed to set GOMEMLIMIT automatically", "err", err)
 		}

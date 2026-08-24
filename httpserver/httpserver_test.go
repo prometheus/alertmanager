@@ -14,13 +14,107 @@
 package httpserver
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 
 	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
 )
+
+// serveReload runs the reload handler in a separate goroutine and returns
+// the recorder plus a channel closed when the handler returns.
+func serveReload(ctx context.Context, router *route.Router) (*httptest.ResponseRecorder, <-chan struct{}) {
+	w := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		req := httptest.NewRequest(http.MethodPost, "/-/reload", nil).WithContext(ctx)
+		router.ServeHTTP(w, req)
+	}()
+	return w, done
+}
+
+func TestReloadSuccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
+
+		w, done := serveReload(t.Context(), router)
+
+		errc := <-reloadCh
+		errc <- nil
+
+		<-done
+		require.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestReloadError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
+
+		w, done := serveReload(t.Context(), router)
+
+		errc := <-reloadCh
+		errc <- errors.New("bad config")
+
+		<-done
+		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.Contains(t, w.Body.String(), "bad config")
+	})
+}
+
+func TestReloadClientDisconnectBeforeEnqueue(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// reloadCh is never consumed, so the handler blocks on enqueue.
+		// Cancelling the context should unblock it.
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		w, done := serveReload(ctx, router)
+
+		// Wait until the handler is durably blocked on the reloadCh send.
+		synctest.Wait()
+		cancel()
+
+		<-done
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	})
+}
+
+func TestReloadClientDisconnectDuringReload(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The handler enqueues successfully but the client disconnects
+		// before the reload result arrives. The buffered channel ensures
+		// the sender does not block.
+		reloadCh := make(chan chan error)
+		router := route.New()
+		Register(router, reloadCh)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		w, done := serveReload(ctx, router)
+
+		errc := <-reloadCh
+		cancel()
+
+		<-done
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+		// Simulate the reloader sending the result after the handler has
+		// already returned. This must not block thanks to the buffered
+		// channel; if it did, synctest would report a deadlock.
+		errc <- nil
+	})
+}
 
 func TestDebugHandlersWithRoutePrefix(t *testing.T) {
 	reloadCh := make(chan chan error)

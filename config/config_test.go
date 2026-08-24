@@ -1084,6 +1084,34 @@ func TestVictorOpsDefaultAPIKeyFile(t *testing.T) {
 	}
 }
 
+func TestVictorOpsGlobalAndLocalAPIKey(t *testing.T) {
+	conf, err := Load(`global:
+  victorops_api_key_file: /global_file
+route:
+  receiver: test
+receivers:
+  - name: test
+    victorops_configs:
+      - routing_key: test
+        api_key: local_key`)
+	require.NoError(t, err)
+	require.Equal(t, commoncfg.Secret("local_key"), conf.Receivers[0].VictorOpsConfigs[0].APIKey)
+	require.Empty(t, conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile)
+
+	conf, err = Load(`global:
+  victorops_api_key: global_key
+route:
+  receiver: test
+receivers:
+  - name: test
+    victorops_configs:
+      - routing_key: test
+        api_key_file: /local_file`)
+	require.NoError(t, err)
+	require.Empty(t, conf.Receivers[0].VictorOpsConfigs[0].APIKey)
+	require.Equal(t, "/local_file", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile)
+}
+
 func TestVictorOpsBothAPIKeyAndFile(t *testing.T) {
 	_, err := LoadFile("testdata/conf.victorops-both-file-and-apikey.yml")
 	if err == nil {
@@ -1194,6 +1222,32 @@ func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile {
 		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile, "/override_file")
 	}
+}
+
+func TestOpsGenieGlobalAndLocalAPIKey(t *testing.T) {
+	conf, err := Load(`global:
+  opsgenie_api_key_file: /global_file
+route:
+  receiver: test
+receivers:
+  - name: test
+    opsgenie_configs:
+      - api_key: local_key`)
+	require.NoError(t, err)
+	require.Equal(t, commoncfg.Secret("local_key"), conf.Receivers[0].OpsGenieConfigs[0].APIKey)
+	require.Empty(t, conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile)
+
+	conf, err = Load(`global:
+  opsgenie_api_key: global_key
+route:
+  receiver: test
+receivers:
+  - name: test
+    opsgenie_configs:
+      - api_key_file: /local_file`)
+	require.NoError(t, err)
+	require.Empty(t, conf.Receivers[0].OpsGenieConfigs[0].APIKey)
+	require.Equal(t, "/local_file", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile)
 }
 
 func TestOpsGenieBothAPIKeyAndFile(t *testing.T) {
@@ -1451,6 +1505,42 @@ func TestRocketchatDefaultTokenFile(t *testing.T) {
 	if overrideTokenFile != conf.Receivers[1].RocketchatConfigs[0].TokenFile {
 		t.Errorf("Invalid Rocketchat key_file: %s\nExpected: %s", conf.Receivers[1].RocketchatConfigs[0].TokenFile, overrideTokenFile)
 	}
+}
+
+func TestRocketchatGlobalAndLocalTokens(t *testing.T) {
+	conf, err := Load(`global:
+  rocketchat_token_file: /global_token_file
+  rocketchat_token_id_file: /global_token_id_file
+route:
+  receiver: test
+receivers:
+  - name: test
+    rocketchat_configs:
+      - token: local_token
+        token_id: local_token_id`)
+	require.NoError(t, err)
+	config := conf.Receivers[0].RocketchatConfigs[0]
+	require.Equal(t, commoncfg.Secret("local_token"), *config.Token)
+	require.Empty(t, config.TokenFile)
+	require.Equal(t, commoncfg.Secret("local_token_id"), *config.TokenID)
+	require.Empty(t, config.TokenIDFile)
+
+	conf, err = Load(`global:
+  rocketchat_token: global_token
+  rocketchat_token_id: global_token_id
+route:
+  receiver: test
+receivers:
+  - name: test
+    rocketchat_configs:
+      - token_file: /local_token_file
+        token_id_file: /local_token_id_file`)
+	require.NoError(t, err)
+	config = conf.Receivers[0].RocketchatConfigs[0]
+	require.Nil(t, config.Token)
+	require.Equal(t, "/local_token_file", config.TokenFile)
+	require.Nil(t, config.TokenID)
+	require.Equal(t, "/local_token_id_file", config.TokenIDFile)
 }
 
 func TestRocketchatDefaultIDTokenFile(t *testing.T) {

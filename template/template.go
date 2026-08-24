@@ -683,7 +683,7 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 
 		for _, keyMeta := range keys {
 			var err error
-			strKey, isString := keyMeta.Interface().(string)
+			strKey, isString := reflect.TypeAssert[string](keyMeta)
 			if !isString {
 				continue
 			}
@@ -725,7 +725,7 @@ func normalizeYAMLValue(value any) any {
 	case reflect.Map:
 		converted := make(map[string]any, valueMeta.Len())
 		for _, keyMeta := range valueMeta.MapKeys() {
-			strKey, isString := keyMeta.Interface().(string)
+			strKey, isString := reflect.TypeAssert[string](keyMeta)
 			if !isString {
 				continue
 			}

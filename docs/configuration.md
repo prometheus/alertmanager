@@ -110,7 +110,11 @@ global:
   [ slack_app_token_file: <filepath> ]
   [ slack_app_url: <string> ]
 
+  # The default API key to use when talking to the VictorOps API.
+  # It is mutually exclusive with `victorops_api_key_file`.
   [ victorops_api_key: <secret> ]
+  # Reads the default API key to use when talking to the VictorOps API from a file.
+  # It is mutually exclusive with `victorops_api_key`.
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
@@ -181,7 +185,7 @@ time_intervals:
 [ event_recorder: <event_recorder_config> ]
 
 # Optional tracing configuration.  Configures distributed tracing for Alertmanager.
-[ traciing: <tracing_config> ]
+[ tracing: <tracing_config> ]
 ```
 
 ## Route-related settings
@@ -1510,8 +1514,8 @@ service_key_file: <filepath>
 # A set of arbitrary key/value pairs that provide further detail about the incident.
 # Nested key/value pairs are accepted when using PagerDuty integration type `Events API v2`.
 [ details: { <string>: <tmpl_string>, ... } | default = {
-  firing:       '{{ .Alerts.Firing | toJSON }}'
-  resolved:     '{{ .Alerts.Resolved | toJSON }}'
+  firing:       '{{ .Alerts.Firing | toJson }}'
+  resolved:     '{{ .Alerts.Resolved | toJson }}'
   num_firing:   '{{ .Alerts.Firing | len }}'
   num_resolved: '{{ .Alerts.Resolved | len }}'
 } ]
@@ -1933,6 +1937,11 @@ routing_key: <tmpl_string>
 
 # The monitoring tool the state message is from.
 [ monitoring_tool: <tmpl_string> | default = '{{ template "victorops.default.monitoring_tool" . }}' ]
+
+# Optional custom fields sent with the notification. The names `routing_key`,
+# `message_type`, `state_message`, `entity_display_name`, `monitoring_tool`,
+# `entity_id`, and `entity_state` are reserved and cannot be used as keys.
+[ custom_fields: { <string>: <tmpl_string>, ... } ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
