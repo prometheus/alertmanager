@@ -131,12 +131,10 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 // Errors that telebot does not surface in a structured form are returned as-is
 // and fall back to the default reason.
 func wrapWithFailureReason(err error) error {
-	var floodErr telebot.FloodError
-	if errors.As(err, &floodErr) {
+	if _, ok := errors.AsType[telebot.FloodError](err); ok {
 		return notify.NewErrorWithReason(notify.RateLimitedReason, err)
 	}
-	var apiErr *telebot.Error
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*telebot.Error](err); ok {
 		return notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(apiErr.Code), err)
 	}
 	return err

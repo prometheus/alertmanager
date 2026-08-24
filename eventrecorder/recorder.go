@@ -276,8 +276,7 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 		name := out.Name()
 		size, err := out.SendEvent(req.event)
 		if err != nil {
-			var se *serializeError
-			if errors.As(err, &se) {
+			if _, ok := errors.AsType[*serializeError](err); ok {
 				c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
 			}
 			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
