@@ -34,7 +34,6 @@ import Utils.FormValidation
         ( ValidatedField
         , ValidationState(..)
         , initialField
-        , stringNotEmpty
         , validate
         )
 import Utils.Types exposing (ApiData(..))
@@ -90,9 +89,7 @@ type SilenceFormFieldMsg
     | UpdateDuration String
     | ValidateTime
     | UpdateCreatedBy String
-    | ValidateCreatedBy
     | UpdateComment String
-    | ValidateComment
     | UpdateTimesFromPicker
     | OpenDateTimePicker
     | CloseDateTimePicker
@@ -118,13 +115,15 @@ initSilenceForm key firstDayOfWeek =
 
 toSilence : FilterBar.Model -> SilenceForm -> Maybe PostableSilence
 toSilence filterBar { id, comment, createdBy, startsAt, endsAt, annotations } =
-    Result.map5
-        (\nonEmptyMatchers nonEmptyComment nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
+    -- The API allows an empty creator and comment, so they are not
+    -- validated here (see https://github.com/prometheus/alertmanager/issues/2998).
+    Result.map3
+        (\nonEmptyMatchers parsedStartsAt parsedEndsAt ->
             { nullSilence
                 | id = id
-                , comment = nonEmptyComment
+                , comment = comment.value
                 , matchers = nonEmptyMatchers
-                , createdBy = nonEmptyCreatedBy
+                , createdBy = createdBy.value
                 , startsAt = parsedStartsAt
                 , endsAt = parsedEndsAt
                 , annotations =
@@ -136,8 +135,6 @@ toSilence filterBar { id, comment, createdBy, startsAt, endsAt, annotations } =
             }
         )
         (validMatchers filterBar)
-        (stringNotEmpty comment.value)
-        (stringNotEmpty createdBy.value)
         (timeFromString startsAt.value)
         (parseEndsAt startsAt.value endsAt.value)
         |> Result.toMaybe
@@ -229,8 +226,8 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, annotations } firstDayOf
 validateForm : SilenceForm -> SilenceForm
 validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicker, annotations, annotationText } =
     { id = id
-    , createdBy = validate stringNotEmpty createdBy
-    , comment = validate stringNotEmpty comment
+    , createdBy = createdBy
+    , comment = comment
     , startsAt = validate timeFromString startsAt
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration

@@ -32,16 +32,16 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
         , timeInput form.startsAt form.endsAt form.duration
         , matchersInput filterBarValid filterBar
         , validatedField input
-            "Creator"
+            "Creator (Optional)"
             inputSectionPadding
             (UpdateCreatedBy >> UpdateField)
-            (ValidateCreatedBy |> UpdateField)
+            (Noop |> UpdateField)
             form.createdBy
         , validatedTextareaField
-            "Comment"
+            "Comment (Optional)"
             inputSectionPadding
             (UpdateComment >> UpdateField)
-            (ValidateComment |> UpdateField)
+            (Noop |> UpdateField)
             form.comment
         , annotationsInput annotationsValid form
         , div [ class inputSectionPadding ]

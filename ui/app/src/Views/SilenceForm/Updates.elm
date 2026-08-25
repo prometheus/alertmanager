@@ -10,7 +10,7 @@ import Utils.Date exposing (timeFromString)
 import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
 import Utils.DateTimePicker.Updates as DateTimePickerUpdates
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (initialField, stringNotEmpty, updateValue, validate)
+import Utils.FormValidation exposing (initialField, updateValue, validate)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Updates as FilterBar
@@ -119,14 +119,8 @@ updateForm msg form =
         UpdateCreatedBy createdBy ->
             { form | createdBy = updateValue createdBy form.createdBy }
 
-        ValidateCreatedBy ->
-            { form | createdBy = validate stringNotEmpty form.createdBy }
-
         UpdateComment comment ->
             { form | comment = updateValue comment form.comment }
-
-        ValidateComment ->
-            { form | comment = validate stringNotEmpty form.comment }
 
         UpdateTimesFromPicker ->
             let
