@@ -414,7 +414,7 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 	if c.RoutingKey == "" {
-		return errors.New("missing routing key in Splunk On-Call config")
+		return errors.New("missing Routing key in VictorOps config")
 	}
 	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
 		return errors.New("at most one of api_key & api_key_file must be configured")
@@ -424,7 +424,7 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 	for _, v := range reservedFields {
 		if _, ok := c.CustomFields[v]; ok {
-			return fmt.Errorf("custom field %s cannot be used in Splunk On-Call config because it conflicts with the fixed/static fields", v)
+			return fmt.Errorf("victorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
 		}
 	}
 

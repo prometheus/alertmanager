@@ -121,7 +121,7 @@ routing_key: ''
 		var cfg VictorOpsConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-		expected := "missing routing key in Splunk On-Call config"
+		expected := "missing Routing key in VictorOps config"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
@@ -160,7 +160,7 @@ custom_fields:
 	var cfg VictorOpsConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "custom field entity_state cannot be used in Splunk On-Call config because it conflicts with the fixed/static fields"
+	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)

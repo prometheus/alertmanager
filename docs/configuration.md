@@ -1907,7 +1907,8 @@ attributes:
 Splunk On-Call (formerly VictorOps) notifications are sent through the
 [Splunk On-Call REST endpoint integration](https://help.splunk.com/en/splunk-enterprise/alert-and-respond/splunk-on-call/integrations-with-splunk-on-call/rest-endpoint-integration-for-splunk-on-call).
 The `victorops_config` name and related `victorops_*` global fields are retained
-for backward compatibility.
+for backward compatibility. Metrics, logs, traces, and validation errors also
+continue to use the VictorOps identifier so existing integrations remain stable.
 
 ```yaml
 # Whether to notify about resolved alerts.
