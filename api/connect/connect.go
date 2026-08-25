@@ -19,40 +19,110 @@
 package apiconnect
 
 import (
-	"log/slog"
+	"context"
+	"errors"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
-	"github.com/prometheus/common/promslog"
 
 	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 )
 
+// Options configures the Connect API.
+type Options struct {
+	Peer              cluster.ClusterPeer
+	UnaryConcurrency  int
+	StreamConcurrency int
+	UnaryTimeout      time.Duration
+}
+
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
-	logger *slog.Logger
-	peer   cluster.ClusterPeer
-	uptime time.Time
+	peer      cluster.ClusterPeer
+	uptime    time.Time
+	admission *admissionInterceptor
 
 	configSnapshot atomic.Pointer[string]
 }
 
 // NewAPI returns a new Connect API handler. Peer may be nil when clustering
-// is disabled. If logger is nil, a no-op logger is used.
-func NewAPI(peer cluster.ClusterPeer, logger *slog.Logger) *API {
-	if logger == nil {
-		logger = promslog.NewNopLogger()
+// is disabled.
+func NewAPI(opts Options) *API {
+	unaryConcurrency := opts.UnaryConcurrency
+	if unaryConcurrency < 1 {
+		unaryConcurrency = max(runtime.GOMAXPROCS(0), 8)
+	}
+	streamConcurrency := opts.StreamConcurrency
+	if streamConcurrency < 1 {
+		streamConcurrency = unaryConcurrency
 	}
 	return &API{
-		logger: logger,
-		peer:   peer,
+		peer:   opts.Peer,
 		uptime: time.Now(),
+		admission: &admissionInterceptor{
+			unary:        make(chan struct{}, unaryConcurrency),
+			streams:      make(chan struct{}, streamConcurrency),
+			unaryTimeout: opts.UnaryTimeout,
+		},
+	}
+}
+
+// admissionInterceptor gives unary RPCs and streams independent capacity so
+// slow Connect clients cannot consume the API v2 GET request allowance.
+type admissionInterceptor struct {
+	unary        chan struct{}
+	streams      chan struct{}
+	unaryTimeout time.Duration
+}
+
+func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		select {
+		case i.unary <- struct{}{}:
+			defer func() { <-i.unary }()
+		default:
+			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent unary RPCs reached"))
+		}
+		if i.unaryTimeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, i.unaryTimeout)
+			defer cancel()
+		}
+		response, err := next(ctx, req)
+		if err == nil || connect.CodeOf(err) != connect.CodeUnknown {
+			return response, err
+		}
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			return nil, connect.NewError(connect.CodeDeadlineExceeded, err)
+		case errors.Is(err, context.Canceled):
+			return nil, connect.NewError(connect.CodeCanceled, err)
+		default:
+			return response, err
+		}
+	}
+}
+
+func (i *admissionInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return next
+}
+
+func (i *admissionInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		select {
+		case i.streams <- struct{}{}:
+			defer func() { <-i.streams }()
+		default:
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent streams reached"))
+		}
+		return next(ctx, conn)
 	}
 }
 
@@ -73,6 +143,26 @@ func (api *API) Update(cfg *config.Config) {
 // (v1 and v1alpha, for tools such as grpcurl). Procedures are
 // fully-qualified, so the returned handler is mounted at a single prefix.
 func (api *API) Handler(opts ...connect.HandlerOption) http.Handler {
+	mux, _ := api.buildHandler(opts...)
+	return mux
+}
+
+// ServicePrefixes returns the URL path prefixes ("/<fully-qualified-service>/")
+// for every service registered by Handler. Callers use it to bound the
+// cardinality of metric and trace labels: any request path that does not
+// match one of these prefixes yields a 404 and should not be recorded
+// verbatim.
+func (api *API) ServicePrefixes() []string {
+	_, prefixes := api.buildHandler()
+	return prefixes
+}
+
+// buildHandler registers every ConnectRPC service on a fresh mux and returns
+// both the mux and the path prefixes the services were registered under. It
+// is the single source of truth shared by Handler and ServicePrefixes.
+func (api *API) buildHandler(opts ...connect.HandlerOption) (http.Handler, []string) {
+	opts = append([]connect.HandlerOption{connect.WithInterceptors(api.admission)}, opts...)
+
 	// serviceNames lists the fully-qualified service names advertised via
 	// health checking and reflection.
 	serviceNames := []string{
@@ -80,14 +170,19 @@ func (api *API) Handler(opts ...connect.HandlerOption) http.Handler {
 	}
 
 	mux := http.NewServeMux()
+	var prefixes []string
+	register := func(path string, h http.Handler) {
+		mux.Handle(path, h)
+		prefixes = append(prefixes, path)
+	}
 
-	mux.Handle(statusv3connect.NewStatusServiceHandler(api, opts...))
+	register(statusv3connect.NewStatusServiceHandler(api, opts...))
 
-	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(serviceNames...), opts...))
+	register(grpchealth.NewHandler(grpchealth.NewStaticChecker(serviceNames...), opts...))
 
 	reflector := grpcreflect.NewStaticReflector(serviceNames...)
-	mux.Handle(grpcreflect.NewHandlerV1(reflector, opts...))
-	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
+	register(grpcreflect.NewHandlerV1(reflector, opts...))
+	register(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
 
-	return mux
+	return mux, prefixes
 }

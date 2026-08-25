@@ -18,61 +18,133 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConcurrencyLimitHandler(t *testing.T) {
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	var enteredOnce sync.Once
-	unblock := sync.OnceFunc(func() { close(release) })
-	defer unblock()
+	synctest.Test(t, func(t *testing.T) {
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		var enteredOnce sync.Once
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
 
-	dst := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			enteredOnce.Do(func() { close(entered) })
-			<-release
+		dst := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				enteredOnce.Do(func() { close(entered) })
+				<-release
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+		api := &API{
+			requestsInFlight: prometheus.NewGauge(prometheus.GaugeOpts{
+				Name: "test_requests_in_flight",
+			}),
+			concurrencyLimitExceeded: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "test_concurrency_limit_exceeded_total",
+			}),
+			inFlightSem: make(chan struct{}, 1),
 		}
-		w.WriteHeader(http.StatusNoContent)
+		handler := api.concurrencyLimitHandler(dst)
+
+		firstDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+			firstDone <- recorder
+		}()
+		<-entered
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/", nil))
+		require.Equal(t, http.StatusNoContent, recorder.Code)
+
+		unblock()
+		first := <-firstDone
+		require.Equal(t, http.StatusNoContent, first.Code)
+
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+		require.Equal(t, http.StatusNoContent, recorder.Code)
 	})
-	api := &API{
-		requestsInFlight: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "test_requests_in_flight",
-		}),
-		concurrencyLimitExceeded: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "test_concurrency_limit_exceeded_total",
-		}),
-		inFlightSem: make(chan struct{}, 1),
+}
+
+// TestInstrumentConnectHandlerBoundsCardinality ensures that Connect/gRPC
+// requests to unregistered paths collapse to a single placeholder handler
+// label instead of being recorded verbatim, which would let a client inflate
+// metric cardinality by hitting arbitrary paths.
+func TestInstrumentConnectHandlerBoundsCardinality(t *testing.T) {
+	const servicePrefix = "/status.v3.StatusService/"
+
+	for _, mountPrefix := range []string{"", "/alertmanager/api"} {
+		t.Run(mountPrefix, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			requestDuration := prometheus.NewHistogramVec(
+				prometheus.HistogramOpts{Name: "test_http_request_duration_seconds"},
+				[]string{"handler", "method", "code"},
+			)
+			reg.MustRegister(requestDuration)
+
+			api := &API{requestDuration: requestDuration}
+
+			// The inner handler mimics the ConnectRPC mux: 200 for the registered
+			// procedure, 404 for everything else (including unknown methods on a
+			// known service).
+			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == servicePrefix+"GetStatus" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				http.NotFound(w, r)
+			})
+			h := api.instrumentConnectHandler(
+				mountPrefix,
+				[]string{servicePrefix},
+				http.StripPrefix(mountPrefix, inner),
+			)
+
+			for _, procedure := range []string{
+				servicePrefix + "GetStatus",
+				// Unknown methods on a known service must not each get their own
+				// label; they collapse onto the service prefix.
+				servicePrefix + "Evil1",
+				servicePrefix + "Evil2",
+				// Entirely unregistered paths collapse onto the placeholder.
+				"/attacker/controlled/1",
+				"/attacker/controlled/2",
+			} {
+				recorder := httptest.NewRecorder()
+				h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, mountPrefix+procedure, nil))
+			}
+
+			families, err := reg.Gather()
+			require.NoError(t, err)
+
+			handlers := map[string]struct{}{}
+			for _, fam := range families {
+				if fam.GetName() != "test_http_request_duration_seconds" {
+					continue
+				}
+				for _, m := range fam.GetMetric() {
+					for _, lp := range m.GetLabel() {
+						if lp.GetName() == "handler" {
+							handlers[lp.GetValue()] = struct{}{}
+						}
+					}
+				}
+			}
+
+			require.Equal(t, map[string]struct{}{
+				servicePrefix:     {},
+				unmatchedRPCLabel: {},
+			}, handlers)
+		})
 	}
-	srv := httptest.NewServer(api.concurrencyLimitHandler(dst))
-	t.Cleanup(srv.Close)
-	client := &http.Client{Timeout: time.Second}
-
-	firstDone := make(chan error, 1)
-	go func() {
-		resp, err := client.Get(srv.URL)
-		if err == nil {
-			_ = resp.Body.Close()
-		}
-		firstDone <- err
-	}()
-	<-entered
-
-	resp, err := client.Get(srv.URL)
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
-
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL, nil)
-	require.NoError(t, err)
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	require.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	unblock()
-	require.NoError(t, <-firstDone)
 }

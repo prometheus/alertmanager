@@ -21,16 +21,17 @@ import (
 )
 
 var _ = Describe("API routing", func() {
-	var inst *instance
-
-	BeforeEach(func() {
-		inst = startInstance()
-	})
-
-	It("serves the v2 API alongside the Connect API", func() {
-		resp, err := http.Get(inst.baseURL + "/api/v2/status")
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		Expect(resp.StatusCode).To(Equal(http.StatusOK))
-	})
+	DescribeTable("serves v1 and v2 alongside the Connect API",
+		func(routePrefix, path string, expectedStatus int) {
+			inst := startInstance(routePrefix)
+			resp, err := inst.httpClient.Get(inst.webURL(path))
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(resp.Body.Close)
+			Expect(resp.StatusCode).To(Equal(expectedStatus))
+		},
+		Entry("v2 at the root", "", "/api/v2/status", http.StatusOK),
+		Entry("v1 at the root", "", "/api/v1/status", http.StatusGone),
+		Entry("v2 under a route prefix", "/alertmanager", "/api/v2/status", http.StatusOK),
+		Entry("v1 under a route prefix", "/alertmanager", "/api/v1/status", http.StatusGone),
+	)
 })

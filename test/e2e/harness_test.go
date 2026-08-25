@@ -42,13 +42,16 @@ receivers:
 // instance is a running in-process Alertmanager bound to an ephemeral port
 // with clustering disabled. Both API v2 and the Connect API are served.
 type instance struct {
-	app     *app.App
-	baseURL string
+	app         *app.App
+	baseURL     string
+	routePrefix string
+	httpClient  *http.Client
+	h2cClient   *http.Client
 }
 
 // startInstance boots an Alertmanager and registers its teardown (and
 // temp-dir removal) via Ginkgo's DeferCleanup.
-func startInstance() *instance {
+func startInstance(routePrefix string) *instance {
 	GinkgoHelper()
 
 	dir, err := os.MkdirTemp("", "am-e2e-")
@@ -72,6 +75,7 @@ func startInstance() *instance {
 	opts := app.DefaultOptions()
 	opts.ConfigFile = configPath
 	opts.DataDir = dir
+	opts.RoutePrefix = routePrefix
 	opts.WebConfig = &web.FlagConfig{
 		WebListenAddresses: &addrs,
 		WebSystemdSocket:   &systemd,
@@ -83,14 +87,28 @@ func startInstance() *instance {
 
 	a, err := app.New(opts)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(a.Start()).To(Succeed())
 	DeferCleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		Expect(a.Stop(ctx)).To(Succeed())
 	})
+	Expect(a.Start()).To(Succeed())
 
-	inst := &instance{app: a, baseURL: "http://" + a.Addr()}
+	client := &http.Client{Timeout: 5 * time.Second}
+	DeferCleanup(client.CloseIdleConnections)
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true)
+	h2cTransport := &http.Transport{Protocols: protocols}
+	h2cClient := &http.Client{Transport: h2cTransport, Timeout: 5 * time.Second}
+	DeferCleanup(h2cTransport.CloseIdleConnections)
+
+	inst := &instance{
+		app:         a,
+		baseURL:     "http://" + a.Addr(),
+		routePrefix: routePrefix,
+		httpClient:  client,
+		h2cClient:   h2cClient,
+	}
 	inst.waitHealthy()
 	return inst
 }
@@ -98,9 +116,8 @@ func startInstance() *instance {
 // waitHealthy blocks until the instance serves /-/healthy with a 200.
 func (i *instance) waitHealthy() {
 	GinkgoHelper()
-	client := &http.Client{Timeout: time.Second}
 	Eventually(func() int {
-		resp, err := client.Get(i.baseURL + "/-/healthy")
+		resp, err := i.httpClient.Get(i.webURL("/-/healthy"))
 		if err != nil {
 			return 0
 		}
@@ -109,10 +126,12 @@ func (i *instance) waitHealthy() {
 	}, 5*time.Second, 50*time.Millisecond).Should(Equal(http.StatusOK))
 }
 
-func newInsecureHTTP2Client() *http.Client {
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
-	return &http.Client{Transport: &http.Transport{Protocols: protocols}}
+func (i *instance) webURL(path string) string {
+	return i.baseURL + i.routePrefix + path
+}
+
+func (i *instance) apiPath() string {
+	return i.routePrefix + "/api"
 }
 
 func (i *instance) statusClient(httpClient connect.HTTPClient, basePath string, opts ...connect.ClientOption) statusv3connect.StatusServiceClient {
