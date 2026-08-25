@@ -1,6 +1,6 @@
 ## main / (unreleased)
 
-* [ENHANCEMENT] ui: The silence form no longer requires a creator and a comment, matching the API. #2998
+* [ENHANCEMENT] ui: The silence form no longer requires a creator and a comment, matching the API. #5471
 
 ## 0.34.0 / 2026-08-16
 
