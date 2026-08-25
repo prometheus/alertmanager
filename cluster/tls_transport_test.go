@@ -166,7 +166,7 @@ func TestWriteTo(t *testing.T) {
 
 	from := fmt.Sprintf("%s:%d", t1.bindAddr, t1.GetAutoBindPort())
 	to := fmt.Sprintf("%s:%d", t2.bindAddr, t2.GetAutoBindPort())
-	sent := []byte(("test packet"))
+	sent := []byte("test packet")
 	_, err := t1.WriteTo(sent, to)
 	require.NoError(t, err)
 	packet := <-t2.PacketCh()
@@ -186,7 +186,7 @@ func BenchmarkWriteTo(b *testing.B) {
 	b.ResetTimer()
 	from := fmt.Sprintf("%s:%d", t1.bindAddr, t1.GetAutoBindPort())
 	to := fmt.Sprintf("%s:%d", t2.bindAddr, t2.GetAutoBindPort())
-	sent := []byte(("test packet"))
+	sent := []byte("test packet")
 
 	_, err := t1.WriteTo(sent, to)
 	require.NoError(b, err)
@@ -218,7 +218,7 @@ func TestDialTimeout(t *testing.T) {
 		to = <-t2.StreamCh()
 	})
 
-	sent := []byte(("test stream"))
+	sent := []byte("test stream")
 	m, err := from.Write(sent)
 	require.NoError(t, err)
 	require.Positive(t, m)
