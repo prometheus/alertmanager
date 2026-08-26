@@ -5,7 +5,7 @@ ELM_FILES = $(shell find src -iname *.elm)
 JUNIT_DIR           ?=
 DOCKER              ?=
 OPENAPI_GEN_IMAGE   ?= docker.io/openapitools/openapi-generator-cli:v3.3.4
-UI_BUILD_IMAGE      ?= quay.io/prometheus/golang-builder:1.26-base #  Derived from ../../.promu.yml.
+UI_BUILD_IMAGE      ?= quay.io/prometheus/golang-builder:1.27-base #  Derived from ../../.promu.yml.
 CA_BUNDLE           ?=
 
 ifeq ($(DOCKER),)

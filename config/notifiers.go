@@ -107,7 +107,10 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
 
+func (c *WebexConfig) Validate() error {
 	if c.RoomID == "" {
 		return errors.New("missing room_id on webex_config")
 	}
@@ -160,10 +163,10 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.To == "" {
-		return errors.New("missing to address in email config")
-	}
-	// Header names are case-insensitive, check for collisions.
+	// Header names are case insensitive. The normalization loop below
+	// detects duplicates and builds a canonical header map in one pass.
+	// Both the detection and the normalization stay here rather than in
+	// Validate to avoid iterating over the headers a second time.
 	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
 		normalized := textproto.CanonicalMIMEHeaderKey(h)
@@ -174,11 +177,19 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	c.Headers = normalizedHeaders
 
+	return c.Validate()
+}
+
+func (c *EmailConfig) Validate() error {
+	if c.To == "" {
+		return errors.New("missing to address in email config")
+	}
+
 	if c.Threading.Enabled {
-		if _, ok := normalizedHeaders["References"]; ok {
+		if _, ok := c.Headers["References"]; ok {
 			return errors.New("conflicting configuration: threading.enabled conflicts with custom References header")
 		}
-		if _, ok := normalizedHeaders["In-Reply-To"]; ok {
+		if _, ok := c.Headers["In-Reply-To"]; ok {
 			return errors.New("conflicting configuration: threading.enabled conflicts with custom In-Reply-To header")
 		}
 		if !slices.Contains([]string{"none", "daily"}, c.Threading.ThreadByDate) {
@@ -208,12 +219,6 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.Type == "" {
-		return errors.New("missing type in Slack action configuration")
-	}
-	if c.Text == "" {
-		return errors.New("missing text in Slack action configuration")
-	}
 	if c.URL != "" {
 		// Clear all message action fields.
 		c.Name = ""
@@ -223,6 +228,16 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 		c.URL = ""
 	} else {
 		return errors.New("missing name or url in Slack action configuration")
+	}
+	return c.Validate()
+}
+
+func (c *SlackAction) Validate() error {
+	if c.Type == "" {
+		return errors.New("missing type in Slack action configuration")
+	}
+	if c.Text == "" {
+		return errors.New("missing text in Slack action configuration")
 	}
 	return nil
 }
@@ -243,6 +258,10 @@ func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(any) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+func (c *SlackConfirmationField) Validate() error {
 	if c.Text == "" {
 		return errors.New("missing text in Slack confirmation configuration")
 	}
@@ -265,6 +284,10 @@ func (c *SlackField) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+func (c *SlackField) Validate() error {
 	if c.Title == "" {
 		return errors.New("missing title in Slack field configuration")
 	}
@@ -325,7 +348,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
 
+func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return errors.New("at most one of api_url & api_url_file must be configured")
 	}
@@ -377,6 +403,10 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		c.MessageType = "text"
 	}
 
+	return c.Validate()
+}
+
+func (c *WechatConfig) Validate() error {
 	if !wechatTypeMatcher.MatchString(c.MessageType) {
 		return fmt.Errorf("weChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
 	}
@@ -412,6 +442,10 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+func (c *VictorOpsConfig) Validate() error {
 	if c.RoutingKey == "" {
 		return errors.New("missing Routing key in VictorOps config")
 	}

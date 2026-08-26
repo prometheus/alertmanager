@@ -491,60 +491,60 @@ receivers:
 		{
 			Silence: models.Silence{
 				Matchers: models.Matchers{
-					&models.Matcher{Name: ptrString("alertname"), Value: ptrString("test1"), IsRegex: ptrBool(false)},
+					&models.Matcher{Name: new("alertname"), Value: new("test1"), IsRegex: new(false)},
 				},
 				StartsAt:  ptrTime(now),
 				EndsAt:    ptrTime(future),
-				CreatedBy: ptrString("test"),
-				Comment:   ptrString("valid silence 1"),
+				CreatedBy: new("test"),
+				Comment:   new("valid silence 1"),
 			},
 		},
 		// Invalid silence 2 (endsAt before startsAt)
 		{
 			Silence: models.Silence{
 				Matchers: models.Matchers{
-					&models.Matcher{Name: ptrString("alertname"), Value: ptrString("test2"), IsRegex: ptrBool(false)},
+					&models.Matcher{Name: new("alertname"), Value: new("test2"), IsRegex: new(false)},
 				},
 				StartsAt:  ptrTime(future), // Swapped!
 				EndsAt:    ptrTime(now),    // Swapped!
-				CreatedBy: ptrString("test"),
-				Comment:   ptrString("invalid silence 2"),
+				CreatedBy: new("test"),
+				Comment:   new("invalid silence 2"),
 			},
 		},
 		// Valid silence 3
 		{
 			Silence: models.Silence{
 				Matchers: models.Matchers{
-					&models.Matcher{Name: ptrString("alertname"), Value: ptrString("test3"), IsRegex: ptrBool(false)},
+					&models.Matcher{Name: new("alertname"), Value: new("test3"), IsRegex: new(false)},
 				},
 				StartsAt:  ptrTime(now),
 				EndsAt:    ptrTime(future),
-				CreatedBy: ptrString("test"),
-				Comment:   ptrString("valid silence 3"),
+				CreatedBy: new("test"),
+				Comment:   new("valid silence 3"),
 			},
 		},
 		// Invalid silence 4 (endsAt before startsAt)
 		{
 			Silence: models.Silence{
 				Matchers: models.Matchers{
-					&models.Matcher{Name: ptrString("alertname"), Value: ptrString("test4"), IsRegex: ptrBool(false)},
+					&models.Matcher{Name: new("alertname"), Value: new("test4"), IsRegex: new(false)},
 				},
 				StartsAt:  ptrTime(future), // Swapped!
 				EndsAt:    ptrTime(now),    // Swapped!
-				CreatedBy: ptrString("test"),
-				Comment:   ptrString("invalid silence 4"),
+				CreatedBy: new("test"),
+				Comment:   new("invalid silence 4"),
 			},
 		},
 		// Valid silence 5
 		{
 			Silence: models.Silence{
 				Matchers: models.Matchers{
-					&models.Matcher{Name: ptrString("alertname"), Value: ptrString("test5"), IsRegex: ptrBool(false)},
+					&models.Matcher{Name: new("alertname"), Value: new("test5"), IsRegex: new(false)},
 				},
 				StartsAt:  ptrTime(now),
 				EndsAt:    ptrTime(future),
-				CreatedBy: ptrString("test"),
-				Comment:   ptrString("valid silence 5"),
+				CreatedBy: new("test"),
+				Comment:   new("valid silence 5"),
 			},
 		},
 	}
@@ -565,8 +565,6 @@ receivers:
 	require.Contains(t, string(out), "couldn't import 2 out of 5 silences", "error message should report 2 failures out of 5")
 }
 
-func ptrString(s string) *string { return &s }
-func ptrBool(b bool) *bool       { return &b }
 func ptrTime(t time.Time) *strfmt.DateTime {
 	st := strfmt.DateTime(t)
 	return &st

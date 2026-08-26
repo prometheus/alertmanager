@@ -11,20 +11,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+//go:build windows
 
-// NotifierConfig contains base options common across all notifier configurations.
-type NotifierConfig struct {
-	VSendResolved bool `yaml:"send_resolved" json:"send_resolved"`
-}
+package cli
 
-func (nc *NotifierConfig) SendResolved() bool {
-	return nc.VSendResolved
-}
+import (
+	"os"
+	"path/filepath"
+)
 
-// Validator is the interface that wraps the Validate method for notifier
-// configurations. Notifier config types implement this interface to provide
-// per-type validation logic that can be called independently of YAML unmarshaling.
-type Validator interface {
-	Validate() error
+func defaultConfigFiles() []string {
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		userConfigDir = os.ExpandEnv("$APPDATA")
+	}
+	return []string{
+		filepath.Join(userConfigDir, "amtool", "config.yml"),
+		filepath.Join(os.ExpandEnv("$ProgramData"), "amtool", "config.yml"),
+	}
 }

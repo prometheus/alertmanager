@@ -54,6 +54,11 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the TelegramConfig for correctness.
+func (c *TelegramConfig) Validate() error {
 	if c.BotToken != "" && c.BotTokenFile != "" {
 		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}
