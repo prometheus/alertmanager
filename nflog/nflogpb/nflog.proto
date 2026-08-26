@@ -37,6 +37,10 @@ message Entry {
   repeated uint64 resolved_alerts = 7;
   // Data specific to the receiver which sent the notification
   map<string, ReceiverDataValue> receiver_data = 8;
+  // MutedAlerts list of hashes of alerts that were muted at the last
+  // notification time, and therefore excluded from FiringAlerts and
+  // ResolvedAlerts.
+  repeated uint64 muted_alerts = 9;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log

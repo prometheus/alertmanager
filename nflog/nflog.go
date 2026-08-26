@@ -461,7 +461,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *Store, expiry time.Duration) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, store *Store, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -494,6 +494,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 			Timestamp:      timestamppb.New(now),
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
+			MutedAlerts:    mutedAlerts,
 			ReceiverData:   receiverData,
 		},
 		ExpiresAt: timestamppb.New(expiresAt),

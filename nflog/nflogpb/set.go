@@ -35,6 +35,17 @@ func (m *Entry) IsResolvedSubset(subset map[uint64]struct{}) bool {
 	return isSubset(set, subset)
 }
 
+// IsMutedSubset returns whether the given subset is a subset of the alerts
+// that were muted at the time of the last notification.
+func (m *Entry) IsMutedSubset(subset map[uint64]struct{}) bool {
+	set := map[uint64]struct{}{}
+	for i := range m.MutedAlerts {
+		set[m.MutedAlerts[i]] = struct{}{}
+	}
+
+	return isSubset(set, subset)
+}
+
 func isSubset(set, subset map[uint64]struct{}) bool {
 	for k := range subset {
 		_, exists := set[k]

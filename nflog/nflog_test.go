@@ -367,8 +367,9 @@ func TestQuery(t *testing.T) {
 	// existing entry
 	firingAlerts := []uint64{1, 2, 3}
 	resolvedAlerts := []uint64{4, 5}
+	mutedAlerts := []uint64{6, 7}
 
-	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts, nil, 0)
+	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts, mutedAlerts, nil, 0)
 	require.NoError(t, err, "logging notification failed")
 
 	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
@@ -376,6 +377,85 @@ func TestQuery(t *testing.T) {
 	entry := entries[0]
 	require.Equal(t, firingAlerts, entry.FiringAlerts)
 	require.Equal(t, resolvedAlerts, entry.ResolvedAlerts)
+	require.Equal(t, mutedAlerts, entry.MutedAlerts)
+}
+
+// TestLogMutedAlerts checks that muted alerts survive a round trip through the
+// wire format, and that an entry logged without them decodes with the field
+// unset, as it does for an entry written by a peer that does not know the
+// field.
+func TestLogMutedAlerts(t *testing.T) {
+	now := time.Now().UTC()
+
+	cases := []struct {
+		name  string
+		muted []uint64
+	}{
+		{name: "with muted alerts", muted: []uint64{6, 7}},
+		{name: "without muted alerts", muted: nil},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			in := state{
+				"key:abc/test/1": &pb.MeshEntry{
+					Entry: &pb.Entry{
+						GroupKey:       []byte("key"),
+						Receiver:       &pb.Receiver{GroupName: "abc", Integration: "test", Idx: 1},
+						Timestamp:      timestamppb.New(now),
+						FiringAlerts:   []uint64{1, 2, 3},
+						ResolvedAlerts: []uint64{4, 5},
+						MutedAlerts:    c.muted,
+					},
+					ExpiresAt: timestamppb.New(now.Add(time.Minute)),
+				},
+			}
+
+			msg, err := in.MarshalBinary()
+			require.NoError(t, err)
+
+			out, err := decodeState(bytes.NewReader(msg))
+			require.NoError(t, err, "decoding message failed")
+
+			for id, expected := range in {
+				actual, ok := out[id]
+				require.True(t, ok, "entry %s missing from decoded state", id)
+				require.True(t, proto.Equal(expected, actual), "entry %s mismatch after decoding", id)
+				require.Equal(t, c.muted, actual.Entry.MutedAlerts)
+			}
+		})
+	}
+}
+
+// TestStateMergeMutedAlerts checks that merging stays timestamp-based: the
+// newer entry replaces the older one wholesale, muted alerts included, with no
+// per-field merging of the alert lists.
+func TestStateMergeMutedAlerts(t *testing.T) {
+	now := time.Now()
+
+	newEntry := func(ts time.Time, muted []uint64) *pb.MeshEntry {
+		return &pb.MeshEntry{
+			Entry: &pb.Entry{
+				Timestamp:   timestamppb.New(ts),
+				GroupKey:    []byte("key"),
+				Receiver:    &pb.Receiver{GroupName: "a1", Idx: 1, Integration: "integr"},
+				MutedAlerts: muted,
+			},
+			ExpiresAt: timestamppb.New(now.Add(time.Minute)),
+		}
+	}
+
+	const key = "key:a1/integr/1"
+
+	// A newer entry without muted alerts replaces an older one that has them.
+	res := state{key: newEntry(now, []uint64{1, 2})}
+	res.merge(newEntry(now.Add(time.Minute), nil), now)
+	require.Empty(t, res[key].Entry.MutedAlerts)
+
+	// An older entry is dropped, so its muted alerts do not resurface.
+	res = state{key: newEntry(now, nil)}
+	res.merge(newEntry(now.Add(-time.Minute), []uint64{1, 2}), now)
+	require.Empty(t, res[key].Entry.MutedAlerts)
 }
 
 func TestStateDecodingError(t *testing.T) {
