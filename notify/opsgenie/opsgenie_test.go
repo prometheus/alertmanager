@@ -278,7 +278,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	u, err := url.Parse("https://test-opsgenie-url")
 	require.NoError(t, err)
 	tmpl := test.CreateTmpl(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	ctx = notify.WithGroupKey(ctx, "1")
 	opsGenieConfigWithUpdate := OpsGenieConfig{
 		Message:      `{{ .CommonLabels.Message }}`,
@@ -318,41 +318,8 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	require.JSONEq(t, `{"message":"new message"}`, body1)
 	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
 	require.JSONEq(t, `{"description":"new description"}`, body2)
-}
 
-func TestOpsGenieWithUpdateRequestContext(t *testing.T) {
-	u, err := url.Parse("https://test-opsgenie-url")
-	require.NoError(t, err)
-	opsGenieConfigWithUpdate := OpsGenieConfig{
-		Message:      `{{ .CommonLabels.Message }}`,
-		Description:  `{{ .CommonLabels.Description }}`,
-		UpdateAlerts: true,
-		APIKey:       "test-api-key",
-		APIURL:       &amcommoncfg.URL{URL: u},
-		HTTPConfig:   &commoncfg.HTTPClientConfig{},
-	}
-	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, test.CreateTmpl(t), promslog.NewNopLogger())
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = notify.WithGroupKey(ctx, "1")
-	alert := &types.Alert{
-		Alert: model.Alert{
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-			Labels: model.LabelSet{
-				"Message":     "new message",
-				"Description": "new description",
-			},
-		},
-	}
-
-	requests, _, err := notifierWithUpdate.createRequests(ctx, alert)
-	require.NoError(t, err)
-	require.Len(t, requests, 3)
-
-	// Every request must carry the caller's context, so that cancelling the
-	// notification also cancels the requests it created.
+	// Cancelling the caller's context must cancel every request it created.
 	cancel()
 	for i, req := range requests {
 		require.ErrorIs(t, req.Context().Err(), context.Canceled, "request %d does not use the caller's context", i)
