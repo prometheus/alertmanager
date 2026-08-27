@@ -232,15 +232,3 @@ receivers:
 
 	t.Log(co.Check())
 }
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func stringPtr(s string) *string {
-	return &s
-}
-
-func dateTimePtr(t strfmt.DateTime) *strfmt.DateTime {
-	return &t
-}
