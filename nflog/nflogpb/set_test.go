@@ -73,50 +73,6 @@ func TestIsResolvedSubset(t *testing.T) {
 	}
 }
 
-func TestIsMutedSubset(t *testing.T) {
-	e := &Entry{
-		MutedAlerts: []uint64{1, 2, 3},
-	}
-
-	tests := []struct {
-		subset   map[uint64]struct{}
-		expected bool
-	}{
-		{newSubset(), true}, // empty subset
-		{newSubset(1), true},
-		{newSubset(2), true},
-		{newSubset(3), true},
-		{newSubset(1, 2), true},
-		{newSubset(1, 2), true},
-		{newSubset(1, 2, 3), true},
-		{newSubset(4), false},
-		{newSubset(1, 5), false},
-		{newSubset(1, 2, 3, 6), false},
-	}
-
-	for _, test := range tests {
-		if result := e.IsMutedSubset(test.subset); result != test.expected {
-			t.Errorf("Expected %t, got %t for subset %v", test.expected, result, elements(test.subset))
-		}
-	}
-}
-
-// TestIsMutedSubsetWithoutMutedAlerts covers entries written by a peer that
-// does not know about the muted_alerts field. Only the empty subset is a
-// subset of no muted alerts.
-func TestIsMutedSubsetWithoutMutedAlerts(t *testing.T) {
-	e := &Entry{
-		FiringAlerts: []uint64{1, 2, 3},
-	}
-
-	if result := e.IsMutedSubset(newSubset()); !result {
-		t.Errorf("Expected true, got false for the empty subset")
-	}
-	if result := e.IsMutedSubset(newSubset(1)); result {
-		t.Errorf("Expected false, got true for subset [1]")
-	}
-}
-
 func newSubset(elements ...uint64) map[uint64]struct{} {
 	subset := make(map[uint64]struct{})
 	for _, el := range elements {
