@@ -183,7 +183,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		{
 			name:           "with a 429 status code",
 			statusCode:     http.StatusTooManyRequests,
-			expectedReason: notify.ClientErrorReason,
+			expectedReason: notify.RateLimitedReason,
 			expectedRetry:  true,
 			expectedErr:    "unexpected status code 429",
 		},
@@ -385,7 +385,7 @@ func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
 	apiurl, _ := url.Parse("https://slack.com/post.Message")
 	notifier, err := New(
 		&config.SlackConfig{
-			NotifierConfig: config.NotifierConfig{},
+			NotifierConfig: amcommoncfg.NotifierConfig{},
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 			APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
 			Channel:        "channelname",
@@ -425,7 +425,7 @@ func TestNotifier_Notify_RetryAfterContextCancelled(t *testing.T) {
 	apiurl, _ := url.Parse("https://slack.com/post.Message")
 	notifier, err := New(
 		&config.SlackConfig{
-			NotifierConfig: config.NotifierConfig{},
+			NotifierConfig: amcommoncfg.NotifierConfig{},
 			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 			APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
 			Channel:        "channelname",
