@@ -117,7 +117,6 @@ Do not hand‑edit generated files under `api/v2/models`, `api/v2/restapi`, `api
 - Register the notifier in `cmd/alertmanager/main.go` where receivers are built.
 - Add unit tests in the notifier package; reuse helpers from `notify/test/`.
 - Update `template/default.tmpl` only if you are introducing new default templates.
-- Note the change in `CHANGELOG.md` under the unreleased section.
 
 ## When touching configuration
 
