@@ -13,16 +13,18 @@
 
 syntax = "proto3";
 
-package status.v3;
+package status.v3alpha;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/prometheus/alertmanager/api/status/v3;statusv3";
+option go_package = "github.com/prometheus/alertmanager/api/status/v3alpha;statusv3alpha";
 
 // StatusService exposes Alertmanager instance and cluster status.
 service StatusService {
   // GetStatus returns the Alertmanager instance and cluster status.
-  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // AlertmanagerStatus is the top-level status payload.

@@ -15,9 +15,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: status/v3/status.proto
+// source: status/v3alpha/status.proto
 
-package statusv3
+package statusv3alpha
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -71,11 +71,11 @@ func (x ClusterStatus_State) String() string {
 }
 
 func (ClusterStatus_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_status_v3_status_proto_enumTypes[0].Descriptor()
+	return file_status_v3alpha_status_proto_enumTypes[0].Descriptor()
 }
 
 func (ClusterStatus_State) Type() protoreflect.EnumType {
-	return &file_status_v3_status_proto_enumTypes[0]
+	return &file_status_v3alpha_status_proto_enumTypes[0]
 }
 
 func (x ClusterStatus_State) Number() protoreflect.EnumNumber {
@@ -84,7 +84,7 @@ func (x ClusterStatus_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ClusterStatus_State.Descriptor instead.
 func (ClusterStatus_State) EnumDescriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{3, 0}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{3, 0}
 }
 
 // AlertmanagerStatus is the top-level status payload.
@@ -100,7 +100,7 @@ type AlertmanagerStatus struct {
 
 func (x *AlertmanagerStatus) Reset() {
 	*x = AlertmanagerStatus{}
-	mi := &file_status_v3_status_proto_msgTypes[0]
+	mi := &file_status_v3alpha_status_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -112,7 +112,7 @@ func (x *AlertmanagerStatus) String() string {
 func (*AlertmanagerStatus) ProtoMessage() {}
 
 func (x *AlertmanagerStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[0]
+	mi := &file_status_v3alpha_status_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -125,7 +125,7 @@ func (x *AlertmanagerStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertmanagerStatus.ProtoReflect.Descriptor instead.
 func (*AlertmanagerStatus) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{0}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AlertmanagerStatus) GetVersionInfo() *VersionInfo {
@@ -171,7 +171,7 @@ type VersionInfo struct {
 
 func (x *VersionInfo) Reset() {
 	*x = VersionInfo{}
-	mi := &file_status_v3_status_proto_msgTypes[1]
+	mi := &file_status_v3alpha_status_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -183,7 +183,7 @@ func (x *VersionInfo) String() string {
 func (*VersionInfo) ProtoMessage() {}
 
 func (x *VersionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[1]
+	mi := &file_status_v3alpha_status_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -196,7 +196,7 @@ func (x *VersionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionInfo.ProtoReflect.Descriptor instead.
 func (*VersionInfo) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{1}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *VersionInfo) GetVersion() string {
@@ -252,7 +252,7 @@ type AlertmanagerConfig struct {
 
 func (x *AlertmanagerConfig) Reset() {
 	*x = AlertmanagerConfig{}
-	mi := &file_status_v3_status_proto_msgTypes[2]
+	mi := &file_status_v3alpha_status_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +264,7 @@ func (x *AlertmanagerConfig) String() string {
 func (*AlertmanagerConfig) ProtoMessage() {}
 
 func (x *AlertmanagerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[2]
+	mi := &file_status_v3alpha_status_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +277,7 @@ func (x *AlertmanagerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertmanagerConfig.ProtoReflect.Descriptor instead.
 func (*AlertmanagerConfig) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{2}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AlertmanagerConfig) GetOriginal() string {
@@ -292,7 +292,7 @@ type ClusterStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Cluster name, when configured.
 	Name          string              `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	State         ClusterStatus_State `protobuf:"varint,2,opt,name=state,proto3,enum=status.v3.ClusterStatus_State" json:"state,omitempty"`
+	State         ClusterStatus_State `protobuf:"varint,2,opt,name=state,proto3,enum=status.v3alpha.ClusterStatus_State" json:"state,omitempty"`
 	Peers         []*PeerStatus       `protobuf:"bytes,3,rep,name=peers,proto3" json:"peers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -300,7 +300,7 @@ type ClusterStatus struct {
 
 func (x *ClusterStatus) Reset() {
 	*x = ClusterStatus{}
-	mi := &file_status_v3_status_proto_msgTypes[3]
+	mi := &file_status_v3alpha_status_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -312,7 +312,7 @@ func (x *ClusterStatus) String() string {
 func (*ClusterStatus) ProtoMessage() {}
 
 func (x *ClusterStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[3]
+	mi := &file_status_v3alpha_status_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +325,7 @@ func (x *ClusterStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterStatus.ProtoReflect.Descriptor instead.
 func (*ClusterStatus) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{3}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ClusterStatus) GetName() string {
@@ -360,7 +360,7 @@ type PeerStatus struct {
 
 func (x *PeerStatus) Reset() {
 	*x = PeerStatus{}
-	mi := &file_status_v3_status_proto_msgTypes[4]
+	mi := &file_status_v3alpha_status_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -372,7 +372,7 @@ func (x *PeerStatus) String() string {
 func (*PeerStatus) ProtoMessage() {}
 
 func (x *PeerStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[4]
+	mi := &file_status_v3alpha_status_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -385,7 +385,7 @@ func (x *PeerStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerStatus.ProtoReflect.Descriptor instead.
 func (*PeerStatus) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{4}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PeerStatus) GetName() string {
@@ -410,7 +410,7 @@ type GetStatusRequest struct {
 
 func (x *GetStatusRequest) Reset() {
 	*x = GetStatusRequest{}
-	mi := &file_status_v3_status_proto_msgTypes[5]
+	mi := &file_status_v3alpha_status_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +422,7 @@ func (x *GetStatusRequest) String() string {
 func (*GetStatusRequest) ProtoMessage() {}
 
 func (x *GetStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[5]
+	mi := &file_status_v3alpha_status_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +435,7 @@ func (x *GetStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetStatusRequest) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{5}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{5}
 }
 
 type GetStatusResponse struct {
@@ -447,7 +447,7 @@ type GetStatusResponse struct {
 
 func (x *GetStatusResponse) Reset() {
 	*x = GetStatusResponse{}
-	mi := &file_status_v3_status_proto_msgTypes[6]
+	mi := &file_status_v3alpha_status_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -459,7 +459,7 @@ func (x *GetStatusResponse) String() string {
 func (*GetStatusResponse) ProtoMessage() {}
 
 func (x *GetStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_status_v3_status_proto_msgTypes[6]
+	mi := &file_status_v3alpha_status_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -472,7 +472,7 @@ func (x *GetStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetStatusResponse) Descriptor() ([]byte, []int) {
-	return file_status_v3_status_proto_rawDescGZIP(), []int{6}
+	return file_status_v3alpha_status_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetStatusResponse) GetStatus() *AlertmanagerStatus {
@@ -482,15 +482,15 @@ func (x *GetStatusResponse) GetStatus() *AlertmanagerStatus {
 	return nil
 }
 
-var File_status_v3_status_proto protoreflect.FileDescriptor
+var File_status_v3alpha_status_proto protoreflect.FileDescriptor
 
-const file_status_v3_status_proto_rawDesc = "" +
+const file_status_v3alpha_status_proto_rawDesc = "" +
 	"\n" +
-	"\x16status/v3/status.proto\x12\tstatus.v3\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf5\x01\n" +
-	"\x12AlertmanagerStatus\x129\n" +
-	"\fversion_info\x18\x01 \x01(\v2\x16.status.v3.VersionInfoR\vversionInfo\x125\n" +
-	"\x06config\x18\x02 \x01(\v2\x1d.status.v3.AlertmanagerConfigR\x06config\x122\n" +
-	"\acluster\x18\x03 \x01(\v2\x18.status.v3.ClusterStatusR\acluster\x129\n" +
+	"\x1bstatus/v3alpha/status.proto\x12\x0estatus.v3alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\x84\x02\n" +
+	"\x12AlertmanagerStatus\x12>\n" +
+	"\fversion_info\x18\x01 \x01(\v2\x1b.status.v3alpha.VersionInfoR\vversionInfo\x12:\n" +
+	"\x06config\x18\x02 \x01(\v2\".status.v3alpha.AlertmanagerConfigR\x06config\x127\n" +
+	"\acluster\x18\x03 \x01(\v2\x1d.status.v3alpha.ClusterStatusR\acluster\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"\xb8\x01\n" +
 	"\vVersionInfo\x12\x18\n" +
@@ -504,11 +504,11 @@ const file_status_v3_status_proto_rawDesc = "" +
 	"\n" +
 	"go_version\x18\x06 \x01(\tR\tgoVersion\"0\n" +
 	"\x12AlertmanagerConfig\x12\x1a\n" +
-	"\boriginal\x18\x01 \x01(\tR\boriginal\"\xdf\x01\n" +
+	"\boriginal\x18\x01 \x01(\tR\boriginal\"\xe9\x01\n" +
 	"\rClusterStatus\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x1e.status.v3.ClusterStatus.StateR\x05state\x12+\n" +
-	"\x05peers\x18\x03 \x03(\v2\x15.status.v3.PeerStatusR\x05peers\"W\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x129\n" +
+	"\x05state\x18\x02 \x01(\x0e2#.status.v3alpha.ClusterStatus.StateR\x05state\x120\n" +
+	"\x05peers\x18\x03 \x03(\v2\x1a.status.v3alpha.PeerStatusR\x05peers\"W\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATE_DISABLED\x10\x01\x12\x12\n" +
@@ -518,47 +518,47 @@ const file_status_v3_status_proto_rawDesc = "" +
 	"PeerStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\"\x12\n" +
-	"\x10GetStatusRequest\"J\n" +
-	"\x11GetStatusResponse\x125\n" +
-	"\x06status\x18\x01 \x01(\v2\x1d.status.v3.AlertmanagerStatusR\x06status2Y\n" +
-	"\rStatusService\x12H\n" +
-	"\tGetStatus\x12\x1b.status.v3.GetStatusRequest\x1a\x1c.status.v3.GetStatusResponse\"\x00B;Z9github.com/prometheus/alertmanager/api/status/v3;statusv3b\x06proto3"
+	"\x10GetStatusRequest\"O\n" +
+	"\x11GetStatusResponse\x12:\n" +
+	"\x06status\x18\x01 \x01(\v2\".status.v3alpha.AlertmanagerStatusR\x06status2f\n" +
+	"\rStatusService\x12U\n" +
+	"\tGetStatus\x12 .status.v3alpha.GetStatusRequest\x1a!.status.v3alpha.GetStatusResponse\"\x03\x90\x02\x01BEZCgithub.com/prometheus/alertmanager/api/status/v3alpha;statusv3alphab\x06proto3"
 
 var (
-	file_status_v3_status_proto_rawDescOnce sync.Once
-	file_status_v3_status_proto_rawDescData []byte
+	file_status_v3alpha_status_proto_rawDescOnce sync.Once
+	file_status_v3alpha_status_proto_rawDescData []byte
 )
 
-func file_status_v3_status_proto_rawDescGZIP() []byte {
-	file_status_v3_status_proto_rawDescOnce.Do(func() {
-		file_status_v3_status_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_status_v3_status_proto_rawDesc), len(file_status_v3_status_proto_rawDesc)))
+func file_status_v3alpha_status_proto_rawDescGZIP() []byte {
+	file_status_v3alpha_status_proto_rawDescOnce.Do(func() {
+		file_status_v3alpha_status_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_status_v3alpha_status_proto_rawDesc), len(file_status_v3alpha_status_proto_rawDesc)))
 	})
-	return file_status_v3_status_proto_rawDescData
+	return file_status_v3alpha_status_proto_rawDescData
 }
 
-var file_status_v3_status_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_status_v3_status_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_status_v3_status_proto_goTypes = []any{
-	(ClusterStatus_State)(0),      // 0: status.v3.ClusterStatus.State
-	(*AlertmanagerStatus)(nil),    // 1: status.v3.AlertmanagerStatus
-	(*VersionInfo)(nil),           // 2: status.v3.VersionInfo
-	(*AlertmanagerConfig)(nil),    // 3: status.v3.AlertmanagerConfig
-	(*ClusterStatus)(nil),         // 4: status.v3.ClusterStatus
-	(*PeerStatus)(nil),            // 5: status.v3.PeerStatus
-	(*GetStatusRequest)(nil),      // 6: status.v3.GetStatusRequest
-	(*GetStatusResponse)(nil),     // 7: status.v3.GetStatusResponse
+var file_status_v3alpha_status_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_status_v3alpha_status_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_status_v3alpha_status_proto_goTypes = []any{
+	(ClusterStatus_State)(0),      // 0: status.v3alpha.ClusterStatus.State
+	(*AlertmanagerStatus)(nil),    // 1: status.v3alpha.AlertmanagerStatus
+	(*VersionInfo)(nil),           // 2: status.v3alpha.VersionInfo
+	(*AlertmanagerConfig)(nil),    // 3: status.v3alpha.AlertmanagerConfig
+	(*ClusterStatus)(nil),         // 4: status.v3alpha.ClusterStatus
+	(*PeerStatus)(nil),            // 5: status.v3alpha.PeerStatus
+	(*GetStatusRequest)(nil),      // 6: status.v3alpha.GetStatusRequest
+	(*GetStatusResponse)(nil),     // 7: status.v3alpha.GetStatusResponse
 	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
 }
-var file_status_v3_status_proto_depIdxs = []int32{
-	2, // 0: status.v3.AlertmanagerStatus.version_info:type_name -> status.v3.VersionInfo
-	3, // 1: status.v3.AlertmanagerStatus.config:type_name -> status.v3.AlertmanagerConfig
-	4, // 2: status.v3.AlertmanagerStatus.cluster:type_name -> status.v3.ClusterStatus
-	8, // 3: status.v3.AlertmanagerStatus.start_time:type_name -> google.protobuf.Timestamp
-	0, // 4: status.v3.ClusterStatus.state:type_name -> status.v3.ClusterStatus.State
-	5, // 5: status.v3.ClusterStatus.peers:type_name -> status.v3.PeerStatus
-	1, // 6: status.v3.GetStatusResponse.status:type_name -> status.v3.AlertmanagerStatus
-	6, // 7: status.v3.StatusService.GetStatus:input_type -> status.v3.GetStatusRequest
-	7, // 8: status.v3.StatusService.GetStatus:output_type -> status.v3.GetStatusResponse
+var file_status_v3alpha_status_proto_depIdxs = []int32{
+	2, // 0: status.v3alpha.AlertmanagerStatus.version_info:type_name -> status.v3alpha.VersionInfo
+	3, // 1: status.v3alpha.AlertmanagerStatus.config:type_name -> status.v3alpha.AlertmanagerConfig
+	4, // 2: status.v3alpha.AlertmanagerStatus.cluster:type_name -> status.v3alpha.ClusterStatus
+	8, // 3: status.v3alpha.AlertmanagerStatus.start_time:type_name -> google.protobuf.Timestamp
+	0, // 4: status.v3alpha.ClusterStatus.state:type_name -> status.v3alpha.ClusterStatus.State
+	5, // 5: status.v3alpha.ClusterStatus.peers:type_name -> status.v3alpha.PeerStatus
+	1, // 6: status.v3alpha.GetStatusResponse.status:type_name -> status.v3alpha.AlertmanagerStatus
+	6, // 7: status.v3alpha.StatusService.GetStatus:input_type -> status.v3alpha.GetStatusRequest
+	7, // 8: status.v3alpha.StatusService.GetStatus:output_type -> status.v3alpha.GetStatusResponse
 	8, // [8:9] is the sub-list for method output_type
 	7, // [7:8] is the sub-list for method input_type
 	7, // [7:7] is the sub-list for extension type_name
@@ -566,27 +566,27 @@ var file_status_v3_status_proto_depIdxs = []int32{
 	0, // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_status_v3_status_proto_init() }
-func file_status_v3_status_proto_init() {
-	if File_status_v3_status_proto != nil {
+func init() { file_status_v3alpha_status_proto_init() }
+func file_status_v3alpha_status_proto_init() {
+	if File_status_v3alpha_status_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_status_v3_status_proto_rawDesc), len(file_status_v3_status_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_status_v3alpha_status_proto_rawDesc), len(file_status_v3alpha_status_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_status_v3_status_proto_goTypes,
-		DependencyIndexes: file_status_v3_status_proto_depIdxs,
-		EnumInfos:         file_status_v3_status_proto_enumTypes,
-		MessageInfos:      file_status_v3_status_proto_msgTypes,
+		GoTypes:           file_status_v3alpha_status_proto_goTypes,
+		DependencyIndexes: file_status_v3alpha_status_proto_depIdxs,
+		EnumInfos:         file_status_v3alpha_status_proto_enumTypes,
+		MessageInfos:      file_status_v3alpha_status_proto_msgTypes,
 	}.Build()
-	File_status_v3_status_proto = out.File
-	file_status_v3_status_proto_goTypes = nil
-	file_status_v3_status_proto_depIdxs = nil
+	File_status_v3alpha_status_proto = out.File
+	file_status_v3alpha_status_proto_goTypes = nil
+	file_status_v3alpha_status_proto_depIdxs = nil
 }
