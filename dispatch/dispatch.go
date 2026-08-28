@@ -34,7 +34,6 @@ import (
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -890,7 +889,7 @@ func (ag *aggrGroup) insert(ctx context.Context, alert *alert.Alert) bool {
 		span.RecordError(err)
 		ag.logger.Error(message, "err", err)
 	} else {
-		ag.recorder.RecordEvent(ctx, func() *eventrecorderpb.EventData {
+		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alert)
 		})
 		// The alert set changed; the alert is already visible via ag.alerts.
@@ -965,21 +964,17 @@ func (ag *aggrGroup) recordResolvedEvents(resolved types.AlertSlice) {
 	if len(resolved) == 0 {
 		return
 	}
-	groupInfo := ag.alertGroupInfo()
 	for _, a := range resolved {
-		ag.recorder.RecordEvent(ag.ctx, func() *eventrecorderpb.EventData {
-			return notify.NewAlertResolvedEvent(groupInfo, a)
+		ag.recorder.RecordEvent(ag.ctx, func() eventrecorder.EventData {
+			return notify.NewAlertResolvedEvent(ag.alertGroupInfo(), a)
 		})
 	}
 }
 
-func (ag *aggrGroup) alertGroupInfo() *eventrecorderpb.AlertGroupInfo {
-	return &eventrecorderpb.AlertGroupInfo{
-		GroupKey:     ag.GroupKey(),
-		GroupLabels:  eventrecorder.LabelSetAsProto(ag.labels),
-		GroupId:      notify.Key(ag.GroupKey()).Hash(),
-		ReceiverName: ag.opts.Receiver,
-	}
+func (ag *aggrGroup) alertGroupInfo() eventrecorder.AlertGroup {
+	return eventrecorder.NewAlertGroup(
+		ag.GroupKey(), ag.labels, notify.Key(ag.GroupKey()).Hash(), ag.opts.Receiver, nil, "",
+	)
 }
 
 type nilLimits struct{}

@@ -25,10 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/kafka"
 )
 
@@ -224,15 +221,15 @@ func (ko *KafkaOutput) Name() string { return ko.name }
 // SendEvent serializes the event in the configured format (JSON or
 // protobuf) and queues it for asynchronous delivery.  It returns the
 // serialized size (for the bytes-written metric).
-func (ko *KafkaOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
+func (ko *KafkaOutput) SendEvent(event Event) (int, error) {
 	var (
 		data []byte
 		err  error
 	)
 	if ko.format == kafka.FormatProtobuf {
-		data, err = proto.Marshal(event)
+		data, err = event.MarshalProtobuf()
 	} else {
-		data, err = protojson.Marshal(event)
+		data, err = event.MarshalJSON()
 	}
 	if err != nil {
 		return 0, &serializeError{err: err}

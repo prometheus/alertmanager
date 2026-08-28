@@ -1,5 +1,7 @@
 ## main / (unreleased)
 
+* [CHANGE] eventrecorder: The output data format now uses the new `events/v2` schema. This is a breaking change: alert labels, alert annotations, group labels, silence annotations, and muted-alert labels are JSON maps, and protobuf consumers must use the new schema.
+* [FEATURE] api: Add an experimental ConnectRPC API served alongside `/api/v2/` under the version-neutral `/api/` prefix, exposing the Connect, gRPC, and gRPC-Web protocols plus the gRPC Health Checking Protocol and server reflection. The first service is `status.v3alpha.StatusService`.
 * [ENHANCEMENT] ui: The silence form no longer requires a creator and a comment, matching the API. #5471
 
 ## 0.34.0 / 2026-08-16
