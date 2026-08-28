@@ -17,43 +17,112 @@ import (
 	"sync"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
-// index contains map of fingerprints to fingerprints.
-// The keys are fingerprints of the equal labels of source alerts.
-// The values are fingerprints of the source alerts.
+// index maps fingerprints of source alert equal labels to source alerts.
 // For more info see comments on inhibitor and InhibitRule.
 type index struct {
 	mtx   sync.RWMutex
-	items map[model.Fingerprint]model.Fingerprint
+	items map[model.Fingerprint]*indexEntry
+}
+
+type indexEntry struct {
+	alerts map[model.Fingerprint]indexedAlert
+
+	any        *types.Alert
+	sourceOnly *types.Alert
+}
+
+type indexedAlert struct {
+	alert      *types.Alert
+	sourceOnly bool
 }
 
 func newIndex() *index {
 	return &index{
-		items: make(map[model.Fingerprint]model.Fingerprint),
+		items: make(map[model.Fingerprint]*indexEntry),
 	}
 }
 
-func (c *index) Get(key model.Fingerprint) (model.Fingerprint, bool) {
+func (c *index) Get(key model.Fingerprint, sourceOnly bool) (*types.Alert, bool) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	fp, ok := c.items[key]
-	return fp, ok
+	entry, ok := c.items[key]
+	if !ok {
+		return nil, false
+	}
+
+	if sourceOnly {
+		return entry.sourceOnly, entry.sourceOnly != nil
+	}
+
+	return entry.any, entry.any != nil
 }
 
-func (c *index) Set(key, value model.Fingerprint) {
+func (c *index) Set(key model.Fingerprint, alert *types.Alert, sourceOnly bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	c.items[key] = value
+	entry, ok := c.items[key]
+	if !ok {
+		entry = &indexEntry{
+			alerts: make(map[model.Fingerprint]indexedAlert),
+		}
+		c.items[key] = entry
+	}
+
+	if sameFingerprint(entry.any, alert) || sameFingerprint(entry.sourceOnly, alert) {
+		entry.alerts[alert.Fingerprint()] = indexedAlert{
+			alert:      alert,
+			sourceOnly: sourceOnly,
+		}
+		entry.rebuild()
+		return
+	}
+
+	entry.alerts[alert.Fingerprint()] = indexedAlert{
+		alert:      alert,
+		sourceOnly: sourceOnly,
+	}
+
+	if shouldReplaceIndexAlert(entry.any, alert) {
+		entry.any = alert
+	}
+	if sourceOnly && shouldReplaceIndexAlert(entry.sourceOnly, alert) {
+		entry.sourceOnly = alert
+	}
 }
 
-func (c *index) Delete(key model.Fingerprint) {
+func (c *index) Delete(key model.Fingerprint, alert *types.Alert) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	delete(c.items, key)
+	entry, ok := c.items[key]
+	if !ok {
+		return
+	}
+
+	fp := alert.Fingerprint()
+	indexed, ok := entry.alerts[fp]
+	if !ok {
+		return
+	}
+	if indexed.alert != alert {
+		return
+	}
+
+	delete(entry.alerts, fp)
+	if len(entry.alerts) == 0 {
+		delete(c.items, key)
+		return
+	}
+
+	if entry.any == alert || entry.sourceOnly == alert {
+		entry.rebuild()
+	}
 }
 
 func (c *index) Len() int {
@@ -61,4 +130,29 @@ func (c *index) Len() int {
 	defer c.mtx.RUnlock()
 
 	return len(c.items)
+}
+
+func (e *indexEntry) rebuild() {
+	e.any = nil
+	e.sourceOnly = nil
+
+	for _, indexed := range e.alerts {
+		if shouldReplaceIndexAlert(e.any, indexed.alert) {
+			e.any = indexed.alert
+		}
+		if indexed.sourceOnly && shouldReplaceIndexAlert(e.sourceOnly, indexed.alert) {
+			e.sourceOnly = indexed.alert
+		}
+	}
+}
+
+func shouldReplaceIndexAlert(current, candidate *types.Alert) bool {
+	if current == nil {
+		return true
+	}
+	return current.ResolvedAt(candidate.EndsAt)
+}
+
+func sameFingerprint(a, b *types.Alert) bool {
+	return a != nil && a.Fingerprint() == b.Fingerprint()
 }

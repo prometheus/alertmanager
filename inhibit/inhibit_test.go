@@ -194,6 +194,89 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	}
 }
 
+func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	r := &InhibitRule{
+		Equal: map[model.LabelName]struct{}{
+			"e": {},
+		},
+		TargetMatchers: labels.Matchers{{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+		scache:         store.NewAlerts(),
+		sindex:         newIndex(),
+	}
+
+	sourceOnly := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "source-only"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	expiredSameEqual := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "expired"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(-time.Hour),
+		},
+	}
+
+	require.NoError(t, r.scache.Set(sourceOnly))
+	r.updateIndex(sourceOnly)
+	require.NoError(t, r.scache.Set(expiredSameEqual))
+	r.updateIndex(expiredSameEqual)
+
+	target := model.LabelSet{"s": "1", "t": "1", "e": "1"}
+	_, found := r.hasEqual(target, true, now)
+	require.True(t, found)
+
+	r.gcCallback([]*alert.Alert{expiredSameEqual})
+
+	_, found = r.hasEqual(target, true, now)
+	require.True(t, found)
+}
+
+func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	r := &InhibitRule{
+		Equal: map[model.LabelName]struct{}{
+			"e": {},
+		},
+		scache: store.NewAlerts(),
+		sindex: newIndex(),
+	}
+
+	oldSource := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(-time.Hour),
+		},
+		UpdatedAt: now.Add(-time.Hour),
+	}
+	refreshedSource := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(time.Hour),
+		},
+		UpdatedAt: now,
+	}
+
+	require.NoError(t, r.scache.Set(oldSource))
+	r.updateIndex(oldSource)
+	require.NoError(t, r.scache.Set(refreshedSource))
+	r.updateIndex(refreshedSource)
+
+	r.gcCallback([]*alert.Alert{oldSource})
+
+	_, found := r.hasEqual(model.LabelSet{"t": "1", "e": "1"}, false, now)
+	require.True(t, found)
+}
+
 func TestInhibitRuleMatches(t *testing.T) {
 	t.Parallel()
 
