@@ -1,8 +1,112 @@
-module SilenceForm exposing (parseAnnotation)
+module SilenceForm exposing (parseAnnotation, toSilence, validateForm)
 
 import Expect
 import Test exposing (..)
+import Time
+import Utils.Date
+import Utils.DateTimePicker.Types exposing (initDateTimePicker)
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek(..))
+import Utils.Filter
+import Utils.FormValidation exposing (ValidationState(..), initialField)
+import Views.FilterBar.Types as FilterBar
 import Views.SilenceForm.Types
+
+
+silenceForm : String -> String -> Views.SilenceForm.Types.SilenceForm
+silenceForm createdBy comment =
+    let
+        startsAt =
+            Utils.Date.timeToString (Time.millisToPosix 1000000000000)
+
+        endsAt =
+            Utils.Date.timeToString (Time.millisToPosix 1000003600000)
+    in
+    { id = Nothing
+    , createdBy = initialField createdBy
+    , comment = initialField comment
+    , startsAt = initialField startsAt
+    , endsAt = initialField endsAt
+    , duration = initialField "1h"
+    , dateTimePicker = initDateTimePicker Monday
+    , viewDateTimePicker = False
+    , annotations = []
+    , annotationText = ""
+    }
+
+
+matcherFilterBar : List Utils.Filter.Matcher -> FilterBar.Model
+matcherFilterBar matchers =
+    FilterBar.initFilterBar matchers
+
+
+toSilence : Test
+toSilence =
+    describe "toSilence"
+        [ test "accepts an empty creator and comment" <|
+            \() ->
+                Expect.notEqual Nothing
+                    (Views.SilenceForm.Types.toSilence
+                        (matcherFilterBar [ { key = "alertname", op = Utils.Filter.Eq, value = "ExampleAlert" } ])
+                        (silenceForm "" "")
+                    )
+        , test "accepts a creator and comment" <|
+            \() ->
+                Expect.notEqual Nothing
+                    (Views.SilenceForm.Types.toSilence
+                        (matcherFilterBar [ { key = "alertname", op = Utils.Filter.Eq, value = "ExampleAlert" } ])
+                        (silenceForm "alice" "maintenance window")
+                    )
+        , test "still requires at least one matcher" <|
+            \() ->
+                Expect.equal Nothing
+                    (Views.SilenceForm.Types.toSilence
+                        (matcherFilterBar [])
+                        (silenceForm "" "")
+                    )
+        ]
+
+
+validateForm : Test
+validateForm =
+    describe "validateForm"
+        [ test "does not flag an empty creator and comment" <|
+            \() ->
+                let
+                    form =
+                        Views.SilenceForm.Types.validateForm (silenceForm "" "")
+
+                    isInvalid state =
+                        case state of
+                            Invalid _ ->
+                                True
+
+                            _ ->
+                                False
+                in
+                Expect.equal ( False, False )
+                    ( isInvalid form.createdBy.validationState
+                    , isInvalid form.comment.validationState
+                    )
+        , test "still flags invalid start and end times" <|
+            \() ->
+                let
+                    baseForm =
+                        silenceForm "" ""
+
+                    form =
+                        Views.SilenceForm.Types.validateForm
+                            { baseForm | startsAt = initialField "not-a-time" }
+
+                    isInvalid state =
+                        case state of
+                            Invalid _ ->
+                                True
+
+                            _ ->
+                                False
+                in
+                Expect.equal True (isInvalid form.startsAt.validationState)
+        ]
 
 
 parseAnnotation : Test
