@@ -27,8 +27,8 @@ import (
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 
-	statusv3 "github.com/prometheus/alertmanager/api/status/v3"
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 )
 
 var _ = Describe("StatusService", func() {
@@ -45,14 +45,14 @@ var _ = Describe("StatusService", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3.GetStatusRequest{}))
+			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			Expect(err).NotTo(HaveOccurred())
 
 			status := resp.Msg.GetStatus()
 			Expect(status.GetVersionInfo().GetVersion()).To(Equal(version.Version))
 			Expect(status.GetConfig().GetOriginal()).NotTo(BeEmpty())
 			Expect(status.GetStartTime().AsTime()).NotTo(BeZero())
-			Expect(status.GetCluster().GetState()).To(Equal(statusv3.ClusterStatus_STATE_DISABLED))
+			Expect(status.GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
 		},
 		Entry("Connect POST at the root prefix", "", false, []connect.ClientOption{}),
 		Entry("Connect HTTP GET at the root prefix", "", false, []connect.ClientOption{connect.WithHTTPGet()}),
@@ -78,7 +78,7 @@ var _ = Describe("StatusService", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			_, err := client.GetStatus(ctx, connect.NewRequest(&statusv3.GetStatusRequest{}))
+			_, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			Expect(err).To(HaveOccurred())
 		},
 		Entry("Connect HTTP GET at the server root", "", "", false, []connect.ClientOption{connect.WithHTTPGet()}),
@@ -116,7 +116,7 @@ var _ = Describe("StatusService", func() {
 			for _, service := range services {
 				names = append(names, service.GetName())
 			}
-			Expect(names).To(ContainElement(statusv3connect.StatusServiceName))
+			Expect(names).To(ContainElement(statusv3alphaconnect.StatusServiceName))
 		},
 		Entry("without a route prefix", ""),
 		Entry("with a route prefix", "/alertmanager"),

@@ -25,8 +25,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/version"
 
-	statusv3 "github.com/prometheus/alertmanager/api/status/v3"
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 )
@@ -72,7 +72,7 @@ var _ = Describe("StatusService", func() {
 		api := NewAPI(Options{})
 		api.Update(&config.Config{})
 
-		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3.GetStatusRequest{}))
+		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		Expect(err).NotTo(HaveOccurred())
 
 		got := resp.Msg.GetStatus()
@@ -83,7 +83,7 @@ var _ = Describe("StatusService", func() {
 		Expect(got.GetVersionInfo().GetGoVersion()).To(Equal(version.GoVersion))
 		Expect(got.GetConfig().GetOriginal()).NotTo(BeEmpty())
 		Expect(got.GetStartTime()).NotTo(BeNil())
-		Expect(got.GetCluster().GetState()).To(Equal(statusv3.ClusterStatus_STATE_DISABLED))
+		Expect(got.GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
 		Expect(got.GetCluster().GetName()).To(BeEmpty())
 		Expect(got.GetCluster().GetPeers()).To(BeEmpty())
 	})
@@ -102,12 +102,12 @@ var _ = Describe("StatusService", func() {
 		api := NewAPI(Options{Peer: peer})
 		api.Update(&config.Config{})
 
-		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3.GetStatusRequest{}))
+		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		Expect(err).NotTo(HaveOccurred())
 
 		clusterStatus := resp.Msg.GetStatus().GetCluster()
 		Expect(clusterStatus.GetName()).To(Equal("self"))
-		Expect(clusterStatus.GetState()).To(Equal(statusv3.ClusterStatus_STATE_READY))
+		Expect(clusterStatus.GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_READY))
 
 		names := make([]string, 0, len(clusterStatus.GetPeers()))
 		for _, peer := range clusterStatus.GetPeers() {
@@ -128,7 +128,7 @@ var _ = Describe("StatusService", func() {
 
 		statusDone := make(chan error, 1)
 		go func() {
-			_, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3.GetStatusRequest{}))
+			_, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			statusDone <- err
 		}()
 		Eventually(peer.entered, 5*time.Second).Should(BeClosed())
@@ -147,13 +147,13 @@ var _ = Describe("StatusService", func() {
 	})
 
 	DescribeTable("maps cluster states",
-		func(input string, expected statusv3.ClusterStatus_State) {
+		func(input string, expected statusv3alpha.ClusterStatus_State) {
 			Expect(clusterState(input)).To(Equal(expected))
 		},
-		Entry("ready", "ready", statusv3.ClusterStatus_STATE_READY),
-		Entry("settling", "settling", statusv3.ClusterStatus_STATE_SETTLING),
-		Entry("empty", "", statusv3.ClusterStatus_STATE_UNSPECIFIED),
-		Entry("unknown", "bogus", statusv3.ClusterStatus_STATE_UNSPECIFIED),
+		Entry("ready", "ready", statusv3alpha.ClusterStatus_STATE_READY),
+		Entry("settling", "settling", statusv3alpha.ClusterStatus_STATE_SETTLING),
+		Entry("empty", "", statusv3alpha.ClusterStatus_STATE_UNSPECIFIED),
+		Entry("unknown", "bogus", statusv3alpha.ClusterStatus_STATE_UNSPECIFIED),
 	)
 
 	// TestGetStatus_OverHTTP exercises the full ConnectRPC wiring over HTTP,
@@ -188,15 +188,15 @@ var _ = Describe("StatusService", func() {
 			h2cClient := &http.Client{Transport: transport, Timeout: 5 * time.Second}
 			DeferCleanup(transport.CloseIdleConnections)
 
-			client := statusv3connect.NewStatusServiceClient(h2cClient, srv.URL, opts...)
+			client := statusv3alphaconnect.NewStatusServiceClient(h2cClient, srv.URL, opts...)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3.GetStatusRequest{}))
+			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			Expect(err).NotTo(HaveOccurred())
 			Eventually(methods, 5*time.Second).Should(Receive(Equal(wantMethod)))
 			Expect(resp.Header().Get("Cache-Control")).To(Equal("no-store"))
 			Expect(resp.Msg.GetStatus().GetVersionInfo().GetVersion()).To(Equal(version.Version))
-			Expect(resp.Msg.GetStatus().GetCluster().GetState()).To(Equal(statusv3.ClusterStatus_STATE_DISABLED))
+			Expect(resp.Msg.GetStatus().GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
 		},
 		Entry("Connect POST", http.MethodPost, []connect.ClientOption{}),
 		Entry("Connect HTTP GET", http.MethodGet, []connect.ClientOption{connect.WithHTTPGet()}),
@@ -205,7 +205,28 @@ var _ = Describe("StatusService", func() {
 	)
 })
 
+var _ = Describe("Connect API", func() {
+	It("pins registered service prefixes", func() {
+		Expect(NewAPI(Options{}).ServicePrefixes()).To(Equal([]string{
+			"/status.v3alpha.StatusService/",
+			"/grpc.health.v1.Health/",
+			"/grpc.reflection.v1.ServerReflection/",
+			"/grpc.reflection.v1alpha.ServerReflection/",
+		}))
+	})
+})
+
 var _ = Describe("RPC admission", func() {
+	It("defaults unary and stream concurrency independently", func() {
+		api := NewAPI(Options{UnaryConcurrency: 1})
+		Expect(cap(api.admission.unary)).To(Equal(1))
+		Expect(cap(api.admission.streams)).To(BeNumerically(">=", 8))
+
+		api = NewAPI(Options{StreamConcurrency: 1})
+		Expect(cap(api.admission.unary)).To(BeNumerically(">=", 8))
+		Expect(cap(api.admission.streams)).To(Equal(1))
+	})
+
 	It("limits unary RPCs independently", func() {
 		admission := &admissionInterceptor{unary: make(chan struct{}, 1), streams: make(chan struct{}, 1)}
 		entered := make(chan struct{})

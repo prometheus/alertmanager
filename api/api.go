@@ -223,7 +223,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	)
 
 	// Connect and gRPC-Web procedures are fully-qualified and carry their own
-	// service version (e.g. /status.v3.StatusService/GetStatus), so mount them
+	// service version (e.g. /status.v3alpha.StatusService/GetStatus), so mount them
 	// behind a version-neutral /api/ prefix. Native gRPC remains at the root so
 	// standard clients do not need path-prefix support. The more specific
 	// /api/v1/ and /api/v2/ patterns above win via longest-prefix matching.

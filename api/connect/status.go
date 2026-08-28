@@ -21,23 +21,23 @@ import (
 	"github.com/prometheus/common/version"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	statusv3 "github.com/prometheus/alertmanager/api/status/v3"
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 )
 
 // Ensure API satisfies the generated StatusService handler interface.
-var _ statusv3connect.StatusServiceHandler = (*API)(nil)
+var _ statusv3alphaconnect.StatusServiceHandler = (*API)(nil)
 
 // GetStatus returns the Alertmanager instance and cluster status.
-func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3.GetStatusRequest]) (*connect.Response[statusv3.GetStatusResponse], error) {
+func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3alpha.GetStatusRequest]) (*connect.Response[statusv3alpha.GetStatusResponse], error) {
 	var original string
 	if snapshot := api.configSnapshot.Load(); snapshot != nil {
 		original = *snapshot
 	}
 
-	status := &statusv3.AlertmanagerStatus{
+	status := &statusv3alpha.AlertmanagerStatus{
 		StartTime: timestamppb.New(api.uptime),
-		VersionInfo: &statusv3.VersionInfo{
+		VersionInfo: &statusv3alpha.VersionInfo{
 			Version:   version.Version,
 			Revision:  version.Revision,
 			Branch:    version.Branch,
@@ -45,21 +45,21 @@ func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3.GetStat
 			BuildDate: version.BuildDate,
 			GoVersion: version.GoVersion,
 		},
-		Config: &statusv3.AlertmanagerConfig{
+		Config: &statusv3alpha.AlertmanagerConfig{
 			Original: original,
 		},
-		Cluster: &statusv3.ClusterStatus{
-			State: statusv3.ClusterStatus_STATE_DISABLED,
-			Peers: []*statusv3.PeerStatus{},
+		Cluster: &statusv3alpha.ClusterStatus{
+			State: statusv3alpha.ClusterStatus_STATE_DISABLED,
+			Peers: []*statusv3alpha.PeerStatus{},
 		},
 	}
 
 	// If clustering is disabled, api.peer is nil and the cluster is
 	// reported as disabled.
 	if api.peer != nil {
-		peers := make([]*statusv3.PeerStatus, 0, len(api.peer.Peers()))
+		peers := make([]*statusv3alpha.PeerStatus, 0, len(api.peer.Peers()))
 		for _, n := range api.peer.Peers() {
-			peers = append(peers, &statusv3.PeerStatus{
+			peers = append(peers, &statusv3alpha.PeerStatus{
 				Name:    n.Name(),
 				Address: n.Address(),
 			})
@@ -68,26 +68,26 @@ func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3.GetStat
 			return peers[i].Name < peers[j].Name
 		})
 
-		status.Cluster = &statusv3.ClusterStatus{
+		status.Cluster = &statusv3alpha.ClusterStatus{
 			Name:  api.peer.Name(),
 			State: clusterState(api.peer.Status()),
 			Peers: peers,
 		}
 	}
 
-	resp := connect.NewResponse(&statusv3.GetStatusResponse{Status: status})
+	resp := connect.NewResponse(&statusv3alpha.GetStatusResponse{Status: status})
 	resp.Header().Set("Cache-Control", "no-store")
 	return resp, nil
 }
 
 // clusterState maps a cluster.ClusterPeer status string onto the proto enum.
-func clusterState(s string) statusv3.ClusterStatus_State {
+func clusterState(s string) statusv3alpha.ClusterStatus_State {
 	switch s {
 	case "ready":
-		return statusv3.ClusterStatus_STATE_READY
+		return statusv3alpha.ClusterStatus_STATE_READY
 	case "settling":
-		return statusv3.ClusterStatus_STATE_SETTLING
+		return statusv3alpha.ClusterStatus_STATE_SETTLING
 	default:
-		return statusv3.ClusterStatus_STATE_UNSPECIFIED
+		return statusv3alpha.ClusterStatus_STATE_UNSPECIFIED
 	}
 }

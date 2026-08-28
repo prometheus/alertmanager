@@ -81,7 +81,7 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 // label instead of being recorded verbatim, which would let a client inflate
 // metric cardinality by hitting arbitrary paths.
 func TestInstrumentConnectHandlerBoundsCardinality(t *testing.T) {
-	const servicePrefix = "/status.v3.StatusService/"
+	const servicePrefix = "/status.v3alpha.StatusService/"
 
 	for _, mountPrefix := range []string{"", "/alertmanager/api"} {
 		t.Run(mountPrefix, func(t *testing.T) {

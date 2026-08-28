@@ -14,7 +14,7 @@
 // Package apiconnect implements the experimental ConnectRPC-based
 // Alertmanager API. It is always mounted alongside API v2. Connect and
 // gRPC-Web use the version-neutral /api/ prefix, while native gRPC uses the
-// server root. Each service is independently versioned (e.g. status.v3); the
+// server root. Each service is independently versioned (e.g. status.v3alpha); the
 // package itself carries no umbrella version.
 package apiconnect
 
@@ -30,7 +30,7 @@ import (
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
 
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 )
@@ -55,14 +55,8 @@ type API struct {
 // NewAPI returns a new Connect API handler. Peer may be nil when clustering
 // is disabled.
 func NewAPI(opts Options) *API {
-	unaryConcurrency := opts.UnaryConcurrency
-	if unaryConcurrency < 1 {
-		unaryConcurrency = max(runtime.GOMAXPROCS(0), 8)
-	}
-	streamConcurrency := opts.StreamConcurrency
-	if streamConcurrency < 1 {
-		streamConcurrency = unaryConcurrency
-	}
+	unaryConcurrency := defaultConcurrency(opts.UnaryConcurrency)
+	streamConcurrency := defaultConcurrency(opts.StreamConcurrency)
 	return &API{
 		peer:   opts.Peer,
 		uptime: time.Now(),
@@ -72,6 +66,13 @@ func NewAPI(opts Options) *API {
 			unaryTimeout: opts.UnaryTimeout,
 		},
 	}
+}
+
+func defaultConcurrency(concurrency int) int {
+	if concurrency < 1 {
+		return max(runtime.GOMAXPROCS(0), 8)
+	}
+	return concurrency
 }
 
 // admissionInterceptor gives unary RPCs and streams independent capacity so
@@ -143,8 +144,7 @@ func (api *API) Update(cfg *config.Config) {
 // (v1 and v1alpha, for tools such as grpcurl). Procedures are
 // fully-qualified, so the returned handler is mounted at a single prefix.
 func (api *API) Handler(opts ...connect.HandlerOption) http.Handler {
-	mux, _ := api.buildHandler(opts...)
-	return mux
+	return api.buildHandler(opts...)
 }
 
 // ServicePrefixes returns the URL path prefixes ("/<fully-qualified-service>/")
@@ -152,37 +152,32 @@ func (api *API) Handler(opts ...connect.HandlerOption) http.Handler {
 // cardinality of metric and trace labels: any request path that does not
 // match one of these prefixes yields a 404 and should not be recorded
 // verbatim.
-func (api *API) ServicePrefixes() []string {
-	_, prefixes := api.buildHandler()
-	return prefixes
+func (*API) ServicePrefixes() []string {
+	return []string{
+		"/status.v3alpha.StatusService/",
+		"/grpc.health.v1.Health/",
+		"/grpc.reflection.v1.ServerReflection/",
+		"/grpc.reflection.v1alpha.ServerReflection/",
+	}
 }
 
-// buildHandler registers every ConnectRPC service on a fresh mux and returns
-// both the mux and the path prefixes the services were registered under. It
-// is the single source of truth shared by Handler and ServicePrefixes.
-func (api *API) buildHandler(opts ...connect.HandlerOption) (http.Handler, []string) {
+// buildHandler registers every ConnectRPC service on a fresh mux.
+func (api *API) buildHandler(opts ...connect.HandlerOption) http.Handler {
 	opts = append([]connect.HandlerOption{connect.WithInterceptors(api.admission)}, opts...)
 
 	// serviceNames lists the fully-qualified service names advertised via
 	// health checking and reflection.
 	serviceNames := []string{
-		statusv3connect.StatusServiceName,
+		statusv3alphaconnect.StatusServiceName,
 	}
 
 	mux := http.NewServeMux()
-	var prefixes []string
-	register := func(path string, h http.Handler) {
-		mux.Handle(path, h)
-		prefixes = append(prefixes, path)
-	}
-
-	register(statusv3connect.NewStatusServiceHandler(api, opts...))
-
-	register(grpchealth.NewHandler(grpchealth.NewStaticChecker(serviceNames...), opts...))
+	mux.Handle(statusv3alphaconnect.NewStatusServiceHandler(api, opts...))
+	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(serviceNames...), opts...))
 
 	reflector := grpcreflect.NewStaticReflector(serviceNames...)
-	register(grpcreflect.NewHandlerV1(reflector, opts...))
-	register(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
+	mux.Handle(grpcreflect.NewHandlerV1(reflector, opts...))
+	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
 
-	return mux, prefixes
+	return mux
 }

@@ -27,7 +27,7 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/exporter-toolkit/web"
 
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/app"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/matcher/compat"
@@ -134,6 +134,6 @@ func (i *instance) apiPath() string {
 	return i.routePrefix + "/api"
 }
 
-func (i *instance) statusClient(httpClient connect.HTTPClient, basePath string, opts ...connect.ClientOption) statusv3connect.StatusServiceClient {
-	return statusv3connect.NewStatusServiceClient(httpClient, i.baseURL+basePath, opts...)
+func (i *instance) statusClient(httpClient connect.HTTPClient, basePath string, opts ...connect.ClientOption) statusv3alphaconnect.StatusServiceClient {
+	return statusv3alphaconnect.NewStatusServiceClient(httpClient, i.baseURL+basePath, opts...)
 }

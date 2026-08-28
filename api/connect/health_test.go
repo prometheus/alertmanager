@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/prometheus/alertmanager/api/status/v3/statusv3connect"
+	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/config"
 )
 
@@ -41,7 +41,7 @@ var _ = Describe("gRPC health", func() {
 		client := srv.Client()
 		client.Timeout = 5 * time.Second
 
-		for _, service := range []string{"", statusv3connect.StatusServiceName} {
+		for _, service := range []string{"", statusv3alphaconnect.StatusServiceName} {
 			reqBody, err := json.Marshal(map[string]string{"service": service})
 			Expect(err).NotTo(HaveOccurred())
 
