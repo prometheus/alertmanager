@@ -29,7 +29,7 @@ import (
 var _ statusv3alphaconnect.StatusServiceHandler = (*API)(nil)
 
 // GetStatus returns the Alertmanager instance and cluster status.
-func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3alpha.GetStatusRequest]) (*connect.Response[statusv3alpha.GetStatusResponse], error) {
+func (api *API) GetStatus(ctx context.Context, _ *connect.Request[statusv3alpha.GetStatusRequest]) (*connect.Response[statusv3alpha.GetStatusResponse], error) {
 	var original string
 	if snapshot := api.configSnapshot.Load(); snapshot != nil {
 		original = *snapshot
@@ -57,27 +57,56 @@ func (api *API) GetStatus(_ context.Context, _ *connect.Request[statusv3alpha.Ge
 	// If clustering is disabled, api.peer is nil and the cluster is
 	// reported as disabled.
 	if api.peer != nil {
-		peers := make([]*statusv3alpha.PeerStatus, 0, len(api.peer.Peers()))
-		for _, n := range api.peer.Peers() {
-			peers = append(peers, &statusv3alpha.PeerStatus{
-				Name:    n.Name(),
-				Address: n.Address(),
-			})
+		clusterStatus, err := api.snapshotClusterStatus(ctx)
+		if err != nil {
+			return nil, err
 		}
-		sort.Slice(peers, func(i, j int) bool {
-			return peers[i].Name < peers[j].Name
-		})
-
-		status.Cluster = &statusv3alpha.ClusterStatus{
-			Name:  api.peer.Name(),
-			State: clusterState(api.peer.Status()),
-			Peers: peers,
-		}
+		status.Cluster = clusterStatus
 	}
 
 	resp := connect.NewResponse(&statusv3alpha.GetStatusResponse{Status: status})
 	resp.Header().Set("Cache-Control", "no-store")
 	return resp, nil
+}
+
+func (api *API) snapshotClusterStatus(ctx context.Context) (*statusv3alpha.ClusterStatus, error) {
+	select {
+	case api.peerSnapshotSem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		<-api.peerSnapshotSem
+		return nil, err
+	}
+
+	result := make(chan *statusv3alpha.ClusterStatus, 1)
+	go func() {
+		defer func() { <-api.peerSnapshotSem }()
+		members := api.peer.Peers()
+		peers := make([]*statusv3alpha.PeerStatus, 0, len(members))
+		for _, member := range members {
+			peers = append(peers, &statusv3alpha.PeerStatus{
+				Name:    member.Name(),
+				Address: member.Address(),
+			})
+		}
+		sort.Slice(peers, func(i, j int) bool {
+			return peers[i].Name < peers[j].Name
+		})
+		result <- &statusv3alpha.ClusterStatus{
+			Name:  api.peer.Name(),
+			State: clusterState(api.peer.Status()),
+			Peers: peers,
+		}
+	}()
+
+	select {
+	case clusterStatus := <-result:
+		return clusterStatus, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // clusterState maps a cluster.ClusterPeer status string onto the proto enum.

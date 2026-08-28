@@ -45,9 +45,10 @@ type Options struct {
 
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
-	peer      cluster.ClusterPeer
-	uptime    time.Time
-	admission *admissionInterceptor
+	peer            cluster.ClusterPeer
+	uptime          time.Time
+	admission       *admissionInterceptor
+	peerSnapshotSem chan struct{}
 
 	configSnapshot atomic.Pointer[string]
 }
@@ -58,8 +59,9 @@ func NewAPI(opts Options) *API {
 	unaryConcurrency := defaultConcurrency(opts.UnaryConcurrency)
 	streamConcurrency := defaultConcurrency(opts.StreamConcurrency)
 	return &API{
-		peer:   opts.Peer,
-		uptime: time.Now(),
+		peer:            opts.Peer,
+		uptime:          time.Now(),
+		peerSnapshotSem: make(chan struct{}, 1),
 		admission: &admissionInterceptor{
 			unary:        make(chan struct{}, unaryConcurrency),
 			streams:      make(chan struct{}, streamConcurrency),

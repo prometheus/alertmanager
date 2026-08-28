@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -54,6 +55,7 @@ func (p fakePeer) Peers() []cluster.ClusterMember { return p.peers }
 type blockingPeer struct {
 	enteredOnce sync.Once
 	releaseOnce sync.Once
+	calls       atomic.Int64
 	entered     chan struct{}
 	release     chan struct{}
 }
@@ -61,6 +63,7 @@ type blockingPeer struct {
 func (p *blockingPeer) Name() string   { return "self" }
 func (p *blockingPeer) Status() string { return "ready" }
 func (p *blockingPeer) Peers() []cluster.ClusterMember {
+	p.calls.Add(1)
 	p.enteredOnce.Do(func() { close(p.entered) })
 	<-p.release
 	return nil
@@ -144,6 +147,28 @@ var _ = Describe("StatusService", func() {
 		var statusErr error
 		Eventually(statusDone, 5*time.Second).Should(Receive(&statusErr))
 		Expect(statusErr).NotTo(HaveOccurred())
+	})
+
+	It("bounds peer snapshots when the unary deadline expires", func() {
+		peer := &blockingPeer{
+			entered: make(chan struct{}),
+			release: make(chan struct{}),
+		}
+		api := NewAPI(Options{Peer: peer, UnaryTimeout: 20 * time.Millisecond})
+		api.Update(&config.Config{})
+
+		srv := httptest.NewServer(api.Handler())
+		DeferCleanup(srv.Close)
+		DeferCleanup(peer.unblock)
+		client := statusv3alphaconnect.NewStatusServiceClient(&http.Client{Timeout: time.Second}, srv.URL)
+
+		for range 2 {
+			started := time.Now()
+			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			Expect(connect.CodeOf(err)).To(Equal(connect.CodeDeadlineExceeded))
+			Expect(time.Since(started)).To(BeNumerically("<", 500*time.Millisecond))
+		}
+		Eventually(peer.calls.Load, time.Second).Should(Equal(int64(1)))
 	})
 
 	DescribeTable("maps cluster states",
