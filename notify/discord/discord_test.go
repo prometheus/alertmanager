@@ -39,6 +39,8 @@ import (
 // This is a test URL that has been modified to not be valid.
 var testWebhookURL, _ = url.Parse("https://discord.com/api/webhooks/971139602272503183/78ZWZ4V3xwZUBKRFF-G9m1nRtDtNTChl_WzW6Q4kxShjSB02oLSiPTPa8TS2tTGO9EYf")
 
+// TestDiscordRetry checks that the notifier retries on 5xx and on HTTP 429, and
+// treats every other status code as a permanent failure.
 func TestDiscordRetry(t *testing.T) {
 	notifier, err := New(
 		&DiscordConfig{
