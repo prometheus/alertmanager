@@ -50,7 +50,8 @@ func TestDiscordRetry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
