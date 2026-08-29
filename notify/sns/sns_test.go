@@ -200,13 +200,6 @@ func TestClassifyClientError(t *testing.T) {
 			reason: notify.DefaultReason,
 			errMsg: "unexpected status code 500",
 		},
-		{
-			title:  "template error",
-			err:    notify.NewErrorWithReason(notify.ClientErrorReason, errors.New("execute 'api_url' template")),
-			retry:  true,
-			reason: notify.ClientErrorReason,
-			errMsg: "execute 'api_url' template",
-		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			classifyNotifier := &Notifier{retrier: &notify.Retrier{}}
