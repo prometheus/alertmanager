@@ -90,10 +90,10 @@ type webhookEmbed struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -103,19 +103,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	if truncated {
 		logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
 	}
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxDescriptionLenRunes)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	if truncated {
 		logger.Warn("Truncated message", "max_runes", maxDescriptionLenRunes)
@@ -123,7 +123,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	if truncated {
 		logger.Warn("Truncated message", "max_runes", maxContentLenRunes)
@@ -143,7 +143,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		b, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("read webhook_url_file: %w", err), notify.DefaultReason)
 		}
 		url = strings.TrimSpace(string(b))
 	}
@@ -168,17 +168,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &payload)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return false, nil
+	return notify.Success()
 }
