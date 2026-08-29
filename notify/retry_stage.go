@@ -146,14 +146,13 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 
 		select {
 		case <-tick.C:
-			// Schedule the next attempt up front, so the backoff interval runs
-			// concurrently with the notify call rather than after it.
-			tick.Reset(b.NextBackOff())
-
 			now := time.Now()
 			verdict := r.integration.Notify(ctx, sent...)
 			i++
 			dur := time.Since(now)
+			// Back off from the end of the attempt, not from its start, so a
+			// slow failure doesn't eat into the wait.
+			tick.Reset(max(b.NextBackOff(), verdict.Delay()))
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
 			if err := verdict.Err(); err != nil {

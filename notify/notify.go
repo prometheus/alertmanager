@@ -70,9 +70,6 @@ type NotifyVerdict struct {
 // worth another attempt. A zero retryAfter leaves it to the retry logic to
 // pick the delay before that attempt.
 func Retry(retryAfter time.Duration, err error, reason Reason) NotifyVerdict {
-	if retryAfter != time.Duration(0) {
-		panic("Not implemented.")
-	}
 	return NotifyVerdict{
 		retry:      true,
 		retryAfter: retryAfter,
