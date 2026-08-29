@@ -19,6 +19,7 @@ GOLANGCI_LINT_VERSION := v2.13.1
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
+MANTINE_UI_DIR            = $(BIN_DIR)/ui/mantine-ui
 TEMPLATE_DIR             = $(BIN_DIR)/template
 DOCKER_IMAGE_NAME       ?= alertmanager
 
@@ -29,16 +30,16 @@ STATICCHECK_IGNORE =
 build-all: assets apiv2 build
 
 .PHONY: build
-build: ui-elm common-build
+build: ui-elm ui-mantine common-build
 
 .PHONY: test
-test: ui-elm common-test
+test: ui-elm ui-mantine-test common-test
 
 .PHONY: lint
-lint: ui-elm common-lint
+lint: ui-elm ui-mantine-lint common-lint
 
 .PHONY: assets
-assets: $(FRONTEND_DIR)/src/Data ui-elm template/email.tmpl
+assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine template/email.tmpl
 
 .PHONY: assets-tarball
 assets-tarball: ui-elm
@@ -48,6 +49,18 @@ assets-tarball: ui-elm
 .PHONY: ui-elm
 ui-elm:
 	cd $(FRONTEND_DIR) && $(MAKE) build
+
+.PHONY: ui-mantine
+ui-mantine:
+	cd $(MANTINE_UI_DIR) && $(MAKE) build
+
+.PHONY: ui-mantine-test
+ui-mantine-test:
+	cd $(MANTINE_UI_DIR) && $(MAKE) test
+
+.PHONY: ui-mantine-lint
+ui-mantine-lint:
+	cd $(MANTINE_UI_DIR) && $(MAKE) lint
 
 $(FRONTEND_DIR)/src/Data: api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) src/Data
@@ -71,3 +84,4 @@ clean:
 	- @rm -rf template/email.tmpl \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
+	- @cd $(MANTINE_UI_DIR) && $(MAKE) clean
