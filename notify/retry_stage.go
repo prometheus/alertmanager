@@ -102,10 +102,14 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	}
 
 	// backoff/v5's ExponentialBackOff never returns Stop from NextBackOff, so
-	// the ticker retries indefinitely until the context is canceled.
+	// we retry indefinitely until the context is canceled.
 	b := backoff.NewExponentialBackOff()
+	// Redundant for a freshly constructed ExponentialBackOff, but the BackOff
+	// docs require Reset before first use.
+	b.Reset()
 
-	tick := backoff.NewTicker(b)
+	// Zero delay so the first attempt happens immediately.
+	tick := time.NewTimer(0)
 	defer tick.Stop()
 
 	var (
@@ -142,6 +146,10 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 
 		select {
 		case <-tick.C:
+			// Schedule the next attempt up front, so the backoff interval runs
+			// concurrently with the notify call rather than after it.
+			tick.Reset(b.NextBackOff())
+
 			now := time.Now()
 			verdict := r.integration.Notify(ctx, sent...)
 			i++
