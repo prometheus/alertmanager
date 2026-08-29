@@ -233,16 +233,15 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			retry, err := notifier.Notify(ctx, alert1)
-			require.Equal(t, tt.expectedRetry, retry)
+			verdict := notifier.Notify(ctx, alert1)
+			require.Equal(t, tt.expectedRetry, verdict.ShouldRetry())
 			if tt.noError {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				var reasonError *notify.ErrorWithReason
-				require.ErrorAs(t, err, &reasonError)
-				require.Equal(t, tt.expectedReason, reasonError.Reason)
-				require.Contains(t, err.Error(), tt.expectedErr)
-				require.Contains(t, err.Error(), "channelname")
+				require.Error(t, verdict.Err())
+				require.Equal(t, tt.expectedReason, verdict.Reason())
+				require.Contains(t, verdict.Err().Error(), tt.expectedErr)
+				require.Contains(t, verdict.Err().Error(), "channelname")
 			}
 		})
 	}
@@ -295,8 +294,8 @@ func TestSlackTimeout(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = notifier.Notify(ctx, alert)
-			require.Equal(t, tt.wantErr, err != nil)
+			verdict := notifier.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
 	}
 }
@@ -356,7 +355,7 @@ func TestSlackMessageField(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "test-group-key")
 
-	if _, err := notifier.Notify(ctx); err != nil {
+	if err := notifier.Notify(ctx).Err(); err != nil {
 		t.Fatal("Notify failed:", err)
 	}
 }
@@ -413,11 +412,11 @@ func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
 	}
 
 	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert1)
+	verdict := notifier.Notify(ctx, alert1)
 	elapsed := time.Since(start)
 
-	require.True(t, retry)
-	require.Error(t, err)
+	require.True(t, verdict.ShouldRetry())
+	require.Error(t, verdict.Err())
 	require.GreaterOrEqual(t, elapsed, 1*time.Second, "should have waited at least 1 second for Retry-After")
 }
 
@@ -459,10 +458,10 @@ func TestNotifier_Notify_RetryAfterContextCancelled(t *testing.T) {
 	}
 
 	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert1)
+	verdict := notifier.Notify(ctx, alert1)
 	elapsed := time.Since(start)
 
-	require.True(t, retry)
-	require.Error(t, err)
+	require.True(t, verdict.ShouldRetry())
+	require.Error(t, verdict.Err())
 	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
 }

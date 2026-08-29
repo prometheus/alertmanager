@@ -123,7 +123,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Email) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	var (
 		c       *smtp.Client
 		conn    net.Conn
@@ -142,7 +142,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if useImplicitTLS {
 		tlsConfig, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
-			return false, fmt.Errorf("parse TLS configuration: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("parse TLS configuration: %w", err), notify.DefaultReason)
 		}
 		if tlsConfig.ServerName == "" {
 			tlsConfig.ServerName = n.conf.Smarthost.Host
@@ -150,7 +150,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		conn, err = tls.Dial("tcp", n.conf.Smarthost.String(), tlsConfig)
 		if err != nil {
-			return true, fmt.Errorf("establish TLS connection to server: %w", err)
+			return notify.Retry(0, fmt.Errorf("establish TLS connection to server: %w", err), notify.DefaultReason)
 		}
 	} else {
 		var (
@@ -159,13 +159,13 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		)
 		conn, err = d.DialContext(ctx, "tcp", n.conf.Smarthost.String())
 		if err != nil {
-			return true, fmt.Errorf("establish connection to server: %w", err)
+			return notify.Retry(0, fmt.Errorf("establish connection to server: %w", err), notify.DefaultReason)
 		}
 	}
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
-		return true, fmt.Errorf("create SMTP client: %w", err)
+		return notify.Retry(0, fmt.Errorf("create SMTP client: %w", err), notify.DefaultReason)
 	}
 	defer func() {
 		// Try to clean up after ourselves but don't log anything if something has failed.
@@ -177,37 +177,37 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.Hello != "" {
 		err = c.Hello(n.conf.Hello)
 		if err != nil {
-			return true, fmt.Errorf("send EHLO command: %w", err)
+			return notify.Retry(0, fmt.Errorf("send EHLO command: %w", err), notify.DefaultReason)
 		}
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
 	if *n.conf.RequireTLS && !useImplicitTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
+			return notify.Retry(0, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost), notify.DefaultReason)
 		}
 
 		tlsConf, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
-			return false, fmt.Errorf("parse TLS configuration: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("parse TLS configuration: %w", err), notify.DefaultReason)
 		}
 		if tlsConf.ServerName == "" {
 			tlsConf.ServerName = n.conf.Smarthost.Host
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {
-			return true, fmt.Errorf("send STARTTLS command: %w", err)
+			return notify.Retry(0, fmt.Errorf("send STARTTLS command: %w", err), notify.DefaultReason)
 		}
 	}
 
 	if ok, mech := c.Extension("AUTH"); ok {
 		auth, err := n.auth(mech)
 		if err != nil {
-			return true, fmt.Errorf("find auth mechanism: %w", err)
+			return notify.Retry(0, fmt.Errorf("find auth mechanism: %w", err), notify.DefaultReason)
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				return true, fmt.Errorf("%T auth: %w", auth, err)
+				return notify.Retry(0, fmt.Errorf("%T auth: %w", auth, err), notify.DefaultReason)
 			}
 		}
 	}
@@ -219,37 +219,37 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	)
 	from := tmpl(n.conf.From)
 	if tmplErr != nil {
-		return false, fmt.Errorf("execute 'from' template: %w", tmplErr)
+		return notify.Unrecoverable(fmt.Errorf("execute 'from' template: %w", tmplErr), notify.DefaultReason)
 	}
 	to := tmpl(n.conf.To)
 	if tmplErr != nil {
-		return false, fmt.Errorf("execute 'to' template: %w", tmplErr)
+		return notify.Unrecoverable(fmt.Errorf("execute 'to' template: %w", tmplErr), notify.DefaultReason)
 	}
 
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
-		return false, fmt.Errorf("parse 'from' addresses: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("parse 'from' addresses: %w", err), notify.DefaultReason)
 	}
 	if len(addrs) != 1 {
-		return false, fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs))
+		return notify.Unrecoverable(fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs)), notify.DefaultReason)
 	}
 	if err = c.Mail(addrs[0].Address); err != nil {
-		return true, fmt.Errorf("send MAIL command: %w", err)
+		return notify.Retry(0, fmt.Errorf("send MAIL command: %w", err), notify.DefaultReason)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
-		return false, fmt.Errorf("parse 'to' addresses: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("parse 'to' addresses: %w", err), notify.DefaultReason)
 	}
 	for _, addr := range addrs {
 		if err = c.Rcpt(addr.Address); err != nil {
-			return true, fmt.Errorf("send RCPT command: %w", err)
+			return notify.Retry(0, fmt.Errorf("send RCPT command: %w", err), notify.DefaultReason)
 		}
 	}
 
 	// Send the email headers and body.
 	message, err := c.Data()
 	if err != nil {
-		return true, fmt.Errorf("send DATA command: %w", err)
+		return notify.Retry(0, fmt.Errorf("send DATA command: %w", err), notify.DefaultReason)
 	}
 	closeOnce := sync.OnceValue(func() error {
 		return message.Close()
@@ -265,7 +265,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	for header, t := range n.conf.Headers {
 		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {
-			return false, fmt.Errorf("execute %q header template: %w", header, err)
+			return notify.Unrecoverable(fmt.Errorf("execute %q header template: %w", header, err), notify.DefaultReason)
 		}
 		fmt.Fprintf(buffer, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
@@ -277,7 +277,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.Threading.Enabled {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		// Add threading headers. All notifications for the same alert group
 		// (identified by key hash) are threaded together.
@@ -310,7 +310,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	// and active/resolved.
 	_, err = message.Write(buffer.Bytes())
 	if err != nil {
-		return false, fmt.Errorf("write headers: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("write headers: %w", err), notify.DefaultReason)
 	}
 
 	if len(n.conf.Text) > 0 {
@@ -320,20 +320,20 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			"Content-Type":              {"text/plain; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, fmt.Errorf("create part for text template: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("create part for text template: %w", err), notify.DefaultReason)
 		}
 		body, err := n.tmpl.ExecuteTextString(n.conf.Text, data)
 		if err != nil {
-			return false, fmt.Errorf("execute text template: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("execute text template: %w", err), notify.DefaultReason)
 		}
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(body))
 		if err != nil {
-			return true, fmt.Errorf("write text part: %w", err)
+			return notify.Retry(0, fmt.Errorf("write text part: %w", err), notify.DefaultReason)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, fmt.Errorf("close text part: %w", err)
+			return notify.Retry(0, fmt.Errorf("close text part: %w", err), notify.DefaultReason)
 		}
 	}
 
@@ -346,40 +346,40 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			"Content-Type":              {"text/html; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, fmt.Errorf("create part for html template: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("create part for html template: %w", err), notify.DefaultReason)
 		}
 		body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
 		if err != nil {
-			return false, fmt.Errorf("execute html template: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("execute html template: %w", err), notify.DefaultReason)
 		}
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(body))
 		if err != nil {
-			return true, fmt.Errorf("write HTML part: %w", err)
+			return notify.Retry(0, fmt.Errorf("write HTML part: %w", err), notify.DefaultReason)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, fmt.Errorf("close HTML part: %w", err)
+			return notify.Retry(0, fmt.Errorf("close HTML part: %w", err), notify.DefaultReason)
 		}
 	}
 
 	err = multipartWriter.Close()
 	if err != nil {
-		return false, fmt.Errorf("close multipartWriter: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("close multipartWriter: %w", err), notify.DefaultReason)
 	}
 
 	_, err = message.Write(multipartBuffer.Bytes())
 	if err != nil {
-		return false, fmt.Errorf("write body buffer: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("write body buffer: %w", err), notify.DefaultReason)
 	}
 
 	// Complete the message and await response.
 	if err = closeOnce(); err != nil {
-		return true, fmt.Errorf("delivery failure: %w", err)
+		return notify.Retry(0, fmt.Errorf("delivery failure: %w", err), notify.DefaultReason)
 	}
 
 	success = true
-	return false, nil
+	return notify.Success()
 }
 
 type loginAuth struct {

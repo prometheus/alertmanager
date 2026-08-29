@@ -142,7 +142,7 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 	require.NotEmpty(t, secret)
 
 	ctx = notify.WithGroupKey(ctx, "1")
-	ok, err := n.Notify(ctx, []*types.Alert{
+	verdict := n.Notify(ctx, []*types.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
@@ -154,12 +154,13 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 		},
 	}...)
 
+	err := verdict.Err()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), context.Canceled.Error())
 	for _, s := range secret {
 		require.NotContains(t, err.Error(), s)
 	}
-	require.True(t, ok)
+	require.True(t, verdict.ShouldRetry())
 }
 
 // GetContextWithCancelingURL returns a context that gets canceled when a

@@ -320,7 +320,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
+			verdict := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -332,12 +332,12 @@ func TestPagerDutyTemplating(t *testing.T) {
 				},
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -542,7 +542,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	_, err = pagerDuty.Notify(ctx, []*types.Alert{
+	verdict := pagerDuty.Notify(ctx, []*types.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
@@ -553,7 +553,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 			},
 		},
 	}...)
-	require.NoError(t, err)
+	require.NoError(t, verdict.Err())
 }
 
 func TestPagerDutyTimeout(t *testing.T) {
@@ -617,8 +617,8 @@ func TestPagerDutyTimeout(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = pd.Notify(ctx, alert)
-			require.Equal(t, tt.wantErr, err != nil)
+			verdict := pd.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
 	}
 }

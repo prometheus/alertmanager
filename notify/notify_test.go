@@ -43,9 +43,9 @@ func (s sendResolved) SendResolved() bool {
 	return bool(s)
 }
 
-type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict
 
-func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 	return f(ctx, alerts...)
 }
 
@@ -419,13 +419,17 @@ func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 			if fail {
 				fail = false
-				return retry, errors.New("fail to deliver notification")
+				err := errors.New("fail to deliver notification")
+				if retry {
+					return Retry(0, err, DefaultReason)
+				}
+				return Unrecoverable(err, DefaultReason)
 			}
 			sent = append(sent, alerts...)
-			return false, nil
+			return Success()
 		}),
 		rs: sendResolved(false),
 	}
@@ -460,25 +464,19 @@ func TestRetryStageWithError(t *testing.T) {
 
 func TestRetryStageWithErrorCode(t *testing.T) {
 	testcases := map[string]struct {
-		isNewErrorWithReason bool
-		reason               Reason
-		reasonlabel          string
-		expectedCount        int
+		reason        Reason
+		reasonlabel   string
+		expectedCount int
 	}{
-		"for clientError":     {isNewErrorWithReason: true, reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
-		"for serverError":     {isNewErrorWithReason: true, reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
-		"for unexpected code": {isNewErrorWithReason: false, reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
+		"for clientError":     {reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
+		"for serverError":     {reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
+		"for unexpected code": {reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
 	}
 	for _, testData := range testcases {
-		retry := false
-		testData := testData
 		i := Integration{
 			name: "test",
-			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-				if !testData.isNewErrorWithReason {
-					return retry, errors.New("fail to deliver notification")
-				}
-				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
+				return Unrecoverable(errors.New("fail to deliver notification"), testData.reason)
 			}),
 			rs: sendResolved(false),
 		}
@@ -511,9 +509,9 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 
 	i := Integration{
 		name: "test",
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 			cancel()
-			return true, errors.New("request failed: context canceled")
+			return Retry(0, errors.New("request failed: context canceled"), DefaultReason)
 		}),
 		rs: sendResolved(false),
 	}
@@ -543,9 +541,9 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 			sent = append(sent, alerts...)
-			return false, nil
+			return Success()
 		}),
 		rs: sendResolved(false),
 	}
@@ -594,9 +592,9 @@ func TestRetryStageNoResolved(t *testing.T) {
 func TestRetryStageSendResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 			sent = append(sent, alerts...)
-			return false, nil
+			return Success()
 		}),
 		rs: sendResolved(true),
 	}
@@ -713,7 +711,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	recv := &nflogpb.Receiver{GroupName: "test"}
 	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
 
-	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 		callCount++
 
 		if callCount == 1 {
@@ -721,11 +719,11 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 			if store, ok := NflogStore(ctx); ok {
 				store.SetStr("threadTs", "1234.5678")
 			}
-			return false, nil
+			return Success()
 		}
 		// Second call - notifier doesn't update ReceiverData
 		// Does NOT call StoreStr - just returns success
-		return false, nil
+		return Success()
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
@@ -928,7 +926,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	recv := &nflogpb.Receiver{GroupName: "test"}
 	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
 
-	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) NotifyVerdict {
 		callCount++
 		store, ok := NflogStore(ctx)
 		require.True(t, ok, "Store should be available in context")
@@ -940,7 +938,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 		capturedStoreValues = append(capturedStoreValues, storeSnapshot)
 
 		store.SetStr("session_data", fmt.Sprintf("session_%d", callCount))
-		return false, nil
+		return Success()
 	})
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")

@@ -152,13 +152,13 @@ func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) notify.NotifyVerdict {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	n.logger.Debug("incident.io notification", "groupKey", groupKey)
@@ -172,7 +172,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	buf, err := n.encodeMessage(msg)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	var url string
@@ -181,7 +181,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	} else {
 		content, err := os.ReadFile(n.conf.URLFile)
 		if err != nil {
-			return false, fmt.Errorf("read url_file: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("read url_file: %w", err), notify.DefaultReason)
 		}
 		url = strings.TrimSpace(string(content))
 	}
@@ -197,15 +197,19 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 		}
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return shouldRetry, err
+	return notify.Success()
 }
 
 // errDetails extracts error details from the response for better error messages.

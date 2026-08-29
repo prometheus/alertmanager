@@ -264,23 +264,6 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	return retry, errors.New(s)
 }
 
-type ErrorWithReason struct {
-	Err error
-
-	Reason Reason
-}
-
-func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
-	return &ErrorWithReason{
-		Err:    err,
-		Reason: reason,
-	}
-}
-
-func (e *ErrorWithReason) Error() string {
-	return e.Err.Error()
-}
-
 // Reason is the failure reason.
 type Reason int
 

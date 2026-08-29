@@ -216,13 +216,13 @@ func TestWebhookURLTemplating(t *testing.T) {
 				},
 			}
 
-			_, err = notifier.Notify(ctx, alerts...)
+			verdict := notifier.Notify(ctx, alerts...)
 
 			if tc.expectError {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.expectedErrMsg)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 				require.Equal(t, tc.expectedPath, calledURL)
 			}
 		})
@@ -287,8 +287,7 @@ func TestWebhookDefaultPayload(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t, buf.String(), string(capturedPayload))
@@ -346,8 +345,7 @@ func TestWebhookCustomPayloadMap(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t, expected.String(), string(capturedPayload))
@@ -404,8 +402,7 @@ func TestWebhookCustomPayloadList(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -461,8 +458,7 @@ func TestWebhookCustomPayloadStringList(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -523,8 +519,7 @@ func TestWebhookCustomPayloadString(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -591,8 +586,7 @@ func TestWebhookCustomPayloadPreservesYAMLLikeStrings(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,

@@ -68,22 +68,17 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	)
 	defer span.End()
 
-	ctx, alerts, err := r.exec(ctx, l, alerts...)
-
-	failureReason := DefaultReason.String()
+	ctx, alerts, failureReason, err := r.exec(ctx, l, alerts...)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		if e, ok := errors.AsType[*ErrorWithReason](err); ok {
-			failureReason = e.Reason.String()
-		}
-		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason)...).Inc()
+		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason.String())...).Inc()
 	}
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
 	var sent alert.AlertSlice
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
@@ -92,10 +87,10 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	if !r.integration.SendResolved() {
 		firing, ok := FiringAlerts(ctx)
 		if !ok {
-			return ctx, nil, errors.New("firing alerts missing")
+			return ctx, nil, DefaultReason, errors.New("firing alerts missing")
 		}
 		if len(firing) == 0 {
-			return ctx, alerts, nil
+			return ctx, alerts, DefaultReason, nil
 		}
 		for _, a := range alerts {
 			if a.Status() != model.AlertResolved {
@@ -114,8 +109,9 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	defer tick.Stop()
 
 	var (
-		i    = 0
-		iErr error
+		i       = 0
+		iErr    error
+		iReason Reason
 	)
 
 	l = l.With("receiver", r.groupName, "integration", r.integration.String())
@@ -131,31 +127,31 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			if iErr == nil {
 				iErr = ctx.Err()
 				if errors.Is(iErr, context.Canceled) {
-					iErr = NewErrorWithReason(ContextCanceledReason, iErr)
+					iReason = ContextCanceledReason
 				} else if errors.Is(iErr, context.DeadlineExceeded) {
-					iErr = NewErrorWithReason(ContextDeadlineExceededReason, iErr)
+					iReason = ContextDeadlineExceededReason
 				}
 			}
 
 			if iErr != nil {
-				return ctx, nil, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
+				return ctx, nil, iReason, fmt.Errorf("%s/%s: notify retry canceled after %d attempts: %w", r.groupName, r.integration.String(), i, iErr)
 			}
-			return ctx, nil, nil
+			return ctx, nil, DefaultReason, nil
 		default:
 		}
 
 		select {
 		case <-tick.C:
 			now := time.Now()
-			retry, err := r.integration.Notify(ctx, sent...)
+			verdict := r.integration.Notify(ctx, sent...)
 			i++
 			dur := time.Since(now)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.labelValues...).Observe(dur.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.labelValues...).Inc()
-			if err != nil {
+			if err := verdict.Err(); err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.labelValues...).Inc()
-				if !retry {
-					return ctx, alerts, fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
+				if !verdict.ShouldRetry() {
+					return ctx, alerts, verdict.Reason(), fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
 					if iErr == nil || err.Error() != iErr.Error() {
@@ -164,7 +160,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 					}
 					// Save this error to be able to return the last seen error by an
 					// integration upon context timeout.
-					iErr = err
+					iErr, iReason = err, verdict.Reason()
 				}
 			} else {
 				l := l.With(
@@ -181,7 +177,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 				r.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 					return NewNotificationEvent(ctx, sent, r.integration)
 				})
-				return ctx, alerts, nil
+				return ctx, alerts, DefaultReason, nil
 			}
 		case <-ctx.Done():
 		}

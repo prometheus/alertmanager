@@ -132,7 +132,7 @@ func TestWebexTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
-			ok, err := notifierWebex.Notify(ctx, []*types.Alert{
+			verdict := notifierWebex.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -154,17 +154,16 @@ func TestWebexTemplating(t *testing.T) {
 					},
 				},
 			}...)
-
 			if tt.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 				require.Equal(t, tt.expHeader, header.Get("Authorization"))
 				require.JSONEq(t, tt.expJSON, string(out))
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tt.errMsg)
 			}
 
-			require.Equal(t, tt.retry, ok)
+			require.Equal(t, tt.retry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -213,10 +212,9 @@ func TestWebexFailureReason(t *testing.T) {
 				},
 			}
 
-			_, err = notifier.Notify(ctx, alert)
-			var reasonError *notify.ErrorWithReason
-			require.ErrorAs(t, err, &reasonError)
-			require.Equal(t, tc.expectedReason, reasonError.Reason)
+			verdict := notifier.Notify(ctx, alert)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})
 	}
 }

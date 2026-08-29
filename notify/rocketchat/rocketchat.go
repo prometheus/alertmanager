@@ -136,12 +136,12 @@ func getToken(c *RocketchatConfig) (string, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	var err error
 
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
@@ -149,11 +149,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmplText := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	title := tmplText(n.conf.Title)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	title, truncated := notify.TruncateInRunes(title, maxTitleLenRunes)
@@ -210,17 +210,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Attachments: []Attachment{*att},
 	}
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(body); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	url := n.conf.APIURL.JoinPath("api/v1/chat.postMessage").String()
 	resp, err := n.postJSONFunc(ctx, n.client, url, &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
@@ -229,17 +229,24 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", body.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if retry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
 
 	// Rocketchat web API might return errors with a 200 response code.
 	retry, err = checkResponseError(resp)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", body.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		if retry {
+			return notify.Retry(0, err, notify.ClientErrorReason)
+		}
+		return notify.Unrecoverable(err, notify.ClientErrorReason)
 	}
 
-	return retry, nil
+	return notify.Success()
 }
 
 // checkResponseError parses out the error message from Rocketchat API response.
