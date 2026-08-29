@@ -67,7 +67,7 @@ const (
 )
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	var err error
 	var (
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -81,32 +81,36 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, fileErr := os.ReadFile(n.conf.APIKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read API key from file: %w", fileErr)
+			return notify.Unrecoverable(fmt.Errorf("failed to read API key from file: %w", fileErr), notify.DefaultReason)
 		}
 		apiKey = strings.TrimSpace(string(content))
 	}
 
 	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
-		return false, fmt.Errorf("templating error: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
 	}
 
 	buf, err := n.createVictorOpsPayload(ctx, as...)
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, apiURL.String(), buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return shouldRetry, err
+	return notify.Success()
 }
 
 // Create the JSON payload to be sent to the VictorOps API.

@@ -80,10 +80,10 @@ func New(c *MSTeamsConfig, t *template.Template, l *slog.Logger, httpOpts ...com
 	return n, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -92,20 +92,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	title := tmpl(n.conf.Title)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	text := tmpl(n.conf.Text)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	summary := tmpl(n.conf.Summary)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	alerts := types.Alerts(as...)
@@ -123,7 +123,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
-			return false, fmt.Errorf("read webhook_url_file: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("read webhook_url_file: %w", err), notify.DefaultReason)
 		}
 		url = strings.TrimSpace(string(content))
 	}
@@ -139,19 +139,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(t); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, url, &payload)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	// https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using?tabs=cURL#rate-limiting-for-connectors
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return shouldRetry, err
+	return notify.Success()
 }

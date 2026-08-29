@@ -187,18 +187,18 @@ func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *config.Email
 
 	email := New(cfg, tmpl, promslog.NewNopLogger())
 
-	retry, err := email.Notify(ctx, firingAlert)
-	if err != nil {
-		return nil, retry, err
+	verdict := email.Notify(ctx, firingAlert)
+	if verdict.Err() != nil {
+		return nil, verdict.ShouldRetry(), verdict.Err()
 	}
 
 	e, err := server.getLastEmail(t)
 	if err != nil {
-		return nil, retry, err
+		return nil, verdict.ShouldRetry(), err
 	} else if e == nil {
-		return nil, retry, fmt.Errorf("email not found")
+		return nil, verdict.ShouldRetry(), fmt.Errorf("email not found")
 	}
-	return e, retry, nil
+	return e, verdict.ShouldRetry(), nil
 }
 
 func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) {
@@ -732,10 +732,10 @@ func TestEmailRejected(t *testing.T) {
 	e := New(cfg, tmpl, promslog.NewNopLogger())
 
 	// Send the alert to mock SMTP server.
-	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501")
-	require.ErrorContains(t, err, "5.5.4")
-	require.True(t, retry)
+	verdict := e.Notify(context.Background(), firingAlert)
+	require.ErrorContains(t, verdict.Err(), "501")
+	require.ErrorContains(t, verdict.Err(), "5.5.4")
+	require.True(t, verdict.ShouldRetry())
 	require.NoError(t, srv.Shutdown(ctx))
 
 	require.Eventuallyf(t, func() bool {

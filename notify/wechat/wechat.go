@@ -82,10 +82,10 @@ func New(c *config.WechatConfig, t *template.Template, l *slog.Logger, httpOpts 
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -95,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	// Refresh AccessToken over 2 hours
@@ -103,12 +103,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		parameters := url.Values{}
 		apiSecret, err := n.getApiSecret()
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		parameters.Add("corpsecret", tmpl(apiSecret))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
-			return false, fmt.Errorf("templating error: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
 		}
 
 		u := n.conf.APIURL.Copy()
@@ -117,17 +117,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		resp, err := notify.Get(ctx, n.client, u.String())
 		if err != nil {
-			return true, notify.RedactURL(err)
+			return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 		}
 		defer notify.Drain(resp)
 
 		var wechatToken token
 		if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 
 		if wechatToken.AccessToken == "" {
-			return false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
+			return notify.Unrecoverable(fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID), notify.DefaultReason)
 		}
 
 		// Cache accessToken
@@ -154,12 +154,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 	}
 	if err != nil {
-		return false, fmt.Errorf("templating error: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	postMessageURL := n.conf.APIURL.Copy()
@@ -170,37 +170,37 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	if resp.StatusCode != 200 {
-		return true, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), fmt.Errorf("unexpected status code %v", resp.StatusCode))
+		return notify.Retry(0, fmt.Errorf("unexpected status code %v", resp.StatusCode), notify.GetFailureReasonFromStatusCode(resp.StatusCode))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 	logger.Debug(string(body))
 
 	var weResp weChatResponse
 	if err := json.Unmarshal(body, &weResp); err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	// https://work.weixin.qq.com/api/doc#10649
 	if weResp.Code == 0 {
-		return false, nil
+		return notify.Success()
 	}
 
 	// AccessToken is expired
 	if weResp.Code == 42001 {
 		n.accessToken = ""
-		return true, errors.New(weResp.Error)
+		return notify.Retry(0, errors.New(weResp.Error), notify.DefaultReason)
 	}
 
-	return false, errors.New(weResp.Error)
+	return notify.Unrecoverable(errors.New(weResp.Error), notify.DefaultReason)
 }
 
 func (n *Notifier) getApiSecret() (string, error) {
