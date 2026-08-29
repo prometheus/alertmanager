@@ -99,6 +99,46 @@ func newAWSBuildableClient(c *SNSConfig) (*awshttp.BuildableClient, error) {
 	}), nil
 }
 
+// classifyClientError turns a failure to build the SNS client into a retry
+// decision and a failure reason.
+func (n *Notifier) classifyClientError(err error) (bool, error) {
+	// V2 error handling is different. We don't have awserr.RequestFailure.
+	// We can check for a generic smithy.APIError to see if it's a service error.
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
+		// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
+		var respErr *smithyhttp.ResponseError
+		if errors.As(err, &respErr) && respErr.Response != nil {
+			return n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
+		}
+		// Fallback if we can't get a status code.
+		return true, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage())
+	}
+	return true, err
+}
+
+// classifyPublishError turns a failed Publish into a retry decision and a
+// failure reason.
+func (n *Notifier) classifyPublishError(err error) (bool, error) {
+	// V2 error handling uses errors.As to inspect the error chain.
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
+		var statusCode int
+		var respErr *smithyhttp.ResponseError
+		// Try to extract the HTTP status code for the retrier.
+		if errors.As(err, &respErr) && respErr.Response != nil {
+			statusCode = respErr.Response.StatusCode
+		}
+
+		// If we got a status code, use the retrier logic.
+		if statusCode != 0 {
+			retryable, checkErr := n.retrier.Check(statusCode, strings.NewReader(apiErr.ErrorMessage()))
+			reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(statusCode), checkErr)
+			return retryable, reasonErr
+		}
+	}
+	// Fallback for non-API errors or if status code extraction fails.
+	return true, err
+}
+
 func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
 	var (
 		tmplErr error
@@ -108,18 +148,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	client, err := n.createSNSClient(ctx, tmpl, &tmplErr)
 	if err != nil {
-		// V2 error handling is different. We don't have awserr.RequestFailure.
-		// We can check for a generic smithy.APIError to see if it's a service error.
-		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
-			// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
-			var respErr *smithyhttp.ResponseError
-			if errors.As(err, &respErr) && respErr.Response != nil {
-				return n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
-			}
-			// Fallback if we can't get a status code.
-			return true, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage())
-		}
-		return true, err
+		return n.classifyClientError(err)
 	}
 
 	publishInput, err := n.createPublishInput(ctx, tmpl, &tmplErr)
@@ -129,24 +158,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	publishOutput, err := client.Publish(ctx, publishInput)
 	if err != nil {
-		// V2 error handling uses errors.As to inspect the error chain.
-		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
-			var statusCode int
-			var respErr *smithyhttp.ResponseError
-			// Try to extract the HTTP status code for the retrier.
-			if errors.As(err, &respErr) && respErr.Response != nil {
-				statusCode = respErr.Response.StatusCode
-			}
-
-			// If we got a status code, use the retrier logic.
-			if statusCode != 0 {
-				retryable, checkErr := n.retrier.Check(statusCode, strings.NewReader(apiErr.ErrorMessage()))
-				reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(statusCode), checkErr)
-				return retryable, reasonErr
-			}
-		}
-		// Fallback for non-API errors or if status code extraction fails.
-		return true, err
+		return n.classifyPublishError(err)
 	}
 
 	n.logger.Debug("SNS message successfully published", "message_id", aws.ToString(publishOutput.MessageId), "sequence_number", aws.ToString(publishOutput.SequenceNumber))
