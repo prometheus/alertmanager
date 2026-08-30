@@ -70,7 +70,7 @@ func New(c *DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...com
 		tmpl:       t,
 		logger:     l,
 		client:     client,
-		retrier:    &notify.Retrier{},
+		retrier:    &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 		webhookURL: c.WebhookURL,
 	}
 	return n, nil
