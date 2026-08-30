@@ -123,6 +123,9 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
+		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
+		}
 		return true, wrapWithFailureReason(notify.RedactURL(err))
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)

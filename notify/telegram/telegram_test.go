@@ -16,6 +16,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -307,7 +308,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		retry, err := notifier.Notify(ctx, &types.Alert{
+		retry, err := notifier.Notify(ctx, &alert.Alert{
 			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
 		})
 		require.True(t, retry)
@@ -344,7 +345,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		retry, err := notifier.Notify(ctx, &types.Alert{
+		retry, err := notifier.Notify(ctx, &alert.Alert{
 			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
 		})
 		require.True(t, retry)
@@ -411,6 +412,9 @@ func TestTelegramTimeout(t *testing.T) {
 
 			_, err = notifier.Notify(ctx, testAlert)
 			require.Equal(t, tc.wantErr, err != nil)
+			if tc.wantErr {
+				require.EqualError(t, err, fmt.Sprintf("configured telegram timeout reached (%s)", tc.timeout))
+			}
 		})
 	}
 }
