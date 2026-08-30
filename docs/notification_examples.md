@@ -156,3 +156,25 @@ templates:
 ```
 
 See the [`<email_config>` reference](configuration.md#email_config) for SMTP authentication and TLS options.
+
+## Sending notifications to Gotify with a custom webhook payload
+
+[Gotify](https://gotify.net) doesn't have a dedicated Alertmanager receiver, but its push message API is a simple JSON POST, so it can be driven directly with the generic [`webhook_config`](configuration.md#webhook_config) and its `payload` field. Authentication is done via the `X-Gotify-Key` header, which should be set to a Gotify application token using `secrets` so it's redacted from the displayed configuration:
+
+```yaml
+receivers:
+- name: gotify
+  webhook_configs:
+  - url: 'https://gotify.example.com/message'
+    http_config:
+      authorization:
+        credentials_file: /etc/alertmanager/secrets/gotify-secret/token
+    payload:
+      title: '{{ .Status | toUpper }} {{ .CommonLabels.alertname }}'
+      priority: '{{ if eq .Status "firing" }}5{{ else }}0{{ end }}'
+      message: |
+        {{ range .Alerts }}{{ .Annotations.summary }}
+        {{ end }}
+```
+
+A more complete version of this example, with Markdown formatting and separate sections for firing and resolved alerts, is available in [`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
