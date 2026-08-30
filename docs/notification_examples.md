@@ -159,7 +159,7 @@ See the [`<email_config>` reference](configuration.md#email_config) for SMTP aut
 
 ## Sending notifications to Gotify with a custom webhook payload
 
-[Gotify](https://gotify.net) doesn't have a dedicated Alertmanager receiver, but its push message API is a simple JSON POST, so it can be driven directly with the generic [`webhook_config`](configuration.md#webhook_config) and its `payload` field. Authentication is done via the `X-Gotify-Key` header, which should be set to a Gotify application token using `secrets` so it's redacted from the displayed configuration:
+[Gotify](https://gotify.net) doesn't have a dedicated Alertmanager receiver, but its push message API is a simple JSON POST, so it can be driven directly with the generic [`webhook_config`](configuration.md#webhook_config) and its `payload` field.
 
 ```yaml
 receivers:

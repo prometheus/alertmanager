@@ -2026,7 +2026,7 @@ this feature.
 For an example of using `payload` to send notifications to a service that
 doesn't have a dedicated receiver, such as [Gotify](https://gotify.net), see
 [`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
-More webhook payload examples, including one for Microsoft Teams, can be
+Another webhook payload example for Microsoft Teams can be
 found in [`examples/webhook`](https://github.com/prometheus/alertmanager/tree/main/examples/webhook).
 
 ### `<incidentio_config>`
