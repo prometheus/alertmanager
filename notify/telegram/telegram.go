@@ -64,10 +64,10 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -86,7 +86,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 		messageText = tmpl(n.conf.Message)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		if len([]rune(messageText)) > maxMessageLenRunes {
 			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
@@ -95,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	default:
 		messageText, truncated = notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		if truncated {
 			logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
@@ -104,12 +104,12 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	n.client.Token, err = n.getBotToken()
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	chatID, err := n.getChatID()
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
@@ -119,25 +119,24 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
-		return true, wrapWithFailureReason(err)
+		return notify.Retry(0, err, failureReason(err))
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
-	return false, nil
+	return notify.Success()
 }
 
-// wrapWithFailureReason classifies errors returned by the Telegram Bot API so
-// that the failed notifications metric is labeled with the failure reason.
-// Errors that telebot does not surface in a structured form are returned as-is
-// and fall back to the default reason.
-func wrapWithFailureReason(err error) error {
+// failureReason classifies errors returned by the Telegram Bot API so that the
+// failed notifications metric is labeled with the failure reason. Errors that
+// telebot does not surface in a structured form fall back to the default reason.
+func failureReason(err error) notify.Reason {
 	if _, ok := errors.AsType[telebot.FloodError](err); ok {
-		return notify.NewErrorWithReason(notify.RateLimitedReason, err)
+		return notify.RateLimitedReason
 	}
 	if apiErr, ok := errors.AsType[*telebot.Error](err); ok {
-		return notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(apiErr.Code), err)
+		return notify.GetFailureReasonFromStatusCode(apiErr.Code)
 	}
-	return err
+	return notify.DefaultReason
 }
 
 func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {

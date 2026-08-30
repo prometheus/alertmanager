@@ -161,9 +161,9 @@ func TestIncidentIONotify(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alert)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 }
 
 func TestIncidentIORetryScenarios(t *testing.T) {
@@ -242,14 +242,14 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 				},
 			}
 
-			retry, err := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alert)
 			if tc.expectErrorMsgContains == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectErrorMsgContains)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.expectErrorMsgContains)
 			}
-			require.Equal(t, tc.expectRetry, retry)
+			require.Equal(t, tc.expectRetry, verdict.ShouldRetry())
 		})
 	}
 }

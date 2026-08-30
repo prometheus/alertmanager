@@ -189,7 +189,7 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
+			issue, retry, _, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
 				require.Error(t, err)
 			} else {
@@ -438,7 +438,7 @@ func TestJiraTemplating(t *testing.T) {
 				"hostname": "host1.example.com",
 			})
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
+			verdict := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -451,12 +451,12 @@ func TestJiraTemplating(t *testing.T) {
 				},
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 
 			// Verify that custom fields were templated correctly
 			if tc.expectedFieldKey != "" {
@@ -1029,12 +1029,12 @@ func TestJiraNotify(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"alertname": "test"})
 
-			_, err = notifier.Notify(ctx, tc.alert)
+			verdict := notifier.Notify(ctx, tc.alert)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.EqualError(t, err, tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.EqualError(t, verdict.Err(), tc.errMsg)
 			}
 		})
 	}

@@ -97,7 +97,7 @@ func TestMattermostTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
+			verdict := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -109,12 +109,12 @@ func TestMattermostTemplating(t *testing.T) {
 				},
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -276,9 +276,9 @@ func TestMattermost_Notify(t *testing.T) {
 			require.NoError(t, err)
 
 			// Call the Notify method
-			ok, err := notifier.Notify(ctx, alerts...)
-			require.NoError(t, err)
-			require.False(t, ok)
+			verdict := notifier.Notify(ctx, alerts...)
+			require.NoError(t, verdict.Err())
+			require.False(t, verdict.ShouldRetry())
 
 			require.Equal(t, tc.result, resp)
 		})

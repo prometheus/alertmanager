@@ -182,7 +182,7 @@ func TestTelegramNotify(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			verdict := notifier.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -194,9 +194,8 @@ func TestTelegramNotify(t *testing.T) {
 					},
 				},
 			}...)
-
-			require.False(t, retry)
-			require.NoError(t, err)
+			require.False(t, verdict.ShouldRetry())
+			require.NoError(t, verdict.Err())
 
 			req := map[string]string{}
 			err = json.Unmarshal(out, &req)
@@ -261,7 +260,7 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			verdict := notifier.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"lbl1": "val1"},
@@ -270,13 +269,11 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 					},
 				},
 			}...)
+			require.True(t, verdict.ShouldRetry())
+			require.Error(t, verdict.Err())
 
-			require.True(t, retry)
-			require.Error(t, err)
-
-			var reasonError *notify.ErrorWithReason
-			require.ErrorAs(t, err, &reasonError)
-			require.Equal(t, tc.expectedReason, reasonError.Reason)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})
 	}
 }

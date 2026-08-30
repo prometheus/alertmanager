@@ -99,62 +99,91 @@ func newAWSBuildableClient(c *SNSConfig) (*awshttp.BuildableClient, error) {
 	}), nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+// classifyClientError turns a failure to build the SNS client into a retry
+// decision and a failure reason.
+func (n *Notifier) classifyClientError(err error) notify.NotifyVerdict {
+	// V2 error handling is different. We don't have awserr.RequestFailure.
+	// We can check for a generic smithy.APIError to see if it's a service error.
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
+		// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
+		var respErr *smithyhttp.ResponseError
+		if errors.As(err, &respErr) && respErr.Response != nil {
+			retryable, checkErr := n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
+			if retryable {
+				return notify.Retry(0, checkErr, notify.DefaultReason)
+			}
+			return notify.Unrecoverable(checkErr, notify.DefaultReason)
+		}
+		// Fallback if we can't get a status code.
+		return notify.Retry(0, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage()), notify.DefaultReason)
+	}
+	return notify.Retry(0, err, notify.DefaultReason)
+}
+
+// classifyPublishError turns a failed Publish into a retry decision and a
+// failure reason.
+func (n *Notifier) classifyPublishError(err error) notify.NotifyVerdict {
+	// V2 error handling uses errors.As to inspect the error chain.
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
+		var statusCode int
+		var respErr *smithyhttp.ResponseError
+		// Try to extract the HTTP status code for the retrier.
+		if errors.As(err, &respErr) && respErr.Response != nil {
+			statusCode = respErr.Response.StatusCode
+		}
+
+		// If we got a status code, use the retrier logic.
+		if statusCode != 0 {
+			retryable, checkErr := n.retrier.Check(statusCode, strings.NewReader(apiErr.ErrorMessage()))
+			reason := notify.GetFailureReasonFromStatusCode(statusCode)
+			if retryable {
+				return notify.Retry(0, checkErr, reason)
+			}
+			return notify.Unrecoverable(checkErr, reason)
+		}
+	}
+	// Fallback for non-API errors or if status code extraction fails.
+	return notify.Retry(0, err, notify.DefaultReason)
+}
+
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
 		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
 	)
 
-	client, err := n.createSNSClient(ctx, tmpl, &tmplErr)
+	// Resolve the API URL from the template.
+	apiURL := tmpl(n.conf.APIUrl)
+	if tmplErr != nil {
+		return notify.Retry(0, fmt.Errorf("execute 'api_url' template: %w", tmplErr), notify.ClientErrorReason)
+	}
+
+	client, err := n.createSNSClient(ctx, apiURL)
 	if err != nil {
-		// V2 error handling is different. We don't have awserr.RequestFailure.
-		// We can check for a generic smithy.APIError to see if it's a service error.
-		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
-			// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
-			var respErr *smithyhttp.ResponseError
-			if errors.As(err, &respErr) && respErr.Response != nil {
-				return n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
-			}
-			// Fallback if we can't get a status code.
-			return true, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage())
-		}
-		return true, err
+		return n.classifyClientError(err)
 	}
 
 	publishInput, err := n.createPublishInput(ctx, tmpl, &tmplErr)
 	if err != nil {
-		return true, err
+		reason := notify.DefaultReason
+		if tmplErr != nil {
+			reason = notify.ClientErrorReason
+		}
+		return notify.Retry(0, err, reason)
 	}
 
 	publishOutput, err := client.Publish(ctx, publishInput)
 	if err != nil {
-		// V2 error handling uses errors.As to inspect the error chain.
-		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
-			var statusCode int
-			var respErr *smithyhttp.ResponseError
-			// Try to extract the HTTP status code for the retrier.
-			if errors.As(err, &respErr) && respErr.Response != nil {
-				statusCode = respErr.Response.StatusCode
-			}
-
-			// If we got a status code, use the retrier logic.
-			if statusCode != 0 {
-				retryable, checkErr := n.retrier.Check(statusCode, strings.NewReader(apiErr.ErrorMessage()))
-				reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(statusCode), checkErr)
-				return retryable, reasonErr
-			}
-		}
-		// Fallback for non-API errors or if status code extraction fails.
-		return true, err
+		return n.classifyPublishError(err)
 	}
 
 	n.logger.Debug("SNS message successfully published", "message_id", aws.ToString(publishOutput.MessageId), "sequence_number", aws.ToString(publishOutput.SequenceNumber))
 
-	return false, nil
+	return notify.Success()
 }
 
-func (n *Notifier) createSNSClient(ctx context.Context, tmpl func(string) string, tmplErr *error) (*sns.Client, error) {
+func (n *Notifier) createSNSClient(ctx context.Context, tmplApiURL string) (*sns.Client, error) {
 	// Base configuration options that apply to both STS (if used) and the final SNS client.
 	baseCfgOpts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithHTTPClient(n.client),
@@ -193,13 +222,8 @@ func (n *Notifier) createSNSClient(ctx context.Context, tmpl func(string) string
 		snsCfgOpts = append(snsCfgOpts, awsconfig.WithCredentialsProvider(aws.NewCredentialsCache(stsProvider)))
 	}
 
-	// Resolve the API URL from the template.
-	apiURL := tmpl(n.conf.APIUrl)
-	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'api_url' template: %w", *tmplErr))
-	}
-	if apiURL != "" {
-		snsCfgOpts = append(snsCfgOpts, awsconfig.WithBaseEndpoint(apiURL))
+	if tmplApiURL != "" {
+		snsCfgOpts = append(snsCfgOpts, awsconfig.WithBaseEndpoint(tmplApiURL))
 	}
 
 	// Load the final configuration for the SNS client.
@@ -220,7 +244,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	publishInput := &sns.PublishInput{}
 	messageAttributes := n.createMessageAttributes(tmpl)
 	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'attributes' template: %w", *tmplErr))
+		return nil, fmt.Errorf("execute 'attributes' template: %w", *tmplErr)
 	}
 
 	// Max message size for a message in an SNS publish request is 256KB,
@@ -229,7 +253,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.TopicARN != "" {
 		topicARN := tmpl(n.conf.TopicARN)
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'topic_arn' template: %w", *tmplErr))
+			return nil, fmt.Errorf("execute 'topic_arn' template: %w", *tmplErr)
 		}
 		publishInput.TopicArn = aws.String(topicARN)
 		// If we are using a topic ARN, it could be a FIFO topic specified by the topic's suffix ".fifo".
@@ -245,7 +269,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.PhoneNumber != "" {
 		publishInput.PhoneNumber = aws.String(tmpl(n.conf.PhoneNumber))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'phone_number' template: %w", *tmplErr))
+			return nil, fmt.Errorf("execute 'phone_number' template: %w", *tmplErr)
 		}
 		// If we have an SMS message, we need to truncate to 1600 characters/runes.
 		messageSizeLimit = 1600
@@ -253,13 +277,13 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.TargetARN != "" {
 		publishInput.TargetArn = aws.String(tmpl(n.conf.TargetARN))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'target_arn' template: %w", *tmplErr))
+			return nil, fmt.Errorf("execute 'target_arn' template: %w", *tmplErr)
 		}
 	}
 
 	tmplMessage := tmpl(n.conf.Message)
 	if *tmplErr != nil {
-		return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'message' template: %w", *tmplErr))
+		return nil, fmt.Errorf("execute 'message' template: %w", *tmplErr)
 	}
 	messageToSend, isTrunc, err := validateAndTruncateMessage(tmplMessage, messageSizeLimit)
 	if err != nil {
@@ -276,7 +300,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	if n.conf.Subject != "" {
 		publishInput.Subject = aws.String(tmpl(n.conf.Subject))
 		if *tmplErr != nil {
-			return nil, notify.NewErrorWithReason(notify.ClientErrorReason, fmt.Errorf("execute 'subject' template: %w", *tmplErr))
+			return nil, fmt.Errorf("execute 'subject' template: %w", *tmplErr)
 		}
 	}
 

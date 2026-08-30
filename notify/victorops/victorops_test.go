@@ -213,7 +213,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{
+			verdict := vo.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -225,9 +225,9 @@ func TestVictorOpsTemplating(t *testing.T) {
 				},
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
 		})
 	}

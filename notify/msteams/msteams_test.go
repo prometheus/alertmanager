@@ -118,7 +118,7 @@ func TestMSTeamsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
+			verdict := pd.Notify(ctx, []*types.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -130,12 +130,12 @@ func TestMSTeamsTemplating(t *testing.T) {
 				},
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -182,13 +182,12 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = notifier.Notify(ctx, alert1)
+			verdict := notifier.Notify(ctx, alert1)
 			if tt.noError {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				var reasonError *notify.ErrorWithReason
-				require.ErrorAs(t, err, &reasonError)
-				require.Equal(t, tt.expectedReason, reasonError.Reason)
+				require.Error(t, verdict.Err())
+				require.Equal(t, tt.expectedReason, verdict.Reason())
 			}
 		})
 	}
