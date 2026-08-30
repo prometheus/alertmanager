@@ -36,22 +36,24 @@ receivers:
             "client::display":
               contentType: "text/markdown"
           message: |
-            {{ if gt (len .Alerts.Firing) 0 }}
+            {{ if .Alerts.Firing }}
+            **Firing**
             {{ range .Alerts.Firing }}
             **{{ .Annotations.summary }}**
 
-            **Instance:** `{{ .Labels.instance }}`
-            **Since:** {{ .StartsAt }}
-            **Source:** [Prometheus]({{ .GeneratorURL }})
+            - **Instance:** `{{ .Labels.instance }}`
+            - **Since:** {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+            - **Source:** [Prometheus]({{ .GeneratorURL }})
             {{ end }}
             {{ end }}
-            {{ if gt (len .Alerts.Resolved) 0 }}
+            {{ if .Alerts.Resolved }}
+            **Resolved**
             {{ range .Alerts.Resolved }}
             **{{ .Annotations.summary }}**
 
-            **Instance:** `{{ .Labels.instance }}`
-            **Resolved:** {{ .EndsAt }}
-            **Source:** [Prometheus]({{ .GeneratorURL }})
+            - **Instance:** `{{ .Labels.instance }}`
+            - **Resolved:** {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+            - **Source:** [Prometheus]({{ .GeneratorURL }})
             {{ end }}
             {{ end }}
 
