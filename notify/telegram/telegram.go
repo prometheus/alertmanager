@@ -162,6 +162,8 @@ func htmlTextRuneCount(message string) int {
 				return utf8.RuneCountInString(message)
 			}
 			return count
+		case html.CommentToken, html.DoctypeToken:
+			return utf8.RuneCountInString(message)
 		case html.TextToken:
 			count += utf8.RuneCount(tokenizer.Text())
 		}
