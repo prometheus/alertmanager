@@ -158,6 +158,9 @@ func htmlTextRuneCount(message string) int {
 	for {
 		switch tokenizer.Next() {
 		case html.ErrorToken:
+			if len(tokenizer.Raw()) > 0 {
+				return utf8.RuneCountInString(message)
+			}
 			return count
 		case html.TextToken:
 			count += utf8.RuneCount(tokenizer.Text())
