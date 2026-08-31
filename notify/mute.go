@@ -61,7 +61,8 @@ func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
 	for _, a := range muted {
 		hashes[hashAlert(a)] = struct{}{}
 	}
-	return WithMutedAlerts(ctx, hashes)
+	ctx = WithMutedAlerts(ctx, hashes)
+	return withMutedAlertDetails(ctx, muted)
 }
 
 // MuteStage filters alerts through a Muter.
