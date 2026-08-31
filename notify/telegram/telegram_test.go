@@ -83,6 +83,7 @@ func TestTelegramRetry(t *testing.T) {
 
 func TestTelegramNotify(t *testing.T) {
 	token := "secret"
+	longHTMLLink := `<a href="https://example.com/` + strings.Repeat("x", maxMessageLenRunes) + `">Open</a>`
 
 	fileWithToken, err := os.CreateTemp(t.TempDir(), "telegram-bot-token")
 	require.NoError(t, err, "creating temp file failed")
@@ -132,6 +133,16 @@ func TestTelegramNotify(t *testing.T) {
 			},
 			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
 			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "HTML mode ignores link targets when enforcing length limit",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    longHTMLLink,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: longHTMLLink,
 		},
 		{
 			name: "Default mode with too-large message",
