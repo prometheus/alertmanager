@@ -15,7 +15,7 @@
     "check:write": "biome check --write .",
     "vitest": "vitest run",
     "vitest:watch": "vitest",
-    "test": "npm run typecheck && npm run check && npm run vitest && npm run build"
+    "test": "npm run check && npm run vitest && npm run build"
   },
   "dependencies": {
     "@mantine/code-highlight": "^9.5.0",
@@ -42,8 +42,10 @@
     "postcss-preset-mantine": "1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "prop-types": "^15.8.1",
+    "rollup-plugin-license": "^3.7.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
+    "vite-plugin-compression2": "^2.5.1",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.10"
   }

@@ -1,9 +1,50 @@
+import path from 'node:path';
+
 import react from '@vitejs/plugin-react';
+import license from 'rollup-plugin-license';
 import { defineConfig } from 'vite';
+import { compression, defineAlgorithm } from 'vite-plugin-compression2';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
+const licenseFile = path.resolve(
+  import.meta.dirname,
+  'node_modules/.cache/alertmanager-third-party-licenses.txt'
+);
+
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  base: './',
+  plugins: [
+    react(),
+    tsconfigPaths(),
+    license({
+      thirdParty: {
+        includePrivate: false,
+        output: {
+          file: licenseFile,
+        },
+      },
+    }),
+    compression({
+      include: [
+        /(^|\/)assets\/.*\.(avif|css|eot|gif|ico|jpe?g|js|json|mjs|otf|png|svg|ttf|txt|webp|woff2?)$/,
+      ],
+      artifacts: () => [
+        {
+          src: licenseFile,
+          replace: (destination) => path.join(destination, 'assets/third-party-licenses.txt'),
+        },
+      ],
+      threshold: 0,
+      deleteOriginalAssets: true,
+      skipIfLargerOrEqual: false,
+      algorithms: [
+        defineAlgorithm('gzip', { level: 9 }),
+        defineAlgorithm('brotliCompress', {
+          params: { 1: 11 },
+        }),
+      ],
+    }),
+  ],
   test: {
     globals: true,
     environment: 'jsdom',
