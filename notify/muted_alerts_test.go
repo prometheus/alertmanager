@@ -14,9 +14,11 @@
 package notify
 
 // The tests in this file characterize how the notification pipeline treats
-// muted alerts. The mute stages remove muted alerts from the pipeline before
-// the dedup stage runs, so muted alerts never reach the notification log, and
-// the group's notification history has no way to represent them.
+// muted alerts by default. The mute stages remove muted alerts from the
+// pipeline before the dedup stage runs, so muted alerts never reach the
+// notification log, and the group's notification history has no way to
+// represent them. Enabling the muted-alerts-in-nflog feature changes that; the
+// tests for it live alongside the stages they exercise.
 //
 // The semantics that follow from that are discussed in
 // https://github.com/prometheus/alertmanager/issues/5247, and one of them is
@@ -118,7 +120,7 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 	p.stage = MultiStage{
 		NewMuteStage(muter, metrics),
 		NewDedupStage(sendResolved(sendsResolved), p.nflog, recv),
-		NewSetNotifiesStage(p.nflog, recv),
+		NewSetNotifiesStage(p.nflog, recv, featurecontrol.NoopFlags{}),
 	}
 
 	return p
@@ -179,11 +181,10 @@ func (m stubTimeMuter) Mutes(_ []string, _ time.Time) (bool, []string, error) {
 	return m.mutes, m.names, nil
 }
 
-// TestTimeStagesDoNotRecordMutedAlerts asserts that, unlike MuteStage, the
-// time interval stages drop the alerts they mute without recording them in
-// the context, so time-based muting is not observable downstream even where
-// silences and inhibitions are.
-func TestTimeStagesDoNotRecordMutedAlerts(t *testing.T) {
+// TestTimeStagesRecordMutedAlerts asserts that the time interval stages record
+// the alerts they mute in the context, in the same way MuteStage does for
+// silences and inhibitions.
+func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 	tests := []struct {
 		name  string
 		muter TimeMuter
@@ -217,14 +218,16 @@ func TestTimeStagesDoNotRecordMutedAlerts(t *testing.T) {
 			ctx = WithMuteTimeIntervals(ctx, []string{"evenings"})
 			ctx = WithActiveTimeIntervals(ctx, []string{"weekdays"})
 
-			ctx, active, err := st.Exec(ctx, promslog.NewNopLogger(), firingAlert("test"))
+			muted := firingAlert("test")
+
+			ctx, active, err := st.Exec(ctx, promslog.NewNopLogger(), muted)
 			require.NoError(t, err)
 
-			// All alerts are muted, but nothing records which ones.
+			// The alert is dropped from the pipeline and recorded as muted.
 			require.Empty(t, active)
 			mutedHashes, ok := MutedAlerts(ctx)
-			require.False(t, ok, "MutedAlerts should not be in the context")
-			require.Empty(t, mutedHashes)
+			require.True(t, ok, "MutedAlerts should be in the context")
+			require.Equal(t, alertHashSet(hashAlert(muted)), mutedHashes)
 		})
 	}
 }
