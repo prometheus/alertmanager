@@ -13,6 +13,12 @@
 
 package eventrecorder
 
+import (
+	"fmt"
+
+	"github.com/prometheus/common/model"
+)
+
 // Config configures the event recorder feature.
 //
 // Outputs are grouped by type, one list per destination kind, mirroring
@@ -24,6 +30,70 @@ type Config struct {
 	WebhookOutputs []WebhookOutputConfig `yaml:"webhook_outputs,omitempty" json:"webhook_outputs,omitempty"`
 	KafkaOutputs   []KafkaOutputConfig   `yaml:"kafka_outputs,omitempty" json:"kafka_outputs,omitempty"`
 	StdoutOutputs  []StdoutOutputConfig  `yaml:"stdout_outputs,omitempty" json:"stdout_outputs,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface, validating that
+// each output identifier is unique.
+func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
+	type plain Config
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	return c.validate()
+}
+
+func (c Config) validate() error {
+	seen := make(map[string]struct{}, c.totalOutputs())
+	add := func(kind, name string) error {
+		id, err := outputIdentifier(kind, name)
+		if err != nil {
+			return err
+		}
+		if _, ok := seen[id]; ok {
+			return fmt.Errorf("event_recorder output name %q is duplicated for type %s", name, kind)
+		}
+		seen[id] = struct{}{}
+		return nil
+	}
+	for _, out := range c.FileOutputs {
+		if err := add("file", out.Name); err != nil {
+			return err
+		}
+	}
+	for _, out := range c.WebhookOutputs {
+		if err := add("webhook", out.Name); err != nil {
+			return err
+		}
+	}
+	for _, out := range c.KafkaOutputs {
+		if err := add("kafka", out.Name); err != nil {
+			return err
+		}
+	}
+	for _, out := range c.StdoutOutputs {
+		if err := add("stdout", out.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func outputIdentifier(kind, name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("event_recorder %s output requires a name", kind)
+	}
+	if !model.LabelValue(name).IsValid() {
+		return "", fmt.Errorf("event_recorder %s output name must be valid UTF-8", kind)
+	}
+	return kind + ":" + name, nil
+}
+
+func safeOutputIdentifier(kind, name string) string {
+	id, err := outputIdentifier(kind, name)
+	if err != nil {
+		return kind + ":<invalid>"
+	}
+	return id
 }
 
 // totalOutputs returns the number of configured outputs across all

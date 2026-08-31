@@ -2167,7 +2167,13 @@ Event recording is configured under the top-level `event_recorder` key.
 
 Outputs are grouped by type, one list per destination kind (mirroring the
 way receivers group their integrations).  Every recorded event is sent to
-every output across all lists.
+every output across all lists. Every output requires a name, which is used
+with its type as the output identifier in metrics and logs (for example,
+`webhook:primary`). Destination configuration such as paths, URLs, brokers,
+and topics is not included in metric labels. URLs, brokers, and topics are
+also omitted from logs; file paths remain in file-output error logs for
+troubleshooting. Names must be non-empty, valid UTF-8, and unique within each
+output type.
 
 ```yaml
 # JSONL file outputs.
@@ -2200,6 +2206,9 @@ when the parent directory observes a rename/remove/create on the target
 path (for compatibility with `logrotate` and similar tools).
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # Path to the JSONL output file.  Will be created if it does not exist.
 path: <filepath>
 ```
@@ -2215,6 +2224,9 @@ duplicate events after ambiguous failures. With multiple workers, requests
 may complete out of order; set `workers: 1` when request ordering matters.
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # URL to POST events to.
 url: <secret>
 
@@ -2260,7 +2272,8 @@ fan-out example is available under
 ```yaml
 event_recorder:
   webhook_outputs:
-  - url: https://<stream-id>.ingest.cloudflare.com
+  - name: pipelines
+    url: https://<stream-id>.ingest.cloudflare.com
     batch: true
     http_config:
       # The token must have the "Workers Pipeline Send" permission when
@@ -2285,6 +2298,9 @@ The target topic must already exist (or the brokers must be configured to
 auto-create topics); Alertmanager does not create it.
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # Seed broker list (host:port).  At least one entry is required.
 brokers:
   [ - <string> ... ]
@@ -2332,4 +2348,7 @@ driver (Docker, Kubernetes, etc.) captures stdout automatically.
 > distinct formats on the same stream that may complicate downstream
 > log parsing.
 
-This output type takes no additional configuration fields.
+```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+```
