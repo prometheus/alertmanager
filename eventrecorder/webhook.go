@@ -20,7 +20,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"reflect"
 	"sync"
 	"time"
@@ -28,14 +27,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 // WebhookOutputConfig configures an HTTP webhook event recorder output.
 type WebhookOutputConfig struct {
+	// Name identifies this output in metrics and logs.
+	Name string `yaml:"name" json:"name"`
 	// URL is the endpoint to POST each event to.
 	URL *amcommoncfg.SecretURL `yaml:"url" json:"url"`
 	// HTTPConfig configures the HTTP client used for webhook delivery.
@@ -72,6 +71,13 @@ type WebhookOutputConfig struct {
 func (c *WebhookOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain WebhookOutputConfig
 	if err := unmarshal((*plain)(c)); err != nil {
+		return errors.New("invalid event_recorder webhook output configuration")
+	}
+	return c.validate()
+}
+
+func (c WebhookOutputConfig) validate() error {
+	if _, err := outputIdentifier("webhook", c.Name); err != nil {
 		return err
 	}
 	if c.URL == nil || c.URL.URL == nil {
@@ -92,6 +98,9 @@ func (c *WebhookOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 // equal reports whether two webhook output configs are semantically
 // equal.
 func (c WebhookOutputConfig) equal(o WebhookOutputConfig) bool {
+	if c.Name != o.Name {
+		return false
+	}
 	aURL, bURL := "", ""
 	if c.URL != nil {
 		aURL = c.URL.String()
@@ -169,6 +178,9 @@ type httpBatchConfig struct {
 
 // NewWebhookOutput creates a new webhook-based event recorder output.
 func NewWebhookOutput(cfg WebhookOutputConfig, dropsCounter *prometheus.CounterVec, logger *slog.Logger) (*WebhookOutput, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 	var batch *httpBatchConfig
 	if cfg.Batch {
 		batch = newHTTPBatchConfig(cfg.BatchMaxEvents, cfg.BatchMaxBytes, cfg.BatchFlushInterval)
@@ -231,7 +243,10 @@ func newWebhookOutput(cfg WebhookOutputConfig, kind string, batch *httpBatchConf
 	}
 
 	urlStr := cfg.URL.String()
-	name := fmt.Sprintf("%s:%s", kind, sanitizeURL(urlStr))
+	name, err := outputIdentifier(kind, cfg.Name)
+	if err != nil {
+		return nil, err
+	}
 	wo := &WebhookOutput{
 		client:       client,
 		url:          urlStr,
@@ -266,29 +281,7 @@ func newWebhookOutput(cfg WebhookOutputConfig, kind string, batch *httpBatchConf
 	return wo, nil
 }
 
-// sanitizeURL strips userinfo and query parameters from a URL string,
-// returning only scheme://host/path.  This prevents credentials from
-// leaking into metrics labels and log messages.
-func sanitizeURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "<invalid>"
-	}
-	u.User = nil
-	u.RawQuery = ""
-	u.Fragment = ""
-	return u.String()
-}
-
-func sanitizeSecretURL(u *amcommoncfg.SecretURL) string {
-	if u == nil || u.URL == nil {
-		return "<missing>"
-	}
-	return sanitizeURL(u.String())
-}
-
-// Name returns a stable identifier for this output.  The URL is
-// sanitized to avoid leaking credentials.
+// Name returns a stable identifier for this output.
 func (wo *WebhookOutput) Name() string {
 	return wo.name
 }
@@ -297,8 +290,8 @@ func (wo *WebhookOutput) Name() string {
 // a worker.  It returns the serialized size (for the bytes-written
 // metric).  If the internal queue is full the event is dropped and
 // counted via the output-drops metric.
-func (wo *WebhookOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
-	data, err := protojson.Marshal(event)
+func (wo *WebhookOutput) SendEvent(event Event) (int, error) {
+	data, err := event.MarshalJSON()
 	if err != nil {
 		return 0, &serializeError{err: err}
 	}
@@ -421,7 +414,7 @@ func (wo *WebhookOutput) postWithRetry(data []byte) {
 		if err == nil {
 			return
 		}
-		wo.logger.Warn("Event recorder HTTP output POST failed", "output", wo.name, "attempt", attempt+1, "err", err)
+		wo.logger.Warn("Event recorder HTTP output POST failed", "output", wo.name, "attempt", attempt+1)
 		if attempt < wo.maxRetries-1 {
 			backoff := min(wo.retryBackoff<<attempt, wo.maxBackoff)
 			select {

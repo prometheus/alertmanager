@@ -53,6 +53,10 @@ type IncidentioConfig struct {
 	// Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+
+	// Metadata is a set of arbitrary key/value pairs to include with alerts.
+	// Values support Go template syntax.
+	Metadata map[string]string `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -62,6 +66,11 @@ func (c *IncidentioConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the IncidentioConfig for correctness.
+func (c *IncidentioConfig) Validate() error {
 	if c.URL == nil && c.URLFile == "" {
 		return errors.New("one of url or url_file must be configured")
 	}

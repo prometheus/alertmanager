@@ -25,10 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 	"github.com/prometheus/alertmanager/kafka"
 )
 
@@ -36,6 +33,8 @@ const defaultKafkaBufferSize = 1024
 
 // KafkaOutputConfig configures a Kafka event recorder output.
 type KafkaOutputConfig struct {
+	// Name identifies this output in metrics and logs.
+	Name string `yaml:"name" json:"name"`
 	// Brokers is the list of Kafka seed brokers in host:port form.
 	Brokers []string `yaml:"brokers" json:"brokers"`
 	// Topic is the Kafka topic to produce events to.
@@ -67,12 +66,13 @@ type KafkaOutputConfig struct {
 func (c *KafkaOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain KafkaOutputConfig
 	if err := unmarshal((*plain)(c)); err != nil {
+		return errors.New("invalid event_recorder kafka output configuration")
+	}
+	if _, err := outputIdentifier("kafka", c.Name); err != nil {
 		return err
 	}
 	if err := c.clientOptions().Validate(); err != nil {
-		// The shared validator's messages already say "kafka: ..."; we
-		// prefix with the event_recorder context for user clarity.
-		return fmt.Errorf("event_recorder %w", err)
+		return errors.New("event_recorder kafka output has invalid client configuration")
 	}
 	if c.Topic == "" {
 		return errors.New("event_recorder kafka output requires a topic")
@@ -81,7 +81,7 @@ func (c *KafkaOutputConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		c.Format = kafka.FormatJSON
 	}
 	if err := kafka.ValidateFormat(c.Format); err != nil {
-		return fmt.Errorf("event_recorder %w", err)
+		return errors.New("event_recorder kafka output has an invalid format")
 	}
 	return nil
 }
@@ -103,6 +103,9 @@ func (c KafkaOutputConfig) clientOptions() kafka.ClientOptions {
 // equal.  Broker lists are compared order-independently because
 // reordering brokers in YAML is semantically a no-op.
 func (c KafkaOutputConfig) equal(o KafkaOutputConfig) bool {
+	if c.Name != o.Name {
+		return false
+	}
 	if !kafka.BrokerListsEqual(c.Brokers, o.Brokers) {
 		return false
 	}
@@ -142,7 +145,7 @@ type KafkaOutput struct {
 	topic       string
 	instance    string // used as the message key
 	format      kafka.Format
-	name        string // "kafka:<sorted-brokers>/<topic>"
+	name        string // "kafka:<configured-name>"
 	logger      *slog.Logger
 	drops       prometheus.Counter
 	produceErrs *prometheus.CounterVec
@@ -163,6 +166,10 @@ func NewKafkaOutput(
 	produceErrors *prometheus.CounterVec,
 	logger *slog.Logger,
 ) (*KafkaOutput, error) {
+	name, err := outputIdentifier("kafka", cfg.Name)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.Topic == "" {
 		return nil, errors.New("kafka output requires a topic")
 	}
@@ -176,7 +183,9 @@ func NewKafkaOutput(
 
 	// Shared validation + franz-go option construction lives in the
 	// kafka package so a future Kafka receiver can reuse it.
-	kopts, err := kafka.BuildOpts(cfg.clientOptions(), logger)
+	// franz-go logs can include broker and topic configuration. Keep its
+	// internal logger disabled and emit safe, output-scoped logs here.
+	kopts, err := kafka.BuildOpts(cfg.clientOptions(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +199,6 @@ func NewKafkaOutput(
 	if bufferSize <= 0 {
 		bufferSize = defaultKafkaBufferSize
 	}
-
-	name := fmt.Sprintf("kafka:%s/%s", kafka.BrokerList(cfg.Brokers), cfg.Topic)
 
 	ko := &KafkaOutput{
 		client:      client,
@@ -210,7 +217,7 @@ func NewKafkaOutput(
 	// Best-effort connectivity check runs in the background so that
 	// alertmanager startup (and event_recorder hot reload) is never
 	// blocked by an unreachable broker.
-	kafka.PingInBackground(client, logger)
+	ko.pingInBackground()
 
 	ko.wg.Add(1)
 	go ko.dispatch()
@@ -221,18 +228,28 @@ func NewKafkaOutput(
 // Name returns the stable identifier for this output.
 func (ko *KafkaOutput) Name() string { return ko.name }
 
+func (ko *KafkaOutput) pingInBackground() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), kafka.DefaultPingTimeout)
+		defer cancel()
+		if err := ko.client.Ping(ctx); err != nil {
+			ko.logger.Warn("Kafka event recorder output could not reach brokers at startup; will retry in background", "output", ko.name)
+		}
+	}()
+}
+
 // SendEvent serializes the event in the configured format (JSON or
 // protobuf) and queues it for asynchronous delivery.  It returns the
 // serialized size (for the bytes-written metric).
-func (ko *KafkaOutput) SendEvent(event *eventrecorderpb.Event) (int, error) {
+func (ko *KafkaOutput) SendEvent(event Event) (int, error) {
 	var (
 		data []byte
 		err  error
 	)
 	if ko.format == kafka.FormatProtobuf {
-		data, err = proto.Marshal(event)
+		data, err = event.MarshalProtobuf()
 	} else {
-		data, err = protojson.Marshal(event)
+		data, err = event.MarshalJSON()
 	}
 	if err != nil {
 		return 0, &serializeError{err: err}
@@ -324,7 +341,7 @@ func (ko *KafkaOutput) produce(value []byte) {
 			ko.logger.Warn("Kafka producer buffer full, dropping event", "output", ko.name)
 		default:
 			ko.produceErrs.WithLabelValues(ko.name, string(kafka.ClassifyError(err))).Inc()
-			ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "err", err)
+			ko.logger.Warn("Kafka event recorder produce failed", "output", ko.name, "error_type", kafka.ClassifyError(err))
 		}
 	})
 }
@@ -357,7 +374,7 @@ func (ko *KafkaOutput) Close() error {
 	defer cancel()
 	if err := ko.client.Flush(ctx); err != nil {
 		ko.logger.Warn("Kafka event recorder flush did not complete within budget; remaining records will be dropped",
-			"output", ko.name, "err", err)
+			"output", ko.name)
 	}
 	ko.client.Close()
 	return nil

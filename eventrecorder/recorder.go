@@ -33,7 +33,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
 )
 
 const (
@@ -69,12 +68,9 @@ type Recorder struct {
 }
 
 // writeRequest is a single event queued for background serialization
-// and writing.  It carries the proto message so that the expensive
-// protojson.Marshal call happens in the write-loop goroutine, not on
-// the caller's hot path.
+// and writing.
 type writeRequest struct {
-	event     *eventrecorderpb.Event
-	eventType string
+	event Event
 }
 
 // sharedRecorder holds the mutable state shared by all copies of a
@@ -104,22 +100,23 @@ type cfgUpdateMsg struct {
 
 // Destination is a single event destination.  Each implementation
 // owns its own serialization: it receives the structured event and is
-// responsible for encoding it (e.g. JSON or protobuf) and delivering it.
+// responsible for encoding it with Event.MarshalJSON or
+// Event.MarshalProtobuf and delivering it.
 //
 // Owning serialization per destination — rather than handing every
 // destination a pre-encoded JSON blob — avoids the footgun of, say, a
 // protobuf-configured Kafka output silently shipping a JSON payload.
 type Destination interface {
-	// Name returns a stable identifier for this destination, suitable
-	// for use as a Prometheus label value (e.g. "file:/var/log/events.jsonl"
-	// or "webhook:https://example.com/hook").
+	// Name returns the type and configured name for this destination,
+	// suitable for use as a Prometheus label value (e.g. "file:archive"
+	// or "webhook:primary").
 	Name() string
 	// SendEvent encodes and delivers the event.  It returns the number
 	// of payload bytes written (for the bytes-written metric) and any
 	// delivery error.  A serialization failure should be returned
 	// wrapped in *serializeError so the recorder can attribute it to
 	// the serialize-errors metric.
-	SendEvent(event *eventrecorderpb.Event) (size int, err error)
+	SendEvent(event Event) (size int, err error)
 	io.Closer
 }
 
@@ -171,11 +168,15 @@ func NewRecorderFromConfig(cfg Config, instance string, logger *slog.Logger, r p
 
 // buildOutputs creates Destination implementations from the given config.
 func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) []Destination {
+	if err := cfg.validate(); err != nil {
+		logger.Error("Invalid event recorder output configuration")
+		return nil
+	}
 	var outputs []Destination
 	for _, fc := range cfg.FileOutputs {
-		fo, err := NewFileOutput(fc.Path, logger)
+		fo, err := NewFileOutput(fc, logger)
 		if err != nil {
-			logger.Error("Failed to create file event recorder output", "path", fc.Path, "err", err)
+			logger.Error("Failed to create file event recorder output", "output", safeOutputIdentifier("file", fc.Name), "path", fc.Path, "err", err)
 			continue
 		}
 		outputs = append(outputs, fo)
@@ -183,7 +184,7 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 	for _, wc := range cfg.WebhookOutputs {
 		wo, err := NewWebhookOutput(wc, m.outputDrops, logger)
 		if err != nil {
-			logger.Error("Failed to create webhook event recorder output", "url", sanitizeSecretURL(wc.URL), "err", err)
+			logger.Error("Failed to create webhook event recorder output", "output", safeOutputIdentifier("webhook", wc.Name))
 			continue
 		}
 		outputs = append(outputs, wo)
@@ -191,13 +192,18 @@ func buildOutputs(cfg Config, instance string, m *metrics, logger *slog.Logger) 
 	for _, kc := range cfg.KafkaOutputs {
 		ko, err := NewKafkaOutput(kc, instance, m.outputDrops, m.kafkaProduceErrors, logger)
 		if err != nil {
-			logger.Error("Failed to create kafka event recorder output", "brokers", kc.Brokers, "topic", kc.Topic, "err", err)
+			logger.Error("Failed to create kafka event recorder output", "output", safeOutputIdentifier("kafka", kc.Name))
 			continue
 		}
 		outputs = append(outputs, ko)
 	}
-	for range cfg.StdoutOutputs {
-		outputs = append(outputs, &StdoutOutput{})
+	for _, sc := range cfg.StdoutOutputs {
+		so, err := NewStdoutOutput(sc)
+		if err != nil {
+			logger.Error("Failed to create stdout event recorder output", "output", safeOutputIdentifier("stdout", sc.Name))
+			continue
+		}
+		outputs = append(outputs, so)
 	}
 	return outputs
 }
@@ -216,7 +222,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 	defer func() {
 		for _, out := range outputs {
 			if err := out.Close(); err != nil && c.logger != nil {
-				c.logger.Error("Failed to close event recorder output", "err", err)
+				c.logger.Error("Failed to close event recorder output", "output", out.Name())
 			}
 		}
 	}()
@@ -234,7 +240,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 					c.logger.Error("Failed to reload event recorder outputs; keeping existing outputs")
 					for _, out := range newOutputs {
 						if err := out.Close(); err != nil {
-							c.logger.Error("Failed to close partially-built event recorder output", "err", err)
+							c.logger.Error("Failed to close partially-built event recorder output", "output", out.Name())
 						}
 					}
 					close(update.done)
@@ -245,7 +251,7 @@ func (c *sharedRecorder) writeLoop(outputs []Destination, currentCfg Config) {
 				currentCfg = update.cfg
 				for _, out := range oldOutputs {
 					if err := out.Close(); err != nil {
-						c.logger.Error("Failed to close old event recorder output", "err", err)
+						c.logger.Error("Failed to close old event recorder output", "output", out.Name())
 					}
 				}
 				c.logger.Info("Event recorder configuration reloaded", "outputs", len(outputs))
@@ -277,57 +283,51 @@ func (c *sharedRecorder) marshalAndSend(req writeRequest, outputs []Destination)
 		size, err := out.SendEvent(req.event)
 		if err != nil {
 			if _, ok := errors.AsType[*serializeError](err); ok {
-				c.metrics.eventSerializeErrors.WithLabelValues(req.eventType).Inc()
+				c.metrics.eventSerializeErrors.WithLabelValues(req.event.typeName()).Inc()
 			}
-			c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "error").Inc()
-			c.logger.Error("Failed to write event", "event_type", req.eventType, "output", name, "err", err)
+			c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "error").Inc()
+			c.logger.Error("Failed to write event", "event_type", req.event.typeName(), "output", name)
 			continue
 		}
-		c.metrics.eventsRecorded.WithLabelValues(req.eventType, name, "success").Inc()
-		c.metrics.eventRecorderBytesWritten.WithLabelValues(req.eventType, name).Add(float64(size))
+		c.metrics.eventsRecorded.WithLabelValues(req.event.typeName(), name, "success").Inc()
+		c.metrics.eventRecorderBytesWritten.WithLabelValues(req.event.typeName(), name).Add(float64(size))
 	}
 }
 
-// RecordEvent wraps the event and places it on a bounded queue for
-// background serialization and delivery.  If the queue is full the
-// event is dropped (never blocks the caller).  Recording only occurs
-// when the context has been decorated with WithEventRecording.
+// RecordEvent wraps the event data with metadata and places it on a bounded
+// queue for background serialization and delivery.  If the queue is full the
+// event is dropped (never blocks the caller).  Recording only occurs when the
+// context has been decorated with WithEventRecording.
 //
-// The event is supplied as a builder function rather than a value so
-// that callers on hot read paths do not pay to construct an event
-// (protobuf conversions, fingerprint slices, etc.) that would only be
-// discarded when recording is disabled.  The builder is invoked only
+// The event data is supplied as a builder function rather than a value so
+// that callers on hot read paths do not pay to snapshot alerts and fingerprints
+// for an event that would only be discarded when recording is disabled.  The
+// builder is invoked only
 // after the recording gates pass, and exactly once.
 //
 // The expensive protojson.Marshal call is deferred to the write-loop
-// goroutine so that the caller's hot path only pays for the proto
-// wrapping and a channel send.
-func (r Recorder) RecordEvent(ctx context.Context, build func() *eventrecorderpb.EventData) {
+// goroutine so that the caller's hot path only pays for snapshot construction
+// and a channel send.
+func (r Recorder) RecordEvent(ctx context.Context, build func() EventData) {
 	if r.core == nil || r.core.events == nil {
 		return
 	}
 	if !EventRecordingEnabled(ctx) {
 		return
 	}
-
-	event := build()
-	eventType := extractEventType(event)
-
-	wrappedEvent := &eventrecorderpb.Event{
-		Timestamp: timestamppb.Now(),
-		Instance:  r.core.instance,
-		Data:      event,
-	}
-
+	data := build()
+	clusterPosition := uint64(0)
 	if peer := r.core.peer.Load(); peer != nil {
-		wrappedEvent.ClusterPosition = uint32(peer.Position())
+		clusterPosition = uint64(peer.Position())
 	}
+	event := data.withMetadata(timestamppb.Now(), r.core.instance, clusterPosition)
+	request := writeRequest{event: event}
 
 	select {
-	case r.core.events <- writeRequest{event: wrappedEvent, eventType: eventType}:
+	case r.core.events <- request:
 	default:
 		// Queue full; drop event to avoid blocking alertmanager.
-		r.core.metrics.eventsDropped.WithLabelValues(eventType).Inc()
+		r.core.metrics.eventsDropped.WithLabelValues(event.typeName()).Inc()
 	}
 }
 

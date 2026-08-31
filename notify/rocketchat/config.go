@@ -93,6 +93,11 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the RocketchatConfig for correctness.
+func (c *RocketchatConfig) Validate() error {
 	if c.Token != nil && len(c.TokenFile) > 0 {
 		return errors.New("at most one of token & token_file must be configured")
 	}

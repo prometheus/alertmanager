@@ -80,6 +80,11 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the PushoverConfig for correctness.
+func (c *PushoverConfig) Validate() error {
 	if c.UserKey == "" && c.UserKeyFile == "" {
 		return errors.New("one of user_key or user_key_file must be configured")
 	}

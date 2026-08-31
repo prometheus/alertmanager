@@ -102,6 +102,8 @@ func waitHealthy(t *testing.T, addr string) {
 func TestApp_StartStop(t *testing.T) {
 	a, err := New(testOptions(t))
 	require.NoError(t, err)
+	require.Equal(t, 10*time.Second, a.server.ReadHeaderTimeout)
+	require.Equal(t, 90*time.Second, a.server.IdleTimeout)
 	require.NoError(t, a.Start())
 
 	addr := a.Addr()

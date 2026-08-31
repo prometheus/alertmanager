@@ -2,7 +2,6 @@ module Utils.FormValidation exposing
     ( ValidatedField
     , ValidationState(..)
     , initialField
-    , stringNotEmpty
     , updateValue
     , validate
     )
@@ -45,12 +44,3 @@ updateValue value field =
 validate : (String -> Result String a) -> ValidatedField -> ValidatedField
 validate validator field =
     { field | validationState = fromResult (validator field.value) }
-
-
-stringNotEmpty : String -> Result String String
-stringNotEmpty string =
-    if String.isEmpty (String.trim string) then
-        Err "Should not be empty"
-
-    else
-        Ok string

@@ -181,3 +181,54 @@ receivers:
 
 	t.Log(co.Check())
 }
+
+// TestSilencedAlertSendsNoResolvedNotification asserts
+// https://github.com/prometheus/alertmanager/issues/226 end to end. An alert
+// that has already triggered a firing notification and is then silenced never
+// produces the matching resolved notification, because the mute stage removes
+// it from the pipeline before the dedup stage runs. Stateful receivers are
+// left permanently out of sync as a result.
+func TestSilencedAlertSendsNoResolvedNotification(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+    send_resolved: true
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+	// The alert fires at 1 and resolves itself at 3.
+	amc.Push(At(1), Alert("alertname", "test1").Active(1, 3))
+
+	// The firing notification is sent as usual.
+	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
+
+	// Silence the alert while it is still firing.
+	amc.SetSilence(At(2.3), Silence(2.5, 100).Match("alertname", "test1"))
+
+	// The alert resolves at 3, but it is silenced by then, so the resolved
+	// notification the receiver is waiting for never arrives.
+	co.Want(Between(2.6, 5))
+
+	at.Run()
+
+	t.Log(co.Check())
+}

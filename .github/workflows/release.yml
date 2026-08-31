@@ -29,6 +29,7 @@ jobs:
           path: ui/app/dist
       - uses: prometheus/promci/build@370e8c15dcec50043cbe66f2f34633d9efc0a190 # v0.9.0
         with:
+          checkout: "false"
           parallelism: 12
           thread: ${{ matrix.thread }}
   publish_release:

@@ -50,6 +50,10 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 		return nil, err
 	}
 
+	if conf.Timeout > 0 {
+		httpclient.Timeout = conf.Timeout
+	}
+
 	client, err := createTelegramClient(conf.APIUrl.String(), conf.ParseMode, httpclient)
 	if err != nil {
 		return nil, err
@@ -119,7 +123,10 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
-		return true, wrapWithFailureReason(err)
+		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
+		}
+		return true, wrapWithFailureReason(notify.RedactURL(err))
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 

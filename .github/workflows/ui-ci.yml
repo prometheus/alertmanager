@@ -5,7 +5,9 @@ on:
     branches:
       - '**'
     paths:
+      - '.github/workflows/ui-ci.yml'
       - '.nvmrc'
+      - 'Makefile'
       - 'ui/**'
 
 concurrency:
@@ -19,9 +21,6 @@ jobs:
   test_mantine_ui:
     name: Test mantine-ui
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./ui/mantine-ui
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,9 +32,5 @@ jobs:
           cache-dependency-path: |
             .nvmrc
             **/package-lock.json
-      - name: Install dependencies
-        run: npm ci
-      - name: Run build
-        run: npm run build
-      - name: Run tests
-        run: npm test
+      - name: Build, test, and lint
+        run: make ui-mantine ui-mantine-test ui-mantine-lint

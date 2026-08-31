@@ -16,6 +16,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,9 +34,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestTelegramUnmarshal(t *testing.T) {
@@ -182,7 +183,7 @@ func TestTelegramNotify(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			retry, err := notifier.Notify(ctx, []*alert.Alert{
 				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
@@ -261,7 +262,7 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*types.Alert{
+			retry, err := notifier.Notify(ctx, []*alert.Alert{
 				{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"lbl1": "val1"},
@@ -277,6 +278,143 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			var reasonError *notify.ErrorWithReason
 			require.ErrorAs(t, err, &reasonError)
 			require.Equal(t, tc.expectedReason, reasonError.Reason)
+		})
+	}
+}
+
+// TestTelegramNotifyRedactURL verifies that notify.RedactURL is applied to the
+// error returned by client.Send, so the bot token is never exposed in logs.
+func TestTelegramNotifyRedactURL(t *testing.T) {
+	token := "secret"
+
+	t.Run("transport error redacts URL", func(t *testing.T) {
+		// Point at a closed server so telebot returns a *url.Error with the full URL.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		u, _ := url.Parse(srv.URL)
+		srv.Close() // closed immediately — next dial will fail
+
+		notifier, err := New(
+			&TelegramConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				APIUrl:     &amcommoncfg.URL{URL: u},
+				BotToken:   commoncfg.Secret(token),
+			},
+			test.CreateTmpl(t),
+			promslog.NewNopLogger(),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ctx = notify.WithGroupKey(ctx, "1")
+
+		retry, err := notifier.Notify(ctx, &alert.Alert{
+			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
+		})
+		require.True(t, retry)
+		require.Error(t, err)
+		// The token must not appear in the error string.
+		require.NotContains(t, err.Error(), token, "bot token leaked in transport error")
+		// The URL should be redacted.
+		require.Contains(t, err.Error(), "<redacted>")
+	})
+
+	t.Run("Telegram API error passes through without token", func(t *testing.T) {
+		// Return a Telegram API error response — telebot wraps this as its own
+		// error type (not *url.Error), so RedactURL is a no-op, but the token
+		// is not in the error string either.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"ok":false,"description":"Bad Request: chat not found","error_code":400}`))
+		}))
+		defer srv.Close()
+		u, _ := url.Parse(srv.URL)
+
+		notifier, err := New(
+			&TelegramConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				APIUrl:     &amcommoncfg.URL{URL: u},
+				BotToken:   commoncfg.Secret(token),
+			},
+			test.CreateTmpl(t),
+			promslog.NewNopLogger(),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ctx = notify.WithGroupKey(ctx, "1")
+
+		retry, err := notifier.Notify(ctx, &alert.Alert{
+			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
+		})
+		require.True(t, retry)
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), token, "bot token leaked in API error")
+	})
+}
+
+func TestTelegramTimeout(t *testing.T) {
+	token := "secret"
+
+	tests := []struct {
+		name    string
+		latency time.Duration
+		timeout time.Duration
+		wantErr bool
+	}{
+		{
+			name:    "success",
+			latency: 100 * time.Millisecond,
+			timeout: 120 * time.Millisecond,
+			wantErr: false,
+		},
+		{
+			name:    "timeout",
+			latency: 100 * time.Millisecond,
+			timeout: 80 * time.Millisecond,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/bot"+token+"/sendMessage", r.URL.Path)
+				_, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				time.Sleep(tc.latency)
+				w.Write([]byte(`{"ok":true,"result":{"chat":{}}}`))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			cfg := &TelegramConfig{
+				Message:    "test",
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+				Timeout:    tc.timeout,
+				APIUrl:     &amcommoncfg.URL{URL: u},
+			}
+
+			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			testAlert := &alert.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			_, err = notifier.Notify(ctx, testAlert)
+			require.Equal(t, tc.wantErr, err != nil)
+			if tc.wantErr {
+				require.EqualError(t, err, fmt.Sprintf("configured telegram timeout reached (%s)", tc.timeout))
+			}
 		})
 	}
 }

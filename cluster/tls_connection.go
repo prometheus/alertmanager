@@ -100,7 +100,7 @@ func (conn *tlsConn) writePacket(fromAddr string, b []byte) error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("unable to marshal memeberlist packet message: %w", err)
+		return fmt.Errorf("unable to marshal memberlist packet message: %w", err)
 	}
 	buf := make([]byte, uint32length, uint32length+len(msg))
 	binary.LittleEndian.PutUint32(buf, uint32(len(msg)))
@@ -117,7 +117,7 @@ func (conn *tlsConn) writeStream() error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("unable to marshal memeberlist stream message: %w", err)
+		return fmt.Errorf("unable to marshal memberlist stream message: %w", err)
 	}
 	buf := make([]byte, uint32length, uint32length+len(msg))
 	binary.LittleEndian.PutUint32(buf, uint32(len(msg)))

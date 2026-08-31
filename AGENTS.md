@@ -19,7 +19,7 @@ Top‑level packages worth knowing:
 - `cmd/alertmanager/` — main binary entry point (`main.go`); thin wrapper that parses flags and calls `app`.
 - `app/` — embeddable Alertmanager runtime extracted from `cmd/alertmanager`. Owns the process lifecycle (`New`/`Start`/`Stop`/`Reload`/`Run`), subsystem wiring (`setup`), config-reload subgraph (`reloader`), listeners and `Options`. Lets tests and other binaries run Alertmanager in‑process. See https://github.com/prometheus/alertmanager/issues/406.
 - `cmd/amtool/` — CLI for interacting with the Alertmanager API.
-- `api/` — HTTP API. `api/v2/` is the active API; `api/v1_deprecation_router.go` only returns deprecation responses.
+- `api/` — HTTP API. `api/v2/` is the active REST API; `api/connect/` is the experimental ConnectRPC API mounted under `/api/`; `api/v1_deprecation_router.go` only returns deprecation responses.
 - `cli/` — `amtool` command implementations.
 - `cluster/` — HA gossip clustering (memberlist-based).
 - `config/` — YAML config parsing, validation, secrets, coordinator.
@@ -98,6 +98,7 @@ goreman start
 - Errors: wrap with `fmt.Errorf("...: %w", err)` and check with `errors.Is`/`errors.As` (`errorlint`).
 - Keep package‑level documentation up to date (`revive: package-comments`).
 - Tests live next to the code as `*_test.go`. Larger integration tests live under `test/`. The `notify/test` package provides shared testing helpers for notifier integrations.
+- Use Ginkgo/Gomega for new Connect API tests under `api/connect/` and `test/e2e/`. Existing shared API and v2 tests retain their current testing style.
 
 ## When changing the API
 
@@ -116,7 +117,6 @@ Do not hand‑edit generated files under `api/v2/models`, `api/v2/restapi`, `api
 - Register the notifier in `cmd/alertmanager/main.go` where receivers are built.
 - Add unit tests in the notifier package; reuse helpers from `notify/test/`.
 - Update `template/default.tmpl` only if you are introducing new default templates.
-- Note the change in `CHANGELOG.md` under the unreleased section.
 
 ## When touching configuration
 

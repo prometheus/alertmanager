@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"errors"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -45,6 +46,10 @@ type TelegramConfig struct {
 	Message              string           `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+
+	// Timeout is the maximum time allowed to invoke the telegram. Setting this to 0
+	// does not impose a timeout.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -54,6 +59,11 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
+
+// Validate checks the TelegramConfig for correctness.
+func (c *TelegramConfig) Validate() error {
 	if c.BotToken != "" && c.BotTokenFile != "" {
 		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}

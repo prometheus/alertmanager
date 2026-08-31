@@ -1,6 +1,8 @@
 ## main / (unreleased)
 
-* [FEATURE] notify: Add an Apache Kafka receiver using the webhook v4 JSON message format.
+Please do **not** add any entries in this section. If your change affects
+behaviour, describe it in the pull request description. Those entries are added
+here, when the release is prepared.
 
 ## 0.34.0 / 2026-08-16
 

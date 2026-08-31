@@ -14,6 +14,7 @@
 package eventrecorder
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"sync"
@@ -21,15 +22,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/prometheus/alertmanager/eventrecorder/eventrecorderpb"
+	"gopkg.in/yaml.v2"
 )
 
 // mockDestination records all events written to it.
 type mockDestination struct {
 	mu     sync.Mutex
 	name   string
-	events []*eventrecorderpb.Event
+	events []Event
 }
 
 func newMockDestination(name string) *mockDestination {
@@ -37,7 +37,7 @@ func newMockDestination(name string) *mockDestination {
 }
 
 func (m *mockDestination) Name() string { return m.name }
-func (m *mockDestination) SendEvent(event *eventrecorderpb.Event) (int, error) {
+func (m *mockDestination) SendEvent(event Event) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, event)
@@ -51,17 +51,15 @@ func (m *mockDestination) eventCount() int {
 	return len(m.events)
 }
 
-func startupEvent() *eventrecorderpb.EventData {
-	return &eventrecorderpb.EventData{
-		EventType: &eventrecorderpb.EventData_AlertmanagerStartupEvent{
-			AlertmanagerStartupEvent: &eventrecorderpb.AlertmanagerStartupEvent{
-				Version: "test",
-			},
-		},
-	}
+func startupEvent() EventData {
+	return NewAlertmanagerStartupEvent("test", "")
 }
 
 func newTestRecorder(outputs ...Destination) Recorder {
+	return newTestRecorderWithConfig(Config{}, outputs...)
+}
+
+func newTestRecorderWithConfig(cfg Config, outputs ...Destination) Recorder {
 	core := &sharedRecorder{
 		instance:  "test",
 		logger:    slog.Default(),
@@ -71,7 +69,7 @@ func newTestRecorder(outputs ...Destination) Recorder {
 		done:      make(chan struct{}),
 	}
 	core.wg.Add(1)
-	go core.writeLoop(outputs, Config{})
+	go core.writeLoop(outputs, cfg)
 	return Recorder{core: core}
 }
 
@@ -134,6 +132,60 @@ func TestNewRecorderFromConfig_NilLogger(t *testing.T) {
 	})
 }
 
+func TestBuildOutputs_LogsFilePathButNotKafkaConfig(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	cfg := Config{
+		FileOutputs: []FileOutputConfig{{
+			Name: "archive",
+			Path: "/missing/private/file/events.jsonl",
+		}},
+		KafkaOutputs: []KafkaOutputConfig{{
+			Name:    "events",
+			Brokers: []string{"private-broker.example:9092"},
+			Topic:   "private-topic",
+			Format:  "invalid",
+		}},
+	}
+
+	outputs := buildOutputs(cfg, "test", newMetrics(nil), logger)
+	require.Empty(t, outputs)
+	require.Contains(t, logs.String(), "file:archive")
+	require.Contains(t, logs.String(), "kafka:events")
+	require.Contains(t, logs.String(), "/missing/private/file/events.jsonl")
+	require.NotContains(t, logs.String(), "private-broker.example:9092")
+	require.NotContains(t, logs.String(), "private-topic")
+}
+
+func TestEventRecorderConfigRejectsDuplicateOutputNames(t *testing.T) {
+	var cfg Config
+	err := yaml.Unmarshal([]byte(`
+file_outputs:
+- name: archive
+  path: /tmp/one
+- name: archive
+  path: /tmp/two
+`), &cfg)
+	require.ErrorContains(t, err, "duplicated")
+}
+
+func TestOutputIdentifier(t *testing.T) {
+	for _, name := range []string{"primary.eu-1", "private/path", "日本語", "line\nbreak"} {
+		id, err := outputIdentifier("webhook", name)
+		require.NoError(t, err)
+		require.Equal(t, "webhook:"+name, id)
+	}
+
+	for _, name := range []string{"", string([]byte{0xff})} {
+		_, err := outputIdentifier("webhook", name)
+		require.Error(t, err)
+		if name != "" {
+			require.NotContains(t, err.Error(), name)
+		}
+		require.Equal(t, "webhook:<invalid>", safeOutputIdentifier("webhook", name))
+	}
+}
+
 func TestRecordingNotEnabledByDefault(t *testing.T) {
 	out := newMockDestination("test:mock")
 	rec := newTestRecorder(out)
@@ -171,7 +223,7 @@ func TestApplyConfig(t *testing.T) {
 }
 
 func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
-	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Name: "a", Path: "/tmp/a"}}}
 	b := Config{}
 	require.False(t, configEqual(a, b),
 		"configs with different output counts must compare unequal")
@@ -180,10 +232,41 @@ func TestEventRecorderConfigEqual_OutputCount(t *testing.T) {
 func TestEventRecorderConfigEqual_TypeMismatch(t *testing.T) {
 	// Same total output count but in different per-type lists must
 	// compare unequal.
-	a := Config{FileOutputs: []FileOutputConfig{{Path: "/tmp/a"}}}
-	b := Config{WebhookOutputs: []WebhookOutputConfig{{URL: mustParseURL(t, "https://example.com/h")}}}
+	a := Config{FileOutputs: []FileOutputConfig{{Name: "a", Path: "/tmp/a"}}}
+	b := Config{WebhookOutputs: []WebhookOutputConfig{{Name: "b", URL: mustParseURL(t, "https://example.com/h")}}}
 	require.False(t, configEqual(a, b),
 		"outputs of different types must compare unequal")
+}
+
+func TestRecorderOutputSchema(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
+	defer rec.Close()
+
+	rec.RecordEvent(recordCtx(), startupEvent)
+	require.Eventually(t, func() bool {
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		if len(out.events) != 1 {
+			return false
+		}
+		return out.events[0].message != nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestRecordEventBuildsEventFromEventData(t *testing.T) {
+	out := newMockDestination("test:mock")
+	rec := newTestRecorder(out)
+	defer rec.Close()
+
+	built := NewAlertmanagerShutdownEvent()
+	rec.RecordEvent(recordCtx(), func() EventData { return built })
+	require.Eventually(t, func() bool { return out.eventCount() == 1 }, time.Second, 10*time.Millisecond)
+
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	require.Same(t, built.message, out.events[0].message.Data)
+	require.NotNil(t, out.events[0].message.Timestamp)
 }
 
 // marshalAndSend hands the structured event to every destination; the
@@ -199,7 +282,9 @@ func TestMarshalAndSend_DeliversEvent(t *testing.T) {
 	require.Eventually(t, func() bool {
 		out.mu.Lock()
 		defer out.mu.Unlock()
-		return len(out.events) == 1 &&
-			out.events[0].GetData().GetAlertmanagerStartupEvent() != nil
+		if len(out.events) != 1 {
+			return false
+		}
+		return out.events[0].message.GetData().GetAlertmanagerStartupEvent() != nil
 	}, time.Second, 10*time.Millisecond)
 }

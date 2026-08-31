@@ -14,6 +14,7 @@
 package eventrecorder
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -70,12 +71,12 @@ func TestWebhookOutput_SendEvent(t *testing.T) {
 	defer srv.Close()
 
 	u := mustParseURL(t, srv.URL)
-	cfg := WebhookOutputConfig{URL: u}
+	cfg := WebhookOutputConfig{Name: "primary", URL: u}
 	wo, err := NewWebhookOutput(cfg, testWebhookDrops(), slog.Default())
 	require.NoError(t, err)
 	defer wo.Close()
 
-	require.Equal(t, "webhook:"+srv.URL, wo.Name())
+	require.Equal(t, "webhook:primary", wo.Name())
 
 	n, err := wo.SendEvent(sampleEvent())
 	require.NoError(t, err)
@@ -107,6 +108,7 @@ func TestWebhookOutput_MultipleWorkers(t *testing.T) {
 
 	u := mustParseURL(t, srv.URL)
 	cfg := WebhookOutputConfig{
+		Name:    "workers",
 		URL:     u,
 		Workers: 8,
 	}
@@ -132,6 +134,7 @@ func TestWebhookOutput_Batching(t *testing.T) {
 	defer srv.Close()
 
 	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:               "batch",
 		URL:                mustParseURL(t, srv.URL),
 		Workers:            4,
 		Batch:              true,
@@ -161,6 +164,7 @@ func TestWebhookOutput_BatchingFlushesOnInterval(t *testing.T) {
 	defer srv.Close()
 
 	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:               "interval",
 		URL:                mustParseURL(t, srv.URL),
 		Workers:            1,
 		Batch:              true,
@@ -194,9 +198,10 @@ func TestWebhookOutput_BatchingByEncodedSize(t *testing.T) {
 	defer srv.Close()
 
 	event := sampleEvent()
-	encoded, err := protojson.Marshal(event)
+	encoded, err := protojson.Marshal(event.protoMessage())
 	require.NoError(t, err)
 	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:               "size",
 		URL:                mustParseURL(t, srv.URL),
 		Workers:            1,
 		Batch:              true,
@@ -229,6 +234,7 @@ func TestWebhookOutput_BatchingCloseFlushesPartialBatch(t *testing.T) {
 	defer srv.Close()
 
 	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:               "close",
 		URL:                mustParseURL(t, srv.URL),
 		Workers:            1,
 		Batch:              true,
@@ -263,6 +269,7 @@ func TestWebhookOutput_BatchingRetriesWholeBatch(t *testing.T) {
 	defer srv.Close()
 
 	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:               "retry-batch",
 		URL:                mustParseURL(t, srv.URL),
 		Workers:            1,
 		MaxRetries:         2,
@@ -304,6 +311,7 @@ func TestWebhookOutput_RetryOnFailure(t *testing.T) {
 
 	u := mustParseURL(t, srv.URL)
 	cfg := WebhookOutputConfig{
+		Name:         "retry",
 		URL:          u,
 		MaxRetries:   3,
 		RetryBackoff: model.Duration(10 * time.Millisecond),
@@ -330,6 +338,7 @@ func TestWebhookOutput_DropsAfterMaxRetries(t *testing.T) {
 
 	u := mustParseURL(t, srv.URL)
 	cfg := WebhookOutputConfig{
+		Name:         "drops",
 		URL:          u,
 		MaxRetries:   2,
 		RetryBackoff: model.Duration(10 * time.Millisecond),
@@ -344,6 +353,28 @@ func TestWebhookOutput_DropsAfterMaxRetries(t *testing.T) {
 	require.Equal(t, int64(2), attempts.Load())
 }
 
+func TestWebhookOutput_LogsDoNotIncludeURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	secretURL := srv.URL + "/private-stream-id"
+	srv.Close()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	out, err := NewWebhookOutput(WebhookOutputConfig{
+		Name:       "primary",
+		URL:        mustParseURL(t, secretURL),
+		MaxRetries: 1,
+	}, testWebhookDrops(), logger)
+	require.NoError(t, err)
+	_, err = out.SendEvent(sampleEvent())
+	require.NoError(t, err)
+	require.NoError(t, out.Close())
+
+	require.Contains(t, logs.String(), "webhook:primary")
+	require.NotContains(t, logs.String(), secretURL)
+	require.NotContains(t, logs.String(), "private-stream-id")
+}
+
 func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 	var count atomic.Int64
 
@@ -356,6 +387,7 @@ func TestWebhookOutput_CloseFlushesQueue(t *testing.T) {
 
 	u := mustParseURL(t, srv.URL)
 	cfg := WebhookOutputConfig{
+		Name:    "flush",
 		URL:     u,
 		Workers: 1,
 	}
@@ -382,15 +414,16 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 	}{
 		{
 			name: "valid minimal",
-			yaml: "url: https://example.com/hook\n",
+			yaml: "name: primary\nurl: https://example.com/hook\n",
 			check: func(t *testing.T, c WebhookOutputConfig) {
+				require.Equal(t, "primary", c.Name)
 				require.NotNil(t, c.URL)
 				require.Equal(t, "https://example.com/hook", c.URL.String())
 			},
 		},
 		{
 			name: "valid with tunables",
-			yaml: "url: https://example.com/h\ntimeout: 5s\nworkers: 8\nmax_retries: 5\nretry_backoff: 250ms\n",
+			yaml: "name: tuned\nurl: https://example.com/h\ntimeout: 5s\nworkers: 8\nmax_retries: 5\nretry_backoff: 250ms\n",
 			check: func(t *testing.T, c WebhookOutputConfig) {
 				require.Equal(t, model.Duration(5*time.Second), c.Timeout)
 				require.Equal(t, 8, c.Workers)
@@ -400,7 +433,7 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 		},
 		{
 			name: "valid with batching",
-			yaml: "url: https://example.com/h\nbatch: true\nbatch_max_events: 200\nbatch_max_bytes: 2097152\nbatch_flush_interval: 500ms\n",
+			yaml: "name: batch\nurl: https://example.com/h\nbatch: true\nbatch_max_events: 200\nbatch_max_bytes: 2097152\nbatch_flush_interval: 500ms\n",
 			check: func(t *testing.T, c WebhookOutputConfig) {
 				require.True(t, c.Batch)
 				require.Equal(t, 200, c.BatchMaxEvents)
@@ -410,12 +443,17 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 		},
 		{
 			name:    "batch settings without batching",
-			yaml:    "url: https://example.com/h\nbatch_max_events: 200\n",
+			yaml:    "name: invalid\nurl: https://example.com/h\nbatch_max_events: 200\n",
 			wantErr: true,
 		},
 		{
 			name:    "missing url",
-			yaml:    "{}\n",
+			yaml:    "name: missing-url\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing name",
+			yaml:    "url: https://example.com/h\n",
 			wantErr: true,
 		},
 		{
@@ -425,7 +463,7 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 			// amtool) doesn't fail.  An empty URL must still be
 			// rejected here as it would be unusable at runtime.
 			name:    "placeholder secret url",
-			yaml:    "url: <secret>\n",
+			yaml:    "name: placeholder\nurl: <secret>\n",
 			wantErr: true,
 		},
 		{
@@ -433,7 +471,7 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 			// itself (ParseURL only accepts http/https), so the error
 			// surfaces before our validator runs.
 			name:    "non-http scheme",
-			yaml:    "url: ftp://example.com/\n",
+			yaml:    "name: ftp\nurl: ftp://example.com/\n",
 			wantErr: true,
 		},
 	}
@@ -453,14 +491,35 @@ func TestWebhookOutputConfig_UnmarshalYAML(t *testing.T) {
 	}
 }
 
+func TestWebhookOutputConfig_MalformedURLDoesNotLeak(t *testing.T) {
+	const secret = "user:password@%zz/private?token=secret"
+	var cfg WebhookOutputConfig
+	err := yaml.Unmarshal([]byte("name: primary\nurl: https://"+secret+"\n"), &cfg)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), secret)
+	require.NotContains(t, err.Error(), "user")
+	require.NotContains(t, err.Error(), "password")
+	require.NotContains(t, err.Error(), "token=secret")
+}
+
+func TestNewWebhookOutput_ValidatesProgrammaticConfig(t *testing.T) {
+	_, err := NewWebhookOutput(WebhookOutputConfig{Name: "primary"}, testWebhookDrops(), slog.Default())
+	require.Error(t, err)
+
+	_, err = NewWebhookOutput(WebhookOutputConfig{URL: mustParseURL(t, "https://example.com/hook")}, testWebhookDrops(), slog.Default())
+	require.Error(t, err)
+}
+
 func TestEventRecorderConfigEqual_Webhook(t *testing.T) {
 	a := Config{WebhookOutputs: []WebhookOutputConfig{{
+		Name:       "primary",
 		URL:        mustParseURL(t, "https://example.com/hook"),
 		Timeout:    model.Duration(10 * time.Second),
 		Workers:    4,
 		MaxRetries: 3,
 	}}}
 	b := Config{WebhookOutputs: []WebhookOutputConfig{{
+		Name:       "primary",
 		URL:        mustParseURL(t, "https://example.com/hook"),
 		Timeout:    model.Duration(10 * time.Second),
 		Workers:    4,
@@ -477,6 +536,9 @@ func TestEventRecorderConfigEqual_Webhook(t *testing.T) {
 	b.WebhookOutputs[0].Workers = 8
 	require.False(t, configEqual(a, b))
 	b.WebhookOutputs[0].Workers = a.WebhookOutputs[0].Workers
+	b.WebhookOutputs[0].Name = "secondary"
+	require.False(t, configEqual(a, b))
+	b.WebhookOutputs[0].Name = a.WebhookOutputs[0].Name
 	b.WebhookOutputs[0].Batch = true
 	require.False(t, configEqual(a, b))
 

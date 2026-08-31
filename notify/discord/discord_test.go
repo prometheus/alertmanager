@@ -39,6 +39,8 @@ import (
 // This is a test URL that has been modified to not be valid.
 var testWebhookURL, _ = url.Parse("https://discord.com/api/webhooks/971139602272503183/78ZWZ4V3xwZUBKRFF-G9m1nRtDtNTChl_WzW6Q4kxShjSB02oLSiPTPa8TS2tTGO9EYf")
 
+// TestDiscordRetry checks that the notifier retries on 5xx and on HTTP 429, and
+// treats every other status code as a permanent failure.
 func TestDiscordRetry(t *testing.T) {
 	notifier, err := New(
 		&DiscordConfig{
@@ -50,7 +52,8 @@ func TestDiscordRetry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, "retry - error on status %d", statusCode)
 	}
@@ -126,6 +129,58 @@ func TestDiscordTemplating(t *testing.T) {
 				require.Contains(t, err.Error(), tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
+		})
+	}
+}
+
+func TestDiscordFailureReason(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		statusCode     int
+		expectedReason notify.Reason
+	}{
+		{
+			name:           "client error",
+			statusCode:     http.StatusBadRequest,
+			expectedReason: notify.ClientErrorReason,
+		},
+		{
+			name:           "server error",
+			statusCode:     http.StatusInternalServerError,
+			expectedReason: notify.ServerErrorReason,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			notifier, err := New(
+				&DiscordConfig{
+					WebhookURL: &amcommoncfg.SecretURL{URL: u},
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			ctx := notify.WithGroupKey(context.Background(), "1")
+			alert := &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			_, err = notifier.Notify(ctx, alert)
+			var reasonError *notify.ErrorWithReason
+			require.ErrorAs(t, err, &reasonError)
+			require.Equal(t, tc.expectedReason, reasonError.Reason)
 		})
 	}
 }

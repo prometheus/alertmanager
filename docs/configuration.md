@@ -1902,6 +1902,12 @@ attributes:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
+# The maximum time to wait for a telegram request to complete, before failing the
+# request and allowing it to be retried. The default value of 0s indicates that
+# no timeout should be applied.
+# NOTE: This will have no effect if set higher than the group_interval.
+[ timeout: <duration> | default = 0s ]
 ```
 
 ### `<victorops_config>`
@@ -2019,6 +2025,12 @@ There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
 
+For an example of using `payload` to send notifications to a service that
+doesn't have a dedicated receiver, such as [Gotify](https://gotify.net), see
+[`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
+Another webhook payload example for Microsoft Teams can be
+found in [`examples/webhook`](https://github.com/prometheus/alertmanager/tree/main/examples/webhook).
+
 ### `<kafka_config>`
 
 The Kafka receiver produces one record for each Alertmanager notification group.
@@ -2096,6 +2108,10 @@ url_file: <filepath>
 # Timeout is the maximum time allowed to invoke incident.io. Setting this to 0
 # does not impose a timeout.
 [ timeout: <duration> | default = 0s ]
+
+# A set of arbitrary key/value pairs to include with alerts.
+# Values support Go template syntax.
+[ metadata: { <string>: <tmpl_string>, ... } ]
 ```
 
 ### `<wechat_config>`
@@ -2196,7 +2212,13 @@ Event recording is configured under the top-level `event_recorder` key.
 
 Outputs are grouped by type, one list per destination kind (mirroring the
 way receivers group their integrations).  Every recorded event is sent to
-every output across all lists.
+every output across all lists. Every output requires a name, which is used
+with its type as the output identifier in metrics and logs (for example,
+`webhook:primary`). Destination configuration such as paths, URLs, brokers,
+and topics is not included in metric labels. URLs, brokers, and topics are
+also omitted from logs; file paths remain in file-output error logs for
+troubleshooting. Names must be non-empty, valid UTF-8, and unique within each
+output type.
 
 ```yaml
 # JSONL file outputs.
@@ -2216,6 +2238,12 @@ stdout_outputs:
   [ - <stdout_output> ... ]
 ```
 
+Every output uses the schema in `proto/eventrecorder/events/v2/events.proto`.
+Alert labels, alert annotations, group labels, silence annotations, and
+muted-alert labels are encoded as maps. Protobuf consumers must use the Go
+package `github.com/prometheus/alertmanager/eventrecorder/events/v2` or bindings
+generated from that schema.
+
 #### `<file_output>`
 
 Writes each event as a single JSON line to a file.  The file is reopened
@@ -2223,6 +2251,9 @@ when the parent directory observes a rename/remove/create on the target
 path (for compatibility with `logrotate` and similar tools).
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # Path to the JSONL output file.  Will be created if it does not exist.
 path: <filepath>
 ```
@@ -2238,6 +2269,9 @@ duplicate events after ambiguous failures. With multiple workers, requests
 may complete out of order; set `workers: 1` when request ordering matters.
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # URL to POST events to.
 url: <secret>
 
@@ -2275,12 +2309,16 @@ url: <secret>
 
 For example, [Cloudflare Pipelines streams](https://developers.cloudflare.com/pipelines/streams/writing-to-streams/)
 accept JSON arrays through their HTTP ingestion endpoints and can be configured
-as a batched webhook output:
+as a batched webhook output. Because the event timestamp field is named
+`@timestamp`, quote it when referencing it from the pipeline SQL. A complete
+fan-out example is available under
+[`doc/examples/cloudflare-pipelines`](https://github.com/prometheus/alertmanager/blob/main/doc/examples/cloudflare-pipelines/README.md).
 
 ```yaml
 event_recorder:
   webhook_outputs:
-  - url: https://<stream-id>.ingest.cloudflare.com
+  - name: pipelines
+    url: https://<stream-id>.ingest.cloudflare.com
     batch: true
     http_config:
       # The token must have the "Workers Pipeline Send" permission when
@@ -2305,6 +2343,9 @@ The target topic must already exist (or the brokers must be configured to
 auto-create topics); Alertmanager does not create it.
 
 ```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+
 # Seed broker list (host:port).  At least one entry is required.
 brokers:
   [ - <string> ... ]
@@ -2318,7 +2359,7 @@ topic: <string>
 # On-the-wire encoding for each record value: "json" (protojson) or
 # "protobuf" (binary proto).  JSON is the default for symmetry with the
 # file and webhook outputs; consumers that already use the
-# eventrecorder.proto schema may prefer protobuf for compactness.
+# selected event recorder protobuf schema may prefer protobuf for compactness.
 [ format: <"json" | "protobuf"> | default = "json" ]
 
 # Producer acknowledgement level.  "leader" matches the franz-go default
@@ -2351,4 +2392,7 @@ driver (Docker, Kubernetes, etc.) captures stdout automatically.
 > distinct formats on the same stream that may complicate downstream
 > log parsing.
 
-This output type takes no additional configuration fields.
+```yaml
+# Name used to identify this output in metrics and logs.
+name: <string>
+```

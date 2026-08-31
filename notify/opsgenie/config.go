@@ -68,7 +68,11 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	return c.Validate()
+}
 
+// Validate checks the OpsGenieConfig for correctness.
+func (c *OpsGenieConfig) Validate() error {
 	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
 		return errors.New("at most one of api_key & api_key_file must be configured")
 	}
