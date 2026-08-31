@@ -27,6 +27,9 @@ routing_key: ''
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err == nil {
+			err = cfg.Validate()
+		}
 
 		expected := "missing service or routing key in PagerDuty config"
 
@@ -45,6 +48,9 @@ routing_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err == nil {
+			err = cfg.Validate()
+		}
 
 		expected := "at most one of routing_key & routing_key_file must be configured"
 
@@ -64,6 +70,9 @@ service_key: ''
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err == nil {
+			err = cfg.Validate()
+		}
 
 		expected := "missing service or routing key in PagerDuty config"
 
@@ -82,6 +91,9 @@ service_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err == nil {
+			err = cfg.Validate()
+		}
 
 		expected := "at most one of service_key & service_key_file must be configured"
 

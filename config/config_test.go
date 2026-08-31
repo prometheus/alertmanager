@@ -109,6 +109,130 @@ receivers:
 	}
 }
 
+func TestReceiverValidationErrorsAccumulate(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+
+		expectedErrs []string
+	}{
+		{
+			// https://github.com/prometheus/alertmanager/issues/4990
+			name: "multiple invalid notifier configs in a single receiver",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+  - url: 'http://example.com/'
+    url_file: '/etc/secrets/webhook-url'
+`,
+			expectedErrs: []string{
+				"one of url or url_file must be configured",
+				"at most one of url & url_file must be configured",
+			},
+		},
+		{
+			name: "invalid notifier configs of different types in a single receiver",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+  pagerduty_configs:
+  - url: 'https://example.com/'
+`,
+			expectedErrs: []string{
+				"one of url or url_file must be configured",
+				"missing service or routing key in PagerDuty config",
+			},
+		},
+		{
+			// https://github.com/prometheus/alertmanager/issues/4991
+			name: "invalid notifier configs across multiple receivers",
+			in: `
+route:
+    receiver: team-A
+
+receivers:
+- name: 'team-A'
+  webhook_configs:
+  - send_resolved: true
+- name: 'team-B'
+  email_configs:
+  - smarthost: 'smtp.example.com:587'
+    from: 'alertmanager@example.com'
+- name: 'team-C'
+  pagerduty_configs:
+  - url: 'https://example.com/'
+`,
+			expectedErrs: []string{
+				"one of url or url_file must be configured",
+				"missing to address in email config",
+				"missing service or routing key in PagerDuty config",
+			},
+		},
+		{
+			name: "missing global fallbacks are accumulated across receivers",
+			in: `
+route:
+    receiver: team-A
+
+receivers:
+- name: 'team-A'
+  email_configs:
+  - to: 'team-A@example.com'
+- name: 'team-B'
+  webhook_configs:
+  - url: 'http://example.com/'
+    url_file: '/etc/secrets/webhook-url'
+`,
+			expectedErrs: []string{
+				"no global SMTP smarthost set",
+				"at most one of url & url_file must be configured",
+			},
+		},
+		{
+			name: "duplicate receiver name is accumulated with notifier config errors",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+- name: 'team-X'
+`,
+			expectedErrs: []string{
+				"one of url or url_file must be configured",
+				"notification config name \"team-X\" is not unique",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
+
+			expected := strings.Join(tc.expectedErrs, "\n")
+
+			if err == nil {
+				t.Fatalf("no error returned, expected:\n%v", expected)
+			}
+			if err.Error() != expected {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+			}
+		})
+	}
+}
+
 func TestReceiverExists(t *testing.T) {
 	in := `
 route:
@@ -1582,8 +1706,10 @@ func TestRocketchatNoToken(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.rocketchat-no-token.yml", err)
 	}
-	if err.Error() != "no global Rocketchat Token set either inline or in a file" {
-		t.Errorf("Expected: %s\nGot: %s", "no global Rocketchat Token set either inline or in a file", err.Error())
+	// Both receivers in the fixture lack a token, so the error is reported once per receiver.
+	expected := "no global Rocketchat Token set either inline or in a file\nno global Rocketchat Token set either inline or in a file"
+	if err.Error() != expected {
+		t.Errorf("Expected: %s\nGot: %s", expected, err.Error())
 	}
 }
 

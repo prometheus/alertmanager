@@ -90,6 +90,9 @@ api_url: http://example.com
 			var cfg OpsGenieConfig
 
 			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if err == nil {
+				err = cfg.Validate()
+			}
 			if tc.err {
 				if err == nil {
 					t.Fatalf("expected error but got none")

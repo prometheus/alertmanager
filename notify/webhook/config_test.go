@@ -24,6 +24,9 @@ func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "one of url or url_file must be configured"
 
@@ -42,6 +45,9 @@ url_file: 'http://example.com'
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "at most one of url & url_file must be configured"
 

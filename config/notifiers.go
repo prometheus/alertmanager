@@ -107,7 +107,9 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 func (c *WebexConfig) Validate() error {
@@ -177,7 +179,9 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	c.Headers = normalizedHeaders
 
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 func (c *EmailConfig) Validate() error {
@@ -348,7 +352,9 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 func (c *SlackConfig) Validate() error {
@@ -403,7 +409,9 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 		c.MessageType = "text"
 	}
 
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 func (c *WechatConfig) Validate() error {
@@ -442,7 +450,9 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 func (c *VictorOpsConfig) Validate() error {

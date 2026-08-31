@@ -124,6 +124,9 @@ attachments:
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg MattermostConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+			if err == nil {
+				err = cfg.Validate()
+			}
 
 			require.Equal(t, tt.expected, err)
 		})

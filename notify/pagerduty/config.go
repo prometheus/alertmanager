@@ -100,7 +100,9 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			c.Details[k] = v
 		}
 	}
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 // Validate checks the PagerdutyConfig for correctness.

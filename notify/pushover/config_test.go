@@ -25,6 +25,9 @@ user_key: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "one of user_key or user_key_file must be configured"
 
@@ -43,6 +46,9 @@ user_key_file: /pushover/user_key
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "at most one of user_key & user_key_file must be configured"
 
@@ -61,6 +67,9 @@ token: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "one of token or token_file must be configured"
 
@@ -80,6 +89,9 @@ user_key: 'user key'
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "at most one of token & token_file must be configured"
 
@@ -100,6 +112,9 @@ monospace: true
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil {
+		err = cfg.Validate()
+	}
 
 	expected := "at most one of monospace & html must be configured"
 

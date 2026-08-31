@@ -80,7 +80,9 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	return c.Validate()
+	// Validation happens in Config.UnmarshalYAML so that errors from all
+	// notifier configs can be reported together instead of one at a time.
+	return nil
 }
 
 // Validate checks the PushoverConfig for correctness.
