@@ -32,12 +32,14 @@ func TestAlertEventSnapshotsLabels(t *testing.T) {
 		Labels: model.LabelSet{"alertname": "Down", "severity": "warning"}, Annotations: model.LabelSet{"summary": "test"},
 		StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
 	}}
+	fingerprint := a.Fingerprint()
 	event := NewAlertCreatedEvent(a)
 
 	a.Labels["severity"] = "critical"
 	a.Annotations["summary"] = "changed"
 
 	got := event.message.GetAlertCreated().Alert
+	require.Equal(t, uint64(fingerprint), got.Fingerprint)
 	require.Equal(t, "warning", got.Labels["severity"])
 	require.Equal(t, "test", got.Annotations["summary"])
 }
@@ -129,7 +131,7 @@ func TestSilenceMatcherUnknownTypeHasNoRenderedValue(t *testing.T) {
 }
 
 func TestNilMatchersAreAbsentFromJSON(t *testing.T) {
-	event := NewAlertGroupedEvent(NewAlertGroup("", nil, "", "", labels.Matchers{nil}, ""), NewGroupedAlertReference(1)).withMetadata(nil, "", 0)
+	event := NewAlertGroupedEvent(NewAlertGroup("", nil, "", "", labels.Matchers{nil}, ""), &alert.Alert{}).withMetadata(nil, "", 0)
 	data, err := event.MarshalJSON()
 	require.NoError(t, err)
 
@@ -141,14 +143,13 @@ func TestNilMatchersAreAbsentFromJSON(t *testing.T) {
 
 func TestEventConstructors(t *testing.T) {
 	group := NewAlertGroup("", nil, "", "", nil, "")
-	grouped := NewGroupedAlertReference(1)
 	rule := NewInhibitRule("", nil, nil, nil)
 	constructed := []EventData{
 		NewAlertmanagerStartupEvent("", ""),
 		NewAlertmanagerShutdownEvent(),
 		NewAlertCreatedEvent(nil),
-		NewAlertGroupedEvent(group, grouped),
-		NewAlertResolvedEvent(group, grouped),
+		NewAlertGroupedEvent(group, nil),
+		NewAlertResolvedEvent(group, nil),
 		NewNotificationEvent(Notification{Group: group}),
 		NewSilenceMutedAlertEvent(nil, 0, nil),
 		NewSilenceCreatedEvent(nil),

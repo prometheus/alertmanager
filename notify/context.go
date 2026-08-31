@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -189,14 +190,16 @@ func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	return v, ok
 }
 
-// WithMutedAlerts populates a context with a set of muted alert hashes.
-func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Context {
-	return context.WithValue(ctx, keyMutedAlerts, alerts)
+func withMutedAlerts(ctx context.Context, alerts []*alert.Alert) context.Context {
+	existing, _ := mutedAlerts(ctx)
+	results := make([]*alert.Alert, 0, len(existing)+len(alerts))
+	results = append(results, existing...)
+	results = append(results, alerts...)
+	return context.WithValue(ctx, keyMutedAlerts, results)
 }
 
-// MutedAlerts extracts a set of muted alert hashes from the context.
-func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
-	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
+func mutedAlerts(ctx context.Context) ([]*alert.Alert, bool) {
+	v, ok := ctx.Value(keyMutedAlerts).([]*alert.Alert)
 	return v, ok
 }
 

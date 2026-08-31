@@ -51,12 +51,6 @@ message Alert {
   bool resolved = 7;
 }
 
-// GroupedAlert is a reference to an alert within an aggregation group.
-message GroupedAlert {
-  uint64 hash = 1;
-  optional Alert details = 2;
-}
-
 // AlertGroupInfo describes an alert's aggregation group context.
 message AlertGroupInfo {
   string group_key = 1;
@@ -74,13 +68,13 @@ message AlertCreatedEvent {
 
 // AlertResolvedEvent is emitted when a resolved alert leaves its group.
 message AlertResolvedEvent {
-  GroupedAlert alert = 1;
+  Alert alert = 1;
   AlertGroupInfo group_info = 2;
 }
 
 // AlertGroupedEvent is emitted when an alert first enters a group.
 message AlertGroupedEvent {
-  GroupedAlert alert = 1;
+  Alert alert = 1;
   AlertGroupInfo group_info = 2;
 }
 
@@ -102,10 +96,10 @@ message Integration {
 
 // NotificationEvent is emitted after a notification is delivered.
 message NotificationEvent {
-  repeated GroupedAlert alerts = 1;
-  repeated GroupedAlert firing_alerts = 2;
-  repeated GroupedAlert resolved_alerts = 3;
-  repeated GroupedAlert muted_alerts = 4;
+  repeated Alert alerts = 1;
+  repeated Alert firing_alerts = 2;
+  repeated Alert resolved_alerts = 3;
+  repeated Alert muted_alerts = 4;
   AlertGroupInfo group_info = 5;
   google.protobuf.Duration repeat_interval = 6;
   NotifyReason reason = 7;
