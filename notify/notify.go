@@ -141,7 +141,7 @@ func (f StageFunc) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Al
 }
 
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, store *nflog.Store, expiry time.Duration) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, store *nflog.Store, expiry time.Duration) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 

@@ -100,7 +100,7 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 
 	p.nflog = &testNflog{
 		qerr: nflog.ErrNotFound,
-		logFunc: func(_ *nflogpb.Receiver, _ string, firing, resolved []uint64, _ *nflog.Store, _ time.Duration) error {
+		logFunc: func(_ *nflogpb.Receiver, _ string, firing, resolved, _ []uint64, _ *nflog.Store, _ time.Duration) error {
 			p.entry = &nflogpb.Entry{
 				FiringAlerts:   firing,
 				ResolvedAlerts: resolved,

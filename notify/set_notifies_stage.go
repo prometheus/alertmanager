@@ -76,5 +76,5 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 
 	// Extract receiver data from context if present (it's ok for it to be nil).
 	store, _ := NflogStore(ctx)
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, store, expiry)
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, nil, store, expiry)
 }
