@@ -46,7 +46,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
     "vite-plugin-compression2": "^2.5.1",
-    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.10"
   }
 }
