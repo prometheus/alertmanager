@@ -69,6 +69,19 @@ func New(c *config.EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	return &Email{conf: c, tmpl: t, logger: l, hostname: h}
 }
 
+// wrapSMTPErr formats err with the given context message and, if err
+// carries an SMTP reply code, wraps the result in a notify.ErrorWithReason
+// so the failure surfaces in Alertmanager's per-reason notification metrics
+// the same way HTTP-based notifiers already do.
+func wrapSMTPErr(context string, err error) error {
+	wrapped := fmt.Errorf("%s: %w", context, err)
+
+	if tpErr, ok := errors.AsType[*textproto.Error](err); ok {
+		return notify.NewErrorWithReason(notify.GetFailureReasonFromSMTPCode(tpErr.Code), wrapped)
+	}
+	return wrapped
+}
+
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := n.conf.AuthUsername
@@ -177,7 +190,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.Hello != "" {
 		err = c.Hello(n.conf.Hello)
 		if err != nil {
-			return true, fmt.Errorf("send EHLO command: %w", err)
+			return true, wrapSMTPErr("send EHLO command", err)
 		}
 	}
 
@@ -196,7 +209,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {
-			return true, fmt.Errorf("send STARTTLS command: %w", err)
+			return true, wrapSMTPErr("send STARTTLS command", err)
 		}
 	}
 
@@ -207,7 +220,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				return true, fmt.Errorf("%T auth: %w", auth, err)
+				return true, wrapSMTPErr(fmt.Sprintf("%T auth", auth), err)
 			}
 		}
 	}
@@ -234,7 +247,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs))
 	}
 	if err = c.Mail(addrs[0].Address); err != nil {
-		return true, fmt.Errorf("send MAIL command: %w", err)
+		return true, wrapSMTPErr("send MAIL command", err)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
@@ -242,14 +255,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	for _, addr := range addrs {
 		if err = c.Rcpt(addr.Address); err != nil {
-			return true, fmt.Errorf("send RCPT command: %w", err)
+			return true, wrapSMTPErr("send RCPT command", err)
 		}
 	}
 
 	// Send the email headers and body.
 	message, err := c.Data()
 	if err != nil {
-		return true, fmt.Errorf("send DATA command: %w", err)
+		return true, wrapSMTPErr("send DATA command", err)
 	}
 	closeOnce := sync.OnceValue(func() error {
 		return message.Close()
@@ -375,7 +388,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	// Complete the message and await response.
 	if err = closeOnce(); err != nil {
-		return true, fmt.Errorf("delivery failure: %w", err)
+		return true, wrapSMTPErr("delivery failure", err)
 	}
 
 	success = true
