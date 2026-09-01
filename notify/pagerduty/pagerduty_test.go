@@ -75,6 +75,79 @@ func TestPagerDutyRetryV2(t *testing.T) {
 	}
 }
 
+func TestPagerDutyFailureReason(t *testing.T) {
+	for _, version := range []string{"v1", "v2"} {
+		for _, tc := range []struct {
+			name           string
+			statusCode     int
+			expectedReason notify.Reason
+		}{
+			{
+				name:           "client error",
+				statusCode:     http.StatusBadRequest,
+				expectedReason: notify.ClientErrorReason,
+			},
+			{
+				name:           "authentication error",
+				statusCode:     http.StatusUnauthorized,
+				expectedReason: notify.AuthErrorReason,
+			},
+			{
+				name:           "authorization error",
+				statusCode:     http.StatusForbidden,
+				expectedReason: notify.AuthErrorReason,
+			},
+			{
+				name:           "rate limited",
+				statusCode:     http.StatusTooManyRequests,
+				expectedReason: notify.RateLimitedReason,
+			},
+			{
+				name:           "server error",
+				statusCode:     http.StatusInternalServerError,
+				expectedReason: notify.ServerErrorReason,
+			},
+		} {
+			t.Run(version+"/"+tc.name, func(t *testing.T) {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(tc.statusCode)
+				}))
+				defer srv.Close()
+
+				cfg := &PagerdutyConfig{HTTPConfig: &commoncfg.HTTPClientConfig{}}
+				if version == "v1" {
+					cfg.ServiceKey = commoncfg.Secret("01234567890123456789012345678901")
+				} else {
+					u, err := url.Parse(srv.URL)
+					require.NoError(t, err)
+					cfg.RoutingKey = commoncfg.Secret("01234567890123456789012345678901")
+					cfg.URL = &amcommoncfg.URL{URL: u}
+				}
+
+				notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+				require.NoError(t, err)
+				if version == "v1" {
+					notifier.apiV1 = srv.URL
+				}
+
+				ctx := notify.WithGroupKey(context.Background(), "1")
+				alert := &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"lbl1": "val1"},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				}
+
+				_, err = notifier.Notify(ctx, alert)
+				var reasonError *notify.ErrorWithReason
+				require.ErrorAs(t, err, &reasonError)
+				require.Equal(t, tc.expectedReason, reasonError.Reason)
+			})
+		}
+	}
+}
+
 func TestPagerDutyRedactedURLV1(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
