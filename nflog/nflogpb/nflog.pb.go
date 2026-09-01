@@ -107,7 +107,11 @@ type Entry struct {
 	// ResolvedAlerts list of hashes of resolved alerts at the last notification time.
 	ResolvedAlerts []uint64 `protobuf:"varint,7,rep,packed,name=resolved_alerts,json=resolvedAlerts,proto3" json:"resolved_alerts,omitempty"`
 	// Data specific to the receiver which sent the notification
-	ReceiverData  map[string]*ReceiverDataValue `protobuf:"bytes,8,rep,name=receiver_data,json=receiverData,proto3" json:"receiver_data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ReceiverData map[string]*ReceiverDataValue `protobuf:"bytes,8,rep,name=receiver_data,json=receiverData,proto3" json:"receiver_data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// MutedAlerts list of hashes of alerts that were muted at the last
+	// notification time, and therefore excluded from FiringAlerts and
+	// ResolvedAlerts.
+	MutedAlerts   []uint64 `protobuf:"varint,9,rep,packed,name=muted_alerts,json=mutedAlerts,proto3" json:"muted_alerts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -194,6 +198,13 @@ func (x *Entry) GetResolvedAlerts() []uint64 {
 func (x *Entry) GetReceiverData() map[string]*ReceiverDataValue {
 	if x != nil {
 		return x.ReceiverData
+	}
+	return nil
+}
+
+func (x *Entry) GetMutedAlerts() []uint64 {
+	if x != nil {
+		return x.MutedAlerts
 	}
 	return nil
 }
@@ -362,7 +373,7 @@ const file_nflog_proto_rawDesc = "" +
 	"\n" +
 	"group_name\x18\x01 \x01(\tR\tgroupName\x12 \n" +
 	"\vintegration\x18\x02 \x01(\tR\vintegration\x12\x10\n" +
-	"\x03idx\x18\x03 \x01(\rR\x03idx\"\xba\x03\n" +
+	"\x03idx\x18\x03 \x01(\rR\x03idx\"\xdd\x03\n" +
 	"\x05Entry\x12\x1b\n" +
 	"\tgroup_key\x18\x01 \x01(\fR\bgroupKey\x12-\n" +
 	"\breceiver\x18\x02 \x01(\v2\x11.nflogpb.ReceiverR\breceiver\x12\x1d\n" +
@@ -372,7 +383,8 @@ const file_nflog_proto_rawDesc = "" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12#\n" +
 	"\rfiring_alerts\x18\x06 \x03(\x04R\ffiringAlerts\x12'\n" +
 	"\x0fresolved_alerts\x18\a \x03(\x04R\x0eresolvedAlerts\x12E\n" +
-	"\rreceiver_data\x18\b \x03(\v2 .nflogpb.Entry.ReceiverDataEntryR\freceiverData\x1a[\n" +
+	"\rreceiver_data\x18\b \x03(\v2 .nflogpb.Entry.ReceiverDataEntryR\freceiverData\x12!\n" +
+	"\fmuted_alerts\x18\t \x03(\x04R\vmutedAlerts\x1a[\n" +
 	"\x11ReceiverDataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x120\n" +
 	"\x05value\x18\x02 \x01(\v2\x1a.nflogpb.ReceiverDataValueR\x05value:\x028\x01\"l\n" +

@@ -59,15 +59,15 @@ type testNflog struct {
 	qres []*nflogpb.Entry
 	qerr error
 
-	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error
+	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error
 }
 
 func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
 	return l.qres, l.qerr
 }
 
-func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
-	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, receiverData, expiry)
+func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts, mutedAlerts, receiverData, expiry)
 }
 
 func (l *testNflog) GC() (int, error) {
@@ -667,11 +667,12 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithResolvedAlerts(ctx, []uint64{})
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{0, 1, 2}, firingAlerts)
 		require.Equal(t, []uint64{}, resolvedAlerts)
+		require.Nil(t, mutedAlerts)
 		require.Equal(t, 2*time.Hour, expiry)
 		return nil
 	}
@@ -683,11 +684,12 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{})
 	ctx = WithResolvedAlerts(ctx, []uint64{0, 1, 2})
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 		require.Equal(t, s.recv, r)
 		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{}, firingAlerts)
 		require.Equal(t, []uint64{0, 1, 2}, resolvedAlerts)
+		require.Nil(t, mutedAlerts)
 		require.Equal(t, 2*time.Hour, expiry)
 		return nil
 	}
@@ -702,7 +704,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	callCount := 0
 
 	tnflog := &testNflog{
-		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 			storedData = receiverData
 			return nil
 		},
@@ -919,7 +921,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	var capturedStoreValues []map[string]string
 
 	tnflog := &testNflog{
-		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 			storedData = receiverData
 			return nil
 		},
