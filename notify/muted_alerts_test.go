@@ -14,17 +14,7 @@
 package notify
 
 // The tests in this file characterize how the notification pipeline treats
-// muted alerts by default. The mute stages remove muted alerts from the
-// pipeline before the dedup stage runs, so muted alerts never reach the
-// notification log, and the group's notification history has no way to
-// represent them. Enabling the muted-alerts-in-nflog feature changes that; the
-// tests for it live alongside the stages they exercise.
-//
-// The semantics that follow from that are discussed in
-// https://github.com/prometheus/alertmanager/issues/5247, and one of them is
-// the bug reported in https://github.com/prometheus/alertmanager/issues/226.
-// The expectations below record what the pipeline does, including where that
-// is the bug.
+// muted alerts.
 
 import (
 	"context"
@@ -57,7 +47,7 @@ func firingAlert(name string) *alert.Alert {
 }
 
 // resolvedAlert returns the alert that firingAlert returns for the same name,
-// resolved. Both share the same label set and therefore the same hash.
+// resolved.
 func resolvedAlert(name string) *alert.Alert {
 	a := firingAlert(name)
 	a.EndsAt = utcNow().Add(-time.Minute)
@@ -67,8 +57,7 @@ func resolvedAlert(name string) *alert.Alert {
 // mutedPipeline runs the part of the notification pipeline that decides
 // whether a group is notified about: the mute stage that drops muted alerts,
 // the dedup stage that consults the notification log, and the stage that
-// writes the log entry back. The retry stage is deliberately left out so that
-// the tests observe the notification decision rather than the delivery.
+// writes the log entry back.
 type mutedPipeline struct {
 	t *testing.T
 
@@ -282,11 +271,12 @@ func TestDedup_MutedAlertVanishesFromNflog(t *testing.T) {
 	require.Equal(t, []uint64{hashAlert(b)}, p.entry.FiringAlerts)
 }
 
-// TestDedup_NoResolvedNotificationForMutedAlert is
-// https://github.com/prometheus/alertmanager/issues/226 as a unit test. An
-// alert that has already been notified about and is then muted never produces
-// the matching resolved notification, because the mute stage empties the group
-// before the dedup stage can notice that everything has resolved.
+// TestDedup_NoResolvedNotificationForMutedAlert illustrates
+// https://github.com/prometheus/alertmanager/issues/226. An alert
+// that has already been notified about and is then muted never
+// produces the matching resolved notification, because the mute stage
+// empties the group before the dedup stage can notice that everything
+// has resolved.
 func TestDedup_NoResolvedNotificationForMutedAlert(t *testing.T) {
 	base := utcNow()
 	a, aResolved := firingAlert("a"), resolvedAlert("a")
@@ -326,12 +316,12 @@ func TestDedup_NoResolvedNotificationForMutedAlert(t *testing.T) {
 	})
 }
 
-// TestDedup_MutedAlertBreaksNotificationSequence asserts the incoherent
-// sequence discussed in
-// https://github.com/prometheus/alertmanager/issues/5247. Alert a is muted for
-// as long as it is firing, so the group is reported as entirely resolved while
-// a is still firing, and a then arrives as a brand new group once it is
-// unmuted.
+// TestDedup_MutedAlertBreaksNotificationSequence asserts the sequence
+// discussed in
+// https://github.com/prometheus/alertmanager/issues/5247. Alert a is
+// muted for as long as it is firing, so the group is reported as
+// entirely resolved while a is still firing, and a then arrives as a
+// brand new group once it is unmuted.
 func TestDedup_MutedAlertBreaksNotificationSequence(t *testing.T) {
 	p := newMutedPipeline(t, true)
 	base := utcNow()

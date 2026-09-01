@@ -52,9 +52,7 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
 // recordMuted adds the hashes of the given alerts to the set of muted alert
-// hashes in the context, so that later stages can tell alerts that a mute
-// stage removed from the pipeline apart from alerts that are no longer firing.
-// The hashes are the ones the dedup stage uses.
+// hashes in the context
 func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
 	hashes, _ := MutedAlerts(ctx)
 	if hashes == nil {
