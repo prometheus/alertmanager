@@ -231,12 +231,13 @@ var _ = Describe("StatusService", func() {
 })
 
 var _ = Describe("Connect API", func() {
-	It("pins registered service prefixes", func() {
-		Expect(NewAPI(Options{}).ServicePrefixes()).To(Equal([]string{
-			"/status.v3alpha.StatusService/",
-			"/grpc.health.v1.Health/",
-			"/grpc.reflection.v1.ServerReflection/",
-			"/grpc.reflection.v1alpha.ServerReflection/",
+	It("pins registered procedures", func() {
+		Expect(NewAPI(Options{}).Procedures()).To(Equal([]string{
+			"/status.v3alpha.StatusService/GetStatus",
+			"/grpc.health.v1.Health/Check",
+			"/grpc.health.v1.Health/Watch",
+			"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo",
+			"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
 		}))
 	})
 })
