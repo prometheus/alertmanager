@@ -72,6 +72,8 @@ type Options struct {
 	ConnectUnaryConcurrency    int
 	ConnectStreamConcurrency   int
 	ConnectUnaryTimeout        time.Duration
+	ConnectStreamIdleTimeout   time.Duration
+	ConnectStreamLifetime      time.Duration
 	ConnectReadMaxBytes        int
 	ConnectSendMaxBytes        int
 	ConnectMaxRequestBodyBytes int64

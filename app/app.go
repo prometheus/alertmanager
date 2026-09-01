@@ -392,6 +392,8 @@ func (a *App) setup() error {
 		ConnectUnaryConcurrency:    opts.ConnectUnaryConcurrency,
 		ConnectStreamConcurrency:   opts.ConnectStreamConcurrency,
 		ConnectUnaryTimeout:        opts.ConnectUnaryTimeout,
+		ConnectStreamIdleTimeout:   opts.ConnectStreamIdleTimeout,
+		ConnectStreamLifetime:      opts.ConnectStreamLifetime,
 		ConnectReadMaxBytes:        opts.ConnectReadMaxBytes,
 		ConnectSendMaxBytes:        opts.ConnectSendMaxBytes,
 		ConnectMaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
@@ -532,6 +534,7 @@ func (a *App) setup() error {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       90 * time.Second,
 	}
+	a.server.RegisterOnShutdown(apih.Shutdown)
 
 	return nil
 }

@@ -79,6 +79,8 @@ type Options struct {
 	ConnectUnaryConcurrency    int
 	ConnectStreamConcurrency   int
 	ConnectUnaryTimeout        time.Duration
+	ConnectStreamIdleTimeout   time.Duration
+	ConnectStreamLifetime      time.Duration
 	ConnectReadMaxBytes        int
 	ConnectSendMaxBytes        int
 	ConnectMaxRequestBodyBytes int64
@@ -157,6 +159,8 @@ func New(opts Options) (*API, error) {
 		UnaryConcurrency:    unaryConcurrency,
 		StreamConcurrency:   streamConcurrency,
 		UnaryTimeout:        unaryTimeout,
+		StreamIdleTimeout:   opts.ConnectStreamIdleTimeout,
+		StreamLifetime:      opts.ConnectStreamLifetime,
 		ReadMaxBytes:        opts.ConnectReadMaxBytes,
 		SendMaxBytes:        opts.ConnectSendMaxBytes,
 		MaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
@@ -286,6 +290,13 @@ func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Conte
 	}
 	if api.connect != nil {
 		api.connect.Update(cfg)
+	}
+}
+
+// Shutdown rejects new Connect RPCs and cancels active RPCs.
+func (api *API) Shutdown() {
+	if api.connect != nil {
+		api.connect.Shutdown()
 	}
 }
 

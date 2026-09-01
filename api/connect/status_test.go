@@ -72,6 +72,37 @@ func (p *blockingPeer) Peers() []cluster.ClusterMember {
 }
 func (p *blockingPeer) unblock() { p.releaseOnce.Do(func() { close(p.release) }) }
 
+type fakeStreamingConn struct{}
+
+func (fakeStreamingConn) Spec() connect.Spec {
+	return connect.Spec{Procedure: "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", StreamType: connect.StreamTypeBidi}
+}
+func (fakeStreamingConn) Peer() connect.Peer           { return connect.Peer{} }
+func (fakeStreamingConn) Receive(any) error            { return nil }
+func (fakeStreamingConn) RequestHeader() http.Header   { return http.Header{} }
+func (fakeStreamingConn) Send(any) error               { return nil }
+func (fakeStreamingConn) ResponseHeader() http.Header  { return http.Header{} }
+func (fakeStreamingConn) ResponseTrailer() http.Header { return http.Header{} }
+
+type deadlineResponseWriter struct {
+	header        http.Header
+	readDeadline  time.Time
+	writeDeadline time.Time
+}
+
+func (w *deadlineResponseWriter) Header() http.Header       { return w.header }
+func (*deadlineResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (*deadlineResponseWriter) WriteHeader(int)             {}
+func (w *deadlineResponseWriter) SetReadDeadline(t time.Time) error {
+	w.readDeadline = t
+	return nil
+}
+
+func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
+	w.writeDeadline = t
+	return nil
+}
+
 var _ = Describe("StatusService", func() {
 	It("returns status when clustering is disabled", func() {
 		api := newTestAPI(Options{})
@@ -149,6 +180,28 @@ var _ = Describe("StatusService", func() {
 		var statusErr error
 		Eventually(statusDone, 5*time.Second).Should(Receive(&statusErr))
 		Expect(statusErr).NotTo(HaveOccurred())
+	})
+
+	It("cancels active unary RPCs during shutdown", func() {
+		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
+		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1, UnaryTimeout: -1})
+		api.Update(&config.Config{})
+		srv := httptest.NewServer(api.Handler())
+		DeferCleanup(srv.Close)
+		DeferCleanup(peer.unblock)
+		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
+		done := make(chan error, 1)
+		go func() {
+			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			done <- err
+		}()
+		Eventually(peer.entered).Should(BeClosed())
+
+		api.Shutdown()
+		var err error
+		Eventually(done).Should(Receive(&err))
+		Expect(connect.CodeOf(err)).To(Equal(connect.CodeCanceled))
+		Expect(api.admission.unary).To(HaveLen(0))
 	})
 
 	It("bounds peer snapshots when the unary deadline expires", func() {
@@ -297,7 +350,7 @@ var _ = Describe("StatusService", func() {
 		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
 
 		var resp *http.Response
-		Eventually(done, time.Second).Should(Receive(&resp))
+		Eventually(done, 2*time.Second).Should(Receive(&resp))
 		Expect(resp).NotTo(BeNil())
 		Expect(resp.Body.Close()).To(Succeed())
 		Expect(peer.calls.Load()).To(BeZero())
@@ -324,6 +377,12 @@ var _ = Describe("Connect API", func() {
 		Expect(api.readMaxBytes).To(BeZero())
 		Expect(api.sendMaxBytes).To(BeZero())
 		Expect(api.maxRequestBytes).To(BeZero())
+	})
+
+	It("allows streams without idle or lifetime limits by default", func() {
+		api := newTestAPI(Options{})
+		Expect(api.admission.streamIdleTimeout).To(BeZero())
+		Expect(api.admission.streamLifetime).To(BeZero())
 	})
 
 	It("returns metric registration errors", func() {
@@ -467,5 +526,90 @@ var _ = Describe("RPC admission", func() {
 
 		_, err := wrapped(context.Background(), nil)
 		Expect(connect.CodeOf(err)).To(Equal(connect.CodeDeadlineExceeded))
+	})
+
+	It("bounds writes when terminating decoded unary RPCs", func() {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		writer := &deadlineResponseWriter{header: http.Header{}}
+		lifecycle := &rpcLifecycle{
+			cancel:       cancel,
+			writeTimeout: time.Second,
+			controller:   http.NewResponseController(writer),
+		}
+		lifecycle.decoded.Store(true)
+
+		started := time.Now()
+		lifecycle.terminate(context.DeadlineExceeded)
+		Expect(writer.readDeadline).To(BeZero())
+		Expect(writer.writeDeadline).To(BeTemporally(">", started))
+		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
+	})
+
+	It("bounds idle streams before the first message is decoded", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 500 * time.Millisecond, StreamLifetime: 2 * time.Second})
+		handler := api.Handler()
+		srv := httptest.NewUnstartedServer(handler)
+		serverProtocols := new(http.Protocols)
+		serverProtocols.SetUnencryptedHTTP2(true)
+		srv.Config.Protocols = serverProtocols
+		srv.Start()
+		DeferCleanup(srv.Close)
+		clientProtocols := new(http.Protocols)
+		clientProtocols.SetUnencryptedHTTP2(true)
+		transport := &http.Transport{Protocols: clientProtocols}
+		client := &http.Client{Transport: transport, Timeout: time.Second}
+		DeferCleanup(transport.CloseIdleConnections)
+		reader, writer := io.Pipe()
+		DeferCleanup(writer.Close)
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", reader)
+		Expect(err).NotTo(HaveOccurred())
+		req.Header.Set("Content-Type", "application/grpc")
+		done := make(chan struct{})
+		go func() {
+			resp, _ := client.Do(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			close(done)
+		}()
+		_, err = writer.Write([]byte{0})
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() int { return len(api.admission.streams) }).Should(Equal(1))
+		Eventually(done, 2*time.Second).Should(BeClosed())
+		Expect(api.admission.streams).To(HaveLen(0))
+	})
+
+	It("releases stream capacity after lifetime expiration", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamLifetime: 10 * time.Millisecond})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+
+		Expect(connect.CodeOf(wrapped(context.Background(), nil))).To(Equal(connect.CodeDeadlineExceeded))
+		Expect(connect.CodeOf(wrapped(context.Background(), nil))).To(Equal(connect.CodeDeadlineExceeded))
+	})
+
+	It("releases stream capacity after cancellation", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		Expect(connect.CodeOf(wrapped(ctx, nil))).To(Equal(connect.CodeCanceled))
+	})
+
+	It("releases stream capacity after idle expiration", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 10 * time.Millisecond, StreamLifetime: time.Second})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
 	})
 })

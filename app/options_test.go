@@ -58,6 +58,8 @@ func TestOptions_Validate(t *testing.T) {
 	require.Zero(t, base.ConnectReadMaxBytes)
 	require.Zero(t, base.ConnectSendMaxBytes)
 	require.Zero(t, base.ConnectMaxRequestBodyBytes)
+	require.Zero(t, base.ConnectStreamIdleTimeout)
+	require.Zero(t, base.ConnectStreamLifetime)
 
 	for _, tc := range []struct {
 		name   string
