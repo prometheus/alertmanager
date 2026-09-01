@@ -85,7 +85,8 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 func TestConnectProceduresRegistered(t *testing.T) {
 	for _, routePrefix := range []string{"/", "/alertmanager"} {
 		t.Run(routePrefix, func(t *testing.T) {
-			connectAPI := apiconnect.NewAPI(apiconnect.Options{})
+			connectAPI, err := apiconnect.NewAPI(apiconnect.Options{})
+			require.NoError(t, err)
 			requestDuration := prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{Name: "test_registered_http_request_duration_seconds"},
 				[]string{"handler", "method", "code"},
