@@ -199,7 +199,11 @@ func (n *Notifier) notifyV1(
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, resp.Body)
+	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	if err != nil {
+		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+	return retry, err
 }
 
 func (n *Notifier) notifyV2(
