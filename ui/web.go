@@ -31,6 +31,24 @@ import (
 //go:embed app/dist
 var asset embed.FS
 
+const (
+	elmRoot     = "app/dist/elm"
+	mantineRoot = "app/dist/mantine"
+)
+
+var (
+	elmFS     = mustSub(elmRoot)
+	mantineFS = mustSub(mantineRoot)
+)
+
+func mustSub(root string) fs.FS {
+	sub, err := fs.Sub(asset, root)
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}
+
 var fileTypes = map[string]struct {
 	contentType  string // https://www.iana.org/assignments/media-types/
 	varyEncoding bool   // Must match build configuration in vite.config.mjs.
@@ -117,11 +135,7 @@ func decompressToReader(f fs.File) (*bytes.Reader, error) {
 
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router) {
-	appFS, err := fs.Sub(asset, "app/dist")
-	if err != nil {
-		panic(err) // During build step, we did not embed a directory named `app/dist`.
-	}
-	serve := func(w http.ResponseWriter, req *http.Request, filePath string, immutable bool) {
+	serve := func(w http.ResponseWriter, req *http.Request, appFS fs.FS, filePath string, immutable bool) {
 		ext := strings.ToLower(path.Ext(filePath))
 		fileType, ok := fileTypes[ext]
 		if !ok {
@@ -178,16 +192,37 @@ func Register(r *route.Router) {
 		http.NotFound(w, req)
 	}
 
+	serveAssets := func(w http.ResponseWriter, req *http.Request, appFS fs.FS) {
+		filePath := strings.TrimPrefix(route.Param(req.Context(), "path"), "/")
+		if filePath == "" || !fs.ValidPath(filePath) {
+			http.NotFound(w, req)
+			return
+		}
+		serve(w, req, appFS, path.Join("assets", filePath), true)
+	}
+
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		serve(w, req, "index.html", false)
+		serve(w, req, elmFS, "index.html", false)
 	})
 
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
-		serve(w, req, "favicon.ico", false)
+		serve(w, req, elmFS, "favicon.ico", false)
 	})
 
 	r.Get("/assets/*path", func(w http.ResponseWriter, req *http.Request) {
-		serve(w, req, path.Join("assets", route.Param(req.Context(), "path")), true)
+		serveAssets(w, req, elmFS)
+	})
+
+	r.Get("/ui", func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, req.URL.Path+"/", http.StatusFound)
+	})
+
+	r.Get("/ui/", func(w http.ResponseWriter, req *http.Request) {
+		serve(w, req, mantineFS, "index.html", false)
+	})
+
+	r.Get("/ui/assets/*path", func(w http.ResponseWriter, req *http.Request) {
+		serveAssets(w, req, mantineFS)
 	})
 }
 

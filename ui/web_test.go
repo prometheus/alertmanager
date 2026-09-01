@@ -17,7 +17,6 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -91,6 +90,43 @@ func TestIndexAssetsAreServedPrefix(t *testing.T) {
 	fetchIndexAndAssets(t, router, "/alertmanager/")
 }
 
+func TestMantineIndexAssetsAreServed(t *testing.T) {
+	router := route.New()
+	Register(router)
+	fetchIndexAndAssets(t, router, "/ui/")
+}
+
+func TestMantineIndexAssetsAreServedPrefix(t *testing.T) {
+	router := route.New().WithPrefix("/alertmanager")
+	Register(router)
+	fetchIndexAndAssets(t, router, "/alertmanager/ui/")
+}
+
+func TestMantineRedirect(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		router     *route.Router
+		requestURL string
+	}{
+		{"root", route.New(), "/ui"},
+		{"prefix", route.New().WithPrefix("/alertmanager"), "/alertmanager/ui"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			Register(tt.router)
+			res := fetchWithEncoding(tt.router, tt.requestURL, encNone)
+			require.Equal(t, http.StatusFound, res.Code)
+			require.Equal(t, tt.requestURL+"/", res.Header().Get("Location"))
+		})
+	}
+}
+
+func TestMantineHashRoutesStayClientSide(t *testing.T) {
+	router := route.New()
+	Register(router)
+	res := fetchWithEncoding(router, "/ui/alerts", encNone)
+	require.Equal(t, http.StatusNotFound, res.Code)
+}
+
 func walkFiles(t *testing.T, appFS fs.FS, urlRoot string) map[string][]encoding {
 	t.Helper()
 	count := make(map[string]int)
@@ -124,24 +160,14 @@ func walkFiles(t *testing.T, appFS fs.FS, urlRoot string) map[string][]encoding 
 	return files
 }
 
-func TestMantineBuildOutput(t *testing.T) {
-	mantineFS := os.DirFS("mantine-ui/dist")
-	if _, err := fs.Stat(mantineFS, "."); os.IsNotExist(err) {
-		t.Skip("Mantine UI assets are not built")
-	} else {
-		require.NoError(t, err)
-	}
-	files := walkFiles(t, mantineFS, "/ui/")
-	require.Contains(t, files, "/ui/")
-}
-
-// walkEmbeddedFiles returns a map of URL to encodings for every file in
-// app/dist.
 func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
 	t.Helper()
-	appFS, err := fs.Sub(asset, "app/dist")
-	require.NoError(t, err)
-	return walkFiles(t, appFS, "/")
+	return walkFiles(t, elmFS, "/")
+}
+
+func walkMantineFiles(t *testing.T) map[string][]encoding {
+	t.Helper()
+	return walkFiles(t, mantineFS, "/ui/")
 }
 
 func fetchWithEncoding(router *route.Router, urlPath string, encoding encoding) *httptest.ResponseRecorder {
@@ -187,10 +213,13 @@ func TestAssetsNotFoundCacheHeader(t *testing.T) {
 	router := route.New()
 	Register(router)
 
-	res := fetchWithEncoding(router, "/assets/nonexistent.js", encNone)
-
-	require.Equal(t, http.StatusNotFound, res.Code)
-	require.Empty(t, res.Header().Get("Cache-Control"))
+	for _, urlPath := range []string{"/assets/nonexistent.js", "/ui/assets/nonexistent.js", "/ui/assets/../index.html"} {
+		t.Run(urlPath, func(t *testing.T) {
+			res := fetchWithEncoding(router, urlPath, encNone)
+			require.Equal(t, http.StatusNotFound, res.Code)
+			require.Empty(t, res.Header().Get("Cache-Control"))
+		})
+	}
 }
 
 // TestWebRoutes walks the embedded FS and issues an HTTP request for every
@@ -200,10 +229,17 @@ func TestWebRoutes(t *testing.T) {
 	Register(router)
 
 	files := walkEmbeddedFiles(t)
-
 	require.Contains(t, files, "/")
 	require.Contains(t, files, "/favicon.ico")
+	checkWebRoutes(t, router, files)
 
+	mantineFiles := walkMantineFiles(t)
+	require.Contains(t, mantineFiles, "/ui/")
+	checkWebRoutes(t, router, mantineFiles)
+}
+
+func checkWebRoutes(t *testing.T, router *route.Router, files map[string][]encoding) {
+	t.Helper()
 	for url, encodings := range files {
 		t.Run(url, func(t *testing.T) {
 			for _, encoding := range encodings {

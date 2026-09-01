@@ -13,6 +13,10 @@ const licenseFile = path.resolve(
 
 export default defineConfig({
   base: './',
+  build: {
+    outDir: '../app/dist/mantine',
+    emptyOutDir: true,
+  },
   plugins: [
     react(),
     tsconfigPaths(),
