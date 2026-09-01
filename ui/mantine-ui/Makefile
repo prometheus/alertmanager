@@ -17,4 +17,4 @@ lint: node_modules
 
 .PHONY: clean
 clean:
-	- @rm -rf dist node_modules
+	- @rm -rf ../app/dist/mantine node_modules
