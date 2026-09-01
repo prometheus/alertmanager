@@ -17,13 +17,17 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/mdlayher/vsock"
 	"github.com/prometheus/exporter-toolkit/web"
+	"gopkg.in/yaml.v2"
 )
 
 // listenAll eagerly binds every listener described by flags so that the
@@ -93,4 +97,45 @@ func parseVsockPort(address string) (uint32, error) {
 		return 0, err
 	}
 	return uint32(port), nil
+}
+
+type reloadableTLSALPNListener struct {
+	net.Listener
+	server       *http.Server
+	once         *sync.Once
+	http2Enabled bool
+}
+
+func (l reloadableTLSALPNListener) Accept() (net.Conn, error) {
+	l.once.Do(func() {
+		if !l.http2Enabled || l.server.TLSConfig == nil {
+			return
+		}
+		if _, ok := l.server.TLSNextProto["h2"]; ok {
+			l.server.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
+		}
+	})
+	return l.Listener.Accept()
+}
+
+func configuredHTTP2(path string) bool {
+	config := struct {
+		HTTP struct {
+			HTTP2 *bool `yaml:"http2"`
+		} `yaml:"http_server_config"`
+	}{}
+	content, err := os.ReadFile(path)
+	if err != nil || yaml.Unmarshal(content, &config) != nil || config.HTTP.HTTP2 == nil {
+		return true
+	}
+	return *config.HTTP.HTTP2
+}
+
+func withReloadableTLSALPN(listeners []net.Listener, server *http.Server, http2Enabled bool) []net.Listener {
+	once := &sync.Once{}
+	wrapped := make([]net.Listener, 0, len(listeners))
+	for _, listener := range listeners {
+		wrapped = append(wrapped, reloadableTLSALPNListener{Listener: listener, server: server, once: once, http2Enabled: http2Enabled})
+	}
+	return wrapped
 }

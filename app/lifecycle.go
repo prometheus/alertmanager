@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"slices"
 	"time"
@@ -61,11 +62,24 @@ func (a *App) Start() error {
 	// on an unbuffered channel has no receiver.
 	go a.reloadRouter()
 
+	http2Enabled := configuredHTTP2(*a.opts.WebConfig.WebConfigFile)
 	go func() {
-		err := web.ServeMultiple(a.listeners, a.server, a.opts.WebConfig, a.logger)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.logger.Error("Listen error", "err", err)
-			a.serveErrc <- err
+		errCh := make(chan error, len(a.listeners))
+		for idx, listener := range a.listeners {
+			server := a.servers[idx]
+			go func() {
+				errCh <- web.Serve(withReloadableTLSALPN([]net.Listener{listener}, server, http2Enabled)[0], server, a.opts.WebConfig, a.logger)
+			}()
+		}
+		var serveErr error
+		for range a.listeners {
+			if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serveErr = errors.Join(serveErr, err)
+			}
+		}
+		if serveErr != nil {
+			a.logger.Error("Listen error", "err", serveErr)
+			a.serveErrc <- serveErr
 		}
 		close(a.serveErrc)
 	}()
@@ -206,13 +220,24 @@ func (a *App) Stop(ctx context.Context) error {
 	// reload router is still running at this point so any in-flight
 	// /-/reload handler can complete its send/receive cycle and unblock
 	// Shutdown.
-	if a.server != nil {
-		if err := a.server.Shutdown(shutdownCtx); err != nil {
-			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
-			stopErr = err
-			if closeErr := a.server.Close(); closeErr != nil {
-				stopErr = errors.Join(stopErr, closeErr)
+	servers := a.servers
+	if len(servers) == 0 && a.server != nil {
+		servers = []*http.Server{a.server}
+	}
+	shutdownErrCh := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() {
+			err := server.Shutdown(shutdownCtx)
+			if err != nil {
+				err = errors.Join(err, server.Close())
 			}
+			shutdownErrCh <- err
+		}()
+	}
+	for range servers {
+		if err := <-shutdownErrCh; err != nil {
+			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
+			stopErr = errors.Join(stopErr, err)
 		}
 	}
 	// HTTP is fully drained; no new /-/reload requests can arrive.
