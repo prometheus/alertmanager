@@ -734,6 +734,12 @@ func TestEmailRejected(t *testing.T) {
 	require.ErrorContains(t, verdict.Err(), "501")
 	require.ErrorContains(t, verdict.Err(), "5.5.4")
 	require.True(t, verdict.ShouldRetry())
+
+	// A 501 (5xx) SMTP reply is a permanent failure, which should surface
+	// as ClientErrorReason, mirroring how HTTP-based notifiers report 4xx
+	// responses (SMTP's 4xx/5xx split is the inverse of HTTP's).
+	require.Equal(t, notify.ClientErrorReason, verdict.Reason())
+
 	require.NoError(t, srv.Shutdown(ctx))
 
 	require.Eventuallyf(t, func() bool {
