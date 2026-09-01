@@ -68,6 +68,20 @@ func New(c *EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	return &Email{conf: c, tmpl: t, logger: l, hostname: h}
 }
 
+// wrapSMTPErr formats err with the given context message and, if err
+// carries an SMTP reply code, derives the failure Reason from it so the
+// failure surfaces in Alertmanager's per-reason notification metrics the
+// same way HTTP-based notifiers already do. Callers pass the returned
+// Reason straight through to notify.Retry/notify.Unrecoverable.
+func wrapSMTPErr(context string, err error) (error, notify.Reason) {
+	wrapped := fmt.Errorf("%s: %w", context, err)
+
+	if tpErr, ok := errors.AsType[*textproto.Error](err); ok {
+		return wrapped, notify.GetFailureReasonFromSMTPCode(tpErr.Code)
+	}
+	return wrapped, notify.DefaultReason
+}
+
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := n.conf.AuthUsername
@@ -164,7 +178,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
-		return notify.Retry(0, fmt.Errorf("create SMTP client: %w", err), notify.DefaultReason)
+		wrapped, reason := wrapSMTPErr("create SMTP client", err)
+		return notify.Retry(0, wrapped, reason)
 	}
 	defer func() {
 		// Try to clean up after ourselves but don't log anything if something has failed.
@@ -176,7 +191,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	if n.conf.Hello != "" {
 		err = c.Hello(n.conf.Hello)
 		if err != nil {
-			return notify.Retry(0, fmt.Errorf("send EHLO command: %w", err), notify.DefaultReason)
+			wrapped, reason := wrapSMTPErr("send EHLO command", err)
+			return notify.Retry(0, wrapped, reason)
 		}
 	}
 
@@ -195,7 +211,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {
-			return notify.Retry(0, fmt.Errorf("send STARTTLS command: %w", err), notify.DefaultReason)
+			wrapped, reason := wrapSMTPErr("send STARTTLS command", err)
+			return notify.Retry(0, wrapped, reason)
 		}
 	}
 
@@ -206,7 +223,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				return notify.Retry(0, fmt.Errorf("%T auth: %w", auth, err), notify.DefaultReason)
+				wrapped, reason := wrapSMTPErr(fmt.Sprintf("%T auth", auth), err)
+				return notify.Retry(0, wrapped, reason)
 			}
 		}
 	}
@@ -233,7 +251,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		return notify.Unrecoverable(fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs)), notify.DefaultReason)
 	}
 	if err = c.Mail(addrs[0].Address); err != nil {
-		return notify.Retry(0, fmt.Errorf("send MAIL command: %w", err), notify.DefaultReason)
+		wrapped, reason := wrapSMTPErr("send MAIL command", err)
+		return notify.Retry(0, wrapped, reason)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
@@ -241,14 +260,16 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	}
 	for _, addr := range addrs {
 		if err = c.Rcpt(addr.Address); err != nil {
-			return notify.Retry(0, fmt.Errorf("send RCPT command: %w", err), notify.DefaultReason)
+			wrapped, reason := wrapSMTPErr("send RCPT command", err)
+			return notify.Retry(0, wrapped, reason)
 		}
 	}
 
 	// Send the email headers and body.
 	message, err := c.Data()
 	if err != nil {
-		return notify.Retry(0, fmt.Errorf("send DATA command: %w", err), notify.DefaultReason)
+		wrapped, reason := wrapSMTPErr("send DATA command", err)
+		return notify.Retry(0, wrapped, reason)
 	}
 	closeOnce := sync.OnceValue(func() error {
 		return message.Close()
@@ -374,7 +395,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 
 	// Complete the message and await response.
 	if err = closeOnce(); err != nil {
-		return notify.Retry(0, fmt.Errorf("delivery failure: %w", err), notify.DefaultReason)
+		wrapped, reason := wrapSMTPErr("delivery failure", err)
+		return notify.Retry(0, wrapped, reason)
 	}
 
 	success = true
