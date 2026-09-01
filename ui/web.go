@@ -42,6 +42,7 @@ var fileTypes = map[string]struct {
 	".js":    {"text/javascript; charset=utf-8", true},
 	".svg":   {"image/svg+xml", true},
 	".ttf":   {"font/ttf", true},
+	".txt":   {"text/plain; charset=utf-8", true},
 	".woff":  {"font/woff", false},
 	".woff2": {"font/woff2", false},
 }

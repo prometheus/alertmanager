@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -90,16 +91,10 @@ func TestIndexAssetsAreServedPrefix(t *testing.T) {
 	fetchIndexAndAssets(t, router, "/alertmanager/")
 }
 
-// walkEmbeddedFiles returns a map of URL to encodings for every file in
-// app/dist.
-func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
+func walkFiles(t *testing.T, appFS fs.FS, urlRoot string) map[string][]encoding {
 	t.Helper()
-	appFS, err := fs.Sub(asset, "app/dist")
-	require.NoError(t, err)
-
 	count := make(map[string]int)
-
-	err = fs.WalkDir(appFS, ".", func(filePath string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(appFS, ".", func(filePath string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
@@ -111,9 +106,9 @@ func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
 
 	files := make(map[string][]encoding)
 	for base, n := range count {
-		url := "/" + base
+		url := path.Join(urlRoot, base)
 		if base == "index.html" {
-			url = "/"
+			url = urlRoot
 		}
 		ext := path.Ext(base)
 		fileType, known := fileTypes[ext]
@@ -126,8 +121,27 @@ func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
 			files[url] = []encoding{encNone}
 		}
 	}
-
 	return files
+}
+
+func TestMantineBuildOutput(t *testing.T) {
+	mantineFS := os.DirFS("mantine-ui/dist")
+	if _, err := fs.Stat(mantineFS, "."); os.IsNotExist(err) {
+		t.Skip("Mantine UI assets are not built")
+	} else {
+		require.NoError(t, err)
+	}
+	files := walkFiles(t, mantineFS, "/ui/")
+	require.Contains(t, files, "/ui/")
+}
+
+// walkEmbeddedFiles returns a map of URL to encodings for every file in
+// app/dist.
+func walkEmbeddedFiles(t *testing.T) map[string][]encoding {
+	t.Helper()
+	appFS, err := fs.Sub(asset, "app/dist")
+	require.NoError(t, err)
+	return walkFiles(t, appFS, "/")
 }
 
 func fetchWithEncoding(router *route.Router, urlPath string, encoding encoding) *httptest.ResponseRecorder {
