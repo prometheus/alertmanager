@@ -136,6 +136,27 @@ receivers:
 			},
 		},
 		{
+			// A duplicate receiver name must not hide the validation errors
+			// of the duplicate's own notifier configurations.
+			name: "duplicate receiver name with an invalid notifier config",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - url: 'http://example.com/'
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+`,
+			expectedErrs: []string{
+				`notification config name "team-X" is not unique`,
+				"one of url or url_file must be configured",
+			},
+		},
+		{
 			name: "invalid notifier configs of different types in a single receiver",
 			in: `
 route:

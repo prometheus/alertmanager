@@ -388,8 +388,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 	for _, rcv := range c.Receivers {
 		if _, ok := names[rcv.Name]; ok {
+			// Record the duplicate name but keep validating this receiver's
+			// notifier configurations so their errors are reported as well.
 			errs = errors.Join(errs, fmt.Errorf("notification config name %q is not unique", rcv.Name))
-			continue
 		}
 		for _, wh := range rcv.WebhookConfigs {
 			if wh == nil {
