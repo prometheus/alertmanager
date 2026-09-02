@@ -27,16 +27,13 @@ routing_key: ''
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "missing service or routing key in PagerDuty config"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -48,16 +45,13 @@ routing_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "at most one of routing_key & routing_key_file must be configured"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -70,16 +64,13 @@ service_key: ''
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "missing service or routing key in PagerDuty config"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -91,16 +82,13 @@ service_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "at most one of service_key & service_key_file must be configured"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})

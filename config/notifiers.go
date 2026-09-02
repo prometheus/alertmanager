@@ -105,11 +105,9 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWebexConfig
 	type plain WebexConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *WebexConfig) Validate() error {
@@ -163,7 +161,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultEmailConfig
 	type plain EmailConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 	// Header names are case insensitive. The normalization loop below
 	// detects duplicates and builds a canonical header map in one pass.
@@ -173,15 +171,13 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	for h, v := range c.Headers {
 		normalized := textproto.CanonicalMIMEHeaderKey(h)
 		if _, ok := normalizedHeaders[normalized]; ok {
-			return fmt.Errorf("duplicate header %q in email config", normalized)
+			return amcommoncfg.AsValidationError(fmt.Errorf("duplicate header %q in email config", normalized))
 		}
 		normalizedHeaders[normalized] = v
 	}
 	c.Headers = normalizedHeaders
 
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *EmailConfig) Validate() error {
@@ -221,7 +217,7 @@ type SlackAction struct {
 func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackAction
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 	if c.URL != "" {
 		// Clear all message action fields.
@@ -231,9 +227,9 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(any) error) error {
 	} else if c.Name != "" {
 		c.URL = ""
 	} else {
-		return errors.New("missing name or url in Slack action configuration")
+		return amcommoncfg.AsValidationError(errors.New("missing name or url in Slack action configuration"))
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *SlackAction) Validate() error {
@@ -260,9 +256,9 @@ type SlackConfirmationField struct {
 func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackConfirmationField
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *SlackConfirmationField) Validate() error {
@@ -286,9 +282,9 @@ type SlackField struct {
 func (c *SlackField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain SlackField
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *SlackField) Validate() error {
@@ -350,11 +346,9 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *SlackConfig) Validate() error {
@@ -402,16 +396,14 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 
 	if c.MessageType == "" {
 		c.MessageType = "text"
 	}
 
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *WechatConfig) Validate() error {
@@ -448,11 +440,9 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultVictorOpsConfig
 	type plain VictorOpsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 func (c *VictorOpsConfig) Validate() error {

@@ -90,9 +90,6 @@ sigv4:
 		t.Run("", func(t *testing.T) {
 			var cfg SNSConfig
 			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
-			if err == nil {
-				err = cfg.Validate()
-			}
 			if err != nil {
 				if !tc.err {
 					t.Errorf("expecting no error, got %q", err)

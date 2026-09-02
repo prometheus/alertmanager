@@ -317,7 +317,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	// again, we have to hide it using a type indirection.
 	type plain Config
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.FlattenValidationErrors(err)
 	}
 
 	// If a global block was open but empty the default global config is overwritten.
@@ -382,46 +382,28 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 	names := map[string]struct{}{}
 
-	// Validation errors are accumulated across all receivers and notifier
-	// configs so that a single invalid entry does not hide the others.
-	var errs error
-
 	for _, rcv := range c.Receivers {
 		if _, ok := names[rcv.Name]; ok {
-			// Record the duplicate name but keep validating this receiver's
-			// notifier configurations so their errors are reported as well.
-			errs = errors.Join(errs, fmt.Errorf("notification config name %q is not unique", rcv.Name))
+			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
 		}
 		for _, wh := range rcv.WebhookConfigs {
 			if wh == nil {
-				errs = errors.Join(errs, errors.New("missing webhook config"))
-				continue
-			}
-			if err := wh.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing webhook config")
 			}
 			wh.HTTPConfig = cmp.Or(wh.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, ec := range rcv.EmailConfigs {
 			if ec == nil {
-				errs = errors.Join(errs, errors.New("missing email config"))
-				continue
-			}
-			if err := ec.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing email config")
 			}
 			ec.TLSConfig = cmp.Or(ec.TLSConfig, c.Global.SMTPTLSConfig)
 			ec.Smarthost = cmp.Or(ec.Smarthost, c.Global.SMTPSmarthost)
 			if ec.Smarthost.String() == "" {
-				errs = errors.Join(errs, errors.New("no global SMTP smarthost set"))
-				continue
+				return errors.New("no global SMTP smarthost set")
 			}
 			ec.From = cmp.Or(ec.From, c.Global.SMTPFrom)
 			if ec.From == "" {
-				errs = errors.Join(errs, errors.New("no global SMTP from set"))
-				continue
+				return errors.New("no global SMTP from set")
 			}
 			ec.Hello = cmp.Or(ec.Hello, c.Global.SMTPHello)
 			ec.AuthUsername = cmp.Or(ec.AuthUsername, c.Global.SMTPAuthUsername)
@@ -445,14 +427,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		for _, sc := range rcv.SlackConfigs {
 			if sc == nil {
 				sc = &SlackConfig{}
-			} else if err := sc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
-				errs = errors.Join(errs, errors.New("no global Slack App URL set"))
-				continue
+				return errors.New("no global Slack App URL set")
 			}
 			// we only want to set the app token from global if there's no local authorization or webhook url
 			if sc.AppToken == "" && len(sc.AppTokenFile) == 0 && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) && sc.APIURL == nil {
@@ -464,8 +442,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				sc.APIURLFile = c.Global.SlackAPIURLFile
 			}
 			if sc.APIURL == nil && len(sc.APIURLFile) == 0 && sc.AppToken == "" && len(sc.AppTokenFile) == 0 {
-				errs = errors.Join(errs, errors.New("no Slack API URL nor App token set either inline or in a file"))
-				continue
+				return errors.New("no Slack API URL nor App token set either inline or in a file")
 			}
 			if sc.HTTPConfig == nil {
 				// we don't want to change the global http config when setting the receiver's http config, do we do a copy
@@ -474,8 +451,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			}
 			if sc.AppToken != "" || len(sc.AppTokenFile) != 0 {
 				if sc.HTTPConfig.Authorization != nil {
-					errs = errors.Join(errs, errors.New("http authorization can't be set when using Slack App tokens"))
-					continue
+					return errors.New("http authorization can't be set when using Slack App tokens")
 				}
 				sc.HTTPConfig.Authorization = &commoncfg.Authorization{
 					Type:            "Bearer",
@@ -487,62 +463,41 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc == nil {
-				errs = errors.Join(errs, errors.New("missing pushover config"))
-				continue
-			}
-			if err := poc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing pushover config")
 			}
 			poc.HTTPConfig = cmp.Or(poc.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, pdc := range rcv.PagerdutyConfigs {
 			if pdc == nil {
-				errs = errors.Join(errs, errors.New("missing pagerduty config"))
-				continue
-			}
-			if err := pdc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing pagerduty config")
 			}
 			pdc.HTTPConfig = cmp.Or(pdc.HTTPConfig, c.Global.HTTPConfig)
 			pdc.URL = cmp.Or(pdc.URL, c.Global.PagerdutyURL)
 			if pdc.URL == nil {
-				errs = errors.Join(errs, errors.New("no global PagerDuty URL set"))
-				continue
+				return errors.New("no global PagerDuty URL set")
 			}
 		}
 		for _, iio := range rcv.IncidentioConfigs {
 			if iio == nil {
-				errs = errors.Join(errs, errors.New("missing incidentio config"))
-				continue
-			}
-			if err := iio.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing incidentio config")
 			}
 			iio.HTTPConfig = cmp.Or(iio.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc == nil {
 				ogc = &opsgenie.OpsGenieConfig{}
-			} else if err := ogc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
 			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
 			if ogc.APIURL == nil {
-				errs = errors.Join(errs, errors.New("no global OpsGenie URL set"))
-				continue
+				return errors.New("no global OpsGenie URL set")
 			}
 			if !strings.HasSuffix(ogc.APIURL.Path, "/") {
 				ogc.APIURL.Path += "/"
 			}
 			if ogc.APIKey == "" && len(ogc.APIKeyFile) == 0 {
 				if c.Global.OpsGenieAPIKey == "" && len(c.Global.OpsGenieAPIKeyFile) == 0 {
-					errs = errors.Join(errs, errors.New("no global OpsGenie API Key set either inline or in a file"))
-					continue
+					return errors.New("no global OpsGenie API Key set either inline or in a file")
 				}
 				ogc.APIKey = c.Global.OpsGenieAPIKey
 				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
@@ -551,21 +506,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc == nil {
 				wcc = &WechatConfig{}
-			} else if err := wcc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
 			}
 			wcc.HTTPConfig = cmp.Or(wcc.HTTPConfig, c.Global.HTTPConfig)
 			wcc.APIURL = cmp.Or(wcc.APIURL, c.Global.WeChatAPIURL)
 			if wcc.APIURL == nil {
-				errs = errors.Join(errs, errors.New("no global Wechat URL set"))
-				continue
+				return errors.New("no global Wechat URL set")
 			}
 
 			if wcc.APISecret == "" && len(wcc.APISecretFile) == 0 {
 				if c.Global.WeChatAPISecret == "" && len(c.Global.WeChatAPISecretFile) == 0 {
-					errs = errors.Join(errs, errors.New("no global Wechat Api Secret set either inline or in a file"))
-					continue
+					return errors.New("no global Wechat Api Secret set either inline or in a file")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
 				wcc.APISecretFile = c.Global.WeChatAPISecretFile
@@ -573,8 +523,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 			wcc.CorpID = cmp.Or(wcc.CorpID, c.Global.WeChatAPICorpID)
 			if wcc.CorpID == "" {
-				errs = errors.Join(errs, errors.New("no global Wechat CorpID set"))
-				continue
+				return errors.New("no global Wechat CorpID set")
 			}
 
 			if !strings.HasSuffix(wcc.APIURL.Path, "/") {
@@ -583,26 +532,19 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
 			if voc == nil {
-				errs = errors.Join(errs, errors.New("missing victorops config"))
-				continue
-			}
-			if err := voc.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing victorops config")
 			}
 			voc.HTTPConfig = cmp.Or(voc.HTTPConfig, c.Global.HTTPConfig)
 			voc.APIURL = cmp.Or(voc.APIURL, c.Global.VictorOpsAPIURL)
 			if voc.APIURL == nil {
-				errs = errors.Join(errs, errors.New("no global VictorOps URL set"))
-				continue
+				return errors.New("no global VictorOps URL set")
 			}
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
 			}
 			if voc.APIKey == "" && len(voc.APIKeyFile) == 0 {
 				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0 {
-					errs = errors.Join(errs, errors.New("no global VictorOps API Key set"))
-					continue
+					return errors.New("no global VictorOps API Key set")
 				}
 				voc.APIKey = c.Global.VictorOpsAPIKey
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
@@ -610,31 +552,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, sns := range rcv.SNSConfigs {
 			if sns == nil {
-				errs = errors.Join(errs, errors.New("missing sns config"))
-				continue
-			}
-			if err := sns.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing sns config")
 			}
 			sns.HTTPConfig = cmp.Or(sns.HTTPConfig, c.Global.HTTPConfig)
 		}
 
 		for _, telegram := range rcv.TelegramConfigs {
 			if telegram == nil {
-				errs = errors.Join(errs, errors.New("missing telegram config"))
-				continue
-			}
-			if err := telegram.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing telegram config")
 			}
 			telegram.HTTPConfig = cmp.Or(telegram.HTTPConfig, c.Global.HTTPConfig)
 			telegram.APIUrl = cmp.Or(telegram.APIUrl, c.Global.TelegramAPIUrl)
 			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
 				if c.Global.TelegramBotToken == "" && len(c.Global.TelegramBotTokenFile) == 0 {
-					errs = errors.Join(errs, errors.New("missing bot_token or bot_token_file on telegram_config"))
-					continue
+					return errors.New("missing bot_token or bot_token_file on telegram_config")
 				}
 				telegram.BotToken = c.Global.TelegramBotToken
 				telegram.BotTokenFile = c.Global.TelegramBotTokenFile
@@ -642,58 +573,35 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, discord := range rcv.DiscordConfigs {
 			if discord == nil {
-				errs = errors.Join(errs, errors.New("missing discord config"))
-				continue
-			}
-			if err := discord.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing discord config")
 			}
 			discord.HTTPConfig = cmp.Or(discord.HTTPConfig, c.Global.HTTPConfig)
 			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
-				errs = errors.Join(errs, errors.New("no discord webhook URL or URLFile provided"))
-				continue
+				return errors.New("no discord webhook URL or URLFile provided")
 			}
 		}
 		for _, webex := range rcv.WebexConfigs {
 			if webex == nil {
-				errs = errors.Join(errs, errors.New("missing webex config"))
-				continue
-			}
-			if err := webex.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing webex config")
 			}
 			webex.HTTPConfig = cmp.Or(webex.HTTPConfig, c.Global.HTTPConfig)
 			webex.APIURL = cmp.Or(webex.APIURL, c.Global.WebexAPIURL)
 			if webex.APIURL == nil {
-				errs = errors.Join(errs, errors.New("no global Webex URL set"))
-				continue
+				return errors.New("no global Webex URL set")
 			}
 		}
 		for _, msteams := range rcv.MSTeamsConfigs {
 			if msteams == nil {
-				errs = errors.Join(errs, errors.New("missing msteams config"))
-				continue
-			}
-			if err := msteams.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing msteams config")
 			}
 			msteams.HTTPConfig = cmp.Or(msteams.HTTPConfig, c.Global.HTTPConfig)
 			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
-				errs = errors.Join(errs, errors.New("no msteams webhook URL or URLFile provided"))
-				continue
+				return errors.New("no msteams webhook URL or URLFile provided")
 			}
 		}
 		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
 			if msteamsv2 == nil {
-				errs = errors.Join(errs, errors.New("missing msteamsv2 config"))
-				continue
-			}
-			if err := msteamsv2.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing msteamsv2 config")
 			}
 			if msteamsv2.HTTPConfig == nil {
 				// copy the global config so receiver-level mutations don't affect it
@@ -706,47 +614,35 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				msteamsv2.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
 			}
 			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
-				errs = errors.Join(errs, errors.New("no msteamsv2 webhook URL or URLFile provided"))
-				continue
+				return errors.New("no msteamsv2 webhook URL or URLFile provided")
 			}
 		}
 		for _, jira := range rcv.JiraConfigs {
 			if jira == nil {
-				errs = errors.Join(errs, errors.New("missing jira config"))
-				continue
-			}
-			if err := jira.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing jira config")
 			}
 			jira.HTTPConfig = cmp.Or(jira.HTTPConfig, c.Global.HTTPConfig)
 			jira.APIURL = cmp.Or(jira.APIURL, c.Global.JiraAPIURL)
 			if jira.APIURL == nil {
-				errs = errors.Join(errs, errors.New("no global Jira Cloud URL set"))
-				continue
+				return errors.New("no global Jira Cloud URL set")
 			}
 		}
 		for _, rocketchatcfg := range rcv.RocketchatConfigs {
 			if rocketchatcfg == nil {
 				rocketchatcfg = &rocketchat.RocketchatConfig{}
-			} else if err := rocketchatcfg.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
 			}
 			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
 			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
 			if rocketchatcfg.TokenID == nil && len(rocketchatcfg.TokenIDFile) == 0 {
 				if c.Global.RocketchatTokenID == nil && len(c.Global.RocketchatTokenIDFile) == 0 {
-					errs = errors.Join(errs, errors.New("no global Rocketchat TokenID set either inline or in a file"))
-					continue
+					return errors.New("no global Rocketchat TokenID set either inline or in a file")
 				}
 				rocketchatcfg.TokenID = c.Global.RocketchatTokenID
 				rocketchatcfg.TokenIDFile = c.Global.RocketchatTokenIDFile
 			}
 			if rocketchatcfg.Token == nil && len(rocketchatcfg.TokenFile) == 0 {
 				if c.Global.RocketchatToken == nil && len(c.Global.RocketchatTokenFile) == 0 {
-					errs = errors.Join(errs, errors.New("no global Rocketchat Token set either inline or in a file"))
-					continue
+					return errors.New("no global Rocketchat Token set either inline or in a file")
 				}
 				rocketchatcfg.Token = c.Global.RocketchatToken
 				rocketchatcfg.TokenFile = c.Global.RocketchatTokenFile
@@ -754,18 +650,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, mattermost := range rcv.MattermostConfigs {
 			if mattermost == nil {
-				errs = errors.Join(errs, errors.New("missing mattermost config"))
-				continue
-			}
-			if err := mattermost.Validate(); err != nil {
-				errs = errors.Join(errs, err)
-				continue
+				return errors.New("missing mattermost config")
 			}
 			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
 			if mattermost.WebhookURL == nil && len(mattermost.WebhookURLFile) == 0 {
 				if c.Global.MattermostWebhookURL == nil && len(c.Global.MattermostWebhookURLFile) == 0 {
-					errs = errors.Join(errs, errors.New("missing webhook_url or webhook_url_file on mattermost_config"))
-					continue
+					return errors.New("missing webhook_url or webhook_url_file on mattermost_config")
 				}
 				mattermost.WebhookURL = c.Global.MattermostWebhookURL
 				mattermost.WebhookURLFile = c.Global.MattermostWebhookURLFile
@@ -773,10 +663,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 
 		names[rcv.Name] = struct{}{}
-	}
-
-	if errs != nil {
-		return errs
 	}
 
 	// The root route must not have any matchers as it is the fallback node

@@ -45,12 +45,10 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the MSTeamsConfig for correctness.

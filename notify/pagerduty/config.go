@@ -87,7 +87,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPagerdutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]any)
@@ -100,9 +100,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			c.Details[k] = v
 		}
 	}
-	// Validation happens in Config.UnmarshalYAML so that errors from all
-	// notifier configs can be reported together instead of one at a time.
-	return nil
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the PagerdutyConfig for correctness.

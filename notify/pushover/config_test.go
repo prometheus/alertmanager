@@ -25,16 +25,13 @@ user_key: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "one of user_key or user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -46,16 +43,13 @@ user_key_file: /pushover/user_key
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "at most one of user_key & user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -67,16 +61,13 @@ token: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "one of token or token_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -89,16 +80,13 @@ user_key: 'user key'
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "at most one of token & token_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -112,16 +100,13 @@ monospace: true
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "at most one of monospace & html must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }

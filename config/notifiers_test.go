@@ -29,16 +29,13 @@ to: ''
 `
 	var cfg EmailConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "missing to address in email config"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -58,7 +55,7 @@ headers:
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -123,16 +120,13 @@ routing_key: ''
 `
 		var cfg VictorOpsConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "missing Routing key in VictorOps config"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -145,16 +139,13 @@ api_key_file: /global_file
 `
 		var cfg VictorOpsConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		expected := "at most one of api_key & api_key_file must be configured"
 
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -168,16 +159,13 @@ custom_fields:
 `
 	var cfg VictorOpsConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 
@@ -306,9 +294,6 @@ api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXX
 	for _, rt := range tests {
 		var cfg SlackConfig
 		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
-		if err == nil {
-			err = cfg.Validate()
-		}
 
 		// Check if an error occurred when it was NOT expected to.
 		if rt.expectedErr == "" && err != nil {
@@ -319,7 +304,7 @@ api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXX
 			t.Fatalf("\nno error returned, expected:\n%v", rt.expectedErr)
 		}
 		// Check that the error that occurred was what was expected.
-		if err != nil && err.Error() != rt.expectedErr {
+		if err != nil && err.Error() != "yaml: unmarshal errors:\n  "+rt.expectedErr {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expectedErr, err.Error())
 		}
 	}
@@ -376,7 +361,7 @@ fields:
 			t.Fatalf("\nno error returned, expected:\n%v", rt.expected)
 		}
 		// Check that the error that occurred was what was expected.
-		if err != nil && err.Error() != rt.expected {
+		if err != nil && err.Error() != "yaml: unmarshal errors:\n  "+rt.expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected, err.Error())
 		}
 	}
@@ -565,11 +550,12 @@ http_config:
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg WebexConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
-			if err == nil {
-				err = cfg.Validate()
-			}
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -626,11 +612,12 @@ headers: {X-Custom-Header: CustomValue, X-CUSTOM-HEADER: AnotherValue}
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg EmailConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
-			if err == nil {
-				err = cfg.Validate()
-			}
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

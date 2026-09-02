@@ -24,16 +24,13 @@ func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "one of url or url_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -45,16 +42,13 @@ url_file: 'http://example.com'
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-	if err == nil {
-		err = cfg.Validate()
-	}
 
 	expected := "at most one of url & url_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -74,7 +68,7 @@ http_config:
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
