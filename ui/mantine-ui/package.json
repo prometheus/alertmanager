@@ -45,7 +45,7 @@
     "rollup-plugin-license": "^3.7.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vite-plugin-compression2": "^2.5.1",
+    "vite-plugin-compression2": "^2.5.3",
     "vitest": "^4.1.11"
   }
 }
