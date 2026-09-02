@@ -4,7 +4,6 @@ import react from '@vitejs/plugin-react';
 import license from 'rollup-plugin-license';
 import { defineConfig } from 'vite';
 import { compression, defineAlgorithm } from 'vite-plugin-compression2';
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 const licenseFile = path.resolve(
   import.meta.dirname,
@@ -13,13 +12,20 @@ const licenseFile = path.resolve(
 
 export default defineConfig({
   base: './',
+  // Kept in sync with `compilerOptions.paths` in tsconfig.json, which only
+  // teaches tsc about these.
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+      '@test-utils': path.resolve(import.meta.dirname, 'test-utils'),
+    },
+  },
   build: {
     outDir: '../app/dist/mantine',
     emptyOutDir: true,
   },
   plugins: [
     react(),
-    tsconfigPaths(),
     license({
       thirdParty: {
         includePrivate: false,
