@@ -36,7 +36,7 @@
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^30.0.1",
     "postcss": "^8.5.25",
     "postcss-preset-mantine": "1.18.0",
@@ -44,7 +44,7 @@
     "prop-types": "^15.8.1",
     "rollup-plugin-license": "^3.7.1",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "vite-plugin-compression2": "^2.5.1",
     "vitest": "^4.1.11"
   }
