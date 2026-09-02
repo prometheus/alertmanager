@@ -52,7 +52,7 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
 // recordMuted adds the hashes of the given alerts to the set of muted alert
-// hashes in the context
+// hashes in the context.
 func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
 	hashes, _ := MutedAlerts(ctx)
 	if hashes == nil {
