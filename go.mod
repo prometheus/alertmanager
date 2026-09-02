@@ -18,7 +18,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coreos/go-systemd/v22 v22.7.0
-	github.com/emersion/go-smtp v0.24.0
+	github.com/emersion/go-smtp v0.25.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-openapi/analysis v0.25.5
 	github.com/go-openapi/errors v0.22.8
@@ -37,16 +37,16 @@ require (
 	github.com/mdlayher/vsock v1.3.0
 	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid/v2 v2.1.2
-	github.com/onsi/ginkgo/v2 v2.32.0
-	github.com/onsi/gomega v1.42.1
+	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/gomega v1.43.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.70.1
-	github.com/prometheus/exporter-toolkit v0.17.1
+	github.com/prometheus/exporter-toolkit v0.19.0
 	github.com/prometheus/sigv4 v0.4.1
 	github.com/rs/cors v1.11.1
-	github.com/stretchr/testify v1.11.1
-	github.com/twmb/franz-go v1.21.5
+	github.com/stretchr/testify v1.12.1
+	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260515175617-8268a5d078c0
 	github.com/twmb/franz-go/plugin/kslog v1.0.0
 	github.com/xlab/treeprint v1.2.0
@@ -61,8 +61,8 @@ require (
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
 	golang.org/x/text v0.41.0
-	google.golang.org/grpc v1.82.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/grpc v1.83.2
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/telebot.v3 v3.3.8
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -80,7 +80,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.33.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -122,7 +121,6 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
@@ -131,7 +129,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
@@ -140,5 +138,4 @@ require (
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

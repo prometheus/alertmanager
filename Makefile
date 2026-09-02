@@ -42,7 +42,7 @@ lint: ui-elm ui-mantine-lint common-lint
 assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine template/email.tmpl
 
 .PHONY: assets-tarball
-assets-tarball: ui-elm
+assets-tarball: ui-elm ui-mantine
 	mkdir -p .tarballs
 	tar czf ".tarballs/alertmanager-web-ui-$(file <VERSION).tar.gz" -C ui/app dist
 
