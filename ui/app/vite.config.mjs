@@ -4,6 +4,9 @@ import { compression, defineAlgorithm } from "vite-plugin-compression2";
 
 export default defineConfig({
   base: "./",  // ensure that `--web.route.prefix` works correctly.
+  build: {
+    outDir: "dist/elm",
+  },
   plugins: [
     elm(),
     compression({

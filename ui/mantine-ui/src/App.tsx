@@ -7,7 +7,7 @@ import { CodeHighlightAdapterProvider, createHighlightJsAdapter } from '@mantine
 import { AppShell, Box, MantineProvider, Skeleton } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import hljs from 'highlight.js/lib/core';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
@@ -28,7 +28,7 @@ const queryClient = new QueryClient();
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <MantineProvider theme={theme}>
         <CodeHighlightAdapterProvider adapter={highlightJsAdapter}>
           <QueryClientProvider client={queryClient}>
@@ -62,6 +62,6 @@ export default function App() {
           </QueryClientProvider>
         </CodeHighlightAdapterProvider>
       </MantineProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
