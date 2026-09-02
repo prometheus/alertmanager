@@ -30,9 +30,9 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
     "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^7.0.0",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -46,6 +46,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
     "vite-plugin-compression2": "^2.5.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
