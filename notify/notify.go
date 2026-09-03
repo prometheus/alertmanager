@@ -65,6 +65,10 @@ type Notifier interface {
 	Notify(context.Context, ...*alert.Alert) (bool, error)
 }
 
+type closer interface {
+	Close() error
+}
+
 // Integration wraps a notifier and its configuration to be uniquely identified
 // by name and index from its origin in the configuration.
 type Integration struct {
@@ -125,6 +129,23 @@ func (i *Integration) Index() int {
 // String implements the Stringer interface.
 func (i *Integration) String() string {
 	return fmt.Sprintf("%s[%d]", i.name, i.idx)
+}
+
+// Close releases resources owned by the underlying notifier, if any.
+func (i *Integration) Close() error {
+	if c, ok := i.notifier.(closer); ok {
+		return c.Close()
+	}
+	return nil
+}
+
+// CloseIntegrations releases resources owned by the supplied integrations.
+func CloseIntegrations(integrations []Integration) error {
+	var errs error
+	for i := range integrations {
+		errs = errors.Join(errs, integrations[i].Close())
+	}
+	return errs
 }
 
 // A Stage processes alerts under the constraints of the given context.
