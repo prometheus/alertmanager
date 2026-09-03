@@ -1,8 +1,9 @@
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Table } from '@mantine/core';
 
 import InfoPageCard from '@/components/InfoPageCard';
 import InfoPageStack from '@/components/InfoPageStack';
-import { useStatus } from '@/data/status';
+import { formatClusterState, useStatus } from '@/data/status';
 
 export function StatusPage() {
   const { data } = useStatus();
@@ -42,8 +43,8 @@ export function StatusPage() {
         <Table layout="fixed">
           <Table.Tbody>
             <Table.Tr>
-              <Table.Th>Uptime</Table.Th>
-              <Table.Td>{data.uptime}</Table.Td>
+              <Table.Th>Start Time</Table.Th>
+              <Table.Td>{timestampDate(data.startTime).toISOString()}</Table.Td>
             </Table.Tr>
             <Table.Tr>
               <Table.Th>Cluster Name</Table.Th>
@@ -51,7 +52,7 @@ export function StatusPage() {
             </Table.Tr>
             <Table.Tr>
               <Table.Th>Cluster Status</Table.Th>
-              <Table.Td>{data.cluster.status}</Table.Td>
+              <Table.Td>{formatClusterState(data.cluster.state)}</Table.Td>
             </Table.Tr>
             <Table.Tr>
               <Table.Th>Number of Peers</Table.Th>
