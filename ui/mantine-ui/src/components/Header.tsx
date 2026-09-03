@@ -1,4 +1,5 @@
-import { AppShell, Button, Group, Menu, Text } from '@mantine/core';
+import { AppShell, Burger, Button, Group, Menu, Text } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 
 import { AlertsPage } from '@/pages/Alerts.page';
@@ -9,6 +10,8 @@ import classes from './Header.module.css';
 const navLinkXPadding = 'md';
 
 export const Header = () => {
+  const [mobileMenuOpened, { open, close }] = useDisclosure(false);
+
   const mainNavPages = [
     {
       title: 'Alerts',
@@ -99,6 +102,38 @@ export const Header = () => {
     </>
   );
 
+  const mobileNavLinks = (
+    <Menu
+      opened={mobileMenuOpened}
+      onChange={(opened) => (opened ? open() : close())}
+      menuItemTabIndex={0}
+      trapFocus={false}
+      position="bottom-end"
+    >
+      <Menu.Target>
+        <Burger opened={mobileMenuOpened} color="white" aria-label="Toggle navigation menu" />
+      </Menu.Target>
+      <Menu.Dropdown>
+        {mainNavPages.map((page) => (
+          <Menu.Item
+            key={page.path}
+            className={classes.menuItem}
+            component={NavLink}
+            to={page.path}
+          >
+            {page.title}
+          </Menu.Item>
+        ))}
+        <Menu.Item className={classes.menuItem} component={NavLink} to="/status">
+          Runtime & Build Information
+        </Menu.Item>
+        <Menu.Item className={classes.menuItem} component={NavLink} to="/config">
+          Configuration
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+
   return (
     <AppShell.Header className={classes.header}>
       <Group h="100%" px="md" wrap="nowrap">
@@ -107,16 +142,14 @@ export const Header = () => {
             <Link to="/" style={{ textDecoration: 'none', color: 'white' }}>
               <Group gap={10} wrap="nowrap">
                 {/* <img src={PrometheusLogo} height={30} /> */}
-                <Text hiddenFrom="sm" fz={20}>
-                  Alertmanager
-                </Text>
-                <Text visibleFrom="md" fz={20}>
-                  Alertmanager
-                </Text>
+                <Text fz={20}>Alertmanager</Text>
               </Group>
             </Link>
             <Group gap={12} visibleFrom="sm" wrap="nowrap">
               {navLinks}
+            </Group>
+            <Group hiddenFrom="sm" ml="auto" wrap="nowrap">
+              {mobileNavLinks}
             </Group>
           </Group>
         </Group>
