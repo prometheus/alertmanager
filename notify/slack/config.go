@@ -176,6 +176,13 @@ type SlackConfig struct {
 	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
 
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+
+	// PostUpdatesToThread enables posting subsequent notifications for an alert group
+	// as replies in the thread of the initial message. When combined with UpdateMessage,
+	// the initial message is updated in place and a reply is also posted to its thread.
+	// Requires bot token with chat:write scope. Webhook URLs do not support threads.
+
+	PostUpdatesToThread bool `yaml:"post_updates_to_thread" json:"post_updates_to_thread,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -202,7 +209,10 @@ func (c *SlackConfig) Validate() error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
-	return ValidateUpdateMessageAPIURL(c.UpdateMessage, c.APIURL, c.APIURLFile)
+	if err := ValidateUpdateMessageAPIURL(c.UpdateMessage, c.APIURL, c.APIURLFile); err != nil {
+		return err
+	}
+	return ValidatePostUpdatesToThreadAPIURL(c.PostUpdatesToThread, c.APIURL, c.APIURLFile)
 }
 
 // PostMessageURL is Slack's chat.postMessage endpoint.
@@ -210,14 +220,23 @@ const PostMessageURL = "https://slack.com/api/chat.postMessage"
 
 // ValidateUpdateMessageAPIURL validates the api url used by update_message.
 func ValidateUpdateMessageAPIURL(updateMessage bool, apiURL *amcommoncfg.SecretURL, apiURLFile string) error {
-	if !updateMessage {
+	return validateBotTokenAPIURL("update_message", updateMessage, apiURL, apiURLFile)
+}
+
+// ValidatePostUpdatesToThreadAPIURL validates the api url used by post_updates_to_thread.
+func ValidatePostUpdatesToThreadAPIURL(postUpdatesToThread bool, apiURL *amcommoncfg.SecretURL, apiURLFile string) error {
+	return validateBotTokenAPIURL("post_updates_to_thread", postUpdatesToThread, apiURL, apiURLFile)
+}
+
+func validateBotTokenAPIURL(option string, enabled bool, apiURL *amcommoncfg.SecretURL, apiURLFile string) error {
+	if !enabled {
 		return nil
 	}
 	if apiURL == nil && apiURLFile != "" {
-		return errors.New("update_message can't be used with api_url_file")
+		return errors.New(option + " can't be used with api_url_file")
 	}
 	if apiURL != nil && apiURL.String() != PostMessageURL {
-		return errors.New("update_message can only be used with bot tokens. api_url must be set to " + PostMessageURL)
+		return errors.New(option + " can only be used with bot tokens. api_url must be set to " + PostMessageURL)
 	}
 
 	return nil
