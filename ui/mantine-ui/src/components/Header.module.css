@@ -28,3 +28,10 @@
     color: var(--mantine-color-white);
   }
 }
+
+.menuItem {
+  &[aria-current="page"] {
+    background-color: var(--mantine-color-blue-filled);
+    color: var(--mantine-color-white);
+  }
+}
