@@ -22,16 +22,20 @@ import (
 
 var _ = Describe("API routing", func() {
 	DescribeTable("serves v1 and v2 alongside the Connect API",
-		func(routePrefix, path string, expectedStatus int) {
-			inst := startInstance(routePrefix)
+		func(routePrefix, path string, tlsEnabled bool, expectedStatus int) {
+			inst := startInstance(routePrefix, tlsEnabled)
 			resp, err := inst.httpClient.Get(inst.webURL(path))
 			Expect(err).NotTo(HaveOccurred())
 			DeferCleanup(resp.Body.Close)
 			Expect(resp.StatusCode).To(Equal(expectedStatus))
 		},
-		Entry("v2 at the root", "", "/api/v2/status", http.StatusOK),
-		Entry("v1 at the root", "", "/api/v1/status", http.StatusGone),
-		Entry("v2 under a route prefix", "/alertmanager", "/api/v2/status", http.StatusOK),
-		Entry("v1 under a route prefix", "/alertmanager", "/api/v1/status", http.StatusGone),
+		Entry("v2 over h2c at the root", "", "/api/v2/status", false, http.StatusOK),
+		Entry("v1 over h2c at the root", "", "/api/v1/status", false, http.StatusGone),
+		Entry("v2 over h2c under a route prefix", "/alertmanager", "/api/v2/status", false, http.StatusOK),
+		Entry("v1 over h2c under a route prefix", "/alertmanager", "/api/v1/status", false, http.StatusGone),
+		Entry("v2 over TLS at the root", "", "/api/v2/status", true, http.StatusOK),
+		Entry("v1 over TLS at the root", "", "/api/v1/status", true, http.StatusGone),
+		Entry("v2 over TLS under a route prefix", "/alertmanager", "/api/v2/status", true, http.StatusOK),
+		Entry("v1 over TLS under a route prefix", "/alertmanager", "/api/v1/status", true, http.StatusGone),
 	)
 })

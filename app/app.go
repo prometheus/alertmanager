@@ -107,6 +107,7 @@ type App struct {
 	coordinator *config.Coordinator
 	tracingMgr  *tracing.Manager
 	server      *http.Server
+	servers     []*http.Server
 	listeners   []net.Listener
 
 	// webReload is the channel exposed by httpserver.Register for the
@@ -383,16 +384,24 @@ func (a *App) setup() error {
 	}
 
 	apih, err := api.New(api.Options{
-		Alerts:          alerts,
-		Silences:        silences,
-		GroupMutedFunc:  groupMarker.Muted,
-		Peer:            clusterPeer,
-		Timeout:         opts.HTTPTimeout,
-		Concurrency:     opts.GetConcurrency,
-		Logger:          logger.With("component", "api"),
-		Registry:        reg,
-		RequestDuration: m.requestDuration,
-		GroupFunc:       groupFn,
+		Alerts:                     alerts,
+		Silences:                   silences,
+		GroupMutedFunc:             groupMarker.Muted,
+		Peer:                       clusterPeer,
+		Timeout:                    opts.HTTPTimeout,
+		Concurrency:                opts.GetConcurrency,
+		ConnectUnaryConcurrency:    opts.ConnectUnaryConcurrency,
+		ConnectStreamConcurrency:   opts.ConnectStreamConcurrency,
+		ConnectUnaryTimeout:        opts.ConnectUnaryTimeout,
+		ConnectStreamIdleTimeout:   opts.ConnectStreamIdleTimeout,
+		ConnectStreamLifetime:      opts.ConnectStreamLifetime,
+		ConnectReadMaxBytes:        opts.ConnectReadMaxBytes,
+		ConnectSendMaxBytes:        opts.ConnectSendMaxBytes,
+		ConnectMaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
+		Logger:                     logger.With("component", "api"),
+		Registry:                   reg,
+		RequestDuration:            m.requestDuration,
+		GroupFunc:                  groupFn,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create API: %w", err)
@@ -515,17 +524,26 @@ func (a *App) setup() error {
 
 	mux := apih.Register(router, routePrefix)
 
-	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetHTTP2(true)
-	protocols.SetUnencryptedHTTP2(true)
-	a.server = &http.Server{
-		// Instrument all handlers with tracing.
-		Handler:           tracing.Middleware(mux),
-		Protocols:         protocols,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       90 * time.Second,
+	newServer := func() *http.Server {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		protocols.SetUnencryptedHTTP2(true)
+		server := &http.Server{
+			// Instrument all handlers with tracing.
+			Handler:           tracing.Middleware(mux),
+			Protocols:         protocols,
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       90 * time.Second,
+		}
+		server.RegisterOnShutdown(apih.Shutdown)
+		return server
 	}
+	a.servers = make([]*http.Server, 0, len(a.listeners))
+	for range a.listeners {
+		a.servers = append(a.servers, newServer())
+	}
+	a.server = a.servers[0]
 
 	return nil
 }
