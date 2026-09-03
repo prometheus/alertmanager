@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 
@@ -182,10 +183,22 @@ func (n *Notifier) createSNSClient(ctx context.Context, tmpl func(string) string
 		stsProvider := stscreds.NewAssumeRoleProvider(
 			stsClient,
 			n.conf.Sigv4.RoleARN,
-			// This adds an optional external_id configuration field that is passed to STS AssumeRole when role_arn is specified.
+			// This adds optional configuration fields for STS AssumeRole when role_arn is specified.
 			func(o *stscreds.AssumeRoleOptions) {
 				if n.conf.Sigv4.ExternalID != "" {
 					o.ExternalID = aws.String(n.conf.Sigv4.ExternalID)
+				}
+				if n.conf.Sigv4.SessionName != "" {
+					o.RoleSessionName = n.conf.Sigv4.SessionName
+				}
+				if len(n.conf.Sigv4.Tags) > 0 {
+					o.Tags = make([]ststypes.Tag, 0, len(n.conf.Sigv4.Tags))
+					for k, v := range n.conf.Sigv4.Tags {
+						o.Tags = append(o.Tags, ststypes.Tag{
+							Key:   aws.String(k),
+							Value: aws.String(v),
+						})
+					}
 				}
 			},
 		)

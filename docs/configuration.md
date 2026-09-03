@@ -1861,6 +1861,18 @@ attributes:
 # AWS External ID used when assuming a role.
 # Can only be used with role_arn.
 [ external_id: <string> ]
+
+# AWS STS RoleSessionName used when assuming a role.
+# Can only be used with role_arn. Must match the AWS constraint: 2-64 characters
+# consisting of word characters and +=,.@-
+[ session_name: <string> ]
+
+# AWS STS session tags used when assuming a role.
+# Can only be used with role_arn. Tag keys must be non-empty and ≤ 128 characters.
+# Tag values must be ≤ 256 characters. Maximum of 50 tags (AWS STS limit).
+# Tags with the reserved "aws:" prefix are not allowed.
+tags:
+  [ <string>: <string> ... ]
 ```
 
 ### `<telegram_config>`
