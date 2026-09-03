@@ -359,7 +359,9 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 }
 
 // Validate checks that the Slack configuration endpoints and credentials are
-// mutually consistent and that message-updating options use the bot-token flow.
+// mutually consistent. The endpoint requirements of update_message and
+// post_updates_to_thread are checked during global config resolution, once
+// api_url has been resolved from the global section or an app token.
 func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return errors.New("at most one of api_url & api_url_file must be configured")
@@ -369,14 +371,6 @@ func (c *SlackConfig) Validate() error {
 	}
 	if (c.APIURL != nil || len(c.APIURLFile) > 0) && (c.AppToken != "" || len(c.AppTokenFile) > 0) {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
-	}
-
-	if c.UpdateMessage && (c.APIURL == nil || c.APIURL.String() != "https://slack.com/api/chat.postMessage") {
-		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
-	}
-
-	if c.PostUpdatesToThread && (c.APIURL == nil || c.APIURL.String() != "https://slack.com/api/chat.postMessage") {
-		return errors.New("post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 	}
 
 	return nil

@@ -1331,23 +1331,28 @@ func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
 	}
 }
 
-func TestSlackUpdateMessageWithoutAPIURL(t *testing.T) {
+func TestSlackUpdateMessageWithAppToken(t *testing.T) {
+	// The app token flow resolves api_url to the Slack bot API during global
+	// config resolution, so update_message must be accepted with it.
 	_, err := LoadFile("testdata/conf.slack-update-message-and-app-token.yml")
-	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-app-token", err)
-	}
-	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
-		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-update-message-and-app-token.yml", err)
 	}
 }
 
-func TestSlackPostUpdatesToThreadWithoutAPIURL(t *testing.T) {
+func TestSlackPostUpdatesToThreadWithAppToken(t *testing.T) {
 	_, err := LoadFile("testdata/conf.slack-post-updates-to-thread-and-app-token.yml")
-	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-post-updates-to-thread-and-app-token", err)
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-post-updates-to-thread-and-app-token.yml", err)
 	}
-	if err.Error() != "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
-		t.Errorf("Expected: %s\nGot: %s", "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+}
+
+func TestSlackUpdateMessageWithAPIURLFile(t *testing.T) {
+	// api_url_file is read at notification time, so its content cannot be
+	// verified at load time and the configuration must be accepted.
+	_, err := LoadFile("testdata/conf.slack-update-message-and-api-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-update-message-and-api-url-file.yml", err)
 	}
 }
 
