@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.d.ts", "!**/*.d.mts"]
+    "includes": ["**", "!**/dist", "!**/node_modules", "!src/gen", "!**/*.d.ts", "!**/*.d.mts"]
   },
   "formatter": {
     "enabled": true,

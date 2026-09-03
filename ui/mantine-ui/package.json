@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc && vite build",
+    "generate": "buf generate --template buf.gen.yaml",
+    "build": "npm run generate && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
@@ -18,6 +19,10 @@
     "test": "npm run check && npm run vitest && npm run build"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.14.0",
+    "@connectrpc/connect": "^2.1.2",
+    "@connectrpc/connect-query": "^2.3.1",
+    "@connectrpc/connect-web": "^2.1.2",
     "@mantine/code-highlight": "^9.5.2",
     "@mantine/core": "^9.0.0",
     "@mantine/hooks": "^9.0.0",
@@ -29,6 +34,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
+    "@bufbuild/buf": "^1.72.0",
+    "@bufbuild/protoc-gen-es": "^2.14.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
