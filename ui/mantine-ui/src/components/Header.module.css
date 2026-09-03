@@ -1,3 +1,8 @@
+.header {
+  color: var(--mantine-color-white);
+  background-color: var(--mantine-color-dark-6);
+}
+
 .navMain {
   flex: 1;
 }
