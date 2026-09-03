@@ -42,6 +42,7 @@ var (
 	output          string
 	timeout         time.Duration
 	httpConfigFile  string
+	httpDebug       bool
 	versionCheck    bool
 	featureFlags    string
 
@@ -122,7 +123,12 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 		if err != nil {
 			kingpin.Fatalf("failed to create a new HTTP client: %v", err)
 		}
+		if httpDebug {
+			httpclient.Transport = promconfig.NewDebugRoundTripper(os.Stderr, httpclient.Transport)
+		}
 		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
+	} else if httpDebug {
+		cr.Transport = promconfig.NewDebugRoundTripper(os.Stderr, cr.Transport)
 	}
 
 	c := client.New(cr, strfmt.Default)
@@ -155,6 +161,7 @@ func Execute() {
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
 	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
+	app.Flag("http.debug", "Log outgoing HTTP requests and responses to stderr (credentials are redacted). Useful for diagnosing connectivity and authentication issues.").BoolVar(&httpDebug)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 	app.Flag("enable-feature", fmt.Sprintf("Experimental features to enable, comma separated. Valid options: %s", strings.Join(featurecontrol.AllowedFlags, ", "))).Default("").StringVar(&featureFlags)
 
