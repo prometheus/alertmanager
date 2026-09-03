@@ -186,10 +186,10 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	// ConnectRPC procedure paths are the only bounded label values on the
 	// Connect/gRPC surface; any other path yields a 404 and must not be
 	// recorded verbatim, or a client could inflate metric/trace cardinality.
-	servicePrefixes := api.connect.ServicePrefixes()
+	procedures := api.connect.Procedures()
 	// Native gRPC is served at the server root, so match against the raw
 	// request path (no mount prefix).
-	grpcHandler := api.instrumentConnectHandler("", servicePrefixes, connectHandler)
+	grpcHandler := api.instrumentConnectHandler("", procedures, connectHandler)
 	webHandler := api.limitHandler(r)
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isGRPCRequest(r) {
@@ -231,7 +231,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 		apiPrefix+"/api/",
 		api.instrumentConnectHandler(
 			apiPrefix+"/api",
-			servicePrefixes,
+			procedures,
 			http.StripPrefix(apiPrefix+"/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if isGRPCRequest(r) {
 					http.NotFound(w, r)
@@ -318,17 +318,15 @@ const unmatchedRPCLabel = "unmatched"
 
 // instrumentConnectHandler is like instrumentHandler but bounds label and
 // span cardinality for the Connect/gRPC surface. Requests whose path (after
-// stripping mountPrefix) matches a registered service are recorded under that
-// service's prefix; the trailing method segment is intentionally dropped so a
-// client cannot inflate cardinality by appending arbitrary (and 404-ing)
-// method names. Everything else collapses to unmatchedRPCLabel.
-func (api *API) instrumentConnectHandler(mountPrefix string, servicePrefixes []string, h http.Handler) http.Handler {
+// stripping mountPrefix) exactly matches a registered procedure are recorded
+// under that procedure. Everything else collapses to unmatchedRPCLabel.
+func (api *API) instrumentConnectHandler(mountPrefix string, procedures []string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		procedure, _ := strings.CutPrefix(r.URL.Path, mountPrefix)
 		label := unmatchedRPCLabel
-		for _, p := range servicePrefixes {
-			if strings.HasPrefix(procedure, p) {
-				label = p
+		for _, known := range procedures {
+			if procedure == known {
+				label = known
 				break
 			}
 		}
