@@ -1331,6 +1331,26 @@ func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
 	}
 }
 
+func TestSlackUpdateMessageWithoutAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-update-message-and-app-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-app-token", err)
+	}
+	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
+		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	}
+}
+
+func TestSlackPostUpdatesToThreadWithoutAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-post-updates-to-thread-and-app-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-post-updates-to-thread-and-app-token", err)
+	}
+	if err.Error() != "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
+		t.Errorf("Expected: %s\nGot: %s", "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
