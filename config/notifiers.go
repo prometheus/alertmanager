@@ -336,6 +336,13 @@ type SlackConfig struct {
 	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
 
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+
+	// PostUpdatesToThread enables posting subsequent notifications for an alert group
+	// as replies in the thread of the initial message. When combined with UpdateMessage,
+	// the initial message is updated in place and a reply is also posted to its thread.
+	// Requires bot token with chat:write scope. Webhook URLs do not support threads.
+
+	PostUpdatesToThread bool `yaml:"post_updates_to_thread" json:"post_updates_to_thread,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -351,6 +358,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return c.Validate()
 }
 
+// Validate checks that the Slack configuration endpoints and credentials are
+// mutually consistent. The endpoint requirements of update_message and
+// post_updates_to_thread are checked during global config resolution, once
+// api_url has been resolved from the global section or an app token.
 func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return errors.New("at most one of api_url & api_url_file must be configured")
@@ -360,10 +371,6 @@ func (c *SlackConfig) Validate() error {
 	}
 	if (c.APIURL != nil || len(c.APIURLFile) > 0) && (c.AppToken != "" || len(c.AppTokenFile) > 0) {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
-	}
-
-	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
-		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 	}
 
 	return nil
