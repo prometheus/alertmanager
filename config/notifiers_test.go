@@ -35,7 +35,7 @@ to: ''
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -55,7 +55,7 @@ headers:
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -126,7 +126,7 @@ routing_key: ''
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -145,7 +145,7 @@ api_key_file: /global_file
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -165,7 +165,7 @@ custom_fields:
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 
@@ -304,7 +304,7 @@ api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXX
 			t.Fatalf("\nno error returned, expected:\n%v", rt.expectedErr)
 		}
 		// Check that the error that occurred was what was expected.
-		if err != nil && err.Error() != rt.expectedErr {
+		if err != nil && err.Error() != "yaml: unmarshal errors:\n  "+rt.expectedErr {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expectedErr, err.Error())
 		}
 	}
@@ -361,7 +361,7 @@ fields:
 			t.Fatalf("\nno error returned, expected:\n%v", rt.expected)
 		}
 		// Check that the error that occurred was what was expected.
-		if err != nil && err.Error() != rt.expected {
+		if err != nil && err.Error() != "yaml: unmarshal errors:\n  "+rt.expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected, err.Error())
 		}
 	}
@@ -551,7 +551,11 @@ http_config:
 			var cfg WebexConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -609,7 +613,11 @@ headers: {X-Custom-Header: CustomValue, X-CUSTOM-HEADER: AnotherValue}
 			var cfg EmailConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

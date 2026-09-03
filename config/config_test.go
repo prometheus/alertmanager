@@ -2017,3 +2017,103 @@ receivers:
 		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
 	}
 }
+
+func TestReceiverValidationErrorsAccumulate(t *testing.T) {
+	tests := []struct {
+		name     string
+		in       string
+		expected string
+	}{
+		{
+			// https://github.com/prometheus/alertmanager/issues/4990
+			name: "multiple invalid notifier configs in a single receiver",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+  - url: 'http://example.com/'
+    url_file: '/etc/secrets/webhook-url'
+`,
+			expected: "one of url or url_file must be configured\n" +
+				"at most one of url & url_file must be configured",
+		},
+		{
+			// The example from https://github.com/prometheus/alertmanager/issues/4990:
+			// the decoder's own type error and the validation error are reported
+			// together instead of the latter hiding the former.
+			name: "type errors and validation errors are reported together",
+			in: `
+receivers:
+  - name: 'webhook-critical'
+    webhook_configs:
+      - url: 'http://example.com/api'
+        send_resolved: "yes_please"
+      - url: ''
+        http_config:
+          basic_auth:
+            username: 'admin'
+route:
+  group_by: ['alertname']
+  receiver: 'webhook-critical'
+`,
+			expected: "yaml: unmarshal errors:\n" +
+				"  line 6: cannot unmarshal !!str `yes_please` into bool\n" +
+				"  one of url or url_file must be configured",
+		},
+		{
+			name: "invalid notifier configs of different types in a single receiver",
+			in: `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+  webhook_configs:
+  - send_resolved: true
+  pagerduty_configs:
+  - url: 'https://example.com/'
+`,
+			expected: "one of url or url_file must be configured\n" +
+				"missing service or routing key in PagerDuty config",
+		},
+		{
+			// https://github.com/prometheus/alertmanager/issues/4991
+			name: "invalid notifier configs across multiple receivers",
+			in: `
+route:
+    receiver: team-A
+
+receivers:
+- name: 'team-A'
+  webhook_configs:
+  - send_resolved: true
+- name: 'team-B'
+  email_configs:
+  - smarthost: 'smtp.example.com:587'
+    from: 'alertmanager@example.com'
+- name: 'team-C'
+  pagerduty_configs:
+  - url: 'https://example.com/'
+`,
+			expected: "one of url or url_file must be configured\n" +
+				"missing to address in email config\n" +
+				"missing service or routing key in PagerDuty config",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
+			if err == nil {
+				t.Fatalf("no error returned, expected:\n%v", tc.expected)
+			}
+			if err.Error() != tc.expected {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", tc.expected, err.Error())
+			}
+		})
+	}
+}

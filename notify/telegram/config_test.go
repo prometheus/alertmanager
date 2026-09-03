@@ -96,7 +96,11 @@ parse_mode: invalid
 			var cfg TelegramConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

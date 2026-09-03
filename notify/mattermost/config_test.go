@@ -63,7 +63,11 @@ value: some value
 			var cfg MattermostField
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -125,7 +129,11 @@ attachments:
 			var cfg MattermostConfig
 			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
 
-			require.Equal(t, tt.expected, err)
+			if tt.expected != nil {
+				require.EqualError(t, err, "yaml: unmarshal errors:\n  "+tt.expected.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

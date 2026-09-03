@@ -58,9 +58,9 @@ type MattermostField struct {
 func (c *MattermostField) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain MattermostField
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the MattermostField for correctness.
@@ -132,10 +132,10 @@ func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMattermostConfig
 	type plain MattermostConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the MattermostConfig for correctness.

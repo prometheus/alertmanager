@@ -66,9 +66,9 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultOpsGenieConfig
 	type plain OpsGenieConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the OpsGenieConfig for correctness.

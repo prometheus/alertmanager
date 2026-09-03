@@ -57,9 +57,9 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultTelegramConfig
 	type plain TelegramConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the TelegramConfig for correctness.

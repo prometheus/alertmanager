@@ -45,10 +45,10 @@ func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the MSTeamsConfig for correctness.

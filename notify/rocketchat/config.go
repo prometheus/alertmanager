@@ -91,9 +91,9 @@ func (c *RocketchatConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultRocketchatConfig
 	type plain RocketchatConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the RocketchatConfig for correctness.
