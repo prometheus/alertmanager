@@ -16,11 +16,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
 
@@ -29,14 +31,38 @@ import (
 type SetNotifiesStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
+	ff    featurecontrol.Flagger
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifiesStage {
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, ff featurecontrol.Flagger) *SetNotifiesStage {
 	return &SetNotifiesStage{
 		nflog: l,
 		recv:  recv,
+		ff:    ff,
 	}
+}
+
+// mutedAlerts returns the hashes of the alerts a mute stage removed from the
+// pipeline, sorted so that the entry written to the notification log is stable
+// across flushes and across peers.
+func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
+	if !n.ff.EnableMutedAlertsInNflog() {
+		return nil
+	}
+
+	muted, ok := MutedAlerts(ctx)
+	if !ok || len(muted) == 0 {
+		return nil
+	}
+
+	hashes := make([]uint64, 0, len(muted))
+	for hash := range muted {
+		hashes = append(hashes, hash)
+	}
+	slices.Sort(hashes)
+
+	return hashes
 }
 
 // Exec implements the Stage interface.
@@ -69,12 +95,15 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 	}
 	expiry := 2 * repeat
 
+	muted := n.mutedAlerts(ctx)
+
 	span.SetAttributes(
 		attribute.Int("alerting.alerts.firing.count", len(firing)),
 		attribute.Int("alerting.alerts.resolved.count", len(resolved)),
+		attribute.Int("alerting.alerts.muted.count", len(muted)),
 	)
 
 	// Extract receiver data from context if present (it's ok for it to be nil).
 	store, _ := NflogStore(ctx)
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, nil, store, expiry)
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, muted, store, expiry)
 }

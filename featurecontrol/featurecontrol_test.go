@@ -56,3 +56,16 @@ func TestFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestMutedAlertsInNflog(t *testing.T) {
+	fc, err := NewFlags(promslog.NewNopLogger(), FeatureMutedAlertsInNflog)
+	require.NoError(t, err)
+	require.True(t, fc.EnableMutedAlertsInNflog())
+
+	// The feature is off unless it is asked for.
+	fc, err = NewFlags(promslog.NewNopLogger(), FeatureReceiverNameInMetrics)
+	require.NoError(t, err)
+	require.False(t, fc.EnableMutedAlertsInNflog())
+
+	require.False(t, NoopFlags{}.EnableMutedAlertsInNflog())
+}

@@ -51,6 +51,19 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
+// recordMuted adds the hashes of the given alerts to the set of muted alert
+// hashes in the context.
+func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
+	hashes, _ := MutedAlerts(ctx)
+	if hashes == nil {
+		hashes = make(map[uint64]struct{}, len(muted))
+	}
+	for _, a := range muted {
+		hashes[hashAlert(a)] = struct{}{}
+	}
+	return WithMutedAlerts(ctx, hashes)
+}
+
 // MuteStage filters alerts through a Muter.
 type MuteStage struct {
 	muter   Muter
@@ -102,16 +115,7 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*al
 		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
 		logger.Debug("Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
 
-		// Record muted alert hashes in the context so downstream stages
-		// (e.g., the event recorder) can observe which alerts were muted.
-		mutedHashes, _ := MutedAlerts(ctx)
-		if mutedHashes == nil {
-			mutedHashes = make(map[uint64]struct{}, len(muted))
-		}
-		for _, a := range muted {
-			mutedHashes[hashAlert(a)] = struct{}{}
-		}
-		ctx = WithMutedAlerts(ctx, mutedHashes)
+		ctx = recordMuted(ctx, muted)
 	}
 
 	return ctx, filtered, nil
@@ -191,7 +195,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*al
 		tms.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonMuteTimeInterval).Add(float64(len(alerts)))
 		l.Debug("Notifications not sent, route is within mute time", "alerts", len(alerts))
 		span.AddEvent("notify.TimeMuteStage.Exec muted the alerts")
-		return ctx, nil, nil
+		return recordMuted(ctx, alerts), nil, nil
 	}
 
 	return ctx, alerts, nil
@@ -260,7 +264,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 		span.AddEvent("notify.TimeActiveStage.Exec not active, removing all alerts")
 		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
 		l.Debug("Notifications not sent, route is not within active time", "alerts", len(alerts))
-		return ctx, nil, nil
+		return recordMuted(ctx, alerts), nil, nil
 	}
 
 	return ctx, alerts, nil

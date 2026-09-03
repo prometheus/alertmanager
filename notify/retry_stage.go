@@ -57,6 +57,12 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder e
 }
 
 func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+	// Every alert in the group was muted, so there is nothing to deliver. The
+	// stages after this one still run, to record the state of the group.
+	if len(alerts) == 0 {
+		return ctx, alerts, nil
+	}
+
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
 
 	ctx, span := tracer.Start(ctx, "notify.RetryStage.Exec",
