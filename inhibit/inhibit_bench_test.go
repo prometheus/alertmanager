@@ -62,6 +62,9 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 10000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 1, 10000))
 	})
+	b.Run("1 inhibition rule, 10000 same-equal alerts, source-only candidate", func(b *testing.B) {
+		benchmarkMutes(b, sameEqualSourceOnlyBenchmark(b, 10000))
+	})
 	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000))
 	})
@@ -134,6 +137,58 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
 			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
+			}
+			return nil
+		},
+	}
+}
+
+func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions {
+	now := time.Now()
+
+	return benchmarkOptions{
+		n: 1,
+		newRuleFunc: func(_ int) amcommoncfg.InhibitRule {
+			return amcommoncfg.InhibitRule{
+				SourceMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "src", "1"),
+				},
+				TargetMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "1"),
+				},
+				Equal: []string{"eq"},
+			}
+		},
+		newAlertsFunc: func(_ int, _ amcommoncfg.InhibitRule) []types.Alert {
+			alerts := make([]types.Alert, 0, numInhibitingAlerts+1)
+			for i := range numInhibitingAlerts {
+				alerts = append(alerts, types.Alert{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"src": model.LabelValue("1"),
+							"eq":  model.LabelValue("1"),
+							"idx": model.LabelValue(strconv.Itoa(i)),
+						},
+						EndsAt: now.Add(time.Hour),
+					},
+				})
+			}
+			alerts = append(alerts, types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"src": model.LabelValue("1"),
+						"dst": model.LabelValue("1"),
+						"eq":  model.LabelValue("1"),
+						"idx": model.LabelValue("two-sided"),
+					},
+					EndsAt: now.Add(2 * time.Hour),
+				},
+			})
+			return alerts
+		},
+		benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), model.LabelSet{"src": "1", "dst": "1", "eq": "1"}); !ok {
+				return errors.New("expected source-and-target alert to be muted by a source-only alert")
 			}
 			return nil
 		},

@@ -57,11 +57,13 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	now := time.Now()
 	cases := []struct {
-		name    string
-		initial map[model.Fingerprint]*alert.Alert
-		equal   model.LabelNames
-		input   model.LabelSet
-		result  bool
+		name                 string
+		initial              map[model.Fingerprint]*alert.Alert
+		equal                model.LabelNames
+		targetMatchers       labels.Matchers
+		input                model.LabelSet
+		excludeTwoSidedMatch bool
+		result               bool
 	}{
 		{
 			name:    "no source alerts",
@@ -141,14 +143,41 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			input:  model.LabelSet{"a": "b"},
 			result: false,
 		},
+		{
+			name: "matching source-only alert still inhibits when newest equal source is two-sided",
+			initial: map[model.Fingerprint]*alert.Alert{
+				1: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"s": "1", "e": "1"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+				2: {
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(2 * time.Hour),
+					},
+				},
+			},
+			equal:          model.LabelNames{"e"},
+			targetMatchers: labels.Matchers{{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+			input:          model.LabelSet{"s": "1", "t": "1", "e": "1"},
+			// The indexed two-sided source must be ignored, but the source-only
+			// alert with the same equal labels should still inhibit the target.
+			excludeTwoSidedMatch: true,
+			result:               true,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := &InhibitRule{
-				Equal:  map[model.LabelName]struct{}{},
-				scache: store.NewAlerts(),
-				sindex: newIndex(),
+				Equal:          map[model.LabelName]struct{}{},
+				TargetMatchers: c.targetMatchers,
+				scache:         store.NewAlerts(),
+				sindex:         newIndex(),
 			}
 			for _, ln := range c.equal {
 				r.Equal[ln] = struct{}{}
@@ -158,11 +187,94 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 				r.updateIndex(v)
 			}
 
-			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
+			if _, have := r.hasEqual(c.input, c.excludeTwoSidedMatch, time.Now()); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
 	}
+}
+
+func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	r := &InhibitRule{
+		Equal: map[model.LabelName]struct{}{
+			"e": {},
+		},
+		TargetMatchers: labels.Matchers{{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+		scache:         store.NewAlerts(),
+		sindex:         newIndex(),
+	}
+
+	sourceOnly := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "source-only"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	expiredSameEqual := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "expired"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(-time.Hour),
+		},
+	}
+
+	require.NoError(t, r.scache.Set(sourceOnly))
+	r.updateIndex(sourceOnly)
+	require.NoError(t, r.scache.Set(expiredSameEqual))
+	r.updateIndex(expiredSameEqual)
+
+	target := model.LabelSet{"s": "1", "t": "1", "e": "1"}
+	_, found := r.hasEqual(target, true, now)
+	require.True(t, found)
+
+	r.gcCallback([]*alert.Alert{expiredSameEqual})
+
+	_, found = r.hasEqual(target, true, now)
+	require.True(t, found)
+}
+
+func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	r := &InhibitRule{
+		Equal: map[model.LabelName]struct{}{
+			"e": {},
+		},
+		scache: store.NewAlerts(),
+		sindex: newIndex(),
+	}
+
+	oldSource := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(-time.Hour),
+		},
+		UpdatedAt: now.Add(-time.Hour),
+	}
+	refreshedSource := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			StartsAt: now.Add(-2 * time.Hour),
+			EndsAt:   now.Add(time.Hour),
+		},
+		UpdatedAt: now,
+	}
+
+	require.NoError(t, r.scache.Set(oldSource))
+	r.updateIndex(oldSource)
+	require.NoError(t, r.scache.Set(refreshedSource))
+	r.updateIndex(refreshedSource)
+
+	r.gcCallback([]*alert.Alert{oldSource})
+
+	_, found := r.hasEqual(model.LabelSet{"t": "1", "e": "1"}, false, now)
+	require.True(t, found)
 }
 
 func TestInhibitRuleMatches(t *testing.T) {
