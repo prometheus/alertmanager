@@ -336,6 +336,13 @@ type SlackConfig struct {
 	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
 
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+
+	// PostUpdatesToThread enables posting subsequent notifications for an alert group
+	// as replies in the thread of the initial message. When combined with UpdateMessage,
+	// the initial message is updated in place and a reply is also posted to its thread.
+	// Requires bot token with chat:write scope. Webhook URLs do not support threads.
+
+	PostUpdatesToThread bool `yaml:"post_updates_to_thread" json:"post_updates_to_thread,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -364,6 +371,10 @@ func (c *SlackConfig) Validate() error {
 
 	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
 		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+	}
+
+	if c.PostUpdatesToThread && (c.APIURL == nil || c.APIURL.String() != "https://slack.com/api/chat.postMessage") {
+		return errors.New("post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 	}
 
 	return nil

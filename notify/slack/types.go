@@ -37,14 +37,15 @@ type Notifier struct {
 
 // request is the request for sending a Slack notification.
 type request struct {
-	Channel     string       `json:"channel,omitempty"`
-	Timestamp   string       `json:"ts,omitempty"`
-	Username    string       `json:"username,omitempty"`
-	IconEmoji   string       `json:"icon_emoji,omitempty"`
-	IconURL     string       `json:"icon_url,omitempty"`
-	LinkNames   bool         `json:"link_names,omitempty"`
-	Text        string       `json:"text,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	Channel         string       `json:"channel,omitempty"`
+	Timestamp       string       `json:"ts,omitempty"`
+	ThreadTimestamp string       `json:"thread_ts,omitempty"`
+	Username        string       `json:"username,omitempty"`
+	IconEmoji       string       `json:"icon_emoji,omitempty"`
+	IconURL         string       `json:"icon_url,omitempty"`
+	LinkNames       bool         `json:"link_names,omitempty"`
+	Text            string       `json:"text,omitempty"`
+	Attachments     []attachment `json:"attachments"`
 }
 
 // attachment is used to display a richly formatted message block.

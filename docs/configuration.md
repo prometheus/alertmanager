@@ -1747,6 +1747,12 @@ fields:
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
 # Webhook URLs do not support updates.
 [ update_message: <boolean> | default = false ]
+
+# Posts subsequent notifications for an alert group as replies in the thread of the
+# initial message instead of new channel messages. When combined with update_message,
+# the initial message is updated in place and a reply is also posted to its thread.
+# Webhook URLs do not support threads.
+[ post_updates_to_thread: <boolean> | default = false ]
 ```
 
 #### `<action_config>` (Slack)
