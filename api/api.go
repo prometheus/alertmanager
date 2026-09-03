@@ -75,7 +75,15 @@ type Options struct {
 	// limit of GOMAXPROCS or 8, whichever is larger. Status code 503 is served
 	// for GET requests that would exceed the concurrency limit; Connect calls
 	// receive ResourceExhausted.
-	Concurrency int
+	Concurrency                int
+	ConnectUnaryConcurrency    int
+	ConnectStreamConcurrency   int
+	ConnectUnaryTimeout        time.Duration
+	ConnectStreamIdleTimeout   time.Duration
+	ConnectStreamLifetime      time.Duration
+	ConnectReadMaxBytes        int
+	ConnectSendMaxBytes        int
+	ConnectMaxRequestBodyBytes int64
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
@@ -133,12 +141,33 @@ func New(opts Options) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	connect := apiconnect.NewAPI(apiconnect.Options{
-		Peer:              opts.Peer,
-		UnaryConcurrency:  concurrency,
-		StreamConcurrency: concurrency,
-		UnaryTimeout:      opts.Timeout,
+	unaryConcurrency := opts.ConnectUnaryConcurrency
+	if unaryConcurrency < 1 {
+		unaryConcurrency = concurrency
+	}
+	streamConcurrency := opts.ConnectStreamConcurrency
+	if streamConcurrency < 1 {
+		streamConcurrency = concurrency
+	}
+	unaryTimeout := opts.ConnectUnaryTimeout
+	if unaryTimeout == 0 {
+		unaryTimeout = opts.Timeout
+	}
+	connect, err := apiconnect.NewAPI(apiconnect.Options{
+		Peer:                opts.Peer,
+		Registerer:          opts.Registry,
+		UnaryConcurrency:    unaryConcurrency,
+		StreamConcurrency:   streamConcurrency,
+		UnaryTimeout:        unaryTimeout,
+		StreamIdleTimeout:   opts.ConnectStreamIdleTimeout,
+		StreamLifetime:      opts.ConnectStreamLifetime,
+		ReadMaxBytes:        opts.ConnectReadMaxBytes,
+		SendMaxBytes:        opts.ConnectSendMaxBytes,
+		MaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	requestsInFlight := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:        "alertmanager_http_requests_in_flight",
@@ -261,6 +290,13 @@ func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Conte
 	}
 	if api.connect != nil {
 		api.connect.Update(cfg)
+	}
+}
+
+// Shutdown rejects new Connect RPCs and cancels active RPCs.
+func (api *API) Shutdown() {
+	if api.connect != nil {
+		api.connect.Shutdown()
 	}
 }
 

@@ -383,16 +383,24 @@ func (a *App) setup() error {
 	}
 
 	apih, err := api.New(api.Options{
-		Alerts:          alerts,
-		Silences:        silences,
-		GroupMutedFunc:  groupMarker.Muted,
-		Peer:            clusterPeer,
-		Timeout:         opts.HTTPTimeout,
-		Concurrency:     opts.GetConcurrency,
-		Logger:          logger.With("component", "api"),
-		Registry:        reg,
-		RequestDuration: m.requestDuration,
-		GroupFunc:       groupFn,
+		Alerts:                     alerts,
+		Silences:                   silences,
+		GroupMutedFunc:             groupMarker.Muted,
+		Peer:                       clusterPeer,
+		Timeout:                    opts.HTTPTimeout,
+		Concurrency:                opts.GetConcurrency,
+		ConnectUnaryConcurrency:    opts.ConnectUnaryConcurrency,
+		ConnectStreamConcurrency:   opts.ConnectStreamConcurrency,
+		ConnectUnaryTimeout:        opts.ConnectUnaryTimeout,
+		ConnectStreamIdleTimeout:   opts.ConnectStreamIdleTimeout,
+		ConnectStreamLifetime:      opts.ConnectStreamLifetime,
+		ConnectReadMaxBytes:        opts.ConnectReadMaxBytes,
+		ConnectSendMaxBytes:        opts.ConnectSendMaxBytes,
+		ConnectMaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
+		Logger:                     logger.With("component", "api"),
+		Registry:                   reg,
+		RequestDuration:            m.requestDuration,
+		GroupFunc:                  groupFn,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create API: %w", err)
@@ -526,6 +534,7 @@ func (a *App) setup() error {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       90 * time.Second,
 	}
+	a.server.RegisterOnShutdown(apih.Shutdown)
 
 	return nil
 }

@@ -60,11 +60,19 @@ func run() int {
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
 		dispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
-		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
-		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
-		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
-		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
-		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
+		webConfig                  = webflag.AddFlags(kingpin.CommandLine, ":9093")
+		externalURL                = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix                = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		getConcurrency             = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
+		httpTimeout                = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
+		connectUnaryConcurrency    = kingpin.Flag("api.connect.unary-concurrency", "Maximum number of Connect unary RPCs processed concurrently. Defaults to --web.get-concurrency.").Default("0").Int()
+		connectStreamConcurrency   = kingpin.Flag("api.connect.stream-concurrency", "Maximum number of Connect streams processed concurrently. Defaults to --web.get-concurrency.").Default("0").Int()
+		connectUnaryTimeout        = kingpin.Flag("api.connect.unary-timeout", "Timeout for Connect unary RPCs, including request reads. Defaults to --web.timeout.").Default("0").Duration()
+		connectStreamIdleTimeout   = kingpin.Flag("api.connect.stream-idle-timeout", "Maximum time between messages on a Connect stream. If zero or negative, no idle timeout is set.").Default("0").Duration()
+		connectStreamLifetime      = kingpin.Flag("api.connect.stream-lifetime", "Maximum lifetime of a Connect stream. If zero or negative, no lifetime limit is set.").Default("0").Duration()
+		connectReadMaxBytes        = kingpin.Flag("api.connect.read-max-bytes", "Maximum size of each incoming Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
+		connectSendMaxBytes        = kingpin.Flag("api.connect.send-max-bytes", "Maximum size of each outgoing Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
+		connectMaxRequestBodyBytes = kingpin.Flag("api.connect.max-request-body-bytes", "Maximum wire size of a Connect unary request body. If zero or negative, no limit is set.").Default("0").Int64()
 
 		memlimitEnable = kingpin.Flag("auto-gomemlimit", "Automatically set GOMEMLIMIT to match Linux container or system memory limit").
 				Default("false").Bool()
@@ -175,11 +183,19 @@ func run() int {
 		DispatchMaintenanceInterval: *dispatchMaintenanceInterval,
 		DispatchStartDelay:          *dispatchStartDelay,
 
-		WebConfig:      webConfig,
-		ExternalURL:    *externalURL,
-		RoutePrefix:    *routePrefix,
-		GetConcurrency: *getConcurrency,
-		HTTPTimeout:    *httpTimeout,
+		WebConfig:                  webConfig,
+		ExternalURL:                *externalURL,
+		RoutePrefix:                *routePrefix,
+		GetConcurrency:             *getConcurrency,
+		HTTPTimeout:                *httpTimeout,
+		ConnectUnaryConcurrency:    *connectUnaryConcurrency,
+		ConnectStreamConcurrency:   *connectStreamConcurrency,
+		ConnectUnaryTimeout:        *connectUnaryTimeout,
+		ConnectStreamIdleTimeout:   *connectStreamIdleTimeout,
+		ConnectStreamLifetime:      *connectStreamLifetime,
+		ConnectReadMaxBytes:        *connectReadMaxBytes,
+		ConnectSendMaxBytes:        *connectSendMaxBytes,
+		ConnectMaxRequestBodyBytes: *connectMaxRequestBodyBytes,
 
 		ClusterBindAddr:        *clusterBindAddr,
 		ClusterAdvertiseAddr:   *clusterAdvertiseAddr,

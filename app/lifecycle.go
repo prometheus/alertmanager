@@ -210,6 +210,9 @@ func (a *App) Stop(ctx context.Context) error {
 		if err := a.server.Shutdown(shutdownCtx); err != nil {
 			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
 			stopErr = err
+			if closeErr := a.server.Close(); closeErr != nil {
+				stopErr = errors.Join(stopErr, closeErr)
+			}
 		}
 	}
 	// HTTP is fully drained; no new /-/reload requests can arrive.

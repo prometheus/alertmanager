@@ -121,4 +121,30 @@ var _ = Describe("StatusService", func() {
 		Entry("without a route prefix", ""),
 		Entry("with a route prefix", "/alertmanager"),
 	)
+
+	It("cancels active streams during shutdown", func() {
+		inst := startInstance("")
+		conn, err := grpc.NewClient(inst.app.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(conn.Close)
+		stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(stream.Send(&reflectionv1.ServerReflectionRequest{
+			MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
+		})).To(Succeed())
+		_, err = stream.Recv()
+		Expect(err).NotTo(HaveOccurred())
+
+		stopDone := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			stopDone <- inst.app.Stop(ctx)
+		}()
+		var stopErr error
+		Eventually(stopDone, 2*time.Second).Should(Receive(&stopErr))
+		Expect(stopErr).NotTo(HaveOccurred())
+		_, err = stream.Recv()
+		Expect(err).To(HaveOccurred())
+	})
 })
