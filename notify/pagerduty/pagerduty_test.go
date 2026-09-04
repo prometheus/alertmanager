@@ -943,7 +943,8 @@ func TestRenderDetails(t *testing.T) {
 				conf: &PagerdutyConfig{
 					Details: tt.args.details,
 				},
-				tmpl: test.CreateTmpl(t),
+				tmpl:   test.CreateTmpl(t),
+				logger: promslog.NewNopLogger(),
 			}
 			got, err := n.renderDetails(tt.args.data)
 			if (err != nil) != tt.wantErr {

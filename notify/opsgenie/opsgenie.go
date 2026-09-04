@@ -137,7 +137,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
-	tmpl := notify.TmplText(n.tmpl, data, &err)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &err, logger)
 
 	details := make(map[string]string)
 
