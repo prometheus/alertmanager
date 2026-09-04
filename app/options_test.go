@@ -63,7 +63,14 @@ func TestOptions_Validate(t *testing.T) {
 		{name: "missing logger", mutate: func(o *Options) { o.Logger = nil }},
 		{name: "missing registerer", mutate: func(o *Options) { o.Registerer = nil }},
 		{name: "missing flagger", mutate: func(o *Options) { o.Flagger = nil }},
-		{name: "missing config file", mutate: func(o *Options) { o.ConfigFile = "" }},
+		{name: "missing config source", mutate: func(o *Options) {
+			o.ConfigFile = ""
+			o.ConfigHTTPURL = ""
+		}},
+		{name: "both config sources", mutate: func(o *Options) {
+			o.ConfigFile = "alertmanager.yml"
+			o.ConfigHTTPURL = "http://example.com/config"
+		}},
 		{name: "missing data dir", mutate: func(o *Options) { o.DataDir = "" }},
 		{name: "zero retention", mutate: func(o *Options) { o.Retention = 0 }},
 		{name: "zero maintenance interval", mutate: func(o *Options) { o.MaintenanceInterval = 0 }},
@@ -93,6 +100,13 @@ func TestOptions_Validate(t *testing.T) {
 			require.Error(t, o.validate())
 		})
 	}
+
+	t.Run("HTTP config only is valid", func(t *testing.T) {
+		o := valid()
+		o.ConfigFile = ""
+		o.ConfigHTTPURL = "http://example.com/config"
+		require.NoError(t, o.validate())
+	})
 
 	t.Run("systemd socket without listen addresses is valid", func(t *testing.T) {
 		o := valid()
