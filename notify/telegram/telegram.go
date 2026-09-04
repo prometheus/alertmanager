@@ -22,8 +22,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
+	"golang.org/x/net/html"
 	"gopkg.in/telebot.v3"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -31,7 +33,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
+// Telegram supports up to 4096 characters after entity parsing.
+// See https://core.telegram.org/bots/api#sendmessage.
 const maxMessageLenRunes = 4096
 
 // Notifier implements a Notifier for telegram notifications.
@@ -92,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		if err != nil {
 			return false, err
 		}
-		if len([]rune(messageText)) > maxMessageLenRunes {
+		if htmlTextRuneCount(messageText) > maxMessageLenRunes {
 			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
 			Please check the template used for producing the message content.`
 		}
@@ -145,6 +148,26 @@ func wrapWithFailureReason(err error) error {
 		return notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(apiErr.Code), err)
 	}
 	return err
+}
+
+// htmlTextRuneCount excludes HTML markup and attribute values such as link targets.
+func htmlTextRuneCount(message string) int {
+	tokenizer := html.NewTokenizer(strings.NewReader(message))
+	count := 0
+
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			if len(tokenizer.Raw()) > 0 {
+				return utf8.RuneCountInString(message)
+			}
+			return count
+		case html.CommentToken, html.DoctypeToken:
+			return utf8.RuneCountInString(message)
+		case html.TextToken:
+			count += utf8.RuneCount(tokenizer.Text())
+		}
+	}
 }
 
 func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
