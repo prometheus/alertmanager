@@ -69,8 +69,10 @@ func TestPushoverReadingUserKeyFromFile(t *testing.T) {
 	const userKey = "user key"
 	f, err := os.CreateTemp(t.TempDir(), "pushover_user_key")
 	require.NoError(t, err, "creating temp file failed")
-	_, err = f.WriteString(userKey)
+	// Editors like vim append a trailing newline; that must not be sent to Pushover.
+	_, err = f.WriteString(userKey + "\n")
 	require.NoError(t, err, "writing to temp file failed")
+	require.NoError(t, f.Close(), "closing temp file failed")
 
 	notifier, err := New(
 		&PushoverConfig{
@@ -94,8 +96,9 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	const token = "token"
 	f, err := os.CreateTemp(t.TempDir(), "pushover_token")
 	require.NoError(t, err, "creating temp file failed")
-	_, err = f.WriteString(token)
+	_, err = f.WriteString(token + "\n")
 	require.NoError(t, err, "writing to temp file failed")
+	require.NoError(t, f.Close(), "closing temp file failed")
 
 	notifier, err := New(
 		&PushoverConfig{
