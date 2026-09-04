@@ -91,6 +91,29 @@ func TestMuteStage(t *testing.T) {
 	}
 }
 
+func TestMuteStageAccumulatesMutedAlertDetails(t *testing.T) {
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	firstStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
+		return lset["muted_by"] == "first"
+	}), metrics)
+	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
+		return lset["muted_by"] == "second"
+	}), metrics)
+	first := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}}
+	second := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}}
+	active := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Active"}}}
+
+	ctx, alerts, err := firstStage.Exec(context.Background(), promslog.NewNopLogger(), first, second, active)
+	require.NoError(t, err)
+	ctx, alerts, err = secondStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Equal(t, []*alert.Alert{active}, alerts)
+
+	muted, ok := mutedAlerts(ctx)
+	require.True(t, ok)
+	require.Equal(t, []*alert.Alert{first, second}, muted)
+}
+
 func TestMuteStageWithSilences(t *testing.T) {
 	silences, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
 	if err != nil {

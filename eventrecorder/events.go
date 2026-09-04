@@ -89,11 +89,6 @@ type AlertGroup struct {
 	message *events.AlertGroupInfo
 }
 
-// GroupedAlert is an immutable grouped-alert snapshot.
-type GroupedAlert struct {
-	message *events.GroupedAlert
-}
-
 // InhibitRule is an immutable inhibition-rule snapshot.
 type InhibitRule struct {
 	message *events.InhibitRule
@@ -113,10 +108,10 @@ const (
 
 // Notification contains the snapshots used to construct a notification event.
 type Notification struct {
-	Alerts         []GroupedAlert
-	FiringAlerts   []GroupedAlert
-	ResolvedAlerts []GroupedAlert
-	MutedAlerts    []GroupedAlert
+	Alerts         []*alert.Alert
+	FiringAlerts   []*alert.Alert
+	ResolvedAlerts []*alert.Alert
+	MutedAlerts    []*alert.Alert
 	Group          AlertGroup
 	RepeatInterval time.Duration
 	Reason         NotificationReason
@@ -131,16 +126,6 @@ func NewAlertGroup(groupKey string, groupLabels model.LabelSet, groupID, receive
 		GroupKey: groupKey, GroupLabels: labelSetMap(groupLabels), GroupId: groupID,
 		ReceiverName: receiverName, Matchers: matchersToEvents(matchers), GroupUuid: groupUUID,
 	}}
-}
-
-// NewGroupedAlert snapshots an alert and its notification-pipeline hash.
-func NewGroupedAlert(hash uint64, a *alert.Alert) GroupedAlert {
-	return GroupedAlert{message: &events.GroupedAlert{Hash: hash, Details: alertToEvents(a)}}
-}
-
-// NewGroupedAlertReference snapshots a hash-only grouped-alert reference.
-func NewGroupedAlertReference(hash uint64) GroupedAlert {
-	return GroupedAlert{message: &events.GroupedAlert{Hash: hash}}
 }
 
 // NewAlertmanagerStartupEvent constructs startup event data.
@@ -165,16 +150,16 @@ func NewAlertCreatedEvent(a *alert.Alert) EventData {
 }
 
 // NewAlertGroupedEvent constructs alert-grouped event data.
-func NewAlertGroupedEvent(group AlertGroup, groupedAlert GroupedAlert) EventData {
+func NewAlertGroupedEvent(group AlertGroup, a *alert.Alert) EventData {
 	return newEventData("alert_grouped", &events.EventData{EventType: &events.EventData_AlertGrouped{
-		AlertGrouped: &events.AlertGroupedEvent{Alert: groupedAlert.message, GroupInfo: group.message},
+		AlertGrouped: &events.AlertGroupedEvent{Alert: alertToEvents(a), GroupInfo: group.message},
 	}})
 }
 
 // NewAlertResolvedEvent constructs alert-resolved event data.
-func NewAlertResolvedEvent(group AlertGroup, groupedAlert GroupedAlert) EventData {
+func NewAlertResolvedEvent(group AlertGroup, a *alert.Alert) EventData {
 	return newEventData("alert_resolved", &events.EventData{EventType: &events.EventData_AlertResolved{
-		AlertResolved: &events.AlertResolvedEvent{Alert: groupedAlert.message, GroupInfo: group.message},
+		AlertResolved: &events.AlertResolvedEvent{Alert: alertToEvents(a), GroupInfo: group.message},
 	}})
 }
 
@@ -182,8 +167,8 @@ func NewAlertResolvedEvent(group AlertGroup, groupedAlert GroupedAlert) EventDat
 func NewNotificationEvent(notification Notification) EventData {
 	return newEventData("notification", &events.EventData{EventType: &events.EventData_Notification{
 		Notification: &events.NotificationEvent{
-			Alerts: groupedAlertsToEvents(notification.Alerts), FiringAlerts: groupedAlertsToEvents(notification.FiringAlerts),
-			ResolvedAlerts: groupedAlertsToEvents(notification.ResolvedAlerts), MutedAlerts: groupedAlertsToEvents(notification.MutedAlerts),
+			Alerts: alertsToEvents(notification.Alerts), FiringAlerts: alertsToEvents(notification.FiringAlerts),
+			ResolvedAlerts: alertsToEvents(notification.ResolvedAlerts), MutedAlerts: alertsToEvents(notification.MutedAlerts),
 			GroupInfo: notification.Group.message, RepeatInterval: durationpb.New(notification.RepeatInterval),
 			Reason: notificationReasonToEvents(notification.Reason), FlushId: notification.FlushID,
 			Integration: &events.Integration{Name: notification.Integration, Index: notification.IntegrationIdx},
@@ -386,10 +371,10 @@ func cloneTimestamp(timestamp *timestamppb.Timestamp) *timestamppb.Timestamp {
 	return timestamppb.New(timestamp.AsTime())
 }
 
-func groupedAlertsToEvents(alerts []GroupedAlert) []*events.GroupedAlert {
-	result := make([]*events.GroupedAlert, len(alerts))
-	for i, groupedAlert := range alerts {
-		result[i] = groupedAlert.message
+func alertsToEvents(alerts []*alert.Alert) []*events.Alert {
+	result := make([]*events.Alert, len(alerts))
+	for i, a := range alerts {
+		result[i] = alertToEvents(a)
 	}
 	return result
 }
