@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
@@ -237,6 +239,28 @@ type Retrier struct {
 	CustomDetailsFunc func(code int, body io.Reader) string
 	// Additional HTTP status codes that should be retried.
 	RetryCodes []int
+}
+
+// ParseRetryAfter parses the Retry-After header value, which can be either
+// a delay in seconds (integer) or an HTTP-date. Returns zero if absent or unparseable.
+func ParseRetryAfter(h http.Header) time.Duration {
+	val := h.Get("Retry-After")
+	if val == "" {
+		return 0
+	}
+	// Try integer seconds first.
+	if secs, err := strconv.Atoi(val); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	// Try HTTP-date format.
+	if t, err := http.ParseTime(val); err == nil {
+		d := time.Until(t)
+		if d < 0 {
+			return 0
+		}
+		return d
+	}
+	return 0
 }
 
 // Check returns a boolean indicating whether the request should be retried
