@@ -21,6 +21,7 @@ package apiconnect
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime"
 	"sync/atomic"
@@ -29,6 +30,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
@@ -37,20 +39,83 @@ import (
 
 // Options configures the Connect API.
 type Options struct {
-	Peer              cluster.ClusterPeer
-	UnaryConcurrency  int
-	StreamConcurrency int
-	UnaryTimeout      time.Duration
+	Peer                cluster.ClusterPeer
+	Registerer          prometheus.Registerer
+	UnaryConcurrency    int
+	StreamConcurrency   int
+	UnaryTimeout        time.Duration
+	ReadMaxBytes        int
+	SendMaxBytes        int
+	MaxRequestBodyBytes int64
 }
 
 type procedureDescriptor struct {
-	path string
+	path       string
+	service    string
+	procedure  string
+	streamType connect.StreamType
 }
 
 type serviceDescriptor struct {
 	name       string
 	procedures []procedureDescriptor
 	handler    func(...connect.HandlerOption) (string, http.Handler)
+}
+
+type rpcMetrics struct {
+	unaryInFlight   *prometheus.GaugeVec
+	unaryRejected   *prometheus.CounterVec
+	unaryDuration   *prometheus.HistogramVec
+	unaryDeadlines  *prometheus.CounterVec
+	streamsActive   *prometheus.GaugeVec
+	streamsRejected *prometheus.CounterVec
+}
+
+func newRPCMetrics(reg prometheus.Registerer) (*rpcMetrics, error) {
+	labels := []string{"service", "procedure"}
+	outcomeLabels := []string{"service", "procedure", "outcome"}
+	metrics := &rpcMetrics{
+		unaryInFlight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "alertmanager_api_connect_unary_requests_in_flight",
+			Help: "Current number of admitted Connect unary RPCs.",
+		}, labels),
+		unaryRejected: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_api_connect_unary_admission_rejections_total",
+			Help: "Total number of Connect unary RPCs rejected by admission control.",
+		}, labels),
+		unaryDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "alertmanager_api_connect_unary_request_duration_seconds",
+			Help:    "Duration of Connect unary RPCs.",
+			Buckets: prometheus.DefBuckets,
+		}, outcomeLabels),
+		unaryDeadlines: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_api_connect_unary_deadline_exceeded_total",
+			Help: "Total number of Connect unary RPCs that exceeded their deadline.",
+		}, labels),
+		streamsActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "alertmanager_api_connect_streams_active",
+			Help: "Current number of admitted Connect streams.",
+		}, labels),
+		streamsRejected: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "alertmanager_api_connect_stream_admission_rejections_total",
+			Help: "Total number of Connect streams rejected by admission control.",
+		}, labels),
+	}
+	if reg != nil {
+		for _, collector := range []prometheus.Collector{
+			metrics.unaryInFlight,
+			metrics.unaryRejected,
+			metrics.unaryDuration,
+			metrics.unaryDeadlines,
+			metrics.streamsActive,
+			metrics.streamsRejected,
+		} {
+			if err := reg.Register(collector); err != nil {
+				return nil, fmt.Errorf("register Connect API metrics: %w", err)
+			}
+		}
+	}
+	return metrics, nil
 }
 
 // API implements the ConnectRPC service handlers for the Connect API.
@@ -61,25 +126,28 @@ type API struct {
 	peerSnapshotSem chan struct{}
 	services        []serviceDescriptor
 	procedures      map[string]procedureDescriptor
+	readMaxBytes    int
+	sendMaxBytes    int
+	maxRequestBytes int64
 
 	configSnapshot atomic.Pointer[string]
 }
 
 // NewAPI returns a new Connect API handler. Peer may be nil when clustering
 // is disabled.
-func NewAPI(opts Options) *API {
-	unaryConcurrency := defaultConcurrency(opts.UnaryConcurrency)
-	streamConcurrency := defaultConcurrency(opts.StreamConcurrency)
+func NewAPI(opts Options) (*API, error) {
+	metrics, err := newRPCMetrics(opts.Registerer)
+	if err != nil {
+		return nil, err
+	}
 	api := &API{
 		peer:            opts.Peer,
 		uptime:          time.Now(),
 		peerSnapshotSem: make(chan struct{}, 1),
 		procedures:      make(map[string]procedureDescriptor),
-		admission: &admissionInterceptor{
-			unary:        make(chan struct{}, unaryConcurrency),
-			streams:      make(chan struct{}, streamConcurrency),
-			unaryTimeout: opts.UnaryTimeout,
-		},
+		readMaxBytes:    opts.ReadMaxBytes,
+		sendMaxBytes:    opts.SendMaxBytes,
+		maxRequestBytes: opts.MaxRequestBodyBytes,
 	}
 	api.services = api.serviceDescriptors()
 	for _, service := range api.services {
@@ -87,7 +155,14 @@ func NewAPI(opts Options) *API {
 			api.procedures[procedure.path] = procedure
 		}
 	}
-	return api
+	api.admission = &admissionInterceptor{
+		unary:        make(chan struct{}, defaultConcurrency(opts.UnaryConcurrency)),
+		streams:      make(chan struct{}, defaultConcurrency(opts.StreamConcurrency)),
+		unaryTimeout: opts.UnaryTimeout,
+		procedures:   api.procedures,
+		metrics:      metrics,
+	}
+	return api, nil
 }
 
 func defaultConcurrency(concurrency int) int {
@@ -97,15 +172,20 @@ func defaultConcurrency(concurrency int) int {
 	return concurrency
 }
 
-func procedure(service, name string) procedureDescriptor {
-	return procedureDescriptor{path: "/" + service + "/" + name}
+func procedure(service, name string, streamType connect.StreamType) procedureDescriptor {
+	return procedureDescriptor{
+		path:       "/" + service + "/" + name,
+		service:    service,
+		procedure:  name,
+		streamType: streamType,
+	}
 }
 
 func (api *API) serviceDescriptors() []serviceDescriptor {
 	status := serviceDescriptor{
 		name: statusv3alphaconnect.StatusServiceName,
 		procedures: []procedureDescriptor{
-			procedure(statusv3alphaconnect.StatusServiceName, "GetStatus"),
+			procedure(statusv3alphaconnect.StatusServiceName, "GetStatus", connect.StreamTypeUnary),
 		},
 		handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 			return statusv3alphaconnect.NewStatusServiceHandler(api, opts...)
@@ -119,8 +199,8 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 		{
 			name: grpchealth.HealthV1ServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpchealth.HealthV1ServiceName, "Check"),
-				procedure(grpchealth.HealthV1ServiceName, "Watch"),
+				procedure(grpchealth.HealthV1ServiceName, "Check", connect.StreamTypeUnary),
+				procedure(grpchealth.HealthV1ServiceName, "Watch", connect.StreamTypeServer),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpchealth.NewHandler(checker, opts...)
@@ -129,7 +209,7 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 		{
 			name: grpcreflect.ReflectV1ServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpcreflect.ReflectV1ServiceName, "ServerReflectionInfo"),
+				procedure(grpcreflect.ReflectV1ServiceName, "ServerReflectionInfo", connect.StreamTypeBidi),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpcreflect.NewHandlerV1(reflector, opts...)
@@ -138,7 +218,7 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 		{
 			name: grpcreflect.ReflectV1AlphaServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpcreflect.ReflectV1AlphaServiceName, "ServerReflectionInfo"),
+				procedure(grpcreflect.ReflectV1AlphaServiceName, "ServerReflectionInfo", connect.StreamTypeBidi),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpcreflect.NewHandlerV1Alpha(reflector, opts...)
@@ -147,39 +227,141 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 	}
 }
 
+type (
+	admittedContextKey           struct{}
+	observationContextKey        struct{}
+	requestStartContextKey       struct{}
+	responseControllerContextKey struct{}
+)
+
 // admissionInterceptor gives unary RPCs and streams independent capacity so
 // slow Connect clients cannot consume the API v2 GET request allowance.
 type admissionInterceptor struct {
 	unary        chan struct{}
 	streams      chan struct{}
 	unaryTimeout time.Duration
+	procedures   map[string]procedureDescriptor
+	metrics      *rpcMetrics
+}
+
+func (i *admissionInterceptor) descriptor(path string, streamType connect.StreamType) procedureDescriptor {
+	if procedure, ok := i.procedures[path]; ok {
+		return procedure
+	}
+	return procedureDescriptor{service: "unknown", procedure: "unknown", streamType: streamType}
+}
+
+func (i *admissionInterceptor) enter(desc procedureDescriptor) (func(), error) {
+	labels := prometheus.Labels{"service": desc.service, "procedure": desc.procedure}
+	if desc.streamType == connect.StreamTypeUnary {
+		select {
+		case i.unary <- struct{}{}:
+			if i.metrics != nil {
+				i.metrics.unaryInFlight.With(labels).Inc()
+			}
+			return func() {
+				<-i.unary
+				if i.metrics != nil {
+					i.metrics.unaryInFlight.With(labels).Dec()
+				}
+			}, nil
+		default:
+			if i.metrics != nil {
+				i.metrics.unaryRejected.With(labels).Inc()
+			}
+			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent unary RPCs reached"))
+		}
+	}
+	select {
+	case i.streams <- struct{}{}:
+		if i.metrics != nil {
+			i.metrics.streamsActive.With(labels).Inc()
+		}
+		return func() {
+			<-i.streams
+			if i.metrics != nil {
+				i.metrics.streamsActive.With(labels).Dec()
+			}
+		}, nil
+	default:
+		if i.metrics != nil {
+			i.metrics.streamsRejected.With(labels).Inc()
+		}
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent streams reached"))
+	}
+}
+
+func (i *admissionInterceptor) startTime(ctx context.Context) time.Time {
+	if started, ok := ctx.Value(requestStartContextKey{}).(time.Time); ok {
+		return started
+	}
+	return time.Now()
+}
+
+func (i *admissionInterceptor) observe(desc procedureDescriptor, started time.Time, err error) {
+	if i.metrics == nil {
+		return
+	}
+	outcome := "ok"
+	if err != nil {
+		outcome = connect.CodeOf(err).String()
+	}
+	if desc.streamType == connect.StreamTypeUnary {
+		labels := prometheus.Labels{"service": desc.service, "procedure": desc.procedure, "outcome": outcome}
+		i.metrics.unaryDuration.With(labels).Observe(time.Since(started).Seconds())
+	}
+}
+
+func normalizeContextError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if connect.CodeOf(err) != connect.CodeUnknown {
+		return err
+	}
+	cause := context.Cause(ctx)
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return connect.NewError(connect.CodeDeadlineExceeded, context.DeadlineExceeded)
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return connect.NewError(connect.CodeDeadlineExceeded, context.DeadlineExceeded)
+	case errors.Is(err, context.Canceled), errors.Is(cause, context.Canceled):
+		return connect.NewError(connect.CodeCanceled, context.Canceled)
+	default:
+		return err
+	}
 }
 
 func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		select {
-		case i.unary <- struct{}{}:
-			defer func() { <-i.unary }()
-		default:
-			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent unary RPCs reached"))
+		desc := i.descriptor("", connect.StreamTypeUnary)
+		if req != nil {
+			desc = i.descriptor(req.Spec().Procedure, connect.StreamTypeUnary)
 		}
-		if i.unaryTimeout > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, i.unaryTimeout)
-			defer cancel()
+		started := i.startTime(ctx)
+		if controller, ok := ctx.Value(responseControllerContextKey{}).(*http.ResponseController); ok {
+			_ = controller.SetReadDeadline(time.Time{})
+		}
+		if _, admitted := ctx.Value(admittedContextKey{}).(struct{}); !admitted {
+			release, err := i.enter(desc)
+			if err != nil {
+				return nil, err
+			}
+			defer release()
+			if i.unaryTimeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, i.unaryTimeout)
+				defer cancel()
+			}
 		}
 		response, err := next(ctx, req)
-		if err == nil || connect.CodeOf(err) != connect.CodeUnknown {
-			return response, err
+		err = normalizeContextError(ctx, err)
+		i.observe(desc, started, err)
+		if observed, ok := ctx.Value(observationContextKey{}).(*atomic.Bool); ok {
+			observed.Store(true)
 		}
-		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			return nil, connect.NewError(connect.CodeDeadlineExceeded, err)
-		case errors.Is(err, context.Canceled):
-			return nil, connect.NewError(connect.CodeCanceled, err)
-		default:
-			return response, err
-		}
+		return response, err
 	}
 }
 
@@ -189,13 +371,18 @@ func (i *admissionInterceptor) WrapStreamingClient(next connect.StreamingClientF
 
 func (i *admissionInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		select {
-		case i.streams <- struct{}{}:
-			defer func() { <-i.streams }()
-		default:
-			return connect.NewError(connect.CodeResourceExhausted, errors.New("maximum concurrent streams reached"))
+		desc := i.descriptor("", connect.StreamTypeBidi)
+		if conn != nil {
+			desc = i.descriptor(conn.Spec().Procedure, conn.Spec().StreamType)
 		}
-		return next(ctx, conn)
+		if _, admitted := ctx.Value(admittedContextKey{}).(struct{}); !admitted {
+			release, err := i.enter(desc)
+			if err != nil {
+				return err
+			}
+			defer release()
+		}
+		return normalizeContextError(ctx, next(ctx, conn))
 	}
 }
 
@@ -233,9 +420,71 @@ func (api *API) Procedures() []string {
 	return procedures
 }
 
+func (api *API) controlHandler(next http.Handler, errorWriter *connect.ErrorWriter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		desc, ok := api.procedures[r.URL.Path]
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+		release, err := api.admission.enter(desc)
+		if err != nil {
+			_ = r.Body.Close()
+			_ = errorWriter.Write(w, r, err)
+			return
+		}
+		defer release()
+
+		controller := http.NewResponseController(w)
+		started := time.Now()
+		observed := &atomic.Bool{}
+		ctx := context.WithValue(r.Context(), admittedContextKey{}, struct{}{})
+		ctx = context.WithValue(ctx, observationContextKey{}, observed)
+		ctx = context.WithValue(ctx, requestStartContextKey{}, started)
+		ctx = context.WithValue(ctx, responseControllerContextKey{}, controller)
+		if desc.streamType == connect.StreamTypeUnary && api.admission.unaryTimeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, api.admission.unaryTimeout)
+			defer cancel()
+			if deadline, ok := ctx.Deadline(); ok {
+				_ = controller.SetReadDeadline(deadline)
+			}
+		}
+		defer func() {
+			if desc.streamType == connect.StreamTypeUnary && !observed.Load() {
+				err := normalizeContextError(ctx, errors.New("rpc ended before handler execution"))
+				api.admission.observe(desc, started, err)
+			}
+		}()
+		if desc.streamType == connect.StreamTypeUnary {
+			defer func() {
+				if errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+					api.admission.metrics.unaryDeadlines.With(prometheus.Labels{"service": desc.service, "procedure": desc.procedure}).Inc()
+				}
+			}()
+		}
+		defer func() {
+			if ctx.Err() == nil {
+				_ = controller.SetReadDeadline(time.Time{})
+			}
+		}()
+
+		request := r.WithContext(ctx)
+		handler := next
+		if desc.streamType == connect.StreamTypeUnary && api.maxRequestBytes > 0 {
+			handler = http.MaxBytesHandler(handler, api.maxRequestBytes)
+		}
+		handler.ServeHTTP(w, request)
+	})
+}
+
 // buildHandler registers every ConnectRPC service on a fresh mux.
 func (api *API) buildHandler(opts ...connect.HandlerOption) http.Handler {
-	opts = append([]connect.HandlerOption{connect.WithInterceptors(api.admission)}, opts...)
+	opts = append(opts,
+		connect.WithReadMaxBytes(api.readMaxBytes),
+		connect.WithSendMaxBytes(api.sendMaxBytes),
+		connect.WithInterceptors(api.admission),
+	)
 
 	mux := http.NewServeMux()
 	for _, service := range api.services {
@@ -245,5 +494,5 @@ func (api *API) buildHandler(opts ...connect.HandlerOption) http.Handler {
 		}
 		mux.Handle(path, handler)
 	}
-	return mux
+	return api.controlHandler(mux, connect.NewErrorWriter(opts...))
 }

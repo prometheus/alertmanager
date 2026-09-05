@@ -55,6 +55,9 @@ func TestOptions_Validate(t *testing.T) {
 
 	base := valid()
 	require.NoError(t, base.validate())
+	require.Zero(t, base.ConnectReadMaxBytes)
+	require.Zero(t, base.ConnectSendMaxBytes)
+	require.Zero(t, base.ConnectMaxRequestBodyBytes)
 
 	for _, tc := range []struct {
 		name   string
