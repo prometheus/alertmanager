@@ -1313,7 +1313,7 @@ The default `jira.default.description` template only works with V2.
 [ api_type: <string> | default = auto ]
 
 # The project key where issues are created.
-project: <string>
+project: <tmpl_string>
 
 # Issue summary configuration.
 [ summary:
@@ -1341,7 +1341,7 @@ labels:
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
 
 # Type of the issue (e.g. Bug).
-[ issue_type: <string> ]
+[ issue_type: <tmpl_string> ]
 
 # Name of the workflow transition to resolve an issue. The target status must have the category "done".
 # NOTE: The name of the transition can be localized and depends on the language setting of the service account.
