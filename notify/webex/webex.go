@@ -54,7 +54,7 @@ func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts .
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{},
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 	}
 
 	return n, nil
