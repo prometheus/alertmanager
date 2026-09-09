@@ -85,6 +85,12 @@ type Options struct {
 	// ConnectUnaryTimeout is the timeout for Connect unary RPCs. Zero inherits
 	// Timeout. A negative value disables the Connect unary timeout.
 	ConnectUnaryTimeout time.Duration
+	// ConnectStreamIdleTimeout limits the time between messages on a Connect
+	// stream. Non-positive values disable the timeout.
+	ConnectStreamIdleTimeout time.Duration
+	// ConnectStreamLifetime limits the total lifetime of a Connect stream.
+	// Non-positive values disable the timeout.
+	ConnectStreamLifetime time.Duration
 	// ConnectReadMaxBytes limits each incoming Connect protobuf message.
 	// Non-positive values do not set a limit.
 	ConnectReadMaxBytes int
@@ -149,6 +155,8 @@ func (o Options) resolve() effectiveOptions {
 			UnaryConcurrency:    unaryConcurrency,
 			StreamConcurrency:   streamConcurrency,
 			UnaryTimeout:        unaryTimeout,
+			StreamIdleTimeout:   max(o.ConnectStreamIdleTimeout, 0),
+			StreamLifetime:      max(o.ConnectStreamLifetime, 0),
 			ReadMaxBytes:        max(o.ConnectReadMaxBytes, 0),
 			SendMaxBytes:        max(o.ConnectSendMaxBytes, 0),
 			MaxRequestBodyBytes: max(o.ConnectMaxRequestBodyBytes, 0),
@@ -317,6 +325,13 @@ func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Conte
 	}
 	if api.connect != nil {
 		api.connect.Update(cfg)
+	}
+}
+
+// Shutdown rejects new Connect RPCs and cancels active RPCs.
+func (api *API) Shutdown() {
+	if api.connect != nil {
+		api.connect.Shutdown()
 	}
 }
 

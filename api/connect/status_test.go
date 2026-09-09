@@ -85,6 +85,37 @@ func (w flushOnlyResponseWriter) Flush() {
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
+type fakeStreamingConn struct{}
+
+func (fakeStreamingConn) Spec() connect.Spec {
+	return connect.Spec{Procedure: "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", StreamType: connect.StreamTypeBidi}
+}
+func (fakeStreamingConn) Peer() connect.Peer           { return connect.Peer{} }
+func (fakeStreamingConn) Receive(any) error            { return nil }
+func (fakeStreamingConn) RequestHeader() http.Header   { return http.Header{} }
+func (fakeStreamingConn) Send(any) error               { return nil }
+func (fakeStreamingConn) ResponseHeader() http.Header  { return http.Header{} }
+func (fakeStreamingConn) ResponseTrailer() http.Header { return http.Header{} }
+
+type deadlineResponseWriter struct {
+	header        http.Header
+	readDeadline  time.Time
+	writeDeadline time.Time
+}
+
+func (w *deadlineResponseWriter) Header() http.Header       { return w.header }
+func (*deadlineResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (*deadlineResponseWriter) WriteHeader(int)             {}
+func (w *deadlineResponseWriter) SetReadDeadline(t time.Time) error {
+	w.readDeadline = t
+	return nil
+}
+
+func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
+	w.writeDeadline = t
+	return nil
+}
+
 var _ = Describe("StatusService", func() {
 	It("returns status when clustering is disabled", func() {
 		api := newTestAPI(Options{})
@@ -162,6 +193,28 @@ var _ = Describe("StatusService", func() {
 		var statusErr error
 		Eventually(statusDone, 5*time.Second).Should(Receive(&statusErr))
 		Expect(statusErr).NotTo(HaveOccurred())
+	})
+
+	It("cancels active unary RPCs during shutdown", func() {
+		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
+		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1})
+		api.Update(&config.Config{})
+		srv := httptest.NewServer(api.Handler())
+		DeferCleanup(srv.Close)
+		DeferCleanup(peer.unblock)
+		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
+		done := make(chan error, 1)
+		go func() {
+			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			done <- err
+		}()
+		Eventually(peer.entered).Should(BeClosed())
+
+		api.Shutdown()
+		var err error
+		Eventually(done).Should(Receive(&err))
+		Expect(connect.CodeOf(err)).To(Equal(connect.CodeCanceled))
+		Eventually(func() int { return len(api.admission.unary) }).Should(BeZero())
 	})
 
 	It("bounds peer snapshots when the unary deadline expires", func() {
@@ -426,20 +479,29 @@ var _ = Describe("Connect API", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Body.Close()).To(Succeed())
 			Expect(resp.Trailer.Get("Grpc-Status")).To(Equal(strconv.Itoa(int(connect.CodeUnimplemented))))
-			Expect(api.admission.streams).To(HaveLen(0))
+			Eventually(func() int { return len(api.admission.streams) }).Should(BeZero())
 		}
 	})
 
 	It("allows unlimited message and request body sizes for non-positive values", func() {
 		for _, opts := range []Options{
 			{},
-			{ReadMaxBytes: -1, SendMaxBytes: -1, MaxRequestBodyBytes: -1, UnaryTimeout: -time.Second},
+			{
+				ReadMaxBytes:        -1,
+				SendMaxBytes:        -1,
+				MaxRequestBodyBytes: -1,
+				UnaryTimeout:        -time.Second,
+				StreamIdleTimeout:   -time.Second,
+				StreamLifetime:      -time.Second,
+			},
 		} {
 			api := newTestAPI(opts)
 			Expect(api.readMaxBytes).To(BeZero())
 			Expect(api.sendMaxBytes).To(BeZero())
 			Expect(api.maxRequestBytes).To(BeZero())
 			Expect(api.admission.unaryTimeout).To(BeZero())
+			Expect(api.admission.streamIdleTimeout).To(BeZero())
+			Expect(api.admission.streamLifetime).To(BeZero())
 		}
 	})
 
@@ -635,15 +697,106 @@ var _ = Describe("RPC admission", func() {
 		Eventually(third, 5*time.Second).Should(BeClosed())
 	})
 
-	It("normalizes only returned handler errors", func() {
-		Expect(normalizeContextError(nil)).To(Succeed())
+	It("bounds idle streams before the first message is decoded", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 500 * time.Millisecond, StreamLifetime: 2 * time.Second})
+		handler := api.Handler()
+		srv := httptest.NewUnstartedServer(handler)
+		serverProtocols := new(http.Protocols)
+		serverProtocols.SetUnencryptedHTTP2(true)
+		srv.Config.Protocols = serverProtocols
+		srv.Start()
+		DeferCleanup(srv.Close)
+		clientProtocols := new(http.Protocols)
+		clientProtocols.SetUnencryptedHTTP2(true)
+		transport := &http.Transport{Protocols: clientProtocols}
+		client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+		DeferCleanup(transport.CloseIdleConnections)
+		reader, writer := io.Pipe()
+		DeferCleanup(writer.Close)
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", reader)
+		Expect(err).NotTo(HaveOccurred())
+		req.Header.Set("Content-Type", "application/grpc")
+		done := make(chan struct{})
+		go func() {
+			resp, _ := client.Do(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			close(done)
+		}()
+		_, err = writer.Write([]byte{0})
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() int { return len(api.admission.streams) }).Should(Equal(1))
+		Eventually(done, 2*time.Second).Should(BeClosed())
+		Eventually(func() int { return len(api.admission.streams) }).Should(BeZero())
+	})
+
+	It("bounds writes when terminating decoded unary RPCs", func() {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		writer := &deadlineResponseWriter{header: http.Header{}}
+		lifecycle := &rpcLifecycle{
+			cancel:       cancel,
+			writeTimeout: time.Second,
+			controller:   http.NewResponseController(writer),
+		}
+		lifecycle.decoded.Store(true)
+
+		started := time.Now()
+		lifecycle.terminate(context.DeadlineExceeded)
+		Expect(writer.readDeadline).To(BeZero())
+		Expect(writer.writeDeadline).To(BeTemporally(">", started))
+		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
+	})
+
+	It("releases stream capacity after lifetime expiration", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamLifetime: 10 * time.Millisecond})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
+	})
+
+	It("releases stream capacity after cancellation", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		Expect(connect.CodeOf(wrapped(ctx, fakeStreamingConn{}))).To(Equal(connect.CodeCanceled))
+	})
+
+	It("releases stream capacity after idle expiration", func() {
+		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 10 * time.Millisecond, StreamLifetime: time.Second})
+		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
+		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
+	})
+
+	It("normalizes handler and lifecycle errors", func() {
+		ctx := context.Background()
+		Expect(normalizeContextError(ctx, nil)).To(Succeed())
 		specific := connect.NewError(connect.CodeInvalidArgument, context.Canceled)
-		Expect(normalizeContextError(specific)).To(BeIdenticalTo(specific))
-		Expect(connect.CodeOf(normalizeContextError(context.DeadlineExceeded))).To(Equal(connect.CodeDeadlineExceeded))
-		Expect(connect.CodeOf(normalizeContextError(context.Canceled))).To(Equal(connect.CodeCanceled))
+		Expect(normalizeContextError(ctx, specific)).To(BeIdenticalTo(specific))
+		Expect(connect.CodeOf(normalizeContextError(ctx, context.DeadlineExceeded))).To(Equal(connect.CodeDeadlineExceeded))
+		Expect(connect.CodeOf(normalizeContextError(ctx, context.Canceled))).To(Equal(connect.CodeCanceled))
 
 		generic := errors.New("failed")
-		Expect(normalizeContextError(generic)).To(BeIdenticalTo(generic))
+		Expect(normalizeContextError(ctx, generic)).To(BeIdenticalTo(generic))
+		expired, cancel := context.WithCancelCause(ctx)
+		cancel(context.DeadlineExceeded)
+		Expect(normalizeContextError(expired, nil)).To(Succeed())
+		Expect(normalizeContextError(expired, specific)).To(BeIdenticalTo(specific))
+		Expect(connect.CodeOf(normalizeContextError(expired, generic))).To(Equal(connect.CodeDeadlineExceeded))
 	})
 
 	It("panics on missing internal request state", func() {

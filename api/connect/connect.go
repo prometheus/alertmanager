@@ -23,6 +23,7 @@ import (
 	"errors"
 	"net/http"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,6 +53,12 @@ type Options struct {
 	// UnaryTimeout limits Connect unary RPCs, including request reads.
 	// Non-positive values disable the timeout.
 	UnaryTimeout time.Duration
+	// StreamIdleTimeout limits the time between messages on a Connect stream.
+	// Non-positive values disable the timeout.
+	StreamIdleTimeout time.Duration
+	// StreamLifetime limits the total lifetime of a Connect stream.
+	// Non-positive values disable the timeout.
+	StreamLifetime time.Duration
 	// ReadMaxBytes limits each incoming protobuf message. Non-positive values do
 	// not set a limit.
 	ReadMaxBytes int
@@ -69,6 +76,8 @@ type effectiveOptions struct {
 	unaryConcurrency    int
 	streamConcurrency   int
 	unaryTimeout        time.Duration
+	streamIdleTimeout   time.Duration
+	streamLifetime      time.Duration
 	readMaxBytes        int
 	sendMaxBytes        int
 	maxRequestBodyBytes int64
@@ -90,6 +99,8 @@ func (o Options) resolve() effectiveOptions {
 		unaryConcurrency:    unaryConcurrency,
 		streamConcurrency:   streamConcurrency,
 		unaryTimeout:        max(o.UnaryTimeout, 0),
+		streamIdleTimeout:   max(o.StreamIdleTimeout, 0),
+		streamLifetime:      max(o.StreamLifetime, 0),
 		readMaxBytes:        max(o.ReadMaxBytes, 0),
 		sendMaxBytes:        max(o.SendMaxBytes, 0),
 		maxRequestBodyBytes: max(o.MaxRequestBodyBytes, 0),
@@ -116,6 +127,7 @@ type rpcMetrics struct {
 	unaryDeadlines      *prometheus.CounterVec
 	streamInFlight      *prometheus.GaugeVec
 	streamLimitExceeded *prometheus.CounterVec
+	streamLifetime      *prometheus.HistogramVec
 }
 
 func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
@@ -147,6 +159,11 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 			Name: "alertmanager_api_connect_stream_concurrency_limit_exceeded_total",
 			Help: "Total number of Connect API streams rejected because the concurrency limit was reached.",
 		}, labels),
+		streamLifetime: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "alertmanager_api_connect_stream_lifetime_seconds",
+			Help:    "Lifetime of Connect API streams.",
+			Buckets: prometheus.ExponentialBuckets(1, 2, 14),
+		}, outcomeLabels),
 	}
 	if reg != nil {
 		reg.MustRegister(
@@ -156,6 +173,7 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 			metrics.unaryDeadlines,
 			metrics.streamInFlight,
 			metrics.streamLimitExceeded,
+			metrics.streamLifetime,
 		)
 	}
 	return metrics
@@ -172,6 +190,9 @@ type API struct {
 	readMaxBytes    int
 	sendMaxBytes    int
 	maxRequestBytes int64
+	activeMutex     sync.Mutex
+	activeRPCs      map[*rpcLifecycle]struct{}
+	draining        atomic.Bool
 
 	configSnapshot atomic.Pointer[string]
 }
@@ -189,6 +210,7 @@ func NewAPI(opts Options) *API {
 		readMaxBytes:    effective.readMaxBytes,
 		sendMaxBytes:    effective.sendMaxBytes,
 		maxRequestBytes: effective.maxRequestBodyBytes,
+		activeRPCs:      make(map[*rpcLifecycle]struct{}),
 	}
 	api.services = api.serviceDescriptors()
 	for _, service := range api.services {
@@ -206,11 +228,13 @@ func NewAPI(opts Options) *API {
 		}
 	}
 	api.admission = &admissionInterceptor{
-		unary:        make(chan struct{}, effective.unaryConcurrency),
-		streams:      make(chan struct{}, effective.streamConcurrency),
-		unaryTimeout: effective.unaryTimeout,
-		procedures:   api.procedures,
-		metrics:      metrics,
+		unary:             make(chan struct{}, effective.unaryConcurrency),
+		streams:           make(chan struct{}, effective.streamConcurrency),
+		unaryTimeout:      effective.unaryTimeout,
+		streamIdleTimeout: effective.streamIdleTimeout,
+		streamLifetime:    effective.streamLifetime,
+		procedures:        api.procedures,
+		metrics:           metrics,
 	}
 	return api
 }
@@ -270,6 +294,59 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 	}
 }
 
+type rpcLifecycleContextKey struct{}
+
+type rpcLifecycle struct {
+	started      time.Time
+	cancel       context.CancelCauseFunc
+	idleTimeout  time.Duration
+	writeTimeout time.Duration
+	controller   *http.ResponseController
+	mutex        sync.Mutex
+	idleTimer    *time.Timer
+	decoded      atomic.Bool
+	observed     atomic.Bool
+	stream       bool
+}
+
+func (l *rpcLifecycle) terminate(cause error) {
+	l.cancel(cause)
+	if l.controller == nil {
+		return
+	}
+	now := time.Now()
+	if l.stream || !l.decoded.Load() {
+		_ = l.controller.SetReadDeadline(now)
+	}
+	if l.stream {
+		_ = l.controller.SetWriteDeadline(now)
+	} else if l.writeTimeout > 0 {
+		_ = l.controller.SetWriteDeadline(now.Add(l.writeTimeout))
+	}
+}
+
+func (l *rpcLifecycle) touch() {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.idleTimer != nil {
+		l.idleTimer.Stop()
+		l.idleTimer.Reset(l.idleTimeout)
+	}
+}
+
+func (l *rpcLifecycle) stop() {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.idleTimer != nil {
+		l.idleTimer.Stop()
+	}
+}
+
+func rpcLifecycleFromContext(ctx context.Context) (*rpcLifecycle, bool) {
+	lifecycle, ok := ctx.Value(rpcLifecycleContextKey{}).(*rpcLifecycle)
+	return lifecycle, ok && lifecycle != nil
+}
+
 type unaryRequestStateContextKey struct{}
 
 type unaryTimeoutError struct{}
@@ -279,9 +356,9 @@ func (unaryTimeoutError) Error() string {
 }
 
 type unaryRequestState struct {
-	started    time.Time
-	controller *http.ResponseController
-	observed   atomic.Bool
+	started   time.Time
+	lifecycle *rpcLifecycle
+	observed  atomic.Bool
 }
 
 func withUnaryRequestState(ctx context.Context, state *unaryRequestState) context.Context {
@@ -299,11 +376,13 @@ func unaryRequestStateFromContext(ctx context.Context) *unaryRequestState {
 // admissionInterceptor gives unary RPCs and streams independent capacity so
 // slow Connect clients cannot consume the API v2 GET request allowance.
 type admissionInterceptor struct {
-	unary        chan struct{}
-	streams      chan struct{}
-	unaryTimeout time.Duration
-	procedures   map[string]procedureDescriptor
-	metrics      *rpcMetrics
+	unary             chan struct{}
+	streams           chan struct{}
+	unaryTimeout      time.Duration
+	streamIdleTimeout time.Duration
+	streamLifetime    time.Duration
+	procedures        map[string]procedureDescriptor
+	metrics           *rpcMetrics
 }
 
 func (i *admissionInterceptor) descriptor(path string) procedureDescriptor {
@@ -347,17 +426,25 @@ func (i *admissionInterceptor) observe(desc procedureDescriptor, started time.Ti
 		outcome = connect.CodeOf(err).String()
 	}
 	labels := prometheus.Labels{"service": desc.service, "procedure": desc.procedure, "outcome": outcome}
-	i.metrics.unaryDuration.With(labels).Observe(time.Since(started).Seconds())
+	if desc.streamType == connect.StreamTypeUnary {
+		i.metrics.unaryDuration.With(labels).Observe(time.Since(started).Seconds())
+		return
+	}
+	i.metrics.streamLifetime.With(labels).Observe(time.Since(started).Seconds())
 }
 
-func normalizeContextError(err error) error {
+func normalizeContextError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
 	if connect.CodeOf(err) != connect.CodeUnknown {
 		return err
 	}
+	cause := context.Cause(ctx)
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(cause, context.DeadlineExceeded), errors.Is(cause, unaryTimeoutError{}):
 		return connect.NewError(connect.CodeDeadlineExceeded, context.DeadlineExceeded)
-	case errors.Is(err, context.Canceled):
+	case errors.Is(err, context.Canceled), errors.Is(cause, context.Canceled):
 		return connect.NewError(connect.CodeCanceled, context.Canceled)
 	default:
 		return err
@@ -368,13 +455,15 @@ func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFu
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 		desc := i.descriptor(req.Spec().Procedure)
 		state := unaryRequestStateFromContext(ctx)
-		if state.controller != nil {
-			_ = state.controller.SetReadDeadline(time.Time{})
+		state.lifecycle.decoded.Store(true)
+		if state.lifecycle.controller != nil {
+			_ = state.lifecycle.controller.SetReadDeadline(time.Time{})
 		}
 		response, err := next(ctx, req)
-		err = normalizeContextError(err)
+		err = normalizeContextError(ctx, err)
 		i.observe(desc, state.started, err)
 		state.observed.Store(true)
+		state.lifecycle.observed.Store(true)
 		return response, err
 	}
 }
@@ -383,10 +472,136 @@ func (i *admissionInterceptor) WrapStreamingClient(next connect.StreamingClientF
 	return next
 }
 
+type activityConn struct {
+	connect.StreamingHandlerConn
+	lifecycle *rpcLifecycle
+}
+
+func (c *activityConn) Receive(message any) error {
+	err := c.StreamingHandlerConn.Receive(message)
+	if err == nil {
+		c.lifecycle.touch()
+	}
+	return err
+}
+
+func (c *activityConn) Send(message any) error {
+	err := c.StreamingHandlerConn.Send(message)
+	if err == nil {
+		c.lifecycle.touch()
+	}
+	return err
+}
+
+func (i *admissionInterceptor) unaryContext(ctx context.Context, controller *http.ResponseController) (context.Context, *rpcLifecycle, func()) {
+	baseCtx, cancel := context.WithCancelCause(ctx)
+	lifecycle := &rpcLifecycle{
+		started:      time.Now(),
+		cancel:       cancel,
+		writeTimeout: i.unaryTimeout,
+		controller:   controller,
+	}
+	unaryCtx := baseCtx
+	var timeoutCancel context.CancelFunc
+	var stopTimeout func() bool
+	if i.unaryTimeout > 0 {
+		unaryCtx, timeoutCancel = context.WithTimeoutCause(baseCtx, i.unaryTimeout, unaryTimeoutError{})
+		stopTimeout = context.AfterFunc(unaryCtx, func() {
+			if errors.Is(context.Cause(unaryCtx), unaryTimeoutError{}) {
+				lifecycle.terminate(unaryTimeoutError{})
+			}
+		})
+		if deadline, ok := unaryCtx.Deadline(); ok {
+			_ = controller.SetReadDeadline(deadline)
+		}
+	}
+	return context.WithValue(unaryCtx, rpcLifecycleContextKey{}, lifecycle), lifecycle, func() {
+		if stopTimeout != nil {
+			stopTimeout()
+		}
+		if timeoutCancel != nil {
+			timeoutCancel()
+		}
+		cancel(context.Canceled)
+	}
+}
+
+func (i *admissionInterceptor) streamContext(ctx context.Context, controller *http.ResponseController) (context.Context, *rpcLifecycle, func()) {
+	streamCtx, cancel := context.WithCancelCause(ctx)
+	lifecycle := &rpcLifecycle{
+		started:     time.Now(),
+		cancel:      cancel,
+		idleTimeout: i.streamIdleTimeout,
+		controller:  controller,
+		stream:      true,
+	}
+	if lifecycle.idleTimeout > 0 {
+		lifecycle.idleTimer = time.AfterFunc(lifecycle.idleTimeout, func() { lifecycle.terminate(context.DeadlineExceeded) })
+	}
+	var lifetimeTimer *time.Timer
+	if i.streamLifetime > 0 {
+		lifetimeTimer = time.AfterFunc(i.streamLifetime, func() { lifecycle.terminate(context.DeadlineExceeded) })
+	}
+	return context.WithValue(streamCtx, rpcLifecycleContextKey{}, lifecycle), lifecycle, func() {
+		if lifetimeTimer != nil {
+			lifetimeTimer.Stop()
+		}
+		lifecycle.stop()
+		cancel(context.Canceled)
+	}
+}
+
 func (i *admissionInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		_ = i.descriptor(conn.Spec().Procedure)
-		return normalizeContextError(next(ctx, conn))
+		desc := i.descriptor(conn.Spec().Procedure)
+		lifecycle, ok := rpcLifecycleFromContext(ctx)
+		if !ok {
+			release, err := i.enter(desc)
+			if err != nil {
+				return err
+			}
+			defer release()
+			var cleanup func()
+			ctx, lifecycle, cleanup = i.streamContext(ctx, nil)
+			defer cleanup()
+		}
+		if lifecycle.idleTimeout > 0 {
+			conn = &activityConn{StreamingHandlerConn: conn, lifecycle: lifecycle}
+		}
+		err := normalizeContextError(ctx, next(ctx, conn))
+		i.observe(desc, lifecycle.started, err)
+		lifecycle.observed.Store(true)
+		return err
+	}
+}
+
+func (api *API) registerRPC(lifecycle *rpcLifecycle) bool {
+	api.activeMutex.Lock()
+	defer api.activeMutex.Unlock()
+	if api.draining.Load() {
+		return false
+	}
+	api.activeRPCs[lifecycle] = struct{}{}
+	return true
+}
+
+func (api *API) unregisterRPC(lifecycle *rpcLifecycle) {
+	api.activeMutex.Lock()
+	delete(api.activeRPCs, lifecycle)
+	api.activeMutex.Unlock()
+}
+
+// Shutdown rejects new RPCs and cancels active RPCs.
+func (api *API) Shutdown() {
+	api.draining.Store(true)
+	api.activeMutex.Lock()
+	active := make([]*rpcLifecycle, 0, len(api.activeRPCs))
+	for lifecycle := range api.activeRPCs {
+		active = append(active, lifecycle)
+	}
+	api.activeMutex.Unlock()
+	for _, lifecycle := range active {
+		lifecycle.terminate(context.Canceled)
 	}
 }
 
@@ -439,6 +654,10 @@ func (api *API) controlHandler(next http.Handler, errorWriter *connect.ErrorWrit
 			writeConnectError(w, r, errorWriter, connect.NewError(connect.CodeUnimplemented, errors.New("unknown Connect procedure")))
 			return
 		}
+		if api.draining.Load() {
+			writeConnectError(w, r, errorWriter, connect.NewError(connect.CodeUnavailable, errors.New("connect API is shutting down")))
+			return
+		}
 		release, err := api.admission.enter(desc)
 		if err != nil {
 			writeConnectError(w, r, errorWriter, err)
@@ -446,32 +665,39 @@ func (api *API) controlHandler(next http.Handler, errorWriter *connect.ErrorWrit
 		}
 		defer release()
 
+		controller := http.NewResponseController(w)
+		var lifecycle *rpcLifecycle
+		var cleanup func()
+		ctx := r.Context()
+		if desc.streamType == connect.StreamTypeUnary {
+			ctx, lifecycle, cleanup = api.admission.unaryContext(ctx, controller)
+		} else {
+			ctx, lifecycle, cleanup = api.admission.streamContext(ctx, controller)
+		}
+		if !api.registerRPC(lifecycle) {
+			cleanup()
+			writeConnectError(w, r, errorWriter, connect.NewError(connect.CodeUnavailable, errors.New("connect API is shutting down")))
+			return
+		}
+		defer api.unregisterRPC(lifecycle)
+		defer cleanup()
+
 		if desc.streamType != connect.StreamTypeUnary {
-			next.ServeHTTP(w, r)
+			defer func() {
+				if !lifecycle.observed.Load() {
+					err := normalizeContextError(ctx, errors.New("rpc ended before handler execution"))
+					api.admission.observe(desc, lifecycle.started, err)
+				}
+			}()
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
-		state := &unaryRequestState{started: time.Now()}
-		ctx := withUnaryRequestState(r.Context(), state)
-		if api.admission.unaryTimeout > 0 {
-			state.controller = http.NewResponseController(w)
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeoutCause(ctx, api.admission.unaryTimeout, unaryTimeoutError{})
-			defer cancel()
-			if deadline, ok := ctx.Deadline(); ok {
-				_ = state.controller.SetReadDeadline(deadline)
-			}
-		}
+		state := &unaryRequestState{started: lifecycle.started, lifecycle: lifecycle}
+		ctx = withUnaryRequestState(ctx, state)
 		defer func() {
 			if !state.observed.Load() {
-				var err error
-				err = errors.New("rpc ended before handler execution")
-				switch cause := context.Cause(ctx); {
-				case errors.Is(cause, unaryTimeoutError{}):
-					err = connect.NewError(connect.CodeDeadlineExceeded, context.DeadlineExceeded)
-				case errors.Is(cause, context.Canceled):
-					err = connect.NewError(connect.CodeCanceled, context.Canceled)
-				}
+				err := normalizeContextError(ctx, errors.New("rpc ended before handler execution"))
 				api.admission.observe(desc, state.started, err)
 			}
 		}()
@@ -481,8 +707,8 @@ func (api *API) controlHandler(next http.Handler, errorWriter *connect.ErrorWrit
 			}
 		}()
 		defer func() {
-			if state.controller != nil && ctx.Err() == nil {
-				_ = state.controller.SetReadDeadline(time.Time{})
+			if lifecycle.controller != nil && ctx.Err() == nil {
+				_ = lifecycle.controller.SetReadDeadline(time.Time{})
 			}
 		}()
 
