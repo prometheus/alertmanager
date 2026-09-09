@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"slices"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -44,8 +45,8 @@ func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, ff featureco
 }
 
 // mutedAlerts returns the hashes of the alerts a mute stage removed from the
-// pipeline, sorted so that the entry written to the notification log is stable
-// across flushes and across peers.
+// pipeline. The hashes are sorted so that an unchanged muted set
+// always serializes to the same bytes.
 func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
 	if !n.ff.EnableMutedAlertsInNflog() {
 		return nil
@@ -56,13 +57,7 @@ func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
 		return nil
 	}
 
-	hashes := make([]uint64, 0, len(muted))
-	for hash := range muted {
-		hashes = append(hashes, hash)
-	}
-	slices.Sort(hashes)
-
-	return hashes
+	return slices.Sorted(maps.Keys(muted))
 }
 
 // Exec implements the Stage interface.
