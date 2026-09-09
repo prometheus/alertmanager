@@ -60,11 +60,17 @@ func run() int {
 		dispatchMaintenanceInterval = kingpin.Flag("dispatch.maintenance-interval", "Interval between maintenance of aggregation groups in the dispatcher.").Default("30s").Duration()
 		dispatchStartDelay          = kingpin.Flag("dispatch.start-delay", "Minimum amount of time to wait before dispatching alerts. This option should be synced with value of --rules.alert.resend-delay on Prometheus.").Default("0s").Duration()
 
-		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
-		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
-		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
-		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
-		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
+		webConfig                  = webflag.AddFlags(kingpin.CommandLine, ":9093")
+		externalURL                = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix                = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		getConcurrency             = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
+		httpTimeout                = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
+		connectUnaryConcurrency    = kingpin.Flag("api.connect.unary-concurrency", "[EXPERIMENTAL] Maximum number of Connect unary RPCs processed concurrently. If negative or zero, the limit uses --web.get-concurrency.").Default("0").Int()
+		connectStreamConcurrency   = kingpin.Flag("api.connect.stream-concurrency", "[EXPERIMENTAL] Maximum number of Connect streams processed concurrently. If negative or zero, the limit uses --web.get-concurrency.").Default("0").Int()
+		connectUnaryTimeout        = kingpin.Flag("api.connect.unary-timeout", "[EXPERIMENTAL] Timeout for Connect unary RPCs, including request reads. Zero uses --web.timeout. A negative value disables the Connect unary timeout.").Default("0").Duration()
+		connectReadMaxBytes        = kingpin.Flag("api.connect.read-max-bytes", "[EXPERIMENTAL] Maximum size of each incoming Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
+		connectSendMaxBytes        = kingpin.Flag("api.connect.send-max-bytes", "[EXPERIMENTAL] Maximum size of each outgoing Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
+		connectMaxRequestBodyBytes = kingpin.Flag("api.connect.max-request-body-bytes", "[EXPERIMENTAL] Maximum wire size of a Connect unary request body. If zero or negative, no limit is set.").Default("0").Int64()
 
 		memlimitEnable = kingpin.Flag("auto-gomemlimit", "Automatically set GOMEMLIMIT to match Linux container or system memory limit").
 				Default("false").Bool()
@@ -175,11 +181,17 @@ func run() int {
 		DispatchMaintenanceInterval: *dispatchMaintenanceInterval,
 		DispatchStartDelay:          *dispatchStartDelay,
 
-		WebConfig:      webConfig,
-		ExternalURL:    *externalURL,
-		RoutePrefix:    *routePrefix,
-		GetConcurrency: *getConcurrency,
-		HTTPTimeout:    *httpTimeout,
+		WebConfig:                  webConfig,
+		ExternalURL:                *externalURL,
+		RoutePrefix:                *routePrefix,
+		GetConcurrency:             *getConcurrency,
+		HTTPTimeout:                *httpTimeout,
+		ConnectUnaryConcurrency:    *connectUnaryConcurrency,
+		ConnectStreamConcurrency:   *connectStreamConcurrency,
+		ConnectUnaryTimeout:        *connectUnaryTimeout,
+		ConnectReadMaxBytes:        *connectReadMaxBytes,
+		ConnectSendMaxBytes:        *connectSendMaxBytes,
+		ConnectMaxRequestBodyBytes: *connectMaxRequestBodyBytes,
 
 		ClusterBindAddr:        *clusterBindAddr,
 		ClusterAdvertiseAddr:   *clusterAdvertiseAddr,

@@ -33,7 +33,7 @@ import (
 // protocol with JSON, which needs only an HTTP/1.1 client.
 var _ = Describe("gRPC health", func() {
 	It("reports serving for the server and StatusService", func() {
-		api := NewAPI(Options{})
+		api := newTestAPI(Options{})
 		api.Update(&config.Config{})
 
 		srv := httptest.NewServer(api.Handler())

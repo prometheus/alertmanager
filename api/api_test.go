@@ -20,6 +20,7 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
@@ -82,6 +83,35 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 	})
 }
 
+func TestOptionsResolve(t *testing.T) {
+	effective := (Options{
+		Concurrency:                3,
+		Timeout:                    time.Minute,
+		ConnectReadMaxBytes:        -1,
+		ConnectSendMaxBytes:        -1,
+		ConnectMaxRequestBodyBytes: -1,
+	}).resolve()
+	require.Equal(t, 3, effective.concurrency)
+	require.Equal(t, time.Minute, effective.timeout)
+	require.Equal(t, 3, effective.connect.UnaryConcurrency)
+	require.Equal(t, 3, effective.connect.StreamConcurrency)
+	require.Equal(t, time.Minute, effective.connect.UnaryTimeout)
+	require.Zero(t, effective.connect.ReadMaxBytes)
+	require.Zero(t, effective.connect.SendMaxBytes)
+	require.Zero(t, effective.connect.MaxRequestBodyBytes)
+
+	effective = (Options{
+		Concurrency:              3,
+		Timeout:                  time.Minute,
+		ConnectUnaryConcurrency:  4,
+		ConnectStreamConcurrency: 5,
+		ConnectUnaryTimeout:      -time.Second,
+	}).resolve()
+	require.Equal(t, 4, effective.connect.UnaryConcurrency)
+	require.Equal(t, 5, effective.connect.StreamConcurrency)
+	require.Zero(t, effective.connect.UnaryTimeout)
+}
+
 func TestConnectProceduresRegistered(t *testing.T) {
 	for _, routePrefix := range []string{"/", "/alertmanager"} {
 		t.Run(routePrefix, func(t *testing.T) {
@@ -136,9 +166,8 @@ func TestInstrumentConnectHandlerBoundsCardinality(t *testing.T) {
 
 			api := &API{requestDuration: requestDuration}
 
-			// The inner handler mimics the ConnectRPC mux: 200 for the registered
-			// procedure, 404 for everything else (including unknown methods on a
-			// known service).
+			// The inner handler isolates instrumentation behavior: 200 for the
+			// registered procedure and 404 for every other path.
 			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == registeredProcedure {
 					w.WriteHeader(http.StatusOK)

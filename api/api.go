@@ -67,15 +67,33 @@ type Options struct {
 	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
-	// Timeout for HTTP requests and Connect unary RPCs. The zero value (and
-	// negative values) result in no timeout.
+	// Timeout for HTTP requests and Connect unary RPCs. The zero value and
+	// negative values result in no timeout.
 	Timeout time.Duration
-	// Concurrency limit for GET requests and, independently, Connect unary
-	// RPCs and streams. The zero value (and negative values) result in a
-	// limit of GOMAXPROCS or 8, whichever is larger. Status code 503 is served
-	// for GET requests that would exceed the concurrency limit; Connect calls
-	// receive ResourceExhausted.
+	// Concurrency is the limit for GET requests. The zero value and negative
+	// values result in a limit of GOMAXPROCS or 8, whichever is larger. Status
+	// code 503 is served for requests that would exceed the limit.
 	Concurrency int
+	// ConnectUnaryConcurrency is the independent limit for Connect unary RPCs.
+	// Non-positive values inherit Concurrency. Calls that exceed the limit
+	// receive ResourceExhausted.
+	ConnectUnaryConcurrency int
+	// ConnectStreamConcurrency is the independent limit for Connect streams.
+	// Non-positive values inherit Concurrency. Calls that exceed the limit
+	// receive ResourceExhausted.
+	ConnectStreamConcurrency int
+	// ConnectUnaryTimeout is the timeout for Connect unary RPCs. Zero inherits
+	// Timeout. A negative value disables the Connect unary timeout.
+	ConnectUnaryTimeout time.Duration
+	// ConnectReadMaxBytes limits each incoming Connect protobuf message.
+	// Non-positive values do not set a limit.
+	ConnectReadMaxBytes int
+	// ConnectSendMaxBytes limits each outgoing Connect protobuf message.
+	// Non-positive values do not set a limit.
+	ConnectSendMaxBytes int
+	// ConnectMaxRequestBodyBytes limits the wire size of a Connect unary request
+	// body before decoding. Non-positive values do not set a limit.
+	ConnectMaxRequestBodyBytes int64
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
@@ -87,6 +105,55 @@ type Options struct {
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
 	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+}
+
+type effectiveOptions struct {
+	logger      *slog.Logger
+	timeout     time.Duration
+	concurrency int
+	connect     apiconnect.Options
+}
+
+func (o Options) resolve() effectiveOptions {
+	logger := o.Logger
+	if logger == nil {
+		logger = promslog.NewNopLogger()
+	}
+	timeout := max(o.Timeout, 0)
+	concurrency := o.Concurrency
+	if concurrency < 1 {
+		concurrency = max(runtime.GOMAXPROCS(0), 8)
+	}
+	unaryConcurrency := o.ConnectUnaryConcurrency
+	if unaryConcurrency < 1 {
+		unaryConcurrency = concurrency
+	}
+	streamConcurrency := o.ConnectStreamConcurrency
+	if streamConcurrency < 1 {
+		streamConcurrency = concurrency
+	}
+	unaryTimeout := o.ConnectUnaryTimeout
+	switch {
+	case unaryTimeout == 0:
+		unaryTimeout = timeout
+	case unaryTimeout < 0:
+		unaryTimeout = 0
+	}
+	return effectiveOptions{
+		logger:      logger,
+		timeout:     timeout,
+		concurrency: concurrency,
+		connect: apiconnect.Options{
+			Peer:                o.Peer,
+			Registerer:          o.Registry,
+			UnaryConcurrency:    unaryConcurrency,
+			StreamConcurrency:   streamConcurrency,
+			UnaryTimeout:        unaryTimeout,
+			ReadMaxBytes:        max(o.ConnectReadMaxBytes, 0),
+			SendMaxBytes:        max(o.ConnectSendMaxBytes, 0),
+			MaxRequestBodyBytes: max(o.ConnectMaxRequestBodyBytes, 0),
+		},
+	}
 }
 
 func (o Options) validate() error {
@@ -111,14 +178,7 @@ func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
 		return nil, fmt.Errorf("invalid API options: %w", err)
 	}
-	l := opts.Logger
-	if l == nil {
-		l = promslog.NewNopLogger()
-	}
-	concurrency := opts.Concurrency
-	if concurrency < 1 {
-		concurrency = max(runtime.GOMAXPROCS(0), 8)
-	}
+	effective := opts.resolve()
 
 	// The Connect API is always mounted alongside API v2.
 	v2, err := apiv2.NewAPI(
@@ -127,18 +187,13 @@ func New(opts Options) (*API, error) {
 		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
-		l.With("version", "v2"),
+		effective.logger.With("version", "v2"),
 		opts.Registry,
 	)
 	if err != nil {
 		return nil, err
 	}
-	connect := apiconnect.NewAPI(apiconnect.Options{
-		Peer:              opts.Peer,
-		UnaryConcurrency:  concurrency,
-		StreamConcurrency: concurrency,
-		UnaryTimeout:      opts.Timeout,
-	})
+	connect := apiconnect.NewAPI(effective.connect)
 
 	requestsInFlight := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:        "alertmanager_http_requests_in_flight",
@@ -160,14 +215,14 @@ func New(opts Options) (*API, error) {
 	}
 
 	return &API{
-		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
+		deprecationRouter:        NewV1DeprecationRouter(effective.logger.With("version", "v1")),
 		v2:                       v2,
 		connect:                  connect,
 		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
-		timeout:                  opts.Timeout,
-		inFlightSem:              make(chan struct{}, concurrency),
+		timeout:                  effective.timeout,
+		inFlightSem:              make(chan struct{}, effective.concurrency),
 	}, nil
 }
 
@@ -184,8 +239,9 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	mux := http.NewServeMux()
 	connectHandler := api.connect.Handler()
 	// ConnectRPC procedure paths are the only bounded label values on the
-	// Connect/gRPC surface; any other path yields a 404 and must not be
-	// recorded verbatim, or a client could inflate metric/trace cardinality.
+	// Connect/gRPC surface. The Connect handler rejects every other path. Do not
+	// record unmatched paths verbatim because a client could inflate metric and
+	// trace cardinality.
 	procedures := api.connect.Procedures()
 	// Native gRPC is served at the server root, so match against the raw
 	// request path (no mount prefix).

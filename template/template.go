@@ -652,8 +652,17 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		if ok == nil {
 			var inlineType any
 			err := yaml.Unmarshal([]byte(parsed), &inlineType)
-			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+			if err != nil {
 				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			if inlineString, isString := inlineType.(string); isString {
+				// Decode an explicit JSON string, such as output from toJson.
+				// Preserve other strings because YAML can remove comments,
+				// whitespace, and line breaks from plain scalar values.
+				if json.Valid([]byte(parsed)) {
+					return inlineString, ok
+				}
 				return parsed, ok
 			}
 			// inlineType holds structured data decoded from the rendered string.
