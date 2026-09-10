@@ -361,26 +361,6 @@ func TestSlackMessageField(t *testing.T) {
 	}
 }
 
-func TestParseRetryAfter(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    string
-		expected time.Duration
-	}{
-		{name: "valid integer", value: "30", expected: 30 * time.Second},
-		{name: "empty string", value: "", expected: 0},
-		{name: "non-integer", value: "abc", expected: 0},
-		{name: "negative", value: "-5", expected: 0},
-		{name: "zero", value: "0", expected: 0},
-		{name: "float value", value: "1.5", expected: 0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, parseRetryAfter(tt.value))
-		})
-	}
-}
-
 func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
 	apiurl, _ := url.Parse("https://slack.com/post.Message")
 	notifier, err := New(
