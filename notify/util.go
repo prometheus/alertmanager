@@ -250,15 +250,12 @@ func ParseRetryAfter(h http.Header) time.Duration {
 	}
 	// Try integer seconds first.
 	if secs, err := strconv.Atoi(val); err == nil {
-		return time.Duration(secs) * time.Second
+		// The grammar is 1*DIGIT, so a negative is malformed rather than a delay.
+		return max(0, time.Duration(secs)*time.Second)
 	}
 	// Try HTTP-date format.
 	if t, err := http.ParseTime(val); err == nil {
-		d := time.Until(t)
-		if d < 0 {
-			return 0
-		}
-		return d
+		return max(0, time.Until(t))
 	}
 	return 0
 }
