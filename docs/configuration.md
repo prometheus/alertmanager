@@ -195,7 +195,9 @@ Routing-related settings allow configuring how alerts are routed, aggregated, th
 ### `<route>`
 
 A route block defines a node in a routing tree and its children. Its optional
-configuration parameters are inherited from its parent node if not set.
+configuration parameters are inherited from its parent node if not set, with the
+exception of `mute_time_intervals` and `active_time_intervals`, which are never
+inherited and apply only to the route on which they are defined (see below).
 
 Every alert enters the routing tree at the configured top-level route, which
 must match all alerts (i.e. not have any configured matchers).
@@ -334,6 +336,11 @@ labels:
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
 # if the `continue` option is not set.)
+#
+# Note: mute_time_intervals is not inherited by child routes. It only
+# affects notifications sent by the route on which it is defined. To mute an
+# entire subtree, set mute_time_intervals on each descendant route that has a
+# receiver.
 mute_time_intervals:
   [ - <string> ...]
 
@@ -344,6 +351,9 @@ mute_time_intervals:
 # The route will send notifications only when active, but otherwise
 # acts normally (including ending the route-matching process
 # if the `continue` option is not set).
+#
+# Note: active_time_intervals is not inherited by child routes, and applies
+# only to the route on which it is defined.
 active_time_intervals:
   [ - <string> ...]
 
