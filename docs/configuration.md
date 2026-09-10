@@ -451,7 +451,9 @@ times:
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
-`['monday:wednesday','saturday', 'sunday']`
+`['monday:wednesday','saturday', 'sunday']`. A range cannot wrap around the end of
+the week: the start day must come before the end day (Sunday, ..., Saturday), so a
+weekend must be written as `['saturday', 'sunday']` rather than `saturday:sunday`.
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
