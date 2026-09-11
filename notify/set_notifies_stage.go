@@ -74,6 +74,17 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 	)
 	defer span.End()
 
+	// With the muted alerts feature enabled the stages after a mute stage run
+	// even when the group was emptied, so this stage is reached on flushes
+	// that deliver nothing. The entry records the state of the group at the
+	// last notification, so a flush that notifies nobody must leave it alone.
+	// Rewriting it would refresh its timestamp and defer the repeat interval
+	// forever.
+	if reason, ok := NotificationReason(ctx); ok && !reason.shouldNotify() {
+		span.AddEvent("notify.SetNotifiesStage.Exec nothing was notified, log entry left unchanged")
+		return ctx, alerts, nil
+	}
+
 	firing, ok := FiringAlerts(ctx)
 	if !ok {
 		return ctx, nil, errors.New("firing alerts missing")

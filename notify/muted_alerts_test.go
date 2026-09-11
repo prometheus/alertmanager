@@ -69,16 +69,28 @@ type mutedPipeline struct {
 	// by every flush that writes to the log, as a real notification log would.
 	entry *nflogpb.Entry
 
+	// writes counts the flushes that wrote to the notification log.
+	writes int
+
 	// now is the timestamp of the flush currently in progress.
 	now time.Time
 
 	nflog *testNflog
-	stage MultiStage
+	stage Stage
 }
 
-// newMutedPipeline returns a pipeline whose notification log is empty and
-// whose receiver sends resolved notifications if sendsResolved is true.
+// newMutedPipeline returns a pipeline with the muted alerts feature disabled,
+// whose notification log is empty and whose receiver sends resolved
+// notifications if sendsResolved is true.
 func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
+	return newMutedPipelineWithFlags(t, sendsResolved, featurecontrol.NoopFlags{})
+}
+
+// newMutedPipelineWithFlags returns a pipeline built with the given feature
+// flags. With the muted alerts feature enabled the stages are wired the way
+// PipelineBuilder wires them, so the stages after the mute stage keep running
+// once every alert in the group has been muted.
+func newMutedPipelineWithFlags(t *testing.T, sendsResolved bool, ff featurecontrol.Flagger) *mutedPipeline {
 	p := &mutedPipeline{
 		t:     t,
 		muted: map[model.LabelValue]struct{}{},
@@ -91,10 +103,12 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 
 	p.nflog = &testNflog{
 		qerr: nflog.ErrNotFound,
-		logFunc: func(_ *nflogpb.Receiver, _ string, firing, resolved, _ []uint64, _ *nflog.Store, _ time.Duration) error {
+		logFunc: func(_ *nflogpb.Receiver, _ string, firing, resolved, muted []uint64, _ *nflog.Store, _ time.Duration) error {
+			p.writes++
 			p.entry = &nflogpb.Entry{
 				FiringAlerts:   firing,
 				ResolvedAlerts: resolved,
+				MutedAlerts:    muted,
 				Timestamp:      timestamppb.New(p.now),
 			}
 			p.nflog.qerr = nil
@@ -104,12 +118,18 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 	}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
+	metrics := NewMetrics(prometheus.NewRegistry(), ff)
 
-	p.stage = MultiStage{
+	stages := []Stage{
 		NewMuteStage(muter, metrics),
 		NewDedupStage(sendResolved(sendsResolved), p.nflog, recv),
-		NewSetNotifiesStage(p.nflog, recv, featurecontrol.NoopFlags{}),
+		NewSetNotifiesStage(p.nflog, recv, ff),
+	}
+
+	if ff.EnableMutedAlertsInNflog() {
+		p.stage = MutedMultiStage(stages)
+	} else {
+		p.stage = MultiStage(stages)
 	}
 
 	return p
@@ -352,4 +372,40 @@ func TestDedup_MutedAlertBreaksNotificationSequence(t *testing.T) {
 	require.Equal(t, ReasonFirstNotification, reason)
 	require.Equal(t, []*alert.Alert{a}, notified)
 	require.Equal(t, []uint64{hashAlert(a)}, p.entry.FiringAlerts)
+}
+
+// TestSetNotifies_NoWriteWhenNothingIsNotified asserts that a flush that
+// delivers no notification leaves the notification log entry alone. With the
+// muted alerts feature enabled the stages after a mute stage keep running once
+// the group has been emptied, so this stage is reached on flushes that notify
+// nobody. Writing on those flushes would refresh the entry's timestamp and
+// defer the repeat interval forever.
+func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
+	p := newMutedPipelineWithFlags(t, true, mutedAlertsFlags{})
+	base := utcNow()
+
+	a, b := firingAlert("a"), firingAlert("b")
+	p.muted[b.Labels["alertname"]] = struct{}{}
+
+	// The group is notified about for the first time, covering a only.
+	notified, reason, _ := p.flush(base, a, b)
+	require.Equal(t, ReasonFirstNotification, reason)
+	require.Equal(t, []*alert.Alert{a}, notified)
+	require.Equal(t, 1, p.writes)
+	firstWrite := p.entry.Timestamp.AsTime()
+
+	// Nothing has changed and the repeat interval has not elapsed, so the
+	// group is not notified about and the entry is left as it was.
+	notified, reason, _ = p.flush(base.Add(10*time.Minute), a, b)
+	require.Equal(t, ReasonDoNotNotify, reason)
+	require.Empty(t, notified)
+	require.Equal(t, 1, p.writes, "a flush that notifies nobody should not write to the notification log")
+	require.Equal(t, firstWrite, p.entry.Timestamp.AsTime())
+
+	// The repeat interval is measured from the last notification, so it still
+	// elapses while the group holds a muted alert.
+	notified, reason, _ = p.flush(base.Add(65*time.Minute), a, b)
+	require.Equal(t, ReasonRepeatIntervalElapsed, reason)
+	require.Equal(t, []*alert.Alert{a}, notified)
+	require.Equal(t, 2, p.writes)
 }

@@ -816,43 +816,45 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 	}
 }
 
-// TestMutedGroupIsRecordedInNflog exercises the receiver stages the way
+// TestMutedGroupReachesTheDedupStage exercises the receiver stages the way
 // createReceiverStage assembles them, for a group in which every alert was
 // muted. The muteAllStage helper stands in for the real mute stages, which
 // sit in the outer pipeline rather than in the receiver chain; it empties the
 // group the same way a silence matching all of its alerts does.
 //
 // The two cases are the two chains PipelineBuilder assembles. Either way the
-// group is not delivered, because nothing is left to send. What differs is
-// whether the group leaves a trace: with the feature enabled the chain runs to
-// the end and the notification log records which alerts were muted, and with
-// it disabled the chain stops at the mute stage and the log is not written at
-// all, as it was before the feature existed.
-func TestMutedGroupIsRecordedInNflog(t *testing.T) {
+// group is not delivered, because nothing is left to send. What differs is how
+// far the group gets: with the feature enabled the chain continues past the
+// mute stage and the dedup stage decides what a fully muted group means, and
+// with it disabled the chain stops at the mute stage, as it did before the
+// feature existed.
+//
+// Neither chain writes to the notification log. The entry records the state of
+// the group at the last notification, and no notification was sent.
+func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 	tests := []struct {
 		name string
 		ff   featurecontrol.Flagger
 		// newStage builds the chain PipelineBuilder builds for this flag.
 		newStage func(stages []Stage) Stage
-		// logged is whether the chain reaches SetNotifiesStage at all.
-		logged bool
+		// deduped is whether the chain reaches the dedup stage at all.
+		deduped bool
 	}{{
 		name:     "flag enabled",
 		ff:       mutedAlertsFlags{},
 		newStage: func(stages []Stage) Stage { return MutedMultiStage(stages) },
-		logged:   true,
+		deduped:  true,
 	}, {
 		name:     "flag disabled",
 		ff:       featurecontrol.NoopFlags{},
 		newStage: func(stages []Stage) Stage { return MultiStage(stages) },
-		logged:   false,
+		deduped:  false,
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
 				logged   bool
-				muted    []uint64
 				notified bool
 			)
 
@@ -862,7 +864,6 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 				qerr: nflog.ErrNotFound,
 				logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
 					logged = true
-					muted = mutedAlerts
 					return nil
 				},
 			}
@@ -890,18 +891,18 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 			ctx = WithGroupKey(ctx, "testkey")
 			ctx = WithRepeatInterval(ctx, time.Hour)
 
-			_, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alert)
+			ctx, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alert)
 			require.NoError(t, err)
 			require.Empty(t, res)
 			require.False(t, notified, "a fully muted group should not be delivered")
 
-			// Whether the log is written at all is what separates the two
-			// chains. An entry carrying an empty muted list would not be the
-			// same thing, so assert the call, not just its contents.
-			require.Equal(t, test.logged, logged, "notification log written")
-			if test.logged {
-				require.Equal(t, []uint64{hashAlert(alert)}, muted)
-			}
+			// How far the chain gets is what separates the two cases. The
+			// dedup stage records its reason in the context, so its absence
+			// means the chain stopped before reaching it.
+			_, deduped := NotificationReason(ctx)
+			require.Equal(t, test.deduped, deduped, "dedup stage reached")
+
+			require.False(t, logged, "a flush that notifies nobody should not write to the notification log")
 		})
 	}
 }
