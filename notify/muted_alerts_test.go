@@ -174,9 +174,9 @@ func TestMuteStage_RecordsMutedAlerts(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*alert.Alert{active}, alerts)
 
-	mutedHashes, ok := MutedAlerts(ctx)
+	mutedAlerts, ok := MutedAlerts(ctx)
 	require.True(t, ok, "MutedAlerts should be in the context")
-	require.Equal(t, alertHashSet(hashAlert(muted)), mutedHashes)
+	require.Equal(t, map[uint64]*alert.Alert{hashAlert(muted): muted}, mutedAlerts)
 }
 
 // stubTimeMuter is a TimeMuter with a fixed answer.
@@ -234,9 +234,9 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 
 			// The alert is dropped from the pipeline and recorded as muted.
 			require.Empty(t, active)
-			mutedHashes, ok := MutedAlerts(ctx)
+			mutedAlerts, ok := MutedAlerts(ctx)
 			require.True(t, ok, "MutedAlerts should be in the context")
-			require.Equal(t, alertHashSet(hashAlert(muted)), mutedHashes)
+			require.Equal(t, map[uint64]*alert.Alert{hashAlert(muted): muted}, mutedAlerts)
 		})
 	}
 }

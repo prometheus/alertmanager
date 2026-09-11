@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -189,14 +190,18 @@ func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	return v, ok
 }
 
-// WithMutedAlerts populates a context with a set of muted alert hashes.
-func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Context {
+// WithMutedAlerts populates a context with the alerts a mute stage removed
+// from the pipeline, keyed by hash. The alerts themselves are kept, and not
+// just their hashes, because muting does not change whether an alert is firing
+// or resolved and the stages downstream of a mute stage have no other way to
+// find out.
+func WithMutedAlerts(ctx context.Context, alerts map[uint64]*alert.Alert) context.Context {
 	return context.WithValue(ctx, keyMutedAlerts, alerts)
 }
 
-// MutedAlerts extracts a set of muted alert hashes from the context.
-func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
-	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
+// MutedAlerts extracts the muted alerts from the context, keyed by hash.
+func MutedAlerts(ctx context.Context) (map[uint64]*alert.Alert, bool) {
+	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]*alert.Alert)
 	return v, ok
 }
 

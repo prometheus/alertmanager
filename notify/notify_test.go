@@ -83,6 +83,18 @@ func (l *testNflog) Snapshot(w io.Writer) (int, error) {
 	return 0, nil
 }
 
+// mutedAlertHashes returns a muted alert set keyed by the given hashes. The
+// alerts themselves are only distinguishable by hash here, so the values are
+// placeholders.
+func mutedAlertHashes(hashes ...uint64) map[uint64]*types.Alert {
+	res := map[uint64]*types.Alert{}
+
+	for _, h := range hashes {
+		res[h] = &types.Alert{}
+	}
+	return res
+}
+
 func alertHashSet(hashes ...uint64) map[uint64]struct{} {
 	res := map[uint64]struct{}{}
 
@@ -807,7 +819,7 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 			ctx = WithResolvedAlerts(ctx, []uint64{})
 			ctx = WithRepeatInterval(ctx, time.Hour)
 			// Deliberately out of order, so the sorting is observable.
-			ctx = WithMutedAlerts(ctx, alertHashSet(9, 3, 7))
+			ctx = WithMutedAlerts(ctx, mutedAlertHashes(9, 3, 7))
 
 			_, _, err := s.Exec(ctx, promslog.NewNopLogger(), &types.Alert{})
 			require.NoError(t, err)

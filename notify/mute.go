@@ -51,17 +51,18 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
-// recordMuted adds the hashes of the given alerts to the set of muted alert
-// hashes in the context.
+// recordMuted adds the given alerts to the muted alerts in the context, keyed
+// by hash. A group is muted by more than one stage often enough that this has
+// to accumulate rather than replace.
 func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
-	hashes, _ := MutedAlerts(ctx)
-	if hashes == nil {
-		hashes = make(map[uint64]struct{}, len(muted))
+	alerts, _ := MutedAlerts(ctx)
+	if alerts == nil {
+		alerts = make(map[uint64]*alert.Alert, len(muted))
 	}
 	for _, a := range muted {
-		hashes[hashAlert(a)] = struct{}{}
+		alerts[hashAlert(a)] = a
 	}
-	return WithMutedAlerts(ctx, hashes)
+	return WithMutedAlerts(ctx, alerts)
 }
 
 // MuteStage filters alerts through a Muter.
