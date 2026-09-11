@@ -122,9 +122,11 @@ func run() int {
 			return 1
 		}
 
-		if _, err := memlimit.SetGoMemLimitWithOpts(
+		if _, err := memlimit.Set(
 			memlimit.WithRatio(*memlimitRatio),
-			memlimit.WithRefreshInterval(*memlimitRefreshInterval),
+			// The context only bounds the refresh loop, which ends at process exit
+			// either way, so Background is as good as the shutdown context here.
+			memlimit.WithRefreshInterval(context.Background(), *memlimitRefreshInterval),
 			memlimit.WithProvider(
 				memlimit.ApplyFallback(
 					memlimit.FromCgroup,
