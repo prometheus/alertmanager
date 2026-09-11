@@ -62,6 +62,7 @@ type Peer struct {
 
 	resolvedPeers       []string
 	resolvePeersTimeout time.Duration
+	tlsTransport        *TLSTransport
 
 	mtx    sync.RWMutex
 	states map[string]State
@@ -173,7 +174,7 @@ func Create(
 
 	ctx, cancel := context.WithTimeout(context.Background(), resolveTimeout)
 	defer cancel()
-	resolvedPeers, err := resolvePeers(ctx, knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
+	resolvedPeers, peerHostnames, err := resolvePeers(ctx, knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, fmt.Errorf("resolve peers: %w", err)
 	}
@@ -248,10 +249,13 @@ func Create(
 
 	if tlsTransportConfig != nil {
 		l.Info("using TLS for gossip")
-		cfg.Transport, err = NewTLSTransport(context.Background(), l, reg, cfg.BindAddr, cfg.BindPort, tlsTransportConfig)
-		if err != nil {
-			return nil, fmt.Errorf("tls transport: %w", err)
+		t, tErr := NewTLSTransport(context.Background(), l, reg, cfg.BindAddr, cfg.BindPort, tlsTransportConfig)
+		if tErr != nil {
+			return nil, fmt.Errorf("tls transport: %w", tErr)
 		}
+		t.SetPeerHostnames(peerHostnames)
+		cfg.Transport = t
+		p.tlsTransport = t
 	}
 
 	ml, err := memberlist.Create(cfg)
@@ -450,10 +454,14 @@ func (p *Peer) refresh() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), p.resolvePeersTimeout)
 	defer cancel()
-	resolvedPeers, err := resolvePeers(ctx, p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
+	resolvedPeers, peerHostnames, err := resolvePeers(ctx, p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("%v", p.knownPeers), "err", err)
 		return
+	}
+
+	if p.tlsTransport != nil {
+		p.tlsTransport.SetPeerHostnames(peerHostnames)
 	}
 
 	members := p.mlist.Members()
@@ -729,13 +737,14 @@ func (b simpleBroadcast) Message() []byte                       { return []byte(
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
 
-func resolvePeers(ctx context.Context, peers []string, myAddress string, res *net.Resolver, waitIfEmpty bool) ([]string, error) {
+func resolvePeers(ctx context.Context, peers []string, myAddress string, res *net.Resolver, waitIfEmpty bool) ([]string, map[string]string, error) {
 	var resolvedPeers []string
+	hostnames := make(map[string]string)
 
 	for _, peer := range peers {
 		host, port, err := net.SplitHostPort(peer)
 		if err != nil {
-			return nil, fmt.Errorf("split host/port for peer %s: %w", peer, err)
+			return nil, nil, fmt.Errorf("split host/port for peer %s: %w", peer, err)
 		}
 
 		retryCtx, cancel := context.WithCancel(ctx)
@@ -774,16 +783,18 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res *ne
 				return nil
 			})
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
 		for _, ip := range ips {
-			resolvedPeers = append(resolvedPeers, net.JoinHostPort(ip.String(), port))
+			resolved := net.JoinHostPort(ip.String(), port)
+			resolvedPeers = append(resolvedPeers, resolved)
+			hostnames[resolved] = host
 		}
 	}
 
-	return resolvedPeers, nil
+	return resolvedPeers, hostnames, nil
 }
 
 func removeMyAddr(ips []net.IPAddr, targetPort, myAddr string) []net.IPAddr {

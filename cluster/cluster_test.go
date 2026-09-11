@@ -15,6 +15,7 @@ package cluster
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -437,4 +438,31 @@ func testPeerNames(t *testing.T, name1, name2 string) {
 		require.Eventually(t, func() bool { return p2.ClusterSize() == 2 }, 5*time.Second, time.Second)
 		require.NotEqual(t, p1.Name(), p2.Name(), "peers should have different names")
 	}
+}
+
+func TestResolvePeersHostnameMapping(t *testing.T) {
+	ctx := context.Background()
+	res := &net.Resolver{}
+
+	t.Run("IPAddressPeers", func(t *testing.T) {
+		peers := []string{"192.168.1.1:9094", "10.0.0.2:9094"}
+		resolved, hostnames, err := resolvePeers(ctx, peers, "", res, false)
+		require.NoError(t, err)
+		require.Equal(t, peers, resolved)
+		// IP addresses get mapped back to themselves; this is harmless since
+		// TLS will still use IP SAN validation when ServerName is an IP.
+		require.Equal(t, "192.168.1.1", hostnames["192.168.1.1:9094"])
+		require.Equal(t, "10.0.0.2", hostnames["10.0.0.2:9094"])
+	})
+
+	t.Run("LocalhostPeer", func(t *testing.T) {
+		peers := []string{"localhost:9094"}
+		resolved, hostnames, err := resolvePeers(ctx, peers, "", res, false)
+		require.NoError(t, err)
+		require.NotEmpty(t, resolved)
+		// localhost resolves to an IP; the mapping should point back to "localhost".
+		for _, r := range resolved {
+			require.Equal(t, "localhost", hostnames[r])
+		}
+	})
 }
