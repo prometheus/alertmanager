@@ -35,6 +35,7 @@ func configureConfigCmd(app *kingpin.Application) {
 	configCmd := app.Command("config", configHelp)
 	configCmd.Command("show", configHelp).Default().Action(execWithTimeout(queryConfig)).PreAction(requireAlertManagerURL)
 	configureRoutingCmd(configCmd)
+	configureInhibitionCmd(configCmd)
 }
 
 func queryConfig(ctx context.Context, _ *kingpin.ParseContext) error {
