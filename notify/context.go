@@ -45,6 +45,7 @@ const (
 	keyFlushID
 	keyGroupMatchers
 	keyRouteLabels
+	keyNotificationSequence
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -247,5 +248,19 @@ func WithNflogStore(ctx context.Context, store *nflog.Store) context.Context {
 // NflogStore is a pointer to a mutable store which remains in the context.
 func NflogStore(ctx context.Context) (*nflog.Store, bool) {
 	v, ok := ctx.Value(keyNflogStore).(*nflog.Store)
+	return v, ok
+}
+
+// WithNotificationSequence populates a context with the notification sequence
+// the group is in.
+func WithNotificationSequence(ctx context.Context, seq NotificationSequence) context.Context {
+	return context.WithValue(ctx, keyNotificationSequence, seq)
+}
+
+// NotificationSequenceFor extracts the notification sequence the group is in
+// from the context. It is only populated when the muted alerts feature is
+// enabled.
+func NotificationSequenceFor(ctx context.Context) (NotificationSequence, bool) {
+	v, ok := ctx.Value(keyNotificationSequence).(NotificationSequence)
 	return v, ok
 }

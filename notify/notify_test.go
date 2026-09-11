@@ -224,6 +224,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		s := &DedupStage{
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
+			ff:  featurecontrol.NoopFlags{},
 		}
 		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, now).shouldNotify()
 		require.Equal(t, c.res, res)
@@ -238,6 +239,7 @@ func TestDedupStageUsesContextNow(t *testing.T) {
 			return base.Add(time.Hour)
 		},
 		rs: sendResolved(false),
+		ff: featurecontrol.NoopFlags{},
 		nflog: &testNflog{
 			qerr: nil,
 			qres: []*nflogpb.Entry{{
@@ -272,6 +274,7 @@ func TestDedupStage(t *testing.T) {
 			return now
 		},
 		rs: sendResolved(false),
+		ff: featurecontrol.NoopFlags{},
 	}
 
 	ctx := context.Background()
@@ -894,7 +897,7 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 			alert := &types.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "muted"}}}
 			stage := test.newStage([]Stage{
 				muteAllStage{},
-				NewDedupStage(&integration, tnflog, recv),
+				NewDedupStage(&integration, tnflog, recv, test.ff),
 				NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder()),
 				NewSetNotifiesStage(tnflog, recv, test.ff),
 			})
@@ -933,7 +936,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	tnflog.qres = []*nflogpb.Entry{}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, featurecontrol.NoopFlags{})
 
 	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 		callCount++
@@ -1044,7 +1047,7 @@ func TestDedupStageExtractsReceiverData_DataPresent(t *testing.T) {
 		qres: []*nflogpb.Entry{entry},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1086,7 +1089,7 @@ func TestDedupStageExtractsReceiverData_NilReceiverData(t *testing.T) {
 		qres: []*nflogpb.Entry{entry},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1113,7 +1116,7 @@ func TestDedupStageExtractsReceiverData_NoEntry(t *testing.T) {
 		qres: []*nflogpb.Entry{},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1148,7 +1151,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, featurecontrol.NoopFlags{})
 
 	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 		callCount++

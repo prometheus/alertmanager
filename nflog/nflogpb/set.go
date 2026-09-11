@@ -45,3 +45,44 @@ func isSubset(set, subset map[uint64]struct{}) bool {
 
 	return true
 }
+
+// NotifiedFiringAlerts returns the alerts that were firing and not muted at
+// the time of the last notification, which are the firing alerts the receiver
+// was actually told about.
+func (m *Entry) NotifiedFiringAlerts() map[uint64]struct{} {
+	return setOf(m.FiringAlerts, m.MutedAlerts)
+}
+
+// NotifiedResolvedAlerts returns the alerts that were resolved and not muted
+// at the time of the last notification.
+func (m *Entry) NotifiedResolvedAlerts() map[uint64]struct{} {
+	return setOf(m.ResolvedAlerts, m.MutedAlerts)
+}
+
+// FiringAlertSet returns the alerts that were firing at the time of the last
+// notification, muted ones included.
+func (m *Entry) FiringAlertSet() map[uint64]struct{} {
+	return setOf(m.FiringAlerts, nil)
+}
+
+// IsSubset returns whether every member of subset is a member of set.
+func IsSubset(set, subset map[uint64]struct{}) bool {
+	return isSubset(set, subset)
+}
+
+// setOf turns hashes into a set, leaving out the ones in exclude.
+func setOf(hashes, exclude []uint64) map[uint64]struct{} {
+	excluded := make(map[uint64]struct{}, len(exclude))
+	for _, h := range exclude {
+		excluded[h] = struct{}{}
+	}
+
+	set := make(map[uint64]struct{}, len(hashes))
+	for _, h := range hashes {
+		if _, ok := excluded[h]; ok {
+			continue
+		}
+		set[h] = struct{}{}
+	}
+	return set
+}

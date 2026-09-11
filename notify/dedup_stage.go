@@ -17,12 +17,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
@@ -33,17 +36,19 @@ type DedupStage struct {
 	rs    ResolvedSender
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
+	ff    featurecontrol.Flagger
 
 	now  func() time.Time
 	hash func(*alert.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver, ff featurecontrol.Flagger) *DedupStage {
 	return &DedupStage{
 		rs:    rs,
 		nflog: l,
 		recv:  recv,
+		ff:    ff,
 		now:   utcNow,
 		hash:  hashAlert,
 	}
@@ -95,6 +100,155 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	return ReasonDoNotNotify
 }
 
+// groupState is the state of an alert group at a flush, as the dedup stage
+// sees it. Muting does not change whether an alert is firing or resolved, only
+// whether the receiver is told about it, so a muted alert is in firing or
+// resolved as well as in muted. The alerts the receiver can see are the ones
+// that are not muted.
+type groupState struct {
+	firing   []uint64
+	resolved []uint64
+
+	firingSet   map[uint64]struct{}
+	resolvedSet map[uint64]struct{}
+	mutedSet    map[uint64]struct{}
+}
+
+// visibleFiring returns the firing alerts the receiver is told about.
+func (s groupState) visibleFiring() map[uint64]struct{} {
+	return withoutMuted(s.firingSet, s.mutedSet)
+}
+
+// visibleResolved returns the resolved alerts the receiver is told about.
+func (s groupState) visibleResolved() map[uint64]struct{} {
+	return withoutMuted(s.resolvedSet, s.mutedSet)
+}
+
+// withoutMuted returns the members of set that are not muted.
+func withoutMuted(set, muted map[uint64]struct{}) map[uint64]struct{} {
+	if len(muted) == 0 {
+		return set
+	}
+
+	visible := make(map[uint64]struct{}, len(set))
+	for hash := range set {
+		if _, ok := muted[hash]; !ok {
+			visible[hash] = struct{}{}
+		}
+	}
+	return visible
+}
+
+// newGroupState partitions the group this flush is about. With the muted
+// alerts feature enabled the alerts a mute stage removed from the pipeline are
+// partitioned too, so that the notification log records the whole group and
+// not just the part of it the receiver was shown.
+func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) groupState {
+	firing, resolved, firingSet, resolvedSet := partitionAlertsByState(alerts, n.hash)
+	s := groupState{
+		firing:      firing,
+		resolved:    resolved,
+		firingSet:   firingSet,
+		resolvedSet: resolvedSet,
+		mutedSet:    map[uint64]struct{}{},
+	}
+
+	if !n.ff.EnableMutedAlertsInNflog() {
+		return s
+	}
+
+	muted, ok := MutedAlerts(ctx)
+	if !ok {
+		return s
+	}
+
+	// In hash order, so that an unchanged group always produces the same
+	// notification log entry.
+	for _, hash := range slices.Sorted(maps.Keys(muted)) {
+		s.mutedSet[hash] = struct{}{}
+		if muted[hash].Resolved() {
+			s.resolved = append(s.resolved, hash)
+			s.resolvedSet[hash] = struct{}{}
+		} else {
+			s.firing = append(s.firing, hash)
+			s.firingSet[hash] = struct{}{}
+		}
+	}
+	return s
+}
+
+// needsUpdateMuteAware decides whether the receiver is notified about a group
+// whose muted alerts are recorded rather than discarded. It asks the same
+// questions as needsUpdate, but each of them against the set that answers it:
+// whether the group is over is decided by every alert in it, muted or not,
+// while whether the receiver already knows about an alert is decided by the
+// alerts it was actually shown.
+func (n *DedupStage) needsUpdateMuteAware(entry *nflogpb.Entry, s groupState, repeat time.Duration, now time.Time) NotifyReason {
+	visibleFiring := s.visibleFiring()
+
+	// If we have not notified about the alert group before, notify right away
+	// unless everything we would show the receiver is resolved or muted.
+	if entry == nil {
+		if len(visibleFiring) > 0 {
+			return ReasonFirstNotification
+		}
+		return ReasonDoNotNotify
+	}
+
+	// The firing alerts the receiver was told about at the last notification.
+	// The muted ones were recorded but not delivered, so as far as the
+	// receiver is concerned they never fired.
+	notifiedFiring := entry.NotifiedFiringAlerts()
+
+	// Notify about all alerts being resolved. This is decided by the whole
+	// group: a group still holding a firing alert is not resolved just because
+	// that alert is muted.
+	if len(s.firingSet) == 0 {
+		// If the receiver was not told about any firing alert, it does not
+		// know about the alerts that have now resolved.
+		if len(notifiedFiring) > 0 {
+			return ReasonAllAlertsResolved
+		}
+		return ReasonDoNotNotify
+	}
+
+	// Alerts the receiver has not been shown.
+	if !nflogpb.IsSubset(notifiedFiring, visibleFiring) {
+		// If the receiver was shown no firing alerts at the last notification,
+		// the sequence it belonged to is closed and this opens a new one.
+		if len(notifiedFiring) == 0 {
+			return ReasonFirstNotification
+		}
+		// If every alert now visible was already in the group, it became
+		// visible because a mute ended rather than because it started firing.
+		if nflogpb.IsSubset(entry.FiringAlertSet(), visibleFiring) {
+			return ReasonAlertsUnmuted
+		}
+		return ReasonNewAlertsInGroup
+	}
+
+	if n.rs.SendResolved() && !nflogpb.IsSubset(entry.NotifiedResolvedAlerts(), s.visibleResolved()) {
+		return ReasonNewResolvedAlerts
+	}
+
+	// The group is still firing but the receiver can no longer see any of it,
+	// and there is nothing else left to tell it, so its notification sequence
+	// closes as muted rather than as resolved.
+	if len(visibleFiring) == 0 {
+		if len(notifiedFiring) > 0 {
+			return ReasonAllAlertsMuted
+		}
+		return ReasonDoNotNotify
+	}
+
+	// Nothing changed, only notify if the repeat interval has passed.
+	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
+	if isRepeatIntervalElapsed {
+		return ReasonRepeatIntervalElapsed
+	}
+	return ReasonDoNotNotify
+}
+
 // partitionAlertsByState separates alerts into firing and resolved, returning both slices and sets.
 func partitionAlertsByState(alerts []*alert.Alert, hashFn func(*alert.Alert) uint64) (firing, resolved []uint64, firingSet, resolvedSet map[uint64]struct{}) {
 	firingSet = make(map[uint64]struct{}, len(alerts))
@@ -134,10 +288,10 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 		return ctx, nil, errors.New("repeat interval missing")
 	}
 
-	firing, resolved, firingSet, resolvedSet := partitionAlertsByState(alerts, n.hash)
+	state := n.newGroupState(ctx, alerts)
 
-	ctx = WithFiringAlerts(ctx, firing)
-	ctx = WithResolvedAlerts(ctx, resolved)
+	ctx = WithFiringAlerts(ctx, state.firing)
+	ctx = WithResolvedAlerts(ctx, state.resolved)
 
 	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
 	if err != nil && !errors.Is(err, nflog.ErrNotFound) {
@@ -157,7 +311,13 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 	if ctxNow, ok := Now(ctx); ok {
 		now = ctxNow
 	}
-	updateReason := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, now)
+	var updateReason NotifyReason
+	if n.ff.EnableMutedAlertsInNflog() {
+		updateReason = n.needsUpdateMuteAware(entry, state, repeatInterval, now)
+		ctx = WithNotificationSequence(ctx, newNotificationSequence(entry, state, updateReason))
+	} else {
+		updateReason = n.needsUpdate(entry, state.firingSet, state.resolvedSet, repeatInterval, now)
+	}
 	ctx = WithNotificationReason(ctx, updateReason)
 
 	if updateReason == ReasonFirstNotification {

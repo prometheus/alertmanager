@@ -211,7 +211,7 @@ func createReceiverStage(
 		}
 		stages := []Stage{
 			NewClusterWaitStage(wait),
-			NewDedupStage(&integrations[i], notificationLog, recv),
+			NewDedupStage(&integrations[i], notificationLog, recv, ff),
 			NewRetryStage(integrations[i], name, metrics, recorder),
 			NewSetNotifiesStage(notificationLog, recv, ff),
 		}
@@ -339,11 +339,28 @@ const (
 	ReasonNewResolvedAlerts
 	ReasonAllAlertsResolved
 	ReasonRepeatIntervalElapsed
+	// ReasonAlertsUnmuted is reported when alerts the receiver was never
+	// shown, because they were muted, have become visible again.
+	ReasonAlertsUnmuted
+	// ReasonAllAlertsMuted is reported when every alert in a group the
+	// receiver has been notified about is muted, so the group is still firing
+	// but none of it can be shown.
+	ReasonAllAlertsMuted
 	ReasonUnknown
 )
 
 func (r NotifyReason) shouldNotify() bool {
-	return r != ReasonDoNotNotify
+	switch r {
+	case ReasonDoNotNotify:
+		return false
+	case ReasonAllAlertsMuted:
+		// Closing a notification sequence because everything was muted is not
+		// itself a notification. Telling the receiver about it is the
+		// per-receiver behaviour #5247 asks for, which does not exist yet.
+		return false
+	default:
+		return true
+	}
 }
 
 func (r NotifyReason) String() string {
@@ -360,6 +377,10 @@ func (r NotifyReason) String() string {
 		return "all alerts resolved"
 	case ReasonRepeatIntervalElapsed:
 		return "repeat interval elapsed"
+	case ReasonAlertsUnmuted:
+		return "some alerts unmuted"
+	case ReasonAllAlertsMuted:
+		return "all alerts muted"
 	default:
 		return "unknown"
 	}
