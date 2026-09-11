@@ -1,5 +1,9 @@
 ## main / (unreleased)
 
+## 0.34.1 / 2026-09-11
+
+* [BUGFIX] fix various issues with the inhibitor improperly skipping inhibits when the indexed source alert is resolved but other alerts are present.
+
 ## 0.34.0 / 2026-08-16
 
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated. #5332

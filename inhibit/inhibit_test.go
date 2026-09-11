@@ -155,7 +155,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			}
 			for _, v := range c.initial {
 				r.scache.Set(v)
-				r.updateIndex(v)
+				r.sindex.Add(r.fingerprintEquals(v.Labels), v.Fingerprint())
 			}
 
 			if _, have := r.hasEqual(c.input, false, time.Now()); have != c.result {
@@ -201,12 +201,12 @@ func TestInhibitRuleMatches(t *testing.T) {
 	ih.rules[0].scache = store.NewAlerts()
 	ih.rules[0].scache.Set(sourceAlert1)
 	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].sindex.Add(ih.rules[0].fingerprintEquals(sourceAlert1.Labels), sourceAlert1.Fingerprint())
 
 	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
 	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].sindex.Add(ih.rules[1].fingerprintEquals(sourceAlert2.Labels), sourceAlert2.Fingerprint())
 
 	cases := []struct {
 		target   model.LabelSet
@@ -299,12 +299,12 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	ih.rules[0].scache = store.NewAlerts()
 	ih.rules[0].scache.Set(sourceAlert1)
 	ih.rules[0].sindex = newIndex()
-	ih.rules[0].updateIndex(sourceAlert1)
+	ih.rules[0].sindex.Add(ih.rules[0].fingerprintEquals(sourceAlert1.Labels), sourceAlert1.Fingerprint())
 
 	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
 	ih.rules[1].sindex = newIndex()
-	ih.rules[1].updateIndex(sourceAlert2)
+	ih.rules[1].sindex.Add(ih.rules[1].fingerprintEquals(sourceAlert2.Labels), sourceAlert2.Fingerprint())
 
 	cases := []struct {
 		target   model.LabelSet
@@ -595,6 +595,85 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 		"service": "api",
 	}
 	require.NotEqual(t, fp, rule.fingerprintEquals(lset3))
+}
+
+func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
+	now := time.Now()
+	r := &InhibitRule{
+		Equal:  map[model.LabelName]struct{}{"cluster": {}},
+		scache: store.NewAlerts(),
+		sindex: newIndex(),
+	}
+	r.scache.SetGCCallback(r.gcCallback)
+
+	active := &alert.Alert{Alert: model.Alert{
+		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(2 * time.Hour),
+	}}
+	resolved := &alert.Alert{Alert: model.Alert{
+		Labels:   model.LabelSet{"alertname": "S2", "cluster": "c1"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(-time.Minute),
+	}}
+	for _, a := range []*alert.Alert{active, resolved} {
+		require.NoError(t, r.scache.Set(a))
+		r.sindex.Add(r.fingerprintEquals(a.Labels), a.Fingerprint())
+	}
+
+	target := model.LabelSet{"alertname": "T", "cluster": "c1"}
+	fp, ok := r.hasEqual(target, false, now)
+	require.True(t, ok)
+	require.Equal(t, active.Fingerprint(), fp)
+
+	deleted := r.scache.GC()
+	require.Len(t, deleted, 1)
+	require.Equal(t, resolved.Fingerprint(), deleted[0].Fingerprint())
+
+	fp, ok = r.hasEqual(target, false, now)
+	require.True(t, ok, "active source alert must still inhibit after GC of a sibling")
+	require.Equal(t, active.Fingerprint(), fp)
+	require.Equal(t, 1, r.sindex.Len())
+
+	active.EndsAt = now.Add(-time.Second)
+	require.NoError(t, r.scache.Set(active))
+	deleted = r.scache.GC()
+	require.Len(t, deleted, 1)
+	_, ok = r.hasEqual(target, false, now)
+	require.False(t, ok)
+	require.Equal(t, 0, r.sindex.Len(), "empty index keys must be removed")
+}
+
+func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
+	now := time.Now()
+	targetMatcher, err := labels.NewMatcher(labels.MatchEqual, "severity", "warning")
+	require.NoError(t, err)
+	r := &InhibitRule{
+		Equal:          map[model.LabelName]struct{}{"cluster": {}},
+		TargetMatchers: labels.Matchers{targetMatcher},
+		scache:         store.NewAlerts(),
+		sindex:         newIndex(),
+	}
+
+	sourceOnly := &alert.Alert{Alert: model.Alert{
+		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1", "severity": "critical"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(time.Hour),
+	}}
+	twoSided := &alert.Alert{Alert: model.Alert{
+		Labels:   model.LabelSet{"alertname": "S2", "cluster": "c1", "severity": "warning"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(2 * time.Hour),
+	}}
+	for _, a := range []*alert.Alert{sourceOnly, twoSided} {
+		require.NoError(t, r.scache.Set(a))
+		r.sindex.Add(r.fingerprintEquals(a.Labels), a.Fingerprint())
+	}
+
+	target := model.LabelSet{"alertname": "T", "cluster": "c1", "severity": "warning"}
+	fp, ok := r.hasEqual(target, true, now)
+	require.True(t, ok)
+	require.Equal(t, sourceOnly.Fingerprint(), fp)
 }
 
 func BenchmarkFingerprintEquals(b *testing.B) {
