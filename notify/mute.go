@@ -52,8 +52,7 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
 // recordMuted adds the given alerts to the muted alerts in the context, keyed
-// by hash. A group is muted by more than one stage often enough that this has
-// to accumulate rather than replace.
+// by hash. It accumulates, because more than one stage can mute a group.
 func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
 	alerts, _ := MutedAlerts(ctx)
 	if alerts == nil {

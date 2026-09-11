@@ -46,21 +46,20 @@ func isSubset(set, subset map[uint64]struct{}) bool {
 	return true
 }
 
-// NotifiedFiringAlerts returns the alerts that were firing and not muted at
-// the time of the last notification, which are the firing alerts the receiver
-// was actually told about.
+// NotifiedFiringAlerts returns the firing alerts the receiver was shown at the
+// last notification: those that were firing and not muted.
 func (m *Entry) NotifiedFiringAlerts() map[uint64]struct{} {
 	return setOf(m.FiringAlerts, m.MutedAlerts)
 }
 
-// NotifiedResolvedAlerts returns the alerts that were resolved and not muted
-// at the time of the last notification.
+// NotifiedResolvedAlerts returns the resolved alerts the receiver was shown at
+// the last notification.
 func (m *Entry) NotifiedResolvedAlerts() map[uint64]struct{} {
 	return setOf(m.ResolvedAlerts, m.MutedAlerts)
 }
 
-// FiringAlertSet returns the alerts that were firing at the time of the last
-// notification, muted ones included.
+// FiringAlertSet returns the alerts that were firing at the last notification,
+// muted ones included.
 func (m *Entry) FiringAlertSet() map[uint64]struct{} {
 	return setOf(m.FiringAlerts, nil)
 }

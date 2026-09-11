@@ -16,32 +16,27 @@ package notify
 import "github.com/prometheus/alertmanager/nflog/nflogpb"
 
 // A NotificationSequence is where an alert group stands in the run of
-// notifications one receiver has been sent about it. A sequence opens with the
-// first notification about a group and closes when the receiver is told the
-// group is over, either because every alert in it resolved or because every
-// alert in it was muted.
+// notifications one receiver has been sent about it. It opens with the first
+// notification and closes when the receiver is told the group is over, either
+// because every alert resolved or because every alert was muted.
 //
-// It is derived from the notification log entry and the state of the group at
-// the current flush, and is never stored: the notification log entry remains
-// the only record. Integrations read it to tell a group that has gone quiet
-// because it was muted apart from one that has gone quiet because it resolved,
-// which they cannot do from the alerts they are handed.
+// It is derived from the notification log entry and the current flush, never
+// stored. Integrations read it to tell a group that went quiet because it was
+// muted from one that went quiet because it resolved.
 type NotificationSequence int
 
 const (
-	// SequenceNone means the receiver has not been told about any firing alert
-	// in this group that it has not also been told is over. Either the group
-	// has never been notified about, or its last sequence has closed.
+	// SequenceNone means the receiver knows of no firing alert in this group:
+	// either it was never notified, or its last sequence has closed.
 	SequenceNone NotificationSequence = iota
-	// SequenceOpen means the receiver has been told about firing alerts it has
-	// not been told are over.
+	// SequenceOpen means the receiver was shown firing alerts it has not been
+	// told are over.
 	SequenceOpen
-	// SequenceClosedResolved means this notification closes the sequence
-	// because every alert in the group has resolved.
+	// SequenceClosedResolved means this notification closes the sequence,
+	// because every alert in the group resolved.
 	SequenceClosedResolved
 	// SequenceClosedMuted means this notification closes the sequence because
-	// the group is still firing but every alert in it is muted, so the
-	// receiver can no longer be shown any of it.
+	// the group is still firing but every alert in it is muted.
 	SequenceClosedMuted
 )
 
@@ -60,8 +55,8 @@ func (s NotificationSequence) String() string {
 	}
 }
 
-// newNotificationSequence derives where the group stands once the
-// notification this flush decided on, if any, has been sent.
+// newNotificationSequence derives where the group stands once this flush's
+// notification, if any, has been sent.
 func newNotificationSequence(entry *nflogpb.Entry, s groupState, reason NotifyReason) NotificationSequence {
 	switch reason {
 	case ReasonAllAlertsResolved:
@@ -70,9 +65,8 @@ func newNotificationSequence(entry *nflogpb.Entry, s groupState, reason NotifyRe
 		return SequenceClosedMuted
 	}
 
-	// A notification shows the receiver the alerts that are firing and not
-	// muted. Without one, the receiver knows what the notification log says it
-	// was last told.
+	// A notification shows the firing alerts that are not muted. Without one,
+	// the receiver still knows only what the log says it was last shown.
 	notified := s.visibleFiring()
 	if !reason.shouldNotify() {
 		if entry == nil {

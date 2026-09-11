@@ -191,11 +191,10 @@ func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	return v, ok
 }
 
-// WithMutedAlerts populates a context with the alerts a mute stage removed
-// from the pipeline, keyed by hash. The alerts themselves are kept, and not
-// just their hashes, because muting does not change whether an alert is firing
-// or resolved and the stages downstream of a mute stage have no other way to
-// find out.
+// WithMutedAlerts populates a context with the alerts a mute stage removed from
+// the pipeline, keyed by hash. The alerts are kept rather than just their
+// hashes because muting does not change whether an alert is firing or resolved,
+// and the stages downstream have no other way to find out.
 func WithMutedAlerts(ctx context.Context, alerts map[uint64]*alert.Alert) context.Context {
 	return context.WithValue(ctx, keyMutedAlerts, alerts)
 }
@@ -257,9 +256,8 @@ func WithNotificationSequence(ctx context.Context, seq NotificationSequence) con
 	return context.WithValue(ctx, keyNotificationSequence, seq)
 }
 
-// NotificationSequenceFor extracts the notification sequence the group is in
-// from the context. It is only populated when the muted alerts feature is
-// enabled.
+// NotificationSequenceFor extracts the notification sequence the group is in.
+// It is only populated when the muted alerts feature is enabled.
 func NotificationSequenceFor(ctx context.Context) (NotificationSequence, bool) {
 	v, ok := ctx.Value(keyNotificationSequence).(NotificationSequence)
 	return v, ok

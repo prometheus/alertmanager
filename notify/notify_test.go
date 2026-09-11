@@ -83,9 +83,8 @@ func (l *testNflog) Snapshot(w io.Writer) (int, error) {
 	return 0, nil
 }
 
-// mutedAlertHashes returns a muted alert set keyed by the given hashes. The
-// alerts themselves are only distinguishable by hash here, so the values are
-// placeholders.
+// mutedAlertHashes returns a muted alert set keyed by the given hashes. Only
+// the hashes matter here, so the alerts are placeholders.
 func mutedAlertHashes(hashes ...uint64) map[uint64]*types.Alert {
 	res := map[uint64]*types.Alert{}
 
@@ -833,19 +832,15 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 
 // TestMutedGroupReachesTheDedupStage exercises the receiver stages the way
 // createReceiverStage assembles them, for a group in which every alert was
-// muted. The muteAllStage helper stands in for the real mute stages, which
-// sit in the outer pipeline rather than in the receiver chain; it empties the
-// group the same way a silence matching all of its alerts does.
+// muted. The muteAllStage helper stands in for the real mute stages, which sit
+// in the outer pipeline; it empties the group as a silence matching all of its
+// alerts does.
 //
-// The two cases are the two chains PipelineBuilder assembles. Either way the
-// group is not delivered, because nothing is left to send. What differs is how
-// far the group gets: with the feature enabled the chain continues past the
-// mute stage and the dedup stage decides what a fully muted group means, and
-// with it disabled the chain stops at the mute stage, as it did before the
-// feature existed.
-//
-// Neither chain writes to the notification log. The entry records the state of
-// the group at the last notification, and no notification was sent.
+// Either chain delivers nothing, because nothing is left to send. What differs
+// is how far the group gets: with the feature enabled the dedup stage decides
+// what a fully muted group means, and with it disabled the chain stops at the
+// mute stage as it did before the feature existed. Neither writes to the
+// notification log, because no notification was sent.
 func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 	tests := []struct {
 		name string
@@ -911,9 +906,8 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 			require.Empty(t, res)
 			require.False(t, notified, "a fully muted group should not be delivered")
 
-			// How far the chain gets is what separates the two cases. The
-			// dedup stage records its reason in the context, so its absence
-			// means the chain stopped before reaching it.
+			// The dedup stage records its reason in the context, so its
+			// absence means the chain stopped before reaching it.
 			_, deduped := NotificationReason(ctx)
 			require.Equal(t, test.deduped, deduped, "dedup stage reached")
 

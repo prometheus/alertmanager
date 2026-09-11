@@ -339,12 +339,10 @@ const (
 	ReasonNewResolvedAlerts
 	ReasonAllAlertsResolved
 	ReasonRepeatIntervalElapsed
-	// ReasonAlertsUnmuted is reported when alerts the receiver was never
-	// shown, because they were muted, have become visible again.
+	// ReasonAlertsUnmuted is reported when muted alerts become visible again.
 	ReasonAlertsUnmuted
-	// ReasonAllAlertsMuted is reported when every alert in a group the
-	// receiver has been notified about is muted, so the group is still firing
-	// but none of it can be shown.
+	// ReasonAllAlertsMuted is reported when a group the receiver was notified
+	// about is still firing, but none of it can be shown any more.
 	ReasonAllAlertsMuted
 	ReasonUnknown
 )
@@ -354,9 +352,9 @@ func (r NotifyReason) shouldNotify() bool {
 	case ReasonDoNotNotify:
 		return false
 	case ReasonAllAlertsMuted:
-		// Closing a notification sequence because everything was muted is not
-		// itself a notification. Telling the receiver about it is the
-		// per-receiver behaviour #5247 asks for, which does not exist yet.
+		// Closing a sequence because everything was muted is not itself a
+		// notification. Telling the receiver is the per-receiver behaviour
+		// #5247 asks for, which does not exist yet.
 		return false
 	default:
 		return true
