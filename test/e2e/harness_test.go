@@ -15,6 +15,9 @@ package e2e
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -46,13 +49,18 @@ type instance struct {
 	baseURL     string
 	routePrefix string
 	httpClient  *http.Client
-	h2cClient   *http.Client
+	rpcClient   *http.Client
+	tlsConfig   *tls.Config
 }
 
 // startInstance boots an Alertmanager and registers its teardown (and
 // temp-dir removal) via Ginkgo's DeferCleanup.
-func startInstance(routePrefix string) *instance {
+func startInstance(routePrefix string, tlsEnabled bool, enableHTTP2 ...bool) *instance {
 	GinkgoHelper()
+	http2Enabled := true
+	if len(enableHTTP2) > 0 {
+		http2Enabled = enableHTTP2[0]
+	}
 
 	dir, err := os.MkdirTemp("", "am-e2e-")
 	Expect(err).NotTo(HaveOccurred())
@@ -71,6 +79,22 @@ func startInstance(routePrefix string) *instance {
 	addrs := []string{"127.0.0.1:0"}
 	systemd := false
 	webCfg := ""
+	var clientTLS *tls.Config
+	if tlsEnabled {
+		cert, err := os.ReadFile(filepath.Join("..", "..", "cluster", "testdata", "certs", "node1.pem"))
+		Expect(err).NotTo(HaveOccurred())
+		key, err := os.ReadFile(filepath.Join("..", "..", "cluster", "testdata", "certs", "node1-key.pem"))
+		Expect(err).NotTo(HaveOccurred())
+		ca, err := os.ReadFile(filepath.Join("..", "..", "cluster", "testdata", "certs", "ca.pem"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(filepath.Join(dir, "server.pem"), cert, 0o600)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "server-key.pem"), key, 0o600)).To(Succeed())
+		webCfg = filepath.Join(dir, "web.yml")
+		Expect(os.WriteFile(webCfg, []byte(fmt.Sprintf("tls_server_config:\n  cert_file: %s\n  key_file: %s\nhttp_server_config:\n  http2: %t\n", filepath.Join(dir, "server.pem"), filepath.Join(dir, "server-key.pem"), http2Enabled)), 0o600)).To(Succeed())
+		roots := x509.NewCertPool()
+		Expect(roots.AppendCertsFromPEM(ca)).To(BeTrue())
+		clientTLS = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	}
 
 	opts := app.DefaultOptions()
 	opts.ConfigFile = configPath
@@ -95,19 +119,33 @@ func startInstance(routePrefix string) *instance {
 	Expect(a.Start()).To(Succeed())
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	DeferCleanup(client.CloseIdleConnections)
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
-	h2cTransport := &http.Transport{Protocols: protocols}
-	h2cClient := &http.Client{Transport: h2cTransport, Timeout: 5 * time.Second}
-	DeferCleanup(h2cTransport.CloseIdleConnections)
+	var rpcClient *http.Client
+	scheme := "http://"
+	if tlsEnabled {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		transport := &http.Transport{TLSClientConfig: clientTLS, Protocols: protocols}
+		client = &http.Client{Transport: transport, Timeout: 5 * time.Second}
+		rpcClient = client
+		scheme = "https://"
+		DeferCleanup(transport.CloseIdleConnections)
+	} else {
+		DeferCleanup(client.CloseIdleConnections)
+		protocols := new(http.Protocols)
+		protocols.SetUnencryptedHTTP2(true)
+		transport := &http.Transport{Protocols: protocols}
+		rpcClient = &http.Client{Transport: transport, Timeout: 5 * time.Second}
+		DeferCleanup(transport.CloseIdleConnections)
+	}
 
 	inst := &instance{
 		app:         a,
-		baseURL:     "http://" + a.Addr(),
+		baseURL:     scheme + a.Addr(),
 		routePrefix: routePrefix,
 		httpClient:  client,
-		h2cClient:   h2cClient,
+		rpcClient:   rpcClient,
+		tlsConfig:   clientTLS,
 	}
 	inst.waitHealthy()
 	return inst

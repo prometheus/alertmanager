@@ -304,12 +304,18 @@ type rpcLifecycle struct {
 	controller   *http.ResponseController
 	mutex        sync.Mutex
 	idleTimer    *time.Timer
+	finished     bool
 	decoded      atomic.Bool
 	observed     atomic.Bool
 	stream       bool
 }
 
 func (l *rpcLifecycle) terminate(cause error) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.finished {
+		return
+	}
 	l.cancel(cause)
 	if l.controller == nil {
 		return
@@ -328,6 +334,9 @@ func (l *rpcLifecycle) terminate(cause error) {
 func (l *rpcLifecycle) touch() {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	if l.finished {
+		return
+	}
 	if l.idleTimer != nil {
 		l.idleTimer.Stop()
 		l.idleTimer.Reset(l.idleTimeout)
@@ -337,6 +346,7 @@ func (l *rpcLifecycle) touch() {
 func (l *rpcLifecycle) stop() {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	l.finished = true
 	if l.idleTimer != nil {
 		l.idleTimer.Stop()
 	}
@@ -519,6 +529,7 @@ func (i *admissionInterceptor) unaryContext(ctx context.Context, controller *htt
 		if stopTimeout != nil {
 			stopTimeout()
 		}
+		lifecycle.stop()
 		if timeoutCancel != nil {
 			timeoutCancel()
 		}

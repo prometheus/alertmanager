@@ -117,6 +117,27 @@ func TestApp_StartStop(t *testing.T) {
 	require.NoError(t, a.Stop(t.Context()))
 }
 
+func TestApp_StartReportsFirstListenerFailure(t *testing.T) {
+	opts := testOptions(t)
+	addrs := []string{"127.0.0.1:0", "127.0.0.1:0"}
+	opts.WebConfig.WebListenAddresses = &addrs
+	a, err := New(opts)
+	require.NoError(t, err)
+	require.Len(t, a.listeners, 2)
+	require.NoError(t, a.listeners[0].Close())
+	require.NoError(t, a.Start())
+
+	done := make(chan error, 1)
+	go func() { done <- a.serveLoop(context.Background()) }()
+	select {
+	case err := <-done:
+		require.ErrorContains(t, err, "HTTP listener failed")
+	case <-time.After(time.Second):
+		t.Fatal("listener failure was not reported while another listener was active")
+	}
+	require.NoError(t, a.Stop(t.Context()))
+}
+
 func TestApp_ClusteredStartStop(t *testing.T) {
 	// Bring up an instance with gossip clustering enabled so the
 	// peer-dependent branches in setup (AddState/Join/Settle/
