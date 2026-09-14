@@ -185,7 +185,7 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 				}
 
 				r.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
-					return NewNotificationEvent(ctx, sent, r.integration)
+					return newNotificationEvent(ctx, alerts, r.integration)
 				})
 				return ctx, alerts, nil
 			}

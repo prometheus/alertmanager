@@ -1,11 +1,6 @@
 SRC_FILES = $(shell find src test-utils -type f)
-PROTO_FILES = $(shell find ../../proto/api -type f -name '*.proto')
-PROTO_DIRS = $(shell find ../../proto/api -type d)
 BUILD_DEPS = \
 	Makefile \
-	../../internal/tools/go.mod \
-	../../internal/tools/go.sum \
-	buf.gen.yaml \
 	index.html \
 	package.json \
 	package-lock.json \
@@ -17,12 +12,20 @@ node_modules: package.json package-lock.json
 	@echo ">> installing Mantine UI dependencies"
 	npm ci
 
+.PHONY: generate
+generate: node_modules
+	npm run generate
+
+.PHONY: assets
+assets: generate
+	$(MAKE) build
+
 .PHONY: build
 build: ../app/dist/mantine/.build_stamp
 
 # .build_stamp allows skipping the build inside `promu crossbuild`, since the
 # artifact copies the work tree into the build container.
-../app/dist/mantine/.build_stamp: $(SRC_FILES) $(PROTO_FILES) $(PROTO_DIRS) $(BUILD_DEPS)
+../app/dist/mantine/.build_stamp: $(SRC_FILES) $(BUILD_DEPS)
 	@echo ">> building Mantine UI"
 	$(MAKE) node_modules
 	npm run build
