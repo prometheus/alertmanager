@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "generate": "go tool -modfile=../../internal/tools/go.mod buf generate --template buf.gen.yaml",
-    "build": "npm run generate && tsc && vite build",
+    "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
