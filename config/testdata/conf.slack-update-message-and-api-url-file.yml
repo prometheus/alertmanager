@@ -1,0 +1,13 @@
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # api_url_file is read at notification time; accepted at load time
+      - channel: '#alerts1'
+        text: 'test'
+        send_resolved: true
+        api_url_file: '/etc/slack/api_url'
+        update_message: true
+        post_updates_to_thread: true
