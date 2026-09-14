@@ -18,8 +18,6 @@ package notify
 
 import (
 	"context"
-	"maps"
-	"slices"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -40,13 +38,13 @@ func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
 // mutedAlertDetails returns the alerts a mute stage removed from the pipeline,
 // in hash order so that an unchanged muted set always produces the same event.
 func mutedAlertDetails(ctx context.Context) []*alert.Alert {
-	muted, ok := MutedAlerts(ctx)
-	if !ok || len(muted) == 0 {
+	hashes, muted := sortedMutedAlerts(ctx)
+	if len(hashes) == 0 {
 		return nil
 	}
 
-	result := make([]*alert.Alert, 0, len(muted))
-	for _, hash := range slices.Sorted(maps.Keys(muted)) {
+	result := make([]*alert.Alert, 0, len(hashes))
+	for _, hash := range hashes {
 		result = append(result, muted[hash])
 	}
 	return result

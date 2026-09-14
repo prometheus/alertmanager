@@ -67,11 +67,13 @@ func newNotificationSequence(entry *nflogpb.Entry, s groupState, reason NotifyRe
 
 	// A notification shows the firing alerts that are not muted. Without one,
 	// the receiver still knows only what the log says it was last shown.
-	notified := s.visibleFiring()
-	if !reason.shouldNotify() {
-		if entry == nil {
-			return SequenceNone
-		}
+	var notified map[uint64]struct{}
+	switch {
+	case reason.shouldNotify():
+		notified = s.visibleFiring()
+	case entry == nil:
+		return SequenceNone
+	default:
 		notified = entry.NotifiedFiringAlerts()
 	}
 

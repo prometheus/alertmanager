@@ -356,12 +356,7 @@ const (
 
 func (r NotifyReason) shouldNotify() bool {
 	switch r {
-	case ReasonDoNotNotify:
-		return false
-	case ReasonAllAlertsMuted:
-		// Closing a sequence because everything was muted is not itself a
-		// notification. Telling the receiver is the per-receiver behaviour
-		// #5247 asks for, which does not exist yet.
+	case ReasonDoNotNotify, ReasonAllAlertsMuted:
 		return false
 	default:
 		return true

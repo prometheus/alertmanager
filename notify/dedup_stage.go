@@ -17,8 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
-	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -151,20 +149,16 @@ func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) g
 		resolved:    resolved,
 		firingSet:   firingSet,
 		resolvedSet: resolvedSet,
-		mutedSet:    map[uint64]struct{}{},
 	}
 
 	if !n.mutedAware {
 		return s
 	}
 
-	muted, ok := MutedAlerts(ctx)
-	if !ok {
-		return s
-	}
-
 	// In hash order, so that an unchanged group produces the same entry.
-	for _, hash := range slices.Sorted(maps.Keys(muted)) {
+	hashes, muted := sortedMutedAlerts(ctx)
+	s.mutedSet = make(map[uint64]struct{}, len(hashes))
+	for _, hash := range hashes {
 		s.mutedSet[hash] = struct{}{}
 		if muted[hash].Resolved() {
 			s.resolved = append(s.resolved, hash)
