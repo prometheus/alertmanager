@@ -31,7 +31,7 @@ user_key: ''
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -49,7 +49,7 @@ user_key_file: /pushover/user_key
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -67,7 +67,7 @@ token: ''
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -86,7 +86,7 @@ user_key: 'user key'
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
@@ -106,7 +106,7 @@ monospace: true
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
 	}
-	if err.Error() != expected {
+	if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }

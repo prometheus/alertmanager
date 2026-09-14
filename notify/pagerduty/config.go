@@ -87,7 +87,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPagerdutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]any)
@@ -100,7 +100,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(any) error) error {
 			c.Details[k] = v
 		}
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the PagerdutyConfig for correctness.

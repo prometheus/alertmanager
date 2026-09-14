@@ -317,7 +317,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	// again, we have to hide it using a type indirection.
 	type plain Config
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.FlattenValidationErrors(err)
 	}
 
 	// If a global block was open but empty the default global config is overwritten.

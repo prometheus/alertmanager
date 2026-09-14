@@ -56,9 +56,9 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSNSConfig
 	type plain SNSConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the SNSConfig for correctness.

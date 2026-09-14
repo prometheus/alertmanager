@@ -33,7 +33,7 @@ routing_key: ''
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -51,7 +51,7 @@ routing_key_file: 'xyz'
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -70,7 +70,7 @@ service_key: ''
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
@@ -88,7 +88,7 @@ service_key_file: 'xyz'
 		if err == nil {
 			t.Fatalf("no error returned, expected:\n%v", expected)
 		}
-		if err.Error() != expected {
+		if err.Error() != "yaml: unmarshal errors:\n  "+expected {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 		}
 	})
