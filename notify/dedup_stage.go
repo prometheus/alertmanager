@@ -25,7 +25,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
@@ -36,21 +35,26 @@ type DedupStage struct {
 	rs    ResolvedSender
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-	ff    featurecontrol.Flagger
+
+	// mutedAware is the muted-alerts-in-nflog feature, resolved once by the
+	// pipeline builder. See newMultiStage.
+	mutedAware bool
 
 	now  func() time.Time
 	hash func(*alert.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver, ff featurecontrol.Flagger) *DedupStage {
+// When mutedAware is set the stage decides what to notify from the whole group,
+// muted alerts included, and records the group's state in the notification log.
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver, mutedAware bool) *DedupStage {
 	return &DedupStage{
-		rs:    rs,
-		nflog: l,
-		recv:  recv,
-		ff:    ff,
-		now:   utcNow,
-		hash:  hashAlert,
+		rs:         rs,
+		nflog:      l,
+		recv:       recv,
+		mutedAware: mutedAware,
+		now:        utcNow,
+		hash:       hashAlert,
 	}
 }
 
@@ -150,7 +154,7 @@ func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) g
 		mutedSet:    map[uint64]struct{}{},
 	}
 
-	if !n.ff.EnableMutedAlertsInNflog() {
+	if !n.mutedAware {
 		return s
 	}
 
@@ -301,7 +305,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 		now = ctxNow
 	}
 	var updateReason NotifyReason
-	if n.ff.EnableMutedAlertsInNflog() {
+	if n.mutedAware {
 		updateReason = n.needsUpdateMuteAware(entry, state, repeatInterval, now)
 		ctx = WithNotificationSequence(ctx, newNotificationSequence(entry, state, updateReason))
 	} else {

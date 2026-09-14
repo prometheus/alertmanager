@@ -18,6 +18,8 @@ package notify
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -33,6 +35,21 @@ func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
 	return eventrecorder.NewAlertGroup(
 		groupKey.String(), groupLabels, groupKey.Hash(), receiverName, groupMatchers, aggrGroupID,
 	)
+}
+
+// mutedAlertDetails returns the alerts a mute stage removed from the pipeline,
+// in hash order so that an unchanged muted set always produces the same event.
+func mutedAlertDetails(ctx context.Context) []*alert.Alert {
+	muted, ok := MutedAlerts(ctx)
+	if !ok || len(muted) == 0 {
+		return nil
+	}
+
+	result := make([]*alert.Alert, 0, len(muted))
+	for _, hash := range slices.Sorted(maps.Keys(muted)) {
+		result = append(result, muted[hash])
+	}
+	return result
 }
 
 func alertDetailsByHash(alerts []*alert.Alert) map[uint64]*alert.Alert {
@@ -93,7 +110,7 @@ func newNotificationEvent(ctx context.Context, alerts []*alert.Alert, integratio
 	firingHashes, _ := FiringAlerts(ctx)
 	resolvedHashes, _ := ResolvedAlerts(ctx)
 	details := alertDetailsByHash(alerts)
-	muted, _ := mutedAlertDetails(ctx)
+	muted := mutedAlertDetails(ctx)
 	allAlerts := make([]*alert.Alert, 0, len(alerts)+len(muted))
 	allAlerts = append(allAlerts, alerts...)
 	allAlerts = append(allAlerts, muted...)

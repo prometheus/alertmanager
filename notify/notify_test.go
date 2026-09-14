@@ -229,7 +229,6 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		s := &DedupStage{
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
-			ff:  featurecontrol.NoopFlags{},
 		}
 		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, now).shouldNotify()
 		require.Equal(t, c.res, res)
@@ -244,7 +243,6 @@ func TestDedupStageUsesContextNow(t *testing.T) {
 			return base.Add(time.Hour)
 		},
 		rs: sendResolved(false),
-		ff: featurecontrol.NoopFlags{},
 		nflog: &testNflog{
 			qerr: nil,
 			qres: []*nflogpb.Entry{{
@@ -279,7 +277,6 @@ func TestDedupStage(t *testing.T) {
 			return now
 		},
 		rs: sendResolved(false),
-		ff: featurecontrol.NoopFlags{},
 	}
 
 	ctx := context.Background()
@@ -707,12 +704,12 @@ func TestRetryStageNotificationEventUsesDedupAlertState(t *testing.T) {
 		firing.EndsAt = time.Now().Add(-time.Minute)
 		return false, nil
 	}), sendResolved(false), "webhook", 2, "test")
-	dedup := NewDedupStage(&integration, &testNflog{}, &nflogpb.Receiver{})
+	dedup := NewDedupStage(&integration, &testNflog{}, &nflogpb.Receiver{}, false)
 	stage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), recorder)
 	ctx := eventrecorder.WithEventRecording(context.Background())
 	ctx = WithGroupKey(ctx, "group")
 	ctx = WithRepeatInterval(ctx, time.Hour)
-	ctx = withMutedAlertDetails(ctx, []*alert.Alert{muted})
+	ctx = recordMuted(ctx, []*alert.Alert{muted})
 	ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), firing, resolved)
 	require.NoError(t, err)
 
@@ -797,7 +794,6 @@ func TestSetNotifiesStage(t *testing.T) {
 	s := &SetNotifiesStage{
 		recv:  &nflogpb.Receiver{GroupName: "test"},
 		nflog: tnflog,
-		ff:    featurecontrol.NoopFlags{},
 	}
 	alerts := []*alert.Alert{{}, {}, {}}
 	ctx := context.Background()
@@ -858,17 +854,16 @@ func TestSetNotifiesStage(t *testing.T) {
 
 func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 	tests := []struct {
-		name  string
-		ff    featurecontrol.Flagger
-		muted []uint64
+		name       string
+		mutedAware bool
+		muted      []uint64
 	}{{
 		name:  "flag disabled",
-		ff:    featurecontrol.NoopFlags{},
 		muted: nil,
 	}, {
-		name:  "flag enabled",
-		ff:    mutedAlertsFlags{},
-		muted: []uint64{3, 7, 9},
+		name:       "flag enabled",
+		mutedAware: true,
+		muted:      []uint64{3, 7, 9},
 	}}
 
 	for _, test := range tests {
@@ -880,7 +875,7 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 					return nil
 				},
 			}
-			s := NewSetNotifiesStage(tnflog, &nflogpb.Receiver{GroupName: "test"}, test.ff)
+			s := NewSetNotifiesStage(tnflog, &nflogpb.Receiver{GroupName: "test"}, test.mutedAware)
 
 			ctx := context.Background()
 			ctx = WithGroupKey(ctx, "1")
@@ -910,22 +905,18 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 // notification log, because no notification was sent.
 func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 	tests := []struct {
-		name string
-		ff   featurecontrol.Flagger
-		// newStage builds the chain PipelineBuilder builds for this flag.
-		newStage func(stages []Stage) Stage
+		name       string
+		mutedAware bool
 		// deduped is whether the chain reaches the dedup stage at all.
 		deduped bool
 	}{{
-		name:     "flag enabled",
-		ff:       mutedAlertsFlags{},
-		newStage: func(stages []Stage) Stage { return MutedMultiStage(stages) },
-		deduped:  true,
+		name:       "flag enabled",
+		mutedAware: true,
+		deduped:    true,
 	}, {
-		name:     "flag disabled",
-		ff:       featurecontrol.NoopFlags{},
-		newStage: func(stages []Stage) Stage { return MultiStage(stages) },
-		deduped:  false,
+		name:       "flag disabled",
+		mutedAware: false,
+		deduped:    false,
 	}}
 
 	for _, test := range tests {
@@ -957,12 +948,12 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 			// The mute stage drops the alert before the dedup stage sees it, so
 			// it reaches the rest of the chain only as a hash in the context.
 			alert := &types.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "muted"}}}
-			stage := test.newStage([]Stage{
+			stage := newMultiStage(test.mutedAware,
 				muteAllStage{},
-				NewDedupStage(&integration, tnflog, recv, test.ff),
+				NewDedupStage(&integration, tnflog, recv, test.mutedAware),
 				NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder()),
-				NewSetNotifiesStage(tnflog, recv, test.ff),
-			})
+				NewSetNotifiesStage(tnflog, recv, test.mutedAware),
+			)
 
 			ctx := context.Background()
 			ctx = WithGroupKey(ctx, "testkey")
@@ -983,6 +974,76 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 	}
 }
 
+// TestPipelineBuilderAppliesMutedAlertsFeature covers the one place the muted
+// alerts flag is read. Every stage below it is built from that single answer,
+// so the whole pipeline has to come out in one mode or the other.
+func TestPipelineBuilderAppliesMutedAlertsFeature(t *testing.T) {
+	tests := []struct {
+		name string
+		ff   featurecontrol.Flagger
+		// mutedAware is what the whole pipeline should be built for.
+		mutedAware bool
+	}{{
+		name:       "flag enabled",
+		ff:         mutedAlertsFlags{},
+		mutedAware: true,
+	}, {
+		name:       "flag disabled",
+		ff:         featurecontrol.NoopFlags{},
+		mutedAware: false,
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			integration := NewIntegration(
+				notifierFunc(func(_ context.Context, _ ...*types.Alert) (bool, error) {
+					return false, nil
+				}),
+				sendResolved(true), "test", 0, "receiver",
+			)
+
+			pb := NewPipelineBuilder(prometheus.NewRegistry(), test.ff, eventrecorder.NopRecorder())
+			rs := pb.New(
+				map[string][]Integration{"receiver": {integration}},
+				func() time.Duration { return 0 },
+				nil, nil, nil, nil, &testNflog{}, nil,
+			)
+
+			// The receiver chain, and the per-integration chain inside it.
+			receiver := requireMultiStage(t, test.mutedAware, rs["receiver"])
+			fanout, ok := receiver[len(receiver)-1].(FanoutStage)
+			require.True(t, ok, "last stage is a fanout, got %T", receiver[len(receiver)-1])
+			require.Len(t, fanout, 1)
+			stages := requireMultiStage(t, test.mutedAware, fanout[0])
+
+			// The stages that branch on the feature, built from the same answer
+			// as the chains around them.
+			dedup, ok := stages[1].(*DedupStage)
+			require.True(t, ok, "second stage is a dedup stage, got %T", stages[1])
+			require.Equal(t, test.mutedAware, dedup.mutedAware)
+
+			setNotifies, ok := stages[3].(*SetNotifiesStage)
+			require.True(t, ok, "fourth stage sets notifies, got %T", stages[3])
+			require.Equal(t, test.mutedAware, setNotifies.mutedAware)
+		})
+	}
+}
+
+// requireMultiStage asserts that s is the chain newMultiStage builds for
+// mutedAware, and returns the stages it holds.
+func requireMultiStage(t *testing.T, mutedAware bool, s Stage) []Stage {
+	t.Helper()
+
+	if mutedAware {
+		ms, ok := s.(MutedMultiStage)
+		require.True(t, ok, "want a MutedMultiStage, got %T", s)
+		return ms
+	}
+	ms, ok := s.(MultiStage)
+	require.True(t, ok, "want a MultiStage, got %T", s)
+	return ms
+}
+
 func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	var storedData *nflog.Store
 	callCount := 0
@@ -997,7 +1058,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	tnflog.qres = []*nflogpb.Entry{}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, featurecontrol.NoopFlags{})
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, false)
 
 	notifier := notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 		callCount++
@@ -1016,7 +1077,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
 	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
-	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, featurecontrol.NoopFlags{})
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, false)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "testkey")
@@ -1108,7 +1169,7 @@ func TestDedupStageExtractsReceiverData_DataPresent(t *testing.T) {
 		qres: []*nflogpb.Entry{entry},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, false)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1150,7 +1211,7 @@ func TestDedupStageExtractsReceiverData_NilReceiverData(t *testing.T) {
 		qres: []*nflogpb.Entry{entry},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, false)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1177,7 +1238,7 @@ func TestDedupStageExtractsReceiverData_NoEntry(t *testing.T) {
 		qres: []*nflogpb.Entry{},
 	}
 
-	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, featurecontrol.NoopFlags{})
+	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"}, false)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "key")
@@ -1212,7 +1273,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, featurecontrol.NoopFlags{})
+	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv, false)
 
 	notifier := notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 		callCount++
@@ -1231,7 +1292,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
 	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
-	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, featurecontrol.NoopFlags{})
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, false)
 
 	alerts := []*alert.Alert{
 		{

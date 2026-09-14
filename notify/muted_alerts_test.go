@@ -87,12 +87,12 @@ type mutedPipeline struct {
 // whose notification log is empty and whose receiver sends resolved
 // notifications if sendsResolved is true.
 func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
-	return newMutedPipelineWithFlags(t, sendsResolved, featurecontrol.NoopFlags{})
+	return newMutedPipelineMuteAware(t, sendsResolved, false)
 }
 
-// newMutedPipelineWithFlags returns a pipeline built with the given feature
-// flags, wired the way PipelineBuilder wires it for them.
-func newMutedPipelineWithFlags(t *testing.T, sendsResolved bool, ff featurecontrol.Flagger) *mutedPipeline {
+// newMutedPipelineMuteAware returns a pipeline wired the way PipelineBuilder
+// wires it for the given setting of the muted alerts feature.
+func newMutedPipelineMuteAware(t *testing.T, sendsResolved, mutedAware bool) *mutedPipeline {
 	p := &mutedPipeline{
 		t:     t,
 		muted: map[model.LabelValue]struct{}{},
@@ -120,19 +120,13 @@ func newMutedPipelineWithFlags(t *testing.T, sendsResolved bool, ff featurecontr
 	}
 
 	recv := &nflogpb.Receiver{GroupName: "test"}
-	metrics := NewMetrics(prometheus.NewRegistry(), ff)
+	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
 
-	stages := []Stage{
+	p.stage = newMultiStage(mutedAware,
 		NewMuteStage(muter, metrics),
-		NewDedupStage(sendResolved(sendsResolved), p.nflog, recv, ff),
-		NewSetNotifiesStage(p.nflog, recv, ff),
-	}
-
-	if ff.EnableMutedAlertsInNflog() {
-		p.stage = MutedMultiStage(stages)
-	} else {
-		p.stage = MultiStage(stages)
-	}
+		NewDedupStage(sendResolved(sendsResolved), p.nflog, recv, mutedAware),
+		NewSetNotifiesStage(p.nflog, recv, mutedAware),
+	)
 
 	return p
 }
@@ -383,7 +377,7 @@ func TestDedup_MutedAlertBreaksNotificationSequence(t *testing.T) {
 // stage is reached on such flushes, and writing would refresh the entry's
 // timestamp and defer the repeat interval forever.
 func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
-	p := newMutedPipelineWithFlags(t, true, mutedAlertsFlags{})
+	p := newMutedPipelineMuteAware(t, true, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -414,7 +408,7 @@ func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
 // with the feature enabled. A muted alert is still firing, so it stays in the
 // log, marked as muted rather than dropped.
 func TestDedup_MutedAlertStaysInNflog(t *testing.T) {
-	p := newMutedPipelineWithFlags(t, true, mutedAlertsFlags{})
+	p := newMutedPipelineMuteAware(t, true, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -451,7 +445,7 @@ func TestDedup_MutedAlertStaysInNflog(t *testing.T) {
 // is that the log records the resolution instead of holding an alert that is
 // no longer firing.
 func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
-	p := newMutedPipelineWithFlags(t, true, mutedAlertsFlags{})
+	p := newMutedPipelineMuteAware(t, true, true)
 	base := utcNow()
 	a, aResolved := firingAlert("a"), resolvedAlert("a")
 
@@ -478,7 +472,7 @@ func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
 // group is no longer reported as resolved while a is firing, and a continues
 // the sequence it was part of all along instead of arriving as a new group.
 func TestDedup_MutedAlertKeepsTheSequenceCoherent(t *testing.T) {
-	p := newMutedPipelineWithFlags(t, false, mutedAlertsFlags{})
+	p := newMutedPipelineMuteAware(t, false, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -683,9 +677,9 @@ func TestDedup_NeedsUpdateMuteAware(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			s := &DedupStage{
-				rs:  sendResolved(test.sendsResolved),
-				ff:  mutedAlertsFlags{},
-				now: func() time.Time { return now },
+				rs:         sendResolved(test.sendsResolved),
+				mutedAware: true,
+				now:        func() time.Time { return now },
 			}
 			state := mutedGroupState(test.firing, test.resolved, test.muted)
 			require.Equal(t, test.want, s.needsUpdateMuteAware(test.entry, state, repeat, now))

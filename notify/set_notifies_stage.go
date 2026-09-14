@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
 
@@ -32,15 +31,20 @@ import (
 type SetNotifiesStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-	ff    featurecontrol.Flagger
+
+	// mutedAware is the muted-alerts-in-nflog feature, resolved once by the
+	// pipeline builder. See newMultiStage.
+	mutedAware bool
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, ff featurecontrol.Flagger) *SetNotifiesStage {
+// When mutedAware is set the log entry also records the alerts a mute stage
+// removed from the pipeline.
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, mutedAware bool) *SetNotifiesStage {
 	return &SetNotifiesStage{
-		nflog: l,
-		recv:  recv,
-		ff:    ff,
+		nflog:      l,
+		recv:       recv,
+		mutedAware: mutedAware,
 	}
 }
 
@@ -48,7 +52,7 @@ func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, ff featureco
 // pipeline. The hashes are sorted so that an unchanged muted set
 // always serializes to the same bytes.
 func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
-	if !n.ff.EnableMutedAlertsInNflog() {
+	if !n.mutedAware {
 		return nil
 	}
 

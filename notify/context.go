@@ -205,19 +205,6 @@ func MutedAlerts(ctx context.Context) (map[uint64]*alert.Alert, bool) {
 	return v, ok
 }
 
-func withMutedAlertDetails(ctx context.Context, alerts []*alert.Alert) context.Context {
-	existing, _ := mutedAlertDetails(ctx)
-	results := make([]*alert.Alert, 0, len(existing)+len(alerts))
-	results = append(results, existing...)
-	results = append(results, alerts...)
-	return context.WithValue(ctx, keyMutedAlertDetails, results)
-}
-
-func mutedAlertDetails(ctx context.Context) ([]*alert.Alert, bool) {
-	v, ok := ctx.Value(keyMutedAlertDetails).([]*alert.Alert)
-	return v, ok
-}
-
 // WithAggrGroupID populates a context with an aggregation group UUID.
 func WithAggrGroupID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, keyAggrGroupID, id)
