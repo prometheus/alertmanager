@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -54,7 +56,7 @@ func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts .
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{},
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 	}
 
 	return n, nil
@@ -107,9 +109,35 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	// Not deferred: Check has already consumed the body, and the connection must be
+	// released before the Retry-After wait below rather than held for its duration.
+	notify.Drain(resp)
+
 	if err != nil {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if d := parseRetryAfter(resp.Header.Get("Retry-After")); d > 0 {
+				logger.Warn("Rate limited by Webex, waiting before retry", "retry_after_secs", d.Seconds())
+				select {
+				case <-time.After(d):
+				case <-ctx.Done():
+				}
+			}
+		}
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
 	return false, nil
+}
+
+// parseRetryAfter parses Retry-After as seconds; 0 if empty, invalid, or non-positive.
+// TODO: switch to notify.ParseRetryAfter once upstream #5389 merges a shared helper.
+func parseRetryAfter(val string) time.Duration {
+	if val == "" {
+		return 0
+	}
+	seconds, err := strconv.Atoi(val)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
