@@ -23,6 +23,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/common/model"
@@ -99,6 +100,14 @@ func TestTruncate(t *testing.T) {
 			runes: expect{out: "❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌…", trunc: true},
 			bytes: expect{out: "❤️✅🚀…", trunc: true},
 		},
+		{
+			// Two runes, eight bytes: the byte budget left for the text is
+			// larger than the number of runes to pick it from.
+			in:    "😀😀",
+			n:     7,
+			runes: expect{out: "😀😀", trunc: false},
+			bytes: expect{out: "😀…", trunc: true},
+		},
 	}
 
 	type truncateFunc func(string, int) (string, bool)
@@ -127,6 +136,42 @@ func TestTruncate(t *testing.T) {
 				require.Equal(t, truncated, trunc)
 			})
 		}
+	}
+}
+
+// TestTruncateInBytesFewerRunesThanBytes covers strings that are longer than
+// the byte limit while holding fewer runes than it, which is the case for any
+// sufficiently long non-ASCII text. TruncateInBytes used to index the rune
+// slice with the byte budget and panicked on those inputs.
+func TestTruncateInBytesFewerRunesThanBytes(t *testing.T) {
+	// The message limit of the Webex notifier, the only caller of
+	// TruncateInBytes.
+	const n = 7439
+
+	for _, tc := range []struct {
+		name  string
+		char  string
+		count int
+	}{
+		{name: "two-byte runes", char: "д", count: 3720},
+		{name: "three-byte runes", char: "世", count: 2600},
+		{name: "four-byte runes", char: "😀", count: 2000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := strings.Repeat(tc.char, tc.count)
+			require.Greater(t, len(in), n, "the input must be over the byte limit")
+			require.Less(t, len([]rune(in)), n, "the input must hold fewer runes than the byte limit")
+
+			out, truncated := TruncateInBytes(in, n)
+			require.True(t, truncated)
+			require.LessOrEqual(t, len(out), n)
+			require.True(t, strings.HasSuffix(out, truncationMarker))
+
+			kept := strings.TrimSuffix(out, truncationMarker)
+			require.True(t, strings.HasPrefix(in, kept), "the kept text must be a prefix of the input")
+			require.Len(t, []rune(kept), (n-len(truncationMarker))/len(tc.char),
+				"the kept text must hold as many whole runes as the byte budget allows")
+		})
 	}
 }
 

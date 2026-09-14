@@ -135,8 +135,11 @@ func TruncateInBytes(s string, n int) (string, bool) {
 	r := []rune(s)
 	truncationTarget := n - 3
 
-	// Next, let's truncate the runes to the lower possible number.
-	truncatedRunes := r[:truncationTarget]
+	// A string holding multi-byte characters has fewer runes than bytes, so
+	// truncationTarget can exceed the number of runes available. Start from
+	// the whole rune slice in that case; the loop below still trims it down to
+	// truncationTarget bytes.
+	truncatedRunes := r[:min(truncationTarget, len(r))]
 	for len(string(truncatedRunes)) > truncationTarget {
 		truncatedRunes = r[:len(truncatedRunes)-1]
 	}
