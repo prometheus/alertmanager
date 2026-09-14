@@ -339,6 +339,14 @@ var DefaultFuncs = FuncMap{
 	"mustToDate": func(layout, s string) (time.Time, error) {
 		return time.ParseInLocation(layout, s, time.UTC)
 	},
+	// addDuration parses ds as a Go duration, adds it to t, and returns the resulting Unix milliseconds.
+	"addDuration": func(t time.Time, ds string) (int64, error) {
+		d, err := time.ParseDuration(ds)
+		if err != nil {
+			return 0, err
+		}
+		return t.Add(d).UnixMilli(), nil
+	},
 	"toJson": func(v any) (string, error) {
 		bytes, err := json.Marshal(v)
 		if err != nil {

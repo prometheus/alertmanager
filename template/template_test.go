@@ -902,6 +902,16 @@ func TestTemplateFuncs(t *testing.T) {
 		title:  "Template using mustToDate with invalid input returns error",
 		in:     `{{ mustToDate "2006-01-02" "not-a-date" }}`,
 		expErr: `template: :1:3: executing "" at <mustToDate "2006-01-02" "not-a-date">: error calling mustToDate: parsing time "not-a-date" as "2006-01-02": cannot parse "not-a-date" as "2006"`,
+	}, {
+		title: "Template using addDuration with valid input",
+		in:    `{{ addDuration . "90m" }}`,
+		data:  time.Unix(0, 0).UTC(),
+		exp:   "5400000",
+	}, {
+		title:  "Template using addDuration with invalid input returns error",
+		in:     `{{ addDuration . "not-a-duration" }}`,
+		data:   time.Unix(0, 0).UTC(),
+		expErr: `template: :1:3: executing "" at <addDuration . "not-a-duration">: error calling addDuration: time: invalid duration "not-a-duration"`,
 	}} {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
