@@ -343,3 +343,24 @@ func GetFailureReasonFromStatusCode(statusCode int) Reason {
 
 	return DefaultReason
 }
+
+// GetFailureReasonFromSMTPCode returns the reason for the failure based on
+// the SMTP reply code provided. Note that SMTP's 4xx/5xx split is the
+// inverse of HTTP's: an SMTP 4xx is a transient failure (the server is
+// asking the client to retry later), while a 5xx is permanent (the server
+// is rejecting the request outright). This mirrors the retry semantics
+// already used elsewhere in Alertmanager, not the HTTP status code ranges.
+func GetFailureReasonFromSMTPCode(code int) Reason {
+	if code == 535 {
+		// RFC 4954: 535 is the standard reply for authentication failure.
+		return AuthErrorReason
+	}
+	if code/100 == 4 {
+		return ServerErrorReason
+	}
+	if code/100 == 5 {
+		return ClientErrorReason
+	}
+
+	return DefaultReason
+}
