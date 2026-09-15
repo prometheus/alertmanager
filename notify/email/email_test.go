@@ -872,6 +872,63 @@ func TestEmailNotifyWithThreading(t *testing.T) {
 	}
 }
 
+// TestEmailGetUsername tests username retrieval from config fields and files.
+func TestEmailGetUsername(t *testing.T) {
+	usernameFile, err := os.CreateTemp("", "smtp-username")
+	require.NoError(t, err, "creating temp file failed")
+	defer os.Remove(usernameFile.Name())
+	_, err = usernameFile.WriteString("user\n")
+	require.NoError(t, err, "writing to temp file failed")
+
+	for _, tc := range []struct {
+		title     string
+		updateCfg func(*config.EmailConfig)
+
+		errMsg string
+	}{
+		{
+			title: "username from field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = "user"
+				cfg.AuthUsernameFile = ""
+			},
+		},
+		{
+			title: "username from file field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = ""
+				cfg.AuthUsernameFile = usernameFile.Name()
+			},
+		},
+		{
+			title: "username file path incorrect",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = ""
+				cfg.AuthUsernameFile = "/does/not/exist"
+			},
+			errMsg: "could not read",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			email := &Email{
+				conf: &config.EmailConfig{},
+			}
+
+			tc.updateCfg(email.conf)
+
+			username, err := email.getUsername()
+			if len(tc.errMsg) > 0 {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errMsg)
+				require.Empty(t, username)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, "user", username)
+			}
+		})
+	}
+}
+
 func TestEmailGetPassword(t *testing.T) {
 	passwordFile, err := os.CreateTemp("", "smtp-password")
 	require.NoError(t, err, "creating temp file failed")

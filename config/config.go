@@ -356,6 +356,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("at most one of telegram_bot_token & telegram_bot_token_file must be configured")
 	}
 
+	if len(c.Global.SMTPAuthUsername) > 0 && len(c.Global.SMTPAuthUsernameFile) > 0 {
+		return errors.New("at most one of smtp_auth_username & smtp_auth_username_file must be configured")
+	}
+
 	if len(c.Global.SMTPAuthPassword) > 0 && len(c.Global.SMTPAuthPasswordFile) > 0 {
 		return errors.New("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
@@ -406,7 +410,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("no global SMTP from set")
 			}
 			ec.Hello = cmp.Or(ec.Hello, c.Global.SMTPHello)
-			ec.AuthUsername = cmp.Or(ec.AuthUsername, c.Global.SMTPAuthUsername)
+			if ec.AuthUsername == "" && ec.AuthUsernameFile == "" {
+				ec.AuthUsername = c.Global.SMTPAuthUsername
+				ec.AuthUsernameFile = c.Global.SMTPAuthUsernameFile
+			}
 			if ec.AuthPassword == "" && ec.AuthPasswordFile == "" {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
@@ -850,6 +857,7 @@ type GlobalConfig struct {
 	SMTPHello                string                 `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost            HostPort               `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername         string                 `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthUsernameFile     string                 `yaml:"smtp_auth_username_file,omitempty" json:"smtp_auth_username_file,omitempty"`
 	SMTPAuthPassword         commoncfg.Secret       `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile     string                 `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
 	SMTPAuthSecret           commoncfg.Secret       `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
