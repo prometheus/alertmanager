@@ -71,10 +71,13 @@ func New(c *config.EmailConfig, t *template.Template, l *slog.Logger) *Email {
 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
-	username := n.conf.AuthUsername
+	username, err := n.getUsername()
+	if err != nil {
+		return nil, err
+	}
 
 	// If no username is set, keep going without authentication.
-	if n.conf.AuthUsername == "" {
+	if username == "" {
 		n.logger.Debug("smtp_auth_username is not configured. Attempting to send email without authenticating")
 		return nil, nil
 	}
@@ -407,6 +410,18 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+// getUsername returns the SMTP authentication username from AuthUsernameFile or AuthUsername.
+func (n *Email) getUsername() (string, error) {
+	if len(n.conf.AuthUsernameFile) > 0 {
+		content, err := os.ReadFile(n.conf.AuthUsernameFile)
+		if err != nil {
+			return "", fmt.Errorf("could not read %s: %w", n.conf.AuthUsernameFile, err)
+		}
+		return strings.TrimSpace(string(content)), nil
+	}
+	return n.conf.AuthUsername, nil
 }
 
 func (n *Email) getPassword() (string, error) {

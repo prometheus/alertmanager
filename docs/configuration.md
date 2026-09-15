@@ -82,6 +82,8 @@ global:
   # SMTP Auth using CRAM-MD5, LOGIN and PLAIN. If empty, Alertmanager doesn't authenticate to the SMTP server.
   # PLAIN is only supported when using TLS.
   [ smtp_auth_username: <string> ]
+  # SMTP Auth using CRAM-MD5, LOGIN and PLAIN.
+  [ smtp_auth_username_file: <string> ]
   # SMTP Auth using LOGIN and PLAIN.
   [ smtp_auth_password: <secret> ]
   # SMTP Auth using LOGIN and PLAIN.
@@ -1076,9 +1078,11 @@ to: <tmpl_string>
 [ hello: <string> | default = global.smtp_hello ]
 
 # SMTP authentication information.
+# auth_username and auth_username_file are mutually exclusive.
 # auth_password and auth_password_file are mutually exclusive.
 # auth_secret and auth_secret_file are mutually exclusive.
 [ auth_username: <string> | default = global.smtp_auth_username ]
+[ auth_username_file: <string> | default = global.smtp_auth_username_file ]
 [ auth_password: <secret> | default = global.smtp_auth_password ]
 [ auth_password_file: <string> | default = global.smtp_auth_password_file ]
 [ auth_secret: <secret> | default = global.smtp_auth_secret ]

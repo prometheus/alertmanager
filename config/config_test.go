@@ -1039,6 +1039,76 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[4].AuthSecret, "fifth email should not inherit the global secret when a secret file is provided")
 }
 
+// TestSMTPBothUsernameAndFile tests that configuring both smtp_auth_username and smtp_auth_username_file returns a validation error.
+func TestSMTPBothUsernameAndFile(t *testing.T) {
+	in := `
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.org'
+  smtp_auth_username: 'myuser'
+  smtp_auth_username_file: '/tmp/myuser'
+route:
+  receiver: 'email'
+receivers:
+  - name: 'email'
+    email_configs:
+      - to: 'test@example.org'
+`
+	_, err := Load(in)
+	require.Error(t, err)
+	require.Equal(t, "at most one of smtp_auth_username & smtp_auth_username_file must be configured", err.Error())
+}
+
+// TestEmailBothUsernameAndFile tests that configuring both auth_username and auth_username_file returns a validation error.
+func TestEmailBothUsernameAndFile(t *testing.T) {
+	in := `
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.org'
+route:
+  receiver: 'email'
+receivers:
+  - name: 'email'
+    email_configs:
+      - to: 'test@example.org'
+        auth_username: 'myuser'
+        auth_username_file: '/tmp/myuser'
+`
+	_, err := Load(in)
+	require.Error(t, err)
+	require.Equal(t, "at most one of auth_username & auth_username_file must be configured", err.Error())
+}
+
+// TestGlobalAndLocalSMTPUsername tests the inheritance and overriding of SMTP auth username and username file.
+func TestGlobalAndLocalSMTPUsername(t *testing.T) {
+	in := `
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.org'
+  smtp_auth_username_file: '/tmp/globalusername'
+route:
+  receiver: 'email'
+receivers:
+  - name: 'email'
+    email_configs:
+      - to: 'one@example.org'
+      - to: 'two@example.org'
+        auth_username_file: '/tmp/localuser1name'
+      - to: 'three@example.org'
+        auth_username: 'localuser2'
+`
+	config, err := Load(in)
+	require.NoError(t, err)
+	require.Equal(t, "/tmp/globalusername", config.Receivers[0].EmailConfigs[0].AuthUsernameFile)
+	require.Empty(t, config.Receivers[0].EmailConfigs[0].AuthUsername)
+
+	require.Equal(t, "/tmp/localuser1name", config.Receivers[0].EmailConfigs[1].AuthUsernameFile)
+	require.Empty(t, config.Receivers[0].EmailConfigs[1].AuthUsername)
+
+	require.Equal(t, "localuser2", config.Receivers[0].EmailConfigs[2].AuthUsername)
+	require.Empty(t, config.Receivers[0].EmailConfigs[2].AuthUsernameFile)
+}
+
 func TestGroupByAll(t *testing.T) {
 	c, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {
