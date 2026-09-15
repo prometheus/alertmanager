@@ -578,7 +578,10 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 	go ag.run(func(ctx context.Context, alerts ...*alert.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
-			logger := d.logger.With("aggrGroup", ag.GroupKey(), "num_alerts", len(alerts), "err", err)
+			logger := d.logger.With("aggrGroup", ag.GroupKey(), "num_alerts", len(alerts), "receiver", ag.opts.Receiver, "err", err)
+			if ie, ok := errors.AsType[*notify.ErrorWithIntegration](err); ok {
+				logger = logger.With("integration", ie.Integration)
+			}
 			if errors.Is(ctx.Err(), context.Canceled) {
 				// It is expected for the context to be canceled on
 				// configuration reload or shutdown. In this case, the
