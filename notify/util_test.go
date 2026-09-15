@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -270,6 +271,60 @@ func TestGetFailureReasonFromStatusCode(t *testing.T) {
 	} {
 		t.Run(http.StatusText(tc.statusCode), func(t *testing.T) {
 			require.Equal(t, tc.expected, GetFailureReasonFromStatusCode(tc.statusCode))
+		})
+	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	received := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+	// A client whose clock trails the server's must still get the delay right.
+	serverNow := received.Add(time.Minute)
+
+	header := func(retryAfter, date string) http.Header {
+		h := http.Header{}
+		if retryAfter != "" {
+			h.Set("Retry-After", retryAfter)
+		}
+		if date != "" {
+			h.Set("Date", date)
+		}
+		return h
+	}
+
+	for _, tc := range []struct {
+		name     string
+		header   http.Header
+		expected time.Duration
+	}{
+		{name: "absent", header: header("", ""), expected: 0},
+		{name: "valid integer", header: header("30", ""), expected: 30 * time.Second},
+		{name: "non-integer", header: header("abc", ""), expected: 0},
+		{name: "negative", header: header("-5", ""), expected: 0},
+		{name: "zero", header: header("0", ""), expected: 0},
+		{name: "float value", header: header("1.5", ""), expected: 0},
+		{
+			name:     "date against server clock",
+			header:   header(serverNow.Add(30*time.Second).Format(http.TimeFormat), serverNow.Format(http.TimeFormat)),
+			expected: 30 * time.Second,
+		},
+		{
+			name:     "date without Date header",
+			header:   header(received.Add(30*time.Second).Format(http.TimeFormat), ""),
+			expected: 30 * time.Second,
+		},
+		{
+			name:     "date with unparseable Date header",
+			header:   header(received.Add(30*time.Second).Format(http.TimeFormat), "not a date"),
+			expected: 30 * time.Second,
+		},
+		{
+			name:     "date already elapsed",
+			header:   header(serverNow.Add(-30*time.Second).Format(http.TimeFormat), serverNow.Format(http.TimeFormat)),
+			expected: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, ParseRetryAfter(tc.header, received))
 		})
 	}
 }
