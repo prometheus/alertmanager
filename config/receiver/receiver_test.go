@@ -24,6 +24,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	notifykafka "github.com/prometheus/alertmanager/notify/kafka"
 )
 
 type sendResolved bool
@@ -36,6 +37,23 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		err      bool
 		exp      []notify.Integration
 	}{
+		{
+			receiver: config.Receiver{
+				Name: "foo",
+				KafkaConfigs: []*notifykafka.Config{
+					{
+						Brokers: []string{"127.0.0.1:1"},
+						Topic:   "alerts",
+						NotifierConfig: amcommoncfg.NotifierConfig{
+							VSendResolved: true,
+						},
+					},
+				},
+			},
+			exp: []notify.Integration{
+				notify.NewIntegration(nil, sendResolved(true), "kafka", 0, "foo"),
+			},
+		},
 		{
 			receiver: config.Receiver{
 				Name: "foo",
@@ -79,6 +97,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, notify.CloseIntegrations(integrations)) })
 			require.Len(t, integrations, len(tc.exp))
 			for i := range tc.exp {
 				require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())

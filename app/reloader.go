@@ -15,6 +15,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -66,8 +67,9 @@ type reloader struct {
 	tracingMgr        *tracing.Manager
 
 	// Short-lived components: atomically swapped on every reload.
-	dispatcher atomic.Pointer[dispatch.Dispatcher]
-	inhibitor  atomic.Pointer[inhibit.Inhibitor]
+	dispatcher   atomic.Pointer[dispatch.Dispatcher]
+	inhibitor    atomic.Pointer[inhibit.Inhibitor]
+	integrations []notify.Integration
 
 	// Functions and values used during reload.
 	waitFunc    func() time.Duration
@@ -115,20 +117,20 @@ func (r *reloader) reload(conf *config.Config) error {
 
 	// Build the map of receiver to integrations.
 	receivers := make(map[string][]notify.Integration, len(activeReceivers))
-	var integrationsNum int
+	var integrations []notify.Integration
 	for _, rcv := range conf.Receivers {
 		if _, found := activeReceivers[rcv.Name]; !found {
 			// No need to build a receiver if no route is using it.
 			configLogger.Info("skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
 			continue
 		}
-		integrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, r.logger)
+		receiverIntegrations, err := receiver.BuildReceiverIntegrations(rcv, tmpl, r.logger)
 		if err != nil {
-			return err
+			return errors.Join(err, notify.CloseIntegrations(integrations))
 		}
 		// rcv.Name is guaranteed to be unique across all receivers.
-		receivers[rcv.Name] = integrations
-		integrationsNum += len(integrations)
+		receivers[rcv.Name] = receiverIntegrations
+		integrations = append(integrations, receiverIntegrations...)
 	}
 
 	// Build the map of time interval names to time interval definitions.
@@ -151,7 +153,7 @@ func (r *reloader) reload(conf *config.Config) error {
 	// it before stopping the old components keeps them running if it
 	// errors.
 	if err := r.tracingMgr.ApplyConfig(conf.TracingConfig); err != nil {
-		return fmt.Errorf("failed to apply tracing config: %w", err)
+		return errors.Join(fmt.Errorf("failed to apply tracing config: %w", err), notify.CloseIntegrations(integrations))
 	}
 
 	// Reload event recorder outputs before stopping the old dispatcher so
@@ -164,6 +166,10 @@ func (r *reloader) reload(conf *config.Config) error {
 	if old := r.dispatcher.Load(); old != nil {
 		old.Stop()
 	}
+	if err := notify.CloseIntegrations(r.integrations); err != nil {
+		configLogger.Warn("failed to close receiver integrations", "err", err)
+	}
+	r.integrations = nil
 
 	newInhibitor := inhibit.NewInhibitor(r.alerts, conf.InhibitRules, r.logger, r.eventRecorder)
 
@@ -187,7 +193,7 @@ func (r *reloader) reload(conf *config.Config) error {
 	)
 
 	r.metrics.configuredReceivers.Set(float64(len(activeReceivers)))
-	r.metrics.configuredIntegrations.Set(float64(integrationsNum))
+	r.metrics.configuredIntegrations.Set(float64(len(integrations)))
 	r.metrics.configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
 	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
@@ -246,6 +252,7 @@ func (r *reloader) reload(conf *config.Config) error {
 	go newDispatcher.Run(r.startTime.Add(r.dispatchStartDelay))
 	newDispatcher.WaitForLoading()
 	r.dispatcher.Store(newDispatcher)
+	r.integrations = integrations
 
 	return nil
 }
@@ -260,5 +267,7 @@ func (r *reloader) stop() error {
 	if d := r.dispatcher.Load(); d != nil {
 		d.Stop()
 	}
-	return nil
+	integrations := r.integrations
+	r.integrations = nil
+	return notify.CloseIntegrations(integrations)
 }
