@@ -1,0 +1,4 @@
+tls_client_config:
+  cert_file: "certs/node1.pem"
+  key_file: "certs/node1-key.pem"
+  ca_file: "certs/ca.pem"

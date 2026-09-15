@@ -1,0 +1,11 @@
+global:
+  slack_api_url: 'https://slack.com/webhook'
+  http_config:
+    follow_redirects: false
+route:
+  receiver: team-X-slack
+receivers:
+  - name: 'team-X-slack'
+    slack_configs:
+      - http_config:
+          proxy_url: foo

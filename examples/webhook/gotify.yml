@@ -1,0 +1,60 @@
+# Copyright The Prometheus Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This is an example of how to send notifications to a Gotify
+# (https://gotify.net) server using the generic webhook receiver with a
+# custom payload, instead of a dedicated Gotify integration.
+#
+# Gotify's push message API expects a JSON body with "title", "message" and
+# "priority" fields, plus an optional "extras" object. See
+# https://gotify.net/docs/pushmsg for the full list of supported fields.
+#
+# Authentication is done via bearer token as described in
+# https://gotify.net/api-docs
+receivers:
+  - name: gotify
+    webhook_configs:
+      - url: 'https://gotify.example.com/message'
+        send_resolved: true
+        http_config:
+          authorization:
+            credentials_file: /etc/alertmanager/secrets/gotify-secret/token
+        payload:
+          title: '{{ .Status | toUpper }} {{ .CommonLabels.alertname }}{{ with .CommonLabels.instance }} {{ . }}{{ end }}'
+          priority: '{{ if eq .Status "firing" }}5{{ else }}0{{ end }}'
+          extras:
+            "client::display":
+              contentType: "text/markdown"
+          message: |
+            {{ if .Alerts.Firing }}
+            **Firing**
+            {{ range .Alerts.Firing }}
+            **{{ .Annotations.summary }}**
+
+            - **Instance:** `{{ .Labels.instance }}`
+            - **Since:** {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+            - **Source:** [Prometheus]({{ .GeneratorURL }})
+            {{ end }}
+            {{ end }}
+            {{ if .Alerts.Resolved }}
+            **Resolved**
+            {{ range .Alerts.Resolved }}
+            **{{ .Annotations.summary }}**
+
+            - **Instance:** `{{ .Labels.instance }}`
+            - **Resolved:** {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+            - **Source:** [Prometheus]({{ .GeneratorURL }})
+            {{ end }}
+            {{ end }}
+
+            [View in Alertmanager]({{ .ExternalURL }})

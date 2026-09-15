@@ -1,0 +1,80 @@
+###
+# Avoid syncing from prometheus/prometheus: no_prometheus_repo_sync
+###
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    open-pull-requests-limit: 20
+    schedule:
+      interval: "monthly"
+    groups:
+      aws:
+        patterns:
+          - "github.com/aws/*"
+          - "github.com/go-openapi/*"
+      go.opentelemetry.io:
+        patterns:
+          - "go.opentelemetry.io/*"
+      golang.org-x:
+        patterns:
+          - "golang.org/x/*"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      promci:
+        patterns:
+          - "prometheus/promci*"
+      codeql:
+        patterns:
+          - "github/codeql-action*"
+    # Exclude configs synced from upstream prometheus/prometheus.
+    exclude-paths:
+      - .github/workflows/container_description.yml
+      - .github/workflows/golangci-lint.yml
+      - .github/workflows/govulncheck.yml
+      - .github/workflows/scorecards.yml
+      - .github/workflows/stale.yml
+  - package-ecosystem: "npm"
+    directory: "/ui/mantine-ui"
+    open-pull-requests-limit: 20
+    schedule:
+      interval: "monthly"
+    groups:
+      mantine:
+        patterns:
+          - "@mantine/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      testing:
+        patterns:
+          - "vitest"
+          - "jsdom"
+          - "@testing-library/*"
+      linting:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+          - "prettier*"
+          - "@ianvs/prettier-plugin-sort-imports"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "vite-tsconfig-paths"
+      styles:
+        patterns:
+          - "postcss*"
+          - "stylelint*"

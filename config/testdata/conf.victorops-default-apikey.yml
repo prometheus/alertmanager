@@ -1,0 +1,20 @@
+global:
+  victorops_api_key: asd132
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  receiver: team-Y-victorops
+  routes:
+    - match:
+        service: foo
+      receiver: team-X-victorops
+receivers:
+  - name: 'team-X-victorops'
+    victorops_configs:
+      - routing_key: 'team-X'
+  - name: 'team-Y-victorops'
+    victorops_configs:
+      - routing_key: 'team-Y'
+        api_key: qwe456

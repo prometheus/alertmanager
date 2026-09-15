@@ -1,0 +1,4 @@
+authorization:
+  type: Bearer
+  credentials: theanswertothegreatquestionoflifetheuniverseandeverythingisfortytwo
+proxy_url: "http://remote.host"

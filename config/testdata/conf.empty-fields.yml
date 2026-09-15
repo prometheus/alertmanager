@@ -1,0 +1,20 @@
+global:
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.org'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+  smtp_hello: ''
+  slack_api_url: 'https://slack.com/webhook'
+templates:
+  - '/etc/alertmanager/template/*.tmpl'
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  receiver: team-X-mails
+  routes:
+    - match_re:
+        service: ^(foo1|foo2|baz)$
+      receiver: team-X-mails
+receivers:
+  - name: 'team-X-mails'
+    email_configs:
+      - to: 'team-X+alerts@example.org'

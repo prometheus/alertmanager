@@ -1,0 +1,11 @@
+global:
+  slack_api_url: "http://mysecret.example.com/"
+  slack_api_url_file: '/global_file'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alerts1'
+        text: 'test'

@@ -1,0 +1,7 @@
+route:
+  receiver: team-X-mattermost
+
+receivers:
+  - name: team-X-mattermost
+    mattermost_configs:
+      - channel: team-X

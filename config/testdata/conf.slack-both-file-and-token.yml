@@ -1,0 +1,11 @@
+global:
+  slack_app_token: 'xoxb-1234-abcdefgh'
+  slack_app_token_file: '/global_file'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alerts1'
+        text: 'test'

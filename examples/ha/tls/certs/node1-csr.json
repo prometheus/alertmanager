@@ -1,0 +1,16 @@
+{
+  "CN": "system:server",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "AU",
+      "L": "Melbourne",
+      "O": "system:node1",
+      "OU": "massl",
+      "ST": "Victoria"
+    }
+  ]
+}

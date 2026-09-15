@@ -1,0 +1,42 @@
+name: UI CI
+
+on:
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - '.github/workflows/ui-ci.yml'
+      - '.nvmrc'
+      - 'Makefile'
+      - 'internal/tools/**'
+      - 'proto/api/**'
+      - 'ui/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test_mantine_ui:
+    name: Test mantine-ui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: internal/tools/go.sum
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: './.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: |
+            .nvmrc
+            **/package-lock.json
+      - name: Build, test, and lint
+        run: make ui-mantine ui-mantine-test ui-mantine-lint

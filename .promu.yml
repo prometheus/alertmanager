@@ -1,0 +1,37 @@
+go:
+    # Whenever the Go version is updated here,
+    # .github/workflows/ci.yml and ui/app/Makefile should also be updated.
+    version: 1.27
+repository:
+    path: github.com/prometheus/alertmanager
+build:
+    binaries:
+        - name: alertmanager
+          path: ./cmd/alertmanager
+        - name: amtool
+          path: ./cmd/amtool
+    tags:
+        all:
+            - netgo
+        windows: []
+    ldflags: |
+        -X github.com/prometheus/common/version.Version={{.Version}}
+        -X github.com/prometheus/common/version.Revision={{.Revision}}
+        -X github.com/prometheus/common/version.Branch={{.Branch}}
+        -X github.com/prometheus/common/version.BuildUser={{user}}@{{host}}
+        -X github.com/prometheus/common/version.BuildDate={{date "20060102-15:04:05"}}
+tarball:
+    files:
+        - examples/ha/alertmanager.yml
+        - LICENSE
+        - NOTICE
+crossbuild:
+    platforms:
+        - darwin
+        - dragonfly
+        - freebsd
+        - illumos
+        - linux
+        - netbsd
+        - openbsd
+        - windows

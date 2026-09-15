@@ -1,0 +1,90 @@
+# Copyright 2015 The Prometheus Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Needs to be defined before including Makefile.common to auto-generate targets
+DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
+
+include Makefile.common
+
+FRONTEND_DIR             = $(BIN_DIR)/ui/app
+MANTINE_UI_DIR            = $(BIN_DIR)/ui/mantine-ui
+TEMPLATE_DIR             = $(BIN_DIR)/template
+DOCKER_IMAGE_NAME       ?= alertmanager
+
+STATICCHECK_IGNORE =
+
+.PHONY: build-all
+# Will build both the front-end as well as the back-end
+build-all: assets apiv2
+	$(MAKE) build
+
+.PHONY: build
+build: ui-elm ui-mantine common-build
+
+.PHONY: test
+test: ui-elm ui-mantine-test common-test
+
+.PHONY: lint
+lint: ui-elm ui-mantine-lint common-lint
+
+.PHONY: assets
+assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine-assets template/email.tmpl
+
+.PHONY: assets-tarball
+assets-tarball: ui-elm ui-mantine-assets
+	mkdir -p .tarballs
+	tar czf ".tarballs/alertmanager-web-ui-$(file <VERSION).tar.gz" -C ui/app dist
+
+.PHONY: ui-elm
+ui-elm:
+	cd $(FRONTEND_DIR) && $(MAKE) build
+
+.PHONY: ui-mantine-assets
+ui-mantine-assets:
+	cd $(MANTINE_UI_DIR) && $(MAKE) assets
+
+.PHONY: ui-mantine
+ui-mantine:
+	cd $(MANTINE_UI_DIR) && $(MAKE) build
+
+.PHONY: ui-mantine-test
+ui-mantine-test:
+	cd $(MANTINE_UI_DIR) && $(MAKE) test
+
+.PHONY: ui-mantine-lint
+ui-mantine-lint:
+	cd $(MANTINE_UI_DIR) && $(MAKE) lint
+
+$(FRONTEND_DIR)/src/Data: api/v2/openapi.yaml
+	cd $(FRONTEND_DIR) && $(MAKE) src/Data
+
+template/email.tmpl: template/email.html
+	cd $(TEMPLATE_DIR) && $(MAKE) email.tmpl
+
+.PHONY: apiv2
+apiv2: api/v2/models api/v2/restapi api/v2/client
+
+
+api/v2/models api/v2/restapi api/v2/client:  api/v2/openapi.yaml
+	scripts/swagger.sh
+
+.PHONY: fuzz-config
+fuzz-config:
+	go test -fuzz=^Fuzz -fuzztime=5s ./config
+
+.PHONY: clean
+clean:
+	- @rm -rf template/email.tmpl \
+                  api/v2/models api/v2/restapi api/v2/client
+	- @cd $(FRONTEND_DIR) && $(MAKE) clean
+	- @cd $(MANTINE_UI_DIR) && $(MAKE) clean

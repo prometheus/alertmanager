@@ -1,0 +1,7 @@
+a1: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a1 --web.listen-address=:9093  --cluster.listen-address=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node1.yml
+a2: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a2 --web.listen-address=:9094  --cluster.listen-address=127.0.0.1:8002 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node2.yml
+a3: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a3 --web.listen-address=:9095  --cluster.listen-address=127.0.0.1:8003 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node1.yml
+a4: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a4 --web.listen-address=:9096  --cluster.listen-address=127.0.0.1:8004 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node2.yml
+a5: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a5 --web.listen-address=:9097  --cluster.listen-address=127.0.0.1:8005 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node1.yml
+a6: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a6 --web.listen-address=:9098  --cluster.listen-address=127.0.0.1:8006 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.tls-config=./tls_config_node2.yml
+wh: go run ../../webhook/echo.go

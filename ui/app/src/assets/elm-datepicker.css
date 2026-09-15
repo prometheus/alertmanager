@@ -1,0 +1,140 @@
+.cursor-pointer {cursor: pointer;}
+
+.month {
+    height: 270px;
+}
+
+.calendar_ .date-container {
+}
+
+.calendar_ .weekheader {
+    margin-top: 5px;
+}
+
+.calendar_ .date {
+    color: #C0C0C0;
+    cursor: pointer;
+    height: 30px;
+    width: 40px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: .75rem;
+    background-color: #fff;
+}
+
+.calendar_ .date.thismonth {
+    color: #22292f;
+}
+
+.calendar_ .date.front {
+    background-color: rgba(0,0,0,0);
+}
+
+.calendar_ .date.back {
+    margin-bottom: 5px;
+}
+
+.calendar_ .date.front.mouseover {
+    background-color: #EEEEEE;
+    border-radius: 50%;
+}
+
+.calendar_ .date.front.start {
+    background-color: #b0c4de;
+    border-radius: 50%;
+}
+
+.calendar_ .date.front.end {
+    background-color: #b0c4de;
+    border-radius: 50%;
+}
+
+.calendar_ .date.back.start {
+    background-color: #b0c4de;
+    border-top-left-radius: 50%;
+    border-bottom-left-radius: 50%;
+}
+
+.calendar_ .date.back.end {
+    background-color: #b0c4de;
+    border-top-right-radius: 50%;
+    border-bottom-right-radius: 50%;
+}
+
+.calendar_ .date.back.between {
+    background-color: #b0c4de;
+}
+
+.timepicker {
+    height:60px;
+    width:80%;
+    margin-top: 10px;
+}
+
+.timepicker .subject {
+    padding:10px;
+    width:20%;
+    vertical-align:middle;
+}
+
+.timepicker .hour {
+    width:10%;
+}
+
+.timepicker .minute {
+    width:10%;
+}
+
+.timepicker .view {
+    width:100%;
+    height:50%;
+    text-align:center;
+    border: 0px none;
+}
+
+.timepicker .up-button {
+    width:100%;
+    height:25%;
+    border: 0px none;
+}
+
+.timepicker .down-button {
+    width:100%;
+    height:25%;
+    border: 0px none;
+}
+
+.timepicker .colon {
+    width: 5%;
+}
+
+.timepicker .timeview {
+    width:50%;
+}
+
+.month-header {
+    width:70%;
+    margin: 0 auto;
+}
+
+.month-header .prev-month {
+    width:20%;
+}
+
+.month-header .month-text {
+    width:60%;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+}
+
+.month-header .next-month {
+    width:20%;
+}
+
+.d-flex-center {
+    display:flex;
+    align-items: center;
+    justify-content: space-around;
+}

@@ -1,0 +1,8 @@
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alerts'
+        text: 'test'

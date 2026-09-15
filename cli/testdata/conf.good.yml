@@ -1,0 +1,11 @@
+global:
+  smtp_smarthost: 'localhost:25'
+
+templates:
+  - '/etc/alertmanager/template/*.tmpl'
+
+route:
+  receiver: default
+
+receivers:
+  - name: default

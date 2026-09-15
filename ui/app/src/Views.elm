@@ -1,0 +1,55 @@
+module Views exposing (view)
+
+import Html exposing (Html, div)
+import Html.Attributes exposing (class)
+import Types exposing (Model, Msg(..), Route(..))
+import Utils.Filter exposing (emptySilenceFormGetParams)
+import Utils.Types exposing (ApiData(..))
+import Utils.Views
+import Views.AlertList.Views as AlertList
+import Views.NavBar.Views exposing (navBar)
+import Views.NotFound.Views as NotFound
+import Views.Settings.Views as SettingsView
+import Views.SilenceForm.Views as SilenceForm
+import Views.SilenceList.Views as SilenceList
+import Views.SilenceView.Views as SilenceView
+import Views.Status.Views as Status
+
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ navBar model.route
+        , div [ class "container pb-4" ] [ currentView model ]
+        ]
+
+
+currentView : Model -> Html Msg
+currentView model =
+    case model.route of
+        SettingsRoute ->
+            SettingsView.view model.settings |> Html.map MsgForSettings
+
+        StatusRoute ->
+            Status.view model.status
+
+        SilenceViewRoute _ ->
+            SilenceView.view model.silenceView
+
+        AlertsRoute filter ->
+            AlertList.view model.alertList filter
+
+        SilenceListRoute _ ->
+            SilenceList.view model.silenceList
+
+        SilenceFormNewRoute getParams ->
+            SilenceForm.view Nothing getParams model.defaultCreator model.silenceForm |> Html.map MsgForSilenceForm
+
+        SilenceFormEditRoute silenceId ->
+            SilenceForm.view (Just silenceId) emptySilenceFormGetParams "" model.silenceForm |> Html.map MsgForSilenceForm
+
+        TopLevelRoute ->
+            Utils.Views.loading
+
+        NotFoundRoute ->
+            NotFound.view

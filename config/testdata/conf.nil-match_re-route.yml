@@ -1,0 +1,8 @@
+route:
+  receiver: empty
+  routes:
+    - match_re:
+        invalid_label:
+      receiver: empty
+receivers:
+  - name: empty

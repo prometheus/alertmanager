@@ -1,0 +1,7 @@
+/.build
+/.release
+/.tarballs
+/alertmanager
+/amtool
+/data/
+/vendor

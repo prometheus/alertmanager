@@ -1,0 +1,9 @@
+route:
+  receiver: empty
+receivers:
+  - name: empty
+inhibit_rules:
+  - source_match_re:
+      invalid_source_label:
+    target_match_re:
+      severity: critical

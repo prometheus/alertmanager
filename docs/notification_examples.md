@@ -1,0 +1,180 @@
+---
+title: Notification template examples
+sort_rank: 8
+---
+
+The following are all different examples of alerts and corresponding Alertmanager configuration file setups (alertmanager.yml).
+Each use the [Go templating](http://golang.org/pkg/text/template/) system.
+
+## Customizing Slack notifications
+
+In this example we've customised our Slack notification to send a URL to our organisation's wiki on how to deal with the particular alert that's been sent.
+
+```
+global:
+  # Also possible to place this URL in a file.
+  # Ex: `slack_api_url_file: '/etc/alertmanager/slack_url'`
+  slack_api_url: '<slack_webhook_url>'
+
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - channel: '#alerts'
+    text: 'https://internal.myorg.net/wiki/alerts/{{ .GroupLabels.app }}/{{ .GroupLabels.alertname }}'
+```
+
+## Accessing annotations in CommonAnnotations
+
+In this example we again customize the text sent to our Slack receiver accessing the `summary` and `description` stored in the `CommonAnnotations` of the data sent by the Alertmanager.
+
+Alert
+
+```
+groups:
+- name: Instances
+  rules:
+  - alert: InstanceDown
+    expr: up == 0
+    for: 5m
+    labels:
+      severity: page
+    # Prometheus templates apply here in the annotation and label fields of the alert.
+    annotations:
+      description: '{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes.'
+      summary: 'Instance {{ $labels.instance }} down'
+```
+
+Receiver
+
+```
+- name: 'team-x'
+  slack_configs:
+  - channel: '#alerts'
+    # Alertmanager templates apply here.
+    text: "<!channel> \nsummary: {{ .CommonAnnotations.summary }}\ndescription: {{ .CommonAnnotations.description }}"
+```
+
+## Ranging over all received Alerts
+
+Finally, assuming the same alert as the previous example, we customize our receiver to range over all of the alerts received from the Alertmanager, printing their respective annotation summaries and descriptions on new lines.
+
+Receiver
+
+```
+- name: 'default-receiver'
+  slack_configs:
+  - channel: '#alerts'
+    title: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+    text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+```
+
+## Defining reusable templates
+
+Going back to our first example, we can also provide a file containing named templates which are then loaded by Alertmanager in order to avoid complex templates that span many lines.
+Create a file under `/alertmanager/template/myorg.tmpl` and create a template in it named "slack.myorg.text":
+
+```
+{{ define "slack.myorg.text" }}https://internal.myorg.net/wiki/alerts/{{ .GroupLabels.app }}/{{ .GroupLabels.alertname }}{{ end}}
+```
+
+The configuration now loads the template with the given name for the "text" field and we provide a path to our custom template file:
+
+```
+global:
+  slack_api_url: '<slack_webhook_url>'
+
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - channel: '#alerts'
+    text: '{{ template "slack.myorg.text" . }}'
+
+templates:
+- '/etc/alertmanager/templates/myorg.tmpl'
+```
+
+This example is explained in further detail in this [blogpost](https://prometheus.io/blog/2016/03/03/custom-alertmanager-templates/).
+
+## Defining a reusable HTML email template
+
+The HTML body of an email notification can use a named template from an external file.
+Create `/etc/alertmanager/templates/email.tmpl` with the following content:
+
+```html
+{{ define "email.myorg.html" }}
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>{{ .Status | toUpper }}</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Alert</th>
+          <th>Summary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Alerts }}
+        <tr>
+          <td>{{ index .Labels "alertname" }}</td>
+          <td>{{ index .Annotations "summary" }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </body>
+</html>
+{{ end }}
+```
+
+Load the template file and reference its name from the email receiver's `html` field:
+
+```yaml
+global:
+  smtp_smarthost: 'smtp.example.org:587'
+  smtp_from: 'alertmanager@example.org'
+
+route:
+  receiver: 'email-notifications'
+
+receivers:
+- name: 'email-notifications'
+  email_configs:
+  - to: 'oncall@example.org'
+    html: '{{ template "email.myorg.html" . }}'
+
+templates:
+- '/etc/alertmanager/templates/*.tmpl'
+```
+
+See the [`<email_config>` reference](configuration.md#email_config) for SMTP authentication and TLS options.
+
+## Sending notifications to Gotify with a custom webhook payload
+
+[Gotify](https://gotify.net) doesn't have a dedicated Alertmanager receiver, but its push message API is a simple JSON POST, so it can be driven directly with the generic [`webhook_config`](configuration.md#webhook_config) and its `payload` field.
+
+```yaml
+receivers:
+- name: gotify
+  webhook_configs:
+  - url: 'https://gotify.example.com/message'
+    http_config:
+      authorization:
+        credentials_file: /etc/alertmanager/secrets/gotify-secret/token
+    payload:
+      title: '{{ .Status | toUpper }} {{ .CommonLabels.alertname }}'
+      priority: '{{ if eq .Status "firing" }}5{{ else }}0{{ end }}'
+      message: |
+        {{ range .Alerts }}{{ .Annotations.summary }}
+        {{ end }}
+```
+
+A more complete version of this example, with Markdown formatting and separate sections for firing and resolved alerts, is available in [`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
