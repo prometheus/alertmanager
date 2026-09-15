@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
-	"github.com/prometheus/alertmanager/store"
 )
 
 var nopLogger = promslog.NewNopLogger()
@@ -189,18 +188,17 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := &InhibitRule{
-				Equal:          map[model.LabelName]struct{}{},
-				TargetMatchers: c.targetMatchers,
-				scache:         store.NewAlerts(),
-				sindex:         newIndex(),
-			}
+			equal := map[model.LabelName]struct{}{}
 			for _, ln := range c.equal {
-				r.Equal[ln] = struct{}{}
+				equal[ln] = struct{}{}
+			}
+			r := &InhibitRule{
+				TargetMatchers: c.targetMatchers,
+				Equal:          equal,
+				cache:          newCache(equal),
 			}
 			for _, v := range c.initial {
-				r.scache.Set(v)
-				r.sindex.Add(r.fingerprintEquals(v.Labels), v.Fingerprint())
+				r.cache.set(v)
 			}
 
 			if _, have := r.hasEqual(c.input, c.excludeTwoSidedMatch, time.Now()); have != c.result {
@@ -239,7 +237,7 @@ func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
 	_, found := r.hasEqual(target, true, now)
 	require.True(t, found)
 
-	r.gcCallback([]*alert.Alert{expiredSameEqual})
+	r.cache.gc()
 
 	_, found = r.hasEqual(target, true, now)
 	require.True(t, found)
@@ -270,7 +268,7 @@ func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t
 	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{Equal: []string{"e"}}}, oldSource, refreshedSource)
 	r := ih.rules[0]
 
-	r.gcCallback([]*alert.Alert{oldSource})
+	r.cache.gc()
 
 	_, found := r.hasEqual(model.LabelSet{"t": "1", "e": "1"}, false, now)
 	require.True(t, found)
@@ -309,15 +307,8 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].sindex.Add(ih.rules[0].fingerprintEquals(sourceAlert1.Labels), sourceAlert1.Fingerprint())
-
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].sindex.Add(ih.rules[1].fingerprintEquals(sourceAlert2.Labels), sourceAlert2.Fingerprint())
+	ih.rules[0].cache.set(sourceAlert1)
+	ih.rules[1].cache.set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -407,15 +398,8 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts()
-	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[0].sindex = newIndex()
-	ih.rules[0].sindex.Add(ih.rules[0].fingerprintEquals(sourceAlert1.Labels), sourceAlert1.Fingerprint())
-
-	ih.rules[1].scache = store.NewAlerts()
-	ih.rules[1].scache.Set(sourceAlert2)
-	ih.rules[1].sindex = newIndex()
-	ih.rules[1].sindex.Add(ih.rules[1].fingerprintEquals(sourceAlert2.Labels), sourceAlert2.Fingerprint())
+	ih.rules[0].cache.set(sourceAlert1)
+	ih.rules[1].cache.set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -677,12 +661,10 @@ func TestInhibit(t *testing.T) {
 }
 
 func TestInhibitRule_fingerprintEquals(t *testing.T) {
-	rule := &InhibitRule{
-		Equal: map[model.LabelName]struct{}{
-			"cluster": {},
-			"service": {},
-		},
-	}
+	c := newCache(map[model.LabelName]struct{}{
+		"cluster": {},
+		"service": {},
+	})
 
 	lset := model.LabelSet{
 		"cluster":  "prod",
@@ -690,7 +672,7 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 		"instance": "host1",
 	}
 
-	fp := rule.fingerprintEquals(lset)
+	fp := c.fingerprintEquals(lset)
 
 	// Same equal labels should produce same fingerprint
 	lset2 := model.LabelSet{
@@ -698,24 +680,19 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 		"service":  "api",
 		"instance": "host2", // different non-equal label
 	}
-	require.Equal(t, fp, rule.fingerprintEquals(lset2))
+	require.Equal(t, fp, c.fingerprintEquals(lset2))
 
 	// Different equal label value should produce different fingerprint
 	lset3 := model.LabelSet{
 		"cluster": "staging",
 		"service": "api",
 	}
-	require.NotEqual(t, fp, rule.fingerprintEquals(lset3))
+	require.NotEqual(t, fp, c.fingerprintEquals(lset3))
 }
 
 func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
 	now := time.Now()
-	r := &InhibitRule{
-		Equal:  map[model.LabelName]struct{}{"cluster": {}},
-		scache: store.NewAlerts(),
-		sindex: newIndex(),
-	}
-	r.scache.SetGCCallback(r.gcCallback)
+	r := NewInhibitRule(amcommoncfg.InhibitRule{Equal: []string{"cluster"}})
 
 	active := &alert.Alert{Alert: model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1"},
@@ -727,44 +704,38 @@ func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(-time.Minute),
 	}}
-	for _, a := range []*alert.Alert{active, resolved} {
-		require.NoError(t, r.scache.Set(a))
-		r.sindex.Add(r.fingerprintEquals(a.Labels), a.Fingerprint())
-	}
+	r.cache.set(active)
+	r.cache.set(resolved)
 
 	target := model.LabelSet{"alertname": "T", "cluster": "c1"}
 	fp, ok := r.hasEqual(target, false, now)
 	require.True(t, ok)
 	require.Equal(t, active.Fingerprint(), fp)
 
-	deleted := r.scache.GC()
-	require.Len(t, deleted, 1)
-	require.Equal(t, resolved.Fingerprint(), deleted[0].Fingerprint())
+	r.cache.gc()
+	require.Len(t, r.cache.alerts, 1)
+	require.Contains(t, r.cache.alerts, active.Fingerprint())
 
 	fp, ok = r.hasEqual(target, false, now)
 	require.True(t, ok, "active source alert must still inhibit after GC of a sibling")
 	require.Equal(t, active.Fingerprint(), fp)
-	require.Equal(t, 1, r.sindex.Len())
+	require.Len(t, r.cache.index, 1)
 
 	active.EndsAt = now.Add(-time.Second)
-	require.NoError(t, r.scache.Set(active))
-	deleted = r.scache.GC()
-	require.Len(t, deleted, 1)
+	r.cache.set(active)
+	r.cache.gc()
 	_, ok = r.hasEqual(target, false, now)
 	require.False(t, ok)
-	require.Equal(t, 0, r.sindex.Len(), "empty index keys must be removed")
+	require.Empty(t, r.cache.alerts)
+	require.Empty(t, r.cache.index, "empty index keys must be removed")
 }
 
 func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 	now := time.Now()
-	targetMatcher, err := labels.NewMatcher(labels.MatchEqual, "severity", "warning")
-	require.NoError(t, err)
-	r := &InhibitRule{
-		Equal:          map[model.LabelName]struct{}{"cluster": {}},
-		TargetMatchers: labels.Matchers{targetMatcher},
-		scache:         store.NewAlerts(),
-		sindex:         newIndex(),
-	}
+	r := NewInhibitRule(amcommoncfg.InhibitRule{
+		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"}},
+		Equal:          []string{"cluster"},
+	})
 
 	sourceOnly := &alert.Alert{Alert: model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1", "severity": "critical"},
@@ -776,10 +747,8 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(2 * time.Hour),
 	}}
-	for _, a := range []*alert.Alert{sourceOnly, twoSided} {
-		require.NoError(t, r.scache.Set(a))
-		r.sindex.Add(r.fingerprintEquals(a.Labels), a.Fingerprint())
-	}
+	r.cache.set(sourceOnly)
+	r.cache.set(twoSided)
 
 	target := model.LabelSet{"alertname": "T", "cluster": "c1", "severity": "warning"}
 	fp, ok := r.hasEqual(target, true, now)
@@ -796,7 +765,7 @@ func BenchmarkFingerprintEquals(b *testing.B) {
 				equalLabels[model.LabelName(fmt.Sprintf("label_%d", i))] = struct{}{}
 			}
 
-			rule := &InhibitRule{Equal: equalLabels}
+			c := newCache(equalLabels)
 
 			// Create a label set with matching values
 			lset := make(model.LabelSet, numLabels+2)
@@ -810,7 +779,7 @@ func BenchmarkFingerprintEquals(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_ = rule.fingerprintEquals(lset)
+				_ = c.fingerprintEquals(lset)
 			}
 		})
 	}
