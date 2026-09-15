@@ -178,7 +178,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
-		return true, fmt.Errorf("create SMTP client: %w", err)
+		return true, wrapSMTPErr("create SMTP client", err)
 	}
 	defer func() {
 		// Try to clean up after ourselves but don't log anything if something has failed.
