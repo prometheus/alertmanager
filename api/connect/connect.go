@@ -43,12 +43,24 @@ type Options struct {
 	UnaryTimeout      time.Duration
 }
 
+type procedureDescriptor struct {
+	path string
+}
+
+type serviceDescriptor struct {
+	name       string
+	procedures []procedureDescriptor
+	handler    func(...connect.HandlerOption) (string, http.Handler)
+}
+
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
 	peer            cluster.ClusterPeer
 	uptime          time.Time
 	admission       *admissionInterceptor
 	peerSnapshotSem chan struct{}
+	services        []serviceDescriptor
+	procedures      map[string]procedureDescriptor
 
 	configSnapshot atomic.Pointer[string]
 }
@@ -58,16 +70,24 @@ type API struct {
 func NewAPI(opts Options) *API {
 	unaryConcurrency := defaultConcurrency(opts.UnaryConcurrency)
 	streamConcurrency := defaultConcurrency(opts.StreamConcurrency)
-	return &API{
+	api := &API{
 		peer:            opts.Peer,
 		uptime:          time.Now(),
 		peerSnapshotSem: make(chan struct{}, 1),
+		procedures:      make(map[string]procedureDescriptor),
 		admission: &admissionInterceptor{
 			unary:        make(chan struct{}, unaryConcurrency),
 			streams:      make(chan struct{}, streamConcurrency),
 			unaryTimeout: opts.UnaryTimeout,
 		},
 	}
+	api.services = api.serviceDescriptors()
+	for _, service := range api.services {
+		for _, procedure := range service.procedures {
+			api.procedures[procedure.path] = procedure
+		}
+	}
+	return api
 }
 
 func defaultConcurrency(concurrency int) int {
@@ -75,6 +95,56 @@ func defaultConcurrency(concurrency int) int {
 		return max(runtime.GOMAXPROCS(0), 8)
 	}
 	return concurrency
+}
+
+func procedure(service, name string) procedureDescriptor {
+	return procedureDescriptor{path: "/" + service + "/" + name}
+}
+
+func (api *API) serviceDescriptors() []serviceDescriptor {
+	status := serviceDescriptor{
+		name: statusv3alphaconnect.StatusServiceName,
+		procedures: []procedureDescriptor{
+			procedure(statusv3alphaconnect.StatusServiceName, "GetStatus"),
+		},
+		handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+			return statusv3alphaconnect.NewStatusServiceHandler(api, opts...)
+		},
+	}
+	advertised := []string{status.name}
+	checker := grpchealth.NewStaticChecker(advertised...)
+	reflector := grpcreflect.NewStaticReflector(advertised...)
+	return []serviceDescriptor{
+		status,
+		{
+			name: grpchealth.HealthV1ServiceName,
+			procedures: []procedureDescriptor{
+				procedure(grpchealth.HealthV1ServiceName, "Check"),
+				procedure(grpchealth.HealthV1ServiceName, "Watch"),
+			},
+			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+				return grpchealth.NewHandler(checker, opts...)
+			},
+		},
+		{
+			name: grpcreflect.ReflectV1ServiceName,
+			procedures: []procedureDescriptor{
+				procedure(grpcreflect.ReflectV1ServiceName, "ServerReflectionInfo"),
+			},
+			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+				return grpcreflect.NewHandlerV1(reflector, opts...)
+			},
+		},
+		{
+			name: grpcreflect.ReflectV1AlphaServiceName,
+			procedures: []procedureDescriptor{
+				procedure(grpcreflect.ReflectV1AlphaServiceName, "ServerReflectionInfo"),
+			},
+			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+				return grpcreflect.NewHandlerV1Alpha(reflector, opts...)
+			},
+		},
+	}
 }
 
 // admissionInterceptor gives unary RPCs and streams independent capacity so
@@ -149,37 +219,31 @@ func (api *API) Handler(opts ...connect.HandlerOption) http.Handler {
 	return api.buildHandler(opts...)
 }
 
-// ServicePrefixes returns the URL path prefixes ("/<fully-qualified-service>/")
-// for every service registered by Handler. Callers use it to bound the
-// cardinality of metric and trace labels: any request path that does not
-// match one of these prefixes yields a 404 and should not be recorded
-// verbatim.
-func (*API) ServicePrefixes() []string {
-	return []string{
-		"/status.v3alpha.StatusService/",
-		"/grpc.health.v1.Health/",
-		"/grpc.reflection.v1.ServerReflection/",
-		"/grpc.reflection.v1alpha.ServerReflection/",
+// Procedures returns the fully-qualified URL paths for every procedure
+// registered by Handler. Callers use it to bound metric and trace labels:
+// any request path that does not exactly match one of these paths yields a
+// 404 and should not be recorded verbatim.
+func (api *API) Procedures() []string {
+	procedures := make([]string, 0, len(api.procedures))
+	for _, service := range api.services {
+		for _, procedure := range service.procedures {
+			procedures = append(procedures, procedure.path)
+		}
 	}
+	return procedures
 }
 
 // buildHandler registers every ConnectRPC service on a fresh mux.
 func (api *API) buildHandler(opts ...connect.HandlerOption) http.Handler {
 	opts = append([]connect.HandlerOption{connect.WithInterceptors(api.admission)}, opts...)
 
-	// serviceNames lists the fully-qualified service names advertised via
-	// health checking and reflection.
-	serviceNames := []string{
-		statusv3alphaconnect.StatusServiceName,
-	}
-
 	mux := http.NewServeMux()
-	mux.Handle(statusv3alphaconnect.NewStatusServiceHandler(api, opts...))
-	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(serviceNames...), opts...))
-
-	reflector := grpcreflect.NewStaticReflector(serviceNames...)
-	mux.Handle(grpcreflect.NewHandlerV1(reflector, opts...))
-	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, opts...))
-
+	for _, service := range api.services {
+		path, handler := service.handler(opts...)
+		if path != "/"+service.name+"/" {
+			panic("Connect service descriptor and handler path disagree")
+		}
+		mux.Handle(path, handler)
+	}
 	return mux
 }
