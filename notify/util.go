@@ -213,6 +213,11 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 		notificationReason = ReasonUnknown
 	}
 	data := tmpl.Data(recv, groupLabels, routeLabels, notificationReason.String(), alerts...)
+	// Group key is optional for some callers (e.g. tests); populate when present
+	// so templates and webhook-style consumers can access .GroupKey.
+	if groupKey, ok := GroupKey(ctx); ok {
+		data.GroupKey = groupKey
+	}
 	// Route labels are pre-rendered by the dispatcher; don't execute them again.
 	template.MarkRouteLabelsRendered(data)
 	return data

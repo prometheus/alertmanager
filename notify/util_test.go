@@ -244,6 +244,7 @@ func TestGetTemplateDataWithRouteLabels(t *testing.T) {
 
 	data := GetTemplateData(ctx, tmpl, nil, promslog.NewNopLogger())
 
+	require.Equal(t, "test-key", data.GroupKey)
 	require.Equal(t, "ops", data.RouteLabels["team"])
 	require.Equal(t, "value is {{ $value }}", data.RouteLabels["desc"])
 
@@ -251,6 +252,34 @@ func TestGetTemplateDataWithRouteLabels(t *testing.T) {
 	got, err := tmpl.ExecuteTextString(`{{ routeLabels "team" }}|{{ routeLabels "desc" }}`, data)
 	require.NoError(t, err)
 	require.Equal(t, "ops|value is {{ $value }}", got)
+}
+
+func TestGetTemplateDataGroupKey(t *testing.T) {
+	tmpl, err := template.New()
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
+	groupKey := `{}:{alertname="HighErrorRate"}`
+	ctx := context.Background()
+	ctx = WithReceiverName(ctx, "webhook")
+	ctx = WithGroupKey(ctx, groupKey)
+	ctx = WithGroupLabels(ctx, model.LabelSet{"alertname": "HighErrorRate"})
+	ctx = WithNotificationReason(ctx, ReasonFirstNotification)
+
+	data := GetTemplateData(ctx, tmpl, nil, promslog.NewNopLogger())
+	require.Equal(t, groupKey, data.GroupKey)
+
+	// Templates can reference .GroupKey like other Data fields.
+	got, err := tmpl.ExecuteTextString(`{{ .GroupKey }}`, data)
+	require.NoError(t, err)
+	require.Equal(t, groupKey, got)
+
+	// Missing group key leaves GroupKey empty without failing.
+	ctxNoKey := WithReceiverName(context.Background(), "webhook")
+	ctxNoKey = WithGroupLabels(ctxNoKey, model.LabelSet{"alertname": "HighErrorRate"})
+	ctxNoKey = WithNotificationReason(ctxNoKey, ReasonFirstNotification)
+	dataNoKey := GetTemplateData(ctxNoKey, tmpl, nil, promslog.NewNopLogger())
+	require.Empty(t, dataNoKey.GroupKey)
 }
 
 func TestGetFailureReasonFromStatusCode(t *testing.T) {
