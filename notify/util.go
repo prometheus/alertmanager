@@ -168,6 +168,44 @@ func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 	}
 }
 
+// TmplTextWithLogger is like TmplText but additionally logs a warning whenever
+// a template fails to render. This makes template errors visible in Alertmanager
+// logs even when the calling notifier continues to deliver the notification with
+// the partially rendered output.
+func TmplTextWithLogger(tmpl *template.Template, data *template.Data, err *error, logger *slog.Logger) func(string) string {
+	return func(name string) (s string) {
+		if *err != nil {
+			return s
+		}
+		var tmplErr error
+		s, tmplErr = tmpl.ExecuteTextString(name, data)
+		if tmplErr != nil {
+			logger.Warn("template execution failed", "template", name, "err", tmplErr)
+			*err = tmplErr
+		}
+		return s
+	}
+}
+
+// TmplHTMLWithLogger is like TmplHTML but additionally logs a warning whenever
+// a template fails to render. This makes template errors visible in Alertmanager
+// logs even when the calling notifier continues to deliver the notification with
+// the partially rendered output.
+func TmplHTMLWithLogger(tmpl *template.Template, data *template.Data, err *error, logger *slog.Logger) func(string) string {
+	return func(name string) (s string) {
+		if *err != nil {
+			return s
+		}
+		var tmplErr error
+		s, tmplErr = tmpl.ExecuteHTMLString(name, data)
+		if tmplErr != nil {
+			logger.Warn("template execution failed", "template", name, "err", tmplErr)
+			*err = tmplErr
+		}
+		return s
+	}
+}
+
 // Key is a string that can be hashed.
 type Key string
 

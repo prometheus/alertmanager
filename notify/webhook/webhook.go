@@ -110,7 +110,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	var url string
 	var tmplErr error
-	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &tmplErr, logger)
 
 	if n.conf.URL != "" {
 		url = tmpl(string(n.conf.URL))
@@ -157,7 +157,7 @@ func (n *Notifier) renderPayload(
 ) (bytes.Buffer, error) {
 	var (
 		tmplTextErr  error
-		tmplText     = notify.TmplText(n.tmpl, data.Data, &tmplTextErr)
+		tmplText     = notify.TmplTextWithLogger(n.tmpl, data.Data, &tmplTextErr, n.logger)
 		tmplTextFunc = func(tmpl string) (string, error) {
 			return tmplText(tmpl), tmplTextErr
 		}

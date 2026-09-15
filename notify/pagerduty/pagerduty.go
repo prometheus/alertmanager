@@ -150,7 +150,7 @@ func (n *Notifier) notifyV1(
 	details map[string]any,
 ) (bool, error) {
 	var tmplErr error
-	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &tmplErr, n.logger)
 
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV1DescriptionLenRunes)
 	if truncated {
@@ -214,7 +214,7 @@ func (n *Notifier) notifyV2(
 	details map[string]any,
 ) (bool, error) {
 	var tmplErr error
-	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+	tmpl := notify.TmplTextWithLogger(n.tmpl, data, &tmplErr, n.logger)
 
 	if n.conf.Severity == "" {
 		n.conf.Severity = "error"
@@ -370,7 +370,7 @@ func (n *Notifier) renderDetails(
 ) (map[string]any, error) {
 	var (
 		tmplTextErr  error
-		tmplText     = notify.TmplText(n.tmpl, data, &tmplTextErr)
+		tmplText     = notify.TmplTextWithLogger(n.tmpl, data, &tmplTextErr, n.logger)
 		tmplTextFunc = func(tmpl string) (string, error) {
 			return tmplText(tmpl), tmplTextErr
 		}
