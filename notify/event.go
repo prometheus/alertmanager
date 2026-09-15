@@ -35,6 +35,21 @@ func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
 	)
 }
 
+// mutedAlertDetails returns the alerts a mute stage removed from the pipeline,
+// in hash order so that an unchanged muted set always produces the same event.
+func mutedAlertDetails(ctx context.Context) []*alert.Alert {
+	hashes, muted := sortedMutedAlerts(ctx)
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	result := make([]*alert.Alert, 0, len(hashes))
+	for _, hash := range hashes {
+		result = append(result, muted[hash])
+	}
+	return result
+}
+
 func alertDetailsByHash(alerts []*alert.Alert) map[uint64]*alert.Alert {
 	result := make(map[uint64]*alert.Alert, len(alerts))
 	for _, alert := range alerts {
@@ -93,7 +108,7 @@ func newNotificationEvent(ctx context.Context, alerts []*alert.Alert, integratio
 	firingHashes, _ := FiringAlerts(ctx)
 	resolvedHashes, _ := ResolvedAlerts(ctx)
 	details := alertDetailsByHash(alerts)
-	muted, _ := mutedAlertDetails(ctx)
+	muted := mutedAlertDetails(ctx)
 	allAlerts := make([]*alert.Alert, 0, len(alerts)+len(muted))
 	allAlerts = append(allAlerts, alerts...)
 	allAlerts = append(allAlerts, muted...)

@@ -109,9 +109,10 @@ func TestMuteStageAccumulatesMutedAlertDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*alert.Alert{active}, alerts)
 
-	muted, ok := mutedAlertDetails(ctx)
-	require.True(t, ok)
-	require.Equal(t, []*alert.Alert{first, second}, muted)
+	// The muted alerts accumulate across both stages. They are keyed by hash,
+	// so the order they come back in is hash order, not the order they were
+	// muted in.
+	require.ElementsMatch(t, []*alert.Alert{first, second}, mutedAlertDetails(ctx))
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
