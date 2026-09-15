@@ -579,8 +579,7 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
 			logger := d.logger.With("aggrGroup", ag.GroupKey(), "num_alerts", len(alerts), "receiver", ag.opts.Receiver, "err", err)
-			var ie *notify.ErrorWithIntegration
-			if errors.As(err, &ie) {
+			if ie, ok := errors.AsType[*notify.ErrorWithIntegration](err); ok {
 				logger = logger.With("integration", ie.Integration)
 			}
 			if errors.Is(ctx.Err(), context.Canceled) {
