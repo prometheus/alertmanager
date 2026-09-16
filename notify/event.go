@@ -107,17 +107,19 @@ func newNotificationEvent(ctx context.Context, alerts []*alert.Alert, integratio
 	flushID, _ := FlushID(ctx)
 	firingHashes, _ := FiringAlerts(ctx)
 	resolvedHashes, _ := ResolvedAlerts(ctx)
-	details := alertDetailsByHash(alerts)
-	muted := mutedAlertDetails(ctx)
-	allAlerts := make([]*alert.Alert, 0, len(alerts)+len(muted))
+	// The two halves of the group: the alerts the receiver was shown, and the
+	// alerts a mute stage removed from the pipeline.
+	visibleDetails := alertDetailsByHash(alerts)
+	mutedDetails := mutedAlertDetails(ctx)
+	allAlerts := make([]*alert.Alert, 0, len(alerts)+len(mutedDetails))
 	allAlerts = append(allAlerts, alerts...)
-	allAlerts = append(allAlerts, muted...)
+	allAlerts = append(allAlerts, mutedDetails...)
 
 	return eventrecorder.NewNotificationEvent(eventrecorder.Notification{
 		Alerts:         groupedAlertsWithDetails(allAlerts),
-		FiringAlerts:   groupedAlertReferences(alertDetailsForHashes(details, firingHashes)),
-		ResolvedAlerts: groupedAlertReferences(alertDetailsForHashes(details, resolvedHashes)),
-		MutedAlerts:    groupedAlertReferences(muted),
+		FiringAlerts:   groupedAlertReferences(alertDetailsForHashes(visibleDetails, firingHashes)),
+		ResolvedAlerts: groupedAlertReferences(alertDetailsForHashes(visibleDetails, resolvedHashes)),
+		MutedAlerts:    groupedAlertReferences(mutedDetails),
 		Group:          extractAlertGroupInfo(ctx),
 		RepeatInterval: repeatInterval,
 		Reason:         notifyReasonToEvent(notifyReason),
