@@ -195,10 +195,15 @@ func (n *DedupStage) needsUpdateMuteAware(entry *nflogpb.Entry, s groupState, re
 	// alert that is firing but muted still keeps the group from resolving.
 	if len(s.firingSet) == 0 {
 		// The receiver cannot be told about alerts it was never shown.
-		if len(notifiedFiring) > 0 {
-			return ReasonAllAlertsResolved
+		if len(notifiedFiring) == 0 {
+			return ReasonDoNotNotify
 		}
-		return ReasonDoNotNotify
+		// Every alert that ended the group is muted, so there
+		// is nothing to send and nothing worth recording.
+		if len(s.visibleResolved()) == 0 {
+			return ReasonDoNotNotify
+		}
+		return ReasonAllAlertsResolved
 	}
 
 	// Alerts the receiver has not been shown.

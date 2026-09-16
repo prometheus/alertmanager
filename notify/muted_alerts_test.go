@@ -376,6 +376,9 @@ func TestDedup_MutedAlertBreaksNotificationSequence(t *testing.T) {
 // nothing leaves the notification log entry alone. With the feature enabled the
 // stage is reached on such flushes, and writing would refresh the entry's
 // timestamp and defer the repeat interval forever.
+//
+// Only flushes the receiver learns nothing from are skipped; a repeat interval
+// with anything visible still notifies and writes, as the last step shows.
 func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
 	p := newMutedPipelineMuteAware(t, true, true)
 	base := utcNow()
@@ -401,6 +404,52 @@ func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
 	notified, reason, _ = p.flush(base.Add(65*time.Minute), a, b)
 	require.Equal(t, ReasonRepeatIntervalElapsed, reason)
 	require.Equal(t, []*alert.Alert{a}, notified)
+	require.Equal(t, 2, p.writes)
+}
+
+// TestSetNotifies_NoWriteWhileEverythingIsMuted asserts that a fully muted
+// group writes nothing, however long the mute lasts, and that the repeat it
+// misses waits for the group instead of being lost.
+//
+// The cost is expiry: the entry keeps the 2 * repeat_interval it was written
+// with, so a longer mute loses it to nflog GC. Refreshing it needs a write that
+// moves neither the timestamp nor the muted set.
+func TestSetNotifies_NoWriteWhileEverythingIsMuted(t *testing.T) {
+	p := newMutedPipelineMuteAware(t, true, true)
+	base := utcNow()
+
+	a, b := firingAlert("a"), firingAlert("b")
+
+	notified, reason, _ := p.flush(base, a, b)
+	require.Equal(t, ReasonFirstNotification, reason)
+	require.Equal(t, []*alert.Alert{a, b}, notified)
+	require.Equal(t, 1, p.writes)
+	firstWrite := p.entry.Timestamp.AsTime()
+
+	p.muted[a.Labels["alertname"]] = struct{}{}
+	p.muted[b.Labels["alertname"]] = struct{}{}
+
+	// The whole group is muted, so the receiver is shown nothing.
+	notified, reason, _ = p.flush(base.Add(10*time.Minute), a, b)
+	require.Equal(t, ReasonAllAlertsMuted, reason)
+	require.Empty(t, notified)
+	require.Equal(t, 1, p.writes)
+
+	// The repeat interval elapses while the group is muted: nothing to repeat.
+	notified, reason, _ = p.flush(base.Add(65*time.Minute), a, b)
+	require.Equal(t, ReasonAllAlertsMuted, reason)
+	require.Empty(t, notified)
+	require.Equal(t, 1, p.writes, "a fully muted group should not write to the notification log")
+	require.Equal(t, firstWrite, p.entry.Timestamp.AsTime())
+
+	// The entry still carries the old timestamp, so unmuting delivers the
+	// repeat that came due while the group was muted.
+	delete(p.muted, a.Labels["alertname"])
+	delete(p.muted, b.Labels["alertname"])
+
+	notified, reason, _ = p.flush(base.Add(70*time.Minute), a, b)
+	require.Equal(t, ReasonRepeatIntervalElapsed, reason)
+	require.Equal(t, []*alert.Alert{a, b}, notified)
 	require.Equal(t, 2, p.writes)
 }
 
@@ -434,17 +483,13 @@ func TestDedup_MutedAlertStaysInNflog(t *testing.T) {
 	require.Equal(t, SequenceOpen, p.sequence)
 }
 
-// TestDedup_MutedAlertResolvesTheSequence is
+// TestDedup_MutedAlertDoesNotResolveTheSequence is
 // TestDedup_NoResolvedNotificationForMutedAlert with the feature enabled. The
-// dedup stage now sees that the group resolved and closes the sequence, where
-// before the mute stage emptied the group first.
-//
-// Nothing is delivered yet: everything in the group is muted, so there is
-// nothing to send until the per-receiver behaviour in
-// https://github.com/prometheus/alertmanager/issues/5247 exists. What changed
-// is that the log records the resolution instead of holding an alert that is
-// no longer firing.
-func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
+// dedup stage now sees the group resolve, but every alert that resolved it is
+// muted, so nothing can be delivered. Recording it would close the sequence
+// silently, so the entry is left alone and the group closes on the first flush
+// that can show the resolved alert.
+func TestDedup_MutedAlertDoesNotResolveTheSequence(t *testing.T) {
 	p := newMutedPipelineMuteAware(t, true, true)
 	base := utcNow()
 	a, aResolved := firingAlert("a"), resolvedAlert("a")
@@ -452,18 +497,32 @@ func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
 	notified, reason, _ := p.flush(base, a)
 	require.Equal(t, ReasonFirstNotification, reason)
 	require.Equal(t, []*alert.Alert{a}, notified)
+	require.Equal(t, 1, p.writes)
 
 	p.muted[a.Labels["alertname"]] = struct{}{}
 
 	notified, reason, dedupRan := p.flush(base.Add(time.Minute), aResolved)
 	require.True(t, dedupRan, "the dedup stage should be reached even though the group was emptied")
-	require.Equal(t, ReasonAllAlertsResolved, reason)
+	require.Equal(t, ReasonDoNotNotify, reason)
 	require.Empty(t, notified)
-	require.Equal(t, SequenceClosedResolved, p.sequence)
+	require.Equal(t, SequenceOpen, p.sequence, "the receiver still knows the group as firing")
 
+	// The entry still holds the group as the receiver was shown it.
+	require.Equal(t, 1, p.writes)
+	require.Equal(t, []uint64{hashAlert(a)}, p.entry.FiringAlerts)
+	require.Empty(t, p.entry.ResolvedAlerts)
+	require.Empty(t, p.entry.MutedAlerts)
+
+	// The mute ends while the alert is still in the group, so the close lands.
+	delete(p.muted, a.Labels["alertname"])
+
+	notified, reason, _ = p.flush(base.Add(2*time.Minute), aResolved)
+	require.Equal(t, ReasonAllAlertsResolved, reason)
+	require.Equal(t, []*alert.Alert{aResolved}, notified)
+	require.Equal(t, SequenceClosedResolved, p.sequence)
+	require.Equal(t, 2, p.writes)
 	require.Empty(t, p.entry.FiringAlerts)
 	require.Equal(t, []uint64{hashAlert(a)}, p.entry.ResolvedAlerts)
-	require.Equal(t, []uint64{hashAlert(a)}, p.entry.MutedAlerts)
 }
 
 // TestDedup_MutedAlertKeepsTheSequenceCoherent is
@@ -561,13 +620,21 @@ func TestDedup_NeedsUpdateMuteAware(t *testing.T) {
 		resolved: []uint64{1},
 		want:     ReasonDoNotNotify,
 	}, {
-		// The receiver was shown the group, so it is told the group is over,
-		// even though the resolved alert is now muted.
-		name:     "muted alert resolves the group the receiver was told about",
+		// The alert whose resolution would close the group is muted, so the
+		// close waits for a flush that can carry it.
+		name:     "every alert that resolves the group is muted",
 		entry:    entry([]uint64{1}, nil, nil),
 		resolved: []uint64{1},
 		muted:    []uint64{1},
-		want:     ReasonAllAlertsResolved,
+		want:     ReasonDoNotNotify,
+	}, {
+		// Alert 1 resolving can be shown, so the group still closes.
+		name:          "group resolves with one of its alerts muted",
+		entry:         entry([]uint64{1, 2}, nil, nil),
+		resolved:      []uint64{1, 2},
+		muted:         []uint64{2},
+		sendsResolved: true,
+		want:          ReasonAllAlertsResolved,
 	}, {
 		name:     "group resolves after the receiver was shown it",
 		entry:    entry([]uint64{1, 2}, nil, nil),
