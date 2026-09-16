@@ -1,6 +1,6 @@
 ## main / (unreleased)
 
-## 0.34.1 / 2026-09-11
+## 0.34.1 / 2026-09-17
 
 * [BUGFIX] inhibit: Fix several issues related to inhibitions that caused alerts to be improperly un-muted in some cases. #5542, #5449, #5559
 
