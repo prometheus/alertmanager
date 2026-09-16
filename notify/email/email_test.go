@@ -736,12 +736,70 @@ func TestEmailRejected(t *testing.T) {
 	require.ErrorContains(t, err, "501")
 	require.ErrorContains(t, err, "5.5.4")
 	require.True(t, retry)
+
+	// A 501 (5xx) SMTP reply is a permanent failure, which should surface
+	// as ClientErrorReason, mirroring how HTTP-based notifiers report 4xx
+	// responses (SMTP's 4xx/5xx split is the inverse of HTTP's).
+	var reasonErr *notify.ErrorWithReason
+	require.ErrorAs(t, err, &reasonErr, "expected error to carry a notify.ErrorWithReason")
+	require.Equal(t, notify.ClientErrorReason, reasonErr.Reason)
+
 	require.NoError(t, srv.Shutdown(ctx))
 
 	require.Eventuallyf(t, func() bool {
 		<-done
 		return true
 	}, time.Second*10, time.Millisecond*100, "mock SMTP server goroutine failed to close in time")
+}
+
+// TestEmailGreetingRejected simulates a server that rejects the connection at the initial SMTP
+// greeting (before any session is established), which net/smtp.NewClient surfaces directly.
+func TestEmailGreetingRejected(t *testing.T) {
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = l.Close() })
+
+	done := make(chan any, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			close(done)
+			return
+		}
+		// A 421 greeting means the service is temporarily unavailable; net/smtp.NewClient
+		// returns this as a *textproto.Error before any session/session commands happen.
+		_, _ = conn.Write([]byte("421 Service not available, closing transmission channel\r\n"))
+		_ = conn.Close()
+		close(done)
+	}()
+
+	require.IsType(t, &net.TCPAddr{}, l.Addr())
+	addr := l.Addr().(*net.TCPAddr)
+	cfg := &config.EmailConfig{
+		Smarthost: config.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
+		Hello:     "localhost",
+		Headers:   make(map[string]string),
+		From:      "alertmanager@system",
+		To:        "sre@company",
+	}
+	tmpl, firingAlert, err := prepare(cfg)
+	require.NoError(t, err)
+
+	e := New(cfg, tmpl, promslog.NewNopLogger())
+
+	retry, err := e.Notify(context.Background(), firingAlert)
+	require.ErrorContains(t, err, "421")
+	require.True(t, retry)
+
+	// A 421 (4xx) greeting is a temporary failure, which should surface as ServerErrorReason.
+	var reasonErr *notify.ErrorWithReason
+	require.ErrorAs(t, err, &reasonErr, "expected error to carry a notify.ErrorWithReason")
+	require.Equal(t, notify.ServerErrorReason, reasonErr.Reason)
+
+	require.Eventuallyf(t, func() bool {
+		<-done
+		return true
+	}, time.Second*10, time.Millisecond*100, "mock listener goroutine failed to close in time")
 }
 
 func mockSMTPServer(t *testing.T) (*smtp.Server, net.Listener, error) {
