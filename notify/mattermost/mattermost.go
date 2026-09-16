@@ -118,7 +118,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return false, errors.New("webhook url missing")
 	}
 
-	req := n.createRequest(notify.TmplText(n.tmpl, data, &err))
+	tmplText := notify.TmplTextWithLogger(n.tmpl, data, &err, n.logger)
+	req := n.createRequest(tmplText)
 	if err != nil {
 		return false, err
 	}
