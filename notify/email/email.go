@@ -35,7 +35,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -43,16 +42,16 @@ import (
 
 // Email implements a Notifier for email notifications.
 type Email struct {
-	conf     *config.EmailConfig
+	conf     *EmailConfig
 	tmpl     *template.Template
 	logger   *slog.Logger
 	hostname string
 }
 
 // New returns a new Email notifier.
-func New(c *config.EmailConfig, t *template.Template, l *slog.Logger) *Email {
+func New(c *EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	if _, ok := c.Headers["Subject"]; !ok {
-		c.Headers["Subject"] = config.DefaultEmailSubject
+		c.Headers["Subject"] = DefaultEmailSubject
 	}
 	if _, ok := c.Headers["To"]; !ok {
 		c.Headers["To"] = c.To
