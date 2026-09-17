@@ -45,17 +45,6 @@ var (
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
-
-	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
-	DefaultVictorOpsConfig = VictorOpsConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		MessageType:       `CRITICAL`,
-		StateMessage:      `{{ template "victorops.default.state_message" . }}`,
-		EntityDisplayName: `{{ template "victorops.default.entity_display_name" . }}`,
-		MonitoringTool:    `{{ template "victorops.default.monitoring_tool" . }}`,
-	}
 )
 
 // WebexConfig configures notifications via Webex.
@@ -162,52 +151,6 @@ func (c *EmailConfig) Validate() error {
 		}
 		if !slices.Contains([]string{"none", "daily"}, c.Threading.ThreadByDate) {
 			return errors.New("threading.thread_by_date must be either 'none' or 'daily'")
-		}
-	}
-
-	return nil
-}
-
-// VictorOpsConfig configures notifications via VictorOps.
-type VictorOpsConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIKey            commoncfg.Secret  `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIKeyFile        string            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
-	APIURL            *amcommoncfg.URL  `yaml:"api_url" json:"api_url"`
-	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
-	MessageType       string            `yaml:"message_type" json:"message_type"`
-	StateMessage      string            `yaml:"state_message" json:"state_message"`
-	EntityDisplayName string            `yaml:"entity_display_name" json:"entity_display_name"`
-	MonitoringTool    string            `yaml:"monitoring_tool" json:"monitoring_tool"`
-	CustomFields      map[string]string `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultVictorOpsConfig
-	type plain VictorOpsConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	return c.Validate()
-}
-
-func (c *VictorOpsConfig) Validate() error {
-	if c.RoutingKey == "" {
-		return errors.New("missing Routing key in VictorOps config")
-	}
-	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
-		return errors.New("at most one of api_key & api_key_file must be configured")
-	}
-
-	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}
-
-	for _, v := range reservedFields {
-		if _, ok := c.CustomFields[v]; ok {
-			return fmt.Errorf("victorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
 		}
 	}
 
