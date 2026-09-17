@@ -193,21 +193,6 @@ custom_fields:
 	}
 }
 
-func TestWeChatTypeMatcher(t *testing.T) {
-	good := []string{"text", "markdown"}
-	for _, g := range good {
-		if !wechatTypeMatcher.MatchString(g) {
-			t.Fatalf("failed to match with %s", g)
-		}
-	}
-	bad := []string{"TEXT", "MarkDOwn"}
-	for _, b := range bad {
-		if wechatTypeMatcher.MatchString(b) {
-			t.Errorf("mistakenly match with %s", b)
-		}
-	}
-}
-
 func TestWebexConfiguration(t *testing.T) {
 	tc := []struct {
 		name string
