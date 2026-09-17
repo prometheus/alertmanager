@@ -210,19 +210,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
-				n.logger.Warn("Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
-				select {
-				case <-time.After(d):
-				case <-ctx.Done():
-				}
-			}
-		}
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
 		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
 		if retry {
-			return notify.Retry(0, err, reason)
+			retryAfter := notify.ParseRetryAfter(resp.Header, received)
+			if retryAfter > 0 {
+				n.logger.Warn("Rate limited by Slack, delaying retry", "retry_after_secs", retryAfter.Seconds())
+			}
+			return notify.Retry(retryAfter, err, reason)
 		}
 		return notify.Unrecoverable(err, reason)
 	}
