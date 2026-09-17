@@ -29,7 +29,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -37,7 +36,7 @@ import (
 
 // Notifier implements a Notifier for wechat notifications.
 type Notifier struct {
-	conf   *config.WechatConfig
+	conf   *WechatConfig
 	tmpl   *template.Template
 	logger *slog.Logger
 	client *http.Client
@@ -72,7 +71,7 @@ type weChatResponse struct {
 }
 
 // New returns a new Wechat notifier.
-func New(c *config.WechatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *WechatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "wechat", httpOpts...)
 	if err != nil {
 		return nil, err
