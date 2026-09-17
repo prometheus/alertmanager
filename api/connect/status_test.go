@@ -798,6 +798,34 @@ var _ = Describe("RPC admission", func() {
 		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
 	})
 
+	It("waits for read deadline updates before finishing cleanup", func() {
+		writer := &blockingDeadlineResponseWriter{
+			deadlineResponseWriter: deadlineResponseWriter{header: http.Header{}},
+			entered:                make(chan struct{}),
+			release:                make(chan struct{}),
+		}
+		lifecycle := &rpcLifecycle{controller: http.NewResponseController(writer)}
+		deadline := time.Now().Add(time.Minute)
+		updated := make(chan struct{})
+		go func() {
+			lifecycle.setReadDeadline(deadline)
+			close(updated)
+		}()
+		Eventually(writer.entered).Should(BeClosed())
+		stopped := make(chan struct{})
+		go func() {
+			lifecycle.stop()
+			close(stopped)
+		}()
+		Consistently(stopped, 20*time.Millisecond).ShouldNot(BeClosed())
+		close(writer.release)
+		Eventually(updated).Should(BeClosed())
+		Eventually(stopped).Should(BeClosed())
+		Expect(writer.readDeadline).To(Equal(deadline))
+		lifecycle.setReadDeadline(time.Time{})
+		Expect(writer.readDeadline).To(Equal(deadline))
+	})
+
 	It("does not restart an idle timer after cleanup", func() {
 		var fired atomic.Bool
 		lifecycle := &rpcLifecycle{idleTimeout: time.Millisecond}
