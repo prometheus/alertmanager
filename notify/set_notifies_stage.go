@@ -71,10 +71,11 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 	)
 	defer span.End()
 
-	// With the feature enabled this stage is reached even when the group was
-	// emptied and nothing was delivered. The entry records the group as the
-	// receiver was last shown it, and rewriting it would refresh its timestamp
-	// and defer the repeat interval forever.
+	// With the feature enabled this stage is reached on flushes that deliver
+	// nothing, and most of them are still worth recording: a muted group has
+	// gone quiet, and the entry has to say so. A flush the dedup stage found
+	// nothing to say about is the exception, since rewriting the entry would
+	// refresh its timestamp and defer the repeat interval forever.
 	if reason, ok := NotificationReason(ctx); ok && !reason.shouldNotify() {
 		span.AddEvent("notify.SetNotifiesStage.Exec nothing was notified, log entry left unchanged")
 		return ctx, alerts, nil

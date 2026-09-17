@@ -195,15 +195,10 @@ func (n *DedupStage) needsUpdateMuteAware(entry *nflogpb.Entry, s groupState, re
 	// alert that is firing but muted still keeps the group from resolving.
 	if len(s.firingSet) == 0 {
 		// The receiver cannot be told about alerts it was never shown.
-		if len(notifiedFiring) == 0 {
-			return ReasonDoNotNotify
+		if len(notifiedFiring) > 0 {
+			return ReasonAllAlertsResolved
 		}
-		// Every alert that ended the group is muted, so there
-		// is nothing to send and nothing worth recording.
-		if len(s.visibleResolved()) == 0 {
-			return ReasonDoNotNotify
-		}
-		return ReasonAllAlertsResolved
+		return ReasonDoNotNotify
 	}
 
 	// Alerts the receiver has not been shown.
@@ -224,17 +219,24 @@ func (n *DedupStage) needsUpdateMuteAware(entry *nflogpb.Entry, s groupState, re
 		return ReasonNewResolvedAlerts
 	}
 
+	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
+
 	// The group is still firing but none of it can be shown, and there is
 	// nothing else to say, so the sequence closes as muted, not as resolved.
 	if len(visibleFiring) == 0 {
 		if len(notifiedFiring) > 0 {
 			return ReasonAllAlertsMuted
 		}
+		// The sequence is already closed. Nothing is delivered while the group
+		// stays muted, so without a rewrite the entry expires and the group
+		// comes back as one the receiver has never been told about.
+		if isRepeatIntervalElapsed {
+			return ReasonStillMuted
+		}
 		return ReasonDoNotNotify
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
 	if isRepeatIntervalElapsed {
 		return ReasonRepeatIntervalElapsed
 	}

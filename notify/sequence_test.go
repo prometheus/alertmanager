@@ -119,14 +119,17 @@ func TestNotifyReasonString(t *testing.T) {
 	require.Equal(t, "repeat interval elapsed", ReasonRepeatIntervalElapsed.String())
 	require.Equal(t, "some alerts unmuted", ReasonAlertsUnmuted.String())
 	require.Equal(t, "all alerts muted", ReasonAllAlertsMuted.String())
+	require.Equal(t, "still muted", ReasonStillMuted.String())
 	require.Equal(t, "none", ReasonDoNotNotify.String())
 	require.Equal(t, "unknown", NotifyReason(-1).String())
 }
 
-// TestNotifyReasonShouldNotify pins which reasons deliver a notification.
-// ReasonAllAlertsMuted closes the sequence without one: telling the receiver
-// its group went quiet is the per-receiver behaviour #5247 asks for, which
-// does not exist yet.
+// TestNotifyReasonShouldNotify pins which reasons run the rest of the pipeline.
+// Only ReasonDoNotNotify stops it. The two muted reasons reach the notification
+// log without delivering anything, the way a resolved-only flush does for a
+// receiver that sends no resolved notifications: what the receiver is shown is
+// the retry stage's business, and for a fully muted group that is nothing until
+// the per-receiver behaviour #5247 asks for exists.
 func TestNotifyReasonShouldNotify(t *testing.T) {
 	tests := []struct {
 		reason NotifyReason
@@ -138,7 +141,8 @@ func TestNotifyReasonShouldNotify(t *testing.T) {
 		{ReasonAllAlertsResolved, true},
 		{ReasonRepeatIntervalElapsed, true},
 		{ReasonAlertsUnmuted, true},
-		{ReasonAllAlertsMuted, false},
+		{ReasonAllAlertsMuted, true},
+		{ReasonStillMuted, true},
 		{ReasonDoNotNotify, false},
 	}
 

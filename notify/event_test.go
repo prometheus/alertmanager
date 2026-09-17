@@ -43,6 +43,7 @@ func TestNotifyReasonToEvent(t *testing.T) {
 		{ReasonDoNotNotify, eventrecorder.NotificationReasonUnspecified},
 		{ReasonAlertsUnmuted, eventrecorder.NotificationReasonUnspecified},
 		{ReasonAllAlertsMuted, eventrecorder.NotificationReasonUnspecified},
+		{ReasonStillMuted, eventrecorder.NotificationReasonUnspecified},
 	}
 
 	for _, test := range tests {

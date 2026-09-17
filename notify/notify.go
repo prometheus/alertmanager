@@ -351,16 +351,21 @@ const (
 	// ReasonAllAlertsMuted is reported when a group the receiver was notified
 	// about is still firing, but none of it can be shown any more.
 	ReasonAllAlertsMuted
+	// ReasonStillMuted is reported when a group that already went quiet is
+	// still fully muted and its log entry is due to be rewritten, so that the
+	// group's state outlives the entry's expiry.
+	ReasonStillMuted
 	ReasonUnknown
 )
 
+// shouldNotify reports whether this flush runs the rest of the pipeline and is
+// recorded in the notification log. The receiver is not shown something every
+// time: a flush of nothing but resolved alerts for a receiver that does not
+// send resolved notifications delivers nothing, and so does a fully muted
+// group, but both are recorded so that the next flush knows where the group
+// stands.
 func (r NotifyReason) shouldNotify() bool {
-	switch r {
-	case ReasonDoNotNotify, ReasonAllAlertsMuted:
-		return false
-	default:
-		return true
-	}
+	return r != ReasonDoNotNotify
 }
 
 func (r NotifyReason) String() string {
@@ -381,6 +386,8 @@ func (r NotifyReason) String() string {
 		return "some alerts unmuted"
 	case ReasonAllAlertsMuted:
 		return "all alerts muted"
+	case ReasonStillMuted:
+		return "still muted"
 	default:
 		return "unknown"
 	}
