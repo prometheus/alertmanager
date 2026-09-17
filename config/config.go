@@ -46,6 +46,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/victorops"
+	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/timeinterval"
@@ -1002,7 +1003,7 @@ type Receiver struct {
 	VictorOpsConfigs  []*victorops.VictorOpsConfig   `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs        []*sns.SNSConfig               `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	WebexConfigs      []*webex.WebexConfig           `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`

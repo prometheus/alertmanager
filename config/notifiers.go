@@ -26,14 +26,6 @@ import (
 
 var (
 
-	// DefaultWebexConfig defines default values for Webex configurations.
-	DefaultWebexConfig = WebexConfig{
-		NotifierConfig: amcommoncfg.NotifierConfig{
-			VSendResolved: true,
-		},
-		Message: `{{ template "webex.default.message" . }}`,
-	}
-
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: amcommoncfg.NotifierConfig{
@@ -46,38 +38,6 @@ var (
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 )
-
-// WebexConfig configures notifications via Webex.
-type WebexConfig struct {
-	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
-	HTTPConfig                 *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	APIURL                     *amcommoncfg.URL            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
-	RoomID  string `yaml:"room_id" json:"room_id"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebexConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	*c = DefaultWebexConfig
-	type plain WebexConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	return c.Validate()
-}
-
-func (c *WebexConfig) Validate() error {
-	if c.RoomID == "" {
-		return errors.New("missing room_id on webex_config")
-	}
-
-	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
-		return errors.New("missing webex_configs.http_config.authorization")
-	}
-
-	return nil
-}
 
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
