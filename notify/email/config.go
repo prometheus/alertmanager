@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package email
 
 import (
 	"errors"
@@ -47,7 +47,7 @@ type EmailConfig struct {
 	To               string               `yaml:"to,omitempty" json:"to,omitempty"`
 	From             string               `yaml:"from,omitempty" json:"from,omitempty"`
 	Hello            string               `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost        HostPort             `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	Smarthost        amcommoncfg.HostPort `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername     string               `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
 	AuthPassword     commoncfg.Secret     `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
 	AuthPasswordFile string               `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
