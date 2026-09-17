@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
 	"github.com/prometheus/alertmanager/notify/rocketchat"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/webhook"
@@ -426,7 +427,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc == nil {
-				sc = &SlackConfig{}
+				sc = &slack.SlackConfig{}
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
@@ -991,7 +992,7 @@ type Receiver struct {
 	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	SlackConfigs      []*slack.SlackConfig           `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
