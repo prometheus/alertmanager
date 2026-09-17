@@ -111,18 +111,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
-				logger.Warn("Rate limited by Webex, waiting before retry", "retry_after_secs", d.Seconds())
-				select {
-				case <-time.After(d):
-				case <-ctx.Done():
-				}
-			}
-		}
 		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
 		if shouldRetry {
-			return notify.Retry(0, err, reason)
+			retryAfter := notify.ParseRetryAfter(resp.Header, received)
+			if retryAfter > 0 {
+				logger.Warn("Rate limited by Webex, delaying retry", "retry_after_secs", retryAfter.Seconds())
+			}
+			return notify.Retry(retryAfter, err, reason)
 		}
 		return notify.Unrecoverable(err, reason)
 	}
