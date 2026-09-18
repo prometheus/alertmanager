@@ -29,6 +29,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/notify/email"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -782,7 +783,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				EnableHTTP2:     true,
 			},
 			ResolveTimeout: model.Duration(5 * time.Minute),
-			SMTPSmarthost:  HostPort{Host: "localhost", Port: "25"},
+			SMTPSmarthost:  amcommoncfg.HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:       "alertmanager@example.org",
 			SMTPTLSConfig: &commoncfg.TLSConfig{
 				InsecureSkipVerify: false,
@@ -828,11 +829,11 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			{
 				Name:   "team-X-mails",
 				Labels: map[string]string{"name": "team-X-mails"},
-				EmailConfigs: []*EmailConfig{
+				EmailConfigs: []*email.EmailConfig{
 					{
 						To:         "team-X+alerts@example.org",
 						From:       "alertmanager@example.org",
-						Smarthost:  HostPort{Host: "localhost", Port: "25"},
+						Smarthost:  amcommoncfg.HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
 						TLSConfig: &commoncfg.TLSConfig{
@@ -1584,73 +1585,6 @@ func TestRocketchatNoToken(t *testing.T) {
 	}
 	if err.Error() != "no global Rocketchat Token set either inline or in a file" {
 		t.Errorf("Expected: %s\nGot: %s", "no global Rocketchat Token set either inline or in a file", err.Error())
-	}
-}
-
-func TestUnmarshalHostPort(t *testing.T) {
-	for _, tc := range []struct {
-		in string
-
-		exp     HostPort
-		jsonOut string
-		yamlOut string
-		err     bool
-	}{
-		{
-			in:  `""`,
-			exp: HostPort{},
-			yamlOut: `""
-`,
-			jsonOut: `""`,
-		},
-		{
-			in:  `"localhost:25"`,
-			exp: HostPort{Host: "localhost", Port: "25"},
-			yamlOut: `localhost:25
-`,
-			jsonOut: `"localhost:25"`,
-		},
-		{
-			in:  `":25"`,
-			exp: HostPort{Host: "", Port: "25"},
-			yamlOut: `:25
-`,
-			jsonOut: `":25"`,
-		},
-		{
-			in:  `"localhost"`,
-			err: true,
-		},
-		{
-			in:  `"localhost:"`,
-			err: true,
-		},
-		{
-			in:  `"[fd12:3456:789a::1]:25"`,
-			exp: HostPort{Host: "fd12:3456:789a::1", Port: "25"},
-			yamlOut: `'[fd12:3456:789a::1]:25'
-`,
-			jsonOut: `"[fd12:3456:789a::1]:25"`,
-		},
-	} {
-		t.Run(tc.in, func(t *testing.T) {
-			hp := HostPort{}
-			err := yaml.Unmarshal([]byte(tc.in), &hp)
-			if tc.err {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.exp, hp)
-
-			b, err := yaml.Marshal(&hp)
-			require.NoError(t, err)
-			require.Equal(t, tc.yamlOut, string(b))
-
-			b, err = json.Marshal(&hp)
-			require.NoError(t, err)
-			require.Equal(t, tc.jsonOut, string(b))
-		})
 	}
 }
 
