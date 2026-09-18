@@ -99,7 +99,7 @@ templating.
 | date             | string, time.Time          | Returns the text representation of the time in the specified format. For documentation on formats refer to [pkg.go.dev/time](https://pkg.go.dev/time#pkg-constants). |
 | dict             | values ...any              | Returns a map of string to any, constructed from the variadic list of key-value pairs. The number of arguments must be even, and the keys must be strings. |
 | humanizeDuration | number or string           | Returns a human-readable string representing the duration, and the error if it happened. |
-| join             | sep string, s []string     | [strings.Join](http://golang.org/pkg/strings/#Join), concatenates the elements of s to create a single string. The separator string sep is placed between elements in the resulting string. (note: argument order inverted for easier pipelining in templates.) |
+| join             | sep string, v any          | Joins the elements of a slice or array using `sep`. The slice or array may have any element type, including `string`, `int`, or `any`; each element is converted to text using its default string representation. Returns an error if the second argument is not a slice or array. The argument order is reversed from `strings.Join` to support template pipelines. |
 | list             | ...any                     | Returns the passed arguments as a slice of interfaces. |
 | match            | pattern, string            | [Regexp.MatchString](https://golang.org/pkg/regexp/#MatchString). Match a string using Regexp. |
 | now              |                            | [time.Now](https://pkg.go.dev/time#Now), returns the current local time. |

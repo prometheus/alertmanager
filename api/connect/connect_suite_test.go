@@ -24,3 +24,8 @@ func TestConnectAPI(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Connect API Suite")
 }
+
+func newTestAPI(opts Options) *API {
+	GinkgoHelper()
+	return NewAPI(opts)
+}

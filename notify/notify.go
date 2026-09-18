@@ -179,7 +179,11 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, pb.ff)
+		if pb.ff.EnableMutedAlertsInNflog() {
+			rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
+			continue
+		}
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -196,6 +200,7 @@ func createReceiverStage(
 	notificationLog NotificationLog,
 	metrics *Metrics,
 	recorder eventrecorder.Recorder,
+	ff featurecontrol.Flagger,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -204,13 +209,18 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		var s MultiStage
-		s = append(s, NewClusterWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
-		s = append(s, NewSetNotifiesStage(notificationLog, recv))
+		stages := []Stage{
+			NewClusterWaitStage(wait),
+			NewDedupStage(&integrations[i], notificationLog, recv),
+			NewRetryStage(integrations[i], name, metrics, recorder),
+			NewSetNotifiesStage(notificationLog, recv, ff),
+		}
 
-		fs = append(fs, s)
+		if ff.EnableMutedAlertsInNflog() {
+			fs = append(fs, MutedMultiStage(stages))
+			continue
+		}
+		fs = append(fs, MultiStage(stages))
 	}
 	return fs
 }
@@ -243,15 +253,38 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 	return s.Exec(ctx, l, alerts...)
 }
 
-// A MultiStage executes a series of stages sequentially.
+// A MultiStage executes a series of stages sequentially. It stops as soon as
+// no alerts are left in the pipeline.
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
 func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+	return execStages(ctx, l, ms, false, alerts...)
+}
+
+// A MutedMultiStage executes a series of stages sequentially, and keeps going
+// when a mute stage has removed every alert from the pipeline. A group whose
+// alerts are all muted is not the same as a group with nothing in it, and the
+// stages that record the group's state have to run either way.
+type MutedMultiStage []Stage
+
+// Exec implements the Stage interface.
+func (ms MutedMultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+	return execStages(ctx, l, ms, true, alerts...)
+}
+
+// execStages runs the given stages in order. It stops early once no alerts are
+// left, unless continueWhenMuted is set and a mute stage has recorded the
+// alerts it removed.
+func execStages(ctx context.Context, l *slog.Logger, stages []Stage, continueWhenMuted bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var err error
-	for _, s := range ms {
+	for _, s := range stages {
 		if len(alerts) == 0 {
-			return ctx, nil, nil
+			// A group whose alerts were all muted still has to reach the
+			// stages that record its state.
+			if !continueWhenMuted || !hasMutedAlerts(ctx) {
+				return ctx, nil, nil
+			}
 		}
 
 		ctx, alerts, err = s.Exec(ctx, l, alerts...)
@@ -260,6 +293,13 @@ func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.
 		}
 	}
 	return ctx, alerts, nil
+}
+
+// hasMutedAlerts reports whether a mute stage has removed any alert from the
+// pipeline for this group.
+func hasMutedAlerts(ctx context.Context) bool {
+	muted, ok := MutedAlerts(ctx)
+	return ok && len(muted) > 0
 }
 
 // FanoutStage executes its stages concurrently.

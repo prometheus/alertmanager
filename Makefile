@@ -14,8 +14,6 @@
 # Needs to be defined before including Makefile.common to auto-generate targets
 DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 
-GOLANGCI_LINT_VERSION := v2.13.1
-
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
@@ -27,7 +25,8 @@ STATICCHECK_IGNORE =
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
-build-all: assets apiv2 build
+build-all: assets apiv2
+	$(MAKE) build
 
 .PHONY: build
 build: ui-elm ui-mantine common-build
@@ -39,16 +38,20 @@ test: ui-elm ui-mantine-test common-test
 lint: ui-elm ui-mantine-lint common-lint
 
 .PHONY: assets
-assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine template/email.tmpl
+assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine-assets template/email.tmpl
 
 .PHONY: assets-tarball
-assets-tarball: ui-elm ui-mantine
+assets-tarball: ui-elm ui-mantine-assets
 	mkdir -p .tarballs
 	tar czf ".tarballs/alertmanager-web-ui-$(file <VERSION).tar.gz" -C ui/app dist
 
 .PHONY: ui-elm
 ui-elm:
 	cd $(FRONTEND_DIR) && $(MAKE) build
+
+.PHONY: ui-mantine-assets
+ui-mantine-assets:
+	cd $(MANTINE_UI_DIR) && $(MAKE) assets
 
 .PHONY: ui-mantine
 ui-mantine:

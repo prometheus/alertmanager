@@ -291,8 +291,24 @@ var DefaultFuncs = FuncMap{
 	"trimSpace": strings.TrimSpace,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
-	"join": func(sep string, s []string) string {
-		return strings.Join(s, sep)
+	"join": func(sep string, v any) (string, error) {
+		if s, ok := v.([]string); ok {
+			return strings.Join(s, sep), nil
+		}
+
+		value := reflect.ValueOf(v)
+		switch {
+		case !value.IsValid():
+			return "", nil
+		case value.Kind() == reflect.Slice, value.Kind() == reflect.Array:
+			parts := make([]string, 0, value.Len())
+			for _, elem := range value.Seq2() {
+				parts = append(parts, fmt.Sprint(elem.Interface()))
+			}
+			return strings.Join(parts, sep), nil
+		default:
+			return "", fmt.Errorf("join expects a slice or array, got %T", v)
+		}
 	},
 	"match": regexp.MatchString,
 	"safeHtml": func(text string) tmplhtml.HTML {
@@ -652,8 +668,17 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		if ok == nil {
 			var inlineType any
 			err := yaml.Unmarshal([]byte(parsed), &inlineType)
-			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+			if err != nil {
 				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			if inlineString, isString := inlineType.(string); isString {
+				// Decode an explicit JSON string, such as output from toJson.
+				// Preserve other strings because YAML can remove comments,
+				// whitespace, and line breaks from plain scalar values.
+				if json.Valid([]byte(parsed)) {
+					return inlineString, ok
+				}
 				return parsed, ok
 			}
 			// inlineType holds structured data decoded from the rendered string.

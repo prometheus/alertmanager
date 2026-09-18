@@ -22,7 +22,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -273,6 +272,7 @@ func (n *Notifier) postRequest(ctx context.Context, u string, req *request, stor
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
+	received := time.Now()
 	if err != nil {
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
@@ -286,7 +286,7 @@ func (n *Notifier) postRequest(ctx context.Context, u string, req *request, stor
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := parseRetryAfter(resp.Header.Get("Retry-After")); d > 0 {
+			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
 				n.logger.Warn("Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
 				select {
 				case <-time.After(d):
@@ -330,20 +330,6 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
 	}
 	return false, nil
-}
-
-// parseRetryAfter parses the Retry-After header value as integer seconds
-// and returns the corresponding duration. Returns 0 if the value is empty,
-// not a valid integer, or non-positive.
-func parseRetryAfter(val string) time.Duration {
-	if val == "" {
-		return 0
-	}
-	seconds, err := strconv.Atoi(val)
-	if err != nil || seconds <= 0 {
-		return 0
-	}
-	return time.Duration(seconds) * time.Second
 }
 
 // checkTextResponseError classifies plaintext responses from Slack.

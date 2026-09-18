@@ -64,11 +64,19 @@ type Options struct {
 	DispatchStartDelay          time.Duration
 
 	// Web server.
-	WebConfig      *web.FlagConfig
-	ExternalURL    string
-	RoutePrefix    string
-	GetConcurrency int
-	HTTPTimeout    time.Duration
+	WebConfig                  *web.FlagConfig
+	ExternalURL                string
+	RoutePrefix                string
+	GetConcurrency             int
+	HTTPTimeout                time.Duration
+	ConnectUnaryConcurrency    int
+	ConnectStreamConcurrency   int
+	ConnectUnaryTimeout        time.Duration
+	ConnectStreamIdleTimeout   time.Duration
+	ConnectStreamLifetime      time.Duration
+	ConnectReadMaxBytes        int
+	ConnectSendMaxBytes        int
+	ConnectMaxRequestBodyBytes int64
 
 	// Cluster.
 	ClusterBindAddr        string

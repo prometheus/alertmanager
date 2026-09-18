@@ -49,7 +49,8 @@ func TestWebexRetry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, "error on status %d", statusCode)
 	}
@@ -167,6 +168,88 @@ func TestWebexTemplating(t *testing.T) {
 			require.Equal(t, tt.retry, ok)
 		})
 	}
+}
+
+func TestWebexRetryAfterSleep(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.WebexConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIURL:     &amcommoncfg.URL{URL: u},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx := notify.WithGroupKey(context.Background(), "1")
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"lbl1": "val1"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	start := time.Now()
+	retry, err := notifier.Notify(ctx, alert)
+	elapsed := time.Since(start)
+
+	require.True(t, retry)
+	require.Error(t, err)
+	require.GreaterOrEqual(t, elapsed, 1*time.Second, "should have waited at least 1 second for Retry-After")
+}
+
+func TestWebexRetryAfterContextCancelled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "2")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.WebexConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIURL:     &amcommoncfg.URL{URL: u},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	// Cancel context after a short delay to interrupt the Retry-After sleep.
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"lbl1": "val1"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	start := time.Now()
+	retry, err := notifier.Notify(ctx, alert)
+	elapsed := time.Since(start)
+
+	require.True(t, retry)
+	require.Error(t, err)
+	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
 }
 
 func TestWebexFailureReason(t *testing.T) {
