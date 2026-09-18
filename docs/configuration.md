@@ -1764,8 +1764,12 @@ fields:
 
 # Posts subsequent notifications for an alert group as replies in the thread of the
 # initial message instead of new channel messages. When combined with update_message,
-# the initial message is updated in place and a reply is also posted to its thread.
-# Webhook URLs do not support threads.
+# the initial message is updated in place and a reply is also posted to its thread,
+# except for notifications triggered only by repeat_interval: the updated message
+# already carries the current state, so it is not copied into the thread again.
+# Requires a Slack app with a bot token (chat:write scope) and api_url set to
+# https://slack.com/api/chat.postMessage. Incoming webhooks cannot be used, they do
+# not return the message identifiers a thread needs.
 [ post_updates_to_thread: <boolean> | default = false ]
 ```
 
