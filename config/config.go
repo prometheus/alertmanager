@@ -460,6 +460,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				}
 				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
 			}
+			// update_message and post_updates_to_thread require the bot-token API.
+			// The endpoint can only be verified for URLs known at load time;
+			// api_url_file is read at notification time and is accepted as-is.
+			if len(sc.APIURLFile) == 0 && (sc.APIURL == nil || sc.APIURL.String() != "https://slack.com/api/chat.postMessage") {
+				if sc.UpdateMessage {
+					return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+				}
+				if sc.PostUpdatesToThread {
+					return errors.New("post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+				}
+			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc == nil {

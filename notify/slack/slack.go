@@ -37,6 +37,11 @@ import (
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
 
+// chatPostMessageURL is the only api_url that supports message updates and
+// threads, both of which need the message identifiers returned by the bot-token
+// Web API. Incoming webhooks return no identifiers.
+const chatPostMessageURL = "https://slack.com/api/chat.postMessage"
+
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
@@ -154,6 +159,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u = strings.TrimSpace(string(content))
 	}
 
+	if err := requireBotAPIURL(n.conf, u); err != nil {
+		return false, err
+	}
+
 	if n.conf.Timeout > 0 {
 		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
 		defer cancel()
@@ -170,27 +179,93 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Attachments: []attachment{*att},
 	}
 
-	// If a notification for this alert group has already been sent and `update_message` config is set
-	// edit API endpoint and payload to update notification instead of sending a new one.
+	// If a notification for this alert group has already been sent, `update_message`
+	// edits the initial message instead of sending a new one and `post_updates_to_thread`
+	// posts the notification as a reply in the initial message's thread.
 	var store *nflog.Store
+	var threadTs, channelId string
 
-	if n.conf.UpdateMessage {
+	if n.conf.UpdateMessage || n.conf.PostUpdatesToThread {
 		var ok bool
 		store, ok = notify.NflogStore(ctx)
 		if !ok {
-			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+			logger.Warn("cannot create NflogStore, updatable and threaded messages will be disabled.")
 		} else {
-			threadTs, _ := store.GetStr("threadTs")
-			channelId, _ := store.GetStr("channelId")
-			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
-			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
-				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
-			}
+			threadTs, _ = store.GetStr("threadTs")
+			channelId, _ = store.GetStr("channelId")
+			logger.Debug("attempt recovering threadTs and channelId of the initial message", "threadTs", threadTs, "channelId", channelId)
 		}
 	}
+
+	postURL := u
+	initialMessageSent := threadTs != "" && channelId != ""
+	if initialMessageSent {
+		switch {
+		case n.conf.UpdateMessage:
+			u = "https://slack.com/api/chat.update"
+			req.Timestamp = threadTs
+			req.Channel = channelId
+			logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
+		case n.conf.PostUpdatesToThread:
+			req.ThreadTimestamp = threadTs
+			req.Channel = channelId
+			logger.Debug("posting to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+		}
+	}
+
+	// The thread reply must not overwrite the initial message's timestamp in the
+	// nflog store, so no store is passed when the request targets a thread.
+	responseStore := store
+	if initialMessageSent {
+		responseStore = nil
+	}
+	retry, err := n.postRequest(ctx, u, req, responseStore)
+	if err != nil {
+		return retry, err
+	}
+
+	// When update_message and post_updates_to_thread are combined, the initial
+	// message was just updated in place; additionally post a reply to its thread,
+	// unless nothing changed in the alert group: a notification triggered only by
+	// repeat_interval would add a copy of the message that was just updated.
+	if initialMessageSent && n.conf.UpdateMessage && n.conf.PostUpdatesToThread && !repeatIntervalOnly(ctx) {
+		threadReq := *req
+		threadReq.Timestamp = ""
+		threadReq.ThreadTimestamp = threadTs
+		logger.Debug("posting update to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+		return n.postRequest(ctx, postURL, &threadReq, nil)
+	}
+
+	return retry, nil
+}
+
+// requireBotAPIURL rejects a resolved api_url that cannot support message
+// updates or threads. Config loading already performs this check for api_url
+// and app_token; api_url_file can only be checked here, because its content is
+// read at notification time.
+func requireBotAPIURL(conf *config.SlackConfig, u string) error {
+	if !conf.UpdateMessage && !conf.PostUpdatesToThread {
+		return nil
+	}
+	if u == chatPostMessageURL {
+		return nil
+	}
+	if conf.UpdateMessage {
+		return fmt.Errorf("update_message can only be used with bot tokens. api_url must be set to %s", chatPostMessageURL)
+	}
+	return fmt.Errorf("post_updates_to_thread can only be used with bot tokens. api_url must be set to %s", chatPostMessageURL)
+}
+
+// repeatIntervalOnly reports whether the notification was triggered solely by
+// repeat_interval elapsing, meaning the state of the alert group is unchanged.
+func repeatIntervalOnly(ctx context.Context) bool {
+	reason, ok := notify.NotificationReason(ctx)
+	return ok && reason == notify.ReasonRepeatIntervalElapsed
+}
+
+// postRequest encodes and sends a single request to the Slack API, classifies
+// errors as retriable or not, and hands the response to slackResponseHandler.
+func (n *Notifier) postRequest(ctx context.Context, u string, req *request, store *nflog.Store) (bool, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
 		return false, err
