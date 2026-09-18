@@ -562,3 +562,53 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		require.NotContains(t, captured[0].body, "thread_ts")
 	})
 }
+
+func TestSlackRejectsWebhookAPIURLFileAtNotifyTime(t *testing.T) {
+	f, err := os.CreateTemp("", "slack_test")
+	require.NoError(t, err, "creating temp file failed")
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	_, err = f.WriteString("https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\n")
+	require.NoError(t, err, "writing to temp file failed")
+
+	for _, tc := range []struct {
+		name string
+		conf SlackConfig
+		err  string
+	}{
+		{
+			name: "update_message",
+			conf: SlackConfig{UpdateMessage: true},
+			err:  "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage",
+		},
+		{
+			name: "post_updates_to_thread",
+			conf: SlackConfig{PostUpdatesToThread: true},
+			err:  "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := tc.conf
+			conf.APIURLFile = f.Name()
+			conf.Channel = "#test-channel"
+			conf.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+			tmpl, err := template.FromGlobs([]string{})
+			require.NoError(t, err)
+			tmpl.ExternalURL, err = url.Parse("http://am")
+			require.NoError(t, err)
+
+			notifier, err := New(&conf, tmpl, slog.New(slog.DiscardHandler))
+			require.NoError(t, err)
+
+			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+				t.Fatal("no request must be sent to a webhook URL")
+				return nil, nil
+			}
+
+			ctx := notify.WithNflogStore(notify.WithGroupKey(context.Background(), "test-group-key"), nflog.NewStore(nil))
+			verdict := notifier.Notify(ctx)
+			require.False(t, verdict.ShouldRetry())
+			require.EqualError(t, verdict.Err(), tc.err)
+		})
+	}
+}

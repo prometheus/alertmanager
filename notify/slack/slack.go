@@ -36,6 +36,11 @@ import (
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
 
+// chatPostMessageURL is the only api_url that supports message updates and
+// threads, both of which need the message identifiers returned by the bot-token
+// Web API. Incoming webhooks return no identifiers.
+const chatPostMessageURL = "https://slack.com/api/chat.postMessage"
+
 // New returns a new Slack notification handler.
 func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
@@ -153,6 +158,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 		u = strings.TrimSpace(string(content))
 	}
 
+	if err := requireBotAPIURL(n.conf, u); err != nil {
+		return notify.Unrecoverable(err, notify.DefaultReason)
+	}
+
 	if n.conf.Timeout > 0 {
 		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
 		defer cancel()
@@ -226,6 +235,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 	}
 
 	return notify.Success()
+}
+
+// requireBotAPIURL rejects a resolved api_url that cannot support message
+// updates or threads. Config loading already performs this check for api_url
+// and app_token; api_url_file can only be checked here, because its content is
+// read at notification time.
+func requireBotAPIURL(conf *SlackConfig, u string) error {
+	if !conf.UpdateMessage && !conf.PostUpdatesToThread {
+		return nil
+	}
+	if u == chatPostMessageURL {
+		return nil
+	}
+	if conf.UpdateMessage {
+		return fmt.Errorf("update_message can only be used with bot tokens. api_url must be set to %s", chatPostMessageURL)
+	}
+	return fmt.Errorf("post_updates_to_thread can only be used with bot tokens. api_url must be set to %s", chatPostMessageURL)
 }
 
 // repeatIntervalOnly reports whether the notification was triggered solely by
