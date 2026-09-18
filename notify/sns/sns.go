@@ -108,7 +108,7 @@ func (n *Notifier) classifyClientError(err error) (bool, error) {
 		// To maintain compatibility with the retrier, we attempt to get an HTTP status code.
 		var respErr *smithyhttp.ResponseError
 		if errors.As(err, &respErr) && respErr.Response != nil {
-			return n.retrier.Check(respErr.Response.StatusCode, strings.NewReader(apiErr.ErrorMessage()))
+			return n.retrier.Check(respErr.HTTPStatusCode(), strings.NewReader(apiErr.ErrorMessage()))
 		}
 		// Fallback if we can't get a status code.
 		return true, fmt.Errorf("failed to create SNS client: %s: %s", apiErr.ErrorCode(), apiErr.ErrorMessage())
@@ -125,7 +125,7 @@ func (n *Notifier) classifyPublishError(err error) (bool, error) {
 		var respErr *smithyhttp.ResponseError
 		// Try to extract the HTTP status code for the retrier.
 		if errors.As(err, &respErr) && respErr.Response != nil {
-			statusCode = respErr.Response.StatusCode
+			statusCode = respErr.HTTPStatusCode()
 		}
 
 		// If we got a status code, use the retrier logic.
