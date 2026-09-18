@@ -500,6 +500,8 @@ func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*alert.Alert{}
 	i := Integration{
+		name: "slack",
+		idx:  0,
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 			if fail {
 				fail = false
@@ -510,7 +512,7 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+	r := NewRetryStage(i, "team-receiver", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*alert.Alert{
 		{
@@ -537,6 +539,12 @@ func TestRetryStageWithError(t *testing.T) {
 	resctx, _, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.Error(t, err)
 	require.NotNil(t, resctx)
+
+	var ie *ErrorWithIntegration
+	require.ErrorAs(t, err, &ie)
+	require.Equal(t, "team-receiver", ie.Receiver)
+	require.Equal(t, "slack[0]", ie.Integration)
+	require.Contains(t, err.Error(), "fail to deliver notification")
 }
 
 func TestRetryStageWithErrorCode(t *testing.T) {
@@ -598,7 +606,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+	r := NewRetryStage(i, "canceled-receiver", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
 	alerts := []*alert.Alert{
 		{
@@ -619,6 +627,11 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 
 	require.Error(t, err)
 	require.NotNil(t, resctx)
+
+	var ie *ErrorWithIntegration
+	require.ErrorAs(t, err, &ie)
+	require.Equal(t, "canceled-receiver", ie.Receiver)
+	require.Equal(t, "test[0]", ie.Integration)
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
