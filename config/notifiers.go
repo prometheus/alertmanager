@@ -17,8 +17,10 @@ import (
 	"errors"
 	"fmt"
 	"net/textproto"
+	"os"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -376,11 +378,17 @@ func (c *SlackConfig) validateMessageAPIURL() error {
 	if !c.UpdateMessage && !c.ThreadReplies {
 		return nil
 	}
-	// File-backed URLs are read when the notification is sent.
+	apiURL := ""
 	if len(c.APIURLFile) > 0 {
-		return nil
+		content, err := os.ReadFile(c.APIURLFile)
+		if err != nil {
+			return fmt.Errorf("reading api_url_file: %w", err)
+		}
+		apiURL = strings.TrimSpace(string(content))
+	} else if c.APIURL != nil {
+		apiURL = c.APIURL.String()
 	}
-	if c.APIURL != nil && c.APIURL.String() == "https://slack.com/api/chat.postMessage" {
+	if apiURL == "https://slack.com/api/chat.postMessage" {
 		return nil
 	}
 	if c.UpdateMessage {

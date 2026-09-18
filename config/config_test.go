@@ -1347,9 +1347,47 @@ func TestSlackThreadRepliesWithAppToken(t *testing.T) {
 }
 
 func TestSlackThreadRepliesWithAPIURLFile(t *testing.T) {
-	_, err := LoadFile("testdata/conf.slack-thread-replies-and-api-url-file.yml")
-	if err != nil {
-		t.Fatalf("Error parsing testdata/conf.slack-thread-replies-and-api-url-file.yml: %s", err)
+	urlFile := t.TempDir() + "/api_url"
+	if err := os.WriteFile(urlFile, []byte("https://slack.com/api/chat.postMessage\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmt.Sprintf(`
+route:
+  receiver: slack
+receivers:
+  - name: slack
+    slack_configs:
+      - channel: '#alerts'
+        api_url_file: %q
+        thread_replies: true
+`, urlFile)
+	if _, err := Load(cfg); err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+}
+
+func TestSlackThreadRepliesAPIURLFileWebhook(t *testing.T) {
+	urlFile := t.TempDir() + "/api_url"
+	if err := os.WriteFile(urlFile, []byte("https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmt.Sprintf(`
+route:
+  receiver: slack
+receivers:
+  - name: slack
+    slack_configs:
+      - channel: '#alerts'
+        api_url_file: %q
+        thread_replies: true
+`, urlFile)
+	_, err := Load(cfg)
+	if err == nil {
+		t.Fatal("Load() error = nil, want webhook rejected")
+	}
+	want := "thread_replies can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage"
+	if err.Error() != want {
+		t.Errorf("Expected: %s\nGot: %s", want, err.Error())
 	}
 }
 

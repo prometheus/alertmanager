@@ -1770,8 +1770,9 @@ fields:
 # already current. thread_replies without update_message still posts a
 # reply on repeats; otherwise the repeat would not appear in Slack at all.
 #
-# Requires a bot token (api_url https://slack.com/api/chat.postMessage).
-# Incoming webhooks do not return a message timestamp and cannot be used.
+# Requires a bot token. api_url or the contents of api_url_file must be
+# https://slack.com/api/chat.postMessage. Incoming webhooks do not return a
+# message timestamp and cannot be used.
 [ thread_replies: <boolean> | default = false ]
 ```
 
