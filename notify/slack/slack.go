@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -36,6 +37,8 @@ import (
 
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
+
+const slackChatPostMessageURL = "https://slack.com/api/chat.postMessage"
 
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
@@ -153,6 +156,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		u = strings.TrimSpace(string(content))
 	}
+	if err := requireBotAPIURL(n.conf, u); err != nil {
+		return false, err
+	}
 
 	if n.conf.Timeout > 0 {
 		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured slack timeout reached (%s)", n.conf.Timeout))
@@ -208,6 +214,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	followUp.ThreadTimestamp = parentTS
 	logger.Debug("adding thread reply after editing parent", "ts", parentTS, "channel", parentChannel)
 	return n.post(ctx, firstURL, &followUp, nil)
+}
+
+// requireBotAPIURL rejects non-bot Slack endpoints when message updates or thread replies are enabled.
+func requireBotAPIURL(conf *config.SlackConfig, u string) error {
+	if !conf.UpdateMessage && !conf.ThreadReplies {
+		return nil
+	}
+	if u == slackChatPostMessageURL {
+		return nil
+	}
+	if conf.UpdateMessage {
+		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+	}
+	return errors.New("thread_replies can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
 func (n *Notifier) nflogStore(ctx context.Context, logger *slog.Logger) *nflog.Store {

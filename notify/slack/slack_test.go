@@ -631,3 +631,32 @@ func TestSlackThreadReplies(t *testing.T) {
 		require.Equal(t, "C123", channel)
 	})
 }
+
+func TestNotifyRejectsChangedAPIURLFile(t *testing.T) {
+	urlFile := t.TempDir() + "/api_url"
+	require.NoError(t, os.WriteFile(urlFile, []byte("https://hooks.slack.com/services/T/B/X\n"), 0o600))
+
+	conf := &config.SlackConfig{
+		APIURLFile:    urlFile,
+		ThreadReplies: true,
+		Channel:       "#test-channel",
+		HTTPConfig:    &commoncfg.HTTPClientConfig{},
+	}
+	n, err := New(conf, test.CreateTmpl(t), promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	called := false
+	n.postJSONFunc = func(ctx context.Context, client *http.Client, endpoint string, body io.Reader) (*http.Response, error) {
+		called = true
+		return nil, nil
+	}
+
+	store := nflog.NewStore(nil)
+	store.SetStr("threadTs", "111.222")
+	store.SetStr("channelId", "C123")
+
+	retry, err := n.Notify(notifyCtx(store, notify.ReasonNewAlertsInGroup))
+	require.False(t, retry)
+	require.EqualError(t, err, "thread_replies can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+	require.False(t, called)
+}
