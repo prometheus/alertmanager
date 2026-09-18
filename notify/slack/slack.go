@@ -217,8 +217,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	// When update_message and post_updates_to_thread are combined, the initial
-	// message was just updated in place; additionally post a reply to its thread.
-	if initialMessageSent && n.conf.UpdateMessage && n.conf.PostUpdatesToThread {
+	// message was just updated in place; additionally post a reply to its thread,
+	// unless nothing changed in the alert group: a notification triggered only by
+	// repeat_interval would add a copy of the message that was just updated.
+	if initialMessageSent && n.conf.UpdateMessage && n.conf.PostUpdatesToThread && !repeatIntervalOnly(ctx) {
 		threadReq := *req
 		threadReq.Timestamp = ""
 		threadReq.ThreadTimestamp = threadTs
@@ -227,6 +229,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	return retry, nil
+}
+
+// repeatIntervalOnly reports whether the notification was triggered solely by
+// repeat_interval elapsing, meaning the state of the alert group is unchanged.
+func repeatIntervalOnly(ctx context.Context) bool {
+	reason, ok := notify.NotificationReason(ctx)
+	return ok && reason == notify.ReasonRepeatIntervalElapsed
 }
 
 // postRequest encodes and sends a single request to the Slack API, classifies

@@ -552,6 +552,57 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		require.Equal(t, "111.222", threadTs)
 	})
 
+	t.Run("repeat_interval notification only updates the message", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &config.SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		ctx := notify.WithNotificationReason(newCtx(store), notify.ReasonRepeatIntervalElapsed)
+		_, err := notifier.Notify(ctx)
+		require.NoError(t, err)
+
+		// The updated channel message already carries the current state, so no
+		// copy of it is added to the thread.
+		require.Len(t, captured, 1)
+		require.Equal(t, "https://slack.com/api/chat.update", captured[0].url)
+		require.Equal(t, "111.222", captured[0].body["ts"])
+	})
+
+	t.Run("repeat_interval notification still posts to thread without update_message", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &config.SlackConfig{PostUpdatesToThread: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		ctx := notify.WithNotificationReason(newCtx(store), notify.ReasonRepeatIntervalElapsed)
+		_, err := notifier.Notify(ctx)
+		require.NoError(t, err)
+
+		// Without update_message nothing else carries the notification.
+		require.Len(t, captured, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[0].url)
+		require.Equal(t, "111.222", captured[0].body["thread_ts"])
+	})
+
+	t.Run("state change notification posts to thread after repeat_interval", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &config.SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		ctx := notify.WithNotificationReason(newCtx(store), notify.ReasonNewAlertsInGroup)
+		_, err := notifier.Notify(ctx)
+		require.NoError(t, err)
+
+		require.Len(t, captured, 2)
+		require.Equal(t, "https://slack.com/api/chat.update", captured[0].url)
+		require.Equal(t, "111.222", captured[1].body["thread_ts"])
+	})
+
 	t.Run("subsequent notification posts only to thread without update_message", func(t *testing.T) {
 		var captured []capturedRequest
 		notifier := newTestNotifier(t, &config.SlackConfig{PostUpdatesToThread: true}, &captured, "999.999")
