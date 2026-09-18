@@ -125,6 +125,7 @@ func (m *Metrics) InitializeFor(receiver map[string][]Integration) {
 		"msteamsv2",
 		"incidentio",
 		"jira",
+		"kafka",
 		"rocketchat",
 		"mattermost",
 	} {
