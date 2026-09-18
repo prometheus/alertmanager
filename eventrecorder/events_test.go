@@ -32,14 +32,29 @@ func TestAlertEventSnapshotsLabels(t *testing.T) {
 		Labels: model.LabelSet{"alertname": "Down", "severity": "warning"}, Annotations: model.LabelSet{"summary": "test"},
 		StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
 	}}
+	fingerprint := a.Fingerprint()
 	event := NewAlertCreatedEvent(a)
 
 	a.Labels["severity"] = "critical"
 	a.Annotations["summary"] = "changed"
 
 	got := event.message.GetAlertCreated().Alert
+	require.Equal(t, uint64(fingerprint), got.Fingerprint)
 	require.Equal(t, "warning", got.Labels["severity"])
 	require.Equal(t, "test", got.Annotations["summary"])
+}
+
+func TestGroupedAlertUsesAlertFingerprint(t *testing.T) {
+	a := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Down", "instance": "api-1"}}}
+	fingerprint := a.Fingerprint()
+
+	grouped := NewGroupedAlert(a)
+	require.Equal(t, uint64(fingerprint), grouped.message.Fingerprint)
+	require.Equal(t, uint64(fingerprint), grouped.message.Details.Fingerprint)
+
+	reference := NewGroupedAlertReference(fingerprint)
+	require.Equal(t, uint64(fingerprint), reference.message.Fingerprint)
+	require.Nil(t, reference.message.Details)
 }
 
 func TestSilenceEventSnapshotsAnnotationsAndMatchers(t *testing.T) {

@@ -19,7 +19,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,14 +31,22 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	eventsv2 "github.com/prometheus/alertmanager/eventrecorder/events/v2"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// mutedAlertsFlags enables only the muted alerts feature.
+type mutedAlertsFlags struct{ featurecontrol.NoopFlags }
+
+func (mutedAlertsFlags) EnableMutedAlertsInNflog() bool { return true }
 
 type sendResolved bool
 
@@ -43,15 +54,15 @@ func (s sendResolved) SendResolved() bool {
 	return bool(s)
 }
 
-type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+type notifierFunc func(ctx context.Context, alerts ...*alert.Alert) (bool, error)
 
-func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 	return f(ctx, alerts...)
 }
 
 type failStage struct{}
 
-func (s failStage) Exec(ctx context.Context, l *slog.Logger, as ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (s failStage) Exec(ctx context.Context, l *slog.Logger, as ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	return ctx, nil, fmt.Errorf("some error")
 }
 
@@ -216,7 +227,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 func TestDedupStageUsesContextNow(t *testing.T) {
 	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	s := &DedupStage{
-		hash: func(*types.Alert) uint64 { return 1 },
+		hash: func(*alert.Alert) uint64 { return 1 },
 		now: func() time.Time {
 			return base.Add(time.Hour)
 		},
@@ -235,7 +246,7 @@ func TestDedupStageUsesContextNow(t *testing.T) {
 	ctx = WithRepeatInterval(ctx, 30*time.Minute)
 	ctx = WithNow(ctx, base.Add(10*time.Minute))
 
-	alerts := []*types.Alert{{Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}}}}
+	alerts := []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}}}}
 
 	_, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
@@ -246,7 +257,7 @@ func TestDedupStage(t *testing.T) {
 	i := 0
 	now := utcNow()
 	s := &DedupStage{
-		hash: func(a *types.Alert) uint64 {
+		hash: func(a *alert.Alert) uint64 {
 			res := uint64(i)
 			i++
 			return res
@@ -269,7 +280,7 @@ func TestDedupStage(t *testing.T) {
 
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	alerts := []*types.Alert{{}, {}, {}}
+	alerts := []*alert.Alert{{}, {}, {}}
 
 	// Must catch notification log query errors.
 	s.nflog = &testNflog{
@@ -338,13 +349,13 @@ func TestDedupStage(t *testing.T) {
 
 func TestMultiStage(t *testing.T) {
 	var (
-		alerts1 = []*types.Alert{{}}
-		alerts2 = []*types.Alert{{}, {}}
-		alerts3 = []*types.Alert{{}, {}, {}}
+		alerts1 = []*alert.Alert{{}}
+		alerts2 = []*alert.Alert{{}, {}}
+		alerts3 = []*alert.Alert{{}, {}, {}}
 	)
 
 	stage := MultiStage{
-		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of MultiStage")
 			}
@@ -352,7 +363,7 @@ func TestMultiStage(t *testing.T) {
 			ctx = context.WithValue(ctx, "key", "value")
 			return ctx, alerts2, nil
 		}),
-		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts2) {
 				t.Fatal("Input not equal to output of previous stage")
 			}
@@ -387,14 +398,84 @@ func TestMultiStageFailure(t *testing.T) {
 	}
 }
 
+// muteAllStage removes every alert from the pipeline and records them as
+// muted, the way MuteStage does when a silence matches the whole group.
+type muteAllStage struct{}
+
+func (muteAllStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	return recordMuted(ctx, alerts), nil, nil
+}
+
+func TestMutedMultiStageContinuesWhenAllAlertsMuted(t *testing.T) {
+	var got []*types.Alert
+	var reached bool
+	stage := MutedMultiStage{
+		muteAllStage{},
+		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			reached = true
+			got = alerts
+			return ctx, alerts, nil
+		}),
+	}
+
+	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), &types.Alert{})
+	require.NoError(t, err)
+	require.Empty(t, alerts)
+	require.True(t, reached, "MutedMultiStage should continue when every alert was muted")
+	require.Empty(t, got, "the muted alerts should not be passed on")
+}
+
+func TestMutedMultiStageStopsWhenGroupIsEmpty(t *testing.T) {
+	// Nothing was muted, so an empty group is just an empty group and the
+	// remaining stages are skipped as usual.
+	var reached bool
+	stage := MutedMultiStage{
+		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			return ctx, nil, nil
+		}),
+		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			reached = true
+			return ctx, alerts, nil
+		}),
+	}
+
+	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), &types.Alert{})
+	require.NoError(t, err)
+	require.Empty(t, alerts)
+	require.False(t, reached, "MutedMultiStage should stop when nothing was muted")
+}
+
+func TestRetryStageSkipsMutedGroup(t *testing.T) {
+	var called bool
+	i := Integration{
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			called = true
+			return false, nil
+		}),
+		rs: sendResolved(true),
+	}
+	reg := prometheus.NewRegistry()
+	metrics := NewMetrics(reg, featurecontrol.NoopFlags{})
+	r := NewRetryStage(i, "", metrics, eventrecorder.NopRecorder())
+
+	// The group reaches this stage with no alerts because they were all muted.
+	// Nothing is delivered, and the attempt is not counted as a notification.
+	resctx, res, err := r.Exec(context.Background(), promslog.NewNopLogger())
+	require.NoError(t, err)
+	require.Empty(t, res)
+	require.NotNil(t, resctx)
+	require.False(t, called, "the notifier should not be called for a muted group")
+	require.Zero(t, prom_testutil.CollectAndCount(metrics.numNotifications))
+}
+
 func TestRoutingStage(t *testing.T) {
 	var (
-		alerts1 = []*types.Alert{{}}
-		alerts2 = []*types.Alert{{}, {}}
+		alerts1 = []*alert.Alert{{}}
+		alerts2 = []*alert.Alert{{}, {}}
 	)
 
 	stage := RoutingStage{
-		"name": StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		"name": StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of RoutingStage")
 			}
@@ -417,9 +498,9 @@ func TestRoutingStage(t *testing.T) {
 
 func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
-	sent := []*types.Alert{}
+	sent := []*alert.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 			if fail {
 				fail = false
 				return retry, errors.New("fail to deliver notification")
@@ -431,7 +512,7 @@ func TestRetryStageWithError(t *testing.T) {
 	}
 	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
@@ -474,7 +555,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 		testData := testData
 		i := Integration{
 			name: "test",
-			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 				if !testData.isNewErrorWithReason {
 					return retry, errors.New("fail to deliver notification")
 				}
@@ -484,7 +565,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 		}
 		r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
-		alerts := []*types.Alert{
+		alerts := []*alert.Alert{
 			{
 				Alert: model.Alert{
 					EndsAt: time.Now().Add(time.Hour),
@@ -511,7 +592,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 
 	i := Integration{
 		name: "test",
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 			cancel()
 			return true, errors.New("request failed: context canceled")
 		}),
@@ -519,7 +600,7 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 	}
 	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
@@ -541,9 +622,9 @@ func TestRetryStageWithContextCanceled(t *testing.T) {
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
-	sent := []*types.Alert{}
+	sent := []*alert.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil
 		}),
@@ -551,7 +632,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	}
 	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
@@ -576,7 +657,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 	resctx, res, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res)
-	require.Equal(t, []*types.Alert{alerts[1]}, sent)
+	require.Equal(t, []*alert.Alert{alerts[1]}, sent)
 	require.NotNil(t, resctx)
 
 	// All alerts are resolved.
@@ -587,14 +668,75 @@ func TestRetryStageNoResolved(t *testing.T) {
 	resctx, res, err = r.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res)
-	require.Equal(t, []*types.Alert{}, sent)
+	require.Equal(t, []*alert.Alert{}, sent)
 	require.NotNil(t, resctx)
 }
 
+func TestRetryStageNotificationEventUsesDedupAlertState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	recorder := eventrecorder.NewRecorderFromConfig(eventrecorder.Config{
+		FileOutputs: []eventrecorder.FileOutputConfig{{Name: "test", Path: path}},
+	}, "test", promslog.NewNopLogger(), nil)
+	t.Cleanup(func() { require.NoError(t, recorder.Close()) })
+	firing := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"alertname": "Firing", "instance": "api-1"}, StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
+	}}
+	resolved := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"alertname": "Resolved", "instance": "api-2"}, StartsAt: time.Now().Add(-time.Hour), EndsAt: time.Now().Add(-time.Minute),
+	}}
+	muted := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"alertname": "Muted", "instance": "api-3"}, StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
+	}}
+	var sent []*alert.Alert
+	integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) (bool, error) {
+		sent = append(sent, alerts...)
+		firing.EndsAt = time.Now().Add(-time.Minute)
+		return false, nil
+	}), sendResolved(false), "webhook", 2, "test")
+	dedup := NewDedupStage(&integration, &testNflog{}, &nflogpb.Receiver{})
+	stage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), recorder)
+	ctx := eventrecorder.WithEventRecording(context.Background())
+	ctx = WithGroupKey(ctx, "group")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+	ctx = withMutedAlertDetails(ctx, []*alert.Alert{muted})
+	ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), firing, resolved)
+	require.NoError(t, err)
+
+	_, alerts, err = stage.Exec(ctx, promslog.NewNopLogger(), alerts...)
+	require.NoError(t, err)
+	require.Equal(t, []*alert.Alert{firing, resolved}, alerts)
+	require.Equal(t, []*alert.Alert{firing}, sent)
+	require.True(t, firing.Resolved())
+	require.NoError(t, recorder.Close())
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var recorded eventsv2.Event
+	require.NoError(t, protojson.Unmarshal([]byte(strings.TrimSpace(string(data))), &recorded))
+	notification := recorded.GetData().GetNotification()
+	require.Len(t, notification.Alerts, 3)
+	require.Len(t, notification.FiringAlerts, 1)
+	require.Len(t, notification.ResolvedAlerts, 1)
+	require.Len(t, notification.MutedAlerts, 1)
+	require.Equal(t, uint64(firing.Fingerprint()), notification.Alerts[0].Fingerprint)
+	require.Equal(t, uint64(resolved.Fingerprint()), notification.Alerts[1].Fingerprint)
+	require.Equal(t, uint64(muted.Fingerprint()), notification.Alerts[2].Fingerprint)
+	require.NotNil(t, notification.Alerts[0].Details)
+	require.NotNil(t, notification.Alerts[1].Details)
+	require.NotNil(t, notification.Alerts[2].Details)
+	require.Equal(t, "api-3", notification.Alerts[2].Details.Labels["instance"])
+	require.Equal(t, uint64(firing.Fingerprint()), notification.FiringAlerts[0].Fingerprint)
+	require.Equal(t, uint64(resolved.Fingerprint()), notification.ResolvedAlerts[0].Fingerprint)
+	require.Equal(t, uint64(muted.Fingerprint()), notification.MutedAlerts[0].Fingerprint)
+	require.Nil(t, notification.FiringAlerts[0].Details)
+	require.Nil(t, notification.ResolvedAlerts[0].Details)
+	require.Nil(t, notification.MutedAlerts[0].Details)
+}
+
 func TestRetryStageSendResolved(t *testing.T) {
-	sent := []*types.Alert{}
+	sent := []*alert.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil
 		}),
@@ -602,7 +744,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 	}
 	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
@@ -641,8 +783,9 @@ func TestSetNotifiesStage(t *testing.T) {
 	s := &SetNotifiesStage{
 		recv:  &nflogpb.Receiver{GroupName: "test"},
 		nflog: tnflog,
+		ff:    featurecontrol.NoopFlags{},
 	}
-	alerts := []*types.Alert{{}, {}, {}}
+	alerts := []*alert.Alert{{}, {}, {}}
 	ctx := context.Background()
 
 	resctx, res, err := s.Exec(ctx, promslog.NewNopLogger(), alerts...)
@@ -699,6 +842,137 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.NotNil(t, resctx)
 }
 
+func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
+	tests := []struct {
+		name  string
+		ff    featurecontrol.Flagger
+		muted []uint64
+	}{{
+		name:  "flag disabled",
+		ff:    featurecontrol.NoopFlags{},
+		muted: nil,
+	}, {
+		name:  "flag enabled",
+		ff:    mutedAlertsFlags{},
+		muted: []uint64{3, 7, 9},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logged []uint64
+			tnflog := &testNflog{
+				logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+					logged = mutedAlerts
+					return nil
+				},
+			}
+			s := NewSetNotifiesStage(tnflog, &nflogpb.Receiver{GroupName: "test"}, test.ff)
+
+			ctx := context.Background()
+			ctx = WithGroupKey(ctx, "1")
+			ctx = WithFiringAlerts(ctx, []uint64{0})
+			ctx = WithResolvedAlerts(ctx, []uint64{})
+			ctx = WithRepeatInterval(ctx, time.Hour)
+			// Deliberately out of order, so the sorting is observable.
+			ctx = WithMutedAlerts(ctx, alertHashSet(9, 3, 7))
+
+			_, _, err := s.Exec(ctx, promslog.NewNopLogger(), &types.Alert{})
+			require.NoError(t, err)
+			require.Equal(t, test.muted, logged)
+		})
+	}
+}
+
+// TestMutedGroupIsRecordedInNflog exercises the receiver stages the way
+// createReceiverStage assembles them, for a group in which every alert was
+// muted. The muteAllStage helper stands in for the real mute stages, which
+// sit in the outer pipeline rather than in the receiver chain; it empties the
+// group the same way a silence matching all of its alerts does.
+//
+// The two cases are the two chains PipelineBuilder assembles. Either way the
+// group is not delivered, because nothing is left to send. What differs is
+// whether the group leaves a trace: with the feature enabled the chain runs to
+// the end and the notification log records which alerts were muted, and with
+// it disabled the chain stops at the mute stage and the log is not written at
+// all, as it was before the feature existed.
+func TestMutedGroupIsRecordedInNflog(t *testing.T) {
+	tests := []struct {
+		name string
+		ff   featurecontrol.Flagger
+		// newStage builds the chain PipelineBuilder builds for this flag.
+		newStage func(stages []Stage) Stage
+		// logged is whether the chain reaches SetNotifiesStage at all.
+		logged bool
+	}{{
+		name:     "flag enabled",
+		ff:       mutedAlertsFlags{},
+		newStage: func(stages []Stage) Stage { return MutedMultiStage(stages) },
+		logged:   true,
+	}, {
+		name:     "flag disabled",
+		ff:       featurecontrol.NoopFlags{},
+		newStage: func(stages []Stage) Stage { return MultiStage(stages) },
+		logged:   false,
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				logged   bool
+				muted    []uint64
+				notified bool
+			)
+
+			// The group has not been notified about before, so the dedup stage
+			// starts from an empty notification log.
+			tnflog := &testNflog{
+				qerr: nflog.ErrNotFound,
+				logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts, mutedAlerts []uint64, receiverData *nflog.Store, expiry time.Duration) error {
+					logged = true
+					muted = mutedAlerts
+					return nil
+				},
+			}
+
+			recv := &nflogpb.Receiver{GroupName: "test"}
+			integration := NewIntegration(
+				notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+					notified = true
+					return false, nil
+				}),
+				sendResolved(true), "test", 0, "test-receiver",
+			)
+
+			// The mute stage drops the alert before the dedup stage sees it, so
+			// it reaches the rest of the chain only as a hash in the context.
+			alert := &types.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "muted"}}}
+			stage := test.newStage([]Stage{
+				muteAllStage{},
+				NewDedupStage(&integration, tnflog, recv),
+				NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder()),
+				NewSetNotifiesStage(tnflog, recv, test.ff),
+			})
+
+			ctx := context.Background()
+			ctx = WithGroupKey(ctx, "testkey")
+			ctx = WithRepeatInterval(ctx, time.Hour)
+
+			_, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alert)
+			require.NoError(t, err)
+			require.Empty(t, res)
+			require.False(t, notified, "a fully muted group should not be delivered")
+
+			// Whether the log is written at all is what separates the two
+			// chains. An entry carrying an empty muted list would not be the
+			// same thing, so assert the call, not just its contents.
+			require.Equal(t, test.logged, logged, "notification log written")
+			if test.logged {
+				require.Equal(t, []uint64{hashAlert(alert)}, muted)
+			}
+		})
+	}
+}
+
 func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	var storedData *nflog.Store
 	callCount := 0
@@ -715,7 +989,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	recv := &nflogpb.Receiver{GroupName: "test"}
 	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
 
-	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 		callCount++
 
 		if callCount == 1 {
@@ -732,13 +1006,13 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
 	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
-	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, featurecontrol.NoopFlags{})
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "testkey")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "test"},
@@ -830,7 +1104,7 @@ func TestDedupStageExtractsReceiverData_DataPresent(t *testing.T) {
 	ctx = WithGroupKey(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "test"},
@@ -872,7 +1146,7 @@ func TestDedupStageExtractsReceiverData_NilReceiverData(t *testing.T) {
 	ctx = WithGroupKey(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "test"},
@@ -899,7 +1173,7 @@ func TestDedupStageExtractsReceiverData_NoEntry(t *testing.T) {
 	ctx = WithGroupKey(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "test"},
@@ -930,7 +1204,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	recv := &nflogpb.Receiver{GroupName: "test"}
 	dedupStage := NewDedupStage(sendResolved(true), tnflog, recv)
 
-	notifier := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	notifier := notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) (bool, error) {
 		callCount++
 		store, ok := NflogStore(ctx)
 		require.True(t, ok, "Store should be available in context")
@@ -947,9 +1221,9 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 
 	integration := NewIntegration(notifier, sendResolved(true), "test", 0, "test-receiver")
 	retryStage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
-	setNotifiesStage := NewSetNotifiesStage(tnflog, recv)
+	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, featurecontrol.NoopFlags{})
 
-	alerts := []*types.Alert{
+	alerts := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "test"},
@@ -1023,7 +1297,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 }
 
 func BenchmarkHashAlert(b *testing.B) {
-	alert := &types.Alert{
+	alert := &alert.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
 		},

@@ -51,9 +51,9 @@ message Alert {
   bool resolved = 7;
 }
 
-// GroupedAlert is a reference to an alert within an aggregation group.
+// GroupedAlert identifies an alert within an aggregation group.
 message GroupedAlert {
-  uint64 hash = 1;
+  uint64 fingerprint = 1;
   optional Alert details = 2;
 }
 

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -54,7 +55,7 @@ func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts .
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{},
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 	}
 
 	return n, nil
@@ -102,12 +103,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
+	received := time.Now()
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
+	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
+				logger.Warn("Rate limited by Webex, waiting before retry", "retry_after_secs", d.Seconds())
+				select {
+				case <-time.After(d):
+				case <-ctx.Done():
+				}
+			}
+		}
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 

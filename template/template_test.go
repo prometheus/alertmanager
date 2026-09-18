@@ -384,6 +384,16 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "a,b,c",
 		},
 		{
+			title: "Template using join with list",
+			in:    `{{ list "a" "b" "c" | join "," }}`,
+			exp:   "a,b,c",
+		},
+		{
+			title: "Template using join with mixed types",
+			in:    `{{ list 1 true "x" | join "," }}`,
+			exp:   "1,true,x",
+		},
+		{
 			title: "Text template without HTML escaping",
 			in:    `{{ "<b>" }}`,
 			exp:   "<b>",
@@ -806,6 +816,19 @@ func TestTemplateFuncs(t *testing.T) {
 		data:  []string{"abc", "def"},
 		exp:   "abc,def",
 	}, {
+		title: "Template using join with list",
+		in:    `{{ list "abc" "def" | join "," }}`,
+		exp:   "abc,def",
+	}, {
+		title:  "Template using join with unsupported type",
+		in:     `{{ "" | join ","}}`,
+		expErr: "template: :1:8: executing \"\" at <join \",\">: error calling join: join expects a slice or array, got string",
+	}, {
+		title: "Template using join with invalid value",
+		data:  nil,
+		in:    `{{ . | join ","}}`,
+		exp:   "",
+	}, {
 		title: "Template using match",
 		in:    `{{ match "[a-z]+" "abc" }}`,
 		exp:   "true",
@@ -969,6 +992,47 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			input: "hello",
 			fn:    withSuffix,
 			want:  "hello-templated",
+		},
+		{
+			title: "quoted numeric string stays string",
+			input: "hello",
+			fn: TemplateFunc(func(string) (string, error) {
+				return "\"123\"", nil
+			}),
+			want: "123",
+		},
+		{
+			title: "plain string containing YAML comment syntax stays unchanged",
+			input: "issue # 1234",
+			fn:    identity,
+			want:  "issue # 1234",
+		},
+		{
+			title: "numeric value is rendered as integer",
+			input: "hello",
+			fn: TemplateFunc(func(string) (string, error) {
+				return "1234", nil
+			}),
+			want: 1234,
+		},
+		{
+			title: "quoted numeric string stays string in nested map",
+			input: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "TOKEN",
+				},
+			},
+			fn: TemplateFunc(func(s string) (string, error) {
+				if s == "TOKEN" {
+					return "\"15129\"", nil
+				}
+				return s, nil
+			}),
+			want: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "15129",
+				},
+			},
 		},
 		{
 			title: "string parsed as YAML map",

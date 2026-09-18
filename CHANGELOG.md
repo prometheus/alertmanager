@@ -4,6 +4,10 @@ Please do **not** add any entries in this section. If your change affects
 behaviour, describe it in the pull request description. Those entries are added
 here, when the release is prepared.
 
+## 0.34.1 / 2026-09-17
+
+* [BUGFIX] inhibit: Fix several issues related to inhibitions that caused alerts to be improperly un-muted in some cases. #5542, #5449, #5559
+
 ## 0.34.0 / 2026-08-16
 
 * [CHANGE] notify: The `reason` label on `alertmanager_notifications_failed_total` now distinguishes `authError` (HTTP 401/403) and `rateLimited` (HTTP 429) from the generic `clientError`. Dashboards/alerts matching `reason="clientError"` for these codes must be updated. #5332

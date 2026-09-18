@@ -375,6 +375,22 @@ func TestJiraTemplating(t *testing.T) {
 			expectedFieldValue: "host1.example.com",
 		},
 		{
+			title: "numeric string rendered with toJson stays string",
+			cfg: &JiraConfig{
+				Summary:     JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description: JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Fields: map[string]any{
+					"customfield_14400": map[string]any{
+						"id": `{{ "1234" | toJson }}`,
+					},
+				},
+			},
+			expectedFieldKey: "customfield_14400",
+			expectedFieldValue: map[string]any{
+				"id": "1234",
+			},
+		},
+		{
 			title: "template project",
 			cfg: &JiraConfig{
 				Project:     `{{ .CommonLabels.lbl1 }}`,

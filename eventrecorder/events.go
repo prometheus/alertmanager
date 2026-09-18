@@ -133,14 +133,18 @@ func NewAlertGroup(groupKey string, groupLabels model.LabelSet, groupID, receive
 	}}
 }
 
-// NewGroupedAlert snapshots an alert and its notification-pipeline hash.
-func NewGroupedAlert(hash uint64, a *alert.Alert) GroupedAlert {
-	return GroupedAlert{message: &events.GroupedAlert{Hash: hash, Details: alertToEvents(a)}}
+// NewGroupedAlert snapshots an alert and its fingerprint.
+func NewGroupedAlert(a *alert.Alert) GroupedAlert {
+	var fingerprint model.Fingerprint
+	if a != nil {
+		fingerprint = a.Fingerprint()
+	}
+	return GroupedAlert{message: &events.GroupedAlert{Fingerprint: uint64(fingerprint), Details: alertToEvents(a)}}
 }
 
-// NewGroupedAlertReference snapshots a hash-only grouped-alert reference.
-func NewGroupedAlertReference(hash uint64) GroupedAlert {
-	return GroupedAlert{message: &events.GroupedAlert{Hash: hash}}
+// NewGroupedAlertReference snapshots a fingerprint-only grouped-alert reference.
+func NewGroupedAlertReference(fingerprint model.Fingerprint) GroupedAlert {
+	return GroupedAlert{message: &events.GroupedAlert{Fingerprint: uint64(fingerprint)}}
 }
 
 // NewAlertmanagerStartupEvent constructs startup event data.

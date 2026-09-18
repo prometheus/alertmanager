@@ -83,6 +83,21 @@ func TestTelegramRetry(t *testing.T) {
 
 func TestTelegramNotify(t *testing.T) {
 	token := "secret"
+	htmlLinkWithSize := func(size int) string {
+		const prefix = `<a href="https://example.com/`
+		const suffix = `">Open</a>`
+
+		return prefix + strings.Repeat("x", size-len(prefix)-len(suffix)) + suffix
+	}
+	longHTMLLink := `<a href="https://example.com/` + strings.Repeat("x", maxMessageLenRunes) + `">Open</a>`
+	htmlAtInputLimit := htmlLinkWithSize(1 << 15)
+	htmlOverInputLimit := htmlLinkWithSize(1<<15 + 1)
+	longMalformedHTML := `<a href="` + strings.Repeat("x", maxMessageLenRunes)
+	longMalformedHTMLTemplate := fmt.Sprintf(`{{ %q | safeHtml }}`, longMalformedHTML)
+	longMalformedComment := `<!--` + strings.Repeat("x", maxMessageLenRunes)
+	longMalformedCommentTemplate := fmt.Sprintf(`{{ %q | safeHtml }}`, longMalformedComment)
+	longMalformedDoctype := `<!DOCTYPE ` + strings.Repeat("x", maxMessageLenRunes)
+	longMalformedDoctypeTemplate := fmt.Sprintf(`{{ %q | safeHtml }}`, longMalformedDoctype)
 
 	fileWithToken, err := os.CreateTemp(t.TempDir(), "telegram-bot-token")
 	require.NoError(t, err, "creating temp file failed")
@@ -127,6 +142,70 @@ func TestTelegramNotify(t *testing.T) {
 			cfg: TelegramConfig{
 				ParseMode:  "HTML",
 				Message:    strings.Repeat("x", 5000),
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "HTML mode ignores link targets when enforcing length limit",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    longHTMLLink,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: longHTMLLink,
+		},
+		{
+			name: "HTML mode accepts raw input at Telegram limit",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    htmlAtInputLimit,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: htmlAtInputLimit,
+		},
+		{
+			name: "HTML mode falls back for raw input over Telegram limit",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    htmlOverInputLimit,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "HTML mode falls back for too-large malformed tag",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    longMalformedHTMLTemplate,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "HTML mode falls back for too-large malformed comment",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    longMalformedCommentTemplate,
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				BotToken:   commoncfg.Secret(token),
+			},
+			expText: `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`,
+		},
+		{
+			name: "HTML mode falls back for too-large malformed doctype",
+			cfg: TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    longMalformedDoctypeTemplate,
 				HTTPConfig: &commoncfg.HTTPClientConfig{},
 				BotToken:   commoncfg.Secret(token),
 			},
@@ -203,6 +282,38 @@ func TestTelegramNotify(t *testing.T) {
 			err = json.Unmarshal(out, &req)
 			require.NoError(t, err)
 			require.Equal(t, tc.expText, req["text"])
+		})
+	}
+}
+
+func TestHTMLTextRuneCount(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  int
+	}{
+		{input: `&lt;`, want: 1},
+		{input: `&gt;`, want: 1},
+		{input: `&amp;`, want: 1},
+		{input: `&quot;`, want: 1},
+		{input: `&#39;`, want: 1},
+		{input: `&#x27;`, want: 1},
+		{input: `&#128293;`, want: 1},
+		{input: `&#x1F525;`, want: 1},
+		{input: `&nbsp;`, want: 6},
+		{input: `&mdash;`, want: 7},
+		{input: `&apos;`, want: 6},
+		{input: `&copy;`, want: 6},
+		{input: `&hellip;`, want: 8},
+		{input: `&nbspa`, want: 6},
+		{input: `&nbsp `, want: 6},
+		{input: `&ampa`, want: 5},
+		{input: `&amp `, want: 2},
+		{input: `&#0;`, want: 4},
+		{input: `&#1114112;`, want: 10},
+		{input: `a & b`, want: 5},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			require.Equal(t, tc.want, htmlTextRuneCount(tc.input))
 		})
 	}
 }
