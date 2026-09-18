@@ -334,8 +334,11 @@ type SlackConfig struct {
 
 	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
 	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
-
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+	// ThreadReplies posts follow-up notifications for an alert group as replies
+	// in the Slack thread of the group's first message. Requires bot token with
+	// chat:write scope. Incoming webhooks cannot start a thread.
+	ThreadReplies bool `yaml:"thread_replies" json:"thread_replies,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -351,6 +354,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	return c.Validate()
 }
 
+// Validate checks that Slack credential fields are mutually exclusive. The
+// chat.postMessage requirement of update_message and thread_replies is checked
+// during global config resolution, after api_url is filled in from the global
+// section or an app token.
 func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return errors.New("at most one of api_url & api_url_file must be configured")
@@ -362,11 +369,24 @@ func (c *SlackConfig) Validate() error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
-	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
+	return nil
+}
+
+func (c *SlackConfig) validateMessageAPIURL() error {
+	if !c.UpdateMessage && !c.ThreadReplies {
+		return nil
+	}
+	// File-backed URLs are read when the notification is sent.
+	if len(c.APIURLFile) > 0 {
+		return nil
+	}
+	if c.APIURL != nil && c.APIURL.String() == "https://slack.com/api/chat.postMessage" {
+		return nil
+	}
+	if c.UpdateMessage {
 		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 	}
-
-	return nil
+	return errors.New("thread_replies can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
 // WechatConfig configures notifications via Wechat.

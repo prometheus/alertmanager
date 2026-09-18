@@ -1759,6 +1759,20 @@ fields:
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
 # Webhook URLs do not support updates.
 [ update_message: <boolean> | default = false ]
+
+# Post follow-up notifications for the same alert group as replies in the
+# Slack thread of the group's first message. A later firing after the group
+# has fully resolved starts a new thread.
+#
+# Together with update_message, state changes edit the first message and
+# also add a reply. Repeat-interval notifications then only edit the first
+# message, so the thread is not filled with copies of a message that is
+# already current. thread_replies without update_message still posts a
+# reply on repeats; otherwise the repeat would not appear in Slack at all.
+#
+# Requires a bot token (api_url https://slack.com/api/chat.postMessage).
+# Incoming webhooks do not return a message timestamp and cannot be used.
+[ thread_replies: <boolean> | default = false ]
 ```
 
 #### `<action_config>` (Slack)

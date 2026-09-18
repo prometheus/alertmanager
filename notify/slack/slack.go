@@ -170,27 +170,82 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Attachments: []attachment{*att},
 	}
 
-	// If a notification for this alert group has already been sent and `update_message` config is set
-	// edit API endpoint and payload to update notification instead of sending a new one.
-	var store *nflog.Store
+	store := n.nflogStore(ctx, logger)
+	parentTS, parentChannel := storedParent(store)
+	haveParent := parentTS != "" && parentChannel != ""
 
-	if n.conf.UpdateMessage {
-		var ok bool
-		store, ok = notify.NflogStore(ctx)
-		if !ok {
-			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
-		} else {
-			threadTs, _ := store.GetStr("threadTs")
-			channelId, _ := store.GetStr("channelId")
-			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
-			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
-				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
-			}
-		}
+	edit := n.conf.UpdateMessage && haveParent
+	reply := n.conf.ThreadReplies && haveParent && !skipThreadReply(ctx, edit)
+
+	// Follow-ups must not replace the parent timestamp with a reply's ts.
+	var record *nflog.Store
+	if !edit && !reply {
+		record = store
 	}
+
+	firstURL := u
+	if edit {
+		u = "https://slack.com/api/chat.update"
+		req.Timestamp = parentTS
+		req.Channel = parentChannel
+		logger.Debug("editing existing Slack message", "ts", parentTS, "channel", parentChannel)
+	} else if reply {
+		req.ThreadTimestamp = parentTS
+		req.Channel = parentChannel
+		logger.Debug("replying in existing Slack thread", "ts", parentTS, "channel", parentChannel)
+	}
+
+	retry, err := n.post(ctx, u, req, record)
+	if err != nil {
+		return retry, err
+	}
+	if !edit || !reply {
+		return retry, nil
+	}
+
+	followUp := *req
+	followUp.Timestamp = ""
+	followUp.ThreadTimestamp = parentTS
+	logger.Debug("adding thread reply after editing parent", "ts", parentTS, "channel", parentChannel)
+	return n.post(ctx, firstURL, &followUp, nil)
+}
+
+func (n *Notifier) nflogStore(ctx context.Context, logger *slog.Logger) *nflog.Store {
+	if !n.conf.UpdateMessage && !n.conf.ThreadReplies {
+		return nil
+	}
+	store, ok := notify.NflogStore(ctx)
+	if !ok {
+		logger.Warn("nflog store missing; Slack message editing and thread replies disabled")
+		return nil
+	}
+	return store
+}
+
+func storedParent(store *nflog.Store) (ts, channel string) {
+	if store == nil {
+		return "", ""
+	}
+	ts, _ = store.GetStr("threadTs")
+	channel, _ = store.GetStr("channelId")
+	if ts == "" || channel == "" {
+		return "", ""
+	}
+	return ts, channel
+}
+
+// skipThreadReply reports whether a thread reply would only duplicate a parent
+// that update_message is already rewriting. Repeats with thread_replies alone
+// still post a reply, otherwise Slack would receive nothing.
+func skipThreadReply(ctx context.Context, editingParent bool) bool {
+	if !editingParent {
+		return false
+	}
+	reason, ok := notify.NotificationReason(ctx)
+	return ok && reason == notify.ReasonRepeatIntervalElapsed
+}
+
+func (n *Notifier) post(ctx context.Context, u string, req *request, store *nflog.Store) (bool, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
 		return false, err
@@ -248,11 +303,10 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 	if !data.OK {
 		return false, fmt.Errorf("error response from Slack: %s", data.Error)
 	}
-	// If store, TS and Channel are set, store the threadTS and channelId
 	if store != nil && data.Timestamp != "" && data.Channel != "" {
 		store.SetStr("threadTs", data.Timestamp)
 		store.SetStr("channelId", data.Channel)
-		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
+		n.logger.Debug("stored Slack message identity", "ts", data.Timestamp, "channel", data.Channel)
 	}
 	return false, nil
 }

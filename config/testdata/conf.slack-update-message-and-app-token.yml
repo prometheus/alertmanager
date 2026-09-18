@@ -1,0 +1,12 @@
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # bot token flow without explicit api_url
+      - channel: '#alerts1'
+        text: 'test'
+        send_resolved: true
+        app_token: 'xoxb-some-token'
+        update_message: true

@@ -34,6 +34,7 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
@@ -445,4 +446,188 @@ func TestNotifier_Notify_RetryAfterContextCancelled(t *testing.T) {
 	require.True(t, retry)
 	require.Error(t, err)
 	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
+}
+
+func TestSkipThreadReply(t *testing.T) {
+	tests := []struct {
+		name   string
+		edit   bool
+		reason notify.NotifyReason
+		omit   bool
+		want   bool
+	}{
+		{name: "repeat while editing parent", edit: true, reason: notify.ReasonRepeatIntervalElapsed, want: true},
+		{name: "resolved while editing parent", edit: true, reason: notify.ReasonAllAlertsResolved},
+		{name: "repeat without parent edit", reason: notify.ReasonRepeatIntervalElapsed},
+		{name: "no reason in context while editing", edit: true, omit: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if !tt.omit {
+				ctx = notify.WithNotificationReason(ctx, tt.reason)
+			}
+			require.Equal(t, tt.want, skipThreadReply(ctx, tt.edit))
+		})
+	}
+}
+
+type slackCall struct {
+	endpoint string
+	payload  map[string]any
+}
+
+func notifierRecordingCalls(t *testing.T, conf *config.SlackConfig, calls *[]slackCall, respTS string) *Notifier {
+	t.Helper()
+	u, err := url.Parse("https://slack.com/api/chat.postMessage")
+	require.NoError(t, err)
+	conf.APIURL = &amcommoncfg.SecretURL{URL: u}
+	conf.Channel = "#test-channel"
+	conf.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+	notifier, err := New(conf, test.CreateTmpl(t), promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	notifier.postJSONFunc = func(ctx context.Context, client *http.Client, endpoint string, body io.Reader) (*http.Response, error) {
+		var payload map[string]any
+		require.NoError(t, json.NewDecoder(body).Decode(&payload))
+		*calls = append(*calls, slackCall{endpoint: endpoint, payload: payload})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"ok": true, "channel": "C123", "ts": "` + respTS + `"}`)),
+		}, nil
+	}
+	return notifier
+}
+
+func notifyCtx(store *nflog.Store, reason notify.NotifyReason) context.Context {
+	ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+	ctx = notify.WithNflogStore(ctx, store)
+	return notify.WithNotificationReason(ctx, reason)
+}
+
+func TestSlackThreadReplies(t *testing.T) {
+	parentStore := func() *nflog.Store {
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+		return store
+	}
+
+	t.Run("first message is posted to the channel and remembered", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{UpdateMessage: true, ThreadReplies: true}, &calls, "111.222")
+		store := nflog.NewStore(nil)
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonFirstNotification))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", calls[0].endpoint)
+		require.NotContains(t, calls[0].payload, "ts")
+		require.NotContains(t, calls[0].payload, "thread_ts")
+		ts, ok := store.GetStr("threadTs")
+		require.True(t, ok)
+		require.Equal(t, "111.222", ts)
+		channel, ok := store.GetStr("channelId")
+		require.True(t, ok)
+		require.Equal(t, "C123", channel)
+	})
+
+	t.Run("resolve edits the parent and adds a reply", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{UpdateMessage: true, ThreadReplies: true}, &calls, "999.999")
+		store := parentStore()
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonAllAlertsResolved))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 2)
+		require.Equal(t, "https://slack.com/api/chat.update", calls[0].endpoint)
+		require.Equal(t, "111.222", calls[0].payload["ts"])
+		require.Equal(t, "C123", calls[0].payload["channel"])
+		require.NotContains(t, calls[0].payload, "thread_ts")
+
+		require.Equal(t, "https://slack.com/api/chat.postMessage", calls[1].endpoint)
+		require.Equal(t, "111.222", calls[1].payload["thread_ts"])
+		require.Equal(t, "C123", calls[1].payload["channel"])
+		require.NotContains(t, calls[1].payload, "ts")
+
+		ts, _ := store.GetStr("threadTs")
+		require.Equal(t, "111.222", ts)
+	})
+
+	t.Run("repeat only edits the parent when both options are set", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{UpdateMessage: true, ThreadReplies: true}, &calls, "999.999")
+		store := parentStore()
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonRepeatIntervalElapsed))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.Equal(t, "https://slack.com/api/chat.update", calls[0].endpoint)
+		require.Equal(t, "111.222", calls[0].payload["ts"])
+		require.NotContains(t, calls[0].payload, "thread_ts")
+	})
+
+	t.Run("follow-up without update_message is a thread reply", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{ThreadReplies: true}, &calls, "999.999")
+		store := parentStore()
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonNewAlertsInGroup))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", calls[0].endpoint)
+		require.Equal(t, "111.222", calls[0].payload["thread_ts"])
+		require.NotContains(t, calls[0].payload, "ts")
+		ts, _ := store.GetStr("threadTs")
+		require.Equal(t, "111.222", ts)
+	})
+
+	t.Run("repeat without update_message still replies", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{ThreadReplies: true}, &calls, "999.999")
+		store := parentStore()
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonRepeatIntervalElapsed))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.Equal(t, "111.222", calls[0].payload["thread_ts"])
+	})
+
+	t.Run("update_message does not open a thread", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{UpdateMessage: true}, &calls, "999.999")
+		store := parentStore()
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonNewAlertsInGroup))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.Equal(t, "https://slack.com/api/chat.update", calls[0].endpoint)
+		require.NotContains(t, calls[0].payload, "thread_ts")
+	})
+
+	t.Run("incomplete stored identity starts a new message", func(t *testing.T) {
+		var calls []slackCall
+		n := notifierRecordingCalls(t, &config.SlackConfig{ThreadReplies: true}, &calls, "333.444")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+
+		_, err := n.Notify(notifyCtx(store, notify.ReasonNewAlertsInGroup))
+		require.NoError(t, err)
+
+		require.Len(t, calls, 1)
+		require.NotContains(t, calls[0].payload, "thread_ts")
+		require.NotContains(t, calls[0].payload, "ts")
+		ts, _ := store.GetStr("threadTs")
+		require.Equal(t, "333.444", ts)
+		channel, _ := store.GetStr("channelId")
+		require.Equal(t, "C123", channel)
+	})
 }

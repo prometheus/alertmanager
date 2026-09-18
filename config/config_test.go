@@ -1321,6 +1321,38 @@ func TestSlackUpdateMessageWebhookURL(t *testing.T) {
 	}
 }
 
+func TestSlackThreadRepliesWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-thread-replies-and-webhook.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing testdata/conf.slack-thread-replies-and-webhook.yml")
+	}
+	want := "thread_replies can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage"
+	if err.Error() != want {
+		t.Errorf("Expected: %s\nGot: %s", want, err.Error())
+	}
+}
+
+func TestSlackUpdateMessageWithAppToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-update-message-and-app-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing testdata/conf.slack-update-message-and-app-token.yml: %s", err)
+	}
+}
+
+func TestSlackThreadRepliesWithAppToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-thread-replies-and-app-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing testdata/conf.slack-thread-replies-and-app-token.yml: %s", err)
+	}
+}
+
+func TestSlackThreadRepliesWithAPIURLFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-thread-replies-and-api-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing testdata/conf.slack-thread-replies-and-api-url-file.yml: %s", err)
+	}
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
