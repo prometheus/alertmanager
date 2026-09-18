@@ -15,7 +15,7 @@ package e2e
 
 import (
 	"context"
-	"strings"
+	"crypto/tls"
 	"time"
 
 	"connectrpc.com/connect"
@@ -23,8 +23,10 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/version"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/peer"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 
 	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
@@ -33,12 +35,12 @@ import (
 
 var _ = Describe("StatusService", func() {
 	DescribeTable("GetStatus succeeds over supported transports",
-		func(routePrefix string, nativeGRPC bool, opts []connect.ClientOption) {
-			inst := startInstance(routePrefix)
+		func(routePrefix string, tlsEnabled, nativeGRPC bool, opts []connect.ClientOption) {
+			inst := startInstance(routePrefix, tlsEnabled)
 			httpClient := connect.HTTPClient(inst.httpClient)
 			basePath := inst.apiPath()
 			if nativeGRPC {
-				httpClient = inst.h2cClient
+				httpClient = inst.rpcClient
 				basePath = ""
 			}
 			client := inst.statusClient(httpClient, basePath, opts...)
@@ -54,25 +56,33 @@ var _ = Describe("StatusService", func() {
 			Expect(status.GetStartTime().AsTime()).NotTo(BeZero())
 			Expect(status.GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
 		},
-		Entry("Connect POST at the root prefix", "", false, []connect.ClientOption{}),
-		Entry("Connect HTTP GET at the root prefix", "", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web at the root prefix", "", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC at the server root", "", true, []connect.ClientOption{connect.WithGRPC()}),
-		Entry("Connect POST under a route prefix", "/alertmanager", false, []connect.ClientOption{}),
-		Entry("Connect HTTP GET under a route prefix", "/alertmanager", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web under a route prefix", "/alertmanager", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC with a route prefix configured", "/alertmanager", true, []connect.ClientOption{connect.WithGRPC()}),
+		Entry("Connect POST over h2c at the root prefix", "", false, false, []connect.ClientOption{}),
+		Entry("Connect HTTP GET over h2c at the root prefix", "", false, false, []connect.ClientOption{connect.WithHTTPGet()}),
+		Entry("gRPC-Web over h2c at the root prefix", "", false, false, []connect.ClientOption{connect.WithGRPCWeb()}),
+		Entry("native gRPC over h2c at the server root", "", false, true, []connect.ClientOption{connect.WithGRPC()}),
+		Entry("Connect POST over h2c under a route prefix", "/alertmanager", false, false, []connect.ClientOption{}),
+		Entry("Connect HTTP GET over h2c under a route prefix", "/alertmanager", false, false, []connect.ClientOption{connect.WithHTTPGet()}),
+		Entry("gRPC-Web over h2c under a route prefix", "/alertmanager", false, false, []connect.ClientOption{connect.WithGRPCWeb()}),
+		Entry("native gRPC over h2c with a route prefix configured", "/alertmanager", false, true, []connect.ClientOption{connect.WithGRPC()}),
+		Entry("Connect POST over TLS at the root prefix", "", true, false, []connect.ClientOption{}),
+		Entry("Connect HTTP GET over TLS at the root prefix", "", true, false, []connect.ClientOption{connect.WithHTTPGet()}),
+		Entry("gRPC-Web over TLS at the root prefix", "", true, false, []connect.ClientOption{connect.WithGRPCWeb()}),
+		Entry("native gRPC over TLS at the server root", "", true, true, []connect.ClientOption{connect.WithGRPC()}),
+		Entry("Connect POST over TLS under a route prefix", "/alertmanager", true, false, []connect.ClientOption{}),
+		Entry("Connect HTTP GET over TLS under a route prefix", "/alertmanager", true, false, []connect.ClientOption{connect.WithHTTPGet()}),
+		Entry("gRPC-Web over TLS under a route prefix", "/alertmanager", true, false, []connect.ClientOption{connect.WithGRPCWeb()}),
+		Entry("native gRPC over TLS with a route prefix configured", "/alertmanager", true, true, []connect.ClientOption{connect.WithGRPC()}),
 	)
 
 	DescribeTable("rejects transports outside their configured prefix",
 		func(routePrefix, basePath string, nativeGRPC bool, opts []connect.ClientOption) {
-			inst := startInstance(routePrefix)
+			inst := startInstance(routePrefix, false)
 			httpClient := connect.HTTPClient(inst.httpClient)
 			if basePath == "api" {
 				basePath = inst.apiPath()
 			}
 			if nativeGRPC {
-				httpClient = inst.h2cClient
+				httpClient = inst.rpcClient
 			}
 			client := inst.statusClient(httpClient, basePath, opts...)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -90,18 +100,31 @@ var _ = Describe("StatusService", func() {
 	)
 
 	DescribeTable("exposes native health and reflection at the server root",
-		func(routePrefix string) {
-			inst := startInstance(routePrefix)
+		func(routePrefix string, tlsEnabled bool) {
+			inst := startInstance(routePrefix, tlsEnabled)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			conn, err := grpc.NewClient(strings.TrimPrefix(inst.baseURL, "http://"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			transportCredentials := credentials.TransportCredentials(insecure.NewCredentials())
+			if tlsEnabled {
+				transportCredentials = credentials.NewTLS(inst.tlsConfig.Clone())
+			}
+			conn, err := grpc.NewClient(inst.app.Addr(), grpc.WithTransportCredentials(transportCredentials))
 			Expect(err).NotTo(HaveOccurred())
 			DeferCleanup(conn.Close)
 
-			health, err := healthv1.NewHealthClient(conn).Check(ctx, &healthv1.HealthCheckRequest{})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(health.GetStatus()).To(Equal(healthv1.HealthCheckResponse_SERVING))
+			healthClient := healthv1.NewHealthClient(conn)
+			for _, service := range []string{"", statusv3alphaconnect.StatusServiceName} {
+				var remote peer.Peer
+				health, err := healthClient.Check(ctx, &healthv1.HealthCheckRequest{Service: service}, grpc.Peer(&remote))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(health.GetStatus()).To(Equal(healthv1.HealthCheckResponse_SERVING))
+				if tlsEnabled {
+					info, ok := remote.AuthInfo.(credentials.TLSInfo)
+					Expect(ok).To(BeTrue())
+					Expect(info.State.NegotiatedProtocol).To(Equal("h2"))
+				}
+			}
 
 			stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -118,12 +141,24 @@ var _ = Describe("StatusService", func() {
 			}
 			Expect(names).To(ContainElement(statusv3alphaconnect.StatusServiceName))
 		},
-		Entry("without a route prefix", ""),
-		Entry("with a route prefix", "/alertmanager"),
+		Entry("over h2c without a route prefix", "", false),
+		Entry("over h2c with a route prefix", "/alertmanager", false),
+		Entry("over TLS without a route prefix", "", true),
+		Entry("over TLS with a route prefix", "/alertmanager", true),
 	)
 
+	It("honors exporter-toolkit HTTP/2 disablement", func() {
+		inst := startInstance("", true, false)
+		config := inst.tlsConfig.Clone()
+		config.NextProtos = []string{"h2", "http/1.1"}
+		conn, err := tls.Dial("tcp", inst.app.Addr(), config)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(conn.Close)
+		Expect(conn.ConnectionState().NegotiatedProtocol).NotTo(Equal("h2"))
+	})
+
 	It("cancels active streams during shutdown", func() {
-		inst := startInstance("")
+		inst := startInstance("", false)
 		conn, err := grpc.NewClient(inst.app.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(conn.Close)

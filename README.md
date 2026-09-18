@@ -191,6 +191,12 @@ The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is 
 prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
 relate to `/alertmanager/api/v2/status`.
 
+The experimental ConnectRPC API serves Connect and gRPC-Web under the route-prefix-aware `/api/`
+path and native gRPC, health, and reflection at the server root. The listener accepts native gRPC
+over exporter-toolkit TLS with HTTP/2 ALPN and over plaintext h2c. Because h2c provides neither
+encryption nor peer authentication, expose a plaintext listener only on a trusted network or behind
+a trusted TLS-terminating proxy; use `--web.config.file` to configure TLS for direct exposure.
+
 ## amtool
 
 `amtool` is a cli tool for interacting with the Alertmanager API. It is bundled with all releases of Alertmanager.
