@@ -31,8 +31,8 @@ var _ statusv3alphaconnect.StatusServiceHandler = (*API)(nil)
 // GetStatus returns the Alertmanager instance and cluster status.
 func (api *API) GetStatus(ctx context.Context, _ *connect.Request[statusv3alpha.GetStatusRequest]) (*connect.Response[statusv3alpha.GetStatusResponse], error) {
 	var original string
-	if snapshot := api.configSnapshot.Load(); snapshot != nil {
-		original = *snapshot
+	if snapshot := api.reloadSnapshot.Load(); snapshot != nil {
+		original = snapshot.configuration
 	}
 
 	status := &statusv3alpha.AlertmanagerStatus{
