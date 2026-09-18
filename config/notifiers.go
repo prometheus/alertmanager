@@ -132,6 +132,7 @@ type EmailConfig struct {
 	Hello            string               `yaml:"hello,omitempty" json:"hello,omitempty"`
 	Smarthost        HostPort             `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername     string               `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthUsernameFile string               `yaml:"auth_username_file,omitempty" json:"auth_username_file,omitempty"`
 	AuthPassword     commoncfg.Secret     `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
 	AuthPasswordFile string               `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
 	AuthSecret       commoncfg.Secret     `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
@@ -183,6 +184,10 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 func (c *EmailConfig) Validate() error {
 	if c.To == "" {
 		return errors.New("missing to address in email config")
+	}
+
+	if c.AuthUsername != "" && c.AuthUsernameFile != "" {
+		return errors.New("at most one of auth_username & auth_username_file must be configured")
 	}
 
 	if c.Threading.Enabled {
