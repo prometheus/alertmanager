@@ -1,0 +1,115 @@
+// Copyright The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// common.v3alpha defines minimal contracts shared by independently versioned
+// Alertmanager services. Each importing service owns its operation semantics.
+// Existing fields keep their meaning when a service version changes.
+package common.v3alpha;
+
+option go_package = "github.com/prometheus/alertmanager/api/common/v3alpha;commonv3alpha";
+
+// MatcherType defines how a matcher compares a label value.
+enum MatcherType {
+  MATCHER_TYPE_UNSPECIFIED = 0;
+  MATCHER_TYPE_EQUAL = 1;
+  MATCHER_TYPE_NOT_EQUAL = 2;
+  MATCHER_TYPE_REGEXP = 3;
+  MATCHER_TYPE_NOT_REGEXP = 4;
+}
+
+// Matcher compares one label name and value.
+message Matcher {
+  string name = 1;
+  string value = 2;
+  MatcherType type = 3;
+}
+
+// MatcherSet is a conjunction of matchers. A resource matches a list of
+// MatcherSet values when it matches every matcher in at least one set.
+message MatcherSet {
+  repeated Matcher matchers = 1;
+}
+
+// Receiver identifies a configured receiver and contains a snapshot of its
+// labels. A service-specific receiver resource owns all other fields.
+message Receiver {
+  string name = 1;
+  map<string, string> labels = 2;
+}
+
+// ResourceState contains states used by Alertmanager API resources. Each
+// service defines which states it accepts.
+enum ResourceState {
+  RESOURCE_STATE_UNSPECIFIED = 0;
+  RESOURCE_STATE_ACTIVE = 1;
+  RESOURCE_STATE_PENDING = 2;
+  RESOURCE_STATE_EXPIRED = 3;
+  RESOURCE_STATE_SUPPRESSED = 4;
+  RESOURCE_STATE_UNPROCESSED = 5;
+}
+
+// StateFilter selects resources that have any listed state. An empty filter
+// selects every state supported by the service.
+message StateFilter {
+  repeated ResourceState states = 1;
+}
+
+// PageRequest controls one page of a live, ordered resource view. A page token
+// is opaque and is valid only for the resource type and filters that created
+// it. Pagination does not provide snapshot isolation from concurrent changes.
+message PageRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// PageResponse contains the token for the next page. An empty token means that
+// the current live view has no later item.
+message PageResponse {
+  string next_page_token = 1;
+}
+
+// FieldViolation describes one invalid request field.
+message FieldViolation {
+  string field = 1;
+  string description = 2;
+}
+
+// ValidationErrorDetail is attached to an InvalidArgument error.
+message ValidationErrorDetail {
+  repeated FieldViolation violations = 1;
+}
+
+// ItemFailure describes one failed item in a batch request.
+message ItemFailure {
+  uint64 index = 1;
+  string resource_id = 2;
+  string description = 3;
+}
+
+// PartialResultDetail describes the known result of a partly successful batch.
+// If counts_exact is false, accepted and failed are lower bounds.
+message PartialResultDetail {
+  uint64 accepted = 1;
+  uint64 failed = 2;
+  bool counts_exact = 3;
+  repeated ItemFailure failures = 4;
+}
+
+// RequiredFeatureDetail is attached to a FailedPrecondition error when an
+// operation needs a disabled capability flag.
+message RequiredFeatureDetail {
+  string feature = 1;
+  string description = 2;
+}

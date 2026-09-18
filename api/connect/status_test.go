@@ -119,7 +119,7 @@ func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
 var _ = Describe("StatusService", func() {
 	It("returns status when clustering is disabled", func() {
 		api := newTestAPI(Options{})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		Expect(err).NotTo(HaveOccurred())
@@ -149,7 +149,7 @@ var _ = Describe("StatusService", func() {
 		}
 
 		api := newTestAPI(Options{Peer: peer})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		Expect(err).NotTo(HaveOccurred())
@@ -173,7 +173,7 @@ var _ = Describe("StatusService", func() {
 		DeferCleanup(peer.unblock)
 
 		api := newTestAPI(Options{Peer: peer})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		statusDone := make(chan error, 1)
 		go func() {
@@ -184,7 +184,7 @@ var _ = Describe("StatusService", func() {
 
 		updateDone := make(chan struct{})
 		go func() {
-			api.Update(&config.Config{})
+			api.Update(&config.Config{}, nil)
 			close(updateDone)
 		}()
 		Eventually(updateDone, 5*time.Second).Should(BeClosed())
@@ -198,7 +198,7 @@ var _ = Describe("StatusService", func() {
 	It("cancels active unary RPCs during shutdown", func() {
 		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
 		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		DeferCleanup(peer.unblock)
@@ -223,7 +223,7 @@ var _ = Describe("StatusService", func() {
 			release: make(chan struct{}),
 		}
 		api := newTestAPI(Options{Peer: peer, Registerer: prometheus.NewRegistry(), UnaryConcurrency: 1, UnaryTimeout: 20 * time.Millisecond})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
@@ -259,7 +259,7 @@ var _ = Describe("StatusService", func() {
 	DescribeTable("serves status over HTTP",
 		func(wantMethod string, opts []connect.ClientOption) {
 			api := newTestAPI(Options{})
-			api.Update(&config.Config{})
+			api.Update(&config.Config{}, nil)
 
 			methods := make(chan string, 1)
 			handler := api.Handler()
@@ -302,7 +302,7 @@ var _ = Describe("StatusService", func() {
 	It("rejects oversized incoming messages before handler execution", func() {
 		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
 		api := newTestAPI(Options{Peer: peer, ReadMaxBytes: 1, MaxRequestBodyBytes: 1024})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		DeferCleanup(peer.unblock)
@@ -317,7 +317,7 @@ var _ = Describe("StatusService", func() {
 
 	It("allows handler options to override message limits", func() {
 		api := newTestAPI(Options{ReadMaxBytes: 1, SendMaxBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler(connect.WithReadMaxBytes(1024), connect.WithSendMaxBytes(1024*1024)))
 		DeferCleanup(srv.Close)
 
@@ -330,7 +330,7 @@ var _ = Describe("StatusService", func() {
 
 	It("rejects oversized unary request bodies", func() {
 		api := newTestAPI(Options{ReadMaxBytes: 1024, MaxRequestBodyBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 
@@ -343,7 +343,7 @@ var _ = Describe("StatusService", func() {
 
 	It("rejects oversized outgoing messages", func() {
 		api := newTestAPI(Options{SendMaxBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
@@ -355,7 +355,7 @@ var _ = Describe("StatusService", func() {
 	It("bounds slow unary uploads before handler execution", func() {
 		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
 		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1, UnaryTimeout: 500 * time.Millisecond})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		DeferCleanup(peer.unblock)
@@ -391,7 +391,7 @@ var _ = Describe("StatusService", func() {
 	It("rejects unread request bodies without blocking", func() {
 		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
 		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		handler := api.Handler()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handler.ServeHTTP(flushOnlyResponseWriter{ResponseWriter: w}, r)
@@ -544,7 +544,7 @@ var _ = Describe("Connect API", func() {
 	It("registers bounded unary lifecycle metrics", func() {
 		reg := prometheus.NewRegistry()
 		api := newTestAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
@@ -574,7 +574,7 @@ var _ = Describe("Connect API", func() {
 	It("observes errors from caller interceptors", func() {
 		reg := prometheus.NewRegistry()
 		api := newTestAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		interceptor := connect.UnaryInterceptorFunc(func(connect.UnaryFunc) connect.UnaryFunc {
 			return func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
 				return nil, connect.NewError(connect.CodePermissionDenied, errors.New("denied"))
@@ -657,7 +657,7 @@ var _ = Describe("RPC admission", func() {
 
 	It("limits and releases streams over HTTP", func() {
 		api := newTestAPI(Options{UnaryConcurrency: 1, StreamConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)
 		healthClient := grpchealth.NewClient(srv.Client(), srv.URL)

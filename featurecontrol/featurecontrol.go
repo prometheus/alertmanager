@@ -51,105 +51,52 @@ type Flagger interface {
 	EnableAutoGOMEMLIMIT() bool
 	EnableEventRecorder() bool
 	EnableMutedAlertsInNflog() bool
+	Enabled(feature string) bool
 }
 
 type Flags struct {
-	logger                       *slog.Logger
-	enableAlertNamesInMetrics    bool
-	enableReceiverNamesInMetrics bool
-	enableGroupKeyInMetrics      bool
-	classicMode                  bool
-	utf8StrictMode               bool
-	enableAutoGOMEMLIMIT         bool
-	enableEventRecorder          bool
-	enableMutedAlertsInNflog     bool
+	enabled map[string]struct{}
 }
 
 func (f *Flags) EnableAlertNamesInMetrics() bool {
-	return f.enableAlertNamesInMetrics
+	return f.Enabled(FeatureAlertNamesInMetrics)
 }
 
 func (f *Flags) EnableReceiverNamesInMetrics() bool {
-	return f.enableReceiverNamesInMetrics
+	return f.Enabled(FeatureReceiverNameInMetrics)
 }
 
 func (f *Flags) EnableGroupKeyInMetrics() bool {
-	return f.enableGroupKeyInMetrics
+	return f.Enabled(FeatureGroupKeyInMetrics)
 }
 
 func (f *Flags) ClassicMode() bool {
-	return f.classicMode
+	return f.Enabled(FeatureClassicMode)
 }
 
 func (f *Flags) UTF8StrictMode() bool {
-	return f.utf8StrictMode
+	return f.Enabled(FeatureUTF8StrictMode)
 }
 
 func (f *Flags) EnableAutoGOMEMLIMIT() bool {
-	return f.enableAutoGOMEMLIMIT
+	return f.Enabled(FeatureAutoGOMEMLIMIT)
 }
 
 func (f *Flags) EnableEventRecorder() bool {
-	return f.enableEventRecorder
+	return f.Enabled(FeatureEventRecorder)
 }
 
 func (f *Flags) EnableMutedAlertsInNflog() bool {
-	return f.enableMutedAlertsInNflog
+	return f.Enabled(FeatureMutedAlertsInNflog)
 }
 
-type flagOption func(flags *Flags)
-
-func enableReceiverNameInMetrics() flagOption {
-	return func(configs *Flags) {
-		configs.enableReceiverNamesInMetrics = true
-	}
-}
-
-func enableGroupKeyInMetrics() flagOption {
-	return func(configs *Flags) {
-		configs.enableGroupKeyInMetrics = true
-	}
-}
-
-func enableClassicMode() flagOption {
-	return func(configs *Flags) {
-		configs.classicMode = true
-	}
-}
-
-func enableUTF8StrictMode() flagOption {
-	return func(configs *Flags) {
-		configs.utf8StrictMode = true
-	}
-}
-
-func enableAutoGOMEMLIMIT() flagOption {
-	return func(configs *Flags) {
-		configs.enableAutoGOMEMLIMIT = true
-	}
-}
-
-func enableEventRecorder() flagOption {
-	return func(configs *Flags) {
-		configs.enableEventRecorder = true
-	}
-}
-
-func enableMutedAlertsInNflog() flagOption {
-	return func(configs *Flags) {
-		configs.enableMutedAlertsInNflog = true
-	}
-}
-
-func enableAlertNamesInMetrics() flagOption {
-	return func(configs *Flags) {
-		configs.enableAlertNamesInMetrics = true
-	}
+func (f *Flags) Enabled(feature string) bool {
+	_, ok := f.enabled[feature]
+	return ok
 }
 
 func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
-	fc := &Flags{logger: logger}
-	opts := []flagOption{}
+	fc := &Flags{enabled: make(map[string]struct{})}
 
 	if len(features) == 0 {
 		return NoopFlags{}, nil
@@ -158,43 +105,37 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 	for feature := range strings.SplitSeq(features, ",") {
 		switch feature {
 		case FeatureAlertNamesInMetrics:
-			opts = append(opts, enableAlertNamesInMetrics())
 			logger.Warn("Alert names in metrics enabled")
 		case FeatureReceiverNameInMetrics:
-			opts = append(opts, enableReceiverNameInMetrics())
 			logger.Warn("Experimental receiver name in metrics enabled")
 		case FeatureGroupKeyInMetrics:
-			opts = append(opts, enableGroupKeyInMetrics())
 			logger.Warn("Experimental group key in metrics enabled")
 		case FeatureClassicMode:
-			opts = append(opts, enableClassicMode())
 			logger.Warn("Classic mode enabled")
 		case FeatureUTF8StrictMode:
-			opts = append(opts, enableUTF8StrictMode())
 			logger.Warn("UTF-8 strict mode enabled")
 		case FeatureAutoGOMEMLIMIT:
-			opts = append(opts, enableAutoGOMEMLIMIT())
 			logger.Error("Deprecated: auto-gomemlimit will be removed in v0.35. Please use the new command line flag --auto-gomemlimit instead.")
 		case FeatureEventRecorder:
-			opts = append(opts, enableEventRecorder())
 			logger.Warn("Experimental event recorder enabled")
 		case FeatureMutedAlertsInNflog:
-			opts = append(opts, enableMutedAlertsInNflog())
 			logger.Warn("Experimental muted alerts in the notification log enabled")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
+		fc.enabled[feature] = struct{}{}
 	}
 
-	for _, opt := range opts {
-		opt(fc)
-	}
-
-	if fc.classicMode && fc.utf8StrictMode {
+	if fc.Enabled(FeatureClassicMode) && fc.Enabled(FeatureUTF8StrictMode) {
 		return nil, errors.New("cannot have both classic and UTF-8 modes enabled")
 	}
 
 	return fc, nil
+}
+
+// IsEnabled reports whether a named feature is enabled.
+func IsEnabled(flagger Flagger, feature string) bool {
+	return flagger != nil && flagger.Enabled(feature)
 }
 
 type NoopFlags struct{}
@@ -214,3 +155,5 @@ func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 func (n NoopFlags) EnableEventRecorder() bool { return false }
 
 func (n NoopFlags) EnableMutedAlertsInNflog() bool { return false }
+
+func (n NoopFlags) Enabled(string) bool { return false }
