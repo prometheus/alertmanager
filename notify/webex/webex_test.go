@@ -15,10 +15,12 @@ package webex
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -302,4 +304,52 @@ func TestWebexFailureReason(t *testing.T) {
 			require.Equal(t, tc.expectedReason, reasonError.Reason)
 		})
 	}
+}
+
+// TestWebexTruncatesMultiByteMessage sends a message that is over
+// maxMessageSize in bytes while holding fewer runes than that, the shape any
+// long non-ASCII alert takes. Notify used to panic on it.
+func TestWebexTruncatesMultiByteMessage(t *testing.T) {
+	var out []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		var err error
+		out, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&config.WebexConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIURL:     &amcommoncfg.URL{URL: u},
+			Message:    "{{ .CommonAnnotations.description }}",
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	// 3720 Cyrillic characters are 7440 bytes, one byte over the limit.
+	description := strings.Repeat("д", 3720)
+	require.Greater(t, len(description), maxMessageSize)
+	require.Less(t, len([]rune(description)), maxMessageSize)
+
+	ctx := notify.WithGroupKey(context.Background(), "1")
+	retry, err := notifier.Notify(ctx, &types.Alert{
+		Alert: model.Alert{
+			Labels:      model.LabelSet{"lbl1": "val1"},
+			Annotations: model.LabelSet{"description": model.LabelValue(description)},
+			StartsAt:    time.Now(),
+			EndsAt:      time.Now().Add(time.Hour),
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, retry)
+
+	var w webhook
+	require.NoError(t, json.Unmarshal(out, &w))
+	require.LessOrEqual(t, len(w.Markdown), maxMessageSize)
+	require.True(t, strings.HasPrefix(description, strings.TrimSuffix(w.Markdown, "…")))
 }
