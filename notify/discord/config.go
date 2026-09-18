@@ -50,10 +50,10 @@ func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = defaultDiscordConfig
 	type plain DiscordConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
 
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the DiscordConfig for correctness.

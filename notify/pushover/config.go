@@ -78,9 +78,9 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPushoverConfig
 	type plain PushoverConfig
 	if err := unmarshal((*plain)(c)); err != nil {
-		return err
+		return amcommoncfg.AsValidationError(err)
 	}
-	return c.Validate()
+	return amcommoncfg.AsValidationError(c.Validate())
 }
 
 // Validate checks the PushoverConfig for correctness.
