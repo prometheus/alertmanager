@@ -78,7 +78,7 @@ var (
 		AgentID: `{{ template "wechat.default.agent_id" . }}`,
 	}
 
-	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
+	// DefaultVictorOpsConfig defines default values for Splunk On-Call configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
 		NotifierConfig: amcommoncfg.NotifierConfig{
 			VSendResolved: true,
@@ -418,7 +418,8 @@ func (c *WechatConfig) Validate() error {
 	return nil
 }
 
-// VictorOpsConfig configures notifications via VictorOps.
+// VictorOpsConfig configures notifications through Splunk On-Call.
+// The type name is retained for configuration compatibility.
 type VictorOpsConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
 
