@@ -382,14 +382,14 @@ func (c *SlackConfig) validateMessageAPIURL() error {
 		return nil
 	}
 	apiURL := ""
-	if len(c.APIURLFile) > 0 {
+	if c.APIURL != nil {
+		apiURL = c.APIURL.String()
+	} else if len(c.APIURLFile) > 0 {
 		content, err := os.ReadFile(c.APIURLFile)
 		if err != nil {
 			return fmt.Errorf("reading api_url_file: %w", err)
 		}
 		apiURL = strings.TrimSpace(string(content))
-	} else if c.APIURL != nil {
-		apiURL = c.APIURL.String()
 	}
 	if apiURL == "https://slack.com/api/chat.postMessage" {
 		return nil

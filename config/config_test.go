@@ -1346,6 +1346,28 @@ func TestSlackThreadRepliesWithAppToken(t *testing.T) {
 	}
 }
 
+func TestSlackThreadRepliesAppTokenIgnoresGlobalAPIURLFile(t *testing.T) {
+	urlFile := t.TempDir() + "/api_url"
+	if err := os.WriteFile(urlFile, []byte("https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmt.Sprintf(`
+global:
+  slack_api_url_file: %q
+route:
+  receiver: slack
+receivers:
+  - name: slack
+    slack_configs:
+      - channel: '#alerts'
+        app_token: 'xoxb-some-token'
+        thread_replies: true
+`, urlFile)
+	if _, err := Load(cfg); err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+}
+
 func TestSlackThreadRepliesWithAPIURLFile(t *testing.T) {
 	urlFile := t.TempDir() + "/api_url"
 	if err := os.WriteFile(urlFile, []byte("https://slack.com/api/chat.postMessage\n"), 0o600); err != nil {
