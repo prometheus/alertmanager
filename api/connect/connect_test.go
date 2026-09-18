@@ -152,7 +152,7 @@ func TestConnectAPI(t *testing.T) {
 
 		reg := prometheus.NewRegistry()
 		api := NewAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
 
@@ -183,7 +183,7 @@ func TestConnectAPI(t *testing.T) {
 
 		reg := prometheus.NewRegistry()
 		api := NewAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		interceptor := connect.UnaryInterceptorFunc(func(connect.UnaryFunc) connect.UnaryFunc {
 			return func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
 				return nil, connect.NewError(connect.CodePermissionDenied, errors.New("denied"))
@@ -279,7 +279,7 @@ func TestRPCAdmission(t *testing.T) {
 		t.Parallel()
 
 		api := NewAPI(Options{UnaryConcurrency: 1, StreamConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 		healthClient := grpchealth.NewClient(srv.Client(), srv.URL)
 		labels := prometheus.Labels{"service": grpchealth.HealthV1ServiceName, "procedure": "Watch"}

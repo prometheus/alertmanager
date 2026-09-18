@@ -29,6 +29,7 @@ import (
 
 	apiconnect "github.com/prometheus/alertmanager/api/connect"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/featurecontrol"
 )
 
 func TestConcurrencyLimitHandler(t *testing.T) {
@@ -84,7 +85,9 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 }
 
 func TestOptionsResolve(t *testing.T) {
+	flagger := featurecontrol.NoopFlags{}
 	effective := (Options{
+		Flagger:                    flagger,
 		Concurrency:                3,
 		Timeout:                    time.Minute,
 		ConnectStreamIdleTimeout:   -time.Second,
@@ -95,6 +98,7 @@ func TestOptionsResolve(t *testing.T) {
 	}).resolve()
 	require.Equal(t, 3, effective.concurrency)
 	require.Equal(t, time.Minute, effective.timeout)
+	require.Equal(t, flagger, effective.connect.Flagger)
 	require.Equal(t, 3, effective.connect.UnaryConcurrency)
 	require.Equal(t, 3, effective.connect.StreamConcurrency)
 	require.Equal(t, time.Minute, effective.connect.UnaryTimeout)

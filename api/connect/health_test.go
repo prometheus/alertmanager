@@ -34,7 +34,7 @@ func TestGRPCHealth(t *testing.T) {
 	t.Parallel()
 
 	api := NewAPI(Options{})
-	api.Update(&config.Config{})
+	api.Update(&config.Config{}, nil)
 
 	srv := newTestServer(t, api.Handler(), false)
 	client := srv.Client()

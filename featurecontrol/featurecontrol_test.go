@@ -42,6 +42,11 @@ func TestFlags(t *testing.T) {
 			featureFlags: strings.Join([]string{FeatureReceiverNameInMetrics, "somethingbad"}, ","),
 			err:          errors.New("unknown option 'somethingbad' for --enable-feature"),
 		},
+		{
+			name:         "with incompatible matcher modes",
+			featureFlags: strings.Join([]string{FeatureClassicMode, FeatureUTF8StrictMode}, ","),
+			err:          errors.New("cannot have both classic and UTF-8 modes enabled"),
+		},
 	}
 
 	for _, tt := range tc {
@@ -57,15 +62,32 @@ func TestFlags(t *testing.T) {
 	}
 }
 
-func TestMutedAlertsInNflog(t *testing.T) {
-	fc, err := NewFlags(promslog.NewNopLogger(), FeatureMutedAlertsInNflog)
-	require.NoError(t, err)
-	require.True(t, fc.EnableMutedAlertsInNflog())
+func TestFeatureAccessors(t *testing.T) {
+	tests := []struct {
+		feature string
+		enabled func(Flagger) bool
+	}{
+		{FeatureAlertNamesInMetrics, Flagger.EnableAlertNamesInMetrics},
+		{FeatureReceiverNameInMetrics, Flagger.EnableReceiverNamesInMetrics},
+		{FeatureGroupKeyInMetrics, Flagger.EnableGroupKeyInMetrics},
+		{FeatureClassicMode, Flagger.ClassicMode},
+		{FeatureUTF8StrictMode, Flagger.UTF8StrictMode},
+		{FeatureAutoGOMEMLIMIT, Flagger.EnableAutoGOMEMLIMIT},
+		{FeatureEventRecorder, Flagger.EnableEventRecorder},
+		{FeatureMutedAlertsInNflog, Flagger.EnableMutedAlertsInNflog},
+	}
 
-	// The feature is off unless it is asked for.
-	fc, err = NewFlags(promslog.NewNopLogger(), FeatureReceiverNameInMetrics)
-	require.NoError(t, err)
-	require.False(t, fc.EnableMutedAlertsInNflog())
+	for _, test := range tests {
+		t.Run(test.feature, func(t *testing.T) {
+			flags, err := NewFlags(promslog.NewNopLogger(), test.feature)
+			require.NoError(t, err)
+			require.True(t, flags.Enabled(test.feature))
+			require.True(t, IsEnabled(flags, test.feature))
+			require.True(t, test.enabled(flags))
+			require.False(t, flags.Enabled("unknown"))
+			require.False(t, test.enabled(NoopFlags{}))
+		})
+	}
 
-	require.False(t, NoopFlags{}.EnableMutedAlertsInNflog())
+	require.False(t, IsEnabled(nil, FeatureEventRecorder))
 }
