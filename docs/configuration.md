@@ -1699,6 +1699,8 @@ If using an incoming webhook then `api_url` must be set to the URL of the incomi
 
 If using Bot tokens then `api_url` must be set to [`https://slack.com/api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage), the bot token must be set as the authorization credentials in `http_config`, and `channel` must contain either the name of the channel or Channel ID to send notifications to. If using the name of the channel the # is optional.
 
+`update_message` and `thread_replies` do **not** work with incoming webhooks (`https://hooks.slack.com/services/...`). Incoming webhooks only return `ok` and never a message timestamp, so Alertmanager cannot edit a message or reply in its thread. Both options require a [Slack app](https://api.slack.com/authentication/basics) with a bot token (`chat:write`) and `api_url: https://slack.com/api/chat.postMessage`. Invite the bot into the channel.
+
 The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
 ```yaml
@@ -1757,22 +1759,25 @@ fields:
 [ timeout: <duration> | default = 0s ]
 
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
-# Webhook URLs do not support updates.
+# Incoming webhooks (https://hooks.slack.com/services/...) cannot be used.
+# Requires a Slack app with a bot token and api_url https://slack.com/api/chat.postMessage.
 [ update_message: <boolean> | default = false ]
 
 # Post follow-up notifications for the same alert group as replies in the
 # Slack thread of the group's first message. A later firing after the group
 # has fully resolved starts a new thread.
 #
+# Incoming webhooks (https://hooks.slack.com/services/...) cannot be used.
+# Slack does not return a message timestamp from a webhook, so there is
+# nothing to thread onto. Requires a Slack app with a bot token (chat:write)
+# and api_url or api_url_file equal to https://slack.com/api/chat.postMessage.
+# Invite the bot into the destination channel.
+#
 # Together with update_message, state changes edit the first message and
 # also add a reply. Repeat-interval notifications then only edit the first
 # message, so the thread is not filled with copies of a message that is
 # already current. thread_replies without update_message still posts a
 # reply on repeats; otherwise the repeat would not appear in Slack at all.
-#
-# Requires a bot token. api_url or the contents of api_url_file must be
-# https://slack.com/api/chat.postMessage. Incoming webhooks do not return a
-# message timestamp and cannot be used.
 [ thread_replies: <boolean> | default = false ]
 ```
 

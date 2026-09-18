@@ -335,11 +335,14 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 
 	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
-	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
+	// Incoming webhooks cannot be used. Requires a Slack app with a bot token
+	// (chat:write) and api_url https://slack.com/api/chat.postMessage.
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
 	// ThreadReplies posts follow-up notifications for an alert group as replies
-	// in the Slack thread of the group's first message. Requires bot token with
-	// chat:write scope. Incoming webhooks cannot start a thread.
+	// in the Slack thread of the group's first message. Incoming webhooks
+	// (hooks.slack.com) cannot be used; they do not return a message timestamp.
+	// Requires a Slack app with a bot token (chat:write) and
+	// api_url https://slack.com/api/chat.postMessage.
 	ThreadReplies bool `yaml:"thread_replies" json:"thread_replies,omitempty"`
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
 	// does not impose a timeout.
