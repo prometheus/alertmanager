@@ -172,6 +172,12 @@ func (pb *PipelineBuilder) New(
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
+	// The muted-alerts feature is read once, here, and every stage below is
+	// built already knowing the answer. Nothing downstream consults the flag
+	// again, so a pipeline cannot be assembled half in one mode, half in the
+	// other.
+	mutedAware := pb.ff.EnableMutedAlertsInNflog()
+
 	ms := NewClusterGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
 	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
@@ -179,12 +185,8 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, pb.ff)
-		if pb.ff.EnableMutedAlertsInNflog() {
-			rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
-			continue
-		}
-		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, mutedAware)
+		rs[name] = newMultiStage(mutedAware, ms, is, tas, tms, ss, st)
 	}
 
 	pb.metrics.InitializeFor(receivers)
@@ -200,7 +202,7 @@ func createReceiverStage(
 	notificationLog NotificationLog,
 	metrics *Metrics,
 	recorder eventrecorder.Recorder,
-	ff featurecontrol.Flagger,
+	mutedAware bool,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -209,18 +211,12 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		stages := []Stage{
+		fs = append(fs, newMultiStage(mutedAware,
 			NewClusterWaitStage(wait),
-			NewDedupStage(&integrations[i], notificationLog, recv),
+			NewDedupStage(&integrations[i], notificationLog, recv, mutedAware),
 			NewRetryStage(integrations[i], name, metrics, recorder),
-			NewSetNotifiesStage(notificationLog, recv, ff),
-		}
-
-		if ff.EnableMutedAlertsInNflog() {
-			fs = append(fs, MutedMultiStage(stages))
-			continue
-		}
-		fs = append(fs, MultiStage(stages))
+			NewSetNotifiesStage(notificationLog, recv, mutedAware),
+		))
 	}
 	return fs
 }
@@ -251,6 +247,17 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 	}
 
 	return s.Exec(ctx, l, alerts...)
+}
+
+// newMultiStage chains the given stages with the sequencing rule the
+// muted-alerts feature asks for. It is the only place that pairing is made, so
+// that a mute-aware chain cannot be built around stages that are not, or the
+// other way round.
+func newMultiStage(mutedAware bool, stages ...Stage) Stage {
+	if mutedAware {
+		return MutedMultiStage(stages)
+	}
+	return MultiStage(stages)
 }
 
 // A MultiStage executes a series of stages sequentially. It stops as soon as
@@ -339,9 +346,24 @@ const (
 	ReasonNewResolvedAlerts
 	ReasonAllAlertsResolved
 	ReasonRepeatIntervalElapsed
+	// ReasonAlertsUnmuted is reported when muted alerts become visible again.
+	ReasonAlertsUnmuted
+	// ReasonAllAlertsMuted is reported when a group the receiver was notified
+	// about is still firing, but none of it can be shown any more.
+	ReasonAllAlertsMuted
+	// ReasonStillMuted is reported when a group that already went quiet is
+	// still fully muted and its log entry is due to be rewritten, so that the
+	// group's state outlives the entry's expiry.
+	ReasonStillMuted
 	ReasonUnknown
 )
 
+// shouldNotify reports whether this flush runs the rest of the pipeline and is
+// recorded in the notification log. The receiver is not shown something every
+// time: a flush of nothing but resolved alerts for a receiver that does not
+// send resolved notifications delivers nothing, and so does a fully muted
+// group, but both are recorded so that the next flush knows where the group
+// stands.
 func (r NotifyReason) shouldNotify() bool {
 	return r != ReasonDoNotNotify
 }
@@ -360,6 +382,12 @@ func (r NotifyReason) String() string {
 		return "all alerts resolved"
 	case ReasonRepeatIntervalElapsed:
 		return "repeat interval elapsed"
+	case ReasonAlertsUnmuted:
+		return "some alerts unmuted"
+	case ReasonAllAlertsMuted:
+		return "all alerts muted"
+	case ReasonStillMuted:
+		return "still muted"
 	default:
 		return "unknown"
 	}
