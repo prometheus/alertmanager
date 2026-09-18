@@ -25,7 +25,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
@@ -35,7 +34,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 
 	secret := "secret_key"
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
@@ -57,7 +56,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
@@ -79,7 +78,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:      &amcommoncfg.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			CorpID:      "corpid",
@@ -95,7 +94,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 }
 
 func TestGetApiSecretFromSecret(t *testing.T) {
-	n := &Notifier{conf: &config.WechatConfig{APISecret: commoncfg.Secret("shhh")}}
+	n := &Notifier{conf: &WechatConfig{APISecret: commoncfg.Secret("shhh")}}
 	s, err := n.getApiSecret()
 	require.NoError(t, err)
 	require.Equal(t, "shhh", s)
@@ -109,14 +108,14 @@ func TestGetApiSecretFromFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tmpFile.Close())
 
-	n := &Notifier{conf: &config.WechatConfig{APISecretFile: tmpFile.Name()}}
+	n := &Notifier{conf: &WechatConfig{APISecretFile: tmpFile.Name()}}
 	s, err := n.getApiSecret()
 	require.NoError(t, err)
 	require.Equal(t, "file-secret", s)
 }
 
 func TestGetApiSecretFromMissingFile(t *testing.T) {
-	n := &Notifier{conf: &config.WechatConfig{APISecretFile: "/non/existent/wechat-secret.txt"}}
+	n := &Notifier{conf: &WechatConfig{APISecretFile: "/non/existent/wechat-secret.txt"}}
 	s, err := n.getApiSecret()
 	var pathErr *os.PathError
 	require.ErrorAs(t, err, &pathErr)

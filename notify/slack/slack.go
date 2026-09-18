@@ -27,7 +27,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -38,7 +37,7 @@ import (
 const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -96,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		fields := make([]config.SlackField, numFields)
+		fields := make([]SlackField, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -107,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.SlackField{
+			fields[index] = SlackField{
 				Title: tmplText(field.Title),
 				Value: tmplText(field.Value),
 				Short: &short,
@@ -118,9 +117,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		actions := make([]config.SlackAction, numActions)
+		actions := make([]SlackAction, numActions)
 		for index, action := range n.conf.Actions {
-			slackAction := config.SlackAction{
+			slackAction := SlackAction{
 				Type:  tmplText(action.Type),
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
@@ -130,7 +129,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &config.SlackConfirmationField{
+				slackAction.ConfirmField = &SlackConfirmationField{
 					Title:       tmplText(action.ConfirmField.Title),
 					Text:        tmplText(action.ConfirmField.Text),
 					OkText:      tmplText(action.ConfirmField.OkText),

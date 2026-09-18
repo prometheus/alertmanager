@@ -23,7 +23,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -36,7 +35,7 @@ const (
 )
 
 type Notifier struct {
-	conf    *config.WebexConfig
+	conf    *WebexConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -44,7 +43,7 @@ type Notifier struct {
 }
 
 // New returns a new Webex notifier.
-func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
