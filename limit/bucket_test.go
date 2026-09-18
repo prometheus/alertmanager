@@ -238,6 +238,116 @@ func TestBucketAddEdgeCases(t *testing.T) {
 	})
 }
 
+func TestBucketRemove(t *testing.T) {
+	t.Run("Remove present fingerprint returns true and frees its slot", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](2)
+		alert := model.Alert{Labels: model.LabelSet{"alertname": "Alert1"}, EndsAt: time.Now().Add(1 * time.Hour)}
+
+		require.True(t, bucket.Upsert(alert.Fingerprint(), alert.EndsAt), "alert should be added")
+
+		require.True(t, bucket.Remove(alert.Fingerprint()), "removing a present fingerprint should return true")
+		require.Empty(t, bucket.index, "index should be empty after removal")
+		require.Zero(t, bucket.items.Len(), "heap should be empty after removal")
+	})
+
+	t.Run("Remove absent fingerprint returns false", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](2)
+		present := model.Alert{Labels: model.LabelSet{"alertname": "Present"}, EndsAt: time.Now().Add(1 * time.Hour)}
+		bucket.Upsert(present.Fingerprint(), present.EndsAt)
+
+		absent := model.Alert{Labels: model.LabelSet{"alertname": "Absent"}}
+		require.False(t, bucket.Remove(absent.Fingerprint()), "removing an absent fingerprint should return false")
+		require.Len(t, bucket.index, 1, "present item should remain")
+		require.Equal(t, 1, bucket.items.Len(), "present item should remain in heap")
+	})
+
+	t.Run("Remove from empty bucket returns false", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](2)
+		alert := model.Alert{Labels: model.LabelSet{"alertname": "Alert1"}}
+		require.False(t, bucket.Remove(alert.Fingerprint()), "removing from an empty bucket should return false")
+	})
+
+	t.Run("Removing twice returns false the second time", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](2)
+		alert := model.Alert{Labels: model.LabelSet{"alertname": "Alert1"}, EndsAt: time.Now().Add(1 * time.Hour)}
+		bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+
+		require.True(t, bucket.Remove(alert.Fingerprint()), "first removal should return true")
+		require.False(t, bucket.Remove(alert.Fingerprint()), "second removal should return false")
+	})
+
+	t.Run("Remove frees a slot in a full bucket so a new alert is admitted", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](2)
+		a := model.Alert{Labels: model.LabelSet{"alertname": "A"}, EndsAt: time.Now().Add(1 * time.Hour)}
+		b := model.Alert{Labels: model.LabelSet{"alertname": "B"}, EndsAt: time.Now().Add(1 * time.Hour)}
+		c := model.Alert{Labels: model.LabelSet{"alertname": "C"}, EndsAt: time.Now().Add(1 * time.Hour)}
+
+		require.True(t, bucket.Upsert(a.Fingerprint(), a.EndsAt), "A should be added")
+		require.True(t, bucket.Upsert(b.Fingerprint(), b.EndsAt), "B should be added")
+		require.False(t, bucket.Upsert(c.Fingerprint(), c.EndsAt), "C should be rejected while bucket is full of active items")
+
+		require.True(t, bucket.Remove(a.Fingerprint()), "A should be removed")
+		require.True(t, bucket.Upsert(c.Fingerprint(), c.EndsAt), "C should be admitted after A freed a slot")
+
+		_, hasA := bucket.index[a.Fingerprint()]
+		_, hasC := bucket.index[c.Fingerprint()]
+		require.False(t, hasA, "A should no longer be present")
+		require.True(t, hasC, "C should now be present")
+		require.Len(t, bucket.index, 2, "bucket should hold B and C")
+	})
+
+	t.Run("Remove keeps heap eviction order intact", func(t *testing.T) {
+		bucket := NewBucket[model.Fingerprint](3)
+		oldest := model.Alert{Labels: model.LabelSet{"alertname": "Oldest"}, EndsAt: time.Now().Add(-2 * time.Hour)}
+		middle := model.Alert{Labels: model.LabelSet{"alertname": "Middle"}, EndsAt: time.Now().Add(-1 * time.Hour)}
+		newest := model.Alert{Labels: model.LabelSet{"alertname": "Newest"}, EndsAt: time.Now().Add(1 * time.Hour)}
+
+		bucket.Upsert(oldest.Fingerprint(), oldest.EndsAt)
+		bucket.Upsert(middle.Fingerprint(), middle.EndsAt)
+		bucket.Upsert(newest.Fingerprint(), newest.EndsAt)
+
+		// Remove the current heap root (oldest); the next-oldest expired item
+		// must then sit at the root and be the one evicted when full.
+		require.True(t, bucket.Remove(oldest.Fingerprint()), "oldest should be removed")
+		require.Equal(t, middle.Fingerprint(), bucket.items[0].value, "middle should be the new heap root")
+
+		// Bucket has room for one more; fill it, then force an eviction.
+		other := model.Alert{Labels: model.LabelSet{"alertname": "Other"}, EndsAt: time.Now().Add(2 * time.Hour)}
+		bucket.Upsert(other.Fingerprint(), other.EndsAt)
+
+		evictor := model.Alert{Labels: model.LabelSet{"alertname": "Evictor"}, EndsAt: time.Now().Add(3 * time.Hour)}
+		require.True(t, bucket.Upsert(evictor.Fingerprint(), evictor.EndsAt), "evictor should replace the expired middle item")
+
+		_, hasMiddle := bucket.index[middle.Fingerprint()]
+		require.False(t, hasMiddle, "expired middle item should have been evicted")
+		require.Len(t, bucket.index, 3, "index and heap should stay consistent")
+		require.Equal(t, 3, bucket.items.Len(), "index and heap should stay consistent")
+	})
+}
+
+func TestBucketRemoveConcurrency(t *testing.T) {
+	bucket := NewBucket[model.Fingerprint](2)
+	alert1 := model.Alert{Labels: model.LabelSet{"alertname": "Alert1"}, EndsAt: time.Now().Add(1 * time.Hour)}
+	alert2 := model.Alert{Labels: model.LabelSet{"alertname": "Alert2"}, EndsAt: time.Now().Add(1 * time.Hour)}
+	bucket.Upsert(alert1.Fingerprint(), alert1.EndsAt)
+	bucket.Upsert(alert2.Fingerprint(), alert2.EndsAt)
+
+	done := make(chan bool, 2)
+	go func() {
+		bucket.Remove(alert1.Fingerprint())
+		done <- true
+	}()
+	go func() {
+		bucket.Remove(alert2.Fingerprint())
+		done <- true
+	}()
+	<-done
+	<-done
+
+	require.Empty(t, bucket.index, "both alerts should be removed after concurrent removes")
+	require.Zero(t, bucket.items.Len(), "heap should be empty after concurrent removes")
+}
+
 // Benchmark tests for Bucket.Upsert() performance.
 func BenchmarkBucketUpsert(b *testing.B) {
 	b.Run("EmptyBucket", func(b *testing.B) {

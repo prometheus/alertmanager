@@ -25,20 +25,21 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/store"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var (
 	t0 = time.Now()
 	t1 = t0.Add(100 * time.Millisecond)
 
-	alert1 = &types.Alert{
+	alert1 = &alert.Alert{
 		Alert: model.Alert{
 			Labels:       model.LabelSet{"bar": "foo"},
 			Annotations:  model.LabelSet{"foo": "bar"},
@@ -50,7 +51,7 @@ var (
 		Timeout:   false,
 	}
 
-	alert2 = &types.Alert{
+	alert2 = &alert.Alert{
 		Alert: model.Alert{
 			Labels:       model.LabelSet{"bar": "foo2"},
 			Annotations:  model.LabelSet{"foo": "bar2"},
@@ -62,7 +63,7 @@ var (
 		Timeout:   false,
 	}
 
-	alert3 = &types.Alert{
+	alert3 = &alert.Alert{
 		Alert: model.Alert{
 			Labels:       model.LabelSet{"bar": "foo3"},
 			Annotations:  model.LabelSet{"foo": "bar3"},
@@ -89,10 +90,10 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 	iterator := alerts.Subscribe("test")
 
-	alertsToInsert := []*types.Alert{}
+	alertsToInsert := []*alert.Alert{}
 	// Exhaust alert channel
 	for i := range alertChannelLength + 1 {
-		alertsToInsert = append(alertsToInsert, &types.Alert{
+		alertsToInsert = append(alertsToInsert, &alert.Alert{
 			Alert: model.Alert{
 				// Make sure the fingerprints differ
 				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
@@ -140,9 +141,9 @@ func TestDeadLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	alertsToInsert := []*types.Alert{}
+	alertsToInsert := []*alert.Alert{}
 	for i := range 200 + 1 {
-		alertsToInsert = append(alertsToInsert, &types.Alert{
+		alertsToInsert = append(alertsToInsert, &alert.Alert{
 			Alert: model.Alert{
 				// Make sure the fingerprints differ
 				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
@@ -193,7 +194,7 @@ func TestAlertsPut(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	insert := []*types.Alert{alert1, alert2, alert3}
+	insert := []*alert.Alert{alert1, alert2, alert3}
 
 	if err := alerts.Put(context.Background(), insert...); err != nil {
 		t.Fatalf("Insert failed: %s", err)
@@ -208,6 +209,34 @@ func TestAlertsPut(t *testing.T) {
 	}
 }
 
+func TestAlertsLimitedTotalState(t *testing.T) {
+	ctx := t.Context()
+	registry := prometheus.NewRegistry()
+	alerts, err := NewAlerts(ctx, 30*time.Minute, 1, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), registry, nil)
+	require.NoError(t, err)
+	t.Cleanup(alerts.Close)
+
+	now := time.Now()
+	newAlert := func(instance string, endsAt time.Time) *alert.Alert {
+		return &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "Test", "instance": model.LabelValue(instance)},
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   endsAt,
+			},
+			UpdatedAt: now,
+		}
+	}
+
+	require.NoError(t, alerts.Put(ctx,
+		newAlert("admitted", now.Add(time.Hour)),
+		newAlert("limited", now.Add(time.Hour)),
+		newAlert("unmatched", now.Add(-time.Hour)),
+	))
+	require.Equal(t, float64(1), testutil.ToFloat64(alerts.alertsLimitedTotal.WithLabelValues("firing")))
+	require.Equal(t, float64(1), testutil.ToFloat64(alerts.alertsLimitedTotal.WithLabelValues("resolved")))
+}
+
 func TestAlertsSubscribe(t *testing.T) {
 	ctx := t.Context()
 	alerts, err := NewAlerts(ctx, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
@@ -220,7 +249,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
-	expectedAlerts := map[model.Fingerprint]*types.Alert{
+	expectedAlerts := map[model.Fingerprint]*alert.Alert{
 		alert1.Fingerprint(): alert1,
 		alert2.Fingerprint(): alert2,
 		alert3.Fingerprint(): alert3,
@@ -296,7 +325,7 @@ func TestAlertsGetPending(t *testing.T) {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
-	expectedAlerts := map[model.Fingerprint]*types.Alert{
+	expectedAlerts := map[model.Fingerprint]*alert.Alert{
 		alert1.Fingerprint(): alert1,
 		alert2.Fingerprint(): alert2,
 	}
@@ -310,7 +339,7 @@ func TestAlertsGetPending(t *testing.T) {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
-	expectedAlerts = map[model.Fingerprint]*types.Alert{
+	expectedAlerts = map[model.Fingerprint]*alert.Alert{
 		alert1.Fingerprint(): alert1,
 		alert2.Fingerprint(): alert2,
 		alert3.Fingerprint(): alert3,
@@ -328,7 +357,7 @@ func TestAlertsGC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	insert := []*types.Alert{alert1, alert2, alert3}
+	insert := []*alert.Alert{alert1, alert2, alert3}
 
 	if err := alerts.Put(context.Background(), insert...); err != nil {
 		t.Fatalf("Insert failed: %s", err)
@@ -363,7 +392,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	alert1Mod := *alert1
 	alert1Mod.Annotations = model.LabelSet{"foo": "bar", "new": "test"} // Update annotations for alert1
 
-	alert4 := &types.Alert{
+	alert4 := &alert.Alert{
 		Alert: model.Alert{
 			Labels:       model.LabelSet{"bar4": "foo4"},
 			Annotations:  model.LabelSet{"foo4": "bar4"},
@@ -405,7 +434,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	}
 }
 
-func alertDiff(left, right *types.Alert) error {
+func alertDiff(left, right *alert.Alert) error {
 	if left == nil || right == nil {
 		return errors.New("should not be nil")
 	}
@@ -440,7 +469,7 @@ type limitCountCallback struct {
 
 var errTooManyAlerts = fmt.Errorf("too many alerts")
 
-func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
+func (l *limitCountCallback) PreStore(_ *alert.Alert, existing bool) error {
 	if existing {
 		return nil
 	}
@@ -452,14 +481,14 @@ func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
 	return nil
 }
 
-func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
+func (l *limitCountCallback) PostStore(_ *alert.Alert, existing bool) {
 	if !existing {
 		l.alerts.Add(1)
 		l.gcCount.Add(1)
 	}
 }
 
-func (l *limitCountCallback) PostDelete(_ *types.Alert) {
+func (l *limitCountCallback) PostDelete(_ *alert.Alert) {
 	l.alerts.Add(-1)
 }
 
@@ -492,7 +521,7 @@ func TestAlertsConcurrently(t *testing.T) {
 				default:
 				}
 				now := time.Now()
-				err := a.Put(context.Background(), &types.Alert{
+				err := a.Put(context.Background(), &alert.Alert{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"bar": model.LabelValue(strconv.Itoa(j))},
 						StartsAt: now,
@@ -566,7 +595,7 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 
 	// Put some alerts
 	now := time.Now()
-	alertsToSend := []*types.Alert{
+	alertsToSend := []*alert.Alert{
 		{
 			Alert: model.Alert{
 				Labels:       model.LabelSet{"test": "1"},
