@@ -161,9 +161,9 @@ func TestIncidentIONotify(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alert)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 }
 
 func TestIncidentIORetryScenarios(t *testing.T) {
@@ -242,14 +242,14 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 				},
 			}
 
-			retry, err := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alert)
 			if tc.expectErrorMsgContains == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectErrorMsgContains)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.expectErrorMsgContains)
 			}
-			require.Equal(t, tc.expectRetry, retry)
+			require.Equal(t, tc.expectRetry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -514,9 +514,9 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alert)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	// Verify metadata field is not present in JSON
 	var rawMsg map[string]json.RawMessage
@@ -566,9 +566,9 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alert)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	require.Equal(t, map[string]string{
 		"environment": "production",
@@ -634,9 +634,9 @@ func TestIncidentIOMetadataTemplated(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alerts...)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alerts...)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	require.Equal(t, "critical", receivedMsg.Metadata["severity"])
 	require.Equal(t, "HighLatency", receivedMsg.Metadata["alert_name"])
@@ -674,8 +674,8 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 		},
 	}
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to render metadata templates")
-	require.False(t, retry, "should not retry on template rendering errors")
+	verdict := notifier.Notify(ctx, alert)
+	require.Error(t, verdict.Err())
+	require.Contains(t, verdict.Err().Error(), "failed to render metadata templates")
+	require.False(t, verdict.ShouldRetry(), "should not retry on template rendering errors")
 }

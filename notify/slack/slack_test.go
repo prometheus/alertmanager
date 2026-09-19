@@ -233,16 +233,15 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			retry, err := notifier.Notify(ctx, alert1)
-			require.Equal(t, tt.expectedRetry, retry)
+			verdict := notifier.Notify(ctx, alert1)
+			require.Equal(t, tt.expectedRetry, verdict.ShouldRetry())
 			if tt.noError {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				var reasonError *notify.ErrorWithReason
-				require.ErrorAs(t, err, &reasonError)
-				require.Equal(t, tt.expectedReason, reasonError.Reason)
-				require.Contains(t, err.Error(), tt.expectedErr)
-				require.Contains(t, err.Error(), "channelname")
+				require.Error(t, verdict.Err())
+				require.Equal(t, tt.expectedReason, verdict.Reason())
+				require.Contains(t, verdict.Err().Error(), tt.expectedErr)
+				require.Contains(t, verdict.Err().Error(), "channelname")
 			}
 		})
 	}
@@ -295,8 +294,8 @@ func TestSlackTimeout(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			_, err = notifier.Notify(ctx, alert)
-			require.Equal(t, tt.wantErr, err != nil)
+			verdict := notifier.Notify(ctx, alert)
+			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
 	}
 }
@@ -356,12 +355,12 @@ func TestSlackMessageField(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "test-group-key")
 
-	if _, err := notifier.Notify(ctx); err != nil {
+	if err := notifier.Notify(ctx).Err(); err != nil {
 		t.Fatal("Notify failed:", err)
 	}
 }
 
-func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
+func TestNotifier_Notify_RetryAfterDelay(t *testing.T) {
 	apiurl, _ := url.Parse("https://slack.com/post.Message")
 	notifier, err := New(
 		&config.SlackConfig{
@@ -392,57 +391,9 @@ func TestNotifier_Notify_RetryAfterSleep(t *testing.T) {
 		},
 	}
 
-	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert1)
-	elapsed := time.Since(start)
+	verdict := notifier.Notify(ctx, alert1)
 
-	require.True(t, retry)
-	require.Error(t, err)
-	require.GreaterOrEqual(t, elapsed, 1*time.Second, "should have waited at least 1 second for Retry-After")
-}
-
-func TestNotifier_Notify_RetryAfterContextCancelled(t *testing.T) {
-	apiurl, _ := url.Parse("https://slack.com/post.Message")
-	notifier, err := New(
-		&config.SlackConfig{
-			NotifierConfig: amcommoncfg.NotifierConfig{},
-			HTTPConfig:     &commoncfg.HTTPClientConfig{},
-			APIURL:         &amcommoncfg.SecretURL{URL: apiurl},
-			Channel:        "channelname",
-		},
-		test.CreateTmpl(t),
-		promslog.NewNopLogger(),
-	)
-	require.NoError(t, err)
-
-	notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
-		resp := httptest.NewRecorder()
-		resp.Header().Set("Retry-After", "2")
-		resp.WriteHeader(http.StatusTooManyRequests)
-		return resp.Result(), nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = notify.WithGroupKey(ctx, "1")
-
-	// Cancel context after a short delay to interrupt the Retry-After sleep.
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-	}()
-
-	alert1 := &types.Alert{
-		Alert: model.Alert{
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-
-	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert1)
-	elapsed := time.Since(start)
-
-	require.True(t, retry)
-	require.Error(t, err)
-	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
+	require.True(t, verdict.ShouldRetry())
+	require.Error(t, verdict.Err())
+	require.Equal(t, 1*time.Second, verdict.Delay())
 }
