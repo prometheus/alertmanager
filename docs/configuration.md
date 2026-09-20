@@ -464,6 +464,8 @@ times:
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
 `['monday:wednesday','saturday', 'sunday']`
+The range may also wrap around the end of the week, e.g. `friday:monday` covers Friday, Saturday,
+Sunday, and Monday.
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
