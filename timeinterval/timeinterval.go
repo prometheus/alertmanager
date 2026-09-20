@@ -83,6 +83,7 @@ type InclusiveRange struct {
 }
 
 // A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday.
+// Begin may be greater than End to wrap around the end of the week, e.g. friday:monday.
 type WeekdayRange struct {
 	InclusiveRange
 }
@@ -241,9 +242,6 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if err := stringableRangeFromString(str, r); err != nil {
 		return err
-	}
-	if r.Begin > r.End {
-		return errors.New("start day cannot be before end day")
 	}
 	if r.Begin < 0 || r.Begin > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
@@ -550,7 +548,13 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Weekdays != nil {
 		in := false
 		for _, validDays := range tp.Weekdays {
-			if t.Weekday() >= time.Weekday(validDays.Begin) && t.Weekday() <= time.Weekday(validDays.End) {
+			// A range where Begin > End wraps around the end of the week, e.g. friday:monday.
+			if validDays.Begin <= validDays.End {
+				if t.Weekday() >= time.Weekday(validDays.Begin) && t.Weekday() <= time.Weekday(validDays.End) {
+					in = true
+					break
+				}
+			} else if t.Weekday() >= time.Weekday(validDays.Begin) || t.Weekday() <= time.Weekday(validDays.End) {
 				in = true
 				break
 			}

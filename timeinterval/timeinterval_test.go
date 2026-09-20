@@ -319,12 +319,77 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "couldn't parse timestamp 99:99, invalid format",
 	},
 	{
-		// Start day before end day.
+		// Start day after end day wraps around the week.
 		in: `
 ---
 - weekdays: ['friday:monday']`,
-		expectError: true,
-		err:         "start day cannot be before end day",
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{{InclusiveRange{Begin: 5, End: 1}}},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+		},
+		excludes: []string{
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"05 Aug 20 13:00 +0000", // Wednesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
+	},
+	{
+		// unorthodox valid weekdays order
+		in: `
+---
+- weekdays: ['wednesday', 'saturday:monday', 'friday']`,
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{
+					{InclusiveRange{Begin: 3, End: 3}},
+					{InclusiveRange{Begin: 6, End: 1}},
+					{InclusiveRange{Begin: 5, End: 5}},
+				},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+			"05 Aug 20 13:00 +0000", // Wednesday
+		},
+		excludes: []string{
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
+	},
+	{
+		// weekday range with single day
+		in: `
+---
+- weekdays: ['wednesday:wednesday', 'friday']`,
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{
+					{InclusiveRange{Begin: 3, End: 3}},
+					{InclusiveRange{Begin: 5, End: 5}},
+				},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"05 Aug 20 13:00 +0000", // Wednesday
+		},
+		excludes: []string{
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
 	},
 	{
 		// Invalid weekdays.
