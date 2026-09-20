@@ -80,7 +80,8 @@ tls_server_config:
     [ - <string> ] ]
 
 http_server_config:
-  # Enable HTTP/2 support. Note that HTTP/2 is only supported with TLS.
+  # Enable HTTP/2 support over TLS. Alertmanager also accepts plaintext h2c,
+  # independently of this setting; expose plaintext only on a trusted network.
   # This can not be changed on the fly.
   [ http2: <boolean> | default = true ]
   # List of headers that can be added to HTTP responses.

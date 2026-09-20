@@ -304,12 +304,18 @@ type rpcLifecycle struct {
 	controller   *http.ResponseController
 	mutex        sync.Mutex
 	idleTimer    *time.Timer
+	finished     bool
 	decoded      atomic.Bool
 	observed     atomic.Bool
 	stream       bool
 }
 
 func (l *rpcLifecycle) terminate(cause error) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.finished {
+		return
+	}
 	l.cancel(cause)
 	if l.controller == nil {
 		return
@@ -325,9 +331,21 @@ func (l *rpcLifecycle) terminate(cause error) {
 	}
 }
 
+func (l *rpcLifecycle) setReadDeadline(deadline time.Time) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.finished || l.controller == nil {
+		return
+	}
+	_ = l.controller.SetReadDeadline(deadline)
+}
+
 func (l *rpcLifecycle) touch() {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	if l.finished {
+		return
+	}
 	if l.idleTimer != nil {
 		l.idleTimer.Stop()
 		l.idleTimer.Reset(l.idleTimeout)
@@ -337,6 +355,7 @@ func (l *rpcLifecycle) touch() {
 func (l *rpcLifecycle) stop() {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	l.finished = true
 	if l.idleTimer != nil {
 		l.idleTimer.Stop()
 	}
@@ -456,9 +475,7 @@ func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFu
 		desc := i.descriptor(req.Spec().Procedure)
 		state := unaryRequestStateFromContext(ctx)
 		state.lifecycle.decoded.Store(true)
-		if state.lifecycle.controller != nil {
-			_ = state.lifecycle.controller.SetReadDeadline(time.Time{})
-		}
+		state.lifecycle.setReadDeadline(time.Time{})
 		response, err := next(ctx, req)
 		err = normalizeContextError(ctx, err)
 		i.observe(desc, state.started, err)
@@ -512,13 +529,14 @@ func (i *admissionInterceptor) unaryContext(ctx context.Context, controller *htt
 			}
 		})
 		if deadline, ok := unaryCtx.Deadline(); ok {
-			_ = controller.SetReadDeadline(deadline)
+			lifecycle.setReadDeadline(deadline)
 		}
 	}
 	return context.WithValue(unaryCtx, rpcLifecycleContextKey{}, lifecycle), lifecycle, func() {
 		if stopTimeout != nil {
 			stopTimeout()
 		}
+		lifecycle.stop()
 		if timeoutCancel != nil {
 			timeoutCancel()
 		}
@@ -707,8 +725,8 @@ func (api *API) controlHandler(next http.Handler, errorWriter *connect.ErrorWrit
 			}
 		}()
 		defer func() {
-			if lifecycle.controller != nil && ctx.Err() == nil {
-				_ = lifecycle.controller.SetReadDeadline(time.Time{})
+			if ctx.Err() == nil {
+				lifecycle.setReadDeadline(time.Time{})
 			}
 		}()
 

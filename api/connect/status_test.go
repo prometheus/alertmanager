@@ -103,6 +103,13 @@ type deadlineResponseWriter struct {
 	writeDeadline time.Time
 }
 
+type blockingDeadlineResponseWriter struct {
+	deadlineResponseWriter
+	entered     chan struct{}
+	release     chan struct{}
+	enteredOnce sync.Once
+}
+
 func (w *deadlineResponseWriter) Header() http.Header       { return w.header }
 func (*deadlineResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
 func (*deadlineResponseWriter) WriteHeader(int)             {}
@@ -114,6 +121,12 @@ func (w *deadlineResponseWriter) SetReadDeadline(t time.Time) error {
 func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
 	w.writeDeadline = t
 	return nil
+}
+
+func (w *blockingDeadlineResponseWriter) SetReadDeadline(t time.Time) error {
+	w.enteredOnce.Do(func() { close(w.entered) })
+	<-w.release
+	return w.deadlineResponseWriter.SetReadDeadline(t)
 }
 
 var _ = Describe("StatusService", func() {
@@ -746,6 +759,80 @@ var _ = Describe("RPC admission", func() {
 		Expect(writer.readDeadline).To(BeZero())
 		Expect(writer.writeDeadline).To(BeTemporally(">", started))
 		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
+	})
+
+	It("waits for lifecycle termination before finishing cleanup", func() {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		writer := &blockingDeadlineResponseWriter{
+			deadlineResponseWriter: deadlineResponseWriter{header: http.Header{}},
+			entered:                make(chan struct{}),
+			release:                make(chan struct{}),
+		}
+		lifecycle := &rpcLifecycle{
+			cancel:     cancel,
+			controller: http.NewResponseController(writer),
+			stream:     true,
+		}
+		terminated := make(chan struct{})
+		go func() {
+			lifecycle.terminate(context.DeadlineExceeded)
+			close(terminated)
+		}()
+		Eventually(writer.entered).Should(BeClosed())
+		stopped := make(chan struct{})
+		go func() {
+			lifecycle.stop()
+			close(stopped)
+		}()
+		Consistently(stopped, 20*time.Millisecond).ShouldNot(BeClosed())
+		close(writer.release)
+		Eventually(terminated).Should(BeClosed())
+		Eventually(stopped).Should(BeClosed())
+		Expect(writer.readDeadline).NotTo(BeZero())
+		Expect(writer.writeDeadline).NotTo(BeZero())
+		readDeadline := writer.readDeadline
+		writeDeadline := writer.writeDeadline
+		lifecycle.terminate(context.Canceled)
+		Expect(writer.readDeadline).To(Equal(readDeadline))
+		Expect(writer.writeDeadline).To(Equal(writeDeadline))
+		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
+	})
+
+	It("waits for read deadline updates before finishing cleanup", func() {
+		writer := &blockingDeadlineResponseWriter{
+			deadlineResponseWriter: deadlineResponseWriter{header: http.Header{}},
+			entered:                make(chan struct{}),
+			release:                make(chan struct{}),
+		}
+		lifecycle := &rpcLifecycle{controller: http.NewResponseController(writer)}
+		deadline := time.Now().Add(time.Minute)
+		updated := make(chan struct{})
+		go func() {
+			lifecycle.setReadDeadline(deadline)
+			close(updated)
+		}()
+		Eventually(writer.entered).Should(BeClosed())
+		stopped := make(chan struct{})
+		go func() {
+			lifecycle.stop()
+			close(stopped)
+		}()
+		Consistently(stopped, 20*time.Millisecond).ShouldNot(BeClosed())
+		close(writer.release)
+		Eventually(updated).Should(BeClosed())
+		Eventually(stopped).Should(BeClosed())
+		Expect(writer.readDeadline).To(Equal(deadline))
+		lifecycle.setReadDeadline(time.Time{})
+		Expect(writer.readDeadline).To(Equal(deadline))
+	})
+
+	It("does not restart an idle timer after cleanup", func() {
+		var fired atomic.Bool
+		lifecycle := &rpcLifecycle{idleTimeout: time.Millisecond}
+		lifecycle.idleTimer = time.AfterFunc(time.Hour, func() { fired.Store(true) })
+		lifecycle.stop()
+		lifecycle.touch()
+		Consistently(fired.Load, 20*time.Millisecond).Should(BeFalse())
 	})
 
 	It("releases stream capacity after lifetime expiration", func() {
