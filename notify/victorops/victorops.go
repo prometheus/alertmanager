@@ -26,7 +26,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -37,7 +36,7 @@ const maxMessageLenRunes = 20480
 
 // Notifier implements a Notifier for VictorOps notifications.
 type Notifier struct {
-	conf    *config.VictorOpsConfig
+	conf    *VictorOpsConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -45,7 +44,7 @@ type Notifier struct {
 }
 
 // New returns a new VictorOps notifier.
-func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err
