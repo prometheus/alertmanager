@@ -29,7 +29,6 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -40,7 +39,7 @@ func TestWebexRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.WebexConfig{
+		&WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIURL:     &amcommoncfg.URL{URL: testWebhookURL},
 		},
@@ -60,7 +59,7 @@ func TestWebexTemplating(t *testing.T) {
 	tc := []struct {
 		name string
 
-		cfg       *config.WebexConfig
+		cfg       *WebexConfig
 		Message   string
 		expJSON   string
 		commonCfg *commoncfg.HTTPClientConfig
@@ -71,7 +70,7 @@ func TestWebexTemplating(t *testing.T) {
 	}{
 		{
 			name: "with a valid message and a set http_config.authorization, it is formatted as expected",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				Message: `{{ template "webex.default.message" . }}`,
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{
@@ -84,7 +83,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with message templating errors, it fails.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				Message: "{{ ",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -92,7 +91,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with a valid roomID set, the roomID is used accordingly.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				RoomID: "my-room-id",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -101,7 +100,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with a valid roomID template, the roomID is used accordingly.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				RoomID: "{{.GroupLabels.webex_room_id}}",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -179,7 +178,7 @@ func TestWebexRetryAfterDelay(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.WebexConfig{
+		&WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIURL:     &amcommoncfg.URL{URL: u},
 		},
@@ -230,7 +229,7 @@ func TestWebexFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			notifier, err := New(
-				&config.WebexConfig{
+				&WebexConfig{
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 					APIURL:     &amcommoncfg.URL{URL: u},
 				},
