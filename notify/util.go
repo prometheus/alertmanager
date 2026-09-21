@@ -290,31 +290,6 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	return retry, errors.New(s)
 }
 
-// ErrorWithIntegration annotates a notification failure with the receiver and
-// integration that failed, so callers can attach them as structured log fields.
-type ErrorWithIntegration struct {
-	Receiver    string
-	Integration string
-	Err         error
-}
-
-// NewErrorWithIntegration returns an error annotated with receiver and integration.
-func NewErrorWithIntegration(receiver, integration string, err error) *ErrorWithIntegration {
-	return &ErrorWithIntegration{
-		Receiver:    receiver,
-		Integration: integration,
-		Err:         err,
-	}
-}
-
-func (e *ErrorWithIntegration) Error() string {
-	return e.Err.Error()
-}
-
-func (e *ErrorWithIntegration) Unwrap() error {
-	return e.Err
-}
-
 // Reason is the failure reason.
 type Reason int
 
