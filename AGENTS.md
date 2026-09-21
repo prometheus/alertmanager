@@ -113,7 +113,7 @@ Do not hand‑edit generated files under `api/v2/models`, `api/v2/restapi`, `api
 ## When adding or modifying a notifier
 
 - Each integration lives in its own package under `notify/<name>/`.
-- Add config in `config/notifiers.go` (struct, validation, defaults) and wire it into `config/config.go` receivers.
+- Add config in `notify/<name>/config.go` (struct, validation, defaults) and wire it into `config/config.go` receivers.
 - Register the notifier in `cmd/alertmanager/main.go` where receivers are built.
 - Add unit tests in the notifier package; reuse helpers from `notify/test/`.
 - Update `template/default.tmpl` only if you are introducing new default templates.
