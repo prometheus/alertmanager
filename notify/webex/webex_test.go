@@ -311,10 +311,11 @@ func TestWebexFailureReason(t *testing.T) {
 // long non-ASCII alert takes. Notify used to panic on it.
 func TestWebexTruncatesMultiByteMessage(t *testing.T) {
 	var out []byte
+	readErr := make(chan error, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		var err error
 		out, err = io.ReadAll(r.Body)
-		require.NoError(t, err)
+		readErr <- err
 	}))
 	defer srv.Close()
 	u, err := url.Parse(srv.URL)
@@ -347,6 +348,7 @@ func TestWebexTruncatesMultiByteMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, retry)
+	require.NoError(t, <-readErr)
 
 	var w webhook
 	require.NoError(t, json.Unmarshal(out, &w))
