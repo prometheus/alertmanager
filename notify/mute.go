@@ -20,13 +20,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/silence"
 )
@@ -40,16 +40,17 @@ const (
 
 // A Muter determines whether a given label set is muted. Implementers that
 // maintain an underlying AlertMarker are expected to update it during a call of
-// Mutes.
+// Mutes. The label set carries the fingerprint of the alert it belongs to when
+// known, so implementers should use lset.Fingerprint() rather than rehashing.
 type Muter interface {
-	Mutes(ctx context.Context, lset model.LabelSet) bool
+	Mutes(ctx context.Context, lset labelset.LabelSet) bool
 }
 
 // A MuteFunc is a function that implements the Muter interface.
-type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
+type MuteFunc func(ctx context.Context, lset labelset.LabelSet) bool
 
 // Mutes implements the Muter interface.
-func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
+func (f MuteFunc) Mutes(ctx context.Context, lset labelset.LabelSet) bool { return f(ctx, lset) }
 
 // recordMuted adds the hashes of the given alerts to the set of muted alert
 // hashes in the context.
@@ -91,7 +92,7 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*al
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if muted.
-		if n.muter.Mutes(ctx, a.Labels) {
+		if n.muter.Mutes(ctx, a.LabelSet()) {
 			muted = append(muted, a)
 		} else {
 			filtered = append(filtered, a)

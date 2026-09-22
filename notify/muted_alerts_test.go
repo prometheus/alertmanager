@@ -30,6 +30,7 @@ import (
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -82,8 +83,8 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 		muted: map[model.LabelValue]struct{}{},
 	}
 
-	muter := MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		_, ok := p.muted[lset["alertname"]]
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		_, ok := p.muted[lset.LabelSet["alertname"]]
 		return ok
 	})
 
@@ -141,8 +142,8 @@ func (p *mutedPipeline) flush(now time.Time, alerts ...*alert.Alert) ([]*alert.A
 // hashes of the alerts it drops in the context, keyed by the same hash the
 // dedup stage uses. Only the event recorder reads them.
 func TestMuteStage_RecordsMutedAlerts(t *testing.T) {
-	muter := MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["alertname"] == "muted"
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["alertname"] == "muted"
 	})
 	stage := NewMuteStage(muter, NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
@@ -224,7 +225,7 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 // stages after it, including the dedup stage, never run. "All alerts are
 // muted" is therefore invisible to the notification log.
 func TestMultiStage_ShortCircuitsWhenAllAlertsMuted(t *testing.T) {
-	muter := MuteFunc(func(context.Context, model.LabelSet) bool { return true })
+	muter := MuteFunc(func(context.Context, labelset.LabelSet) bool { return true })
 
 	var reached bool
 	stage := MultiStage{

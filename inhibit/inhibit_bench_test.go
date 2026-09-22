@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
 )
@@ -92,7 +93,7 @@ type benchmarkOptions struct {
 	// It is called n times.
 	newAlertsFunc func(idx int, r amcommoncfg.InhibitRule) []*alert.Alert
 	// benchFunc runs the benchmark.
-	benchFunc func(mutesFunc func(context.Context, model.LabelSet) bool) error
+	benchFunc func(mutesFunc func(context.Context, labelset.LabelSet) bool) error
 }
 
 // allRulesMatchBenchmark returns a new benchmark where all inhibition rules
@@ -109,6 +110,9 @@ type benchmarkOptions struct {
 //
 // It expects dst=0 to be muted and will fail if not.
 func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlerts int) benchmarkOptions {
+	// Built once: in production the MuteStage passes the alert's precomputed
+	// fingerprint along with its labels, so hashing is not part of Mutes.
+	target := labelset.FromModel(model.LabelSet{"dst": "0"})
 	return benchmarkOptions{
 		n: numInhibitionRules,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
@@ -132,8 +136,8 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				}, time.Time{}, false))
 			}
 			return alerts
-		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
-			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), target); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
@@ -144,6 +148,9 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions {
 	now := time.Now()
 
+	// Built once: in production the MuteStage passes the alert's precomputed
+	// fingerprint along with its labels, so hashing is not part of Mutes.
+	target := labelset.FromModel(model.LabelSet{"src": "1", "dst": "1", "eq": "1"})
 	return benchmarkOptions{
 		n: 1,
 		newRuleFunc: func(_ int) amcommoncfg.InhibitRule {
@@ -180,8 +187,8 @@ func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchma
 			}, time.Time{}, false))
 			return alerts
 		},
-		benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
-			if ok := mutesFunc(context.Background(), model.LabelSet{"src": "1", "dst": "1", "eq": "1"}); !ok {
+		benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), target); !ok {
 				return errors.New("expected source-and-target alert to be muted by a source-only alert")
 			}
 			return nil
@@ -198,6 +205,9 @@ func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchma
 //
 // It expects dst=0 to be muted and will fail if not.
 func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
+	// Built once: in production the MuteStage passes the alert's precomputed
+	// fingerprint along with its labels, so hashing is not part of Mutes.
+	target := labelset.FromModel(model.LabelSet{"dst": "0"})
 	return benchmarkOptions{
 		n: n,
 		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
@@ -220,8 +230,8 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 					"src": model.LabelValue(strconv.Itoa(idx)),
 				},
 			}, time.Time{}, false)}
-		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
-			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
+		}, benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), target); !ok {
 				return errors.New("expected dst=0 to be muted")
 			}
 			return nil
