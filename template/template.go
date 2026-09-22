@@ -339,6 +339,14 @@ var DefaultFuncs = FuncMap{
 	"mustToDate": func(layout, s string) (time.Time, error) {
 		return time.ParseInLocation(layout, s, time.UTC)
 	},
+	// addDuration parses ds as a Go duration, adds it to t, and returns the resulting Unix milliseconds.
+	"addDuration": func(ds string, t time.Time) (int64, error) {
+		d, err := time.ParseDuration(ds)
+		if err != nil {
+			return 0, err
+		}
+		return t.Add(d).UnixMilli(), nil
+	},
 	"toJson": func(v any) (string, error) {
 		bytes, err := json.Marshal(v)
 		if err != nil {
@@ -652,8 +660,17 @@ func DeepCopyWithTemplate(value any, tmplTextFunc TemplateFunc) (any, error) {
 		if ok == nil {
 			var inlineType any
 			err := yaml.Unmarshal([]byte(parsed), &inlineType)
-			if err != nil || (inlineType != nil && reflect.TypeOf(inlineType).Kind() == reflect.String) {
+			if err != nil {
 				// ignore error, thus the string is not an interface
+				return parsed, ok
+			}
+			if inlineString, isString := inlineType.(string); isString {
+				// Decode an explicit JSON string, such as output from toJson.
+				// Preserve other strings because YAML can remove comments,
+				// whitespace, and line breaks from plain scalar values.
+				if json.Valid([]byte(parsed)) {
+					return inlineString, ok
+				}
 				return parsed, ok
 			}
 			// inlineType holds structured data decoded from the rendered string.

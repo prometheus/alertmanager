@@ -902,6 +902,16 @@ func TestTemplateFuncs(t *testing.T) {
 		title:  "Template using mustToDate with invalid input returns error",
 		in:     `{{ mustToDate "2006-01-02" "not-a-date" }}`,
 		expErr: `template: :1:3: executing "" at <mustToDate "2006-01-02" "not-a-date">: error calling mustToDate: parsing time "not-a-date" as "2006-01-02": cannot parse "not-a-date" as "2006"`,
+	}, {
+		title: "Template using addDuration with valid input",
+		in:    `{{ addDuration "90m" . }}`,
+		data:  time.Unix(0, 0).UTC(),
+		exp:   "5400000",
+	}, {
+		title:  "Template using addDuration with invalid input returns error",
+		in:     `{{ addDuration "not-a-duration" . }}`,
+		data:   time.Unix(0, 0).UTC(),
+		expErr: `template: :1:3: executing "" at <addDuration "not-a-duration" .>: error calling addDuration: time: invalid duration "not-a-duration"`,
 	}} {
 		t.Run(tc.title, func(t *testing.T) {
 			wg := sync.WaitGroup{}
@@ -969,6 +979,47 @@ func TestDeepCopyWithTemplate(t *testing.T) {
 			input: "hello",
 			fn:    withSuffix,
 			want:  "hello-templated",
+		},
+		{
+			title: "quoted numeric string stays string",
+			input: "hello",
+			fn: TemplateFunc(func(string) (string, error) {
+				return "\"123\"", nil
+			}),
+			want: "123",
+		},
+		{
+			title: "plain string containing YAML comment syntax stays unchanged",
+			input: "issue # 1234",
+			fn:    identity,
+			want:  "issue # 1234",
+		},
+		{
+			title: "numeric value is rendered as integer",
+			input: "hello",
+			fn: TemplateFunc(func(string) (string, error) {
+				return "1234", nil
+			}),
+			want: 1234,
+		},
+		{
+			title: "quoted numeric string stays string in nested map",
+			input: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "TOKEN",
+				},
+			},
+			fn: TemplateFunc(func(s string) (string, error) {
+				if s == "TOKEN" {
+					return "\"15129\"", nil
+				}
+				return s, nil
+			}),
+			want: map[string]any{
+				"customfield_11209": map[string]any{
+					"id": "15129",
+				},
+			},
 		},
 		{
 			title: "string parsed as YAML map",
