@@ -1377,9 +1377,13 @@ fields:
   [ <string>: <jira_field> ... ]
 
 
-# The HTTP client's configuration. You must use this configuration to supply the personal access token (PAT) as part of the HTTP `Authorization` header.
-# For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
-# For Jira Data Center, use the 'authorization' field with 'credentials: <PAT value>'.
+# The HTTP client's configuration. Personal access tokens (PAT) are supported
+# via basic_auth (Jira Cloud: email address as the username, PAT as the
+# password) or the 'authorization' field (Jira Data Center: 'credentials:
+# <PAT value>'). OAuth2 client_credentials against an external identity
+# provider is also supported via the standard http_config above; Jira's own
+# OAuth2 requires interactive browser consent and cannot be used for
+# Alertmanager's automated notifications.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
