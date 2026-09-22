@@ -387,6 +387,8 @@ func (a *App) setup() error {
 		Silences:                   silences,
 		GroupMutedFunc:             groupMarker.Muted,
 		Peer:                       clusterPeer,
+		NotificationLog:            notificationLog,
+		Flagger:                    ff,
 		Timeout:                    opts.HTTPTimeout,
 		Concurrency:                opts.GetConcurrency,
 		ConnectUnaryConcurrency:    opts.ConnectUnaryConcurrency,

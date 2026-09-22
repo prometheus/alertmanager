@@ -34,7 +34,7 @@ import (
 var _ = Describe("gRPC health", func() {
 	It("reports serving for the server and StatusService", func() {
 		api := newTestAPI(Options{})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		srv := httptest.NewServer(api.Handler())
 		DeferCleanup(srv.Close)

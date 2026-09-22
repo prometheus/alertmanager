@@ -36,6 +36,8 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/types"
@@ -67,6 +69,11 @@ type Options struct {
 	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
+	// NotificationLog provides notification state to the Connect API. It is
+	// optional until a public notification service is defined.
+	NotificationLog notify.NotificationLog
+	// Flagger reports enabled Connect API capabilities.
+	Flagger featurecontrol.Flagger
 	// Timeout for HTTP requests and Connect unary RPCs. The zero value and
 	// negative values result in no timeout.
 	Timeout time.Duration
@@ -150,6 +157,12 @@ func (o Options) resolve() effectiveOptions {
 		timeout:     timeout,
 		concurrency: concurrency,
 		connect: apiconnect.Options{
+			Alerts:              o.Alerts,
+			Silences:            o.Silences,
+			GroupFunc:           o.GroupFunc,
+			GroupMutedFunc:      o.GroupMutedFunc,
+			NotificationLog:     o.NotificationLog,
+			Flagger:             o.Flagger,
 			Peer:                o.Peer,
 			Registerer:          o.Registry,
 			UnaryConcurrency:    unaryConcurrency,
@@ -324,7 +337,7 @@ func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Conte
 		api.v2.Update(cfg, setAlertStatus)
 	}
 	if api.connect != nil {
-		api.connect.Update(cfg)
+		api.connect.Update(cfg, setAlertStatus)
 	}
 }
 

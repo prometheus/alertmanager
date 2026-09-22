@@ -190,11 +190,6 @@ func (r *reloader) reload(conf *config.Config) error {
 	r.metrics.configuredIntegrations.Set(float64(integrationsNum))
 	r.metrics.configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
-	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-		r.inhibitor.Load().Mutes(ctx, labels)
-		r.silencer.Mutes(ctx, labels)
-	})
-
 	newDispatcher := dispatch.NewDispatcher(
 		r.alerts,
 		routes,
@@ -246,6 +241,11 @@ func (r *reloader) reload(conf *config.Config) error {
 	go newDispatcher.Run(r.startTime.Add(r.dispatchStartDelay))
 	newDispatcher.WaitForLoading()
 	r.dispatcher.Store(newDispatcher)
+
+	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
+		r.inhibitor.Load().Mutes(ctx, labels)
+		r.silencer.Mutes(ctx, labels)
+	})
 
 	return nil
 }
