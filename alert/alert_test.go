@@ -308,3 +308,27 @@ func TestAlertSliceLogValue(t *testing.T) {
 		})
 	}
 }
+
+func TestAlertFingerprint(t *testing.T) {
+	labels := model.LabelSet{"alertname": "test", "instance": "a"}
+	want := labels.Fingerprint()
+
+	a := New(model.Alert{Labels: labels}, time.Time{}, false)
+	if got := a.Fingerprint(); got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if got := a.LabelSet().Fingerprint(); got != want {
+		t.Fatalf("LabelSet: got %v, want %v", got, want)
+	}
+
+	// The fingerprint is carried over by Merge, whichever side is younger.
+	now := time.Now()
+	older := New(model.Alert{Labels: labels, StartsAt: now.Add(-time.Hour), EndsAt: now}, now.Add(-time.Minute), false)
+	younger := New(model.Alert{Labels: labels, StartsAt: now.Add(-time.Hour), EndsAt: now.Add(time.Hour)}, now, false)
+	if got := older.Merge(younger).Fingerprint(); got != want {
+		t.Fatalf("merge (older receiver): got %v, want %v", got, want)
+	}
+	if got := younger.Merge(older).Fingerprint(); got != want {
+		t.Fatalf("merge (younger receiver): got %v, want %v", got, want)
+	}
+}

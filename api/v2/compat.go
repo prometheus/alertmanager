@@ -192,20 +192,23 @@ func AlertToOpenAPIAlert(source *alert.Alert, status alert.AlertStatus, receiver
 	return aa
 }
 
-// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*alert.Alert.
-func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*alert.Alert {
+// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to
+// []prometheus_model.Alert. The result still has to be normalized and
+// validated before being turned into internal alerts with alert.New,
+// which then copies each alert into its own memory space.
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []prometheus_model.Alert {
 	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
 	defer span.End()
 
-	alerts := make([]*alert.Alert, 0, len(apiAlerts))
+	alerts := make([]prometheus_model.Alert, 0, len(apiAlerts))
 	for _, apiAlert := range apiAlerts {
-		alerts = append(alerts, alert.New(prometheus_model.Alert{
+		alerts = append(alerts, prometheus_model.Alert{
 			Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 			Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
 			StartsAt:     time.Time(apiAlert.StartsAt),
 			EndsAt:       time.Time(apiAlert.EndsAt),
 			GeneratorURL: string(apiAlert.GeneratorURL),
-		}, time.Time{}, false))
+		})
 	}
 
 	return alerts

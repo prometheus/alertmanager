@@ -47,6 +47,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -161,7 +162,7 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 }
 
 // Mutes implements the Muter interface.
-func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
+func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
 		trace.WithAttributes(
@@ -234,7 +235,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			ctx,
 			QSince(cachedEntry.version),
 			QState(SilenceStateActive, SilenceStatePending),
-			QMatches(lset),
+			QMatches(lset.LabelSet),
 		)
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
@@ -286,7 +287,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 				s.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 					return eventrecorder.NewSilenceMutedAlertEvent(
-						sil, fp, lset,
+						sil, fp, lset.LabelSet,
 					)
 				})
 			default:
