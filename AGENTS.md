@@ -98,7 +98,8 @@ goreman start
 - Errors: wrap with `fmt.Errorf("...: %w", err)` and check with `errors.Is`/`errors.As` (`errorlint`).
 - Keep package‑level documentation up to date (`revive: package-comments`).
 - Tests live next to the code as `*_test.go`. Larger integration tests live under `test/`. The `notify/test` package provides shared testing helpers for notifier integrations.
-- Use Ginkgo/Gomega for new Connect API tests under `api/connect/` and `test/e2e/`. Existing shared API and v2 tests retain their current testing style.
+- Tests use the standard `testing` package with `testify/require`, `t.Run` subtests, and `t.Cleanup`.
+- Unit tests run with `t.Parallel()`; only the e2e tests stay sequential because API v2 router construction mutates global go-openapi state.
 
 ## When changing the API
 

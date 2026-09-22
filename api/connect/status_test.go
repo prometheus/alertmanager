@@ -15,23 +15,16 @@ package apiconnect
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"sync"
-	"sync/atomic"
+	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/grpchealth"
-	"connectrpc.com/grpcreflect"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/version"
+	"github.com/stretchr/testify/require"
 
 	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
@@ -39,105 +32,34 @@ import (
 	"github.com/prometheus/alertmanager/config"
 )
 
-// fakeMember is a test double for cluster.ClusterMember.
-type fakeMember struct {
-	name    string
-	address string
-}
+func TestStatusService(t *testing.T) {
+	t.Parallel()
 
-func (m fakeMember) Name() string    { return m.name }
-func (m fakeMember) Address() string { return m.address }
+	t.Run("returns status when clustering is disabled", func(t *testing.T) {
+		t.Parallel()
 
-// fakePeer is a test double for cluster.ClusterPeer.
-type fakePeer struct {
-	name   string
-	status string
-	peers  []cluster.ClusterMember
-}
-
-func (p fakePeer) Name() string                   { return p.name }
-func (p fakePeer) Status() string                 { return p.status }
-func (p fakePeer) Peers() []cluster.ClusterMember { return p.peers }
-
-type blockingPeer struct {
-	enteredOnce sync.Once
-	releaseOnce sync.Once
-	calls       atomic.Int64
-	entered     chan struct{}
-	release     chan struct{}
-}
-
-func (p *blockingPeer) Name() string   { return "self" }
-func (p *blockingPeer) Status() string { return "ready" }
-func (p *blockingPeer) Peers() []cluster.ClusterMember {
-	p.calls.Add(1)
-	p.enteredOnce.Do(func() { close(p.entered) })
-	<-p.release
-	return nil
-}
-func (p *blockingPeer) unblock() { p.releaseOnce.Do(func() { close(p.release) }) }
-
-type flushOnlyResponseWriter struct {
-	http.ResponseWriter
-}
-
-func (w flushOnlyResponseWriter) Flush() {
-	_ = http.NewResponseController(w.ResponseWriter).Flush()
-}
-
-type fakeStreamingConn struct{}
-
-func (fakeStreamingConn) Spec() connect.Spec {
-	return connect.Spec{Procedure: "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", StreamType: connect.StreamTypeBidi}
-}
-func (fakeStreamingConn) Peer() connect.Peer           { return connect.Peer{} }
-func (fakeStreamingConn) Receive(any) error            { return nil }
-func (fakeStreamingConn) RequestHeader() http.Header   { return http.Header{} }
-func (fakeStreamingConn) Send(any) error               { return nil }
-func (fakeStreamingConn) ResponseHeader() http.Header  { return http.Header{} }
-func (fakeStreamingConn) ResponseTrailer() http.Header { return http.Header{} }
-
-type deadlineResponseWriter struct {
-	header        http.Header
-	readDeadline  time.Time
-	writeDeadline time.Time
-}
-
-func (w *deadlineResponseWriter) Header() http.Header       { return w.header }
-func (*deadlineResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
-func (*deadlineResponseWriter) WriteHeader(int)             {}
-func (w *deadlineResponseWriter) SetReadDeadline(t time.Time) error {
-	w.readDeadline = t
-	return nil
-}
-
-func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
-	w.writeDeadline = t
-	return nil
-}
-
-var _ = Describe("StatusService", func() {
-	It("returns status when clustering is disabled", func() {
-		api := newTestAPI(Options{})
+		api := NewAPI(Options{})
 		api.Update(&config.Config{})
 
-		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(err).NotTo(HaveOccurred())
+		resp, err := api.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+		require.NoError(t, err)
 
 		got := resp.Msg.GetStatus()
-		Expect(got).NotTo(BeNil())
-		Expect(got.GetVersionInfo().GetVersion()).To(Equal(version.Version))
-		Expect(got.GetVersionInfo().GetRevision()).To(Equal(version.Revision))
-		Expect(got.GetVersionInfo().GetBranch()).To(Equal(version.Branch))
-		Expect(got.GetVersionInfo().GetGoVersion()).To(Equal(version.GoVersion))
-		Expect(got.GetConfig().GetOriginal()).NotTo(BeEmpty())
-		Expect(got.GetStartTime()).NotTo(BeNil())
-		Expect(got.GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
-		Expect(got.GetCluster().GetName()).To(BeEmpty())
-		Expect(got.GetCluster().GetPeers()).To(BeEmpty())
+		require.NotNil(t, got)
+		require.Equal(t, version.Version, got.GetVersionInfo().GetVersion())
+		require.Equal(t, version.Revision, got.GetVersionInfo().GetRevision())
+		require.Equal(t, version.Branch, got.GetVersionInfo().GetBranch())
+		require.Equal(t, version.GoVersion, got.GetVersionInfo().GetGoVersion())
+		require.NotEmpty(t, got.GetConfig().GetOriginal())
+		require.NotNil(t, got.GetStartTime())
+		require.Equal(t, statusv3alpha.ClusterStatus_STATE_DISABLED, got.GetCluster().GetState())
+		require.Empty(t, got.GetCluster().GetName())
+		require.Empty(t, got.GetCluster().GetPeers())
 	})
 
-	It("returns sorted peers when clustering is enabled", func() {
+	t.Run("returns sorted peers when clustering is enabled", func(t *testing.T) {
+		t.Parallel()
+
 		peer := fakePeer{
 			name:   "self",
 			status: "ready",
@@ -148,222 +70,229 @@ var _ = Describe("StatusService", func() {
 			},
 		}
 
-		api := newTestAPI(Options{Peer: peer})
+		api := NewAPI(Options{Peer: peer})
 		api.Update(&config.Config{})
 
-		resp, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(err).NotTo(HaveOccurred())
+		resp, err := api.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+		require.NoError(t, err)
 
 		clusterStatus := resp.Msg.GetStatus().GetCluster()
-		Expect(clusterStatus.GetName()).To(Equal("self"))
-		Expect(clusterStatus.GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_READY))
+		require.Equal(t, "self", clusterStatus.GetName())
+		require.Equal(t, statusv3alpha.ClusterStatus_STATE_READY, clusterStatus.GetState())
 
 		names := make([]string, 0, len(clusterStatus.GetPeers()))
 		for _, peer := range clusterStatus.GetPeers() {
 			names = append(names, peer.GetName())
 		}
-		Expect(names).To(Equal([]string{"a-node", "b-node", "c-node"}))
+		require.Equal(t, []string{"a-node", "b-node", "c-node"}, names)
 	})
 
-	It("does not block updates behind GetStatus", func() {
-		peer := &blockingPeer{
-			entered: make(chan struct{}),
-			release: make(chan struct{}),
-		}
-		DeferCleanup(peer.unblock)
+	t.Run("does not block updates behind GetStatus", func(t *testing.T) {
+		t.Parallel()
 
-		api := newTestAPI(Options{Peer: peer})
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer})
 		api.Update(&config.Config{})
 
 		statusDone := make(chan error, 1)
 		go func() {
-			_, err := api.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			_, err := api.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			statusDone <- err
 		}()
-		Eventually(peer.entered, 5*time.Second).Should(BeClosed())
+		requireClosed(t, peer.entered, waitTimeout)
 
 		updateDone := make(chan struct{})
 		go func() {
 			api.Update(&config.Config{})
 			close(updateDone)
 		}()
-		Eventually(updateDone, 5*time.Second).Should(BeClosed())
+		requireClosed(t, updateDone, waitTimeout)
 
 		peer.unblock()
-		var statusErr error
-		Eventually(statusDone, 5*time.Second).Should(Receive(&statusErr))
-		Expect(statusErr).NotTo(HaveOccurred())
+		require.NoError(t, requireRecv(t, statusDone, waitTimeout))
 	})
 
-	It("cancels active unary RPCs during shutdown", func() {
-		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
-		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1})
+	t.Run("cancels active unary RPCs during shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		DeferCleanup(peer.unblock)
+		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
+
 		done := make(chan error, 1)
 		go func() {
-			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			_, err := client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			done <- err
 		}()
-		Eventually(peer.entered).Should(BeClosed())
+		requireClosed(t, peer.entered, waitTimeout)
 
 		api.Shutdown()
-		var err error
-		Eventually(done).Should(Receive(&err))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeCanceled))
-		Eventually(func() int { return len(api.admission.unary) }).Should(BeZero())
+		err := requireRecv(t, done, waitTimeout)
+		require.Equal(t, connect.CodeCanceled, connect.CodeOf(err))
+		require.Eventually(t, func() bool { return len(api.admission.unary) == 0 }, waitTimeout, pollInterval)
 	})
 
-	It("bounds peer snapshots when the unary deadline expires", func() {
-		peer := &blockingPeer{
-			entered: make(chan struct{}),
-			release: make(chan struct{}),
-		}
-		api := newTestAPI(Options{Peer: peer, Registerer: prometheus.NewRegistry(), UnaryConcurrency: 1, UnaryTimeout: 20 * time.Millisecond})
+	t.Run("bounds peer snapshots when the unary deadline expires", func(t *testing.T) {
+		t.Parallel()
+
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer, Registerer: prometheus.NewRegistry(), UnaryConcurrency: 1, UnaryTimeout: 20 * time.Millisecond})
 		api.Update(&config.Config{})
 
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		DeferCleanup(peer.unblock)
+		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(&http.Client{Timeout: time.Second}, srv.URL)
 
 		for range 2 {
 			started := time.Now()
-			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-			Expect(connect.CodeOf(err)).To(Equal(connect.CodeDeadlineExceeded))
-			Expect(time.Since(started)).To(BeNumerically("<", 500*time.Millisecond))
+			_, err := client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			require.Equal(t, connect.CodeDeadlineExceeded, connect.CodeOf(err))
+			require.Less(t, time.Since(started), 500*time.Millisecond)
 		}
 		labels := prometheus.Labels{"service": statusv3alphaconnect.StatusServiceName, "procedure": "GetStatus"}
-		Expect(testutil.ToFloat64(api.admission.metrics.unaryDeadlines.With(labels))).To(Equal(float64(2)))
-		Eventually(peer.calls.Load, time.Second).Should(Equal(int64(1)))
+		require.Equal(t, 2.0, testutil.ToFloat64(api.admission.metrics.unaryDeadlines.With(labels)))
+		require.Eventually(t, func() bool { return peer.calls.Load() == 1 }, time.Second, pollInterval)
 	})
 
-	DescribeTable("maps cluster states",
-		func(input string, expected statusv3alpha.ClusterStatus_State) {
-			Expect(clusterState(input)).To(Equal(expected))
-		},
-		Entry("ready", "ready", statusv3alpha.ClusterStatus_STATE_READY),
-		Entry("settling", "settling", statusv3alpha.ClusterStatus_STATE_SETTLING),
-		Entry("empty", "", statusv3alpha.ClusterStatus_STATE_UNSPECIFIED),
-		Entry("unknown", "bogus", statusv3alpha.ClusterStatus_STATE_UNSPECIFIED),
-	)
+	t.Run("maps cluster states", func(t *testing.T) {
+		t.Parallel()
 
-	// TestGetStatus_OverHTTP exercises the full ConnectRPC wiring over HTTP,
-	// using both the Connect and gRPC protocols to prove the handler works on
-	// both transports. The gRPC protocol requires HTTP/2, so both the server
-	// and client are configured for unencrypted HTTP/2 (cleartext h2c) via the
+		tests := []struct {
+			name  string
+			input string
+			want  statusv3alpha.ClusterStatus_State
+		}{
+			{name: "ready", input: "ready", want: statusv3alpha.ClusterStatus_STATE_READY},
+			{name: "settling", input: "settling", want: statusv3alpha.ClusterStatus_STATE_SETTLING},
+			{name: "empty", input: "", want: statusv3alpha.ClusterStatus_STATE_UNSPECIFIED},
+			{name: "unknown", input: "bogus", want: statusv3alpha.ClusterStatus_STATE_UNSPECIFIED},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				require.Equal(t, tc.want, clusterState(tc.input))
+			})
+		}
+	})
+
+	// This exercises the full ConnectRPC wiring over HTTP, using both the
+	// Connect and gRPC protocols to prove the handler works on both
+	// transports. The gRPC protocol requires HTTP/2, so both the server and
+	// client are configured for unencrypted HTTP/2 (cleartext h2c) via the
 	// standard library's http.Protocols.
-	DescribeTable("serves status over HTTP",
-		func(wantMethod string, opts []connect.ClientOption) {
-			api := newTestAPI(Options{})
-			api.Update(&config.Config{})
+	t.Run("serves status over HTTP", func(t *testing.T) {
+		t.Parallel()
 
-			methods := make(chan string, 1)
-			handler := api.Handler()
-			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				methods <- r.Method
-				handler.ServeHTTP(w, r)
-			}))
-			serverProtocols := new(http.Protocols)
-			serverProtocols.SetHTTP1(true)
-			serverProtocols.SetUnencryptedHTTP2(true)
-			srv.Config.Protocols = serverProtocols
-			srv.Start()
-			DeferCleanup(srv.Close)
+		tests := []struct {
+			name       string
+			wantMethod string
+			opts       []connect.ClientOption
+		}{
+			{name: "Connect POST", wantMethod: http.MethodPost},
+			{name: "Connect HTTP GET", wantMethod: http.MethodGet, opts: []connect.ClientOption{connect.WithHTTPGet()}},
+			{name: "gRPC-Web", wantMethod: http.MethodPost, opts: []connect.ClientOption{connect.WithGRPCWeb()}},
+			{name: "gRPC", wantMethod: http.MethodPost, opts: []connect.ClientOption{connect.WithGRPC()}},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			// The Connect protocol works over HTTP/1.1 too, but the native gRPC
-			// protocol requires HTTP/2. A single cleartext-HTTP/2 (h2c) client
-			// therefore serves all subtests below.
-			clientProtocols := new(http.Protocols)
-			clientProtocols.SetUnencryptedHTTP2(true)
-			transport := &http.Transport{Protocols: clientProtocols}
-			h2cClient := &http.Client{Transport: transport, Timeout: 5 * time.Second}
-			DeferCleanup(transport.CloseIdleConnections)
+				api := NewAPI(Options{})
+				api.Update(&config.Config{})
 
-			client := statusv3alphaconnect.NewStatusServiceClient(h2cClient, srv.URL, opts...)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-			Expect(err).NotTo(HaveOccurred())
-			Eventually(methods, 5*time.Second).Should(Receive(Equal(wantMethod)))
-			Expect(resp.Header().Get("Cache-Control")).To(Equal("no-store"))
-			Expect(resp.Msg.GetStatus().GetVersionInfo().GetVersion()).To(Equal(version.Version))
-			Expect(resp.Msg.GetStatus().GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
-		},
-		Entry("Connect POST", http.MethodPost, []connect.ClientOption{}),
-		Entry("Connect HTTP GET", http.MethodGet, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web", http.MethodPost, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("gRPC", http.MethodPost, []connect.ClientOption{connect.WithGRPC()}),
-	)
+				methods := make(chan string, 1)
+				handler := api.Handler()
+				srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					methods <- r.Method
+					handler.ServeHTTP(w, r)
+				}), true)
 
-	It("rejects oversized incoming messages before handler execution", func() {
-		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
-		api := newTestAPI(Options{Peer: peer, ReadMaxBytes: 1, MaxRequestBodyBytes: 1024})
+				// The Connect protocol works over HTTP/1.1 too, but the native
+				// gRPC protocol requires HTTP/2. A single cleartext-HTTP/2 (h2c)
+				// client therefore serves every case.
+				h2cClient := newH2CClient(t, 5*time.Second)
+				client := statusv3alphaconnect.NewStatusServiceClient(h2cClient, srv.URL, tc.opts...)
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+				require.NoError(t, err)
+				require.Equal(t, tc.wantMethod, requireRecv(t, methods, waitTimeout))
+				require.Equal(t, "no-store", resp.Header().Get("Cache-Control"))
+				require.Equal(t, version.Version, resp.Msg.GetStatus().GetVersionInfo().GetVersion())
+				require.Equal(t, statusv3alpha.ClusterStatus_STATE_DISABLED, resp.Msg.GetStatus().GetCluster().GetState())
+			})
+		}
+	})
+
+	t.Run("rejects oversized incoming messages before handler execution", func(t *testing.T) {
+		t.Parallel()
+
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer, ReadMaxBytes: 1, MaxRequestBodyBytes: 1024})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		DeferCleanup(peer.unblock)
+		srv := newTestServer(t, api.Handler(), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
 		request.ProtoReflect().SetUnknown([]byte{0x08, 0x01})
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(request))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
-		Consistently(peer.entered, 50*time.Millisecond).ShouldNot(BeClosed())
+		_, err := client.GetStatus(t.Context(), connect.NewRequest(request))
+		require.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+		require.Never(t, func() bool { return isClosed(peer.entered) }, 50*time.Millisecond, 5*time.Millisecond)
 	})
 
-	It("allows handler options to override message limits", func() {
-		api := newTestAPI(Options{ReadMaxBytes: 1, SendMaxBytes: 1})
+	t.Run("allows handler options to override message limits", func(t *testing.T) {
+		t.Parallel()
+
+		api := NewAPI(Options{ReadMaxBytes: 1, SendMaxBytes: 1})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler(connect.WithReadMaxBytes(1024), connect.WithSendMaxBytes(1024*1024)))
-		DeferCleanup(srv.Close)
+		srv := newTestServer(t, api.Handler(connect.WithReadMaxBytes(1024), connect.WithSendMaxBytes(1024*1024)), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
 		request.ProtoReflect().SetUnknown([]byte{0x08, 0x01})
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(request))
-		Expect(err).NotTo(HaveOccurred())
+		_, err := client.GetStatus(t.Context(), connect.NewRequest(request))
+		require.NoError(t, err)
 	})
 
-	It("rejects oversized unary request bodies", func() {
-		api := newTestAPI(Options{ReadMaxBytes: 1024, MaxRequestBodyBytes: 1})
+	t.Run("rejects oversized unary request bodies", func(t *testing.T) {
+		t.Parallel()
+
+		api := NewAPI(Options{ReadMaxBytes: 1024, MaxRequestBodyBytes: 1})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
+		srv := newTestServer(t, api.Handler(), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
 		request.ProtoReflect().SetUnknown([]byte{0x08, 0x01})
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(request))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
+		_, err := client.GetStatus(t.Context(), connect.NewRequest(request))
+		require.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
 	})
 
-	It("rejects oversized outgoing messages", func() {
-		api := newTestAPI(Options{SendMaxBytes: 1})
+	t.Run("rejects oversized outgoing messages", func(t *testing.T) {
+		t.Parallel()
+
+		api := NewAPI(Options{SendMaxBytes: 1})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
+		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
 
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
+		_, err := client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+		require.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
 	})
 
-	It("bounds slow unary uploads before handler execution", func() {
-		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
-		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1, UnaryTimeout: 500 * time.Millisecond})
+	t.Run("bounds slow unary uploads before handler execution", func(t *testing.T) {
+		t.Parallel()
+
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1, UnaryTimeout: 500 * time.Millisecond})
 		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		DeferCleanup(peer.unblock)
+		srv := newTestServer(t, api.Handler(), false)
 
 		reader, writer := io.Pipe()
-		DeferCleanup(writer.Close)
-		req, err := http.NewRequest(http.MethodPost, srv.URL+statusv3alphaconnect.StatusServiceGetStatusProcedure, reader)
-		Expect(err).NotTo(HaveOccurred())
+		t.Cleanup(func() { _ = writer.Close() })
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+statusv3alphaconnect.StatusServiceGetStatusProcedure, reader)
+		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/proto")
 		req.ContentLength = 1
 		done := make(chan *http.Response, 1)
@@ -371,437 +300,74 @@ var _ = Describe("StatusService", func() {
 			resp, _ := srv.Client().Do(req)
 			done <- resp
 		}()
-		Eventually(func() int { return len(api.admission.unary) }).Should(Equal(1))
+		require.Eventually(t, func() bool { return len(api.admission.unary) == 1 }, waitTimeout, pollInterval)
 
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-		_, err = client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
+		_, err = client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+		require.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
 
-		var resp *http.Response
-		Eventually(done, time.Second).Should(Receive(&resp))
-		Expect(resp).NotTo(BeNil())
-		Expect(resp.Body.Close()).To(Succeed())
-		Expect(peer.calls.Load()).To(BeZero())
+		resp := requireRecv(t, done, time.Second)
+		require.NotNil(t, resp)
+		require.NoError(t, resp.Body.Close())
+		require.Zero(t, peer.calls.Load())
 
 		peer.unblock()
-		_, err = client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(err).NotTo(HaveOccurred())
+		_, err = client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+		require.NoError(t, err)
 	})
 
-	It("rejects unread request bodies without blocking", func() {
-		peer := &blockingPeer{entered: make(chan struct{}), release: make(chan struct{})}
-		api := newTestAPI(Options{Peer: peer, UnaryConcurrency: 1})
+	t.Run("rejects unread request bodies without blocking", func(t *testing.T) {
+		t.Parallel()
+
+		peer := newBlockingPeer(t)
+		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1})
 		api.Update(&config.Config{})
 		handler := api.Handler()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handler.ServeHTTP(flushOnlyResponseWriter{ResponseWriter: w}, r)
-		}))
-		DeferCleanup(srv.Close)
-		DeferCleanup(peer.unblock)
+		}), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
 
 		firstDone := make(chan error, 1)
 		go func() {
-			_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+			_, err := client.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 			firstDone <- err
 		}()
-		Eventually(peer.entered, 5*time.Second).Should(BeClosed())
+		requireClosed(t, peer.entered, waitTimeout)
 
-		for _, tc := range []struct {
+		// The cases below run in order while the first RPC still holds the
+		// only unary slot, so they must not run in parallel.
+		tests := []struct {
+			name       string
 			path       string
 			statusCode int
 		}{
-			{path: "/unknown.Service/Unknown", statusCode: http.StatusNotImplemented},
-			{path: statusv3alphaconnect.StatusServiceGetStatusProcedure, statusCode: http.StatusTooManyRequests},
-		} {
-			reader, writer := io.Pipe()
-			DeferCleanup(func() { _ = writer.Close() })
-			req, err := http.NewRequest(http.MethodPost, srv.URL+tc.path, reader)
-			Expect(err).NotTo(HaveOccurred())
-			req.Header.Set("Content-Type", "application/proto")
-			req.ContentLength = 1
-			done := make(chan *http.Response, 1)
-			go func() {
-				resp, _ := srv.Client().Do(req)
-				done <- resp
-			}()
+			{name: "unknown procedure", path: "/unknown.Service/Unknown", statusCode: http.StatusNotImplemented},
+			{name: "over capacity", path: statusv3alphaconnect.StatusServiceGetStatusProcedure, statusCode: http.StatusTooManyRequests},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				reader, writer := io.Pipe()
+				t.Cleanup(func() { _ = writer.Close() })
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+tc.path, reader)
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/proto")
+				req.ContentLength = 1
+				done := make(chan *http.Response, 1)
+				go func() {
+					resp, _ := srv.Client().Do(req)
+					done <- resp
+				}()
 
-			var resp *http.Response
-			Eventually(done, time.Second).Should(Receive(&resp))
-			Expect(resp).NotTo(BeNil())
-			Expect(resp.StatusCode).To(Equal(tc.statusCode))
-			Expect(resp.Body.Close()).To(Succeed())
-			Expect(writer.Close()).To(Succeed())
+				resp := requireRecv(t, done, time.Second)
+				require.NotNil(t, resp)
+				require.Equal(t, tc.statusCode, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+				require.NoError(t, writer.Close())
+			})
 		}
 
 		peer.unblock()
-		var firstErr error
-		Eventually(firstDone, 5*time.Second).Should(Receive(&firstErr))
-		Expect(firstErr).NotTo(HaveOccurred())
+		require.NoError(t, requireRecv(t, firstDone, waitTimeout))
 	})
-})
-
-var _ = Describe("Connect API", func() {
-	It("pins registered procedures", func() {
-		Expect(newTestAPI(Options{}).Procedures()).To(Equal([]string{
-			"/status.v3alpha.StatusService/GetStatus",
-			"/grpc.health.v1.Health/Check",
-			"/grpc.health.v1.Health/Watch",
-			"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo",
-			"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
-		}))
-	})
-
-	It("rejects unregistered reflection procedures", func() {
-		api := newTestAPI(Options{StreamConcurrency: 1})
-		srv := httptest.NewUnstartedServer(api.Handler())
-		serverProtocols := new(http.Protocols)
-		serverProtocols.SetUnencryptedHTTP2(true)
-		srv.Config.Protocols = serverProtocols
-		srv.Start()
-		DeferCleanup(srv.Close)
-
-		clientProtocols := new(http.Protocols)
-		clientProtocols.SetUnencryptedHTTP2(true)
-		transport := &http.Transport{Protocols: clientProtocols}
-		client := &http.Client{Transport: transport}
-		DeferCleanup(transport.CloseIdleConnections)
-
-		for _, service := range []string{grpcreflect.ReflectV1ServiceName, grpcreflect.ReflectV1AlphaServiceName} {
-			req, err := http.NewRequest(http.MethodPost, srv.URL+"/"+service+"/Unknown", http.NoBody)
-			Expect(err).NotTo(HaveOccurred())
-			req.Header.Set("Content-Type", "application/grpc")
-			req.Header.Set("TE", "trailers")
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.ProtoMajor).To(Equal(2))
-			_, err = io.Copy(io.Discard, resp.Body)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.Body.Close()).To(Succeed())
-			Expect(resp.Trailer.Get("Grpc-Status")).To(Equal(strconv.Itoa(int(connect.CodeUnimplemented))))
-			Eventually(func() int { return len(api.admission.streams) }).Should(BeZero())
-		}
-	})
-
-	It("allows unlimited message and request body sizes for non-positive values", func() {
-		for _, opts := range []Options{
-			{},
-			{
-				ReadMaxBytes:        -1,
-				SendMaxBytes:        -1,
-				MaxRequestBodyBytes: -1,
-				UnaryTimeout:        -time.Second,
-				StreamIdleTimeout:   -time.Second,
-				StreamLifetime:      -time.Second,
-			},
-		} {
-			api := newTestAPI(opts)
-			Expect(api.readMaxBytes).To(BeZero())
-			Expect(api.sendMaxBytes).To(BeZero())
-			Expect(api.maxRequestBytes).To(BeZero())
-			Expect(api.admission.unaryTimeout).To(BeZero())
-			Expect(api.admission.streamIdleTimeout).To(BeZero())
-			Expect(api.admission.streamLifetime).To(BeZero())
-		}
-	})
-
-	It("panics on duplicate metric registration", func() {
-		reg := prometheus.NewRegistry()
-		newTestAPI(Options{Registerer: reg})
-		Expect(func() { NewAPI(Options{Registerer: reg}) }).To(Panic())
-	})
-
-	It("initializes admission metrics", func() {
-		reg := prometheus.NewRegistry()
-		newTestAPI(Options{Registerer: reg})
-
-		families, err := reg.Gather()
-		Expect(err).NotTo(HaveOccurred())
-		expected := map[string]int{
-			"alertmanager_api_connect_unary_requests_in_flight":                2,
-			"alertmanager_api_connect_unary_concurrency_limit_exceeded_total":  2,
-			"alertmanager_api_connect_unary_deadline_exceeded_total":           2,
-			"alertmanager_api_connect_stream_requests_in_flight":               3,
-			"alertmanager_api_connect_stream_concurrency_limit_exceeded_total": 3,
-		}
-		counts := map[string]int{}
-		for _, family := range families {
-			if _, ok := expected[family.GetName()]; !ok {
-				continue
-			}
-			counts[family.GetName()] = len(family.GetMetric())
-			for _, metric := range family.GetMetric() {
-				if metric.GetGauge() != nil {
-					Expect(metric.GetGauge().GetValue()).To(BeZero())
-				} else {
-					Expect(metric.GetCounter().GetValue()).To(BeZero())
-				}
-			}
-		}
-		Expect(counts).To(Equal(expected))
-	})
-
-	It("registers bounded unary lifecycle metrics", func() {
-		reg := prometheus.NewRegistry()
-		api := newTestAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(err).NotTo(HaveOccurred())
-		families, err := reg.Gather()
-		Expect(err).NotTo(HaveOccurred())
-
-		var labels map[string]string
-		for _, family := range families {
-			if family.GetName() != "alertmanager_api_connect_unary_request_duration_seconds" {
-				continue
-			}
-			labels = map[string]string{}
-			for _, pair := range family.GetMetric()[0].GetLabel() {
-				labels[pair.GetName()] = pair.GetValue()
-			}
-		}
-		Expect(labels).To(Equal(map[string]string{
-			"outcome":   "ok",
-			"procedure": "GetStatus",
-			"service":   statusv3alphaconnect.StatusServiceName,
-		}))
-	})
-
-	It("observes errors from caller interceptors", func() {
-		reg := prometheus.NewRegistry()
-		api := newTestAPI(Options{Registerer: reg})
-		api.Update(&config.Config{})
-		interceptor := connect.UnaryInterceptorFunc(func(connect.UnaryFunc) connect.UnaryFunc {
-			return func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
-				return nil, connect.NewError(connect.CodePermissionDenied, errors.New("denied"))
-			}
-		})
-		srv := httptest.NewServer(api.Handler(connect.WithInterceptors(interceptor)))
-		DeferCleanup(srv.Close)
-		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-
-		_, err := client.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodePermissionDenied))
-		families, err := reg.Gather()
-		Expect(err).NotTo(HaveOccurred())
-
-		var outcome string
-		for _, family := range families {
-			if family.GetName() != "alertmanager_api_connect_unary_request_duration_seconds" {
-				continue
-			}
-			for _, pair := range family.GetMetric()[0].GetLabel() {
-				if pair.GetName() == "outcome" {
-					outcome = pair.GetValue()
-				}
-			}
-		}
-		Expect(outcome).To(Equal(connect.CodePermissionDenied.String()))
-	})
-})
-
-var _ = Describe("RPC admission", func() {
-	It("defaults unary and stream concurrency independently", func() {
-		api := newTestAPI(Options{UnaryConcurrency: 1})
-		Expect(cap(api.admission.unary)).To(Equal(1))
-		Expect(cap(api.admission.streams)).To(BeNumerically(">=", 8))
-
-		api = newTestAPI(Options{StreamConcurrency: 1})
-		Expect(cap(api.admission.unary)).To(BeNumerically(">=", 8))
-		Expect(cap(api.admission.streams)).To(Equal(1))
-	})
-
-	It("does not count parent deadlines as configured unary timeouts", func() {
-		for _, timeout := range []time.Duration{0, time.Hour} {
-			api := newTestAPI(Options{UnaryTimeout: timeout})
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-			request := httptest.NewRequest(http.MethodPost, statusv3alphaconnect.StatusServiceGetStatusProcedure, nil).WithContext(ctx)
-			handler := api.controlHandler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-				<-r.Context().Done()
-			}), connect.NewErrorWriter())
-			handler.ServeHTTP(httptest.NewRecorder(), request)
-			cancel()
-
-			labels := prometheus.Labels{"service": statusv3alphaconnect.StatusServiceName, "procedure": "GetStatus"}
-			Expect(testutil.ToFloat64(api.admission.metrics.unaryDeadlines.With(labels))).To(BeZero())
-		}
-	})
-
-	It("limits unary RPCs independently", func() {
-		admission := &admissionInterceptor{
-			unary:   make(chan struct{}, 1),
-			streams: make(chan struct{}, 1),
-			metrics: newRPCMetrics(nil),
-		}
-		unary := procedureDescriptor{service: "test", procedure: "Unary", streamType: connect.StreamTypeUnary}
-		stream := procedureDescriptor{service: "test", procedure: "Stream", streamType: connect.StreamTypeServer}
-
-		releaseUnary, err := admission.enter(unary)
-		Expect(err).NotTo(HaveOccurred())
-		_, err = admission.enter(unary)
-		Expect(connect.CodeOf(err)).To(Equal(connect.CodeResourceExhausted))
-
-		releaseStream, err := admission.enter(stream)
-		Expect(err).NotTo(HaveOccurred())
-		releaseStream()
-		releaseUnary()
-
-		releaseUnary, err = admission.enter(unary)
-		Expect(err).NotTo(HaveOccurred())
-		releaseUnary()
-	})
-
-	It("limits and releases streams over HTTP", func() {
-		api := newTestAPI(Options{UnaryConcurrency: 1, StreamConcurrency: 1})
-		api.Update(&config.Config{})
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		healthClient := grpchealth.NewClient(srv.Client(), srv.URL)
-		labels := prometheus.Labels{"service": grpchealth.HealthV1ServiceName, "procedure": "Watch"}
-
-		firstCtx, cancelFirst := context.WithCancel(context.Background())
-		DeferCleanup(cancelFirst)
-		first := healthClient.Watch(firstCtx, &grpchealth.CheckRequest{})
-		var event grpchealth.WatchEvent
-		Eventually(first, 5*time.Second).Should(Receive(&event))
-		Expect(event.Err).NotTo(HaveOccurred())
-		Eventually(func() float64 {
-			return testutil.ToFloat64(api.admission.metrics.streamInFlight.With(labels))
-		}).Should(Equal(float64(1)))
-
-		statusClient := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
-		_, err := statusClient.GetStatus(context.Background(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-		Expect(err).NotTo(HaveOccurred())
-
-		second := healthClient.Watch(context.Background(), &grpchealth.CheckRequest{})
-		Eventually(second, 5*time.Second).Should(Receive(&event))
-		Expect(connect.CodeOf(event.Err)).To(Equal(connect.CodeResourceExhausted))
-		Expect(testutil.ToFloat64(api.admission.metrics.streamLimitExceeded.With(labels))).To(Equal(float64(1)))
-
-		cancelFirst()
-		Eventually(first, 5*time.Second).Should(BeClosed())
-		Eventually(func() float64 {
-			return testutil.ToFloat64(api.admission.metrics.streamInFlight.With(labels))
-		}).Should(BeZero())
-
-		thirdCtx, cancelThird := context.WithCancel(context.Background())
-		DeferCleanup(cancelThird)
-		third := healthClient.Watch(thirdCtx, &grpchealth.CheckRequest{})
-		Eventually(third, 5*time.Second).Should(Receive(&event))
-		Expect(event.Err).NotTo(HaveOccurred())
-		cancelThird()
-		Eventually(third, 5*time.Second).Should(BeClosed())
-	})
-
-	It("bounds idle streams before the first message is decoded", func() {
-		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 500 * time.Millisecond, StreamLifetime: 2 * time.Second})
-		handler := api.Handler()
-		srv := httptest.NewUnstartedServer(handler)
-		serverProtocols := new(http.Protocols)
-		serverProtocols.SetUnencryptedHTTP2(true)
-		srv.Config.Protocols = serverProtocols
-		srv.Start()
-		DeferCleanup(srv.Close)
-		clientProtocols := new(http.Protocols)
-		clientProtocols.SetUnencryptedHTTP2(true)
-		transport := &http.Transport{Protocols: clientProtocols}
-		client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
-		DeferCleanup(transport.CloseIdleConnections)
-		reader, writer := io.Pipe()
-		DeferCleanup(writer.Close)
-		req, err := http.NewRequest(http.MethodPost, srv.URL+"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", reader)
-		Expect(err).NotTo(HaveOccurred())
-		req.Header.Set("Content-Type", "application/grpc")
-		done := make(chan struct{})
-		go func() {
-			resp, _ := client.Do(req)
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
-			close(done)
-		}()
-		_, err = writer.Write([]byte{0})
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(func() int { return len(api.admission.streams) }).Should(Equal(1))
-		Eventually(done, 2*time.Second).Should(BeClosed())
-		Eventually(func() int { return len(api.admission.streams) }).Should(BeZero())
-	})
-
-	It("bounds writes when terminating decoded unary RPCs", func() {
-		ctx, cancel := context.WithCancelCause(context.Background())
-		writer := &deadlineResponseWriter{header: http.Header{}}
-		lifecycle := &rpcLifecycle{
-			cancel:       cancel,
-			writeTimeout: time.Second,
-			controller:   http.NewResponseController(writer),
-		}
-		lifecycle.decoded.Store(true)
-
-		started := time.Now()
-		lifecycle.terminate(context.DeadlineExceeded)
-		Expect(writer.readDeadline).To(BeZero())
-		Expect(writer.writeDeadline).To(BeTemporally(">", started))
-		Expect(context.Cause(ctx)).To(MatchError(context.DeadlineExceeded))
-	})
-
-	It("releases stream capacity after lifetime expiration", func() {
-		api := newTestAPI(Options{StreamConcurrency: 1, StreamLifetime: 10 * time.Millisecond})
-		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
-			<-ctx.Done()
-			return context.Cause(ctx)
-		})
-
-		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
-		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
-	})
-
-	It("releases stream capacity after cancellation", func() {
-		api := newTestAPI(Options{StreamConcurrency: 1})
-		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
-			<-ctx.Done()
-			return context.Cause(ctx)
-		})
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		Expect(connect.CodeOf(wrapped(ctx, fakeStreamingConn{}))).To(Equal(connect.CodeCanceled))
-	})
-
-	It("releases stream capacity after idle expiration", func() {
-		api := newTestAPI(Options{StreamConcurrency: 1, StreamIdleTimeout: 10 * time.Millisecond, StreamLifetime: time.Second})
-		wrapped := api.admission.WrapStreamingHandler(func(ctx context.Context, _ connect.StreamingHandlerConn) error {
-			<-ctx.Done()
-			return context.Cause(ctx)
-		})
-
-		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
-		Expect(connect.CodeOf(wrapped(context.Background(), fakeStreamingConn{}))).To(Equal(connect.CodeDeadlineExceeded))
-	})
-
-	It("normalizes handler and lifecycle errors", func() {
-		ctx := context.Background()
-		Expect(normalizeContextError(ctx, nil)).To(Succeed())
-		specific := connect.NewError(connect.CodeInvalidArgument, context.Canceled)
-		Expect(normalizeContextError(ctx, specific)).To(BeIdenticalTo(specific))
-		Expect(connect.CodeOf(normalizeContextError(ctx, context.DeadlineExceeded))).To(Equal(connect.CodeDeadlineExceeded))
-		Expect(connect.CodeOf(normalizeContextError(ctx, context.Canceled))).To(Equal(connect.CodeCanceled))
-
-		generic := errors.New("failed")
-		Expect(normalizeContextError(ctx, generic)).To(BeIdenticalTo(generic))
-		expired, cancel := context.WithCancelCause(ctx)
-		cancel(context.DeadlineExceeded)
-		Expect(normalizeContextError(expired, nil)).To(Succeed())
-		Expect(normalizeContextError(expired, specific)).To(BeIdenticalTo(specific))
-		Expect(connect.CodeOf(normalizeContextError(expired, generic))).To(Equal(connect.CodeDeadlineExceeded))
-	})
-
-	It("panics on missing internal request state", func() {
-		admission := &admissionInterceptor{procedures: map[string]procedureDescriptor{}}
-		Expect(func() { admission.descriptor("/missing") }).To(PanicWith("missing Connect procedure descriptor for /missing"))
-		Expect(func() { unaryRequestStateFromContext(context.Background()) }).To(PanicWith("missing Connect unary request state"))
-	})
-})
+}
