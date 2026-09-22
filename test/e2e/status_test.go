@@ -16,12 +16,12 @@ package e2e
 import (
 	"context"
 	"strings"
+	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/version"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
@@ -31,120 +31,148 @@ import (
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 )
 
-var _ = Describe("StatusService", func() {
-	DescribeTable("GetStatus succeeds over supported transports",
-		func(routePrefix string, nativeGRPC bool, opts []connect.ClientOption) {
-			inst := startInstance(routePrefix)
-			httpClient := connect.HTTPClient(inst.httpClient)
-			basePath := inst.apiPath()
-			if nativeGRPC {
-				httpClient = inst.h2cClient
-				basePath = ""
+func TestStatusService(t *testing.T) {
+	t.Run("GetStatus succeeds over supported transports", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			routePrefix string
+			nativeGRPC  bool
+			opts        []connect.ClientOption
+		}{
+			{name: "Connect POST at the root prefix"},
+			{name: "Connect HTTP GET at the root prefix", opts: []connect.ClientOption{connect.WithHTTPGet()}},
+			{name: "gRPC-Web at the root prefix", opts: []connect.ClientOption{connect.WithGRPCWeb()}},
+			{name: "native gRPC at the server root", nativeGRPC: true, opts: []connect.ClientOption{connect.WithGRPC()}},
+			{name: "Connect POST under a route prefix", routePrefix: "/alertmanager"},
+			{name: "Connect HTTP GET under a route prefix", routePrefix: "/alertmanager", opts: []connect.ClientOption{connect.WithHTTPGet()}},
+			{name: "gRPC-Web under a route prefix", routePrefix: "/alertmanager", opts: []connect.ClientOption{connect.WithGRPCWeb()}},
+			{name: "native gRPC with a route prefix configured", routePrefix: "/alertmanager", nativeGRPC: true, opts: []connect.ClientOption{connect.WithGRPC()}},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				inst := startInstance(t, tc.routePrefix)
+				httpClient := connect.HTTPClient(inst.httpClient)
+				basePath := inst.apiPath()
+				if tc.nativeGRPC {
+					httpClient = inst.h2cClient
+					basePath = ""
+				}
+				client := inst.statusClient(httpClient, basePath, tc.opts...)
+				ctx, cancel := context.WithTimeout(t.Context(), requestTimeout)
+				defer cancel()
+
+				resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+				require.NoError(t, err)
+
+				status := resp.Msg.GetStatus()
+				require.Equal(t, version.Version, status.GetVersionInfo().GetVersion())
+				require.NotEmpty(t, status.GetConfig().GetOriginal())
+				require.False(t, status.GetStartTime().AsTime().IsZero())
+				require.Equal(t, statusv3alpha.ClusterStatus_STATE_DISABLED, status.GetCluster().GetState())
+			})
+		}
+	})
+
+	t.Run("rejects transports outside their configured prefix", func(t *testing.T) {
+		// A basePath of "api" is resolved to the instance's prefixed API path.
+		tests := []struct {
+			name        string
+			routePrefix string
+			basePath    string
+			nativeGRPC  bool
+			opts        []connect.ClientOption
+		}{
+			{name: "Connect HTTP GET at the server root", opts: []connect.ClientOption{connect.WithHTTPGet()}},
+			{name: "gRPC-Web at the server root", opts: []connect.ClientOption{connect.WithGRPCWeb()}},
+			{name: "native gRPC under /api", basePath: "api", nativeGRPC: true, opts: []connect.ClientOption{connect.WithGRPC()}},
+			{name: "Connect HTTP GET outside a route prefix", routePrefix: "/alertmanager", basePath: "/api", opts: []connect.ClientOption{connect.WithHTTPGet()}},
+			{name: "gRPC-Web outside a route prefix", routePrefix: "/alertmanager", basePath: "/api", opts: []connect.ClientOption{connect.WithGRPCWeb()}},
+			{name: "native gRPC under a prefixed /api", routePrefix: "/alertmanager", basePath: "api", nativeGRPC: true, opts: []connect.ClientOption{connect.WithGRPC()}},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				inst := startInstance(t, tc.routePrefix)
+				httpClient := connect.HTTPClient(inst.httpClient)
+				basePath := tc.basePath
+				if basePath == "api" {
+					basePath = inst.apiPath()
+				}
+				if tc.nativeGRPC {
+					httpClient = inst.h2cClient
+				}
+				client := inst.statusClient(httpClient, basePath, tc.opts...)
+				ctx, cancel := context.WithTimeout(t.Context(), requestTimeout)
+				defer cancel()
+
+				_, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
+				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("exposes native health and reflection at the server root", func(t *testing.T) {
+		for _, routePrefix := range []string{"", "/alertmanager"} {
+			name := "without a route prefix"
+			if routePrefix != "" {
+				name = "with a route prefix"
 			}
-			client := inst.statusClient(httpClient, basePath, opts...)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+			t.Run(name, func(t *testing.T) {
+				inst := startInstance(t, routePrefix)
+				ctx, cancel := context.WithTimeout(t.Context(), requestTimeout)
+				defer cancel()
 
-			resp, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-			Expect(err).NotTo(HaveOccurred())
+				conn, err := grpc.NewClient(strings.TrimPrefix(inst.baseURL, "http://"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = conn.Close() })
 
-			status := resp.Msg.GetStatus()
-			Expect(status.GetVersionInfo().GetVersion()).To(Equal(version.Version))
-			Expect(status.GetConfig().GetOriginal()).NotTo(BeEmpty())
-			Expect(status.GetStartTime().AsTime()).NotTo(BeZero())
-			Expect(status.GetCluster().GetState()).To(Equal(statusv3alpha.ClusterStatus_STATE_DISABLED))
-		},
-		Entry("Connect POST at the root prefix", "", false, []connect.ClientOption{}),
-		Entry("Connect HTTP GET at the root prefix", "", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web at the root prefix", "", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC at the server root", "", true, []connect.ClientOption{connect.WithGRPC()}),
-		Entry("Connect POST under a route prefix", "/alertmanager", false, []connect.ClientOption{}),
-		Entry("Connect HTTP GET under a route prefix", "/alertmanager", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web under a route prefix", "/alertmanager", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC with a route prefix configured", "/alertmanager", true, []connect.ClientOption{connect.WithGRPC()}),
-	)
+				health, err := healthv1.NewHealthClient(conn).Check(ctx, &healthv1.HealthCheckRequest{})
+				require.NoError(t, err)
+				require.Equal(t, healthv1.HealthCheckResponse_SERVING, health.GetStatus())
 
-	DescribeTable("rejects transports outside their configured prefix",
-		func(routePrefix, basePath string, nativeGRPC bool, opts []connect.ClientOption) {
-			inst := startInstance(routePrefix)
-			httpClient := connect.HTTPClient(inst.httpClient)
-			if basePath == "api" {
-				basePath = inst.apiPath()
-			}
-			if nativeGRPC {
-				httpClient = inst.h2cClient
-			}
-			client := inst.statusClient(httpClient, basePath, opts...)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+				stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(ctx)
+				require.NoError(t, err)
+				require.NoError(t, stream.Send(&reflectionv1.ServerReflectionRequest{
+					MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
+				}))
+				response, err := stream.Recv()
+				require.NoError(t, err)
 
-			_, err := client.GetStatus(ctx, connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
-			Expect(err).To(HaveOccurred())
-		},
-		Entry("Connect HTTP GET at the server root", "", "", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web at the server root", "", "", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC under /api", "", "api", true, []connect.ClientOption{connect.WithGRPC()}),
-		Entry("Connect HTTP GET outside a route prefix", "/alertmanager", "/api", false, []connect.ClientOption{connect.WithHTTPGet()}),
-		Entry("gRPC-Web outside a route prefix", "/alertmanager", "/api", false, []connect.ClientOption{connect.WithGRPCWeb()}),
-		Entry("native gRPC under a prefixed /api", "/alertmanager", "api", true, []connect.ClientOption{connect.WithGRPC()}),
-	)
+				services := response.GetListServicesResponse().GetService()
+				names := make([]string, 0, len(services))
+				for _, service := range services {
+					names = append(names, service.GetName())
+				}
+				require.Contains(t, names, statusv3alphaconnect.StatusServiceName)
+			})
+		}
+	})
 
-	DescribeTable("exposes native health and reflection at the server root",
-		func(routePrefix string) {
-			inst := startInstance(routePrefix)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			conn, err := grpc.NewClient(strings.TrimPrefix(inst.baseURL, "http://"), grpc.WithTransportCredentials(insecure.NewCredentials()))
-			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(conn.Close)
-
-			health, err := healthv1.NewHealthClient(conn).Check(ctx, &healthv1.HealthCheckRequest{})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(health.GetStatus()).To(Equal(healthv1.HealthCheckResponse_SERVING))
-
-			stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(stream.Send(&reflectionv1.ServerReflectionRequest{
-				MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
-			})).To(Succeed())
-			response, err := stream.Recv()
-			Expect(err).NotTo(HaveOccurred())
-
-			services := response.GetListServicesResponse().GetService()
-			names := make([]string, 0, len(services))
-			for _, service := range services {
-				names = append(names, service.GetName())
-			}
-			Expect(names).To(ContainElement(statusv3alphaconnect.StatusServiceName))
-		},
-		Entry("without a route prefix", ""),
-		Entry("with a route prefix", "/alertmanager"),
-	)
-
-	It("cancels active streams during shutdown", func() {
-		inst := startInstance("")
+	t.Run("cancels active streams during shutdown", func(t *testing.T) {
+		inst := startInstance(t, "")
 		conn, err := grpc.NewClient(inst.app.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(conn.Close)
-		stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(context.Background())
-		Expect(err).NotTo(HaveOccurred())
-		Expect(stream.Send(&reflectionv1.ServerReflectionRequest{
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = conn.Close() })
+		stream, err := reflectionv1.NewServerReflectionClient(conn).ServerReflectionInfo(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(&reflectionv1.ServerReflectionRequest{
 			MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
-		})).To(Succeed())
+		}))
 		_, err = stream.Recv()
-		Expect(err).NotTo(HaveOccurred())
+		require.NoError(t, err)
 
 		stopDone := make(chan error, 1)
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			stopDone <- inst.app.Stop(ctx)
 		}()
-		var stopErr error
-		Eventually(stopDone, 2*time.Second).Should(Receive(&stopErr))
-		Expect(stopErr).NotTo(HaveOccurred())
+		select {
+		case stopErr := <-stopDone:
+			require.NoError(t, stopErr)
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the instance to stop")
+		}
 		_, err = stream.Recv()
-		Expect(err).To(HaveOccurred())
+		require.Error(t, err)
 	})
-})
+}

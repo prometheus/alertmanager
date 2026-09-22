@@ -15,23 +15,32 @@ package e2e
 
 import (
 	"net/http"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 )
 
-var _ = Describe("API routing", func() {
-	DescribeTable("serves v1 and v2 alongside the Connect API",
-		func(routePrefix, path string, expectedStatus int) {
-			inst := startInstance(routePrefix)
-			resp, err := inst.httpClient.Get(inst.webURL(path))
-			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(resp.Body.Close)
-			Expect(resp.StatusCode).To(Equal(expectedStatus))
-		},
-		Entry("v2 at the root", "", "/api/v2/status", http.StatusOK),
-		Entry("v1 at the root", "", "/api/v1/status", http.StatusGone),
-		Entry("v2 under a route prefix", "/alertmanager", "/api/v2/status", http.StatusOK),
-		Entry("v1 under a route prefix", "/alertmanager", "/api/v1/status", http.StatusGone),
-	)
-})
+// TestAPIRouting verifies that API v1 and v2 keep being served alongside the
+// Connect API, both at the root and under a route prefix.
+func TestAPIRouting(t *testing.T) {
+	tests := []struct {
+		name        string
+		routePrefix string
+		path        string
+		wantStatus  int
+	}{
+		{name: "v2 at the root", routePrefix: "", path: "/api/v2/status", wantStatus: http.StatusOK},
+		{name: "v1 at the root", routePrefix: "", path: "/api/v1/status", wantStatus: http.StatusGone},
+		{name: "v2 under a route prefix", routePrefix: "/alertmanager", path: "/api/v2/status", wantStatus: http.StatusOK},
+		{name: "v1 under a route prefix", routePrefix: "/alertmanager", path: "/api/v1/status", wantStatus: http.StatusGone},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			inst := startInstance(t, tc.routePrefix)
+			resp, err := inst.httpClient.Get(inst.webURL(tc.path))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = resp.Body.Close() })
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+		})
+	}
+}
