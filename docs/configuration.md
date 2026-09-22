@@ -1375,11 +1375,13 @@ fields:
   [ <string>: <jira_field> ... ]
 
 
-# The HTTP client's configuration, see <http_config> above.
-# Personal access tokens (PAT) are supported via basic_auth (Jira Cloud: email
-# address as the username, PAT as the password) or the 'authorization' field
-# (Jira Data Center: 'credentials: <PAT value>'). OAuth2 is also supported for
-# system-to-system authentication; see the example below.
+# The HTTP client's configuration. Personal access tokens (PAT) are supported
+# via basic_auth (Jira Cloud: email address as the username, PAT as the
+# password) or the 'authorization' field (Jira Data Center: 'credentials:
+# <PAT value>'). OAuth2 client_credentials against an external identity
+# provider is also supported via the standard http_config above; Jira's own
+# OAuth2 requires interactive browser consent and cannot be used for
+# Alertmanager's automated notifications.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
@@ -1389,18 +1391,6 @@ The `labels` field is a list of labels added to the issue. Template expressions 
 labels:
   - 'alertmanager'
   - '{{ .CommonLabels.severity }}'
-```
-
-`http_config` also accepts an `oauth2` block for system-to-system authentication,
-as an alternative to a personal access token. For example:
-
-```yaml
-http_config:
-  oauth2:
-    client_id: alertmanager-jira
-    client_secret_file: /etc/alertmanager/secrets/jira_client_secret
-    token_url: https://auth.example.com/oauth2/token
-    scopes: [ jira-work-management ]
 ```
 
 #### `<jira_field>`
