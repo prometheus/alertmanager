@@ -22,8 +22,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
+	"golang.org/x/net/html"
 	"gopkg.in/telebot.v3"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -31,8 +33,13 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
-const maxMessageLenRunes = 4096
+const (
+	// Telegram rejects formatted input over 1 << 15 bytes before entity parsing.
+	maxMessageLenBytes = 1 << 15
+	// Telegram supports up to 4096 characters after entity parsing.
+	// See https://core.telegram.org/bots/api#sendmessage.
+	maxMessageLenRunes = 4096
+)
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
@@ -68,10 +75,10 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -90,16 +97,16 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
 		messageText = tmpl(n.conf.Message)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
-		if len([]rune(messageText)) > maxMessageLenRunes {
+		if len(messageText) > maxMessageLenBytes || htmlTextRuneCount(messageText) > maxMessageLenRunes {
 			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
 			Please check the template used for producing the message content.`
 		}
 	default:
 		messageText, truncated = notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		if truncated {
 			logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
@@ -108,12 +115,12 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	n.client.Token, err = n.getBotToken()
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	chatID, err := n.getChatID()
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
@@ -126,25 +133,120 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
 			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
 		}
-		return true, wrapWithFailureReason(notify.RedactURL(err))
+		err = notify.RedactURL(err)
+		return notify.Retry(0, err, failureReason(err))
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
-	return false, nil
+	return notify.Success()
 }
 
-// wrapWithFailureReason classifies errors returned by the Telegram Bot API so
-// that the failed notifications metric is labeled with the failure reason.
-// Errors that telebot does not surface in a structured form are returned as-is
-// and fall back to the default reason.
-func wrapWithFailureReason(err error) error {
+// failureReason classifies errors returned by the Telegram Bot API so that the
+// failed notifications metric is labeled with the failure reason. Errors that
+// telebot does not surface in a structured form fall back to the default reason.
+func failureReason(err error) notify.Reason {
 	if _, ok := errors.AsType[telebot.FloodError](err); ok {
-		return notify.NewErrorWithReason(notify.RateLimitedReason, err)
+		return notify.RateLimitedReason
 	}
 	if apiErr, ok := errors.AsType[*telebot.Error](err); ok {
-		return notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(apiErr.Code), err)
+		return notify.GetFailureReasonFromStatusCode(apiErr.Code)
 	}
-	return err
+	return notify.DefaultReason
+}
+
+// htmlTextRuneCount excludes HTML markup and attribute values such as link targets.
+func htmlTextRuneCount(message string) int {
+	tokenizer := html.NewTokenizer(strings.NewReader(message))
+	count := 0
+
+	for {
+		switch tokenizer.Next() {
+		case html.ErrorToken:
+			if len(tokenizer.Raw()) > 0 {
+				return utf8.RuneCountInString(message)
+			}
+			return count
+		case html.CommentToken, html.DoctypeToken:
+			return utf8.RuneCountInString(message)
+		case html.TextToken:
+			// tokenizer.Text applies HTML5 entity decoding, while Telegram
+			// supports a smaller set. Use raw text so unsupported entities
+			// remain literal.
+			count += telegramHTMLTextRuneCount(tokenizer.Raw())
+		}
+	}
+}
+
+// telegramHTMLTextRuneCount counts visible runes in a raw HTML text token.
+// Telegram-supported entities count as one rune; other input remains literal.
+func telegramHTMLTextRuneCount(text []byte) int {
+	count := 0
+	for len(text) > 0 {
+		if text[0] == '&' {
+			if entityLen := telegramHTMLEntityLen(text); entityLen > 0 {
+				count++
+				text = text[entityLen:]
+				continue
+			}
+		}
+
+		_, size := utf8.DecodeRune(text)
+		count++
+		text = text[size:]
+	}
+	return count
+}
+
+// telegramHTMLEntityLen returns the byte length of an entity Telegram would
+// decode at the start of text, or zero if Telegram would render it literally.
+// Telegram accepts four named entities and valid decimal or hexadecimal numeric
+// entities, with or without a trailing semicolon.
+// This mirrors TDLib's decode_html_entity implementation:
+// https://github.com/tdlib/td/blob/d1085f9cebc5a62379991ae1652673954f229c1f/td/telegram/MessageEntity.cpp#L3240-L3286
+func telegramHTMLEntityLen(text []byte) int {
+	if len(text) < 2 || text[0] != '&' {
+		return 0
+	}
+
+	end := 1
+	if text[end] != '#' {
+		for end < len(text) && (text[end] >= 'a' && text[end] <= 'z' || text[end] >= 'A' && text[end] <= 'Z') {
+			end++
+		}
+		switch string(text[1:end]) {
+		case "lt", "gt", "amp", "quot":
+			if end < len(text) && text[end] == ';' {
+				end++
+			}
+			return end
+		default:
+			return 0
+		}
+	}
+
+	end++
+	base := 10
+	if end < len(text) && text[end] == 'x' {
+		base = 16
+		end++
+	}
+	digitsStart := end
+	for end < len(text) {
+		c := text[end]
+		if c >= '0' && c <= '9' || base == 16 && (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			end++
+			continue
+		}
+		break
+	}
+	code, err := strconv.ParseUint(string(text[digitsStart:end]), base, 32)
+	if err != nil || code == 0 || code >= utf8.MaxRune || end >= 10 {
+		return 0
+	}
+	if end < len(text) && text[end] == ';' {
+		end++
+	}
+	return end
 }
 
 func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {

@@ -22,13 +22,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -39,7 +37,7 @@ import (
 const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -56,11 +54,11 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	var err error
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
@@ -97,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		fields := make([]config.SlackField, numFields)
+		fields := make([]SlackField, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -108,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.SlackField{
+			fields[index] = SlackField{
 				Title: tmplText(field.Title),
 				Value: tmplText(field.Value),
 				Short: &short,
@@ -119,9 +117,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		actions := make([]config.SlackAction, numActions)
+		actions := make([]SlackAction, numActions)
 		for index, action := range n.conf.Actions {
-			slackAction := config.SlackAction{
+			slackAction := SlackAction{
 				Type:  tmplText(action.Type),
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
@@ -131,7 +129,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &config.SlackConfirmationField{
+				slackAction.ConfirmField = &SlackConfirmationField{
 					Title:       tmplText(action.ConfirmField.Title),
 					Text:        tmplText(action.ConfirmField.Text),
 					OkText:      tmplText(action.ConfirmField.OkText),
@@ -150,7 +148,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.APIURLFile)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		u = strings.TrimSpace(string(content))
 	}
@@ -194,15 +192,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
+	received := time.Now()
 	if err != nil {
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 		}
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
@@ -210,25 +209,27 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := parseRetryAfter(resp.Header.Get("Retry-After")); d > 0 {
-				n.logger.Warn("Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
-				select {
-				case <-time.After(d):
-				case <-ctx.Done():
-				}
-			}
-		}
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if retry {
+			retryAfter := notify.ParseRetryAfter(resp.Header, received)
+			if retryAfter > 0 {
+				n.logger.Warn("Rate limited by Slack, delaying retry", "retry_after_secs", retryAfter.Seconds())
+			}
+			return notify.Retry(retryAfter, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
 
 	retry, err = n.slackResponseHandler(resp, store)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		if retry {
+			return notify.Retry(0, err, notify.ClientErrorReason)
+		}
+		return notify.Unrecoverable(err, notify.ClientErrorReason)
 	}
-	return retry, nil
+	return notify.Success()
 }
 
 // slackResponseHandler parses the response body of the request, handles retryable errors
@@ -255,20 +256,6 @@ func (n *Notifier) slackResponseHandler(resp *http.Response, store *nflog.Store)
 		n.logger.Debug("stored threadTs and channelId", "threadTs", data.Timestamp, "channelId", data.Channel)
 	}
 	return false, nil
-}
-
-// parseRetryAfter parses the Retry-After header value as integer seconds
-// and returns the corresponding duration. Returns 0 if the value is empty,
-// not a valid integer, or non-positive.
-func parseRetryAfter(val string) time.Duration {
-	if val == "" {
-		return 0
-	}
-	seconds, err := strconv.Atoi(val)
-	if err != nil || seconds <= 0 {
-		return 0
-	}
-	return time.Duration(seconds) * time.Second
 }
 
 // checkTextResponseError classifies plaintext responses from Slack.

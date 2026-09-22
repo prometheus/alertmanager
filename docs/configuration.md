@@ -194,8 +194,13 @@ Routing-related settings allow configuring how alerts are routed, aggregated, th
 
 ### `<route>`
 
-A route block defines a node in a routing tree and its children. Its optional
-configuration parameters are inherited from its parent node if not set.
+A route block defines a node in a routing tree and its children. Most
+optional configuration parameters (`receiver`, `group_by`, `group_wait`,
+`group_interval`, `repeat_interval`) are inherited from its parent node if
+not set. `labels` are merged from parent to child rather than replaced (see
+below). `mute_time_intervals` and `active_time_intervals` are not inherited
+at all: a route that omits them simply has none, regardless of what the
+parent specifies (see below).
 
 Every alert enters the routing tree at the configured top-level route, which
 must match all alerts (i.e. not have any configured matchers).
@@ -334,6 +339,9 @@ labels:
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
 # if the `continue` option is not set.)
+#
+# mute_time_intervals is not inherited from the parent route. If omitted,
+# the route has no mute time intervals, even if the parent specifies some.
 mute_time_intervals:
   [ - <string> ...]
 
@@ -344,6 +352,10 @@ mute_time_intervals:
 # The route will send notifications only when active, but otherwise
 # acts normally (including ending the route-matching process
 # if the `continue` option is not set).
+#
+# active_time_intervals is not inherited from the parent route either. If
+# omitted, the route has no active time intervals restricting it, even if
+# the parent specifies some.
 active_time_intervals:
   [ - <string> ...]
 
@@ -452,6 +464,8 @@ times:
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
 `['monday:wednesday','saturday', 'sunday']`
+The range may also wrap around the end of the week, e.g. `friday:monday` covers Friday, Saturday,
+Sunday, and Monday.
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
@@ -1313,7 +1327,7 @@ The default `jira.default.description` template only works with V2.
 [ api_type: <string> | default = auto ]
 
 # The project key where issues are created.
-project: <string>
+project: <tmpl_string>
 
 # Issue summary configuration.
 [ summary:
@@ -1341,7 +1355,7 @@ labels:
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
 
 # Type of the issue (e.g. Bug).
-[ issue_type: <string> ]
+[ issue_type: <tmpl_string> ]
 
 # Name of the workflow transition to resolve an issue. The target status must have the category "done".
 # NOTE: The name of the transition can be localized and depends on the language setting of the service account.

@@ -87,6 +87,8 @@ func TestOptionsResolve(t *testing.T) {
 	effective := (Options{
 		Concurrency:                3,
 		Timeout:                    time.Minute,
+		ConnectStreamIdleTimeout:   -time.Second,
+		ConnectStreamLifetime:      -time.Second,
 		ConnectReadMaxBytes:        -1,
 		ConnectSendMaxBytes:        -1,
 		ConnectMaxRequestBodyBytes: -1,
@@ -96,6 +98,8 @@ func TestOptionsResolve(t *testing.T) {
 	require.Equal(t, 3, effective.connect.UnaryConcurrency)
 	require.Equal(t, 3, effective.connect.StreamConcurrency)
 	require.Equal(t, time.Minute, effective.connect.UnaryTimeout)
+	require.Zero(t, effective.connect.StreamIdleTimeout)
+	require.Zero(t, effective.connect.StreamLifetime)
 	require.Zero(t, effective.connect.ReadMaxBytes)
 	require.Zero(t, effective.connect.SendMaxBytes)
 	require.Zero(t, effective.connect.MaxRequestBodyBytes)

@@ -58,11 +58,62 @@ type Peer interface {
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
 
-// Notifier notifies about alerts under constraints of the given context. It
-// returns an error if unsuccessful and a flag whether the error is
-// recoverable. This information is useful for a retry logic.
+// NotifyVerdict is the outcome of a notification attempt.
+type NotifyVerdict struct {
+	retry      bool
+	retryAfter time.Duration
+	err        error
+	reason     Reason
+}
+
+// Retry returns the verdict for a notification that failed with err and is
+// worth another attempt. A zero retryAfter leaves it to the retry logic to
+// pick the delay before that attempt.
+func Retry(retryAfter time.Duration, err error, reason Reason) NotifyVerdict {
+	return NotifyVerdict{
+		retry:      true,
+		retryAfter: retryAfter,
+		err:        err,
+		reason:     reason,
+	}
+}
+
+// Unrecoverable returns the verdict for a notification that failed and can't
+// be retried.
+func Unrecoverable(err error, reason Reason) NotifyVerdict {
+	return NotifyVerdict{err: err, reason: reason}
+}
+
+// Success returns the verdict for a delivered notification.
+func Success() NotifyVerdict {
+	return NotifyVerdict{}
+}
+
+// Err returns the error of the failed attempt, nil if it succeeded.
+func (v NotifyVerdict) Err() error {
+	return v.err
+}
+
+// ShouldRetry reports whether another attempt is worthwhile.
+func (v NotifyVerdict) ShouldRetry() bool {
+	return v.retry
+}
+
+// Delay returns the minimum time to wait before the next attempt.
+func (v NotifyVerdict) Delay() time.Duration {
+	return v.retryAfter
+}
+
+// Reason returns the failure reason.
+func (v NotifyVerdict) Reason() Reason {
+	return v.reason
+}
+
+// Notifier notifies about alerts under constraints of the given context. The
+// returned verdict tells whether the notification succeeded and, if it did not,
+// whether the failure is recoverable.
 type Notifier interface {
-	Notify(context.Context, ...*alert.Alert) (bool, error)
+	Notify(context.Context, ...*alert.Alert) NotifyVerdict
 }
 
 // Integration wraps a notifier and its configuration to be uniquely identified
@@ -87,7 +138,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 }
 
 // Notify implements the Notifier interface.
-func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (recoverable bool, err error) {
+func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdict NotifyVerdict) {
 	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
 		trace.WithAttributes(attribute.String("alerting.notify.integration.name", i.name)),
 		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
@@ -95,16 +146,15 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (recov
 	)
 
 	defer func() {
-		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", recoverable))
-		if err != nil {
+		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
+		if err := verdict.Err(); err != nil {
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
 		}
 		span.End()
 	}()
 
-	recoverable, err = i.notifier.Notify(ctx, alerts...)
-	return recoverable, err
+	return i.notifier.Notify(ctx, alerts...)
 }
 
 // SendResolved implements the ResolvedSender interface.
@@ -179,7 +229,11 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, pb.ff)
+		if pb.ff.EnableMutedAlertsInNflog() {
+			rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
+			continue
+		}
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 
@@ -196,6 +250,7 @@ func createReceiverStage(
 	notificationLog NotificationLog,
 	metrics *Metrics,
 	recorder eventrecorder.Recorder,
+	ff featurecontrol.Flagger,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -204,13 +259,18 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		var s MultiStage
-		s = append(s, NewClusterWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics, recorder))
-		s = append(s, NewSetNotifiesStage(notificationLog, recv))
+		stages := []Stage{
+			NewClusterWaitStage(wait),
+			NewDedupStage(&integrations[i], notificationLog, recv),
+			NewRetryStage(integrations[i], name, metrics, recorder),
+			NewSetNotifiesStage(notificationLog, recv, ff),
+		}
 
-		fs = append(fs, s)
+		if ff.EnableMutedAlertsInNflog() {
+			fs = append(fs, MutedMultiStage(stages))
+			continue
+		}
+		fs = append(fs, MultiStage(stages))
 	}
 	return fs
 }
@@ -243,15 +303,38 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 	return s.Exec(ctx, l, alerts...)
 }
 
-// A MultiStage executes a series of stages sequentially.
+// A MultiStage executes a series of stages sequentially. It stops as soon as
+// no alerts are left in the pipeline.
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
 func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+	return execStages(ctx, l, ms, false, alerts...)
+}
+
+// A MutedMultiStage executes a series of stages sequentially, and keeps going
+// when a mute stage has removed every alert from the pipeline. A group whose
+// alerts are all muted is not the same as a group with nothing in it, and the
+// stages that record the group's state have to run either way.
+type MutedMultiStage []Stage
+
+// Exec implements the Stage interface.
+func (ms MutedMultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
+	return execStages(ctx, l, ms, true, alerts...)
+}
+
+// execStages runs the given stages in order. It stops early once no alerts are
+// left, unless continueWhenMuted is set and a mute stage has recorded the
+// alerts it removed.
+func execStages(ctx context.Context, l *slog.Logger, stages []Stage, continueWhenMuted bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var err error
-	for _, s := range ms {
+	for _, s := range stages {
 		if len(alerts) == 0 {
-			return ctx, nil, nil
+			// A group whose alerts were all muted still has to reach the
+			// stages that record its state.
+			if !continueWhenMuted || !hasMutedAlerts(ctx) {
+				return ctx, nil, nil
+			}
 		}
 
 		ctx, alerts, err = s.Exec(ctx, l, alerts...)
@@ -260,6 +343,13 @@ func (ms MultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.
 		}
 	}
 	return ctx, alerts, nil
+}
+
+// hasMutedAlerts reports whether a mute stage has removed any alert from the
+// pipeline for this group.
+func hasMutedAlerts(ctx context.Context) bool {
+	muted, ok := MutedAlerts(ctx)
+	return ok && len(muted) > 0
 }
 
 // FanoutStage executes its stages concurrently.

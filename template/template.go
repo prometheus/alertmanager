@@ -291,8 +291,24 @@ var DefaultFuncs = FuncMap{
 	"trimSpace": strings.TrimSpace,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
-	"join": func(sep string, s []string) string {
-		return strings.Join(s, sep)
+	"join": func(sep string, v any) (string, error) {
+		if s, ok := v.([]string); ok {
+			return strings.Join(s, sep), nil
+		}
+
+		value := reflect.ValueOf(v)
+		switch {
+		case !value.IsValid():
+			return "", nil
+		case value.Kind() == reflect.Slice, value.Kind() == reflect.Array:
+			parts := make([]string, 0, value.Len())
+			for _, elem := range value.Seq2() {
+				parts = append(parts, fmt.Sprint(elem.Interface()))
+			}
+			return strings.Join(parts, sep), nil
+		default:
+			return "", fmt.Errorf("join expects a slice or array, got %T", v)
+		}
 	},
 	"match": regexp.MatchString,
 	"safeHtml": func(text string) tmplhtml.HTML {

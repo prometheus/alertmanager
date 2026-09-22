@@ -68,6 +68,8 @@ func run() int {
 		connectUnaryConcurrency    = kingpin.Flag("api.connect.unary-concurrency", "[EXPERIMENTAL] Maximum number of Connect unary RPCs processed concurrently. If negative or zero, the limit uses --web.get-concurrency.").Default("0").Int()
 		connectStreamConcurrency   = kingpin.Flag("api.connect.stream-concurrency", "[EXPERIMENTAL] Maximum number of Connect streams processed concurrently. If negative or zero, the limit uses --web.get-concurrency.").Default("0").Int()
 		connectUnaryTimeout        = kingpin.Flag("api.connect.unary-timeout", "[EXPERIMENTAL] Timeout for Connect unary RPCs, including request reads. Zero uses --web.timeout. A negative value disables the Connect unary timeout.").Default("0").Duration()
+		connectStreamIdleTimeout   = kingpin.Flag("api.connect.stream-idle-timeout", "[EXPERIMENTAL] Maximum time between messages on a Connect stream. If zero or negative, no idle timeout is set.").Default("0").Duration()
+		connectStreamLifetime      = kingpin.Flag("api.connect.stream-lifetime", "[EXPERIMENTAL] Maximum lifetime of a Connect stream. If zero or negative, no lifetime limit is set.").Default("0").Duration()
 		connectReadMaxBytes        = kingpin.Flag("api.connect.read-max-bytes", "[EXPERIMENTAL] Maximum size of each incoming Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
 		connectSendMaxBytes        = kingpin.Flag("api.connect.send-max-bytes", "[EXPERIMENTAL] Maximum size of each outgoing Connect protobuf message. If zero or negative, no limit is set.").Default("0").Int()
 		connectMaxRequestBodyBytes = kingpin.Flag("api.connect.max-request-body-bytes", "[EXPERIMENTAL] Maximum wire size of a Connect unary request body. If zero or negative, no limit is set.").Default("0").Int64()
@@ -189,6 +191,8 @@ func run() int {
 		ConnectUnaryConcurrency:    *connectUnaryConcurrency,
 		ConnectStreamConcurrency:   *connectStreamConcurrency,
 		ConnectUnaryTimeout:        *connectUnaryTimeout,
+		ConnectStreamIdleTimeout:   *connectStreamIdleTimeout,
+		ConnectStreamLifetime:      *connectStreamLifetime,
 		ConnectReadMaxBytes:        *connectReadMaxBytes,
 		ConnectSendMaxBytes:        *connectSendMaxBytes,
 		ConnectMaxRequestBodyBytes: *connectMaxRequestBodyBytes,

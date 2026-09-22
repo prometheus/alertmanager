@@ -66,10 +66,10 @@ func New(c *PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...co
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
 	}
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
@@ -92,7 +92,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.TokenFile)
 		if err != nil {
-			return false, fmt.Errorf("read token_file: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("read token_file: %w", err), notify.DefaultReason)
 		}
 		token = string(content)
 	}
@@ -101,7 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.UserKeyFile)
 		if err != nil {
-			return false, fmt.Errorf("read user_key_file: %w", err)
+			return notify.Unrecoverable(fmt.Errorf("read user_key_file: %w", err), notify.DefaultReason)
 		}
 		userKey = string(content)
 	}
@@ -157,25 +157,29 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	u, err := url.Parse(n.apiURL)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	u.RawQuery = parameters.Encode()
 	// Don't log the URL as it contains secret data (see #1825).
 	logger.Debug("Sending message", "incident", key)
 	resp, err := notify.PostText(ctx, n.client, u.String(), nil)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return shouldRetry, err
+	return notify.Success()
 }

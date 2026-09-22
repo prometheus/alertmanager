@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -44,6 +45,7 @@ const (
 	keyFlushID
 	keyGroupMatchers
 	keyRouteLabels
+	keyMutedAlertDetails
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -197,6 +199,19 @@ func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Co
 // MutedAlerts extracts a set of muted alert hashes from the context.
 func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
 	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
+	return v, ok
+}
+
+func withMutedAlertDetails(ctx context.Context, alerts []*alert.Alert) context.Context {
+	existing, _ := mutedAlertDetails(ctx)
+	results := make([]*alert.Alert, 0, len(existing)+len(alerts))
+	results = append(results, existing...)
+	results = append(results, alerts...)
+	return context.WithValue(ctx, keyMutedAlertDetails, results)
+}
+
+func mutedAlertDetails(ctx context.Context) ([]*alert.Alert, bool) {
+	v, ok := ctx.Value(keyMutedAlertDetails).([]*alert.Alert)
 	return v, ok
 }
 

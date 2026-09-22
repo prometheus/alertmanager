@@ -384,6 +384,16 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "a,b,c",
 		},
 		{
+			title: "Template using join with list",
+			in:    `{{ list "a" "b" "c" | join "," }}`,
+			exp:   "a,b,c",
+		},
+		{
+			title: "Template using join with mixed types",
+			in:    `{{ list 1 true "x" | join "," }}`,
+			exp:   "1,true,x",
+		},
+		{
 			title: "Text template without HTML escaping",
 			in:    `{{ "<b>" }}`,
 			exp:   "<b>",
@@ -805,6 +815,19 @@ func TestTemplateFuncs(t *testing.T) {
 		in:    `{{ . | join "," }}`,
 		data:  []string{"abc", "def"},
 		exp:   "abc,def",
+	}, {
+		title: "Template using join with list",
+		in:    `{{ list "abc" "def" | join "," }}`,
+		exp:   "abc,def",
+	}, {
+		title:  "Template using join with unsupported type",
+		in:     `{{ "" | join ","}}`,
+		expErr: "template: :1:8: executing \"\" at <join \",\">: error calling join: join expects a slice or array, got string",
+	}, {
+		title: "Template using join with invalid value",
+		data:  nil,
+		in:    `{{ . | join ","}}`,
+		exp:   "",
 	}, {
 		title: "Template using match",
 		in:    `{{ match "[a-z]+" "abc" }}`,

@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
@@ -239,6 +241,30 @@ type Retrier struct {
 	RetryCodes []int
 }
 
+// ParseRetryAfter parses the Retry-After header value, which can be either
+// a delay in seconds (integer) or an HTTP-date. Returns zero if absent or unparseable.
+func ParseRetryAfter(h http.Header, received time.Time) time.Duration {
+	val := h.Get("Retry-After")
+	if val == "" {
+		return 0
+	}
+	// Try integer seconds first.
+	if secs, err := strconv.Atoi(val); err == nil {
+		// The grammar is 1*DIGIT, so a negative is malformed rather than a delay.
+		return max(0, time.Duration(secs)*time.Second)
+	}
+	// Try HTTP-date format.
+	if t, err := http.ParseTime(val); err == nil {
+		// The date is on the server's clock, so time.Until would apply our skew.
+		now := received
+		if serverNow, err := http.ParseTime(h.Get("Date")); err == nil {
+			now = serverNow
+		}
+		return max(0, t.Sub(now))
+	}
+	return 0
+}
+
 // Check returns a boolean indicating whether the request should be retried
 // and an optional error if the request has failed. If body is not nil, it will
 // be included in the error message.
@@ -262,23 +288,6 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		s = fmt.Sprintf("%s: %s", s, details)
 	}
 	return retry, errors.New(s)
-}
-
-type ErrorWithReason struct {
-	Err error
-
-	Reason Reason
-}
-
-func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
-	return &ErrorWithReason{
-		Err:    err,
-		Reason: reason,
-	}
-}
-
-func (e *ErrorWithReason) Error() string {
-	return e.Err.Error()
 }
 
 // Reason is the failure reason.

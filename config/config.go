@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/notify/discord"
+	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
@@ -42,9 +42,13 @@ import (
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
 	"github.com/prometheus/alertmanager/notify/rocketchat"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
+	"github.com/prometheus/alertmanager/notify/victorops"
+	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
+	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -426,7 +430,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc == nil {
-				sc = &SlackConfig{}
+				sc = &slack.SlackConfig{}
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
@@ -505,7 +509,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc == nil {
-				wcc = &WechatConfig{}
+				wcc = &wechat.WechatConfig{}
 			}
 			wcc.HTTPConfig = cmp.Or(wcc.HTTPConfig, c.Global.HTTPConfig)
 			wcc.APIURL = cmp.Or(wcc.APIURL, c.Global.WeChatAPIURL)
@@ -769,73 +773,6 @@ func DefaultGlobalConfig() GlobalConfig {
 	}
 }
 
-// HostPort represents a "host:port" network address.
-type HostPort struct {
-	Host string
-	Port string
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for HostPort.
-func (hp *HostPort) UnmarshalYAML(unmarshal func(any) error) error {
-	var (
-		s   string
-		err error
-	)
-	if err = unmarshal(&s); err != nil {
-		return err
-	}
-	if s == "" {
-		return nil
-	}
-	hp.Host, hp.Port, err = net.SplitHostPort(s)
-	if err != nil {
-		return err
-	}
-	if hp.Port == "" {
-		return fmt.Errorf("address %q: port cannot be empty", s)
-	}
-	return nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface for HostPort.
-func (hp *HostPort) UnmarshalJSON(data []byte) error {
-	var (
-		s   string
-		err error
-	)
-	if err = json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	if s == "" {
-		return nil
-	}
-	hp.Host, hp.Port, err = net.SplitHostPort(s)
-	if err != nil {
-		return err
-	}
-	if hp.Port == "" {
-		return fmt.Errorf("address %q: port cannot be empty", s)
-	}
-	return nil
-}
-
-// MarshalYAML implements the yaml.Marshaler interface for HostPort.
-func (hp HostPort) MarshalYAML() (any, error) {
-	return hp.String(), nil
-}
-
-// MarshalJSON implements the json.Marshaler interface for HostPort.
-func (hp HostPort) MarshalJSON() ([]byte, error) {
-	return json.Marshal(hp.String())
-}
-
-func (hp HostPort) String() string {
-	if hp.Host == "" && hp.Port == "" {
-		return ""
-	}
-	return net.JoinHostPort(hp.Host, hp.Port)
-}
-
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
@@ -848,7 +785,7 @@ type GlobalConfig struct {
 	JiraAPIURL               *amcommoncfg.URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
 	SMTPFrom                 string                 `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello                string                 `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost            HostPort               `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPSmarthost            amcommoncfg.HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername         string                 `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword         commoncfg.Secret       `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile     string                 `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
@@ -988,18 +925,18 @@ type Receiver struct {
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
 	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	EmailConfigs      []*email.EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	SlackConfigs      []*slack.SlackConfig           `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	WechatConfigs     []*wechat.WechatConfig         `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*pushover.PushoverConfig     `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	VictorOpsConfigs  []*victorops.VictorOpsConfig   `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs        []*sns.SNSConfig               `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	WebexConfigs      []*webex.WebexConfig           `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
