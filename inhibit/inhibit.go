@@ -116,13 +116,16 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
 	)
 	defer span.End()
 
-	// Update the inhibition rules' cache.
+	// Update the inhibition rules' source caches.
 	for _, r := range ih.rules {
-		if r.SourceMatchers.Matches(a.Labels) {
-			attr := attribute.String("alerting.inhibit_rule.name", r.Name)
-			span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
-			span.SetAttributes(attr)
-			r.cache.set(a)
+		for _, src := range r.Sources {
+			if src.SrcMatchers.Matches(a.Labels) {
+				attr := attribute.String("alerting.inhibit_rule.name", r.Name)
+				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
+				span.SetAttributes(attr)
+				src.cache.set(a)
+				break
+			}
 		}
 	}
 }
@@ -144,7 +147,9 @@ func (ih *Inhibitor) Run() {
 	runCtx, runCancel := context.WithCancel(ctx)
 
 	for _, rule := range ih.rules {
-		go rule.cache.run(runCtx, 15*time.Minute)
+		for _, src := range rule.Sources {
+			go src.cache.run(runCtx, 15*time.Minute)
+		}
 	}
 
 	g.Add(func() error {
@@ -203,21 +208,35 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				attribute.String("alerting.inhibit_rule.name", r.Name),
 			),
 		)
-		// If we are here, the target side matches. If the source side matches, too, we
-		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
-			inhibitedBy = append(inhibitedBy, inhibitedByFP.String())
+		// If we are here, the target side matches. Check all sources — all must have
+		// a matching equal alert for the inhibition to take effect.
+		var inhibitorFPs []model.Fingerprint
+		allSourcesMatch := true
+		for _, src := range r.Sources {
+			if inhibitedByFP, eq := src.hasEqual(lset, src.SrcMatchers.Matches(lset), now, r.TargetMatchers); eq {
+				inhibitorFPs = append(inhibitorFPs, inhibitedByFP)
+			} else {
+				allSourcesMatch = false
+				break
+			}
+		}
+		if allSourcesMatch {
+			inhibitorIDs := make([]string, len(inhibitorFPs))
+			for i, ifp := range inhibitorFPs {
+				inhibitorIDs[i] = ifp.String()
+			}
+			inhibitedBy = append(inhibitedBy, inhibitorIDs...)
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
-					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
+					attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitorIDs),
 				),
 			)
 
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				return eventrecorder.NewInhibitionMutedAlertEvent(
-					[]eventrecorder.InhibitRule{eventrecorder.NewInhibitRule(r.Name, r.SourceMatchers, r.TargetMatchers, r.Equal)},
+					[]eventrecorder.InhibitRule{eventrecorder.NewInhibitRule(r.Name, r.Sources[0].SrcMatchers, r.TargetMatchers, r.Equal)},
 					fp, lset,
-					[]model.Fingerprint{inhibitedByFP},
+					inhibitorFPs,
 				)
 			})
 			return true
@@ -228,6 +247,14 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 	return false
 }
 
+// Source represents a single source definition within an inhibition rule,
+// including its own matchers, equal labels, and cache.
+type Source struct {
+	SrcMatchers labels.Matchers
+	Equal       map[model.LabelName]struct{}
+	cache       *cache
+}
+
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts
@@ -236,47 +263,71 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 type InhibitRule struct {
 	// Name is an optional name for the inhibition rule.
 	Name string
-	// The set of Filters which define the group of source alerts (which inhibit
-	// the target alerts).
-	SourceMatchers labels.Matchers
+	// Sources define groups of source alerts (which inhibit the target alerts).
+	// All sources must match for the inhibition to take effect.
+	Sources []Source
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
-	// A set of label names whose label values need to be identical in source and
-	// target alerts in order for the inhibition to take effect.
+	// Equal is preserved for event recording and backward compatibility.
 	Equal map[model.LabelName]struct{}
-
-	// Cache of alerts matching source labels.
-	cache *cache
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	var (
-		sourcem labels.Matchers
+		sources []Source
 		targetm labels.Matchers
 	)
 
-	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatch {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
+	if len(cr.Sources) > 0 {
+		for _, sm := range cr.Sources {
+			var sourcesm labels.Matchers
+			sourcesm = append(sourcesm, sm.SrcMatchers...)
+			equal := map[model.LabelName]struct{}{}
+			for _, ln := range sm.Equal {
+				equal[model.LabelName(ln)] = struct{}{}
+			}
+			sources = append(sources, Source{
+				SrcMatchers: sourcesm,
+				Equal:       equal,
+				cache:       newCache(equal),
+			})
 		}
-		sourcem = append(sourcem, matcher)
-	}
-	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.SourceMatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
+	} else {
+		var sourcem labels.Matchers
+		// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatch {
+			matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
 		}
-		sourcem = append(sourcem, matcher)
+		// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
+		for ln, lv := range cr.SourceMatchRE {
+			matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+			if err != nil {
+				// This error must not happen because the config already validates the yaml.
+				panic(err)
+			}
+			sourcem = append(sourcem, matcher)
+		}
+		// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+		sourcem = append(sourcem, cr.SourceMatchers...)
+
+		equal := map[model.LabelName]struct{}{}
+		for _, ln := range cr.Equal {
+			equal[model.LabelName(ln)] = struct{}{}
+		}
+
+		sources = append(sources, Source{
+			SrcMatchers: sourcem,
+			Equal:       equal,
+			cache:       newCache(equal),
+		})
 	}
-	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
-	sourcem = append(sourcem, cr.SourceMatchers...)
 
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
@@ -306,10 +357,9 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 
 	return &InhibitRule{
 		Name:           cr.Name,
-		SourceMatchers: sourcem,
+		Sources:        sources,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		cache:          newCache(equal),
 	}
 }
 
@@ -317,8 +367,8 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 // labels for the given label set. If so, the fingerprint of one of those alerts
 // is returned. If excludeTwoSidedMatch is true, alerts that match both the
 // source and the target side of the rule are disregarded.
-func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time) (model.Fingerprint, bool) {
-	return r.cache.find(lset, now, func(a *alert.Alert) bool {
-		return !excludeTwoSidedMatch || !r.TargetMatchers.Matches(a.Labels)
+func (s *Source) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time, targetMatchers labels.Matchers) (model.Fingerprint, bool) {
+	return s.cache.find(lset, now, func(a *alert.Alert) bool {
+		return !excludeTwoSidedMatch || !targetMatchers.Matches(a.Labels)
 	})
 }
