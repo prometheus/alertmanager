@@ -169,7 +169,7 @@ func TestDiscordFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					Labels:   model.LabelSet{"lbl1": "val1"},
 					StartsAt: time.Now(),
@@ -177,7 +177,7 @@ func TestDiscordFailureReason(t *testing.T) {
 				},
 			}
 
-			verdict := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alrt)
 			require.Error(t, verdict.Err())
 			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})

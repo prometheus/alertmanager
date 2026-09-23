@@ -105,9 +105,9 @@ receivers:
 
 	for _, alertTime := range []float64{0, 2, 4, 6, 8} {
 		for i, amc := range amClusters {
-			alert := a.Alert("alertname", fmt.Sprintf("test1-%v", alertTime))
-			amc.Push(a.At(alertTime), alert)
-			collectors[i].Want(a.Between(alertTime, alertTime+5), alert.Active(alertTime))
+			alrt := a.Alert("alertname", fmt.Sprintf("test1-%v", alertTime))
+			amc.Push(a.At(alertTime), alrt)
+			collectors[i].Want(a.Between(alertTime, alertTime+5), alrt.Active(alertTime))
 		}
 	}
 

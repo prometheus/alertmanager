@@ -289,7 +289,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 		HTTPConfig:   &commoncfg.HTTPClientConfig{},
 	}
 	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
@@ -300,7 +300,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 		},
 	}
 	require.NoError(t, err)
-	requests, retry, err := notifierWithUpdate.createRequests(ctx, alert)
+	requests, retry, err := notifierWithUpdate.createRequests(ctx, alrt)
 	require.NoError(t, err)
 	require.True(t, retry)
 	require.Len(t, requests, 3)

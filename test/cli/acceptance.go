@@ -112,20 +112,20 @@ func (am *Alertmanager) AddAlertsAt(omitEquals bool, at float64, alerts ...*Test
 // without alertname=. All other tests that use AddAlerts as a fixture can set this
 // to false.
 func (am *Alertmanager) AddAlerts(omitEquals bool, alerts ...*TestAlert) {
-	for _, alert := range alerts {
-		out, err := am.addAlertCommand(omitEquals, alert)
+	for _, alrt := range alerts {
+		out, err := am.addAlertCommand(omitEquals, alrt)
 		if err != nil {
 			am.T.Errorf("Error adding alert: %v\nOutput: %s", err, string(out))
 		}
 	}
 }
 
-func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]byte, error) {
+func (am *Alertmanager) addAlertCommand(omitEquals bool, alrt *TestAlert) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "alert", "add"}
 	// Make a copy of the labels
-	labels := make(models.LabelSet, len(alert.Labels))
-	maps.Copy(labels, alert.Labels)
+	labels := make(models.LabelSet, len(alrt.Labels))
+	maps.Copy(labels, alrt.Labels)
 	if omitEquals {
 		// If alertname is present and omitEquals is true then the command should
 		// be `amtool alert add foo ...` and not `amtool alert add alertname=foo ...`.
@@ -137,10 +137,10 @@ func (am *Alertmanager) addAlertCommand(omitEquals bool, alert *TestAlert) ([]by
 	for k, v := range labels {
 		args = append(args, k+"="+v)
 	}
-	startsAt := strfmt.DateTime(am.Opts.ExpandTime(alert.StartsAt))
+	startsAt := strfmt.DateTime(am.Opts.ExpandTime(alrt.StartsAt))
 	args = append(args, "--start="+startsAt.String())
-	if alert.EndsAt > alert.StartsAt {
-		endsAt := strfmt.DateTime(am.Opts.ExpandTime(alert.EndsAt))
+	if alrt.EndsAt > alrt.StartsAt {
+		endsAt := strfmt.DateTime(am.Opts.ExpandTime(alrt.EndsAt))
 		args = append(args, "--end="+endsAt.String())
 	}
 	cmd := exec.Command(amtool, args...)
@@ -179,12 +179,12 @@ func parseAlertQueryResponse(data []byte) ([]TestAlert, error) {
 			return alerts, err
 		}
 		summary := strings.TrimSpace(line[summPos:])
-		alert := TestAlert{
+		alrt := TestAlert{
 			Labels:   models.LabelSet{"alertname": alertName},
 			StartsAt: float64(startsAt.Unix()),
 			Summary:  summary,
 		}
-		alerts = append(alerts, alert)
+		alerts = append(alerts, alrt)
 	}
 	return alerts, nil
 }

@@ -943,7 +943,7 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 
 			// The mute stage drops the alert before the dedup stage sees it, so
 			// it reaches the rest of the chain only as a hash in the context.
-			alert := &types.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "muted"}}}
+			alrt := &types.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "muted"}}}
 			stage := test.newStage([]Stage{
 				muteAllStage{},
 				NewDedupStage(&integration, tnflog, recv),
@@ -955,7 +955,7 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 			ctx = WithGroupKey(ctx, "testkey")
 			ctx = WithRepeatInterval(ctx, time.Hour)
 
-			_, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alert)
+			_, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alrt)
 			require.NoError(t, err)
 			require.Empty(t, res)
 			require.False(t, notified, "a fully muted group should not be delivered")
@@ -965,7 +965,7 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 			// same thing, so assert the call, not just its contents.
 			require.Equal(t, test.logged, logged, "notification log written")
 			if test.logged {
-				require.Equal(t, []uint64{hashAlert(alert)}, muted)
+				require.Equal(t, []uint64{hashAlert(alrt)}, muted)
 			}
 		})
 	}
@@ -1295,12 +1295,12 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 }
 
 func BenchmarkHashAlert(b *testing.B) {
-	alert := &alert.Alert{
+	alrt := &alert.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
 		},
 	}
 	for b.Loop() {
-		hashAlert(alert)
+		hashAlert(alrt)
 	}
 }

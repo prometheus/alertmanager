@@ -88,7 +88,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 		var cas models.PostableAlerts
 		for i := range alerts {
 			a := alerts[i].NativeAlert(am.Opts)
-			alert := &models.PostableAlert{
+			alrt := &models.PostableAlert{
 				Alert: models.Alert{
 					Labels:       a.Labels,
 					GeneratorURL: a.GeneratorURL,
@@ -96,12 +96,12 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 				Annotations: a.Annotations,
 			}
 			if a.StartsAt != nil {
-				alert.StartsAt = *a.StartsAt
+				alrt.StartsAt = *a.StartsAt
 			}
 			if a.EndsAt != nil {
-				alert.EndsAt = *a.EndsAt
+				alrt.EndsAt = *a.EndsAt
 			}
-			cas = append(cas, alert)
+			cas = append(cas, alrt)
 		}
 
 		params := alert.PostAlertsParams{}

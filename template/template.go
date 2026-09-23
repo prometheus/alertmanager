@@ -593,7 +593,7 @@ func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, no
 	// The call to types.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
 	for _, a := range typedAlerts {
-		alert := Alert{
+		alrt := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),
 			Annotations:  make(KV, len(a.Annotations)),
@@ -603,12 +603,12 @@ func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, no
 			Fingerprint:  a.Fingerprint().String(),
 		}
 		for k, v := range a.Labels {
-			alert.Labels[string(k)] = string(v)
+			alrt.Labels[string(k)] = string(v)
 		}
 		for k, v := range a.Annotations {
-			alert.Annotations[string(k)] = string(v)
+			alrt.Annotations[string(k)] = string(v)
 		}
-		data.Alerts = append(data.Alerts, alert)
+		data.Alerts = append(data.Alerts, alrt)
 	}
 
 	for k, v := range groupLabels {

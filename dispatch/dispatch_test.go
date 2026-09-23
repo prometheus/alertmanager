@@ -644,8 +644,8 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	// Push all alerts.
 	for i := range numAlerts {
-		alert := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
-		require.NoError(t, alerts.Put(context.Background(), alert))
+		alrt := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
+		require.NoError(t, alerts.Put(context.Background(), alrt))
 	}
 
 	// Wait until the alerts have been notified or the waiting timeout expires.
@@ -801,13 +801,13 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 		for i := range alertsPerRound {
 			go func() {
 				defer done.Done()
-				alert := newAlert(model.LabelSet{
+				alrt := newAlert(model.LabelSet{
 					"alertname": groupLabels["alertname"],
 					"instance":  model.LabelValue(fmt.Sprintf("inst-%d", i)),
 				})
 				ready.Done()
 				<-start
-				dispatcher.groupAlert(context.Background(), alert, route)
+				dispatcher.groupAlert(context.Background(), alrt, route)
 			}()
 		}
 		ready.Wait()
@@ -1182,7 +1182,7 @@ func TestDispatchOnStartup(t *testing.T) {
 }
 
 func TestGetGroupLabels(t *testing.T) {
-	alert := &alert.Alert{
+	alrt := &alert.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"alertname": "TestAlert",
@@ -1202,7 +1202,7 @@ func TestGetGroupLabels(t *testing.T) {
 				},
 			},
 		}
-		labels := getGroupLabels(alert, route)
+		labels := getGroupLabels(alrt, route)
 		require.Len(t, labels, 2)
 		require.Equal(t, model.LabelValue("TestAlert"), labels["alertname"])
 		require.Equal(t, model.LabelValue("prometheus"), labels["job"])
@@ -1214,9 +1214,9 @@ func TestGetGroupLabels(t *testing.T) {
 				GroupByAll: true,
 			},
 		}
-		labels := getGroupLabels(alert, route)
+		labels := getGroupLabels(alrt, route)
 		require.Len(t, labels, 4)
-		require.Equal(t, alert.Labels, labels)
+		require.Equal(t, alrt.Labels, labels)
 	})
 }
 
@@ -1224,7 +1224,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 	now := time.Now()
 
 	// Alert with many labels (typical production alert)
-	alert := &alert.Alert{
+	alrt := &alert.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"alertname":  "TestAlert",
@@ -1258,7 +1258,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			_ = getGroupLabels(alert, route)
+			_ = getGroupLabels(alrt, route)
 		}
 	})
 
@@ -1273,7 +1273,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			_ = getGroupLabels(alert, route)
+			_ = getGroupLabels(alrt, route)
 		}
 	})
 }

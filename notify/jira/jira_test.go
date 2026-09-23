@@ -1304,7 +1304,7 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
 						"alertname": "test",
@@ -1319,9 +1319,9 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 			ctx := context.Background()
 			groupID := "1"
 			ctx = notify.WithGroupKey(ctx, groupID)
-			ctx = notify.WithGroupLabels(ctx, alert.Labels)
+			ctx = notify.WithGroupLabels(ctx, alrt.Labels)
 
-			alerts := []*types.Alert{alert}
+			alerts := []*types.Alert{alrt}
 			logger := notifier.logger.With("group_key", groupID)
 			data := notify.GetTemplateData(ctx, notifier.tmpl, alerts, logger)
 

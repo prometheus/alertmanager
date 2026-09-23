@@ -150,7 +150,7 @@ func TestIncidentIONotify(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"alertname": "TestAlert",
@@ -161,7 +161,7 @@ func TestIncidentIONotify(t *testing.T) {
 		},
 	}
 
-	verdict := notifier.Notify(ctx, alert)
+	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
 	require.False(t, verdict.ShouldRetry())
 }
@@ -231,7 +231,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
 						"alertname": "TestAlert",
@@ -242,7 +242,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 				},
 			}
 
-			verdict := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alrt)
 			if tc.expectErrorMsgContains == "" {
 				require.NoError(t, verdict.Err())
 			} else {
@@ -327,7 +327,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	// Create alerts with large annotations
 	var alerts []*types.Alert
 	for i := range 10 { // 10 alerts * 100KB = 1MB total in annotations alone
-		alert := &types.Alert{
+		alrt := &types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
@@ -346,7 +346,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 				EndsAt:   time.Now().Add(time.Hour),
 			},
 		}
-		alerts = append(alerts, alert)
+		alerts = append(alerts, alrt)
 	}
 
 	// Create template data
@@ -413,14 +413,14 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 			labels[labelName] = model.LabelValue(labelValue)
 		}
 
-		alert := &types.Alert{
+		alrt := &types.Alert{
 			Alert: model.Alert{
 				Labels:   labels,
 				StartsAt: time.Now(),
 				EndsAt:   time.Now().Add(time.Hour),
 			},
 		}
-		alerts = append(alerts, alert)
+		alerts = append(alerts, alrt)
 	}
 
 	// Create template data
@@ -453,17 +453,17 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	require.LessOrEqual(t, len(decodedMsg.Alerts), 100, "Number of alerts may have been reduced")
 
 	// Check that essential labels are preserved in remaining alerts
-	for _, alert := range decodedMsg.Alerts {
+	for _, alrt := range decodedMsg.Alerts {
 		// Essential labels should be preserved
-		require.Contains(t, alert.Labels["alertname"], "TestAlert")
-		require.Equal(t, "critical", alert.Labels["severity"])
-		require.Equal(t, "test-job", alert.Labels["job"])
-		require.Equal(t, "test-instance", alert.Labels["instance"])
+		require.Contains(t, alrt.Labels["alertname"], "TestAlert")
+		require.Equal(t, "critical", alrt.Labels["severity"])
+		require.Equal(t, "test-job", alrt.Labels["job"])
+		require.Equal(t, "test-instance", alrt.Labels["instance"])
 
 		// Check if labels were truncated (will have truncated_labels marker) or if we still have all labels
-		if truncatedLabels, ok := alert.Labels["truncated_labels"]; ok && truncatedLabels == "true" {
+		if truncatedLabels, ok := alrt.Labels["truncated_labels"]; ok && truncatedLabels == "true" {
 			// Non-essential labels should be removed
-			for k := range alert.Labels {
+			for k := range alrt.Labels {
 				if k != "alertname" &&
 					k != "severity" &&
 					k != "job" &&
@@ -506,7 +506,7 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"alertname": "TestAlert"},
 			StartsAt: time.Now(),
@@ -514,7 +514,7 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 		},
 	}
 
-	verdict := notifier.Notify(ctx, alert)
+	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
 	require.False(t, verdict.ShouldRetry())
 
@@ -558,7 +558,7 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"alertname": "TestAlert"},
 			StartsAt: time.Now(),
@@ -566,7 +566,7 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 		},
 	}
 
-	verdict := notifier.Notify(ctx, alert)
+	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
 	require.False(t, verdict.ShouldRetry())
 
@@ -666,7 +666,7 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"alertname": "TestAlert"},
 			StartsAt: time.Now(),
@@ -674,7 +674,7 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 		},
 	}
 
-	verdict := notifier.Notify(ctx, alert)
+	verdict := notifier.Notify(ctx, alrt)
 	require.Error(t, verdict.Err())
 	require.Contains(t, verdict.Err().Error(), "failed to render metadata templates")
 	require.False(t, verdict.ShouldRetry(), "should not retry on template rendering errors")

@@ -37,8 +37,8 @@ func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
 
 func alertDetailsByHash(alerts []*alert.Alert) map[uint64]*alert.Alert {
 	result := make(map[uint64]*alert.Alert, len(alerts))
-	for _, alert := range alerts {
-		result[hashAlert(alert)] = alert
+	for _, alrt := range alerts {
+		result[hashAlert(alrt)] = alrt
 	}
 	return result
 }
@@ -46,8 +46,8 @@ func alertDetailsByHash(alerts []*alert.Alert) map[uint64]*alert.Alert {
 func alertDetailsForHashes(alerts map[uint64]*alert.Alert, hashes []uint64) []*alert.Alert {
 	result := make([]*alert.Alert, 0, len(hashes))
 	for _, hash := range hashes {
-		if alert, ok := alerts[hash]; ok {
-			result = append(result, alert)
+		if alrt, ok := alerts[hash]; ok {
+			result = append(result, alrt)
 		}
 	}
 	return result
@@ -55,16 +55,16 @@ func alertDetailsForHashes(alerts map[uint64]*alert.Alert, hashes []uint64) []*a
 
 func groupedAlertsWithDetails(alerts []*alert.Alert) []eventrecorder.GroupedAlert {
 	result := make([]eventrecorder.GroupedAlert, 0, len(alerts))
-	for _, alert := range alerts {
-		result = append(result, eventrecorder.NewGroupedAlert(alert))
+	for _, alrt := range alerts {
+		result = append(result, eventrecorder.NewGroupedAlert(alrt))
 	}
 	return result
 }
 
 func groupedAlertReferences(alerts []*alert.Alert) []eventrecorder.GroupedAlert {
 	result := make([]eventrecorder.GroupedAlert, 0, len(alerts))
-	for _, alert := range alerts {
-		result = append(result, eventrecorder.NewGroupedAlertReference(alert.Fingerprint()))
+	for _, alrt := range alerts {
+		result = append(result, eventrecorder.NewGroupedAlertReference(alrt.Fingerprint()))
 	}
 	return result
 }
@@ -113,11 +113,11 @@ func newNotificationEvent(ctx context.Context, alerts []*alert.Alert, integratio
 }
 
 // NewAlertResolvedEvent constructs alert-resolved event data.
-func NewAlertResolvedEvent(groupInfo eventrecorder.AlertGroup, alert *alert.Alert) eventrecorder.EventData {
-	return eventrecorder.NewAlertResolvedEvent(groupInfo, eventrecorder.NewGroupedAlert(alert))
+func NewAlertResolvedEvent(groupInfo eventrecorder.AlertGroup, alrt *alert.Alert) eventrecorder.EventData {
+	return eventrecorder.NewAlertResolvedEvent(groupInfo, eventrecorder.NewGroupedAlert(alrt))
 }
 
 // NewAlertGroupedEvent constructs alert-grouped event data.
-func NewAlertGroupedEvent(groupInfo eventrecorder.AlertGroup, alert *alert.Alert) eventrecorder.EventData {
-	return eventrecorder.NewAlertGroupedEvent(groupInfo, eventrecorder.NewGroupedAlert(alert))
+func NewAlertGroupedEvent(groupInfo eventrecorder.AlertGroup, alrt *alert.Alert) eventrecorder.EventData {
+	return eventrecorder.NewAlertGroupedEvent(groupInfo, eventrecorder.NewGroupedAlert(alrt))
 }
