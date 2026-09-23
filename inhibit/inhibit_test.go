@@ -861,35 +861,37 @@ func TestInhibitByMultipleSources(t *testing.T) {
 		expected []exp
 	}{
 		{
-			// alertOne shouldn't be muted since alertTwo and alertThree haven't fired.
+			// No source alerts cached, so nothing with t=1 should be muted.
 			alerts: []*alert.Alert{alertOne()},
 			expected: []exp{
 				{
-					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
 					muted: false,
 				},
 			},
 		},
 		{
-			// alertOne shouldn't be muted since alertThree is not active.
+			// Source 1 (alertTwo) is active but source 2 (alertThree) is resolved.
+			// AND fails — nothing should be muted.
 			alerts: []*alert.Alert{alertOne(), alertTwo(false), alertThree(true)},
 			expected: []exp{
 				{
-					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
 					muted: false,
 				},
 				{
-					lbls:  model.LabelSet{"s1": "1", "e": "f"},
+					lbls:  model.LabelSet{"s1": "1", "s11": "1", "e": "1"},
 					muted: false,
 				},
 				{
-					lbls:  model.LabelSet{"s2": "1", "e": "f"},
+					lbls:  model.LabelSet{"s2": "1", "s22": "1", "f": "1"},
 					muted: false,
 				},
 			},
 		},
 		{
-			// alertOne shouldn't be muted since alertTwo is not active.
+			// Source 1 (alertTwo) is resolved but source 2 (alertThree) is active.
+			// AND fails — nothing should be muted.
 			alerts: []*alert.Alert{alertOne(), alertTwo(true), alertThree(false)},
 			expected: []exp{
 				{
@@ -907,26 +909,31 @@ func TestInhibitByMultipleSources(t *testing.T) {
 			},
 		},
 		{
-			// alertOne should be muted since alertTwo and alertThree are active.
+			// Both sources active. Targets are muted only when both equal labels match.
 			alerts: []*alert.Alert{alertOne(), alertTwo(false), alertThree(false)},
 			expected: []exp{
 				{
+					// t=1 matches target, but e is missing so source 1 equal check fails.
 					lbls:  model.LabelSet{"t": "1", "f": "5"},
 					muted: false,
 				},
 				{
+					// t=1 matches target, e=1 matches source 1, f=1 matches source 2.
 					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
 					muted: true,
 				},
 				{
+					// Extra labels are ignored. t=1 matches, e=1 and f=1 match both sources.
 					lbls:  model.LabelSet{"s3": "1", "t": "1", "s11": "1", "e": "1", "f": "1"},
 					muted: true,
 				},
 				{
+					// t=1 matches target, but e=2 doesn't match source 1's cached e=1.
 					lbls:  model.LabelSet{"t": "1", "e": "2", "f": "1"},
 					muted: false,
 				},
 				{
+					// t=1 matches target, but f=4 doesn't match source 2's cached f=1.
 					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "4"},
 					muted: false,
 				},
