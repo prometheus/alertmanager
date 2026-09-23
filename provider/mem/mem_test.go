@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,46 +35,38 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	t0 = time.Now()
-	t1 = t0.Add(100 * time.Millisecond)
+// testAlerts holds three alerts that start "now" and end 100ms later. It is
+// built inside each test rather than at package init so that tests running in
+// a synctest bubble see timestamps from the bubble's clock.
+type testAlerts struct {
+	t0, t1                 time.Time
+	alert1, alert2, alert3 *types.Alert
+}
 
-	alert1 = &types.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"bar": "foo"},
-			Annotations:  model.LabelSet{"foo": "bar"},
-			StartsAt:     t0,
-			EndsAt:       t1,
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: t0,
-		Timeout:   false,
+func newTestAlerts() testAlerts {
+	t0 := time.Now()
+	t1 := t0.Add(100 * time.Millisecond)
+	newAlert := func(labels, annotations model.LabelSet) *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:       labels,
+				Annotations:  annotations,
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		}
 	}
-
-	alert2 = &types.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"bar": "foo2"},
-			Annotations:  model.LabelSet{"foo": "bar2"},
-			StartsAt:     t0,
-			EndsAt:       t1,
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: t0,
-		Timeout:   false,
+	return testAlerts{
+		t0:     t0,
+		t1:     t1,
+		alert1: newAlert(model.LabelSet{"bar": "foo"}, model.LabelSet{"foo": "bar"}),
+		alert2: newAlert(model.LabelSet{"bar": "foo2"}, model.LabelSet{"foo": "bar2"}),
+		alert3: newAlert(model.LabelSet{"bar": "foo3"}, model.LabelSet{"foo": "bar3"}),
 	}
-
-	alert3 = &types.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"bar": "foo3"},
-			Annotations:  model.LabelSet{"foo": "bar3"},
-			StartsAt:     t0,
-			EndsAt:       t1,
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: t0,
-		Timeout:   false,
-	}
-)
+}
 
 // TestAlertsSubscribePutStarvation tests starvation of `iterator.Close` and
 // `alerts.Put`. Both `Subscribe` and `Put` use the Alerts.mtx lock. `Subscribe`
@@ -82,53 +75,47 @@ var (
 // If the channel of a listener is at its limit, `alerts.Lock` is blocked, whereby
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
-	alerts, err := NewAlerts(context.Background(), 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestAlerts()
+		alerts, err := NewAlerts(t.Context(), 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
+		require.NoError(t, err)
 
-	iterator := alerts.Subscribe("test")
+		iterator := alerts.Subscribe("test")
 
-	alertsToInsert := []*types.Alert{}
-	// Exhaust alert channel
-	for i := range alertChannelLength + 1 {
-		alertsToInsert = append(alertsToInsert, &types.Alert{
-			Alert: model.Alert{
-				// Make sure the fingerprints differ
-				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
-				Annotations:  model.LabelSet{"foo": "bar"},
-				StartsAt:     t0,
-				EndsAt:       t1,
-				GeneratorURL: "http://example.com/prometheus",
-			},
-			UpdatedAt: t0,
-			Timeout:   false,
-		})
-	}
-
-	putIsDone := make(chan struct{})
-	putsErr := make(chan error, 1)
-	go func() {
-		if err := alerts.Put(context.Background(), alertsToInsert...); err != nil {
-			putsErr <- err
-			return
+		alertsToInsert := []*types.Alert{}
+		// Exhaust alert channel
+		for i := range alertChannelLength + 1 {
+			alertsToInsert = append(alertsToInsert, &types.Alert{
+				Alert: model.Alert{
+					// Make sure the fingerprints differ
+					Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
+					Annotations:  model.LabelSet{"foo": "bar"},
+					StartsAt:     f.t0,
+					EndsAt:       f.t1,
+					GeneratorURL: "http://example.com/prometheus",
+				},
+				UpdatedAt: f.t0,
+				Timeout:   false,
+			})
 		}
 
-		putIsDone <- struct{}{}
-	}()
+		putDone := make(chan error, 1)
+		go func() {
+			putDone <- alerts.Put(context.Background(), alertsToInsert...)
+		}()
 
-	// Increase probability that `iterator.Close` is called after `alerts.Put`.
-	time.Sleep(100 * time.Millisecond)
-	iterator.Close()
+		// Wait until Put is blocked on the full subscriber channel, then close
+		// the iterator: neither side may starve the other.
+		synctest.Wait()
+		iterator.Close()
 
-	select {
-	case <-putsErr:
-		t.Fatal(err)
-	case <-putIsDone:
-		// continue
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("expected `alerts.Put` and `iterator.Close` not to starve each other")
-	}
+		select {
+		case err := <-putDone:
+			require.NoError(t, err)
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("expected `alerts.Put` and `iterator.Close` not to starve each other")
+		}
+	})
 }
 
 func TestDeadLock(t *testing.T) {
@@ -188,12 +175,13 @@ func TestDeadLock(t *testing.T) {
 }
 
 func TestAlertsPut(t *testing.T) {
+	f := newTestAlerts()
 	alerts, err := NewAlerts(context.Background(), 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	insert := []*types.Alert{alert1, alert2, alert3}
+	insert := []*types.Alert{f.alert1, f.alert2, f.alert3}
 
 	if err := alerts.Put(context.Background(), insert...); err != nil {
 		t.Fatalf("Insert failed: %s", err)
@@ -210,20 +198,21 @@ func TestAlertsPut(t *testing.T) {
 
 func TestAlertsSubscribe(t *testing.T) {
 	ctx := t.Context()
+	f := newTestAlerts()
 	alerts, err := NewAlerts(ctx, 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Add alert1 to validate if pending alerts will be sent.
-	if err := alerts.Put(ctx, alert1); err != nil {
+	if err := alerts.Put(ctx, f.alert1); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
 	expectedAlerts := map[model.Fingerprint]*types.Alert{
-		alert1.Fingerprint(): alert1,
-		alert2.Fingerprint(): alert2,
-		alert3.Fingerprint(): alert3,
+		f.alert1.Fingerprint(): f.alert1,
+		f.alert2.Fingerprint(): f.alert2,
+		f.alert3.Fingerprint(): f.alert3,
 	}
 
 	// Start many consumers and make sure that each receives all the subsequent alerts.
@@ -270,10 +259,10 @@ func TestAlertsSubscribe(t *testing.T) {
 	}
 
 	// Add more alerts that should be received by the subscribers.
-	if err := alerts.Put(ctx, alert2); err != nil {
+	if err := alerts.Put(ctx, f.alert2); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
-	if err := alerts.Put(ctx, alert3); err != nil {
+	if err := alerts.Put(ctx, f.alert3); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
@@ -286,19 +275,20 @@ func TestAlertsSubscribe(t *testing.T) {
 }
 
 func TestAlertsGetPending(t *testing.T) {
+	f := newTestAlerts()
 	alerts, err := NewAlerts(context.Background(), 30*time.Minute, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ctx := context.Background()
-	if err := alerts.Put(ctx, alert1, alert2); err != nil {
+	if err := alerts.Put(ctx, f.alert1, f.alert2); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
 	expectedAlerts := map[model.Fingerprint]*types.Alert{
-		alert1.Fingerprint(): alert1,
-		alert2.Fingerprint(): alert2,
+		f.alert1.Fingerprint(): f.alert1,
+		f.alert2.Fingerprint(): f.alert2,
 	}
 	iterator := alerts.GetPending()
 	for actual := range iterator.Next() {
@@ -306,14 +296,14 @@ func TestAlertsGetPending(t *testing.T) {
 		require.NoError(t, alertDiff(actual.Data, expected))
 	}
 
-	if err := alerts.Put(ctx, alert3); err != nil {
+	if err := alerts.Put(ctx, f.alert3); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
 	expectedAlerts = map[model.Fingerprint]*types.Alert{
-		alert1.Fingerprint(): alert1,
-		alert2.Fingerprint(): alert2,
-		alert3.Fingerprint(): alert3,
+		f.alert1.Fingerprint(): f.alert1,
+		f.alert2.Fingerprint(): f.alert2,
+		f.alert3.Fingerprint(): f.alert3,
 	}
 	iterator = alerts.GetPending()
 	for actual := range iterator.Next() {
@@ -323,86 +313,70 @@ func TestAlertsGetPending(t *testing.T) {
 }
 
 func TestAlertsGC(t *testing.T) {
-	alerts, err := NewAlerts(context.Background(), 200*time.Millisecond, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		f := newTestAlerts()
+		alerts, err := NewAlerts(t.Context(), 200*time.Millisecond, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
+		require.NoError(t, err)
 
-	insert := []*types.Alert{alert1, alert2, alert3}
+		insert := []*types.Alert{f.alert1, f.alert2, f.alert3}
+		require.NoError(t, alerts.Put(context.Background(), insert...))
 
-	if err := alerts.Put(context.Background(), insert...); err != nil {
-		t.Fatalf("Insert failed: %s", err)
-	}
+		// The alerts end after 100ms and the GC runs every 200ms, so one GC
+		// round has removed them by now (time is virtual in the bubble).
+		time.Sleep(300 * time.Millisecond)
+		synctest.Wait()
 
-	time.Sleep(300 * time.Millisecond)
-
-	for i, a := range insert {
-		_, err := alerts.Get(a.Fingerprint())
-		require.Error(t, err)
-		require.Equal(t, store.ErrNotFound, err, "alert %d didn't get GC'd: %v", i, err)
-	}
+		for i, a := range insert {
+			_, err := alerts.Get(a.Fingerprint())
+			require.ErrorIs(t, err, store.ErrNotFound, "alert %d didn't get GC'd", i)
+		}
+	})
 }
 
 func TestAlertsStoreCallback(t *testing.T) {
-	cb := &limitCountCallback{limit: 3}
+	synctest.Test(t, func(t *testing.T) {
+		cb := &limitCountCallback{limit: 3}
+		f := newTestAlerts()
 
-	alerts, err := NewAlerts(context.Background(), 200*time.Millisecond, 0, cb, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+		alerts, err := NewAlerts(t.Context(), 200*time.Millisecond, 0, cb, promslog.NewNopLogger(), eventrecorder.NopRecorder(), nil, nil)
+		require.NoError(t, err)
 
-	ctx := context.Background()
-	err = alerts.Put(ctx, alert1, alert2, alert3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if num := cb.alerts.Load(); num != 3 {
-		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 3, num)
-	}
+		ctx := context.Background()
+		require.NoError(t, alerts.Put(ctx, f.alert1, f.alert2, f.alert3))
+		require.Equal(t, int32(3), cb.alerts.Load(), "unexpected number of alerts in the store")
 
-	alert1Mod := *alert1
-	alert1Mod.Annotations = model.LabelSet{"foo": "bar", "new": "test"} // Update annotations for alert1
+		alert1Mod := *f.alert1
+		alert1Mod.Annotations = model.LabelSet{"foo": "bar", "new": "test"} // Update annotations for alert1
 
-	alert4 := &types.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"bar4": "foo4"},
-			Annotations:  model.LabelSet{"foo4": "bar4"},
-			StartsAt:     t0,
-			EndsAt:       t1,
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: t0,
-		Timeout:   false,
-	}
+		alert4 := &types.Alert{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar4": "foo4"},
+				Annotations:  model.LabelSet{"foo4": "bar4"},
+				StartsAt:     f.t0,
+				EndsAt:       f.t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: f.t0,
+			Timeout:   false,
+		}
 
-	err = alerts.Put(ctx, &alert1Mod, alert4)
-	// Verify that we failed to put new alert into store (not reported via error, only checked using Load)
-	if err != nil {
-		t.Fatalf("unexpected error %v", err)
-	}
+		// The new alert is rejected by the callback, which is not reported as
+		// an error but only visible through the callback's count.
+		require.NoError(t, alerts.Put(ctx, &alert1Mod, alert4))
+		require.Equal(t, int32(3), cb.alerts.Load(), "unexpected number of alerts in the store")
 
-	if num := cb.alerts.Load(); num != 3 {
-		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 3, num)
-	}
+		// But we still managed to update alert1, since callback doesn't report error when updating existing alert.
+		a, err := alerts.Get(f.alert1.Fingerprint())
+		require.NoError(t, err)
+		require.NoError(t, alertDiff(a, &alert1Mod))
 
-	// But we still managed to update alert1, since callback doesn't report error when updating existing alert.
-	a, err := alerts.Get(alert1.Fingerprint())
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.NoError(t, alertDiff(a, &alert1Mod))
+		// Now wait until existing alerts are GC-ed, and make sure that callback was called.
+		time.Sleep(300 * time.Millisecond)
+		synctest.Wait()
+		require.Equal(t, int32(0), cb.alerts.Load(), "unexpected number of alerts in the store")
 
-	// Now wait until existing alerts are GC-ed, and make sure that callback was called.
-	time.Sleep(300 * time.Millisecond)
-
-	if num := cb.alerts.Load(); num != 0 {
-		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 0, num)
-	}
-
-	err = alerts.Put(ctx, alert4)
-	if err != nil {
-		t.Fatal(err)
-	}
+		require.NoError(t, alerts.Put(ctx, alert4))
+	})
 }
 
 func alertDiff(left, right *types.Alert) error {
