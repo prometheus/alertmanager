@@ -125,7 +125,6 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
 				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
 				span.SetAttributes(attr)
 				src.cache.set(a)
-				break
 			}
 		}
 	}
