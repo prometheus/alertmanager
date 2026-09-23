@@ -464,6 +464,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				}
 				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
 			}
+			if err := sc.ValidateUpdateMessageURL(); err != nil {
+				return err
+			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc == nil {

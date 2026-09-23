@@ -181,6 +181,11 @@ type SlackConfig struct {
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
+const (
+	updateMessageAPIURL = "https://slack.com/api/chat.postMessage"
+	updateMessageError  = "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage"
+)
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultSlackConfig
@@ -202,9 +207,13 @@ func (c *SlackConfig) Validate() error {
 		return errors.New("at most one of api_url/api_url_file & app_token/app_token_file must be configured")
 	}
 
-	if c.UpdateMessage && c.APIURL.String() != "https://slack.com/api/chat.postMessage" {
-		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
-	}
+	return c.ValidateUpdateMessageURL()
+}
 
+// ValidateUpdateMessageURL checks that update_message uses Slack's chat.postMessage API URL.
+func (c *SlackConfig) ValidateUpdateMessageURL() error {
+	if c.UpdateMessage && c.APIURL != nil && c.APIURL.String() != updateMessageAPIURL {
+		return errors.New(updateMessageError)
+	}
 	return nil
 }
