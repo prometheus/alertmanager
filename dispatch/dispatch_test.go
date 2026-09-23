@@ -23,6 +23,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -285,6 +286,10 @@ func TestGroupByAllLabels(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
+	synctest.Test(t, testGroups)
+}
+
+func testGroups(t *testing.T) {
 	confData := `receivers:
 - name: 'kafka'
 - name: 'prod'
@@ -346,10 +351,10 @@ route:
 	}
 	alerts.Put(context.Background(), inputAlerts...)
 
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	// Let alerts get processed: the routes use a 10ms group_wait and time is
+	// virtual inside the bubble, so this returns as soon as the groups flushed.
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Len(t, recorder.Alerts(), 7)
 
 	alertGroups, receivers, _ := dispatcher.Groups(context.Background(),
@@ -446,6 +451,10 @@ route:
 }
 
 func TestGroupsWithLimits(t *testing.T) {
+	synctest.Test(t, testGroupsWithLimits)
+}
+
+func testGroupsWithLimits(t *testing.T) {
 	confData := `receivers:
 - name: 'kafka'
 - name: 'prod'
@@ -512,10 +521,10 @@ route:
 		t.Fatal(err)
 	}
 
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	// Let alerts get processed: the routes use a 10ms group_wait and time is
+	// virtual inside the bubble, so this returns as soon as the groups flushed.
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Len(t, recorder.Alerts(), 7)
 
 	routeFilter := func(*Route) bool { return true }
@@ -533,9 +542,8 @@ route:
 	}
 
 	// Let alert get processed.
-	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
@@ -576,14 +584,12 @@ func (r *recordStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert
 	return ctx, nil, nil
 }
 
-var (
-	// Set the start time in the past to trigger a flush immediately.
-	t0 = time.Now().Add(-time.Minute)
-	// Set the end time in the future to avoid deleting the alert.
-	t1 = t0.Add(2 * time.Minute)
-)
-
 func newAlert(labels model.LabelSet) *alert.Alert {
+	// Set the start time in the past to trigger a flush immediately and the
+	// end time in the future to avoid deleting the alert. The times are taken
+	// at call time so that tests inside a synctest bubble use its clock.
+	t0 := time.Now().Add(-time.Minute)
+	t1 := t0.Add(2 * time.Minute)
 	return &alert.Alert{
 		Alert: model.Alert{
 			Labels:       labels,
@@ -615,6 +621,10 @@ func TestDispatcherRace(t *testing.T) {
 }
 
 func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
+	synctest.Test(t, testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero)
+}
+
+func testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
 	const numAlerts = 5000
 
 	logger := promslog.NewNopLogger()
@@ -648,15 +658,9 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 		require.NoError(t, alerts.Put(context.Background(), alert))
 	}
 
-	// Wait until the alerts have been notified or the waiting timeout expires.
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-		if len(recorder.Alerts()) >= numAlerts {
-			break
-		}
-
-		// Throttle.
-		time.Sleep(10 * time.Millisecond)
-	}
+	// Wait until every goroutine in the bubble is blocked, i.e. the
+	// dispatcher has processed everything it was given.
+	synctest.Wait()
 
 	// We expect all alerts to be notified immediately, since they all belong to different groups.
 	require.Len(t, recorder.Alerts(), numAlerts)
