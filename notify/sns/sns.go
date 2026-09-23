@@ -146,10 +146,10 @@ func (n *Notifier) classifyPublishError(err error) notify.NotifyVerdict {
 	return notify.Retry(0, err, notify.DefaultReason)
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
 	var (
 		tmplErr error
-		data    = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		data    = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
 		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
 	)
 

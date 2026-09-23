@@ -307,7 +307,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	api.mtx.RLock()
 	rcvLabels := api.receiverLabelsMap()
 	for a := range alerts.Next() {
-		alert := a.Data
+		alrt := a.Data
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -315,7 +315,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			break
 		}
 
-		routes := api.route.Match(alert.Labels)
+		routes := api.route.Match(alrt.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
@@ -329,11 +329,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		if !alertFilter(alert, now) {
+		if !alertFilter(alrt, now) {
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, tempMarker.Status(alert.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alrt, tempMarker.Status(alrt.Fingerprint()), receivers, nil)
 
 		res = append(res, openAlert)
 	}
@@ -364,24 +364,24 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	resolveTimeout := time.Duration(api.alertmanagerConfig.Global.ResolveTimeout)
 	api.mtx.RUnlock()
 
-	for _, alert := range alerts {
-		alert.UpdatedAt = now
+	for _, alrt := range alerts {
+		alrt.UpdatedAt = now
 
 		// Ensure StartsAt is set.
-		if alert.StartsAt.IsZero() {
-			if alert.EndsAt.IsZero() {
-				alert.StartsAt = now
+		if alrt.StartsAt.IsZero() {
+			if alrt.EndsAt.IsZero() {
+				alrt.StartsAt = now
 			} else {
-				alert.StartsAt = alert.EndsAt
+				alrt.StartsAt = alrt.EndsAt
 			}
 		}
 		// If no end time is defined, set a timeout after which an alert
 		// is marked resolved if it is not updated.
-		if alert.EndsAt.IsZero() {
-			alert.Timeout = true
-			alert.EndsAt = now.Add(resolveTimeout)
+		if alrt.EndsAt.IsZero() {
+			alrt.Timeout = true
+			alrt.EndsAt = now.Add(resolveTimeout)
 		}
-		if alert.EndsAt.After(time.Now()) {
+		if alrt.EndsAt.After(time.Now()) {
 			api.m.Firing().Inc()
 		} else {
 			api.m.Resolved().Inc()
@@ -518,13 +518,13 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			Alerts:      make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
 		}
 
-		for _, alert := range alertGroup.Alerts {
-			fp := alert.Fingerprint()
+		for _, alrt := range alertGroup.Alerts {
+			fp := alrt.Fingerprint()
 			receivers := allReceivers[fp]
 			// Predict status per (alert, group) using a fresh marker so
 			// writes don't leak across alerts or groups.
-			status := predictAlertStatus(ctx, setAlertStatus, alert)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
+			status := predictAlertStatus(ctx, setAlertStatus, alrt)
+			apiAlert := AlertToOpenAPIAlert(alrt, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
 		res = append(res, ag)

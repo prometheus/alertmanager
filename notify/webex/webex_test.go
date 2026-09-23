@@ -188,7 +188,7 @@ func TestWebexRetryAfterDelay(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := notify.WithGroupKey(context.Background(), "1")
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"lbl1": "val1"},
 			StartsAt: time.Now(),
@@ -196,7 +196,7 @@ func TestWebexRetryAfterDelay(t *testing.T) {
 		},
 	}
 
-	verdict := notifier.Notify(ctx, alert)
+	verdict := notifier.Notify(ctx, alrt)
 
 	require.True(t, verdict.ShouldRetry())
 	require.Error(t, verdict.Err())
@@ -239,7 +239,7 @@ func TestWebexFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					Labels:   model.LabelSet{"lbl1": "val1"},
 					StartsAt: time.Now(),
@@ -247,7 +247,7 @@ func TestWebexFailureReason(t *testing.T) {
 				},
 			}
 
-			verdict := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alrt)
 			require.Error(t, verdict.Err())
 			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})

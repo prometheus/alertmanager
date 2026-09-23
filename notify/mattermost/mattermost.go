@@ -98,11 +98,11 @@ type attachment struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
 	var (
 		err  error
 		url  string
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		data = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
 	)
 
 	if n.conf.WebhookURL != nil {

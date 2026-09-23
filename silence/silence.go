@@ -323,7 +323,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset model.LabelSet) bool {
 // The following methods implement mem.AlertStoreCallback.
 func (s *Silencer) PreStore(_ *alert.Alert, _ bool) error { return nil }
 func (s *Silencer) PostStore(_ *alert.Alert, _ bool)      {}
-func (s *Silencer) PostDelete(alert *alert.Alert)         {}
+func (s *Silencer) PostDelete(_ *alert.Alert)             {}
 func (s *Silencer) PostGC(ff model.Fingerprints) {
 	for _, fp := range ff {
 		s.cache.delete(fp)

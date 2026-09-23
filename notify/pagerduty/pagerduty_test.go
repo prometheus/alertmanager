@@ -131,7 +131,7 @@ func TestPagerDutyFailureReason(t *testing.T) {
 				}
 
 				ctx := notify.WithGroupKey(context.Background(), "1")
-				alert := &types.Alert{
+				alrt := &types.Alert{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"lbl1": "val1"},
 						StartsAt: time.Now(),
@@ -139,7 +139,7 @@ func TestPagerDutyFailureReason(t *testing.T) {
 					},
 				}
 
-				verdict := notifier.Notify(ctx, alert)
+				verdict := notifier.Notify(ctx, alrt)
 				require.Equal(t, tc.expectedReason, verdict.Reason())
 			})
 		}
@@ -679,7 +679,7 @@ func TestPagerDutyTimeout(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{
 						"lbl1": "val1",
@@ -688,7 +688,7 @@ func TestPagerDutyTimeout(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			verdict := pd.Notify(ctx, alert)
+			verdict := pd.Notify(ctx, alrt)
 			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
 	}

@@ -26,11 +26,11 @@ import (
 
 func TestSetGet(t *testing.T) {
 	a := NewAlerts()
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
-	require.NoError(t, a.Set(alert))
-	want := alert.Fingerprint()
+	require.NoError(t, a.Set(alrt))
+	want := alrt.Fingerprint()
 	got, err := a.Get(want)
 
 	require.NoError(t, err)
@@ -170,8 +170,8 @@ func TestGC(t *testing.T) {
 			cancel()
 		}
 	})
-	for _, alert := range append(active, resolved...) {
-		require.NoError(t, s.Set(alert))
+	for _, alrt := range append(active, resolved...) {
+		require.NoError(t, s.Set(alrt))
 	}
 	go func() {
 		s.Run(ctx, 10*time.Millisecond)
@@ -184,14 +184,14 @@ func TestGC(t *testing.T) {
 		t.Fatal("garbage collection didn't complete in time")
 	}
 
-	for _, alert := range active {
-		if _, err := s.Get(alert.Fingerprint()); err != nil {
-			t.Errorf("alert %v should not have been gc'd", alert)
+	for _, alrt := range active {
+		if _, err := s.Get(alrt.Fingerprint()); err != nil {
+			t.Errorf("alert %v should not have been gc'd", alrt)
 		}
 	}
-	for _, alert := range resolved {
-		if _, err := s.Get(alert.Fingerprint()); err == nil {
-			t.Errorf("alert %v should have been gc'd", alert)
+	for _, alrt := range resolved {
+		if _, err := s.Get(alrt.Fingerprint()); err == nil {
+			t.Errorf("alert %v should have been gc'd", alrt)
 		}
 	}
 	require.Len(t, resolved, n)

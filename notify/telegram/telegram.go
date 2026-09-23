@@ -75,7 +75,7 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
@@ -86,7 +86,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) notify.Not
 
 	var (
 		err         error
-		data        = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
+		data        = notify.GetTemplateData(ctx, n.tmpl, alrt, logger)
 		tmpl        = notify.TmplText(n.tmpl, data, &err)
 		messageText string
 		truncated   bool

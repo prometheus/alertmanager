@@ -68,13 +68,13 @@ type AlertStoreCallback interface {
 	// alert is not stored.
 	// Existing flag indicates whether alert has existed before (and is only updated) or not.
 	// If alert has existed before, then alert passed to PreStore is result of merging existing alert with new alert.
-	PreStore(alert *types.Alert, existing bool) error
+	PreStore(alrt *types.Alert, existing bool) error
 
 	// PostStore is called after alert has been put into store.
-	PostStore(alert *types.Alert, existing bool)
+	PostStore(alrt *types.Alert, existing bool)
 
 	// PostDelete is called after alert have been removed from the store due to alert garbage collection.
-	PostDelete(alert *types.Alert)
+	PostDelete(alrt *types.Alert)
 
 	// PostGC is called after alerts have been removed from the store due to alert garbage collection.
 	PostGC(fingerprints model.Fingerprints)
@@ -186,9 +186,9 @@ func (a *Alerts) gc() {
 	}
 
 	ff := make(model.Fingerprints, len(deleted))
-	for i, alert := range deleted {
-		ff[i] = alert.Fingerprint()
-		a.callback.PostDelete(alert)
+	for i, alrt := range deleted {
+		ff[i] = alrt.Fingerprint()
+		a.callback.PostDelete(alrt)
 	}
 	a.callback.PostGC(ff)
 }
@@ -310,8 +310,8 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 	)
 	defer span.End()
 
-	for _, alert := range alerts {
-		fp := alert.Fingerprint()
+	for _, alrt := range alerts {
+		fp := alrt.Fingerprint()
 
 		existing := false
 
@@ -321,41 +321,41 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 			existing = true
 
 			// Merge alerts if there is an overlap in activity range.
-			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
-				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
-				alert = old.Merge(alert)
+			if (alrt.EndsAt.After(old.StartsAt) && alrt.EndsAt.Before(old.EndsAt)) ||
+				(alrt.StartsAt.After(old.StartsAt) && alrt.StartsAt.Before(old.EndsAt)) {
+				alrt = old.Merge(alrt)
 			}
 		}
 
-		if err := a.callback.PreStore(alert, existing); err != nil {
+		if err := a.callback.PreStore(alrt, existing); err != nil {
 			a.logger.Error("pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
-		if err := a.alerts.Set(alert); err != nil {
-			a.logger.Warn("error on set alert", "alertname", alert.Name(), "err", err)
+		if err := a.alerts.Set(alrt); err != nil {
+			a.logger.Warn("error on set alert", "alertname", alrt.Name(), "err", err)
 			if errors.Is(err, store.ErrLimited) {
 				labels := []string{}
 				if a.flagger.EnableAlertNamesInMetrics() {
-					labels = append(labels, alert.Name())
+					labels = append(labels, alrt.Name())
 				}
 				a.alertsLimitedTotal.WithLabelValues(labels...).Inc()
 			}
 			continue
 		}
 
-		a.callback.PostStore(alert, existing)
+		a.callback.PostStore(alrt, existing)
 
 		if !existing {
 			a.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
-				return eventrecorder.NewAlertCreatedEvent(alert)
+				return eventrecorder.NewAlertCreatedEvent(alrt)
 			})
 		}
 
 		metadata := map[string]string{}
 		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
 		msg := &provider.Alert{
-			Data:   alert,
+			Data:   alrt,
 			Header: metadata,
 		}
 

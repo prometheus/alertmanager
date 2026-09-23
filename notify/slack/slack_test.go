@@ -287,13 +287,13 @@ func TestSlackTimeout(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert := &types.Alert{
+			alrt := &types.Alert{
 				Alert: model.Alert{
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			verdict := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alrt)
 			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
 	}

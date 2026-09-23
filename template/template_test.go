@@ -110,9 +110,9 @@ func TestAlertsFiring(t *testing.T) {
 		{Status: string(model.AlertResolved)},
 	}
 
-	for _, alert := range alerts.Firing() {
-		if alert.Status != string(model.AlertFiring) {
-			t.Errorf("unexpected status %q", alert.Status)
+	for _, alrt := range alerts.Firing() {
+		if alrt.Status != string(model.AlertFiring) {
+			t.Errorf("unexpected status %q", alrt.Status)
 		}
 	}
 }
@@ -126,9 +126,9 @@ func TestAlertsResolved(t *testing.T) {
 		{Status: string(model.AlertResolved)},
 	}
 
-	for _, alert := range alerts.Resolved() {
-		if alert.Status != string(model.AlertResolved) {
-			t.Errorf("unexpected status %q", alert.Status)
+	for _, alrt := range alerts.Resolved() {
+		if alrt.Status != string(model.AlertResolved) {
+			t.Errorf("unexpected status %q", alrt.Status)
 		}
 	}
 }

@@ -63,7 +63,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
+	alrt := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"Message": "message",
@@ -73,7 +73,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 		},
 	}
 
-	msg, err := notifier.createVictorOpsPayload(ctx, alert)
+	msg, err := notifier.createVictorOpsPayload(ctx, alrt)
 	require.NoError(t, err)
 
 	var m map[string]string

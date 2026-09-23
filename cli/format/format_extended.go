@@ -63,16 +63,16 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert)
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\tState\t")
-	for _, alert := range alerts {
+	for _, alrt := range alerts {
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\t\n",
-			extendedFormatLabels(alert.Labels),
-			extendedFormatAnnotations(alert.Annotations),
-			FormatDate(*alert.StartsAt),
-			FormatDate(*alert.EndsAt),
-			alert.GeneratorURL,
-			*alert.Status.State,
+			extendedFormatLabels(alrt.Labels),
+			extendedFormatAnnotations(alrt.Annotations),
+			FormatDate(*alrt.StartsAt),
+			FormatDate(*alrt.EndsAt),
+			alrt.GeneratorURL,
+			*alrt.Status.State,
 		)
 	}
 	return w.Flush()

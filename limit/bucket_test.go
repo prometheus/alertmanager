@@ -110,8 +110,8 @@ func TestBucketUpsert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			bucket := NewBucket[model.Fingerprint](tc.bucketCapacity)
 
-			for i, alert := range tc.alerts {
-				result := bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+			for i, alrt := range tc.alerts {
+				result := bucket.Upsert(alrt.Fingerprint(), alrt.EndsAt)
 				require.Equal(t, tc.expectedResult[i], result,
 					"Alert %d: expected %v, got %v. %s", i+1, tc.expectedResult[i], result, tc.description)
 			}
@@ -242,14 +242,14 @@ func TestBucketAddEdgeCases(t *testing.T) {
 func BenchmarkBucketUpsert(b *testing.B) {
 	b.Run("EmptyBucket", func(b *testing.B) {
 		bucket := NewBucket[model.Fingerprint](1000)
-		alert := model.Alert{
+		alrt := model.Alert{
 			Labels: model.LabelSet{"alertname": "TestAlert", "instance": "server1"},
 			EndsAt: time.Now().Add(1 * time.Hour),
 		}
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+			bucket.Upsert(alrt.Fingerprint(), alrt.EndsAt)
 		}
 	})
 
@@ -305,11 +305,11 @@ func BenchmarkBucketUpsert(b *testing.B) {
 		bucket := NewBucket[model.Fingerprint](100)
 
 		// Add initial alert
-		alert := model.Alert{
+		alrt := model.Alert{
 			Labels: model.LabelSet{"alertname": "TestAlert", "instance": "server1"},
 			EndsAt: time.Now().Add(1 * time.Hour),
 		}
-		bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+		bucket.Upsert(alrt.Fingerprint(), alrt.EndsAt)
 
 		// Create update with same fingerprint but different EndsAt
 		updatedAlert := model.Alert{
@@ -368,11 +368,11 @@ func BenchmarkBucketUpsertScaling(b *testing.B) {
 
 			// Fill bucket to capacity with expired items
 			for i := range size {
-				alert := model.Alert{
+				alrt := model.Alert{
 					Labels: model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert%d", i)), "instance": "server1"},
 					EndsAt: time.Now().Add(-1 * time.Hour),
 				}
-				bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+				bucket.Upsert(alrt.Fingerprint(), alrt.EndsAt)
 			}
 
 			newAlert := model.Alert{
@@ -457,11 +457,11 @@ func BenchmarkBucketUpsertConcurrent(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		alertCounter := 0
 		for pb.Next() {
-			alert := model.Alert{
+			alrt := model.Alert{
 				Labels: model.LabelSet{"alertname": model.LabelValue("Alert" + string(rune(alertCounter))), "instance": "server1"},
 				EndsAt: time.Now().Add(1 * time.Hour),
 			}
-			bucket.Upsert(alert.Fingerprint(), alert.EndsAt)
+			bucket.Upsert(alrt.Fingerprint(), alrt.EndsAt)
 			alertCounter++
 		}
 	})

@@ -112,9 +112,9 @@ func (a *Alerts) GC() (deleted []*types.Alert) {
 func (a *Alerts) gcAlerts() (deleted []*types.Alert) {
 	a.Lock()
 	defer a.Unlock()
-	for fp, alert := range a.alerts {
-		if alert.Resolved() {
-			deleted = append(deleted, alert)
+	for fp, alrt := range a.alerts {
+		if alrt.Resolved() {
+			deleted = append(deleted, alrt)
 			delete(a.alerts, fp)
 		}
 	}
@@ -139,15 +139,15 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
 
-	alert, prs := a.alerts[fp]
+	alrt, prs := a.alerts[fp]
 	if !prs {
 		return nil, ErrNotFound
 	}
-	return alert, nil
+	return alrt, nil
 }
 
 // Set unconditionally sets the alert in memory.
-func (a *Alerts) Set(alert *types.Alert) error {
+func (a *Alerts) Set(alrt *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
 
@@ -155,8 +155,8 @@ func (a *Alerts) Set(alert *types.Alert) error {
 		return ErrDestroyed
 	}
 
-	fp := alert.Fingerprint()
-	name := alert.Name()
+	fp := alrt.Fingerprint()
+	name := alrt.Name()
 
 	// Apply per alert limits if necessary
 	if a.perAlertLimit > 0 {
@@ -165,12 +165,12 @@ func (a *Alerts) Set(alert *types.Alert) error {
 			bucket = limit.NewBucket[model.Fingerprint](a.perAlertLimit)
 			a.limits[name] = bucket
 		}
-		if !bucket.Upsert(fp, alert.EndsAt) {
+		if !bucket.Upsert(fp, alrt.EndsAt) {
 			return ErrLimited
 		}
 	}
 
-	a.alerts[fp] = alert
+	a.alerts[fp] = alrt
 	return nil
 }
 
@@ -179,9 +179,9 @@ func (a *Alerts) Set(alert *types.Alert) error {
 func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice, destroyIfEmpty bool) error {
 	a.Lock()
 	defer a.Unlock()
-	for _, alert := range alerts {
-		fp := alert.Fingerprint()
-		if other, ok := a.alerts[fp]; ok && alert.UpdatedAt.Equal(other.UpdatedAt) {
+	for _, alrt := range alerts {
+		fp := alrt.Fingerprint()
+		if other, ok := a.alerts[fp]; ok && alrt.UpdatedAt.Equal(other.UpdatedAt) {
 			delete(a.alerts, fp)
 		}
 	}
@@ -200,8 +200,8 @@ func (a *Alerts) List() []*types.Alert {
 	defer a.Unlock()
 
 	alerts := make([]*types.Alert, 0, len(a.alerts))
-	for _, alert := range a.alerts {
-		alerts = append(alerts, alert)
+	for _, alrt := range a.alerts {
+		alerts = append(alerts, alrt)
 	}
 
 	return alerts
