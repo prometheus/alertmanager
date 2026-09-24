@@ -948,7 +948,7 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 
 			// The mute stage drops the alert before the dedup stage sees it, so
 			// it reaches the rest of the chain only as a hash in the context.
-			alert := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "muted"}}, time.Time{}, false) 
+			alert := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "muted"}}, time.Time{}, false)
 			stage := newMultiStage(test.mutedAware,
 				muteAllStage{},
 				NewDedupStage(&integration, tnflog, recv, test.mutedAware),
