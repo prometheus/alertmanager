@@ -207,12 +207,21 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 				attribute.String("alerting.inhibit_rule.name", r.Name),
 			),
 		)
-		// If we are here, the target side matches. Check all sources — all must have
-		// a matching equal alert for the inhibition to take effect.
+		// If we are here, the target side matches. Compute the two-sided exclusion
+		// flag once: does this target alert match ANY source's matchers?
+		excludeTwoSidedMatch := false
+		for _, src := range r.Sources {
+			if src.SrcMatchers.Matches(lset) {
+				excludeTwoSidedMatch = true
+				break
+			}
+		}
+		// Check all sources — all must have a matching equal alert for
+		// the inhibition to take effect.
 		var inhibitorFPs []model.Fingerprint
 		allSourcesMatch := true
 		for _, src := range r.Sources {
-			if inhibitedByFP, eq := src.hasEqual(lset, src.SrcMatchers.Matches(lset), now, r.TargetMatchers); eq {
+			if inhibitedByFP, eq := src.hasEqual(lset, excludeTwoSidedMatch, now, r.TargetMatchers); eq {
 				inhibitorFPs = append(inhibitorFPs, inhibitedByFP)
 			} else {
 				allSourcesMatch = false
@@ -220,20 +229,27 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			}
 		}
 		if allSourcesMatch {
-			inhibitorIDs := make([]string, len(inhibitorFPs))
-			for i, ifp := range inhibitorFPs {
-				inhibitorIDs[i] = ifp.String()
+			seen := make(map[model.Fingerprint]struct{}, len(inhibitorFPs))
+			for _, ifp := range inhibitorFPs {
+				if _, ok := seen[ifp]; ok {
+					continue
+				}
+				seen[ifp] = struct{}{}
+				inhibitedBy = append(inhibitedBy, ifp.String())
 			}
-			inhibitedBy = append(inhibitedBy, inhibitorIDs...)
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
-					attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitorIDs),
+					attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitedBy),
 				),
 			)
 
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
+				var rules []eventrecorder.InhibitRule
+				for _, src := range r.Sources {
+					rules = append(rules, eventrecorder.NewInhibitRule(r.Name, src.SrcMatchers, r.TargetMatchers, src.Equal))
+				}
 				return eventrecorder.NewInhibitionMutedAlertEvent(
-					[]eventrecorder.InhibitRule{eventrecorder.NewInhibitRule(r.Name, r.Sources[0].SrcMatchers, r.TargetMatchers, r.Equal)},
+					rules,
 					fp, lset,
 					inhibitorFPs,
 				)
