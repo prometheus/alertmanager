@@ -70,6 +70,15 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 		return fmt.Errorf("sources cannot be combined with source_match, source_match_re, source_matchers, or equal")
 	}
 
+	for _, src := range r.Sources {
+		for _, l := range src.Equal {
+			labelName := model.LabelName(l)
+			if !compat.IsValidLabelName(labelName) {
+				return fmt.Errorf("invalid label name %q in source equal list", l)
+			}
+		}
+	}
+
 	for k := range r.SourceMatch {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
