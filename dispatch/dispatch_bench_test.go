@@ -99,16 +99,13 @@ func buildDeepRouteTree(numTeams, numClusters, numPriorities int) *Route {
 // newBenchAlert creates a simple alert with given labels for benchmarking.
 func newBenchAlert(labels model.LabelSet) *alert.Alert {
 	now := time.Now()
-	return &alert.Alert{
-		Alert: model.Alert{
-			Labels:       labels,
-			Annotations:  model.LabelSet{"description": "benchmark alert"},
-			StartsAt:     now,
-			EndsAt:       now.Add(time.Hour),
-			GeneratorURL: "http://localhost",
-		},
-		UpdatedAt: now,
-	}
+	return alert.New(model.Alert{
+		Labels:       labels,
+		Annotations:  model.LabelSet{"description": "benchmark alert"},
+		StartsAt:     now,
+		EndsAt:       now.Add(time.Hour),
+		GeneratorURL: "http://localhost",
+	}, now, false)
 }
 
 // makeBenchAlertBatch creates a batch of alerts distributed across route tree dimensions:

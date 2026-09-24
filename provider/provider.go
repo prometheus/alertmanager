@@ -19,7 +19,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/alert"
 )
 
 // ErrNotFound is returned if a provider cannot find a requested item.
@@ -28,7 +28,7 @@ var ErrNotFound = fmt.Errorf("item not found")
 type Alert struct {
 	// Header contains metadata, for example propagated tracing information.
 	Header map[string]string
-	Data   *types.Alert
+	Data   *alert.Alert
 }
 
 // Iterator provides the functions common to all iterators. To be useful, a
@@ -93,13 +93,13 @@ type Alerts interface {
 	// Implementation of SlurpAndSubcribe is optional - providers may choose to
 	// return an empty list for the first return value and the result of Subscribe
 	// for the second return value.
-	SlurpAndSubscribe(name string) ([]*types.Alert, AlertIterator)
+	SlurpAndSubscribe(name string) ([]*alert.Alert, AlertIterator)
 
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
 	GetPending() AlertIterator
 	// Get returns the alert for a given fingerprint.
-	Get(model.Fingerprint) (*types.Alert, error)
+	Get(model.Fingerprint) (*alert.Alert, error)
 	// Put adds the given set of alerts to the set.
-	Put(ctx context.Context, alerts ...*types.Alert) error
+	Put(ctx context.Context, alerts ...*alert.Alert) error
 }

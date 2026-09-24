@@ -199,15 +199,13 @@ func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.Postab
 
 	alerts := make([]*alert.Alert, 0, len(apiAlerts))
 	for _, apiAlert := range apiAlerts {
-		alerts = append(alerts, &alert.Alert{
-			Alert: prometheus_model.Alert{
-				Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
-				Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
-				StartsAt:     time.Time(apiAlert.StartsAt),
-				EndsAt:       time.Time(apiAlert.EndsAt),
-				GeneratorURL: string(apiAlert.GeneratorURL),
-			},
-		})
+		alerts = append(alerts, alert.New(prometheus_model.Alert{
+			Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
+			Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
+			StartsAt:     time.Time(apiAlert.StartsAt),
+			EndsAt:       time.Time(apiAlert.EndsAt),
+			GeneratorURL: string(apiAlert.GeneratorURL),
+		}, time.Time{}, false))
 	}
 
 	return alerts

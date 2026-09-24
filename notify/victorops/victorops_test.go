@@ -30,9 +30,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestVictorOpsCustomFields(t *testing.T) {
@@ -63,15 +63,13 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"Message": "message",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"Message": "message",
 		},
-	}
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	msg, err := notifier.createVictorOpsPayload(ctx, alrt)
 	require.NoError(t, err)
@@ -212,16 +210,14 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			verdict := vo.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := vo.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, verdict.Err())

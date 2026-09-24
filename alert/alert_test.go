@@ -36,215 +36,137 @@ func TestAlertMerge(t *testing.T) {
 			// Both alerts have the Timeout flag set.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert B.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now.Add(2 * time.Minute),
-				},
-				UpdatedAt: now,
-				Timeout:   true,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-				Timeout:   true,
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-				Timeout:   true,
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(2 * time.Minute),
+			}, now, true),
+			B: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now.Add(time.Minute), true),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now.Add(time.Minute), true),
 		},
 		{
 			// Alert A has the Timeout flag set while Alert B has it unset.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert B.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now,
-				Timeout:   true,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now,
-					EndsAt:   now.Add(2 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(2 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now, true),
+			B: New(model.Alert{
+				StartsAt: now,
+				EndsAt:   now.Add(2 * time.Minute),
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(2 * time.Minute),
+			}, now.Add(time.Minute), false),
 		},
 		{
 			// Alert A has the Timeout flag unset while Alert B has it set.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert A.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now,
-					EndsAt:   now.Add(2 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-				Timeout:   true,
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-				Timeout:   true,
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now, false),
+			B: New(model.Alert{
+				StartsAt: now,
+				EndsAt:   now.Add(2 * time.Minute),
+			}, now.Add(time.Minute), true),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now.Add(time.Minute), true),
 		},
 		{
 			// Both alerts have the Timeout flag unset and are not resolved.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert A.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now,
-					EndsAt:   now.Add(2 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now, false),
+			B: New(model.Alert{
+				StartsAt: now,
+				EndsAt:   now.Add(2 * time.Minute),
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now.Add(time.Minute), false),
 		},
 		{
 			// Both alerts have the Timeout flag unset and are not resolved.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert B.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(4 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
-					EndsAt:   now.Add(4 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now, false),
+			B: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(4 * time.Minute),
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(4 * time.Minute),
+			}, now.Add(time.Minute), false),
 		},
 		{
 			// Both alerts have the Timeout flag unset, A is resolved while B isn't.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert B.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-3 * time.Minute),
-					EndsAt:   now.Add(-time.Minute),
-				},
-				UpdatedAt: now,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now.Add(time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-3 * time.Minute),
-					EndsAt:   now.Add(time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-3 * time.Minute),
+				EndsAt:   now.Add(-time.Minute),
+			}, now, false),
+			B: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(time.Minute),
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-3 * time.Minute),
+				EndsAt:   now.Add(time.Minute),
+			}, now.Add(time.Minute), false),
 		},
 		{
 			// Both alerts have the Timeout flag unset, B is resolved while A isn't.
 			// StartsAt is defined by Alert A.
 			// EndsAt is defined by Alert B.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now.Add(3 * time.Minute),
-				},
-				UpdatedAt: now,
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now,
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-2 * time.Minute),
-					EndsAt:   now,
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(3 * time.Minute),
+			}, now, false),
+			B: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now,
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now,
+			}, now.Add(time.Minute), false),
 		},
 		{
 			// Both alerts are resolved (EndsAt < now).
 			// StartsAt is defined by Alert B.
 			// EndsAt is defined by Alert A.
-			A: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-3 * time.Minute),
-					EndsAt:   now.Add(-time.Minute),
-				},
-				UpdatedAt: now.Add(-time.Minute),
-			},
-			B: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-4 * time.Minute),
-					EndsAt:   now.Add(-2 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
-			Res: &Alert{
-				Alert: model.Alert{
-					StartsAt: now.Add(-4 * time.Minute),
-					EndsAt:   now.Add(-1 * time.Minute),
-				},
-				UpdatedAt: now.Add(time.Minute),
-			},
+			A: New(model.Alert{
+				StartsAt: now.Add(-3 * time.Minute),
+				EndsAt:   now.Add(-time.Minute),
+			}, now.Add(-time.Minute), false),
+			B: New(model.Alert{
+				StartsAt: now.Add(-4 * time.Minute),
+				EndsAt:   now.Add(-2 * time.Minute),
+			}, now.Add(time.Minute), false),
+			Res: New(model.Alert{
+				StartsAt: now.Add(-4 * time.Minute),
+				EndsAt:   now.Add(-1 * time.Minute),
+			}, now.Add(time.Minute), false),
 		},
 	}
 
@@ -262,47 +184,37 @@ func TestAlertMerge(t *testing.T) {
 
 func TestAlertSliceSort(t *testing.T) {
 	var (
-		a1 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j1",
-					"instance":  "i1",
-					"alertname": "an1",
-				},
+		a1 = New(model.Alert{
+			Labels: model.LabelSet{
+				"job":       "j1",
+				"instance":  "i1",
+				"alertname": "an1",
 			},
-		}
-		a2 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j1",
-					"instance":  "i1",
-					"alertname": "an2",
-				},
+		}, time.Time{}, false)
+		a2 = New(model.Alert{
+			Labels: model.LabelSet{
+				"job":       "j1",
+				"instance":  "i1",
+				"alertname": "an2",
 			},
-		}
-		a3 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"job":       "j2",
-					"instance":  "i1",
-					"alertname": "an1",
-				},
+		}, time.Time{}, false)
+		a3 = New(model.Alert{
+			Labels: model.LabelSet{
+				"job":       "j2",
+				"instance":  "i1",
+				"alertname": "an1",
 			},
-		}
-		a4 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "an1",
-				},
+		}, time.Time{}, false)
+		a4 = New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "an1",
 			},
-		}
-		a5 = &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "an2",
-				},
+		}, time.Time{}, false)
+		a5 = New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "an2",
 			},
-		}
+		}, time.Time{}, false)
 	)
 
 	cases := []struct {
@@ -337,13 +249,11 @@ func TestAlertSliceSort(t *testing.T) {
 
 func TestAlertSliceLogValue(t *testing.T) {
 	makeAlert := func(name string) *Alert {
-		return &Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					model.AlertNameLabel: model.LabelValue(name),
-				},
+		return New(model.Alert{
+			Labels: model.LabelSet{
+				model.AlertNameLabel: model.LabelValue(name),
 			},
-		}
+		}, time.Time{}, false)
 	}
 
 	cases := []struct {

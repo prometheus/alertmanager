@@ -88,27 +88,23 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		},
 		{
 			name:    "no equal labels, any source alerts satisfies the requirement",
-			initial: map[model.Fingerprint]*alert.Alert{1: {}},
+			initial: map[model.Fingerprint]*alert.Alert{1: alert.New(model.Alert{}, time.Time{}, false)},
 			input:   model.LabelSet{"a": "b"},
 			result:  true,
 		},
 		{
 			name: "matching but already resolved",
 			initial: map[model.Fingerprint]*alert.Alert{
-				1: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "b": "f"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
-					},
-				},
-				2: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "b": "c"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
-					},
-				},
+				1: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "b", "b": "f"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(-time.Second),
+				}, time.Time{}, false),
+				2: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "b", "b": "c"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(-time.Second),
+				}, time.Time{}, false),
 			},
 			equal:  model.LabelNames{"a", "b"},
 			input:  model.LabelSet{"a": "b", "b": "c"},
@@ -117,20 +113,16 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			name: "matching and unresolved",
 			initial: map[model.Fingerprint]*alert.Alert{
-				1: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "c": "d"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
-					},
-				},
-				2: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "c": "f"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(time.Hour),
-					},
-				},
+				1: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "b", "c": "d"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(-time.Second),
+				}, time.Time{}, false),
+				2: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "b", "c": "f"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			equal:  model.LabelNames{"a"},
 			input:  model.LabelSet{"a": "b"},
@@ -139,20 +131,16 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			name: "equal label does not match",
 			initial: map[model.Fingerprint]*alert.Alert{
-				1: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "c", "c": "d"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
-					},
-				},
-				2: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "c", "c": "f"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
-					},
-				},
+				1: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "c", "c": "d"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(-time.Second),
+				}, time.Time{}, false),
+				2: alert.New(model.Alert{
+					Labels:   model.LabelSet{"a": "c", "c": "f"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(-time.Second),
+				}, time.Time{}, false),
 			},
 			equal:  model.LabelNames{"a"},
 			input:  model.LabelSet{"a": "b"},
@@ -161,20 +149,16 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			name: "matching source-only alert still inhibits when newest equal source is two-sided",
 			initial: map[model.Fingerprint]*alert.Alert{
-				1: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"s": "1", "e": "1"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(time.Hour),
-					},
-				},
-				2: {
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
-						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(2 * time.Hour),
-					},
-				},
+				1: alert.New(model.Alert{
+					Labels:   model.LabelSet{"s": "1", "e": "1"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(time.Hour),
+				}, time.Time{}, false),
+				2: alert.New(model.Alert{
+					Labels:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(2 * time.Hour),
+				}, time.Time{}, false),
 			},
 			equal:          model.LabelNames{"e"},
 			targetMatchers: labels.Matchers{{Type: labels.MatchEqual, Name: "t", Value: "1"}},
@@ -213,20 +197,16 @@ func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	sourceOnly := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "source-only"},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now.Add(time.Hour),
-		},
-	}
-	expiredSameEqual := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s": "1", "e": "1", "id": "expired"},
-			StartsAt: now.Add(-2 * time.Hour),
-			EndsAt:   now.Add(-time.Hour),
-		},
-	}
+	sourceOnly := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s": "1", "e": "1", "id": "source-only"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	expiredSameEqual := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s": "1", "e": "1", "id": "expired"},
+		StartsAt: now.Add(-2 * time.Hour),
+		EndsAt:   now.Add(-time.Hour),
+	}, time.Time{}, false)
 
 	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{
 		TargetMatch: map[string]string{"t": "1"},
@@ -248,22 +228,16 @@ func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t
 	t.Parallel()
 
 	now := time.Now()
-	oldSource := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s": "1", "e": "1"},
-			StartsAt: now.Add(-2 * time.Hour),
-			EndsAt:   now.Add(-time.Hour),
-		},
-		UpdatedAt: now.Add(-time.Hour),
-	}
-	refreshedSource := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s": "1", "e": "1"},
-			StartsAt: now.Add(-2 * time.Hour),
-			EndsAt:   now.Add(time.Hour),
-		},
-		UpdatedAt: now,
-	}
+	oldSource := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s": "1", "e": "1"},
+		StartsAt: now.Add(-2 * time.Hour),
+		EndsAt:   now.Add(-time.Hour),
+	}, now.Add(-time.Hour), false)
+	refreshedSource := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s": "1", "e": "1"},
+		StartsAt: now.Add(-2 * time.Hour),
+		EndsAt:   now.Add(time.Hour),
+	}, now, false)
 
 	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{Equal: []string{"e"}}}, oldSource, refreshedSource)
 	r := ih.rules[0]
@@ -291,21 +265,17 @@ func TestInhibitRuleMatches(t *testing.T) {
 	ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{rule1, rule2}, nopLogger, eventrecorder.NopRecorder())
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
-	sourceAlert1 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now.Add(time.Hour),
-		},
-	}
+	sourceAlert1 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
 	// Active alert that matches the source filter _and_ the target filter of rule2.
-	sourceAlert2 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now.Add(time.Hour),
-		},
-	}
+	sourceAlert2 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
 
 	ih.rules[0].cache.set(sourceAlert1)
 	ih.rules[1].cache.set(sourceAlert2)
@@ -382,21 +352,17 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{rule1, rule2}, nopLogger, eventrecorder.NopRecorder())
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
-	sourceAlert1 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now.Add(time.Hour),
-		},
-	}
+	sourceAlert1 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
 	// Active alert that matches the source filter _and_ the target filter of rule2.
-	sourceAlert2 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now.Add(time.Hour),
-		},
-	}
+	sourceAlert2 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
 
 	ih.rules[0].cache.set(sourceAlert1)
 	ih.rules[1].cache.set(sourceAlert2)
@@ -514,12 +480,10 @@ func (f *fakeAlerts) Subscribe(name string) provider.AlertIterator {
 		// Send another (meaningless) alert to make sure that the inhibitor has
 		// processed everything.
 		ch <- &provider.Alert{
-			Data: &alert.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{},
-					StartsAt: time.Now(),
-				},
-			},
+			Data: alert.New(model.Alert{
+				Labels:   model.LabelSet{},
+				StartsAt: time.Now(),
+			}, time.Time{}, false),
 			Header: map[string]string{},
 		}
 		close(f.finished)
@@ -541,12 +505,10 @@ func (f *fakeAlerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.Al
 		// Send another (meaningless) alert to make sure that the inhibitor has
 		// processed everything.
 		ch <- &provider.Alert{
-			Data: &alert.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{},
-					StartsAt: time.Now(),
-				},
-			},
+			Data: alert.New(model.Alert{
+				Labels:   model.LabelSet{},
+				StartsAt: time.Now(),
+			}, time.Time{}, false),
 			Header: map[string]string{},
 		}
 		close(f.finished)
@@ -568,13 +530,11 @@ func TestInhibit(t *testing.T) {
 	}
 	// alertOne is muted by alertTwo when it is active.
 	alertOne := func() *alert.Alert {
-		return &alert.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"t": "1", "e": "f"},
-				StartsAt: now.Add(-time.Minute),
-				EndsAt:   now.Add(time.Hour),
-			},
-		}
+		return alert.New(model.Alert{
+			Labels:   model.LabelSet{"t": "1", "e": "f"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		}, time.Time{}, false)
 	}
 	alertTwo := func(resolved bool) *alert.Alert {
 		var end time.Time
@@ -583,13 +543,11 @@ func TestInhibit(t *testing.T) {
 		} else {
 			end = now.Add(time.Hour)
 		}
-		return &alert.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"s": "1", "e": "f"},
-				StartsAt: now.Add(-time.Minute),
-				EndsAt:   end,
-			},
-		}
+		return alert.New(model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "f"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   end,
+		}, time.Time{}, false)
 	}
 
 	type exp struct {
@@ -694,16 +652,16 @@ func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
 	now := time.Now()
 	r := NewInhibitRule(amcommoncfg.InhibitRule{Equal: []string{"cluster"}})
 
-	active := &alert.Alert{Alert: model.Alert{
+	active := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1"},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(2 * time.Hour),
-	}}
-	resolved := &alert.Alert{Alert: model.Alert{
+	}, time.Time{}, false)
+	resolved := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S2", "cluster": "c1"},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(-time.Minute),
-	}}
+	}, time.Time{}, false)
 	r.cache.set(active)
 	r.cache.set(resolved)
 
@@ -737,16 +695,16 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 		Equal:          []string{"cluster"},
 	})
 
-	sourceOnly := &alert.Alert{Alert: model.Alert{
+	sourceOnly := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1", "severity": "critical"},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(time.Hour),
-	}}
-	twoSided := &alert.Alert{Alert: model.Alert{
+	}, time.Time{}, false)
+	twoSided := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S2", "cluster": "c1", "severity": "warning"},
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(2 * time.Hour),
-	}}
+	}, time.Time{}, false)
 	r.cache.set(sourceOnly)
 	r.cache.set(twoSided)
 

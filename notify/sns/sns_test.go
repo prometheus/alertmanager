@@ -32,9 +32,9 @@ import (
 	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var logger = promslog.NewNopLogger()
@@ -141,7 +141,7 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 				logger,
 			)
 			require.NoError(t, err)
-			var alerts []*types.Alert
+			var alerts []*alert.Alert
 			err = notifier.Notify(context.Background(), alerts...).Err()
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")

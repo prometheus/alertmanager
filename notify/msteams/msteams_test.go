@@ -31,9 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // This is a test URL that has been modified to not be valid.
@@ -118,16 +118,14 @@ func TestMSTeamsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			verdict := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, verdict.Err())
@@ -176,12 +174,10 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert1 := &types.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alert1 := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 			verdict := notifier.Notify(ctx, alert1)
 			if tt.noError {
 				require.NoError(t, verdict.Err())

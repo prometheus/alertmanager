@@ -582,13 +582,10 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		fp        = "0223b772b51c29e1"
 		receivers = []string{"receiver1", "receiver2"}
 
-		a = &alert.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
-				StartsAt: start,
-			},
-			UpdatedAt: updated,
-		}
+		a = alert.New(model.Alert{
+			Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
+			StartsAt: start,
+		}, updated, false)
 	)
 	openAPIAlert := AlertToOpenAPIAlert(a, alert.AlertStatus{State: alert.AlertStateActive}, receivers, nil)
 	require.Equal(t, &open_api_models.GettableAlert{
@@ -999,15 +996,13 @@ func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			alerts := []*alert.Alert{}
 			for _, apiAlert := range apiAlerts {
-				alerts = append(alerts, &alert.Alert{
-					Alert: model.Alert{
-						Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
-						Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
-						StartsAt:     time.Time(apiAlert.StartsAt),
-						EndsAt:       time.Time(apiAlert.EndsAt),
-						GeneratorURL: string(apiAlert.GeneratorURL),
-					},
-				})
+				alerts = append(alerts, alert.New(model.Alert{
+					Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
+					Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
+					StartsAt:     time.Time(apiAlert.StartsAt),
+					EndsAt:       time.Time(apiAlert.EndsAt),
+					GeneratorURL: string(apiAlert.GeneratorURL),
+				}, time.Time{}, false))
 			}
 			_ = alerts
 		}

@@ -31,9 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // This is a test URL that has been modified to not be valid.
@@ -111,16 +111,14 @@ func TestDiscordTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			verdict := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, verdict.Err())
@@ -169,13 +167,11 @@ func TestDiscordFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alrt := &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"lbl1": "val1"},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alrt := alert.New(model.Alert{
+				Labels:   model.LabelSet{"lbl1": "val1"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			verdict := notifier.Notify(ctx, alrt)
 			require.Error(t, verdict.Err())
@@ -263,16 +259,14 @@ func TestDiscord_Notify(t *testing.T) {
 	// Create a context and alerts
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}
 
 	// Call the Notify method

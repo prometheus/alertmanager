@@ -33,10 +33,10 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestSlackRetry(t *testing.T) {
@@ -226,12 +226,10 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert1 := &types.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alert1 := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 			verdict := notifier.Notify(ctx, alert1)
 			require.Equal(t, tt.expectedRetry, verdict.ShouldRetry())
 			if tt.noError {
@@ -287,12 +285,10 @@ func TestSlackTimeout(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alrt := &types.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alrt := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 			verdict := notifier.Notify(ctx, alrt)
 			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})
@@ -383,12 +379,10 @@ func TestNotifier_Notify_RetryAfterDelay(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert1 := &types.Alert{
-		Alert: model.Alert{
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alert1 := alert.New(model.Alert{
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alert1)
 

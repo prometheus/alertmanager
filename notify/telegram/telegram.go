@@ -28,9 +28,9 @@ import (
 	"golang.org/x/net/html"
 	"gopkg.in/telebot.v3"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -75,7 +75,7 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 	}, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)

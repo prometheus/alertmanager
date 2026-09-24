@@ -31,9 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var testWebhookURL, _ = url.Parse("https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx")
@@ -97,16 +97,14 @@ func TestMattermostTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			verdict := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, verdict.Err())
@@ -183,16 +181,14 @@ func TestMattermost_Notify(t *testing.T) {
 	// Create a context and alerts
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}
 
 	type testcase struct {

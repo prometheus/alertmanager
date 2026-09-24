@@ -263,16 +263,14 @@ func TestTelegramNotify(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 
 			verdict := notifier.Notify(ctx, []*alert.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl3": "val3",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl3": "val3",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			require.False(t, verdict.ShouldRetry())
 			require.NoError(t, verdict.Err())
@@ -373,13 +371,11 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 
 			verdict := notifier.Notify(ctx, []*alert.Alert{
-				{
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"lbl1": "val1"},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
-					},
-				},
+				alert.New(model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			require.True(t, verdict.ShouldRetry())
 			require.Error(t, verdict.Err())
@@ -414,9 +410,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		verdict := notifier.Notify(ctx, &alert.Alert{
-			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
-		})
+		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
 		require.True(t, verdict.ShouldRetry())
 		require.Error(t, verdict.Err())
 		// The token must not appear in the error string.
@@ -451,9 +445,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		verdict := notifier.Notify(ctx, &alert.Alert{
-			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
-		})
+		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
 		require.True(t, verdict.ShouldRetry())
 		require.Error(t, verdict.Err())
 		require.NotContains(t, verdict.Err().Error(), token, "bot token leaked in API error")
@@ -509,12 +501,10 @@ func TestTelegramTimeout(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			testAlert := &alert.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			testAlert := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			err = notifier.Notify(ctx, testAlert).Err()
 			require.Equal(t, tc.wantErr, err != nil)
