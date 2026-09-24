@@ -961,6 +961,59 @@ func TestInhibitByMultipleSources(t *testing.T) {
 	}
 }
 
+func TestMultipleSourcesTwoSidedNoMutualInhibition(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	rules := []amcommoncfg.InhibitRule{
+		{
+			Sources: []amcommoncfg.InhibitRuleSource{
+				{
+					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "a"}},
+					Equal:       []string{"cluster"},
+				},
+				{
+					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "b"}},
+					Equal:       []string{"cluster"},
+				},
+			},
+			TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+		},
+	}
+
+	// Pure source-only alerts.
+	sourceA := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "a", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	sourceB := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "b", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	// Two-sided alerts: match both source and target.
+	alertX := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "a", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	alertY := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "b", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+
+	// With only two-sided alerts, neither should inhibit the other.
+	ih := runInhibitor(t, rules, alertX, alertY)
+	checkMutes(t, ih, alertX.Labels, false, "two-sided X must not be muted by two-sided Y")
+	checkMutes(t, ih, alertY.Labels, false, "two-sided Y must not be muted by two-sided X")
+
+	// With source-only alerts added, both two-sided alerts should be muted
+	// by the source-only alerts, not by each other.
+	ih = runInhibitor(t, rules, sourceA, sourceB, alertX, alertY)
+	checkMutes(t, ih, alertX.Labels, true, "X should be muted by source-only alerts")
+	checkMutes(t, ih, alertY.Labels, true, "Y should be muted by source-only alerts")
+
+	// A pure target (not matching any source) should also be muted.
+	checkMutes(t, ih, model.LabelSet{"t": "1", "cluster": "us-east"}, true, "pure target should be muted")
+
+	// Different cluster should not be muted — equal label doesn't match.
+	checkMutes(t, ih, model.LabelSet{"t": "1", "cluster": "eu-west"}, false, "different cluster should not be muted")
+}
+
 func BenchmarkFingerprintEquals(b *testing.B) {
 	// Test fingerprintEquals with varying number of equal labels
 	for _, numLabels := range []int{1, 3, 5, 10} {
