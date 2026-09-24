@@ -25,9 +25,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -66,7 +66,7 @@ func New(c *PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...co
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)

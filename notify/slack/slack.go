@@ -27,10 +27,10 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
@@ -54,7 +54,7 @@ func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commo
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {

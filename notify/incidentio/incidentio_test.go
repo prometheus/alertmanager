@@ -32,9 +32,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestIncidentIORetry(t *testing.T) {
@@ -98,7 +98,7 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 }
 
 func TestIncidentIOTruncateAlerts(t *testing.T) {
-	alerts := make([]*types.Alert, 10)
+	alerts := make([]*alert.Alert, 10)
 
 	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
 	require.Len(t, truncatedAlerts, 10)
@@ -150,16 +150,14 @@ func TestIncidentIONotify(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"alertname": "TestAlert",
-				"severity":  "critical",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"alertname": "TestAlert",
+			"severity":  "critical",
 		},
-	}
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
@@ -231,16 +229,14 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alrt := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "TestAlert",
-						"severity":  "critical",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alrt := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"severity":  "critical",
 				},
-			}
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			verdict := notifier.Notify(ctx, alrt)
 			if tc.expectErrorMsgContains == "" {
@@ -325,27 +321,25 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	largeAnnotationStr := string(largeAnnotation)
 
 	// Create alerts with large annotations
-	var alerts []*types.Alert
+	var alerts []*alert.Alert
 	for i := range 10 { // 10 alerts * 100KB = 1MB total in annotations alone
-		alrt := &types.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
-					"severity":  "critical",
-					"job":       "test-job",
-					"instance":  "test-instance",
-					"env":       "production",
-					"team":      "sre",
-				},
-				Annotations: model.LabelSet{
-					"description": model.LabelValue(largeAnnotationStr),
-					"runbook":     model.LabelValue(largeAnnotationStr),
-					"summary":     model.LabelValue("This is a test alert with very large annotations"),
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+		alrt := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
+				"severity":  "critical",
+				"job":       "test-job",
+				"instance":  "test-instance",
+				"env":       "production",
+				"team":      "sre",
 			},
-		}
+			Annotations: model.LabelSet{
+				"description": model.LabelValue(largeAnnotationStr),
+				"runbook":     model.LabelValue(largeAnnotationStr),
+				"summary":     model.LabelValue("This is a test alert with very large annotations"),
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false)
 		alerts = append(alerts, alrt)
 	}
 
@@ -394,7 +388,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create many alerts with many labels to push size over limit even without annotations
-	var alerts []*types.Alert
+	var alerts []*alert.Alert
 	for i := range 100 { // Many alerts
 		labels := model.LabelSet{
 			"alertname": model.LabelValue("TestAlert" + string(rune('0'+i%10))),
@@ -413,13 +407,11 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 			labels[labelName] = model.LabelValue(labelValue)
 		}
 
-		alrt := &types.Alert{
-			Alert: model.Alert{
-				Labels:   labels,
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
-			},
-		}
+		alrt := alert.New(model.Alert{
+			Labels:   labels,
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false)
 		alerts = append(alerts, alrt)
 	}
 
@@ -506,13 +498,11 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
@@ -558,13 +548,11 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alrt)
 	require.NoError(t, verdict.Err())
@@ -611,27 +599,23 @@ func TestIncidentIOMetadataTemplated(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "HighLatency",
-					"severity":  "critical",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"severity":  "critical",
 			},
-		},
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "HighLatency",
-					"severity":  "critical",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"severity":  "critical",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}
 
 	verdict := notifier.Notify(ctx, alerts...)
@@ -666,13 +650,11 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alrt)
 	require.Error(t, verdict.Err())

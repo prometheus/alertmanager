@@ -30,9 +30,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestOpsGenieRetry(t *testing.T) {
@@ -221,12 +221,10 @@ func TestOpsGenie(t *testing.T) {
 			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
 			// Empty alert.
-			alert1 := &types.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alert1 := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			req, retry, err := notifier.createRequests(ctx, alert1)
 			require.NoError(t, err)
@@ -237,28 +235,26 @@ func TestOpsGenie(t *testing.T) {
 			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req[0]))
 
 			// Fully defined alert.
-			alert2 := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"Message":        "message",
-						"Description":    "description",
-						"Source":         "http://prometheus",
-						"ResponderName1": "TeamA",
-						"ResponderType1": "team",
-						"ResponderName2": "EscalationA",
-						"ResponderType2": "escalation",
-						"ResponderName3": "TeamA,TeamB",
-						"ResponderType3": "teams",
-						"Tags":           "tag1,tag2",
-						"Note":           "this is a note",
-						"Priority":       "P1",
-						"Entity":         "test-domain",
-						"Actions":        "doThis,doThat",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert2 := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"Message":        "message",
+					"Description":    "description",
+					"Source":         "http://prometheus",
+					"ResponderName1": "TeamA",
+					"ResponderType1": "team",
+					"ResponderName2": "EscalationA",
+					"ResponderType2": "escalation",
+					"ResponderName3": "TeamA,TeamB",
+					"ResponderType3": "teams",
+					"Tags":           "tag1,tag2",
+					"Note":           "this is a note",
+					"Priority":       "P1",
+					"Entity":         "test-domain",
+					"Actions":        "doThis,doThat",
 				},
-			}
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 			req, retry, err = notifier.createRequests(ctx, alert2)
 			require.NoError(t, err)
 			require.True(t, retry)
@@ -289,16 +285,14 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 		HTTPConfig:   &commoncfg.HTTPClientConfig{},
 	}
 	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-			Labels: model.LabelSet{
-				"Message":     "new message",
-				"Description": "new description",
-			},
+	alrt := alert.New(model.Alert{
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+		Labels: model.LabelSet{
+			"Message":     "new message",
+			"Description": "new description",
 		},
-	}
+	}, time.Time{}, false)
 	require.NoError(t, err)
 	requests, retry, err := notifierWithUpdate.createRequests(ctx, alrt)
 	require.NoError(t, err)

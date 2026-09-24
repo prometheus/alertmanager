@@ -26,9 +26,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -101,7 +101,7 @@ type Message struct {
 	Metadata        map[string]string `json:"metadata,omitempty"`
 }
 
-func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
+func truncateAlerts(maxAlerts uint64, alerts []*alert.Alert) ([]*alert.Alert, uint64) {
 	if maxAlerts != 0 && uint64(len(alerts)) > maxAlerts {
 		return alerts[:maxAlerts], uint64(len(alerts)) - maxAlerts
 	}
@@ -153,7 +153,7 @@ func (n *Notifier) encodeMessage(msg *Message) (bytes.Buffer, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alerts ...*alert.Alert) notify.NotifyVerdict {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 

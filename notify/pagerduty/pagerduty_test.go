@@ -33,10 +33,10 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPagerDutyRetryV1(t *testing.T) {
@@ -131,13 +131,11 @@ func TestPagerDutyFailureReason(t *testing.T) {
 				}
 
 				ctx := notify.WithGroupKey(context.Background(), "1")
-				alrt := &types.Alert{
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"lbl1": "val1"},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
-					},
-				}
+				alrt := alert.New(model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false)
 
 				verdict := notifier.Notify(ctx, alrt)
 				require.Equal(t, tc.expectedReason, verdict.Reason())
@@ -391,16 +389,14 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			verdict := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, verdict.Err())
@@ -613,16 +609,14 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	verdict := pagerDuty.Notify(ctx, []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	verdict := pagerDuty.Notify(ctx, []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}...)
 	require.NoError(t, verdict.Err())
 }
@@ -679,15 +673,13 @@ func TestPagerDutyTimeout(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
-			alrt := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"lbl1": "val1",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alrt := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
 				},
-			}
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 			verdict := pd.Notify(ctx, alrt)
 			require.Equal(t, tt.wantErr, verdict.Err() != nil)
 		})

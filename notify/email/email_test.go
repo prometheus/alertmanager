@@ -51,10 +51,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -201,7 +201,7 @@ func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *EmailConfig,
 	return e, verdict.ShouldRetry(), nil
 }
 
-func prepare(cfg *EmailConfig) (*template.Template, *types.Alert, error) {
+func prepare(cfg *EmailConfig) (*template.Template, *alert.Alert, error) {
 	if cfg == nil {
 		panic("nil config passed")
 	}
@@ -219,13 +219,11 @@ func prepare(cfg *EmailConfig) (*template.Template, *types.Alert, error) {
 	}
 	tmpl.ExternalURL, _ = url.Parse("http://am")
 
-	firingAlert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	firingAlert := alert.New(model.Alert{
+		Labels:   model.LabelSet{},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 	return tmpl, firingAlert, nil
 }
 

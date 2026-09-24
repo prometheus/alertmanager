@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/alert"
 )
 
 func TestPairNames(t *testing.T) {
@@ -144,7 +144,7 @@ func TestData(t *testing.T) {
 		receiver    string
 		groupLabels model.LabelSet
 		routeLabels model.LabelSet
-		alerts      []*types.Alert
+		alerts      []*alert.Alert
 
 		exp *Data
 	}{
@@ -166,34 +166,30 @@ func TestData(t *testing.T) {
 			groupLabels: model.LabelSet{
 				model.LabelName("job"): model.LabelValue("foo"),
 			},
-			alerts: []*types.Alert{
-				{
-					Alert: model.Alert{
-						StartsAt: startTime,
-						Labels: model.LabelSet{
-							model.LabelName("severity"): model.LabelValue("warning"),
-							model.LabelName("job"):      model.LabelValue("foo"),
-						},
-						Annotations: model.LabelSet{
-							model.LabelName("description"): model.LabelValue("something happened"),
-							model.LabelName("runbook"):     model.LabelValue("foo"),
-						},
+			alerts: []*alert.Alert{
+				alert.New(model.Alert{
+					StartsAt: startTime,
+					Labels: model.LabelSet{
+						model.LabelName("severity"): model.LabelValue("warning"),
+						model.LabelName("job"):      model.LabelValue("foo"),
 					},
-				},
-				{
-					Alert: model.Alert{
-						StartsAt: startTime,
-						EndsAt:   endTime,
-						Labels: model.LabelSet{
-							model.LabelName("severity"): model.LabelValue("critical"),
-							model.LabelName("job"):      model.LabelValue("foo"),
-						},
-						Annotations: model.LabelSet{
-							model.LabelName("description"): model.LabelValue("something else happened"),
-							model.LabelName("runbook"):     model.LabelValue("foo"),
-						},
+					Annotations: model.LabelSet{
+						model.LabelName("description"): model.LabelValue("something happened"),
+						model.LabelName("runbook"):     model.LabelValue("foo"),
 					},
-				},
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					StartsAt: startTime,
+					EndsAt:   endTime,
+					Labels: model.LabelSet{
+						model.LabelName("severity"): model.LabelValue("critical"),
+						model.LabelName("job"):      model.LabelValue("foo"),
+					},
+					Annotations: model.LabelSet{
+						model.LabelName("description"): model.LabelValue("something else happened"),
+						model.LabelName("runbook"):     model.LabelValue("foo"),
+					},
+				}, time.Time{}, false),
 			},
 			exp: &Data{
 				Receiver: "webhook",
@@ -225,34 +221,30 @@ func TestData(t *testing.T) {
 		{
 			receiver:    "webhook",
 			groupLabels: model.LabelSet{},
-			alerts: []*types.Alert{
-				{
-					Alert: model.Alert{
-						StartsAt: startTime,
-						Labels: model.LabelSet{
-							model.LabelName("severity"): model.LabelValue("warning"),
-							model.LabelName("job"):      model.LabelValue("foo"),
-						},
-						Annotations: model.LabelSet{
-							model.LabelName("description"): model.LabelValue("something happened"),
-							model.LabelName("runbook"):     model.LabelValue("foo"),
-						},
+			alerts: []*alert.Alert{
+				alert.New(model.Alert{
+					StartsAt: startTime,
+					Labels: model.LabelSet{
+						model.LabelName("severity"): model.LabelValue("warning"),
+						model.LabelName("job"):      model.LabelValue("foo"),
 					},
-				},
-				{
-					Alert: model.Alert{
-						StartsAt: startTime,
-						EndsAt:   endTime,
-						Labels: model.LabelSet{
-							model.LabelName("severity"): model.LabelValue("critical"),
-							model.LabelName("job"):      model.LabelValue("bar"),
-						},
-						Annotations: model.LabelSet{
-							model.LabelName("description"): model.LabelValue("something else happened"),
-							model.LabelName("runbook"):     model.LabelValue("bar"),
-						},
+					Annotations: model.LabelSet{
+						model.LabelName("description"): model.LabelValue("something happened"),
+						model.LabelName("runbook"):     model.LabelValue("foo"),
 					},
-				},
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					StartsAt: startTime,
+					EndsAt:   endTime,
+					Labels: model.LabelSet{
+						model.LabelName("severity"): model.LabelValue("critical"),
+						model.LabelName("job"):      model.LabelValue("bar"),
+					},
+					Annotations: model.LabelSet{
+						model.LabelName("description"): model.LabelValue("something else happened"),
+						model.LabelName("runbook"):     model.LabelValue("bar"),
+					},
+				}, time.Time{}, false),
 			},
 			exp: &Data{
 				Receiver: "webhook",
@@ -1117,16 +1109,14 @@ func BenchmarkTemplateData(b *testing.B) {
 	tmpl := &Template{ExternalURL: u}
 
 	now := time.Now()
-	alerts := make([]*types.Alert, 50)
+	alerts := make([]*alert.Alert, 50)
 	for i := range alerts {
-		alerts[i] = &types.Alert{
-			Alert: model.Alert{
-				Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
-				Annotations: model.LabelSet{"summary": "test alert"},
-				StartsAt:    now,
-				EndsAt:      now.Add(time.Hour),
-			},
-		}
+		alerts[i] = alert.New(model.Alert{
+			Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
+			Annotations: model.LabelSet{"summary": "test alert"},
+			StartsAt:    now,
+			EndsAt:      now.Add(time.Hour),
+		}, time.Time{}, false)
 	}
 	groupLabels := model.LabelSet{"alertname": "test"}
 
@@ -1138,21 +1128,19 @@ func BenchmarkTemplateData(b *testing.B) {
 
 func BenchmarkTypesAlerts(b *testing.B) {
 	now := time.Now()
-	alerts := make([]*types.Alert, 50)
+	alerts := make([]*alert.Alert, 50)
 	for i := range alerts {
-		alerts[i] = &types.Alert{
-			Alert: model.Alert{
-				Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
-				Annotations: model.LabelSet{"summary": "test alert"},
-				StartsAt:    now,
-				EndsAt:      now.Add(time.Hour),
-			},
-		}
+		alerts[i] = alert.New(model.Alert{
+			Labels:      model.LabelSet{"alertname": "test", "job": "bench"},
+			Annotations: model.LabelSet{"summary": "test alert"},
+			StartsAt:    now,
+			EndsAt:      now.Add(time.Hour),
+		}, time.Time{}, false)
 	}
 
 	b.Run("SingleCall", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			typed := types.Alerts(alerts...)
+			typed := alert.Alerts(alerts...)
 			_ = typed.Status()
 			for range typed {
 			}
@@ -1161,8 +1149,8 @@ func BenchmarkTypesAlerts(b *testing.B) {
 
 	b.Run("DuplicateCall", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = types.Alerts(alerts...).Status()
-			for range types.Alerts(alerts...) {
+			_ = alert.Alerts(alerts...).Status()
+			for range alert.Alerts(alerts...) {
 			}
 		}
 	})

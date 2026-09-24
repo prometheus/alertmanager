@@ -21,8 +21,8 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/limit"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // ErrLimited is returned if a Store has reached the per-alert limit.
@@ -40,8 +40,8 @@ var ErrDestroyed = errors.New("alert store destroyed")
 // resolved alerts that have been removed.
 type Alerts struct {
 	sync.Mutex
-	alerts        map[model.Fingerprint]*types.Alert
-	gcCallback    func([]*types.Alert)
+	alerts        map[model.Fingerprint]*alert.Alert
+	gcCallback    func([]*alert.Alert)
 	limits        map[string]*limit.Bucket[model.Fingerprint]
 	perAlertLimit int
 	destroyed     bool
@@ -50,8 +50,8 @@ type Alerts struct {
 // NewAlerts returns a new Alerts struct.
 func NewAlerts() *Alerts {
 	a := &Alerts{
-		alerts:        make(map[model.Fingerprint]*types.Alert),
-		gcCallback:    func(_ []*types.Alert) {},
+		alerts:        make(map[model.Fingerprint]*alert.Alert),
+		gcCallback:    func(_ []*alert.Alert) {},
 		perAlertLimit: 0,
 	}
 
@@ -70,7 +70,7 @@ func (a *Alerts) WithPerAlertLimit(lim int) *Alerts {
 }
 
 // SetGCCallback sets a GC callback to be executed after each GC.
-func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
+func (a *Alerts) SetGCCallback(cb func([]*alert.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -93,7 +93,7 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 }
 
 // GC deletes resolved alerts and returns them.
-func (a *Alerts) GC() (deleted []*types.Alert) {
+func (a *Alerts) GC() (deleted []*alert.Alert) {
 	// Remove stale alert limit buckets.
 	a.gcLimitBuckets()
 
@@ -109,7 +109,7 @@ func (a *Alerts) GC() (deleted []*types.Alert) {
 }
 
 // gcAlerts deletes resolved alerts and returns a copy of them.
-func (a *Alerts) gcAlerts() (deleted []*types.Alert) {
+func (a *Alerts) gcAlerts() (deleted []*alert.Alert) {
 	a.Lock()
 	defer a.Unlock()
 	for fp, alrt := range a.alerts {
@@ -135,7 +135,7 @@ func (a *Alerts) gcLimitBuckets() {
 
 // Get returns the Alert with the matching fingerprint, or an error if it is
 // not found.
-func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+func (a *Alerts) Get(fp model.Fingerprint) (*alert.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -147,7 +147,7 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 }
 
 // Set unconditionally sets the alert in memory.
-func (a *Alerts) Set(alrt *types.Alert) error {
+func (a *Alerts) Set(alrt *alert.Alert) error {
 	a.Lock()
 	defer a.Unlock()
 
@@ -176,7 +176,7 @@ func (a *Alerts) Set(alrt *types.Alert) error {
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
 // modified.
-func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice, destroyIfEmpty bool) error {
+func (a *Alerts) DeleteIfNotModified(alerts alert.AlertSlice, destroyIfEmpty bool) error {
 	a.Lock()
 	defer a.Unlock()
 	for _, alrt := range alerts {
@@ -195,11 +195,11 @@ func (a *Alerts) DeleteIfNotModified(alerts types.AlertSlice, destroyIfEmpty boo
 }
 
 // List returns a slice of Alerts currently held in memory.
-func (a *Alerts) List() []*types.Alert {
+func (a *Alerts) List() []*alert.Alert {
 	a.Lock()
 	defer a.Unlock()
 
-	alerts := make([]*types.Alert, 0, len(a.alerts))
+	alerts := make([]*alert.Alert, 0, len(a.alerts))
 	for _, alrt := range a.alerts {
 		alerts = append(alerts, alrt)
 	}

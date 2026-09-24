@@ -17,14 +17,16 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPushoverRetry(t *testing.T) {
@@ -132,5 +134,5 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.Alert{}).Err())
+	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
 }

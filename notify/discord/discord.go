@@ -29,9 +29,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -90,7 +90,7 @@ type webhookEmbed struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
@@ -99,7 +99,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
 
-	alerts := types.Alerts(as...)
+	alerts := alert.Alerts(as...)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {

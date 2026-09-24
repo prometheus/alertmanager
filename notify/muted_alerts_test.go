@@ -37,13 +37,11 @@ import (
 
 // firingAlert returns a firing alert identified by the given alertname.
 func firingAlert(name string) *alert.Alert {
-	return &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": model.LabelValue(name)},
-			StartsAt: utcNow().Add(-time.Hour),
-			EndsAt:   utcNow().Add(time.Hour),
-		},
-	}
+	return alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": model.LabelValue(name)},
+		StartsAt: utcNow().Add(-time.Hour),
+		EndsAt:   utcNow().Add(time.Hour),
+	}, time.Time{}, false)
 }
 
 // resolvedAlert returns the alert that firingAlert returns for the same name,

@@ -36,7 +36,7 @@ import (
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v2"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/alert"
 )
 
 //go:embed default.tmpl email.tmpl
@@ -575,8 +575,8 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
-	typedAlerts := types.Alerts(alerts...)
+func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*alert.Alert) *Data {
+	typedAlerts := alert.Alerts(alerts...)
 
 	data := &Data{
 		Receiver:           regexp.QuoteMeta(recv),
@@ -590,7 +590,7 @@ func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, no
 		ExternalURL:        t.ExternalURL.String(),
 	}
 
-	// The call to types.Alert is necessary to correctly resolve the internal
+	// The call to alert.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
 	for _, a := range typedAlerts {
 		alrt := Alert{

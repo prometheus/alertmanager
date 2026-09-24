@@ -41,7 +41,6 @@ import (
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -960,7 +959,7 @@ func (ag *aggrGroup) flush(notify func(...*alert.Alert) bool) {
 	}
 }
 
-func (ag *aggrGroup) recordResolvedEvents(resolved types.AlertSlice) {
+func (ag *aggrGroup) recordResolvedEvents(resolved alert.AlertSlice) {
 	if len(resolved) == 0 {
 		return
 	}

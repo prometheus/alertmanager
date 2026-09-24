@@ -67,9 +67,7 @@ func TestMuteStage(t *testing.T) {
 
 	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &alert.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
+		inAlerts = append(inAlerts, alert.New(model.Alert{Labels: lset}, time.Time{}, false))
 	}
 
 	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
@@ -99,9 +97,9 @@ func TestMuteStageAccumulatesMutedAlertDetails(t *testing.T) {
 	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
 		return lset["muted_by"] == "second"
 	}), metrics)
-	first := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}}
-	second := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}}
-	active := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Active"}}}
+	first := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}, time.Time{}, false)
+	second := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}, time.Time{}, false)
+	active := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Active"}}, time.Time{}, false)
 
 	ctx, alerts, err := firstStage.Exec(context.Background(), promslog.NewNopLogger(), first, second, active)
 	require.NoError(t, err)
@@ -155,9 +153,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &alert.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
+		inAlerts = append(inAlerts, alert.New(model.Alert{Labels: lset}, time.Time{}, false))
 	}
 
 	// Set the second alert as previously silenced with an old version
@@ -261,31 +257,31 @@ func TestTimeMuteStage(t *testing.T) {
 		name:      "Should be muted outside working hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekends"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekday",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekend",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings", "weekends"},
 	}}
 
@@ -374,25 +370,25 @@ func TestTimeActiveStage(t *testing.T) {
 		name:      "Should be muted outside working hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should be muted at 12pm UTC",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}}
 

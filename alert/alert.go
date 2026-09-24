@@ -35,6 +35,16 @@ type Alert struct {
 	Timeout   bool
 }
 
+// New returns an Alert wrapping the given model.Alert. All Alerts must be
+// created through New so that derived internal state can be computed here.
+func New(a model.Alert, updatedAt time.Time, timeout bool) *Alert {
+	return &Alert{
+		Alert:     a,
+		UpdatedAt: updatedAt,
+		Timeout:   timeout,
+	}
+}
+
 // Merge merges the timespan of two alerts based and overwrites annotations
 // based on the authoritative timestamp.  A new alert is returned, the labels
 // are assumed to be equal.

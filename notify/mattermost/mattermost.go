@@ -27,9 +27,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // Mattermost supports 16383 chars max.
@@ -98,7 +98,7 @@ type attachment struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		err  error
 		url  string

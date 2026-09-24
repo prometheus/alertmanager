@@ -36,9 +36,9 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // Notifier implements a Notifier for SNS notifications.
@@ -146,7 +146,7 @@ func (n *Notifier) classifyPublishError(err error) notify.NotifyVerdict {
 	return notify.Retry(0, err, notify.DefaultReason)
 }
 
-func (n *Notifier) Notify(ctx context.Context, alrt ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		tmplErr error
 		data    = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
