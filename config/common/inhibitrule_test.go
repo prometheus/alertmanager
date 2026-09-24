@@ -82,3 +82,73 @@ func TestInhibitRuleEqual(t *testing.T) {
 	// The inhibition rule should have the expected equal labels.
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
 }
+
+func TestInhibitRuleSourcesValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{
+			name: "sources cannot be combined with legacy fields",
+			input: `
+sources:
+  - matchers: ['foo=bar']
+source_matchers: ['baz=qux']
+target_matchers: ['x=y']
+`,
+			wantErr: "sources cannot be combined with source_match, source_match_re, source_matchers, or equal",
+		},
+		{
+			name: "source with empty matchers",
+			input: `
+sources:
+  - matchers: []
+target_matchers: ['x=y']
+`,
+			wantErr: "source 0: matchers must not be empty",
+		},
+		{
+			name: "source where all matchers match empty string",
+			input: `
+sources:
+  - matchers: ['foo=']
+target_matchers: ['x=y']
+`,
+			wantErr: "source 0: at least one matcher must not match the empty string",
+		},
+		{
+			name: "source with invalid equal label name",
+			input: `
+sources:
+  - matchers: ['foo=bar']
+    equal: ['invalid🙂']
+target_matchers: ['x=y']
+`,
+			wantErr: "invalid label name \"invalid🙂\" in source equal list",
+		},
+		{
+			name: "valid sources config",
+			input: `
+sources:
+  - matchers: ['foo=bar']
+    equal: ['cluster']
+  - matchers: ['baz=qux']
+    equal: ['severity']
+target_matchers: ['x=y']
+`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := unmarshalInhibitRule(tc.input)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
