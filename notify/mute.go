@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -51,18 +53,29 @@ type MuteFunc func(ctx context.Context, lset model.LabelSet) bool
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(ctx context.Context, lset model.LabelSet) bool { return f(ctx, lset) }
 
-// recordMuted adds the hashes of the given alerts to the set of muted alert
-// hashes in the context.
+// recordMuted adds the given alerts to the muted alerts in the context, keyed
+// by hash. It accumulates, because more than one stage can mute a group.
 func recordMuted(ctx context.Context, muted []*alert.Alert) context.Context {
-	hashes, _ := MutedAlerts(ctx)
-	if hashes == nil {
-		hashes = make(map[uint64]struct{}, len(muted))
+	alerts, _ := MutedAlerts(ctx)
+	if alerts == nil {
+		alerts = make(map[uint64]*alert.Alert, len(muted))
 	}
 	for _, a := range muted {
-		hashes[hashAlert(a)] = struct{}{}
+		alerts[hashAlert(a)] = a
 	}
-	ctx = WithMutedAlerts(ctx, hashes)
-	return withMutedAlertDetails(ctx, muted)
+	return WithMutedAlerts(ctx, alerts)
+}
+
+// sortedMutedAlerts returns the alerts a mute stage removed from the pipeline,
+// keyed by hash, along with those hashes in order. The order is fixed so that
+// an unchanged muted set always produces the same bytes, in the notification
+// log and in the events the recorder writes.
+func sortedMutedAlerts(ctx context.Context) ([]uint64, map[uint64]*alert.Alert) {
+	muted, ok := MutedAlerts(ctx)
+	if !ok || len(muted) == 0 {
+		return nil, nil
+	}
+	return slices.Sorted(maps.Keys(muted)), muted
 }
 
 // MuteStage filters alerts through a Muter.

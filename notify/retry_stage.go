@@ -87,21 +87,23 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
 	var sent alert.AlertSlice
 
-	// If we shouldn't send notifications for resolved alerts, but there are only
-	// resolved alerts, report them all as successfully notified (we still want the
-	// notification log to log them for the next run of DedupStage).
+	// If we shouldn't send notifications for resolved alerts, and that leaves
+	// nothing to send, report them all as successfully notified (we still want
+	// the notification log to log them for the next run of DedupStage). What is
+	// left is decided by the alerts in hand rather than by the firing alerts in
+	// the context, which cover the whole group: with the muted alerts feature
+	// those include alerts a mute stage removed from this pipeline.
 	if !r.integration.SendResolved() {
-		firing, ok := FiringAlerts(ctx)
-		if !ok {
+		if _, ok := FiringAlerts(ctx); !ok {
 			return ctx, nil, DefaultReason, errors.New("firing alerts missing")
-		}
-		if len(firing) == 0 {
-			return ctx, alerts, DefaultReason, nil
 		}
 		for _, a := range alerts {
 			if a.Status() != model.AlertResolved {
 				sent = append(sent, a)
 			}
+		}
+		if len(sent) == 0 {
+			return ctx, alerts, DefaultReason, nil
 		}
 	} else {
 		sent = alerts
