@@ -96,8 +96,11 @@ func (a *Alert) Merge(o *Alert) *Alert {
 	return &res
 }
 
-// Validate checks a model.Alert like model.Alert.Validate, but allows UTF-8
-// labels. This can be removed once prometheus/common has support for UTF-8.
+// Validate checks a model.Alert like model.Alert.Validate, but validates label
+// names according to the matcher compatibility mode selected by the feature
+// flags: classic mode rejects UTF-8 names, the other modes allow them.
+// model.Alert.Validate follows the deprecated process-wide
+// model.NameValidationScheme instead, which Alertmanager does not set.
 func Validate(a *model.Alert) error {
 	if a.StartsAt.IsZero() {
 		return fmt.Errorf("start time missing")
@@ -117,7 +120,9 @@ func Validate(a *model.Alert) error {
 	return nil
 }
 
-// Validate overrides the same method in model.Alert to allow UTF-8 labels.
+// Validate overrides the same method in model.Alert so that label names are
+// validated according to the configured matcher compatibility mode. See
+// Validate.
 func (a *Alert) Validate() error {
 	return Validate(&a.Alert)
 }
