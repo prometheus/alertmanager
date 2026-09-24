@@ -284,8 +284,6 @@ type InhibitRule struct {
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
-	// Equal is preserved for event recording and backward compatibility.
-	Equal map[model.LabelName]struct{}
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
@@ -365,23 +363,17 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	targetm = append(targetm, cr.TargetMatchers...)
 
-	equal := map[model.LabelName]struct{}{}
-	for _, ln := range cr.Equal {
-		equal[model.LabelName(ln)] = struct{}{}
-	}
-
 	return &InhibitRule{
 		Name:           cr.Name,
 		Sources:        sources,
 		TargetMatchers: targetm,
-		Equal:          equal,
 	}
 }
 
-// hasEqual checks whether the source cache contains alerts matching the equal
-// labels for the given label set. If so, the fingerprint of one of those alerts
-// is returned. If excludeTwoSidedMatch is true, alerts that match both the
-// source and the target side of the rule are disregarded.
+// hasEqual checks whether this source's cache contains an active alert whose
+// equal labels match the given label set. If so, the fingerprint of that alert
+// is returned. If excludeTwoSidedMatch is true, cached alerts that also match
+// the target matchers are skipped to prevent self-inhibition.
 func (s *Source) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time, targetMatchers labels.Matchers) (model.Fingerprint, bool) {
 	return s.cache.find(lset, now, func(a *alert.Alert) bool {
 		return !excludeTwoSidedMatch || !targetMatchers.Matches(a.Labels)
