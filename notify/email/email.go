@@ -35,9 +35,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // Email implements a Notifier for email notifications.
@@ -122,7 +122,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		c       *smtp.Client
 		conn    net.Conn

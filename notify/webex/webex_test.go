@@ -29,9 +29,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestWebexRetry(t *testing.T) {
@@ -132,27 +132,23 @@ func TestWebexTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
-			verdict := notifierWebex.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl3": "val3",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := notifierWebex.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl3": "val3",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl2": "val2",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl2": "val2",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tt.errMsg == "" {
 				require.NoError(t, verdict.Err())
@@ -188,13 +184,11 @@ func TestWebexRetryAfterDelay(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := notify.WithGroupKey(context.Background(), "1")
-	alrt := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"lbl1": "val1"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"lbl1": "val1"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
 	verdict := notifier.Notify(ctx, alrt)
 
@@ -239,13 +233,11 @@ func TestWebexFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alrt := &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"lbl1": "val1"},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alrt := alert.New(model.Alert{
+				Labels:   model.LabelSet{"lbl1": "val1"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			verdict := notifier.Notify(ctx, alrt)
 			require.Error(t, verdict.Err())

@@ -29,9 +29,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -301,7 +301,7 @@ func (n *Notifier) notifyV2(
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
@@ -309,7 +309,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 	logger := n.logger.With("group_key", key)
 
 	var (
-		alerts    = types.Alerts(as...)
+		alerts    = alert.Alerts(as...)
 		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)

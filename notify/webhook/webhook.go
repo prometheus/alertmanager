@@ -26,9 +26,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // Notifier implements a Notifier for generic webhooks.
@@ -67,7 +67,7 @@ type Message struct {
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
 }
 
-func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
+func truncateAlerts(maxAlerts uint64, alerts []*alert.Alert) ([]*alert.Alert, uint64) {
 	if maxAlerts != 0 && uint64(len(alerts)) > maxAlerts {
 		return alerts[:maxAlerts], uint64(len(alerts)) - maxAlerts
 	}
@@ -76,7 +76,7 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, alerts ...*alert.Alert) notify.NotifyVerdict {
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 

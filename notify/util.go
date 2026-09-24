@@ -30,9 +30,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // truncationMarker is the character used to represent a truncation.
@@ -197,7 +197,7 @@ func (k Key) String() string {
 }
 
 // GetTemplateData creates the template data from the context and the alerts.
-func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l *slog.Logger) *template.Data {
+func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*alert.Alert, l *slog.Logger) *template.Data {
 	recv, ok := ReceiverName(ctx)
 	if !ok {
 		l.Error("Missing receiver")

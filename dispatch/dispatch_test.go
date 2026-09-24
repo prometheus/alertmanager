@@ -63,42 +63,33 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	var (
-		a1 = &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"a": "v1",
-					"b": "v2",
-					"c": "v3",
-				},
-				StartsAt: time.Now().Add(time.Minute),
-				EndsAt:   time.Now().Add(time.Hour),
+		a1 = alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
 			},
-			UpdatedAt: time.Now(),
-		}
-		a2 = &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"a": "v1",
-					"b": "v2",
-					"c": "v4",
-				},
-				StartsAt: time.Now().Add(-time.Hour),
-				EndsAt:   time.Now().Add(2 * time.Hour),
+			StartsAt: time.Now().Add(time.Minute),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Now(), false)
+		a2 = alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v4",
 			},
-			UpdatedAt: time.Now(),
-		}
-		a3 = &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"a": "v1",
-					"b": "v2",
-					"c": "v5",
-				},
-				StartsAt: time.Now().Add(time.Minute),
-				EndsAt:   time.Now().Add(5 * time.Minute),
+			StartsAt: time.Now().Add(-time.Hour),
+			EndsAt:   time.Now().Add(2 * time.Hour),
+		}, time.Now(), false)
+		a3 = alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v5",
 			},
-			UpdatedAt: time.Now(),
-		}
+			StartsAt: time.Now().Add(time.Minute),
+			EndsAt:   time.Now().Add(5 * time.Minute),
+		}, time.Now(), false)
 	)
 
 	type batch struct {
@@ -221,15 +212,13 @@ func TestAggrGroup(t *testing.T) {
 }
 
 func TestGroupLabels(t *testing.T) {
-	a := &alert.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"a": "v1",
-				"b": "v2",
-				"c": "v3",
-			},
+	a := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"a": "v1",
+			"b": "v2",
+			"c": "v3",
 		},
-	}
+	}, time.Time{}, false)
 
 	route := &Route{
 		RouteOpts: RouteOpts{
@@ -254,15 +243,13 @@ func TestGroupLabels(t *testing.T) {
 }
 
 func TestGroupByAllLabels(t *testing.T) {
-	a := &alert.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"a": "v1",
-				"b": "v2",
-				"c": "v3",
-			},
+	a := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"a": "v1",
+			"b": "v2",
+			"c": "v3",
 		},
-	}
+	}, time.Time{}, false)
 
 	route := &Route{
 		RouteOpts: RouteOpts{
@@ -584,17 +571,13 @@ var (
 )
 
 func newAlert(labels model.LabelSet) *alert.Alert {
-	return &alert.Alert{
-		Alert: model.Alert{
-			Labels:       labels,
-			Annotations:  model.LabelSet{"foo": "bar"},
-			StartsAt:     t0,
-			EndsAt:       t1,
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: t0,
-		Timeout:   false,
-	}
+	return alert.New(model.Alert{
+		Labels:       labels,
+		Annotations:  model.LabelSet{"foo": "bar"},
+		StartsAt:     t0,
+		EndsAt:       t1,
+		GeneratorURL: "http://example.com/prometheus",
+	}, t0, false)
 }
 
 func TestDispatcherRace(t *testing.T) {
@@ -704,14 +687,11 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 
 	// Add a resolved alert
-	resolvedAlert := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   labels,
-			StartsAt: time.Now().Add(-2 * time.Hour),
-			EndsAt:   time.Now().Add(-1 * time.Hour), // Already resolved
-		},
-		UpdatedAt: time.Now().Add(-1 * time.Hour),
-	}
+	resolvedAlert := alert.New(model.Alert{
+		Labels:   labels,
+		StartsAt: time.Now().Add(-2 * time.Hour),
+		EndsAt:   time.Now().Add(-1 * time.Hour), // Already resolved
+	}, time.Now().Add(-1*time.Hour), false)
 	aggrGroup1.alerts.Set(resolvedAlert)
 
 	// Flush will detect the resolved alert and delete it via DeleteIfNotModified
@@ -918,28 +898,22 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
-		activeAlert := &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "TestAlert",
-					"instance":  "1",
-				},
-				StartsAt: now.Add(-time.Hour),
-				EndsAt:   now.Add(time.Hour), // Active alert
+		activeAlert := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert",
+				"instance":  "1",
 			},
-			UpdatedAt: now,
-		}
-		resolvedAlert := &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "TestAlert",
-					"instance":  "2",
-				},
-				StartsAt: now.Add(-time.Hour),
-				EndsAt:   now.Add(-time.Minute), // Resolved alert
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(time.Hour), // Active alert
+		}, now, false)
+		resolvedAlert := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert",
+				"instance":  "2",
 			},
-			UpdatedAt: now,
-		}
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(-time.Minute), // Resolved alert
+		}, now, false)
 
 		// Insert alerts into the aggregation group
 		ag.insert(ctx, activeAlert)
@@ -986,17 +960,14 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 
 		// Create a resolved alert
 		now := time.Now()
-		resolvedAlert := &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "TestAlert",
-					"instance":  "1",
-				},
-				StartsAt: now.Add(-time.Hour),
-				EndsAt:   now.Add(-time.Minute), // Resolved alert
+		resolvedAlert := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert",
+				"instance":  "1",
 			},
-			UpdatedAt: now,
-		}
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(-time.Minute), // Resolved alert
+		}, now, false)
 
 		// Insert alert into the aggregation group
 		ag.insert(ctx, resolvedAlert)
@@ -1039,17 +1010,14 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 
 		// Create a resolved alert
 		now := time.Now()
-		resolvedAlert := &alert.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "TestAlert",
-					"instance":  "1",
-				},
-				StartsAt: now.Add(-time.Hour),
-				EndsAt:   now.Add(-time.Minute), // Resolved alert
+		resolvedAlert := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "TestAlert",
+				"instance":  "1",
 			},
-			UpdatedAt: now,
-		}
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(-time.Minute), // Resolved alert
+		}, now, false)
 
 		// Insert alert into the aggregation group
 		ag.insert(ctx, resolvedAlert)
@@ -1063,17 +1031,14 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		// Create a notify function that modifies the alert before returning
 		notifyFunc := func(alerts ...*alert.Alert) bool {
 			// Simulate the alert being modified (e.g., firing again) during flush
-			modifiedAlert := &alert.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "TestAlert",
-						"instance":  "1",
-					},
-					StartsAt: now.Add(-time.Hour),
-					EndsAt:   now.Add(time.Hour), // Active again
+			modifiedAlert := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"instance":  "1",
 				},
-				UpdatedAt: now.Add(time.Second), // More recent update
-			}
+				StartsAt: now.Add(-time.Hour),
+				EndsAt:   now.Add(time.Hour), // Active again
+			}, now.Add(time.Second), false)
 			// Update the alert in the store
 			ag.alerts.Set(modifiedAlert)
 			return true
@@ -1121,29 +1086,21 @@ func TestDispatchOnStartup(t *testing.T) {
 	defer dispatcher.Stop()
 
 	// Create 2 similar alerts with start times in the past
-	alert1 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"alertname": "TestAlert1", "instance": "1"},
-			Annotations:  model.LabelSet{"foo": "bar"},
-			StartsAt:     now.Add(-1 * time.Hour),
-			EndsAt:       now.Add(time.Hour),
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: now,
-		Timeout:   false,
-	}
+	alert1 := alert.New(model.Alert{
+		Labels:       model.LabelSet{"alertname": "TestAlert1", "instance": "1"},
+		Annotations:  model.LabelSet{"foo": "bar"},
+		StartsAt:     now.Add(-1 * time.Hour),
+		EndsAt:       now.Add(time.Hour),
+		GeneratorURL: "http://example.com/prometheus",
+	}, now, false)
 
-	alert2 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:       model.LabelSet{"alertname": "TestAlert2", "instance": "2"},
-			Annotations:  model.LabelSet{"foo": "bar"},
-			StartsAt:     now.Add(-1 * time.Hour),
-			EndsAt:       now.Add(time.Hour),
-			GeneratorURL: "http://example.com/prometheus",
-		},
-		UpdatedAt: now,
-		Timeout:   false,
-	}
+	alert2 := alert.New(model.Alert{
+		Labels:       model.LabelSet{"alertname": "TestAlert2", "instance": "2"},
+		Annotations:  model.LabelSet{"foo": "bar"},
+		StartsAt:     now.Add(-1 * time.Hour),
+		EndsAt:       now.Add(time.Hour),
+		GeneratorURL: "http://example.com/prometheus",
+	}, now, false)
 
 	// Send alert1
 	require.NoError(t, alerts.Put(context.Background(), alert1))
@@ -1182,16 +1139,14 @@ func TestDispatchOnStartup(t *testing.T) {
 }
 
 func TestGetGroupLabels(t *testing.T) {
-	alrt := &alert.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"alertname": "TestAlert",
-				"job":       "prometheus",
-				"instance":  "localhost:9090",
-				"severity":  "critical",
-			},
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"alertname": "TestAlert",
+			"job":       "prometheus",
+			"instance":  "localhost:9090",
+			"severity":  "critical",
 		},
-	}
+	}, time.Time{}, false)
 
 	t.Run("specific labels", func(t *testing.T) {
 		route := &Route{
@@ -1224,24 +1179,22 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 	now := time.Now()
 
 	// Alert with many labels (typical production alert)
-	alrt := &alert.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"alertname":  "TestAlert",
-				"severity":   "critical",
-				"job":        "prometheus",
-				"instance":   "localhost:9090",
-				"namespace":  "monitoring",
-				"cluster":    "prod-us-east-1",
-				"datacenter": "dc1",
-				"env":        "production",
-				"team":       "platform",
-				"service":    "alertmanager",
-			},
-			StartsAt: now.Add(-time.Hour),
-			EndsAt:   now.Add(time.Hour),
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"alertname":  "TestAlert",
+			"severity":   "critical",
+			"job":        "prometheus",
+			"instance":   "localhost:9090",
+			"namespace":  "monitoring",
+			"cluster":    "prod-us-east-1",
+			"datacenter": "dc1",
+			"env":        "production",
+			"team":       "platform",
+			"service":    "alertmanager",
 		},
-	}
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
 
 	b.Run("specific_labels", func(b *testing.B) {
 		route := &Route{
@@ -1314,14 +1267,11 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	ctx := context.Background()
 
 	// Insert a firing alert and wait for the first flush.
-	a1 := &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
-			StartsAt: time.Now().Add(-time.Hour),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-		UpdatedAt: time.Now(),
-	}
+	a1 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
+		StartsAt: time.Now().Add(-time.Hour),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Now(), false)
 	ag.insert(ctx, a1)
 
 	select {
@@ -1403,14 +1353,11 @@ func TestRouteLabelsInNotifyContext(t *testing.T) {
 	go ag.run(ntfy)
 	defer ag.stop()
 
-	ag.insert(context.Background(), &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
-			StartsAt: time.Now().Add(-time.Hour),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-		UpdatedAt: time.Now(),
-	})
+	ag.insert(context.Background(), alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "test", "instance": "a"},
+		StartsAt: time.Now().Add(-time.Hour),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Now(), false))
 
 	select {
 	case got := <-resultCh:
@@ -1456,17 +1403,14 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			for i := range iterations {
-				a := &alert.Alert{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"i":         model.LabelValue(fmt.Sprintf("%d", i)),
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+				a := alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"i":         model.LabelValue(fmt.Sprintf("%d", i)),
 					},
-					UpdatedAt: time.Now(),
-				}
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Now(), false)
 				ag.insert(ctx, a)
 			}
 		})
@@ -1506,14 +1450,11 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 		}}
 		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "x"},
 			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
-		ag.insert(context.Background(), &alert.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"alertname": "x"},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
-			},
-			UpdatedAt: time.Now(),
-		})
+		ag.insert(context.Background(), alert.New(model.Alert{
+			Labels:   model.LabelSet{"alertname": "x"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Now(), false))
 		return ag
 	}
 

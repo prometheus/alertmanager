@@ -29,9 +29,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -104,7 +104,7 @@ func New(c *MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...c
 	return n, nil
 }
 
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
@@ -128,7 +128,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
-	alerts := types.Alerts(as...)
+	alerts := alert.Alerts(as...)
 	color := colorGrey
 	switch alerts.Status() {
 	case model.AlertFiring:

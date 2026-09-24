@@ -25,11 +25,11 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider/mem"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // BenchmarkMutes benchmarks the Mutes method for the Muter interface
@@ -90,7 +90,7 @@ type benchmarkOptions struct {
 	newRuleFunc func(idx int) amcommoncfg.InhibitRule
 	// newAlertsFunc creates the inhibiting alerts for each inhibition rule.
 	// It is called n times.
-	newAlertsFunc func(idx int, r amcommoncfg.InhibitRule) []types.Alert
+	newAlertsFunc func(idx int, r amcommoncfg.InhibitRule) []*alert.Alert
 	// benchFunc runs the benchmark.
 	benchFunc func(mutesFunc func(context.Context, model.LabelSet) bool) error
 }
@@ -121,17 +121,15 @@ func allRulesMatchBenchmark(b *testing.B, numInhibitionRules, numInhibitingAlert
 				},
 			}
 		},
-		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
-			var alerts []types.Alert
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []*alert.Alert {
+			var alerts []*alert.Alert
 			for i := range numInhibitingAlerts {
-				alerts = append(alerts, types.Alert{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"src": model.LabelValue(strconv.Itoa(idx)),
-							"idx": model.LabelValue(strconv.Itoa(i)),
-						},
+				alerts = append(alerts, alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"src": model.LabelValue(strconv.Itoa(idx)),
+						"idx": model.LabelValue(strconv.Itoa(i)),
 					},
-				})
+				}, time.Time{}, false))
 			}
 			return alerts
 		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
@@ -159,31 +157,27 @@ func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchma
 				Equal: []string{"eq"},
 			}
 		},
-		newAlertsFunc: func(_ int, _ amcommoncfg.InhibitRule) []types.Alert {
-			alerts := make([]types.Alert, 0, numInhibitingAlerts+1)
+		newAlertsFunc: func(_ int, _ amcommoncfg.InhibitRule) []*alert.Alert {
+			alerts := make([]*alert.Alert, 0, numInhibitingAlerts+1)
 			for i := range numInhibitingAlerts {
-				alerts = append(alerts, types.Alert{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"src": model.LabelValue("1"),
-							"eq":  model.LabelValue("1"),
-							"idx": model.LabelValue(strconv.Itoa(i)),
-						},
-						EndsAt: now.Add(time.Hour),
-					},
-				})
-			}
-			alerts = append(alerts, types.Alert{
-				Alert: model.Alert{
+				alerts = append(alerts, alert.New(model.Alert{
 					Labels: model.LabelSet{
 						"src": model.LabelValue("1"),
-						"dst": model.LabelValue("1"),
 						"eq":  model.LabelValue("1"),
-						"idx": model.LabelValue("two-sided"),
+						"idx": model.LabelValue(strconv.Itoa(i)),
 					},
-					EndsAt: now.Add(2 * time.Hour),
+					EndsAt: now.Add(time.Hour),
+				}, time.Time{}, false))
+			}
+			alerts = append(alerts, alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"src": model.LabelValue("1"),
+					"dst": model.LabelValue("1"),
+					"eq":  model.LabelValue("1"),
+					"idx": model.LabelValue("two-sided"),
 				},
-			})
+				EndsAt: now.Add(2 * time.Hour),
+			}, time.Time{}, false))
 			return alerts
 		},
 		benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
@@ -216,18 +210,16 @@ func lastRuleMatchesBenchmark(b *testing.B, n int) benchmarkOptions {
 				},
 			}
 		},
-		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []types.Alert {
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []*alert.Alert {
 			// Do not create an alert unless it is the last inhibition rule.
 			if idx < n-1 {
 				return nil
 			}
-			return []types.Alert{{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"src": model.LabelValue(strconv.Itoa(idx)),
-					},
+			return []*alert.Alert{alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"src": model.LabelValue(strconv.Itoa(idx)),
 				},
-			}}
+			}, time.Time{}, false)}
 		}, benchFunc: func(mutesFunc func(context.Context, model.LabelSet) bool) error {
 			if ok := mutesFunc(context.Background(), model.LabelSet{"dst": "0"}); !ok {
 				return errors.New("expected dst=0 to be muted")
@@ -247,8 +239,7 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 
 	alerts, rules := benchmarkFromOptions(opts)
 	for _, a := range alerts {
-		tmp := a
-		if err = s.Put(context.Background(), &tmp); err != nil {
+		if err = s.Put(context.Background(), a); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -265,9 +256,9 @@ func benchmarkMutes(b *testing.B, opts benchmarkOptions) {
 	}
 }
 
-func benchmarkFromOptions(opts benchmarkOptions) ([]types.Alert, []amcommoncfg.InhibitRule) {
+func benchmarkFromOptions(opts benchmarkOptions) ([]*alert.Alert, []amcommoncfg.InhibitRule) {
 	var (
-		alerts = make([]types.Alert, 0, opts.n)
+		alerts = make([]*alert.Alert, 0, opts.n)
 		rules  = make([]amcommoncfg.InhibitRule, 0, opts.n)
 	)
 	for i := 0; i < opts.n; i++ {

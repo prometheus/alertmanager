@@ -26,9 +26,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
@@ -66,7 +66,7 @@ const (
 )
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
 	var (
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -113,7 +113,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 }
 
 // Create the JSON payload to be sent to the VictorOps API.
-func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
+func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*alert.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
 		"WARNING":  true,
@@ -126,7 +126,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	var (
-		alerts = types.Alerts(as...)
+		alerts = alert.Alerts(as...)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 

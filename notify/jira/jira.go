@@ -28,9 +28,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -63,7 +63,7 @@ func New(c *JiraConfig, t *template.Template, l *slog.Logger, httpOpts ...common
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.NotifyVerdict {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
@@ -73,7 +73,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) notify.Notify
 	logger.Debug("extracted group key")
 
 	var (
-		alerts = types.Alerts(as...)
+		alerts = alert.Alerts(as...)
 
 		tmplTextErr  error
 		data         = notify.GetTemplateData(ctx, n.tmpl, as, logger)
