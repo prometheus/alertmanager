@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,6 +39,12 @@ const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
 func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := errors.Join(
+		notify.CheckFileReadable("api_url_file", c.APIURLFile),
+		notify.CheckFileReadable("app_token_file", c.AppTokenFile),
+	); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err

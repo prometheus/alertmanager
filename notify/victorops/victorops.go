@@ -45,6 +45,9 @@ type Notifier struct {
 
 // New returns a new VictorOps notifier.
 func New(c *VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("api_key_file", c.APIKeyFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err

@@ -61,6 +61,9 @@ type Notifier struct {
 
 // New returns a new Discord notifier.
 func New(c *DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("webhook_url_file", c.WebhookURLFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "discord", httpOpts...)
 	if err != nil {
 		return nil, err

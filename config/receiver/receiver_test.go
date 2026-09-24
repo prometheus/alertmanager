@@ -14,6 +14,10 @@
 package receiver
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -85,6 +89,61 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 				require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
 				require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
 			}
+		})
+	}
+}
+
+// TestBuildReceiverIntegrationsUnreadableFile checks that every *_file
+// setting is read when the integration is built, so that a missing file
+// fails the configuration (re)load instead of the first notification.
+func TestBuildReceiverIntegrationsUnreadableFile(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		setting string
+		global  string
+		conf    string
+	}{
+		{name: "webhook", setting: "url_file", conf: `webhook_configs: [{url_file: FILE}]`},
+		{name: "discord", setting: "webhook_url_file", conf: `discord_configs: [{webhook_url_file: FILE}]`},
+		{name: "email", setting: "auth_password_file", conf: `email_configs: [{to: a@example.com, from: b@example.com, smarthost: localhost:25, auth_password_file: FILE}]`},
+		{name: "email", setting: "auth_secret_file", conf: `email_configs: [{to: a@example.com, from: b@example.com, smarthost: localhost:25, auth_secret_file: FILE}]`},
+		{name: "incidentio", setting: "url_file", conf: `incidentio_configs: [{url_file: FILE}]`},
+		{name: "mattermost", setting: "webhook_url_file", conf: `mattermost_configs: [{webhook_url_file: FILE}]`},
+		{name: "msteams", setting: "webhook_url_file", conf: `msteams_configs: [{webhook_url_file: FILE}]`},
+		{name: "msteamsv2", setting: "webhook_url_file", conf: `msteamsv2_configs: [{webhook_url_file: FILE}]`},
+		{name: "opsgenie", setting: "api_key_file", conf: `opsgenie_configs: [{api_key_file: FILE}]`},
+		{name: "pagerduty", setting: "service_key_file", conf: `pagerduty_configs: [{service_key_file: FILE}]`},
+		{name: "pagerduty", setting: "routing_key_file", conf: `pagerduty_configs: [{routing_key_file: FILE}]`},
+		{name: "pushover", setting: "user_key_file", conf: `pushover_configs: [{user_key_file: FILE, token: token}]`},
+		{name: "pushover", setting: "token_file", conf: `pushover_configs: [{user_key: key, token_file: FILE}]`},
+		{name: "slack", setting: "api_url_file", conf: `slack_configs: [{api_url_file: FILE}]`},
+		{name: "slack", setting: "app_token_file", conf: `slack_configs: [{app_token_file: FILE}]`},
+		{name: "telegram", setting: "bot_token_file", conf: `telegram_configs: [{bot_token_file: FILE, chat_id: 1}]`},
+		{name: "telegram", setting: "chat_id_file", conf: `telegram_configs: [{bot_token: token, chat_id_file: FILE}]`},
+		{name: "victorops", setting: "api_key_file", conf: `victorops_configs: [{api_key_file: FILE, routing_key: key}]`},
+		{name: "wechat", setting: "api_secret_file", conf: `wechat_configs: [{api_secret_file: FILE, corp_id: id}]`},
+		// Global settings are copied into each receiver when the
+		// configuration is loaded.
+		{name: "global slack", setting: "api_url_file", global: `slack_api_url_file: FILE`, conf: `slack_configs: [{}]`},
+		{name: "global smtp", setting: "auth_password_file", global: `smtp_auth_password_file: FILE`, conf: `email_configs: [{to: a@example.com, from: b@example.com, smarthost: localhost:25}]`},
+	} {
+		t.Run(tc.name+"/"+tc.setting, func(t *testing.T) {
+			build := func(path string) error {
+				path = strconv.Quote(path)
+				conf, err := config.Load("global: {" + strings.ReplaceAll(tc.global, "FILE", path) + "}\n" +
+					"route: {receiver: test}\n" +
+					"receivers: [{name: test, " + strings.ReplaceAll(tc.conf, "FILE", path) + "}]\n")
+				require.NoError(t, err)
+				_, err = BuildReceiverIntegrations(conf.Receivers[0], nil, nil)
+				return err
+			}
+
+			missing := filepath.Join(t.TempDir(), "missing")
+			require.ErrorContains(t, build(missing), "failed to read "+tc.setting)
+
+			present := filepath.Join(t.TempDir(), "present")
+			require.NoError(t, os.WriteFile(present, []byte("1"), 0o600))
+			require.NoError(t, build(present))
 		})
 	}
 }
