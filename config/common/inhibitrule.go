@@ -70,7 +70,20 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 		return fmt.Errorf("sources cannot be combined with source_match, source_match_re, source_matchers, or equal")
 	}
 
-	for _, src := range r.Sources {
+	for i, src := range r.Sources {
+		if len(src.SrcMatchers) == 0 {
+			return fmt.Errorf("source %d: matchers must not be empty", i)
+		}
+		allMatchEmpty := true
+		for _, m := range src.SrcMatchers {
+			if !m.Matches("") {
+				allMatchEmpty = false
+				break
+			}
+		}
+		if allMatchEmpty {
+			return fmt.Errorf("source %d: at least one matcher must not match the empty string", i)
+		}
 		for _, l := range src.Equal {
 			labelName := model.LabelName(l)
 			if !compat.IsValidLabelName(labelName) {
