@@ -154,20 +154,18 @@ inhibit_rules:
 # Multiple Sources can be defined when setting inhibitions.
 # When all source matchers are matched, the inhibition is applied to
 # the target alerts.
-
-inhibit_rules:
-  - sources:
-      - matchers:
-          - alertname="instance_down"
-          - application="abc"
-        equal: ["cluster"]
-      - matchers:
-          - alertname="instance_down"
-          - application="xyz"
-        equal: ["severity"]
-    target_matchers:
-      - alertname="no_info"
-      - application="def"
+- sources:
+    - matchers:
+        - alertname="instance_down"
+        - application="abc"
+      equal: ["cluster"]
+    - matchers:
+        - alertname="instance_down"
+        - application="xyz"
+      equal: ["severity"]
+  target_matchers:
+    - alertname="no_info"
+    - application="def"
 
 receivers:
 - name: 'team-X-mails'
