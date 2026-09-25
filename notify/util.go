@@ -54,19 +54,27 @@ func NewClientWithTracing(cfg commoncfg.HTTPClientConfig, name string, httpOpts 
 	return client, nil
 }
 
-// CheckFileReadable returns an error if path is set but cannot be read.
-// Notifiers call it from New for their *_file settings, so that a missing or
-// unreadable file fails the configuration (re)load instead of the first
-// notification. The file is still read on every notification, so a rotated
-// secret is picked up without a reload.
+// CheckFileReadable returns an error if path is set but is a directory or
+// cannot be opened for reading. Notifiers call it from New for their *_file
+// settings, so that a missing or unreadable file fails the configuration
+// (re)load instead of the first notification. The file is still read on every
+// notification, so a rotated secret is picked up without a reload.
 func CheckFileReadable(setting, path string) error {
 	if path == "" {
 		return nil
 	}
-	if _, err := os.ReadFile(path); err != nil {
+	fi, err := os.Stat(path)
+	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", setting, err)
 	}
-	return nil
+	if fi.IsDir() {
+		return fmt.Errorf("failed to read %s: %s is a directory", setting, path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", setting, err)
+	}
+	return f.Close()
 }
 
 // RedactURL removes the URL part from an error of *url.Error type.

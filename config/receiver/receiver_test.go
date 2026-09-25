@@ -93,15 +93,19 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 	}
 }
 
-// TestBuildReceiverIntegrationsUnreadableFile checks that every *_file
-// setting is read when the integration is built, so that a missing file
-// fails the configuration (re)load instead of the first notification.
+// TestBuildReceiverIntegrationsUnreadableFile checks that the *_file settings
+// a notifier reads are checked when the integration is built, so that a
+// missing file fails the configuration (re)load instead of the first
+// notification.
 func TestBuildReceiverIntegrationsUnreadableFile(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		setting string
 		global  string
 		conf    string
+		// unused is set when the notifier never reads the file, so a
+		// missing file must not fail the build.
+		unused bool
 	}{
 		{name: "webhook", setting: "url_file", conf: `webhook_configs: [{url_file: FILE}]`},
 		{name: "discord", setting: "webhook_url_file", conf: `discord_configs: [{webhook_url_file: FILE}]`},
@@ -117,7 +121,6 @@ func TestBuildReceiverIntegrationsUnreadableFile(t *testing.T) {
 		{name: "pushover", setting: "user_key_file", conf: `pushover_configs: [{user_key_file: FILE, token: token}]`},
 		{name: "pushover", setting: "token_file", conf: `pushover_configs: [{user_key: key, token_file: FILE}]`},
 		{name: "slack", setting: "api_url_file", conf: `slack_configs: [{api_url_file: FILE}]`},
-		{name: "slack", setting: "app_token_file", conf: `slack_configs: [{app_token_file: FILE}]`},
 		{name: "telegram", setting: "bot_token_file", conf: `telegram_configs: [{bot_token_file: FILE, chat_id: 1}]`},
 		{name: "telegram", setting: "chat_id_file", conf: `telegram_configs: [{bot_token: token, chat_id_file: FILE}]`},
 		{name: "victorops", setting: "api_key_file", conf: `victorops_configs: [{api_key_file: FILE, routing_key: key}]`},
@@ -126,6 +129,9 @@ func TestBuildReceiverIntegrationsUnreadableFile(t *testing.T) {
 		// configuration is loaded.
 		{name: "global slack", setting: "api_url_file", global: `slack_api_url_file: FILE`, conf: `slack_configs: [{}]`},
 		{name: "global smtp", setting: "auth_password_file", global: `smtp_auth_password_file: FILE`, conf: `email_configs: [{to: a@example.com, from: b@example.com, smarthost: localhost:25}]`},
+		// A receiver with an app token posts to the app URL and never reads
+		// the global api_url_file it inherits.
+		{name: "global slack with app token", setting: "api_url_file", global: `slack_api_url_file: FILE`, conf: `slack_configs: [{app_token: token}]`, unused: true},
 	} {
 		t.Run(tc.name+"/"+tc.setting, func(t *testing.T) {
 			build := func(path string) error {
@@ -139,7 +145,12 @@ func TestBuildReceiverIntegrationsUnreadableFile(t *testing.T) {
 			}
 
 			missing := filepath.Join(t.TempDir(), "missing")
+			if tc.unused {
+				require.NoError(t, build(missing))
+				return
+			}
 			require.ErrorContains(t, build(missing), "failed to read "+tc.setting)
+			require.ErrorContains(t, build(t.TempDir()), "is a directory")
 
 			present := filepath.Join(t.TempDir(), "present")
 			require.NoError(t, os.WriteFile(present, []byte("1"), 0o600))

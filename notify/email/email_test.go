@@ -550,8 +550,8 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 				cfg.AuthPasswordFile = "/does/not/exist"
 			},
 
-			errMsg: "could not read",
-			retry:  true,
+			errMsg: "failed to read auth_password_file",
+			retry:  false,
 		},
 		{
 			title:  "no credentials",
