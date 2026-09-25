@@ -29,11 +29,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -365,15 +363,6 @@ func (a *App) setup() error {
 		return nil
 	})
 
-	// The reloader owns the swappable dispatcher/inhibitor. It is built
-	// further below (it needs apih, which needs the GroupFunc here), so
-	// the API's GroupFunc closes over the r variable: it is only invoked
-	// once the server is serving, long after r is assigned.
-	var r *reloader
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		return r.groups(ctx, routeFilter, alertFilter)
-	}
-
 	// An interface value that holds a nil concrete value is non-nil.
 	// Therefore we explicitly pass an empty interface, to detect if the
 	// cluster is not enabled in notify.
@@ -400,7 +389,6 @@ func (a *App) setup() error {
 		Logger:                     logger.With("component", "api"),
 		Registry:                   reg,
 		RequestDuration:            m.requestDuration,
-		GroupFunc:                  groupFn,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create API: %w", err)
@@ -465,7 +453,7 @@ func (a *App) setup() error {
 	// these on every config apply and stops the live inhibitor+dispatcher
 	// at shutdown. The long-lived singletons above are updated in place
 	// (apih.Update, eventRec/tracing ApplyConfig) rather than rebuilt.
-	r = &reloader{
+	r := &reloader{
 		alerts:                      alerts,
 		apih:                        apih,
 		dispatcherMetrics:           dispatch.NewDispatcherMetrics(false, reg, ff),
