@@ -66,5 +66,19 @@ func (c *SNSConfig) Validate() error {
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
+	if err := c.Sigv4.Validate(); err != nil {
+		return err
+	}
+	// AWS STS has a maximum of 50 session tags.
+	// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	if len(c.Sigv4.Tags) > 50 {
+		return errors.New("sigv4.tags must not contain more than 50 tags (AWS STS limit)")
+	}
+	// AWS reserves the "aws:" prefix for tag keys.
+	for k := range c.Sigv4.Tags {
+		if len(k) >= 4 && k[:4] == "aws:" {
+			return errors.New("sigv4.tags keys must not use the reserved 'aws:' prefix")
+		}
+	}
 	return nil
 }
