@@ -1358,6 +1358,41 @@ receivers:
 	require.EqualError(t, err, "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
+func TestSlackUpdateMessageWithGlobalAPIURLFile(t *testing.T) {
+	in := `
+global:
+  slack_api_url_file: /nonexistent
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.EqualError(t, err, "update_message can't be used with api_url_file")
+}
+
+func TestSlackUpdateMessageWithAppTokenAndGlobalAPIURLFile(t *testing.T) {
+	in := `
+global:
+  slack_api_url_file: /nonexistent
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        app_token: xoxb-token
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.NoError(t, err)
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
