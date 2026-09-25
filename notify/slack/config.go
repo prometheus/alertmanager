@@ -205,7 +205,8 @@ func (c *SlackConfig) Validate() error {
 	return ValidateUpdateMessageAPIURL(c.UpdateMessage, c.APIURL, c.APIURLFile)
 }
 
-const updateMessageAPIURL = "https://slack.com/api/chat.postMessage"
+// PostMessageURL is Slack's chat.postMessage endpoint.
+const PostMessageURL = "https://slack.com/api/chat.postMessage"
 
 // ValidateUpdateMessageAPIURL validates the api url used by update_message.
 func ValidateUpdateMessageAPIURL(updateMessage bool, apiURL *amcommoncfg.SecretURL, apiURLFile string) error {
@@ -215,8 +216,8 @@ func ValidateUpdateMessageAPIURL(updateMessage bool, apiURL *amcommoncfg.SecretU
 	if apiURL == nil && apiURLFile != "" {
 		return errors.New("update_message can't be used with api_url_file")
 	}
-	if apiURL != nil && apiURL.String() != updateMessageAPIURL {
-		return errors.New("update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+	if apiURL != nil && apiURL.String() != PostMessageURL {
+		return errors.New("update_message can only be used with bot tokens. api_url must be set to " + PostMessageURL)
 	}
 
 	return nil

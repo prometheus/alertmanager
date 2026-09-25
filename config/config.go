@@ -772,7 +772,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
 		WebexAPIURL:      amcommoncfg.MustParseURL("https://webexapis.com/v1/messages"),
 		RocketchatAPIURL: amcommoncfg.MustParseURL("https://open.rocket.chat/"),
-		SlackAppURL:      amcommoncfg.MustParseURL("https://slack.com/api/chat.postMessage"),
+		SlackAppURL:      amcommoncfg.MustParseURL(slack.PostMessageURL),
 	}
 }
 
