@@ -923,6 +923,11 @@ func TestTemplateFuncs(t *testing.T) {
 		data:  time.Unix(0, 0).UTC(),
 		exp:   "5400000",
 	}, {
+		title: "Template using addDuration with pipeline",
+		in:    `{{ . | addDuration "90m" }}`,
+		data:  time.Unix(0, 0).UTC(),
+		exp:   "5400000",
+	}, {
 		title:  "Template using addDuration with invalid input returns error",
 		in:     `{{ addDuration "not-a-duration" . }}`,
 		data:   time.Unix(0, 0).UTC(),
