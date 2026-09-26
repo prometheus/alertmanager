@@ -81,12 +81,6 @@ type reloader struct {
 	retention                   time.Duration
 }
 
-// groups returns the alert groups from the currently active dispatcher.
-// It is wired into the API as its GroupFunc.
-func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-	return r.dispatcher.Load().Groups(ctx, routeFilter, alertFilter)
-}
-
 // reload rebuilds the config-scoped subgraph from conf and atomically
 // swaps it in. It is registered as the config coordinator's subscriber,
 // so it runs once for the initial config and again on every reload.
@@ -190,11 +184,6 @@ func (r *reloader) reload(conf *config.Config) error {
 	r.metrics.configuredIntegrations.Set(float64(integrationsNum))
 	r.metrics.configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
-	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-		r.inhibitor.Load().Mutes(ctx, labels)
-		r.silencer.Mutes(ctx, labels)
-	})
-
 	newDispatcher := dispatch.NewDispatcher(
 		r.alerts,
 		routes,
@@ -230,21 +219,30 @@ func (r *reloader) reload(conf *config.Config) error {
 	// First, start the inhibitor so the inhibition cache can populate.
 	// Wait for it to load alerts before starting the dispatcher so we
 	// don't accidentally notify for an alert that will be inhibited.
-	// Publish it only after loading completes: the API mute callback
-	// reads r.inhibitor.Load(), so swapping earlier would expose an
-	// empty inhibition cache to concurrent requests during a reload (the
-	// pipeline already holds newInhibitor directly, and no dispatcher is
-	// running to drive it yet, so the old inhibitor stays authoritative
-	// for the API until the new one is ready).
 	go newInhibitor.Run()
 	newInhibitor.WaitForLoading()
-	r.inhibitor.Store(newInhibitor)
 
-	// Next, start the dispatcher and wait for it to load before swapping
-	// the dispatcher pointer. This ensures that the API doesn't see the new
-	// dispatcher before it finishes populating the aggrGroups.
+	// Next, start the dispatcher and wait for it to load. This ensures
+	// the API never sees a dispatcher before it finishes populating the
+	// aggrGroups.
 	go newDispatcher.Run(r.startTime.Add(r.dispatchStartDelay))
 	newDispatcher.WaitForLoading()
+
+	// Publish the config, the alert-groups accessor and the status
+	// predictor together in one call, bound directly to newDispatcher and
+	// newInhibitor rather than to r.dispatcher/r.inhibitor. This is the
+	// only point at which the API's view of a reload changes.
+	r.apih.Update(conf,
+		func(ctx context.Context, rf func(*dispatch.Route) bool, af func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+			return newDispatcher.Groups(ctx, rf, af)
+		},
+		func(ctx context.Context, labels model.LabelSet) {
+			newInhibitor.Mutes(ctx, labels)
+			r.silencer.Mutes(ctx, labels)
+		},
+	)
+
+	r.inhibitor.Store(newInhibitor)
 	r.dispatcher.Store(newDispatcher)
 
 	return nil

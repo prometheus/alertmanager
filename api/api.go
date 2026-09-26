@@ -107,10 +107,6 @@ type Options struct {
 	Registry prometheus.Registerer
 	// RequestDuration is used to measure the duration of HTTP requests.
 	RequestDuration *prometheus.HistogramVec
-	// GroupFunc returns a list of alert groups. The alerts are grouped
-	// according to the current active configuration. Alerts returned are
-	// filtered by the arguments provided to the function.
-	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
 }
 
 type effectiveOptions struct {
@@ -174,9 +170,6 @@ func (o Options) validate() error {
 	if o.GroupMutedFunc == nil {
 		return errors.New("mandatory field GroupMutedFunc not set")
 	}
-	if o.GroupFunc == nil {
-		return errors.New("mandatory field GroupFunc not set")
-	}
 	return nil
 }
 
@@ -191,7 +184,6 @@ func New(opts Options) (*API, error) {
 	// The Connect API is always mounted alongside API v2.
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
-		opts.GroupFunc,
 		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
@@ -318,10 +310,10 @@ func isGRPCRequest(r *http.Request) bool {
 }
 
 // Update config and resolve timeout of each API. APIv2 also needs
-// setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Context, labels model.LabelSet)) {
+// alertGroups and setAlertStatus to be updated.
+func (api *API) Update(cfg *config.Config, alertGroups func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error), setAlertStatus func(ctx context.Context, labels model.LabelSet)) {
 	if api.v2 != nil {
-		api.v2.Update(cfg, setAlertStatus)
+		api.v2.Update(cfg, alertGroups, setAlertStatus)
 	}
 	if api.connect != nil {
 		api.connect.Update(cfg)

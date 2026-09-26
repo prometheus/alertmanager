@@ -15,19 +15,25 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/route"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -35,6 +41,7 @@ import (
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/tracing"
@@ -76,10 +83,6 @@ func newTestReloader(t *testing.T) *reloader {
 	})
 	require.NoError(t, err)
 
-	// The reloader owns the dispatcher/inhibitor; the API's GroupFunc
-	// reads them through r, which is assigned just below (mirroring setup).
-	var r *reloader
-
 	apih, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
@@ -87,16 +90,13 @@ func newTestReloader(t *testing.T) *reloader {
 		Logger:          logger,
 		Registry:        reg,
 		RequestDuration: m.requestDuration,
-		GroupFunc: func(ctx context.Context, rf func(*dispatch.Route) bool, af func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			return r.groups(ctx, rf, af)
-		},
 	})
 	require.NoError(t, err)
 
 	extURL, err := url.Parse("http://localhost:9093")
 	require.NoError(t, err)
 
-	r = &reloader{
+	r := &reloader{
 		logger:                      logger,
 		alerts:                      alerts,
 		silencer:                    silencer,
@@ -170,4 +170,182 @@ func TestReloader_StopIsNilSafe(t *testing.T) {
 	r := newTestReloader(t)
 	// stop before any reload (both pointers nil) must not panic.
 	require.NoError(t, r.stop())
+}
+
+// blockingAlerts wraps a provider.Alerts and can pause a single, targeted
+// SlurpAndSubscribe call. Reload's new inhibitor/dispatcher block on this
+// call while loading, so arming it for "inhibitor" lets a test land
+// deterministically inside the window where the old (already-stopped)
+// dispatcher/inhibitor are still active and reload has not yet published
+// anything for the new config.
+type blockingAlerts struct {
+	provider.Alerts
+
+	mu      sync.Mutex
+	armed   bool
+	name    string
+	entered chan struct{}
+	release chan struct{}
+}
+
+// arm primes the wrapper to block the next SlurpAndSubscribe(name) call.
+// Entered is closed once that call is blocked. The caller must close
+// release to let it proceed.
+func (b *blockingAlerts) arm(name string) (entered <-chan struct{}, release chan<- struct{}) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.armed = true
+	b.name = name
+	b.entered = make(chan struct{})
+	b.release = make(chan struct{})
+	return b.entered, b.release
+}
+
+func (b *blockingAlerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.AlertIterator) {
+	b.mu.Lock()
+	block := b.armed && b.name == name
+	if block {
+		b.armed = false
+	}
+	entered, release := b.entered, b.release
+	b.mu.Unlock()
+
+	if block {
+		close(entered)
+		<-release
+	}
+	return b.Alerts.SlurpAndSubscribe(name)
+}
+
+// TestReloader_ReloadWindowKeepsConfigAndDispatcherInhibitorConsistent covers
+// the window in reload() while the new inhibitor/dispatcher are still
+// loading: r.apih.Update is called only once, after both finish loading,
+// and publishes config/alert-groups/status-prediction as a single atomic
+// snapshot bound directly to the new dispatcher/inhibitor. So a concurrent
+// request landing in that window must see config A everywhere (status,
+// groups, predicted inhibition) rather than a torn mix of config B with
+// config A's already-stopped dispatcher/inhibitor.
+func TestReloader_ReloadWindowKeepsConfigAndDispatcherInhibitorConsistent(t *testing.T) {
+	r := newTestReloader(t)
+	t.Cleanup(func() { _ = r.stop() })
+
+	blocking := &blockingAlerts{Alerts: r.alerts}
+	r.alerts = blocking
+
+	mux := r.apih.Register(route.New(), "")
+	getStatus := func() string {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v2/status", nil))
+		require.Equal(t, http.StatusOK, rec.Code)
+		return rec.Body.String()
+	}
+	// getGroups excludes inhibited alerts so the response distinguishes
+	// config A (no inhibit rules, Bar included) from config B (Bar inhibited
+	// by Foo, Bar excluded) through the same handler a real client would use.
+	getGroups := func() models.AlertGroups {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v2/alerts/groups?inhibited=false", nil))
+		require.Equal(t, http.StatusOK, rec.Code)
+		var groups models.AlertGroups
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &groups))
+		return groups
+	}
+	hasAlert := func(groups models.AlertGroups, alertname string) bool {
+		for _, g := range groups {
+			for _, a := range g.Alerts {
+				if a.Labels["alertname"] == alertname {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	confA, err := config.Load(`route:
+  receiver: receiver-a
+  group_wait: 0s
+  group_interval: 1s
+  repeat_interval: 1h
+receivers:
+  - name: receiver-a
+`)
+	require.NoError(t, err)
+	require.NoError(t, r.reload(confA))
+
+	// Foo/Bar are only related by config B's inhibit rule; under config A
+	// (no inhibit rules) Bar is never inhibited.
+	now := time.Now()
+	foo := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "Foo", "job": "x"},
+		StartsAt: now,
+		EndsAt:   now.Add(time.Hour),
+	}, now, false)
+	bar := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "Bar", "job": "x"},
+		StartsAt: now,
+		EndsAt:   now.Add(time.Hour),
+	}, now, false)
+	require.NoError(t, r.alerts.Put(context.Background(), foo, bar))
+
+	confB, err := config.Load(`route:
+  receiver: receiver-b
+  group_wait: 0s
+  group_interval: 1s
+  repeat_interval: 1h
+receivers:
+  - name: receiver-b
+inhibit_rules:
+  - source_matchers: ['alertname="Foo"']
+    target_matchers: ['alertname="Bar"']
+    equal: ['job']
+`)
+	require.NoError(t, err)
+
+	entered, release := blocking.arm("inhibitor")
+
+	reloadErr := make(chan error, 1)
+	go func() { reloadErr <- r.reload(confB) }()
+
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("reload did not reach the inhibitor loading window")
+	}
+
+	// Inside the window: r.dispatcher/r.inhibitor still reference config A's
+	// stopped instances, and r.apih must not have published config B yet.
+	staleDispatcher := r.dispatcher.Load()
+	staleInhibitor := r.inhibitor.Load()
+	require.NotNil(t, staleDispatcher)
+	require.NotNil(t, staleInhibitor)
+
+	status := getStatus()
+	require.Contains(t, status, "receiver-a", "status must still report config A while its dispatcher/inhibitor are still active")
+	require.NotContains(t, status, "receiver-b", "status must not publish config B before its dispatcher/inhibitor are live")
+
+	groups := getGroups()
+	require.NotEmpty(t, groups)
+	for _, g := range groups {
+		require.Equal(t, "receiver-a", *g.Receiver.Name, "groups must match the config currently published by the status endpoint")
+	}
+	require.True(t, hasAlert(groups, "Bar"),
+		"config A has no inhibit rules, so Bar must still be reported when excluding inhibited alerts")
+
+	// Let reload finish and swap in config B's dispatcher/inhibitor.
+	close(release)
+	require.NoError(t, <-reloadErr)
+
+	require.NotSame(t, staleDispatcher, r.dispatcher.Load())
+	require.NotSame(t, staleInhibitor, r.inhibitor.Load())
+
+	status = getStatus()
+	require.Contains(t, status, "receiver-b")
+
+	groups = getGroups()
+	require.NotEmpty(t, groups)
+	for _, g := range groups {
+		require.Equal(t, "receiver-b", *g.Receiver.Name)
+	}
+	require.False(t, hasAlert(groups, "Bar"),
+		"config B's inhibit rule should suppress Bar once its inhibitor is live")
 }

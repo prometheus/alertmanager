@@ -1053,14 +1053,13 @@ receivers:
 	api := API{
 		uptime: time.Now(),
 		logger: promslog.NewNopLogger(),
-		alertGroups: func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
-		},
 		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
 			return nil, false
 		},
 	}
-	api.Update(cfg, func(context.Context, model.LabelSet) {})
+	api.Update(cfg, func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
+	}, func(context.Context, model.LabelSet) {})
 
 	r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
 	require.NoError(t, err)
