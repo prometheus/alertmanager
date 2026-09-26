@@ -176,16 +176,15 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			for _, ln := range c.equal {
 				equal[ln] = struct{}{}
 			}
-			r := &InhibitRule{
-				TargetMatchers: c.targetMatchers,
-				Equal:          equal,
-				cache:          newCache(equal),
+			src := Source{
+				Equal: equal,
+				cache: newCache(equal),
 			}
 			for _, v := range c.initial {
-				r.cache.set(v)
+				src.cache.set(v)
 			}
 
-			if _, have := r.hasEqual(c.input, c.excludeTwoSidedMatch, time.Now()); have != c.result {
+			if _, have := src.hasEqual(c.input, c.excludeTwoSidedMatch, time.Now(), c.targetMatchers); have != c.result {
 				t.Errorf("Unexpected result %t, expected %t", have, c.result)
 			}
 		})
@@ -211,15 +210,15 @@ func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
 		TargetMatch: map[string]string{"t": "1"},
 		Equal:       []string{"e"},
 	}}, sourceOnly, expiredSameEqual)
-	r := ih.rules[0]
+	src := ih.rules[0].Sources[0]
 
 	target := model.LabelSet{"s": "1", "t": "1", "e": "1"}
-	_, found := r.hasEqual(target, true, now)
+	_, found := src.hasEqual(target, true, now, ih.rules[0].TargetMatchers)
 	require.True(t, found)
 
-	r.cache.gc()
+	src.cache.gc()
 
-	_, found = r.hasEqual(target, true, now)
+	_, found = src.hasEqual(target, true, now, ih.rules[0].TargetMatchers)
 	require.True(t, found)
 }
 
@@ -239,11 +238,11 @@ func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t
 	}, now, false)
 
 	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{Equal: []string{"e"}}}, oldSource, refreshedSource)
-	r := ih.rules[0]
+	src := ih.rules[0].Sources[0]
 
-	r.cache.gc()
+	src.cache.gc()
 
-	_, found := r.hasEqual(model.LabelSet{"t": "1", "e": "1"}, false, now)
+	_, found := src.hasEqual(model.LabelSet{"t": "1", "e": "1"}, false, now, ih.rules[0].TargetMatchers)
 	require.True(t, found)
 }
 
@@ -276,8 +275,8 @@ func TestInhibitRuleMatches(t *testing.T) {
 		EndsAt:   now.Add(time.Hour),
 	}, time.Time{}, false)
 
-	ih.rules[0].cache.set(sourceAlert1)
-	ih.rules[1].cache.set(sourceAlert2)
+	ih.rules[0].Sources[0].cache.set(sourceAlert1)
+	ih.rules[1].Sources[0].cache.set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -363,8 +362,8 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		EndsAt:   now.Add(time.Hour),
 	}, time.Time{}, false)
 
-	ih.rules[0].cache.set(sourceAlert1)
-	ih.rules[1].cache.set(sourceAlert2)
+	ih.rules[0].Sources[0].cache.set(sourceAlert1)
+	ih.rules[1].Sources[0].cache.set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -650,6 +649,7 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
 	now := time.Now()
 	r := NewInhibitRule(amcommoncfg.InhibitRule{Equal: []string{"cluster"}})
+	src := r.Sources[0]
 
 	active := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1"},
@@ -661,30 +661,30 @@ func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(-time.Minute),
 	}, time.Time{}, false)
-	r.cache.set(active)
-	r.cache.set(resolved)
+	src.cache.set(active)
+	src.cache.set(resolved)
 
 	target := model.LabelSet{"alertname": "T", "cluster": "c1"}
-	fp, ok := r.hasEqual(target, false, now)
+	fp, ok := src.hasEqual(target, false, now, r.TargetMatchers)
 	require.True(t, ok)
 	require.Equal(t, active.Fingerprint(), fp)
 
-	r.cache.gc()
-	require.Len(t, r.cache.alerts, 1)
-	require.Contains(t, r.cache.alerts, active.Fingerprint())
+	src.cache.gc()
+	require.Len(t, src.cache.alerts, 1)
+	require.Contains(t, src.cache.alerts, active.Fingerprint())
 
-	fp, ok = r.hasEqual(target, false, now)
+	fp, ok = src.hasEqual(target, false, now, r.TargetMatchers)
 	require.True(t, ok, "active source alert must still inhibit after GC of a sibling")
 	require.Equal(t, active.Fingerprint(), fp)
-	require.Len(t, r.cache.index, 1)
+	require.Len(t, src.cache.index, 1)
 
 	active.EndsAt = now.Add(-time.Second)
-	r.cache.set(active)
-	r.cache.gc()
-	_, ok = r.hasEqual(target, false, now)
+	src.cache.set(active)
+	src.cache.gc()
+	_, ok = src.hasEqual(target, false, now, r.TargetMatchers)
 	require.False(t, ok)
-	require.Empty(t, r.cache.alerts)
-	require.Empty(t, r.cache.index, "empty index keys must be removed")
+	require.Empty(t, src.cache.alerts)
+	require.Empty(t, src.cache.index, "empty index keys must be removed")
 }
 
 func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
@@ -693,6 +693,7 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"}},
 		Equal:          []string{"cluster"},
 	})
+	src := r.Sources[0]
 
 	sourceOnly := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1", "severity": "critical"},
@@ -704,13 +705,313 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 		StartsAt: now.Add(-time.Hour),
 		EndsAt:   now.Add(2 * time.Hour),
 	}, time.Time{}, false)
-	r.cache.set(sourceOnly)
-	r.cache.set(twoSided)
+	src.cache.set(sourceOnly)
+	src.cache.set(twoSided)
 
 	target := model.LabelSet{"alertname": "T", "cluster": "c1", "severity": "warning"}
-	fp, ok := r.hasEqual(target, true, now)
+	fp, ok := src.hasEqual(target, true, now, r.TargetMatchers)
 	require.True(t, ok)
 	require.Equal(t, sourceOnly.Fingerprint(), fp)
+}
+
+func TestInhibitRuleMatchersWithSources(t *testing.T) {
+	t.Parallel()
+
+	rule1 := amcommoncfg.InhibitRule{
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+				Equal:       []string{"e"},
+			},
+		},
+		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
+	}
+	rule2 := amcommoncfg.InhibitRule{
+		Sources: []amcommoncfg.InhibitRuleSource{
+			{
+				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+				Equal:       []string{"e"},
+			},
+		},
+		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
+	}
+
+	ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{rule1, rule2}, nopLogger, eventrecorder.NopRecorder())
+	now := time.Now()
+	sourceAlert1 := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	sourceAlert2 := &alert.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+
+	ih.rules[0].Sources[0].cache.set(sourceAlert1)
+	ih.rules[1].Sources[0].cache.set(sourceAlert2)
+
+	cases := []struct {
+		target   model.LabelSet
+		expected bool
+	}{
+		{
+			target:   model.LabelSet{"t1": "1", "e": "1"},
+			expected: false,
+		},
+		{
+			target:   model.LabelSet{"t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			target:   model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Rule2's two-sided match excludes inhibition by rule2, but rule1's
+			// target matcher (t1!=1) still matches and inhibits via rule1.
+			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			expected: true,
+		},
+	}
+
+	for _, c := range cases {
+		checkMutes(t, ih, c.target, c.expected, "target %v", c.target)
+	}
+}
+
+func TestInhibitByMultipleSources(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	inhibitRules := func() []amcommoncfg.InhibitRule {
+		return []amcommoncfg.InhibitRule{
+			{
+				Sources: []amcommoncfg.InhibitRuleSource{
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s11", Value: "1"},
+						},
+						Equal: []string{"e"},
+					},
+					{
+						SrcMatchers: amcommoncfg.Matchers{
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"},
+							&labels.Matcher{Type: labels.MatchEqual, Name: "s22", Value: "1"},
+						},
+						Equal: []string{"f"},
+					},
+				},
+				TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+			},
+		}
+	}
+	alertOne := func() *alert.Alert {
+		return &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"t": "1", "e": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(time.Hour),
+			},
+		}
+	}
+	alertTwo := func(resolved bool) *alert.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s1": "1", "s11": "1", "e": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+	alertThree := func(resolved bool) *alert.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &alert.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s2": "1", "s22": "1", "f": "1"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	type exp struct {
+		lbls  model.LabelSet
+		muted bool
+	}
+	for i, tc := range []struct {
+		alerts   []*alert.Alert
+		expected []exp
+	}{
+		{
+			// No source alerts cached, so nothing with t=1 should be muted.
+			alerts: []*alert.Alert{alertOne()},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// Source 1 (alertTwo) is active but source 2 (alertThree) is resolved.
+			// AND fails — nothing should be muted.
+			alerts: []*alert.Alert{alertOne(), alertTwo(false), alertThree(true)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "s11": "1", "e": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "s22": "1", "f": "1"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// Source 1 (alertTwo) is resolved but source 2 (alertThree) is active.
+			// AND fails — nothing should be muted.
+			alerts: []*alert.Alert{alertOne(), alertTwo(true), alertThree(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s1": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s2": "1", "e": "1", "f": "1"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// Both sources active. Targets are muted only when both equal labels match.
+			alerts: []*alert.Alert{alertOne(), alertTwo(false), alertThree(false)},
+			expected: []exp{
+				{
+					// t=1 matches target, but e is missing so source 1 equal check fails.
+					lbls:  model.LabelSet{"t": "1", "f": "5"},
+					muted: false,
+				},
+				{
+					// t=1 matches target, e=1 matches source 1, f=1 matches source 2.
+					lbls:  model.LabelSet{"t": "1", "f": "1", "e": "1"},
+					muted: true,
+				},
+				{
+					// Extra labels are ignored. t=1 matches, e=1 and f=1 match both sources.
+					lbls:  model.LabelSet{"s3": "1", "t": "1", "s11": "1", "e": "1", "f": "1"},
+					muted: true,
+				},
+				{
+					// t=1 matches target, but e=2 doesn't match source 1's cached e=1.
+					lbls:  model.LabelSet{"t": "1", "e": "2", "f": "1"},
+					muted: false,
+				},
+				{
+					// t=1 matches target, but f=4 doesn't match source 2's cached f=1.
+					lbls:  model.LabelSet{"t": "1", "e": "1", "f": "4"},
+					muted: false,
+				},
+			},
+		},
+	} {
+		ap := newFakeAlerts(tc.alerts)
+		inhibitor := NewInhibitor(ap, inhibitRules(), nopLogger, eventrecorder.NopRecorder())
+
+		go func() {
+			for ap.finished != nil {
+				select {
+				case <-ap.finished:
+					ap.finished = nil
+				default:
+				}
+			}
+			inhibitor.Stop()
+		}()
+		inhibitor.Run()
+
+		for _, expected := range tc.expected {
+			checkMutes(t, inhibitor, expected.lbls, expected.muted, "tc: %d, labels %q", i, expected.lbls)
+		}
+	}
+}
+
+func TestMultipleSourcesTwoSidedNoMutualInhibition(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	rules := []amcommoncfg.InhibitRule{
+		{
+			Sources: []amcommoncfg.InhibitRuleSource{
+				{
+					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "a"}},
+					Equal:       []string{"cluster"},
+				},
+				{
+					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "b"}},
+					Equal:       []string{"cluster"},
+				},
+			},
+			TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
+		},
+	}
+
+	// Pure source-only alerts.
+	sourceA := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "a", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	sourceB := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "b", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	// Two-sided alerts: match both source and target.
+	alertX := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "a", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+	alertY := &alert.Alert{Alert: model.Alert{
+		Labels: model.LabelSet{"s": "b", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+	}}
+
+	// With only two-sided alerts, neither should inhibit the other.
+	ih := runInhibitor(t, rules, alertX, alertY)
+	checkMutes(t, ih, alertX.Labels, false, "two-sided X must not be muted by two-sided Y")
+	checkMutes(t, ih, alertY.Labels, false, "two-sided Y must not be muted by two-sided X")
+
+	// With source-only alerts added, both two-sided alerts should be muted
+	// by the source-only alerts, not by each other.
+	ih = runInhibitor(t, rules, sourceA, sourceB, alertX, alertY)
+	checkMutes(t, ih, alertX.Labels, true, "X should be muted by source-only alerts")
+	checkMutes(t, ih, alertY.Labels, true, "Y should be muted by source-only alerts")
+
+	// A pure target (not matching any source) should also be muted.
+	checkMutes(t, ih, model.LabelSet{"t": "1", "cluster": "us-east"}, true, "pure target should be muted")
+
+	// Different cluster should not be muted — equal label doesn't match.
+	checkMutes(t, ih, model.LabelSet{"t": "1", "cluster": "eu-west"}, false, "different cluster should not be muted")
 }
 
 func BenchmarkFingerprintEquals(b *testing.B) {
