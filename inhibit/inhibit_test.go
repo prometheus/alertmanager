@@ -173,6 +173,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			equal := map[model.LabelName]struct{}{}
+
 			for _, ln := range c.equal {
 				equal[ln] = struct{}{}
 			}
