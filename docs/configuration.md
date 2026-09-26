@@ -1646,9 +1646,9 @@ Rocketchat notifications are sent via the [Rocketchat REST API](https://develope
 
 ```yaml
 # Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
+[ send_resolved: <boolean> | default = false ]
 [ api_url: <string> | default = global.rocketchat_api_url ]
-[ channel: <tmpl_string> | default = global.rocketchat_api_url ]
+[ channel: <tmpl_string> ]
 
 # The sender token and token_id
 # See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
@@ -1668,9 +1668,9 @@ token_id_file: <filepath>
 [ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
 fields:
   [ <rocketchat_field_config> ... ]
-[ image_url <tmpl_string> ]
-[ thumb_url <tmpl_string> ]
-[ link_names <tmpl_string> ]
+[ image_url: <tmpl_string> ]
+[ thumb_url: <tmpl_string> ]
+[ link_names: <boolean> | default = false ]
 [ short_fields: <boolean> | default = false ]
 actions:
   [ <rocketchat_action_config> ... ]
