@@ -46,6 +46,9 @@ type Notifier struct {
 
 // New returns a new OpsGenie notifier.
 func New(c *OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("api_key_file", c.APIKeyFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err

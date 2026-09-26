@@ -52,6 +52,12 @@ type Notifier struct {
 
 // New returns a new Telegram notification handler.
 func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := errors.Join(
+		notify.CheckFileReadable("bot_token_file", conf.BotTokenFile),
+		notify.CheckFileReadable("chat_id_file", conf.ChatIDFile),
+	); err != nil {
+		return nil, err
+	}
 	httpclient, err := notify.NewClientWithTracing(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err

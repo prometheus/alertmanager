@@ -38,6 +38,13 @@ const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
 func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	// api_url_file is only read when no API URL is set, which an app token
+	// also does. app_token_file is read by the HTTP client as credentials.
+	if c.APIURL == nil {
+		if err := notify.CheckFileReadable("api_url_file", c.APIURLFile); err != nil {
+			return nil, err
+		}
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
