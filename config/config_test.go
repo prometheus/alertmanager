@@ -940,6 +940,10 @@ receivers:
 			expectedErr: "missing jira config",
 		},
 		{
+			integration: "kafka_configs",
+			expectedErr: "missing kafka config",
+		},
+		{
 			integration: "mattermost_configs",
 			expectedErr: "missing mattermost config",
 		},
