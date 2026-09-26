@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 )
@@ -319,7 +320,7 @@ func isGRPCRequest(r *http.Request) bool {
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Context, labels model.LabelSet)) {
+func (api *API) Update(cfg *config.Config, setAlertStatus func(ctx context.Context, labels labelset.LabelSet)) {
 	if api.v2 != nil {
 		api.v2.Update(cfg, setAlertStatus)
 	}

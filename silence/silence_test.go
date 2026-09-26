@@ -39,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -2281,7 +2282,7 @@ func TestSilencer(t *testing.T) {
 		m := marker.NewAlertMarker()
 		ctx := marker.WithContext(t.Context(), m)
 
-		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
+		require.False(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert not silenced without any silences")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced without any silences")
 
 		sil1 := &pb.Silence{
@@ -2295,7 +2296,7 @@ func TestSilencer(t *testing.T) {
 
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
+		require.False(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert not silenced by non-matching silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by non-matching silence")
 
 		sil2 := &pb.Silence{
@@ -2310,7 +2311,7 @@ func TestSilencer(t *testing.T) {
 
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
+		require.True(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert silenced by matching silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by matching silence")
 
 		// One hour passes, silence expires.
@@ -2319,7 +2320,7 @@ func TestSilencer(t *testing.T) {
 
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
+		require.False(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert not silenced by expired silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by expired silence")
 
 		// Update silence to start in the future.
@@ -2335,7 +2336,7 @@ func TestSilencer(t *testing.T) {
 
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.False(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
+		require.False(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert not silenced by future silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, false, "expected marker not silenced by future silence")
 
 		// Two hours pass, silence becomes active.
@@ -2345,7 +2346,7 @@ func TestSilencer(t *testing.T) {
 		// Exposes issue #2426.
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
+		require.True(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert silenced by activated silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated silence")
 
 		err = ss.Set(t.Context(), &pb.Silence{
@@ -2360,7 +2361,7 @@ func TestSilencer(t *testing.T) {
 		// Note that issue #2426 doesn't apply anymore because we added a new silence.
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
+		require.True(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert still silenced by activated silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker still silenced by activated silence")
 
 		// Two hours pass, first silence expires, overlapping second silence becomes active.
@@ -2369,7 +2370,7 @@ func TestSilencer(t *testing.T) {
 		// Another variant of issue #2426 (overlapping silences).
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
+		require.True(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert silenced by activated second silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated second silence")
 	})
 }
@@ -2399,7 +2400,7 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 		// Mutes populates the cache.
 		m := marker.NewAlertMarker()
 		ctx := marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, lset))
+		require.True(t, s.Mutes(ctx, labelset.FromModel(lset)))
 		checkMutes(t, m, lset, true, "expected marker silenced after initial Mutes")
 		entry := s.cache.get(fp)
 		require.Positive(t, entry.count(), "cache should have entries after Mutes()")
@@ -2413,7 +2414,7 @@ func TestSilencerPostDeleteEvictsCache(t *testing.T) {
 		// Mutes re-evaluates from scratch (cache miss) and still finds the silence.
 		m = marker.NewAlertMarker()
 		ctx = marker.WithContext(t.Context(), m)
-		require.True(t, s.Mutes(ctx, lset), "expected alert still silenced after cache eviction")
+		require.True(t, s.Mutes(ctx, labelset.FromModel(lset)), "expected alert still silenced after cache eviction")
 		checkMutes(t, m, lset, true, "expected marker silenced after cache eviction")
 		entry = s.cache.get(fp)
 		require.Positive(t, entry.count(), "cache should be repopulated after Mutes()")

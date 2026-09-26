@@ -34,14 +34,22 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/labelset"
+	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 )
@@ -994,15 +1002,15 @@ func BenchmarkOpenAPIAlertsToAlerts(b *testing.B) {
 
 	b.Run("AppendGrowth", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			alerts := []*alert.Alert{}
+			alerts := []model.Alert{}
 			for _, apiAlert := range apiAlerts {
-				alerts = append(alerts, alert.New(model.Alert{
+				alerts = append(alerts, model.Alert{
 					Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
 					Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
 					StartsAt:     time.Time(apiAlert.StartsAt),
 					EndsAt:       time.Time(apiAlert.EndsAt),
 					GeneratorURL: string(apiAlert.GeneratorURL),
-				}, time.Time{}, false))
+				})
 			}
 			_ = alerts
 		}
@@ -1060,7 +1068,7 @@ receivers:
 			return nil, false
 		},
 	}
-	api.Update(cfg, func(context.Context, model.LabelSet) {})
+	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
 
 	r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
 	require.NoError(t, err)
@@ -1084,4 +1092,177 @@ receivers:
 	require.NoError(t, json.Unmarshal(body, &groups))
 	require.Len(t, groups, 1)
 	require.Equal(t, open_api_models.LabelSet{"team": "X"}, groups[0].RouteLabels)
+}
+
+// putRecorder is a provider.Alerts that only records what the API stores.
+type putRecorder struct {
+	provider.Alerts
+	stored []*alert.Alert
+}
+
+func (p *putRecorder) Put(_ context.Context, alerts ...*alert.Alert) error {
+	p.stored = append(p.stored, alerts...)
+	return nil
+}
+
+// TestPostAlertsHandlerLabelValidationFollowsCompatMode checks that posted
+// alerts are validated according to the matcher compatibility mode selected
+// through feature flags. It guards against validating with
+// model.Alert.Validate, which follows the deprecated process-wide
+// model.NameValidationScheme instead and would accept UTF-8 label names in
+// classic mode.
+func TestPostAlertsHandlerLabelValidationFollowsCompatMode(t *testing.T) {
+	setMode := func(t *testing.T, feature string) {
+		t.Helper()
+		ff, err := featurecontrol.NewFlags(promslog.NewNopLogger(), feature)
+		require.NoError(t, err)
+		compat.InitFromFlags(promslog.NewNopLogger(), ff)
+	}
+	// compat.InitFromFlags mutates package-global state. Restore the default
+	// classic mode when done so other tests in this package are unaffected.
+	t.Cleanup(func() { setMode(t, featurecontrol.FeatureClassicMode) })
+
+	for _, tc := range []struct {
+		name         string
+		feature      string
+		expectedCode int
+		expectStored int
+	}{
+		{
+			name:         "classic mode rejects UTF-8 label names",
+			feature:      featurecontrol.FeatureClassicMode,
+			expectedCode: 400,
+			expectStored: 0,
+		},
+		{
+			name:         "utf-8 strict mode accepts UTF-8 label names",
+			feature:      featurecontrol.FeatureUTF8StrictMode,
+			expectedCode: 200,
+			expectStored: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setMode(t, tc.feature)
+
+			stored := &putRecorder{}
+			api := API{
+				alerts: stored,
+				logger: promslog.NewNopLogger(),
+				m:      metrics.NewAlerts(prometheus.NewRegistry()),
+				alertmanagerConfig: &config.Config{
+					Global: &config.GlobalConfig{ResolveTimeout: model.Duration(5 * time.Minute)},
+				},
+			}
+
+			now := time.Now()
+			r, err := http.NewRequest("POST", "/api/v2/alerts", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			responder := api.postAlertsHandler(alert_ops.PostAlertsParams{
+				HTTPRequest: r,
+				Alerts: open_api_models.PostableAlerts{{
+					Alert: open_api_models.Alert{
+						Labels: open_api_models.LabelSet{"alertname": "test", "Σ": "utf8"},
+					},
+					StartsAt: strfmt.DateTime(now),
+					EndsAt:   strfmt.DateTime(now.Add(time.Hour)),
+				}},
+			})
+			responder.WriteResponse(w, runtime.TextProducer())
+
+			require.Equal(t, tc.expectedCode, w.Code, w.Body.String())
+			if tc.expectedCode == 400 {
+				require.Contains(t, w.Body.String(), "invalid label set")
+			}
+			require.Len(t, stored.stored, tc.expectStored)
+		})
+	}
+}
+
+// TestPostAlertsHandlerIngestsFingerprintedAlerts posts alerts through the API
+// into the real in-memory provider and checks that every alert the provider
+// hands back carries a fingerprint that is set and matches its labels. The
+// fingerprint is computed once in alert.New, so a zero value means an alert
+// reached the provider without going through the constructor.
+func TestPostAlertsHandlerIngestsFingerprintedAlerts(t *testing.T) {
+	alerts, err := mem.NewAlerts(t.Context(), time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
+	require.NoError(t, err)
+	t.Cleanup(alerts.Close)
+
+	api := API{
+		alerts: alerts,
+		logger: promslog.NewNopLogger(),
+		m:      metrics.NewAlerts(prometheus.NewRegistry()),
+		alertmanagerConfig: &config.Config{
+			Global: &config.GlobalConfig{ResolveTimeout: model.Duration(5 * time.Minute)},
+		},
+	}
+	post := func(t *testing.T, postable open_api_models.PostableAlerts) {
+		t.Helper()
+		r, err := http.NewRequest("POST", "/api/v2/alerts", nil)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		api.postAlertsHandler(alert_ops.PostAlertsParams{HTTPRequest: r, Alerts: postable}).WriteResponse(w, runtime.TextProducer())
+		require.Equal(t, 200, w.Code, w.Body.String())
+	}
+
+	const n = 5
+	now := time.Now()
+	posted := make(open_api_models.PostableAlerts, 0, n)
+	want := make(map[model.Fingerprint]model.LabelSet, n)
+	for i := range n {
+		labels := open_api_models.LabelSet{"alertname": "test", "instance": strconv.Itoa(i)}
+		pa := &open_api_models.PostableAlert{
+			Alert:    open_api_models.Alert{Labels: labels},
+			StartsAt: strfmt.DateTime(now),
+		}
+		// Leave EndsAt unset on every other alert so both the explicit end
+		// time and the resolve timeout paths of the handler are exercised.
+		if i%2 == 0 {
+			pa.EndsAt = strfmt.DateTime(now.Add(time.Hour))
+		}
+		posted = append(posted, pa)
+		ls := APILabelSetToModelLabelSet(labels)
+		want[ls.Fingerprint()] = ls
+	}
+	post(t, posted)
+
+	// Post the first alert again, starting inside its stored active range and
+	// ending later, so the provider takes the merge path rather than a plain
+	// replace. The merged alert must keep the fingerprint too.
+	posted[0].StartsAt = strfmt.DateTime(now.Add(time.Minute))
+	posted[0].EndsAt = strfmt.DateTime(now.Add(2 * time.Hour))
+	post(t, posted[:1])
+
+	check := func(t *testing.T, alrt *alert.Alert) {
+		t.Helper()
+		require.NotZero(t, alrt.Fingerprint(), "alert %v has a zero fingerprint", alrt.Labels)
+		require.Equal(t, alrt.Labels.Fingerprint(), alrt.Fingerprint(), "alert %v fingerprint does not match its labels", alrt.Labels)
+		require.Equal(t, alrt.Fingerprint(), alrt.LabelSet().Fingerprint())
+		require.Contains(t, want, alrt.Fingerprint())
+		require.Equal(t, want[alrt.Fingerprint()], alrt.Labels)
+	}
+
+	// Look each alert up by the fingerprint the API is expected to have used.
+	for fp := range want {
+		got, err := alerts.Get(fp)
+		require.NoError(t, err, "alert %v not found under fingerprint %v", want[fp], fp)
+		check(t, got)
+	}
+
+	// And walk everything the provider holds, so nothing stored under a
+	// wrong or zero fingerprint can hide.
+	it := alerts.GetPending()
+	defer it.Close()
+	seen := make(map[model.Fingerprint]int, n)
+	for pa := range it.Next() {
+		check(t, pa.Data)
+		seen[pa.Data.Fingerprint()]++
+	}
+	require.NoError(t, it.Err())
+	require.Len(t, seen, n)
+	for fp, count := range seen {
+		require.Equal(t, 1, count, "fingerprint %v stored %d times", fp, count)
+	}
 }

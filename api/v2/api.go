@@ -51,6 +51,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -88,7 +89,7 @@ type API struct {
 type (
 	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
 	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
-	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
+	setAlertStatusFn func(ctx context.Context, labels labelset.LabelSet)
 )
 
 // NewAPI returns a new Alertmanager API v2.
@@ -364,9 +365,13 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	resolveTimeout := time.Duration(api.alertmanagerConfig.Global.ResolveTimeout)
 	api.mtx.RUnlock()
 
-	for _, alrt := range alerts {
-		alrt.UpdatedAt = now
-
+	// Make a best effort to insert all alerts that are valid.
+	var (
+		validAlerts    = make([]*alert.Alert, 0, len(alerts))
+		validationErrs error
+	)
+	for i := range alerts {
+		alrt := &alerts[i]
 		// Ensure StartsAt is set.
 		if alrt.StartsAt.IsZero() {
 			if alrt.EndsAt.IsZero() {
@@ -377,8 +382,9 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		}
 		// If no end time is defined, set a timeout after which an alert
 		// is marked resolved if it is not updated.
+		timeout := false
 		if alrt.EndsAt.IsZero() {
-			alrt.Timeout = true
+			timeout = true
 			alrt.EndsAt = now.Add(resolveTimeout)
 		}
 		if alrt.EndsAt.After(time.Now()) {
@@ -386,22 +392,17 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 		} else {
 			api.m.Resolved().Inc()
 		}
-	}
 
-	// Make a best effort to insert all alerts that are valid.
-	var (
-		validAlerts    = make([]*alert.Alert, 0, len(alerts))
-		validationErrs error
-	)
-	for _, a := range alerts {
-		removeEmptyLabels(a.Labels)
+		removeEmptyLabels(alrt.Labels)
 
-		if err := a.Validate(); err != nil {
+		if err := alert.Validate(alrt); err != nil {
 			validationErrs = errors.Join(validationErrs, err)
 			api.m.Invalid().Inc()
 			continue
 		}
-		validAlerts = append(validAlerts, a)
+		// Labels are final at this point, so the alert can be fingerprinted
+		// and become an internal alert.
+		validAlerts = append(validAlerts, alert.New(*alrt, now, timeout))
 	}
 	if err := api.alerts.Put(ctx, validAlerts...); err != nil {
 		message := "Failed to create alerts"
@@ -540,7 +541,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 func predictAlertStatus(ctx context.Context, setAlertStatus setAlertStatusFn, a *alert.Alert) alert.AlertStatus {
 	m := marker.NewAlertMarker()
 	ctx = marker.WithContext(ctx, m)
-	setAlertStatus(ctx, a.Labels)
+	setAlertStatus(ctx, a.LabelSet())
 	return m.Status(a.Fingerprint())
 }
 
@@ -576,7 +577,7 @@ func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, 
 			predict = marker.NewAlertMarker()
 		}
 		ctx = marker.WithContext(ctx, predict)
-		setAlertStatus(ctx, a.Labels)
+		setAlertStatus(ctx, a.LabelSet())
 
 		// Get alert's current status after seeing if it is suppressed.
 		status := predict.Status(a.Fingerprint())

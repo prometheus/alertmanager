@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/labelset"
 )
 
 // Alert wraps a model.Alert with additional information relevant
@@ -33,16 +35,34 @@ type Alert struct {
 	// The authoritative timestamp.
 	UpdatedAt time.Time
 	Timeout   bool
+
+	// The fingerprint of Labels, computed once by New. The labels must not
+	// be modified after construction.
+	fingerprint model.Fingerprint
 }
 
 // New returns an Alert wrapping the given model.Alert. All Alerts must be
 // created through New so that derived internal state can be computed here.
+// The labels must not be modified afterwards.
 func New(a model.Alert, updatedAt time.Time, timeout bool) *Alert {
 	return &Alert{
-		Alert:     a,
-		UpdatedAt: updatedAt,
-		Timeout:   timeout,
+		Alert:       a,
+		UpdatedAt:   updatedAt,
+		Timeout:     timeout,
+		fingerprint: a.Labels.Fingerprint(),
 	}
+}
+
+// Fingerprint returns the fingerprint of the alert's labels, computed at
+// construction time.
+func (a *Alert) Fingerprint() model.Fingerprint {
+	return a.fingerprint
+}
+
+// LabelSet returns the alert's labels together with its fingerprint, so that
+// consumers which only need the labels do not hash them again.
+func (a *Alert) LabelSet() labelset.LabelSet {
+	return labelset.New(a.Labels, a.fingerprint)
 }
 
 // Merge merges the timespan of two alerts based and overwrites annotations
@@ -76,9 +96,12 @@ func (a *Alert) Merge(o *Alert) *Alert {
 	return &res
 }
 
-// Validate overrides the same method in model.Alert to allow UTF-8 labels.
-// This can be removed once prometheus/common has support for UTF-8.
-func (a *Alert) Validate() error {
+// Validate checks a model.Alert like model.Alert.Validate, but validates label
+// names according to the matcher compatibility mode selected by the feature
+// flags: classic mode rejects UTF-8 names, the other modes allow them.
+// model.Alert.Validate follows the deprecated process-wide
+// model.NameValidationScheme instead, which Alertmanager does not set.
+func Validate(a *model.Alert) error {
 	if a.StartsAt.IsZero() {
 		return fmt.Errorf("start time missing")
 	}
@@ -95,6 +118,13 @@ func (a *Alert) Validate() error {
 		return fmt.Errorf("invalid annotations: %w", err)
 	}
 	return nil
+}
+
+// Validate overrides the same method in model.Alert so that label names are
+// validated according to the configured matcher compatibility mode. See
+// Validate.
+func (a *Alert) Validate() error {
+	return Validate(&a.Alert)
 }
 
 // AlertSlice is a sortable slice of Alerts.
