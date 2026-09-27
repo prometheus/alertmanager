@@ -68,18 +68,15 @@ func New(c *EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	return &Email{conf: c, tmpl: t, logger: l, hostname: h}
 }
 
-// wrapSMTPErr formats err with the given context message and, if err
-// carries an SMTP reply code, derives the failure Reason from it so the
-// failure surfaces in Alertmanager's per-reason notification metrics the
-// same way HTTP-based notifiers already do. Callers pass the returned
-// Reason straight through to notify.Retry/notify.Unrecoverable.
-func wrapSMTPErr(context string, err error) (error, notify.Reason) {
+// wrapSMTPErr wraps err with context and derives its failure Reason from
+// any SMTP reply code it carries.
+func wrapSMTPErr(context string, err error) (notify.Reason, error) {
 	wrapped := fmt.Errorf("%s: %w", context, err)
 
 	if tpErr, ok := errors.AsType[*textproto.Error](err); ok {
-		return wrapped, notify.GetFailureReasonFromSMTPCode(tpErr.Code)
+		return notify.GetFailureReasonFromSMTPCode(tpErr.Code), wrapped
 	}
-	return wrapped, notify.DefaultReason
+	return notify.DefaultReason, wrapped
 }
 
 // auth resolves a string of authentication mechanisms.
@@ -178,7 +175,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
-		wrapped, reason := wrapSMTPErr("create SMTP client", err)
+		reason, wrapped := wrapSMTPErr("create SMTP client", err)
 		return notify.Retry(0, wrapped, reason)
 	}
 	defer func() {
@@ -188,12 +185,19 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 	}()
 
-	if n.conf.Hello != "" {
-		err = c.Hello(n.conf.Hello)
-		if err != nil {
-			wrapped, reason := wrapSMTPErr("send EHLO command", err)
-			return notify.Retry(0, wrapped, reason)
-		}
+	// Greet explicitly, even when n.conf.Hello is unset, so a failed greeting's
+	// SMTP reply code is captured via wrapSMTPErr. Left implicit, the first
+	// c.Extension() call below (STARTTLS or AUTH) would trigger the same
+	// greeting internally, but net/smtp.Client.Extension swallows any error
+	// from it and just reports the extension as unsupported, losing the
+	// failure reason. "localhost" matches net/smtp's own default localName.
+	helloName := n.conf.Hello
+	if helloName == "" {
+		helloName = "localhost"
+	}
+	if err = c.Hello(helloName); err != nil {
+		reason, wrapped := wrapSMTPErr("send EHLO command", err)
+		return notify.Retry(0, wrapped, reason)
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
@@ -211,7 +215,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {
-			wrapped, reason := wrapSMTPErr("send STARTTLS command", err)
+			reason, wrapped := wrapSMTPErr("send STARTTLS command", err)
 			return notify.Retry(0, wrapped, reason)
 		}
 	}
@@ -223,7 +227,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				wrapped, reason := wrapSMTPErr(fmt.Sprintf("%T auth", auth), err)
+				reason, wrapped := wrapSMTPErr(fmt.Sprintf("%T auth", auth), err)
 				return notify.Retry(0, wrapped, reason)
 			}
 		}
@@ -251,7 +255,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		return notify.Unrecoverable(fmt.Errorf("must be exactly one 'from' address (got: %d)", len(addrs)), notify.DefaultReason)
 	}
 	if err = c.Mail(addrs[0].Address); err != nil {
-		wrapped, reason := wrapSMTPErr("send MAIL command", err)
+		reason, wrapped := wrapSMTPErr("send MAIL command", err)
 		return notify.Retry(0, wrapped, reason)
 	}
 	addrs, err = mail.ParseAddressList(to)
@@ -260,7 +264,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	}
 	for _, addr := range addrs {
 		if err = c.Rcpt(addr.Address); err != nil {
-			wrapped, reason := wrapSMTPErr("send RCPT command", err)
+			reason, wrapped := wrapSMTPErr("send RCPT command", err)
 			return notify.Retry(0, wrapped, reason)
 		}
 	}
@@ -268,7 +272,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	// Send the email headers and body.
 	message, err := c.Data()
 	if err != nil {
-		wrapped, reason := wrapSMTPErr("send DATA command", err)
+		reason, wrapped := wrapSMTPErr("send DATA command", err)
 		return notify.Retry(0, wrapped, reason)
 	}
 	closeOnce := sync.OnceValue(func() error {
@@ -395,7 +399,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 
 	// Complete the message and await response.
 	if err = closeOnce(); err != nil {
-		wrapped, reason := wrapSMTPErr("delivery failure", err)
+		reason, wrapped := wrapSMTPErr("delivery failure", err)
 		return notify.Retry(0, wrapped, reason)
 	}
 

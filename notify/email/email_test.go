@@ -39,6 +39,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -751,49 +752,47 @@ func TestEmailRejected(t *testing.T) {
 // TestEmailGreetingRejected simulates a server that rejects the connection at the initial SMTP
 // greeting (before any session is established), which net/smtp.NewClient surfaces directly.
 func TestEmailGreetingRejected(t *testing.T) {
-	l, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = l.Close() })
+	synctest.Test(t, func(t *testing.T) {
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = l.Close() })
 
-	done := make(chan any, 1)
-	go func() {
-		conn, err := l.Accept()
-		if err != nil {
-			close(done)
-			return
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			// A 421 greeting means the service is temporarily unavailable; net/smtp.NewClient
+			// returns this as a *textproto.Error before any session/session commands happen.
+			_, _ = conn.Write([]byte("421 Service not available, closing transmission channel\r\n"))
+			_ = conn.Close()
+		}()
+
+		require.IsType(t, &net.TCPAddr{}, l.Addr())
+		addr := l.Addr().(*net.TCPAddr)
+		cfg := &EmailConfig{
+			Smarthost: amcommoncfg.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
+			Hello:     "localhost",
+			Headers:   make(map[string]string),
+			From:      "alertmanager@system",
+			To:        "sre@company",
 		}
-		// A 421 greeting means the service is temporarily unavailable; net/smtp.NewClient
-		// returns this as a *textproto.Error before any session/session commands happen.
-		_, _ = conn.Write([]byte("421 Service not available, closing transmission channel\r\n"))
-		_ = conn.Close()
-		close(done)
-	}()
+		tmpl, firingAlert, err := prepare(cfg)
+		require.NoError(t, err)
 
-	require.IsType(t, &net.TCPAddr{}, l.Addr())
-	addr := l.Addr().(*net.TCPAddr)
-	cfg := &EmailConfig{
-		Smarthost: amcommoncfg.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
-		Hello:     "localhost",
-		Headers:   make(map[string]string),
-		From:      "alertmanager@system",
-		To:        "sre@company",
-	}
-	tmpl, firingAlert, err := prepare(cfg)
-	require.NoError(t, err)
+		e := New(cfg, tmpl, promslog.NewNopLogger())
 
-	e := New(cfg, tmpl, promslog.NewNopLogger())
+		verdict := e.Notify(context.Background(), firingAlert)
+		require.ErrorContains(t, verdict.Err(), "421")
+		require.True(t, verdict.ShouldRetry())
 
-	verdict := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, verdict.Err(), "421")
-	require.True(t, verdict.ShouldRetry())
+		// A 421 (4xx) greeting is a temporary failure, which should surface as ServerErrorReason.
+		require.Equal(t, notify.ServerErrorReason, verdict.Reason())
 
-	// A 421 (4xx) greeting is a temporary failure, which should surface as ServerErrorReason.
-	require.Equal(t, notify.ServerErrorReason, verdict.Reason())
-
-	require.Eventuallyf(t, func() bool {
 		<-done
-		return true
-	}, time.Second*10, time.Millisecond*100, "mock listener goroutine failed to close in time")
+	})
 }
 
 func mockSMTPServer(t *testing.T) (*smtp.Server, net.Listener, error) {
