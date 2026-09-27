@@ -21,6 +21,12 @@ import (
 	"github.com/prometheus/alertmanager/matcher/compat"
 )
 
+// InhibitRuleSource defines a set of source matchers and equal labels for inhibition rules.
+type InhibitRuleSource struct {
+	SrcMatchers Matchers `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	Equal       []string `yaml:"equal,omitempty" json:"equal,omitempty"`
+}
+
 // InhibitRule defines an inhibition rule that mutes alerts that match the
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
@@ -35,6 +41,9 @@ type InhibitRule struct {
 	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
 	SourceMatchers Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
+	// Sources defines a set of source matchers and equal labels for source alerts.
+	// All Source entries have to match for the inhibition to take effect.
+	Sources []InhibitRuleSource `yaml:"sources,omitempty" json:"sources,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts. Deprecated. Remove before v1.0 release.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
@@ -53,6 +62,34 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain InhibitRule
 	if err := unmarshal((*plain)(r)); err != nil {
 		return err
+	}
+
+	if len(r.Sources) > 0 &&
+		(len(r.SourceMatch) > 0 || len(r.SourceMatchRE) > 0 ||
+			len(r.SourceMatchers) > 0 || len(r.Equal) > 0) {
+		return fmt.Errorf("sources cannot be combined with source_match, source_match_re, source_matchers, or equal")
+	}
+
+	for i, src := range r.Sources {
+		if len(src.SrcMatchers) == 0 {
+			return fmt.Errorf("source %d: matchers must not be empty", i)
+		}
+		allMatchEmpty := true
+		for _, m := range src.SrcMatchers {
+			if !m.Matches("") {
+				allMatchEmpty = false
+				break
+			}
+		}
+		if allMatchEmpty {
+			return fmt.Errorf("source %d: at least one matcher must not match the empty string", i)
+		}
+		for _, l := range src.Equal {
+			labelName := model.LabelName(l)
+			if !compat.IsValidLabelName(labelName) {
+				return fmt.Errorf("invalid label name %q in source equal list", l)
+			}
+		}
 	}
 
 	for k := range r.SourceMatch {

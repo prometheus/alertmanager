@@ -527,6 +527,12 @@ the same is true (including itself). However, we recommend to choose target and
 source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
+Multiple sources can be defined using the `sources` field. When `sources` is
+used, all source entries must have an active matching alert for the inhibition
+to take effect (AND logic). Each source has its own matchers and equal labels.
+The `sources` field cannot be combined with `source_match`, `source_match_re`,
+`source_matchers`, or `equal`.
+
 ```yaml
 # Optional name of the inhibition rule.
 # Duplicate names are allowed but will affect the per-rule metrics.
@@ -561,6 +567,26 @@ source_matchers:
 
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
+[ equal: '[' <labelname>, ... ']' ]
+
+# A list of source definitions. All sources must have an active matching
+# alert for the inhibition to take effect (AND logic). Each source has its
+# own matchers and equal labels. Cannot be combined with source_match,
+# source_match_re, source_matchers, or equal.
+sources:
+  [ - <inhibit_rule_source> ... ]
+```
+
+### `<inhibit_rule_source>`
+
+```yaml
+# A list of matchers for which one or more alerts have
+# to exist for this source to be satisfied.
+matchers:
+  [ - <matcher> ... ]
+
+# Labels that must have an equal value in this source alert and the target
+# alert for this source to be satisfied.
 [ equal: '[' <labelname>, ... ']' ]
 ```
 
