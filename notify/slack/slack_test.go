@@ -313,15 +313,18 @@ func TestSlackMessageField(t *testing.T) {
 			t.Errorf("Expected top-level 'text' to be 'My Top Level Message', got %v", body["text"])
 		}
 
-		// 3. VERIFY: Old attachments still exist
+		// 3. VERIFY: Attachments are sent by default.
 		attachments, ok := body["attachments"].([]any)
 		if !ok || len(attachments) == 0 {
 			t.Errorf("Expected attachments to exist")
 		} else {
 			first := attachments[0].(map[string]any)
-			if first["title"] != "Old Attachment Title" {
-				t.Errorf("Expected attachment title 'Old Attachment Title', got %v", first["title"])
+			if first["title"] != "Attachment Title" {
+				t.Errorf("Expected attachment title 'Attachment Title', got %v", first["title"])
 			}
+		}
+		if _, ok := body["blocks"]; ok {
+			t.Errorf("Did not expect Block Kit blocks in the default payload")
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -330,12 +333,12 @@ func TestSlackMessageField(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// 4. Configure Notifier with BOTH new and old fields
+	// 4. Configure a notifier with top-level text and an attachment.
 	u, _ := url.Parse(server.URL)
 	conf := &SlackConfig{
 		APIURL:      &amcommoncfg.SecretURL{URL: u},
-		MessageText: "My Top Level Message", // Your NEW field
-		Title:       "Old Attachment Title", // An OLD field
+		MessageText: "My Top Level Message",
+		Title:       "Attachment Title",
 		Channel:     "#test-channel",
 		HTTPConfig:  &commoncfg.HTTPClientConfig{},
 	}
@@ -358,6 +361,109 @@ func TestSlackMessageField(t *testing.T) {
 	if err := notifier.Notify(ctx).Err(); err != nil {
 		t.Fatal("Notify failed:", err)
 	}
+}
+
+func TestSlackBlockKitPayload(t *testing.T) {
+	var capturedPayload []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		capturedPayload, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte(`{"ok": true}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	tmpl := test.CreateTmpl(t)
+	require.NoError(t, tmpl.Parse(strings.NewReader(`
+{{ define "slack.block_kit" }}
+[
+  {
+    "type": "header",
+    "text": {
+      "type": "plain_text",
+      "text": {{ .Status | toUpper | toJson }}
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": {{ .CommonAnnotations.summary | toJson }}
+    }
+  }
+]
+{{ end }}
+`)))
+
+	notifier, err := New(
+		&SlackConfig{
+			APIURL:          &amcommoncfg.SecretURL{URL: u},
+			Channel:         "#alerts",
+			MessageText:     "Alertmanager notification",
+			BlockKitPayload: `{{ template "slack.block_kit" . }}`,
+			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+		},
+		tmpl,
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	alert := alert.New(model.Alert{
+		Annotations: model.LabelSet{"summary": "Database is unavailable"},
+		StartsAt:    time.Now(),
+		EndsAt:      time.Now().Add(time.Hour),
+	}, time.Time{}, false)
+	ctx := notify.WithGroupKey(context.Background(), "group-1")
+
+	require.NoError(t, notifier.Notify(ctx, alert).Err())
+	require.JSONEq(t, `{
+		"channel": "#alerts",
+		"text": "Alertmanager notification",
+		"blocks": [
+			{
+				"type": "header",
+				"text": {
+					"type": "plain_text",
+					"text": "FIRING"
+				}
+			},
+			{
+				"type": "section",
+				"text": {
+					"type": "mrkdwn",
+					"text": "Database is unavailable"
+				}
+			}
+		]
+	}`, string(capturedPayload))
+}
+
+func TestSlackBlockKitPayloadTemplateError(t *testing.T) {
+	u, err := url.Parse("https://slack.com/api/chat.postMessage")
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&SlackConfig{
+			APIURL:          &amcommoncfg.SecretURL{URL: u},
+			BlockKitPayload: `{{ if }}`,
+			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	verdict := notifier.Notify(notify.WithGroupKey(context.Background(), "group-1"))
+	require.Error(t, verdict.Err())
+	require.Contains(t, verdict.Err().Error(), "failed to render Block Kit payload")
+	require.False(t, verdict.ShouldRetry())
 }
 
 func TestNotifier_Notify_RetryAfterDelay(t *testing.T) {

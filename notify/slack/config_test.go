@@ -14,6 +14,7 @@
 package slack
 
 import (
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -86,6 +87,33 @@ mrkdwn_in:
 				t.Errorf("\nexpected:\n%v\ngot:\n%v\nat index %v", rt.expected.MrkdwnIn[i], cfg.MrkdwnIn[i], i)
 			}
 		}
+	}
+}
+
+func TestSlackBlockKitPayloadUnmarshaling(t *testing.T) {
+	var cfg SlackConfig
+	err := yaml.UnmarshalStrict([]byte(`
+block_kit_payload:
+  - type: section
+    text:
+      type: mrkdwn
+      text: '{{ .CommonAnnotations.summary }}'
+`), &cfg)
+	if err != nil {
+		t.Fatalf("unmarshal Slack config: %v", err)
+	}
+
+	expected := []any{
+		map[any]any{
+			"type": "section",
+			"text": map[any]any{
+				"type": "mrkdwn",
+				"text": "{{ .CommonAnnotations.summary }}",
+			},
+		},
+	}
+	if !reflect.DeepEqual(expected, cfg.BlockKitPayload) {
+		t.Errorf("\nexpected:\n%#v\ngot:\n%#v", expected, cfg.BlockKitPayload)
 	}
 }
 
