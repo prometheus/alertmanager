@@ -15,6 +15,7 @@ package email
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -185,16 +186,10 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 		}
 	}()
 
-	// Greet explicitly, even when n.conf.Hello is unset, so a failed greeting's
-	// SMTP reply code is captured via wrapSMTPErr. Left implicit, the first
-	// c.Extension() call below (STARTTLS or AUTH) would trigger the same
-	// greeting internally, but net/smtp.Client.Extension swallows any error
-	// from it and just reports the extension as unsupported, losing the
-	// failure reason. "localhost" matches net/smtp's own default localName.
-	helloName := n.conf.Hello
-	if helloName == "" {
-		helloName = "localhost"
-	}
+	// Greet explicitly, even without a configured name. net/smtp's Extension greets
+	// implicitly on first use and discards the error, so a failed greeting would be
+	// misreported as a missing extension. "localhost" is net/smtp's default.
+	helloName := cmp.Or(n.conf.Hello, "localhost")
 	if err = c.Hello(helloName); err != nil {
 		reason, wrapped := wrapSMTPErr("send EHLO command", err)
 		return notify.Retry(0, wrapped, reason)

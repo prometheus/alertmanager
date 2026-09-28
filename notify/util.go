@@ -358,8 +358,10 @@ func GetFailureReasonFromStatusCode(statusCode int) Reason {
 // HTTP's: 4xx is transient, 5xx is permanent.
 func GetFailureReasonFromSMTPCode(code int) Reason {
 	switch code {
-	case 530, 534, 535, 538:
-		// RFC 5321/4954/7504: authentication-related permanent failures.
+	case 422, 432, 523, 524, 525, 530, 534, 535, 538:
+		// RFC 4954 and its IANA-registered enhanced status codes (RFC 5248,
+		// class X.7.x "Security or Policy"): authentication and
+		// account-security failures.
 		return AuthErrorReason
 	}
 	if code/100 == 4 {

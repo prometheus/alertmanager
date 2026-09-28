@@ -281,6 +281,11 @@ func TestGetFailureReasonFromSMTPCode(t *testing.T) {
 		code     int
 		expected Reason
 	}{
+		{"PasswordTransitionNeeded", 422, AuthErrorReason},
+		{"PasswordTransitionNeededAlt", 432, AuthErrorReason},
+		{"EncryptionNeeded", 523, AuthErrorReason},
+		{"EncryptionRequiredForAuthMechanism", 524, AuthErrorReason},
+		{"AccountDisabled", 525, AuthErrorReason},
 		{"AuthenticationRequired", 530, AuthErrorReason},
 		{"AuthenticationFailed", 535, AuthErrorReason},
 		{"AuthMechanismTooWeak", 534, AuthErrorReason},

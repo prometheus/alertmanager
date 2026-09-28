@@ -757,9 +757,7 @@ func TestEmailGreetingRejected(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = l.Close() })
 
-		done := make(chan struct{})
 		go func() {
-			defer close(done)
 			conn, err := l.Accept()
 			if err != nil {
 				return
@@ -790,8 +788,6 @@ func TestEmailGreetingRejected(t *testing.T) {
 
 		// A 421 (4xx) greeting is a temporary failure, which should surface as ServerErrorReason.
 		require.Equal(t, notify.ServerErrorReason, verdict.Reason())
-
-		<-done
 	})
 }
 
