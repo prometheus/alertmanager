@@ -159,8 +159,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		ctx = postCtx
 	}
 
-	req := &request{
-		Channel:     tmplText(n.conf.Channel),
+	msg := message{
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
@@ -187,40 +186,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		}
 	}
 
-	postURL := u
-	initialMessageSent := threadTs != "" && channelId != ""
-	if initialMessageSent {
-		switch {
-		case n.conf.UpdateMessage:
-			u = "https://slack.com/api/chat.update"
-			req.Timestamp = threadTs
-			req.Channel = channelId
-			logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
-		case n.conf.PostUpdatesToThread:
-			req.ThreadTimestamp = threadTs
-			req.Channel = channelId
-			logger.Debug("posting to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+	if threadTs == "" || channelId == "" {
+		return n.postRequest(ctx, u, &request{message: msg, Channel: tmplText(n.conf.Channel)}, store)
+	}
+
+	// Requests targeting the initial message get no store, so its identifiers are never overwritten.
+	if n.conf.UpdateMessage {
+		logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
+		updateReq := &request{message: msg, Channel: channelId, Timestamp: threadTs}
+		if verdict := n.postRequest(ctx, "https://slack.com/api/chat.update", updateReq, nil); verdict.Err() != nil {
+			return verdict
 		}
 	}
-
-	// The thread reply must not overwrite the initial message's timestamp in the
-	// nflog store, so no store is passed when the request targets a thread.
-	responseStore := store
-	if initialMessageSent {
-		responseStore = nil
-	}
-	if verdict := n.postRequest(ctx, u, req, responseStore); verdict.Err() != nil {
-		return verdict
-	}
-
-	// When update_message and post_updates_to_thread are combined, the initial
-	// message was just updated in place; additionally post a reply to its thread.
-	if initialMessageSent && n.conf.UpdateMessage && n.conf.PostUpdatesToThread {
-		threadReq := *req
-		threadReq.Timestamp = ""
-		threadReq.ThreadTimestamp = threadTs
-		logger.Debug("posting update to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
-		return n.postRequest(ctx, postURL, &threadReq, nil)
+	if n.conf.PostUpdatesToThread {
+		logger.Debug("posting to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+		threadReq := &request{message: msg, Channel: channelId, ThreadTimestamp: threadTs}
+		return n.postRequest(ctx, u, threadReq, nil)
 	}
 
 	return notify.Success()
