@@ -190,11 +190,6 @@ func (r *reloader) reload(conf *config.Config) error {
 	r.metrics.configuredIntegrations.Set(float64(integrationsNum))
 	r.metrics.configuredInhibitionRules.Set(float64(len(conf.InhibitRules)))
 
-	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
-		r.inhibitor.Load().Mutes(ctx, labels)
-		r.silencer.Mutes(ctx, labels)
-	})
-
 	newDispatcher := dispatch.NewDispatcher(
 		r.alerts,
 		routes,
@@ -227,18 +222,22 @@ func (r *reloader) reload(conf *config.Config) error {
 		}
 	})
 
-	// First, start the inhibitor so the inhibition cache can populate.
-	// Wait for it to load alerts before starting the dispatcher so we
-	// don't accidentally notify for an alert that will be inhibited.
-	// Publish it only after loading completes: the API mute callback
-	// reads r.inhibitor.Load(), so swapping earlier would expose an
-	// empty inhibition cache to concurrent requests during a reload (the
-	// pipeline already holds newInhibitor directly, and no dispatcher is
-	// running to drive it yet, so the old inhibitor stays authoritative
-	// for the API until the new one is ready).
+	// Start the inhibitor and wait until its cache has the current alerts
+	// before starting the dispatcher, so we don't notify for an alert that
+	// will be inhibited. Publish the inhibitor and the API together, and
+	// only after that cache is ready. The mute callback closes over
+	// newInhibitor rather than r.inhibitor.Load(). Updating the API first
+	// would let a request use the new configuration with the previous
+	// inhibitor. A callback that read Load() would let a request that
+	// snapshotted the previous callback use the new inhibitor. Either mix
+	// reports the wrong inhibited or active status.
 	go newInhibitor.Run()
 	newInhibitor.WaitForLoading()
 	r.inhibitor.Store(newInhibitor)
+	r.apih.Update(conf, func(ctx context.Context, labels model.LabelSet) {
+		newInhibitor.Mutes(ctx, labels)
+		r.silencer.Mutes(ctx, labels)
+	})
 
 	// Next, start the dispatcher and wait for it to load before swapping
 	// the dispatcher pointer. This ensures that the API doesn't see the new
