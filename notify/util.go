@@ -352,3 +352,24 @@ func GetFailureReasonFromStatusCode(statusCode int) Reason {
 
 	return DefaultReason
 }
+
+// GetFailureReasonFromSMTPCode returns the reason for the failure based on
+// the SMTP reply code provided. SMTP's 4xx/5xx split is the inverse of
+// HTTP's: 4xx is transient, 5xx is permanent.
+func GetFailureReasonFromSMTPCode(code int) Reason {
+	switch code {
+	case 422, 432, 523, 524, 525, 530, 534, 535, 538:
+		// RFC 4954 and its IANA-registered enhanced status codes (RFC 5248,
+		// class X.7.x "Security or Policy"): authentication and
+		// account-security failures.
+		return AuthErrorReason
+	}
+	if code/100 == 4 {
+		return ServerErrorReason
+	}
+	if code/100 == 5 {
+		return ClientErrorReason
+	}
+
+	return DefaultReason
+}
