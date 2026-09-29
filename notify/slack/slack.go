@@ -159,8 +159,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		ctx = postCtx
 	}
 
-	req := &request{
-		Channel:     tmplText(n.conf.Channel),
+	msg := message{
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
@@ -169,27 +168,48 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		Attachments: []attachment{*att},
 	}
 
-	// If a notification for this alert group has already been sent and `update_message` config is set
-	// edit API endpoint and payload to update notification instead of sending a new one.
+	// If a notification for this alert group has already been sent, `update_message`
+	// edits the initial message instead of sending a new one and `post_updates_to_thread`
+	// posts the notification as a reply in the initial message's thread.
 	var store *nflog.Store
+	var threadTs, channelId string
 
-	if n.conf.UpdateMessage {
+	if n.conf.UpdateMessage || n.conf.PostUpdatesToThread {
 		var ok bool
 		store, ok = notify.NflogStore(ctx)
 		if !ok {
-			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+			logger.Warn("cannot create NflogStore, updatable and threaded messages will be disabled.")
 		} else {
-			threadTs, _ := store.GetStr("threadTs")
-			channelId, _ := store.GetStr("channelId")
-			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
-			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
-				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
-			}
+			threadTs, _ = store.GetStr("threadTs")
+			channelId, _ = store.GetStr("channelId")
+			logger.Debug("attempt recovering threadTs and channelId of the initial message", "threadTs", threadTs, "channelId", channelId)
 		}
 	}
+
+	if threadTs == "" || channelId == "" {
+		return n.postRequest(ctx, u, &request{message: msg, Channel: tmplText(n.conf.Channel)}, store)
+	}
+
+	// Requests targeting the initial message get no store, so its identifiers are never overwritten.
+	if n.conf.UpdateMessage {
+		logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
+		updateReq := &request{message: msg, Channel: channelId, Timestamp: threadTs}
+		if verdict := n.postRequest(ctx, "https://slack.com/api/chat.update", updateReq, nil); verdict.Err() != nil {
+			return verdict
+		}
+	}
+	if n.conf.PostUpdatesToThread {
+		logger.Debug("posting to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+		threadReq := &request{message: msg, Channel: channelId, ThreadTimestamp: threadTs}
+		return n.postRequest(ctx, u, threadReq, nil)
+	}
+
+	return notify.Success()
+}
+
+// postRequest encodes and sends a single request to the Slack API, classifies
+// errors as retriable or not, and hands the response to slackResponseHandler.
+func (n *Notifier) postRequest(ctx context.Context, u string, req *request, store *nflog.Store) notify.NotifyVerdict {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
