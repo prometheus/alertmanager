@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
@@ -237,7 +238,7 @@ func (r *reloader) reload(conf *config.Config) error {
 		func(ctx context.Context, rf func(*dispatch.Route) bool, af func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 			return newDispatcher.Groups(ctx, rf, af)
 		},
-		func(ctx context.Context, labels model.LabelSet) {
+		func(ctx context.Context, labels labelset.LabelSet) {
 			newInhibitor.Mutes(ctx, labels)
 			r.silencer.Mutes(ctx, labels)
 		},

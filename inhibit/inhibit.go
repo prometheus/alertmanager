@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -174,7 +175,7 @@ func (ih *Inhibitor) Stop() {
 
 // Mutes returns true iff the given label set is muted.  It implements the
 // Muter interface.
-func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
+func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes",
@@ -194,7 +195,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 
 	now := time.Now()
 	for _, r := range ih.rules {
-		if !r.TargetMatchers.Matches(lset) {
+		if !r.TargetMatchers.Matches(lset.LabelSet) {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
 		}
@@ -205,7 +206,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 		)
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Matches(lset), now); eq {
+		if inhibitedByFP, eq := r.hasEqual(lset.LabelSet, r.SourceMatchers.Matches(lset.LabelSet), now); eq {
 			inhibitedBy = append(inhibitedBy, inhibitedByFP.String())
 			span.AddEvent("alert inhibited",
 				trace.WithAttributes(
@@ -216,7 +217,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset model.LabelSet) bool {
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				return eventrecorder.NewInhibitionMutedAlertEvent(
 					[]eventrecorder.InhibitRule{eventrecorder.NewInhibitRule(r.Name, r.SourceMatchers, r.TargetMatchers, r.Equal)},
-					fp, lset,
+					fp, lset.LabelSet,
 					[]model.Fingerprint{inhibitedByFP},
 				)
 			})

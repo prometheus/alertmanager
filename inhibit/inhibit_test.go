@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -39,7 +40,7 @@ func checkMutes(t *testing.T, ih *Inhibitor, target model.LabelSet, wantMuted bo
 	t.Helper()
 	m := marker.NewAlertMarker()
 	ctx := marker.WithContext(context.Background(), m)
-	got := ih.Mutes(ctx, target)
+	got := ih.Mutes(ctx, labelset.FromModel(target))
 	require.Equal(t, wantMuted, got, msgAndArgs...)
 	fp := target.Fingerprint()
 	status := m.Status(fp)
