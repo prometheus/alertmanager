@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -1053,14 +1054,13 @@ receivers:
 	api := API{
 		uptime: time.Now(),
 		logger: promslog.NewNopLogger(),
-		alertGroups: func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
-		},
 		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
 			return nil, false
 		},
 	}
-	api.Update(cfg, func(context.Context, model.LabelSet) {})
+	api.Update(cfg, func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
+	}, func(context.Context, model.LabelSet) {})
 
 	r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
 	require.NoError(t, err)
@@ -1084,4 +1084,99 @@ receivers:
 	require.NoError(t, json.Unmarshal(body, &groups))
 	require.Len(t, groups, 1)
 	require.Equal(t, open_api_models.LabelSet{"team": "X"}, groups[0].RouteLabels)
+}
+
+func TestUpdateKeepsInFlightGroupsSnapshot(t *testing.T) {
+	oldCfg, err := config.Load(`route:
+  receiver: team-old
+receivers:
+- name: 'team-old'
+`)
+	require.NoError(t, err)
+	newCfg, err := config.Load(`route:
+  receiver: team-new
+receivers:
+- name: 'team-new'
+`)
+	require.NoError(t, err)
+
+	oldGroup := &dispatch.AlertGroup{
+		Labels:      model.LabelSet{"alertname": "Foo"},
+		RouteLabels: model.LabelSet{},
+		Receiver:    "team-old",
+		GroupKey:    "key",
+		RouteID:     "route",
+	}
+	newGroup := &dispatch.AlertGroup{
+		Labels:      model.LabelSet{"alertname": "Foo"},
+		RouteLabels: model.LabelSet{},
+		Receiver:    "team-new",
+		GroupKey:    "key",
+		RouteID:     "route",
+	}
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	blockingGroups := func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		once.Do(func() { close(entered) })
+		<-release
+		return dispatch.AlertGroups{oldGroup}, map[model.Fingerprint][]string{}, nil
+	}
+
+	api := API{
+		uptime: time.Now(),
+		logger: promslog.NewNopLogger(),
+		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
+			return nil, false
+		},
+	}
+	noopStatus := func(context.Context, model.LabelSet) {}
+	api.Update(oldCfg, blockingGroups, noopStatus)
+
+	type result struct {
+		groups open_api_models.AlertGroups
+		code   int
+	}
+	got := make(chan result, 1)
+	go func() {
+		r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
+		require.NoError(t, err)
+		truePtr := true
+		responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+			HTTPRequest: r,
+			Active:      &truePtr,
+			Silenced:    &truePtr,
+			Inhibited:   &truePtr,
+			Muted:       &truePtr,
+		})
+		w := httptest.NewRecorder()
+		responder.WriteResponse(w, runtime.JSONProducer())
+		var groups open_api_models.AlertGroups
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &groups))
+		got <- result{groups: groups, code: w.Code}
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the in-flight request to load its snapshot")
+	}
+
+	// Publish a new generation while the old request is still inside its
+	// groups call. It must keep the snapshot it already loaded.
+	api.Update(newCfg, func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		return dispatch.AlertGroups{newGroup}, map[model.Fingerprint][]string{}, nil
+	}, noopStatus)
+	close(release)
+
+	var res result
+	select {
+	case res = <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the in-flight request")
+	}
+	require.Equal(t, 200, res.code)
+	require.Len(t, res.groups, 1)
+	require.Equal(t, "team-old", *res.groups[0].Receiver.Name)
 }

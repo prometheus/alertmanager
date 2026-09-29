@@ -24,6 +24,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-openapi/analysis"
@@ -67,7 +68,6 @@ type API struct {
 	peer           cluster.ClusterPeer
 	silences       *silence.Silences
 	alerts         provider.Alerts
-	alertGroups    groupsFn
 	groupMutedFunc groupMutedFunc
 	uptime         time.Time
 
@@ -78,6 +78,12 @@ type API struct {
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
 	setAlertStatus     setAlertStatusFn
+
+	// groupSnap bundles the config, alert-groups accessor and status
+	// predictor for one reload generation. getAlertGroupsHandler loads it
+	// once per request instead of reading the fields above and alertGroups
+	// separately.
+	groupSnap atomic.Pointer[groupSnapshot]
 
 	logger *slog.Logger
 	m      *metrics.Alerts
@@ -91,10 +97,17 @@ type (
 	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
 )
 
+// groupSnapshot is the immutable value published by Update for use by
+// getAlertGroupsHandler.
+type groupSnapshot struct {
+	config         *config.Config
+	alertGroups    groupsFn
+	setAlertStatus setAlertStatusFn
+}
+
 // NewAPI returns a new Alertmanager API v2.
 func NewAPI(
 	alerts provider.Alerts,
-	gf groupsFn,
 	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
@@ -103,7 +116,6 @@ func NewAPI(
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
-		alertGroups:    gf,
 		groupMutedFunc: gmf,
 		peer:           peer,
 		silences:       silences,
@@ -164,13 +176,19 @@ func (api *API) requestLogger(req *http.Request) *slog.Logger {
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
+func (api *API) Update(cfg *config.Config, alertGroups groupsFn, setAlertStatus setAlertStatusFn) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
+
+	api.groupSnap.Store(&groupSnapshot{
+		config:         cfg,
+		alertGroups:    alertGroups,
+		setAlertStatus: setAlertStatus,
+	})
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -301,11 +319,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	defer alerts.Close()
 
 	tempMarker := marker.NewAlertMarker()
-	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
 	now := time.Now()
 
 	api.mtx.RLock()
-	rcvLabels := api.receiverLabelsMap()
+	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker, api.setAlertStatus)
+	rcvLabels := receiverLabelsMap(api.alertmanagerConfig)
 	for a := range alerts.Next() {
 		alrt := a.Data
 		if err = alerts.Err(); err != nil {
@@ -455,9 +473,8 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		)
 	}
 
-	api.mtx.RLock()
-	rcvLabels := api.receiverLabelsMap()
-	api.mtx.RUnlock()
+	snap := api.groupSnap.Load()
+	rcvLabels := receiverLabelsMap(snap.config)
 
 	rf := func(receiverFilter *regexp.Regexp, receiverMatchers []*labels.Matcher, rcvLabels map[string]open_api_models.LabelSet) func(r *dispatch.Route) bool {
 		return func(r *dispatch.Route) bool {
@@ -484,8 +501,8 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	// the filter use a fresh marker per alert, so the prediction for one
 	// alert does not leak into another (the same fingerprint may appear
 	// in multiple aggregation groups).
-	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, nil)
-	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, nil, snap.setAlertStatus)
+	alertGroups, allReceivers, err := snap.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
 		logger.Error(message, "err", err)
@@ -495,15 +512,6 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
-
-	// Snapshot setAlertStatus under the lock so we can predict the status
-	// for each alert without holding api.mtx. We predict at query time
-	// rather than reading the group's actual marker, so the response is
-	// stable across calls regardless of whether the notification pipeline
-	// has run in between (assuming no new alerts/silences/inhibits).
-	api.mtx.RLock()
-	setAlertStatus := api.setAlertStatus
-	api.mtx.RUnlock()
 
 	for _, alertGroup := range alertGroups {
 		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
@@ -523,7 +531,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			receivers := allReceivers[fp]
 			// Predict status per (alert, group) using a fresh marker so
 			// writes don't leak across alerts or groups.
-			status := predictAlertStatus(ctx, setAlertStatus, alrt)
+			status := predictAlertStatus(ctx, snap.setAlertStatus, alrt)
 			apiAlert := AlertToOpenAPIAlert(alrt, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
@@ -544,13 +552,7 @@ func predictAlertStatus(ctx context.Context, setAlertStatus setAlertStatusFn, a 
 	return m.Status(a.Fingerprint())
 }
 
-func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
-	// Snapshot the function pointer under the lock so the closure is safe
-	// to call without holding api.mtx (e.g. in getAlertGroupsHandler).
-	api.mtx.RLock()
-	setAlertStatus := api.setAlertStatus
-	api.mtx.RUnlock()
-
+func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker, setAlertStatus setAlertStatusFn) func(a *alert.Alert, now time.Time) bool {
 	return func(a *alert.Alert, now time.Time) bool {
 		ctx, span := tracer.Start(parent, "alertFilter")
 		defer span.End()
@@ -659,11 +661,11 @@ func configReceiverToAPIReceiver(rcv *config.Receiver) *open_api_models.Receiver
 	}
 }
 
-// receiverLabelsMap builds a lookup from receiver name to labels for the current config.
-func (api *API) receiverLabelsMap() map[string]open_api_models.LabelSet {
-	m := make(map[string]open_api_models.LabelSet, len(api.alertmanagerConfig.Receivers))
-	for i := range api.alertmanagerConfig.Receivers {
-		rcv := &api.alertmanagerConfig.Receivers[i]
+// receiverLabelsMap builds a lookup from receiver name to labels for the given config.
+func receiverLabelsMap(cfg *config.Config) map[string]open_api_models.LabelSet {
+	m := make(map[string]open_api_models.LabelSet, len(cfg.Receivers))
+	for i := range cfg.Receivers {
+		rcv := &cfg.Receivers[i]
 		apiLabels := make(open_api_models.LabelSet, len(rcv.Labels))
 		maps.Copy(apiLabels, rcv.Labels)
 		m[rcv.Name] = apiLabels
