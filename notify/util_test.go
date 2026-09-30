@@ -140,13 +140,9 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-// TestTruncateInBytesFewerRunesThanBytes covers strings that are longer than
-// the byte limit while holding fewer runes than it, which is the case for any
-// sufficiently long non-ASCII text. TruncateInBytes used to index the rune
-// slice with the byte budget and panicked on those inputs.
+// TestTruncateInBytesFewerRunesThanBytes checks multibyte input whose byte
+// count exceeds the limit while its rune count does not.
 func TestTruncateInBytesFewerRunesThanBytes(t *testing.T) {
-	// The message limit of the Webex notifier, the only caller of
-	// TruncateInBytes.
 	const n = 7439
 
 	for _, tc := range []struct {
