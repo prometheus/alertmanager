@@ -97,6 +97,13 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 // newMutedPipelineMuteAware returns a pipeline wired the way PipelineBuilder
 // wires it for the given setting of the muted alerts feature.
 func newMutedPipelineMuteAware(t *testing.T, sendsResolved, mutedAware bool) *mutedPipeline {
+	return newMutedPipelineWithSender(t, sendResolved(sendsResolved), mutedAware)
+}
+
+// newMutedPipelineWithSender is newMutedPipelineMuteAware for a receiver that
+// decides for itself which notifications it wants, such as one configured with
+// a mute_action.
+func newMutedPipelineWithSender(t *testing.T, rs ResolvedSender, mutedAware bool) *mutedPipeline {
 	p := &mutedPipeline{
 		t:     t,
 		muted: map[model.LabelValue]struct{}{},
@@ -129,7 +136,7 @@ func newMutedPipelineMuteAware(t *testing.T, sendsResolved, mutedAware bool) *mu
 	integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) NotifyVerdict {
 		p.delivered = append(p.delivered, alerts...)
 		return Success()
-	}), sendResolved(sendsResolved), "webhook", 0, "test")
+	}), rs, "webhook", 0, "test")
 
 	p.stage = newMultiStage(mutedAware,
 		NewMuteStage(muter, metrics),
@@ -651,6 +658,124 @@ func TestDedup_UnmutedAlertContinuesTheSequence(t *testing.T) {
 	require.Equal(t, []*alert.Alert{a, b}, notified)
 	require.Equal(t, SequenceOpen, p.sequence)
 	require.Empty(t, p.entry.MutedAlerts)
+}
+
+// TestRetry_MuteActionOnStillFiringGroup covers the close that separates the
+// two actions: a group every alert of which is muted while still firing. Only
+// treat_mute_as_resolved calls that resolved, so that a deduplicating
+// integration can close what it opened rather than leave it open for the length
+// of the mute. The send_resolved_when_muted action declines it, because nothing
+// has actually resolved, and the default hears nothing, as it always has.
+func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
+	tests := []struct {
+		name          string
+		rs            ResolvedSender
+		wantDelivered bool
+	}{{
+		name:          "treat_mute_as_resolved",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
+		wantDelivered: true,
+	}, {
+		// The alert is still firing, so there is no resolution to send. This is
+		// the whole difference between the two actions.
+		name: "send_resolved_when_muted declines a group that is still firing",
+		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+	}, {
+		name: "ignore",
+		rs:   muteActionSender{resolved: true},
+	}, {
+		// The action is about the group being over, not about individual
+		// alerts resolving, so send_resolved does not gate it.
+		name:          "treat_mute_as_resolved without send_resolved",
+		rs:            muteActionSender{sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
+		wantDelivered: true,
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := newMutedPipelineWithSender(t, test.rs, true)
+			base := utcNow()
+			a := firingAlert("a")
+
+			delivered, reason, _ := p.flush(base, a)
+			require.Equal(t, ReasonFirstNotification, reason)
+			require.Equal(t, []*alert.Alert{a}, delivered)
+
+			// The group goes quiet because its only alert is muted.
+			p.muted[a.Labels["alertname"]] = struct{}{}
+
+			delivered, reason, _ = p.flush(base.Add(time.Minute), a)
+			require.Equal(t, ReasonAllAlertsMuted, reason)
+			require.Equal(t, SequenceClosedMuted, p.sequence)
+
+			if !test.wantDelivered {
+				require.Empty(t, delivered, "the receiver hears nothing about a muted group")
+			} else {
+				require.Len(t, delivered, 1)
+				require.Equal(t, a.Labels, delivered[0].Labels)
+				require.True(t, delivered[0].Resolved(), "the group is delivered as resolved")
+				require.False(t, a.Resolved(), "the alert in the group is left alone")
+			}
+
+			// The group is still muted a repeat interval later. Its close was
+			// delivered when it closed, and is not delivered again.
+			delivered, reason, _ = p.flush(base.Add(2*time.Hour), a)
+			require.Equal(t, ReasonStillMuted, reason)
+			require.Empty(t, delivered)
+		})
+	}
+}
+
+// TestRetry_MuteActionOnMutedResolution covers the other way a muted group
+// ends: its alerts genuinely resolve while nobody can be shown them. This is
+// #226, and both actions deliver it -- treat_mute_as_resolved nests
+// send_resolved_when_muted. The alerts are already resolved, so they are
+// delivered as they are, with their own end rather than a synthesized one.
+func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
+	tests := []struct {
+		name          string
+		rs            ResolvedSender
+		wantDelivered bool
+	}{{
+		name:          "send_resolved_when_muted",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+		wantDelivered: true,
+	}, {
+		name:          "treat_mute_as_resolved",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
+		wantDelivered: true,
+	}, {
+		name: "ignore",
+		rs:   muteActionSender{resolved: true},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := newMutedPipelineWithSender(t, test.rs, true)
+			base := utcNow()
+			a, aResolved := firingAlert("a"), resolvedAlert("a")
+
+			delivered, reason, _ := p.flush(base, a)
+			require.Equal(t, ReasonFirstNotification, reason)
+			require.Equal(t, []*alert.Alert{a}, delivered)
+
+			// The alert resolves while it is muted, so the receiver was never
+			// shown it going away.
+			p.muted[a.Labels["alertname"]] = struct{}{}
+
+			delivered, reason, _ = p.flush(base.Add(time.Minute), aResolved)
+			require.Equal(t, ReasonAllAlertsResolved, reason)
+			require.Equal(t, SequenceClosedResolved, p.sequence)
+
+			if !test.wantDelivered {
+				require.Empty(t, delivered, "the receiver hears nothing about a muted group")
+				return
+			}
+			require.Equal(t, []*alert.Alert{aResolved}, delivered)
+			require.Equal(t, aResolved.EndsAt, delivered[0].EndsAt,
+				"a genuine resolution keeps its own end")
+		})
+	}
 }
 
 // mutedGroupState builds a group state from the hashes in each of its parts. A

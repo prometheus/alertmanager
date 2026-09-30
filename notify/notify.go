@@ -48,6 +48,21 @@ type ResolvedSender interface {
 	SendResolved() bool
 }
 
+// MuteActioner reports what a receiver asked to be told about an alert group
+// that muting has emptied. A ResolvedSender that does not implement it keeps
+// the behaviour Alertmanager has always had, which is to say nothing about such
+// a group.
+type MuteActioner interface {
+	// SendsResolvedWhenMuted reports whether a group whose alerts have all
+	// resolved is delivered even though muting kept the receiver from being
+	// shown them.
+	SendsResolvedWhenMuted() bool
+	// TreatsMuteAsResolved reports whether a group whose alerts are all muted
+	// is delivered as resolved even though those alerts are still firing. It
+	// implies SendsResolvedWhenMuted.
+	TreatsMuteAsResolved() bool
+}
+
 // Peer represents the cluster node from where we are the sending the notification.
 type Peer interface {
 	// WaitReady waits until the node silences and notifications have settled before attempting to send a notification.
@@ -160,6 +175,20 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 // SendResolved implements the ResolvedSender interface.
 func (i *Integration) SendResolved() bool {
 	return i.rs.SendResolved()
+}
+
+// SendsResolvedWhenMuted implements the MuteActioner interface. It is false for
+// an integration whose configuration does not know about the option.
+func (i *Integration) SendsResolvedWhenMuted() bool {
+	ma, ok := i.rs.(MuteActioner)
+	return ok && ma.SendsResolvedWhenMuted()
+}
+
+// TreatsMuteAsResolved implements the MuteActioner interface. It is false for
+// an integration whose configuration does not know about the option.
+func (i *Integration) TreatsMuteAsResolved() bool {
+	ma, ok := i.rs.(MuteActioner)
+	return ok && ma.TreatsMuteAsResolved()
 }
 
 // Name returns the name of the integration.

@@ -57,10 +57,17 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder e
 }
 
 func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	// Every alert in the group was muted, so there is nothing to deliver. The
-	// stages after this one still run, to record the state of the group.
-	if len(alerts) == 0 {
-		return ctx, alerts, nil
+	// Every alert in the group was muted, so there is nothing left of it to
+	// deliver. An integration whose mute_action asks for the close is told the
+	// group is over anyway; every other one is told nothing. The stages after
+	// this one run either way, to record the state of the group.
+	closing := len(alerts) == 0
+	if closing {
+		resolved := r.mutedGroupAsResolved(ctx)
+		if len(resolved) == 0 {
+			return ctx, alerts, nil
+		}
+		alerts = resolved
 	}
 
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
@@ -74,7 +81,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	)
 	defer span.End()
 
-	ctx, alerts, failureReason, err := r.exec(ctx, l, alerts...)
+	ctx, alerts, failureReason, err := r.exec(ctx, l, closing, alerts...)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
@@ -84,7 +91,57 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
+// mutedGroupAsResolved returns the alerts of a group that muting has emptied,
+// as resolved copies, for an integration whose mute_action asks to be told the
+// group is over. It returns nothing on any flush but the one that closes the
+// group: the notification sequence is closed by the flush that ends it and
+// reports itself closed only then.
+//
+// Which closes count is what separates the two actions. Both deliver a group
+// every alert of which has resolved, which the receiver was never shown because
+// muting hid it. Only treat_mute_as_resolved also delivers a group that is
+// still firing: those alerts are copied with their end moved to now, because
+// the receiver cannot be shown them, so as far as this integration is
+// concerned the group is over, and saying so is the whole point of the option.
+func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
+	seq, ok := NotificationSequenceFor(ctx)
+	if !ok {
+		return nil
+	}
+
+	switch seq {
+	case SequenceClosedResolved:
+		if !r.integration.SendsResolvedWhenMuted() {
+			return nil
+		}
+	case SequenceClosedMuted:
+		if !r.integration.TreatsMuteAsResolved() {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	muted := mutedAlertDetails(ctx)
+	if len(muted) == 0 {
+		return nil
+	}
+
+	now := utcNow()
+	resolved := make([]*alert.Alert, 0, len(muted))
+	for _, a := range muted {
+		if a.Resolved() {
+			resolved = append(resolved, a)
+			continue
+		}
+		ended := *a
+		ended.EndsAt = now
+		resolved = append(resolved, &ended)
+	}
+	return resolved
+}
+
+func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
 	var sent alert.AlertSlice
 
 	// If we shouldn't send notifications for resolved alerts, and that leaves
@@ -93,7 +150,10 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	// left is decided by the alerts in hand rather than by the firing alerts in
 	// the context, which cover the whole group: with the muted alerts feature
 	// those include alerts a mute stage removed from this pipeline.
-	if !r.integration.SendResolved() {
+	// The close of a muted group is delivered whole. The integration asked for
+	// it with mute_action, so the send_resolved filter, which would drop every
+	// alert in it, does not apply.
+	if !closing && !r.integration.SendResolved() {
 		if _, ok := FiringAlerts(ctx); !ok {
 			return ctx, nil, DefaultReason, errors.New("firing alerts missing")
 		}

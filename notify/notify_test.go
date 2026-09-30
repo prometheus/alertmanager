@@ -53,6 +53,21 @@ func (s sendResolved) SendResolved() bool {
 	return bool(s)
 }
 
+// muteActionSender is a receiver that also answers for mute_action. The two
+// predicates are set directly rather than derived from an action: how they nest
+// is config's business, covered by TestNotifierConfigMuteAction.
+type muteActionSender struct {
+	resolved              bool
+	sendResolvedWhenMuted bool
+	treatsMuteAsResolved  bool
+}
+
+func (m muteActionSender) SendResolved() bool { return m.resolved }
+
+func (m muteActionSender) SendsResolvedWhenMuted() bool { return m.sendResolvedWhenMuted }
+
+func (m muteActionSender) TreatsMuteAsResolved() bool { return m.treatsMuteAsResolved }
+
 type notifierFunc func(ctx context.Context, alerts ...*alert.Alert) NotifyVerdict
 
 func (f notifierFunc) Notify(ctx context.Context, alerts ...*alert.Alert) NotifyVerdict {
