@@ -34,16 +34,22 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// request is the request for sending a Slack notification.
-type request struct {
-	Channel     string       `json:"channel,omitempty"`
-	Timestamp   string       `json:"ts,omitempty"`
+// message is the content of a Slack notification.
+type message struct {
 	Username    string       `json:"username,omitempty"`
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
 	Text        string       `json:"text,omitempty"`
 	Attachments []attachment `json:"attachments"`
+}
+
+// request is the request for sending a Slack notification.
+type request struct {
+	message
+	Channel         string `json:"channel,omitempty"`
+	Timestamp       string `json:"ts,omitempty"`
+	ThreadTimestamp string `json:"thread_ts,omitempty"`
 }
 
 // attachment is used to display a richly formatted message block.

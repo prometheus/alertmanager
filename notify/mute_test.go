@@ -32,16 +32,37 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
 
+func TestMuteStagePassesAlertFingerprint(t *testing.T) {
+	// The muter must receive the alert's fingerprint rather than rehash the
+	// labels. Modifying the labels after construction violates the alert.New
+	// contract, but it is the only way to tell the two apart.
+	var got model.Fingerprint
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		got = lset.Fingerprint()
+		return false
+	})
+	stage := NewMuteStage(muter, NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+	a := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false)
+	want := a.Fingerprint()
+	a.Labels["alertname"] = "changed"
+
+	_, _, err := stage.Exec(context.Background(), promslog.NewNopLogger(), a)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 func TestMuteStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
-	muter := MuteFunc(func(ctx context.Context, lset model.LabelSet) bool {
-		_, ok := lset["mute"]
+	muter := MuteFunc(func(ctx context.Context, lset labelset.LabelSet) bool {
+		_, ok := lset.LabelSet["mute"]
 		return ok
 	})
 
@@ -91,11 +112,11 @@ func TestMuteStage(t *testing.T) {
 
 func TestMuteStageAccumulatesMutedAlertDetails(t *testing.T) {
 	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
-	firstStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["muted_by"] == "first"
+	firstStage := NewMuteStage(MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["muted_by"] == "first"
 	}), metrics)
-	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["muted_by"] == "second"
+	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["muted_by"] == "second"
 	}), metrics)
 	first := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}, time.Time{}, false)
 	second := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}, time.Time{}, false)

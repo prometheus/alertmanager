@@ -34,7 +34,7 @@ import (
 // https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
 const maxMessageLenRunes = 20480
 
-// Notifier implements a Notifier for VictorOps notifications.
+// Notifier implements a Notifier for Splunk On-Call notifications.
 type Notifier struct {
 	conf    *VictorOpsConfig
 	tmpl    *template.Template
@@ -43,7 +43,7 @@ type Notifier struct {
 	retrier *notify.Retrier
 }
 
-// New returns a new VictorOps notifier.
+// New returns a new Splunk On-Call notifier.
 func New(c *VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
@@ -112,7 +112,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	return notify.Success()
 }
 
-// Create the JSON payload to be sent to the VictorOps API.
+// createVictorOpsPayload creates the JSON payload sent to the Splunk On-Call API.
 func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*alert.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,

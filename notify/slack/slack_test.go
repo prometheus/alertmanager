@@ -16,6 +16,7 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -34,6 +36,9 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
@@ -389,4 +394,181 @@ func TestNotifier_Notify_RetryAfterDelay(t *testing.T) {
 	require.True(t, verdict.ShouldRetry())
 	require.Error(t, verdict.Err())
 	require.Equal(t, 1*time.Second, verdict.Delay())
+}
+
+func TestSlackPostUpdatesToThread(t *testing.T) {
+	type capturedRequest struct {
+		url  string
+		body map[string]any
+	}
+
+	newTestNotifier := func(t *testing.T, conf *SlackConfig, captured *[]capturedRequest, respTs string) *Notifier {
+		t.Helper()
+		u, _ := url.Parse("https://slack.com/api/chat.postMessage")
+		conf.APIURL = &amcommoncfg.SecretURL{URL: u}
+		conf.Channel = "#test-channel"
+		conf.HTTPConfig = &commoncfg.HTTPClientConfig{}
+
+		tmpl, err := template.FromGlobs([]string{})
+		require.NoError(t, err)
+		tmpl.ExternalURL = u
+
+		notifier, err := New(conf, tmpl, slog.New(slog.DiscardHandler))
+		require.NoError(t, err)
+
+		notifier.postJSONFunc = func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+			var decoded map[string]any
+			require.NoError(t, json.NewDecoder(body).Decode(&decoded))
+			*captured = append(*captured, capturedRequest{url: reqURL, body: decoded})
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"ok": true, "channel": "C123", "ts": "` + respTs + `"}`)),
+			}
+			return resp, nil
+		}
+		return notifier
+	}
+
+	newCtx := func(store *nflog.Store) context.Context {
+		ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+		return notify.WithNflogStore(ctx, store)
+	}
+
+	t.Run("first notification posts to channel and stores thread ts", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "111.222")
+		store := nflog.NewStore(nil)
+
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+
+		require.Len(t, captured, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[0].url)
+		require.NotContains(t, captured[0].body, "ts")
+		require.NotContains(t, captured[0].body, "thread_ts")
+
+		threadTs, _ := store.GetStr("threadTs")
+		channelId, _ := store.GetStr("channelId")
+		require.Equal(t, "111.222", threadTs)
+		require.Equal(t, "C123", channelId)
+	})
+
+	t.Run("subsequent notification updates message and posts thread reply", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+
+		require.Len(t, captured, 2)
+		require.Equal(t, "https://slack.com/api/chat.update", captured[0].url)
+		require.Equal(t, "111.222", captured[0].body["ts"])
+		require.Equal(t, "C123", captured[0].body["channel"])
+		require.NotContains(t, captured[0].body, "thread_ts")
+
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[1].url)
+		require.Equal(t, "111.222", captured[1].body["thread_ts"])
+		require.Equal(t, "C123", captured[1].body["channel"])
+		require.NotContains(t, captured[1].body, "ts")
+
+		// The stored root message ts must not be overwritten by the responses.
+		threadTs, _ := store.GetStr("threadTs")
+		require.Equal(t, "111.222", threadTs)
+	})
+
+	t.Run("subsequent notification posts only to thread without update_message", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{PostUpdatesToThread: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+
+		require.Len(t, captured, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[0].url)
+		require.Equal(t, "111.222", captured[0].body["thread_ts"])
+		require.Equal(t, "C123", captured[0].body["channel"])
+		require.NotContains(t, captured[0].body, "ts")
+
+		threadTs, _ := store.GetStr("threadTs")
+		require.Equal(t, "111.222", threadTs)
+	})
+
+	t.Run("update_message alone does not post thread reply", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true}, &captured, "999.999")
+		store := nflog.NewStore(nil)
+		store.SetStr("threadTs", "111.222")
+		store.SetStr("channelId", "C123")
+
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+
+		require.Len(t, captured, 1)
+		require.Equal(t, "https://slack.com/api/chat.update", captured[0].url)
+		require.Equal(t, "111.222", captured[0].body["ts"])
+		require.NotContains(t, captured[0].body, "thread_ts")
+	})
+
+	t.Run("new firing after resolution starts a new thread", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "")
+		var posted int
+		notifier.postJSONFunc = func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+			var decoded map[string]any
+			require.NoError(t, json.NewDecoder(body).Decode(&decoded))
+			captured = append(captured, capturedRequest{url: reqURL, body: decoded})
+			posted++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"ok": true, "channel": "C123", "ts": "%d.000"}`, posted))),
+			}, nil
+		}
+
+		nl, err := nflog.New(nflog.Options{Retention: time.Hour, Metrics: prometheus.NewRegistry()})
+		require.NoError(t, err)
+		recv := &nflogpb.Receiver{GroupName: "test", Integration: "slack"}
+		dedup := notify.NewDedupStage(notifier.conf, nl, recv)
+		setNotifies := notify.NewSetNotifiesStage(nl, recv, featurecontrol.NoopFlags{})
+
+		notifyGroup := func(a *alert.Alert) []capturedRequest {
+			t.Helper()
+			captured = nil
+			ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+			ctx = notify.WithRepeatInterval(ctx, time.Hour)
+			ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), a)
+			require.NoError(t, err)
+			require.NoError(t, notifier.Notify(ctx, alerts...).Err())
+			_, _, err = setNotifies.Exec(ctx, promslog.NewNopLogger(), alerts...)
+			require.NoError(t, err)
+			return captured
+		}
+		labels := model.LabelSet{"alertname": "test"}
+		firing := alert.New(model.Alert{Labels: labels, StartsAt: time.Now()}, time.Now(), false)
+		resolved := alert.New(model.Alert{Labels: labels, StartsAt: time.Now(), EndsAt: time.Now().Add(-time.Minute)}, time.Now(), false)
+
+		reqs := notifyGroup(firing)
+		require.Len(t, reqs, 1)
+		require.NotContains(t, reqs[0].body, "thread_ts")
+
+		reqs = notifyGroup(resolved)
+		require.Len(t, reqs, 2)
+		require.Equal(t, "1.000", reqs[0].body["ts"])
+		require.Equal(t, "1.000", reqs[1].body["thread_ts"])
+
+		// The resolved group's thread is never posted to again.
+		reqs = notifyGroup(firing)
+		require.Len(t, reqs, 1)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", reqs[0].url)
+		require.NotContains(t, reqs[0].body, "thread_ts")
+		require.NotContains(t, reqs[0].body, "ts")
+
+		reqs = notifyGroup(resolved)
+		require.Len(t, reqs, 2)
+		require.Equal(t, "4.000", reqs[0].body["ts"])
+		require.Equal(t, "4.000", reqs[1].body["thread_ts"])
+	})
 }

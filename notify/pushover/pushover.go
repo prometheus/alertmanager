@@ -94,7 +94,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		if err != nil {
 			return notify.Unrecoverable(fmt.Errorf("read token_file: %w", err), notify.DefaultReason)
 		}
-		token = string(content)
+		token = strings.TrimSpace(string(content))
 	}
 	if n.conf.UserKey != "" {
 		userKey = string(n.conf.UserKey)
@@ -103,7 +103,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		if err != nil {
 			return notify.Unrecoverable(fmt.Errorf("read user_key_file: %w", err), notify.DefaultReason)
 		}
-		userKey = string(content)
+		userKey = strings.TrimSpace(string(content))
 	}
 
 	parameters := url.Values{}

@@ -110,10 +110,10 @@ global:
   [ slack_app_token_file: <filepath> ]
   [ slack_app_url: <string> ]
 
-  # The default API key to use when talking to the VictorOps API.
+  # The default API key to use when talking to the Splunk On-Call API.
   # It is mutually exclusive with `victorops_api_key_file`.
   [ victorops_api_key: <secret> ]
-  # Reads the default API key to use when talking to the VictorOps API from a file.
+  # Reads the default API key to use when talking to the Splunk On-Call API from a file.
   # It is mutually exclusive with `victorops_api_key`.
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
@@ -1678,9 +1678,9 @@ Rocketchat notifications are sent via the [Rocketchat REST API](https://develope
 
 ```yaml
 # Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
+[ send_resolved: <boolean> | default = false ]
 [ api_url: <string> | default = global.rocketchat_api_url ]
-[ channel: <tmpl_string> | default = global.rocketchat_api_url ]
+[ channel: <tmpl_string> ]
 
 # The sender token and token_id
 # See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
@@ -1700,9 +1700,9 @@ token_id_file: <filepath>
 [ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
 fields:
   [ <rocketchat_field_config> ... ]
-[ image_url <tmpl_string> ]
-[ thumb_url <tmpl_string> ]
-[ link_names <tmpl_string> ]
+[ image_url: <tmpl_string> ]
+[ thumb_url: <tmpl_string> ]
+[ link_names: <boolean> | default = false ]
 [ short_fields: <boolean> | default = false ]
 actions:
   [ <rocketchat_action_config> ... ]
@@ -1797,6 +1797,12 @@ fields:
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
 # Webhook URLs do not support updates.
 [ update_message: <boolean> | default = false ]
+
+# Posts subsequent notifications for an alert group as replies in the thread of the
+# initial message instead of new channel messages. When combined with update_message,
+# the initial message is updated in place and a reply is also posted to its thread.
+# Webhook URLs do not support threads.
+[ post_updates_to_thread: <boolean> | default = false ]
 ```
 
 #### `<action_config>` (Slack)
@@ -1960,21 +1966,25 @@ attributes:
 
 ### `<victorops_config>`
 
-VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
+Splunk On-Call (formerly VictorOps) notifications are sent through the
+[Splunk On-Call REST endpoint integration](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/).
+The `victorops_config` name and related `victorops_*` global fields are retained
+for backward compatibility. Metrics, logs, traces, and validation errors also
+continue to use the VictorOps identifier so existing integrations remain stable.
 
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The API key to use when talking to the VictorOps API.
+# The API key to use when talking to the Splunk On-Call API.
 # It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
 
-# Reads the API key to use when talking to the VictorOps API from a file.
+# Reads the API key to use when talking to the Splunk On-Call API from a file.
 # It is mutually exclusive with `api_key`.
 [ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
-# The VictorOps API URL.
+# The Splunk On-Call API URL.
 [ api_url: <string> | default = global.victorops_api_url ]
 
 # A key used to map the alert to a team.

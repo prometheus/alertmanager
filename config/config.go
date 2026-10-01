@@ -464,6 +464,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				}
 				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
 			}
+			if err := slack.ValidateUpdateMessageAPIURL(sc.UpdateMessage, sc.APIURL, sc.APIURLFile); err != nil {
+				return err
+			}
+			if err := slack.ValidatePostUpdatesToThreadAPIURL(sc.PostUpdatesToThread, sc.APIURL, sc.APIURLFile); err != nil {
+				return err
+			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc == nil {
@@ -769,7 +775,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
 		WebexAPIURL:      amcommoncfg.MustParseURL("https://webexapis.com/v1/messages"),
 		RocketchatAPIURL: amcommoncfg.MustParseURL("https://open.rocket.chat/"),
-		SlackAppURL:      amcommoncfg.MustParseURL("https://slack.com/api/chat.postMessage"),
+		SlackAppURL:      amcommoncfg.MustParseURL(slack.PostMessageURL),
 	}
 }
 
