@@ -33,7 +33,7 @@
     "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.11",
+    "@biomejs/biome": "^2.5.14",
     "@bufbuild/protoc-gen-es": "^2.14.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^7.0.1",
