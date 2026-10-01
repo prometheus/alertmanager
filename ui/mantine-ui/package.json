@@ -22,7 +22,7 @@
     "@bufbuild/protobuf": "^2.14.0",
     "@connectrpc/connect": "^2.1.2",
     "@connectrpc/connect-query": "^2.3.1",
-    "@connectrpc/connect-web": "^2.1.2",
+    "@connectrpc/connect-web": "^2.2.0",
     "@mantine/code-highlight": "^9.5.2",
     "@mantine/core": "^9.0.0",
     "@mantine/hooks": "^9.0.0",
