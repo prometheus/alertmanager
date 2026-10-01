@@ -49,7 +49,7 @@ jobs:
         with:
           name: ui-dist
           path: ui/app/dist
-      - uses: prometheus/promci/build@370e8c15dcec50043cbe66f2f34633d9efc0a190 # v0.9.0
+      - uses: prometheus/promci/build@872d318d090d73df349cb6ed90aadd072ca478f7 # v0.10.0
         with:
           checkout: "false"
           promu_opts: "-p linux/amd64 -p windows/amd64 -p linux/arm64 -p darwin/amd64 -p darwin/arm64 -p linux/386"
