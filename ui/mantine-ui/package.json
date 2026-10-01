@@ -19,7 +19,7 @@
     "test": "npm run check && npm run vitest && npm run build"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.14.0",
+    "@bufbuild/protobuf": "^2.15.0",
     "@connectrpc/connect": "^2.1.2",
     "@connectrpc/connect-query": "^2.3.1",
     "@connectrpc/connect-web": "^2.1.2",
