@@ -15,6 +15,7 @@ package pushover
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -51,6 +52,12 @@ type Notifier struct {
 
 // New returns a new Pushover notifier.
 func New(c *PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := errors.Join(
+		notify.CheckFileReadable("user_key_file", c.UserKeyFile),
+		notify.CheckFileReadable("token_file", c.TokenFile),
+	); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "pushover", httpOpts...)
 	if err != nil {
 		return nil, err

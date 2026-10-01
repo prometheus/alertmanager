@@ -49,7 +49,14 @@ type Email struct {
 }
 
 // New returns a new Email notifier.
-func New(c *EmailConfig, t *template.Template, l *slog.Logger) *Email {
+func New(c *EmailConfig, t *template.Template, l *slog.Logger) (*Email, error) {
+	if err := errors.Join(
+		notify.CheckFileReadable("auth_password_file", c.AuthPasswordFile),
+		notify.CheckFileReadable("auth_secret_file", c.AuthSecretFile),
+	); err != nil {
+		return nil, err
+	}
+
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = DefaultEmailSubject
 	}
@@ -65,7 +72,7 @@ func New(c *EmailConfig, t *template.Template, l *slog.Logger) *Email {
 	if err != nil {
 		h = "localhost.localdomain"
 	}
-	return &Email{conf: c, tmpl: t, logger: l, hostname: h}
+	return &Email{conf: c, tmpl: t, logger: l, hostname: h}, nil
 }
 
 // auth resolves a string of authentication mechanisms.

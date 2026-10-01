@@ -54,6 +54,12 @@ type Notifier struct {
 
 // New returns a new PagerDuty notifier.
 func New(c *PagerdutyConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := errors.Join(
+		notify.CheckFileReadable("service_key_file", c.ServiceKeyFile),
+		notify.CheckFileReadable("routing_key_file", c.RoutingKeyFile),
+	); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "pagerduty", httpOpts...)
 	if err != nil {
 		return nil, err
