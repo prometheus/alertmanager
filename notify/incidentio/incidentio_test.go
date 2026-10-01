@@ -148,7 +148,7 @@ func TestIncidentIONotify(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alrt := alert.New(model.Alert{
 		Labels: model.LabelSet{
@@ -227,7 +227,7 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			alrt := alert.New(model.Alert{
 				Labels: model.LabelSet{
@@ -345,7 +345,7 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 
 	// Create template data
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "test-group")
+	ctx = notify.WithGroupPath(ctx, "test-group")
 	data := notify.GetTemplateData(ctx, test.CreateTmpl(t), alerts, logger)
 
 	// Create message
@@ -417,7 +417,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 
 	// Create template data
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "test-group")
+	ctx = notify.WithGroupPath(ctx, "test-group")
 	data := notify.GetTemplateData(ctx, test.CreateTmpl(t), alerts, logger)
 
 	// Create message
@@ -496,7 +496,7 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alrt := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "TestAlert"},
@@ -546,7 +546,7 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alrt := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "TestAlert"},
@@ -597,7 +597,7 @@ func TestIncidentIOMetadataTemplated(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alerts := []*alert.Alert{
 		alert.New(model.Alert{
@@ -648,7 +648,7 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alrt := alert.New(model.Alert{
 		Labels:   model.LabelSet{"alertname": "TestAlert"},

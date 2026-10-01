@@ -130,7 +130,7 @@ func TestPagerDutyFailureReason(t *testing.T) {
 					notifier.apiV1 = srv.URL
 				}
 
-				ctx := notify.WithGroupKey(context.Background(), "1")
+				ctx := notify.WithGroupPath(context.Background(), "1")
 				alrt := alert.New(model.Alert{
 					Labels:   model.LabelSet{"lbl1": "val1"},
 					StartsAt: time.Now(),
@@ -387,7 +387,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := pd.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{
@@ -607,7 +607,7 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	verdict := pagerDuty.Notify(ctx, []*alert.Alert{
 		alert.New(model.Alert{
@@ -672,7 +672,7 @@ func TestPagerDutyTimeout(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 			alrt := alert.New(model.Alert{
 				Labels: model.LabelSet{
 					"lbl1": "val1",

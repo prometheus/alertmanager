@@ -125,8 +125,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	)
 
 	l = l.With("receiver", r.groupName, "integration", r.integration.String())
-	if groupKey, ok := GroupKey(ctx); ok {
-		l = l.With("aggrGroup", groupKey)
+	if groupPath, ok := GroupPath(ctx); ok {
+		l = l.With("aggrGroup", groupPath)
 	}
 
 	for {

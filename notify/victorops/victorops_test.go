@@ -61,7 +61,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alrt := alert.New(model.Alert{
 		Labels: model.LabelSet{
@@ -208,7 +208,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 			vo, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := vo.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{

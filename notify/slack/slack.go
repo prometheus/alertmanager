@@ -56,7 +56,7 @@ func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commo
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
-	key, err := notify.ExtractGroupKey(ctx)
+	key, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
 	}

@@ -95,7 +95,7 @@ func TestMattermostTemplating(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := pd.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{
@@ -180,7 +180,7 @@ func TestMattermost_Notify(t *testing.T) {
 
 	// Create a context and alerts
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 	alerts := []*alert.Alert{
 		alert.New(model.Alert{
 			Labels: model.LabelSet{

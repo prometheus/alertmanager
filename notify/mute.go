@@ -160,7 +160,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*al
 	}
 	span.SetAttributes(attribute.String("alerting.route.id", routeID))
 
-	gkey, ok := GroupKey(ctx)
+	gkey, ok := GroupPath(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}
@@ -224,7 +224,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 	)
 	defer span.End()
 
-	gkey, ok := GroupKey(ctx)
+	gkey, ok := GroupPath(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}

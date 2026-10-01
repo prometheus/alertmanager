@@ -290,7 +290,7 @@ func (d *Dispatcher) doMaintenance() {
 					// Fully fixing the case where a new group with the same fingerprint is created between
 					// CompareAndDelete and DeleteByGroupKey would require changes to the marker interface,
 					// so we leave it as a fix for after landing the pending marker changes.
-					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
+					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupPath())
 					d.routeGroupsSlice[i].groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
 					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
@@ -397,7 +397,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				Labels:      ag.labels,
 				RouteLabels: ag.RouteLabels(),
 				Receiver:    receiver,
-				GroupKey:    ag.GroupKey(),
+				GroupKey:    ag.GroupPath(),
 				RouteID:     ag.routeID,
 			}
 			alertGroup.Alerts = filteredAlerts
@@ -531,7 +531,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 			d.metrics.aggrGroupCreationGivenUp.Inc()
 			d.logger.Error("excessive retries creating aggregation group",
 				"fingerprint", fp,
-				"route", route.Key(),
+				"route", route.Path(),
 				"alert", alrt.Name(),
 				"retries", retries,
 			)
@@ -542,7 +542,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 
 	span.AddEvent("new AggregationGroup created",
 		trace.WithAttributes(
-			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+			attribute.String("alerting.aggregation_group.key", ag.GroupPath()),
 			attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
 		),
 	)
@@ -577,7 +577,7 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 	go ag.run(func(ctx context.Context, alerts ...*alert.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
-			logger := d.logger.With("aggrGroup", ag.GroupKey(), "num_alerts", len(alerts), "receiver", ag.opts.Receiver, "err", err)
+			logger := d.logger.With("aggrGroup", ag.GroupPath(), "num_alerts", len(alerts), "receiver", ag.opts.Receiver, "err", err)
 			if errors.Is(ctx.Err(), context.Canceled) {
 				// It is expected for the context to be canceled on
 				// configuration reload or shutdown. In this case, the
@@ -614,8 +614,14 @@ type aggrGroup struct {
 	opts     *RouteOpts
 	logger   *slog.Logger
 	routeID  string
-	routeKey string
 	matchers labels.Matchers
+
+	// groupPath is a readable path of the group: the matchers traversed in
+	// the route tree, followed by the group labels.
+	groupPath string
+	// groupKey is an opaque identifier of the group, derived from the same
+	// values plus the receiver name.
+	groupKey string
 
 	alerts   *store.Alerts
 	marker   marker.AlertMarker
@@ -667,7 +673,6 @@ func newAggrGroup(
 	ag := &aggrGroup{
 		labels:   labels,
 		routeID:  r.ID(),
-		routeKey: r.Key(),
 		matchers: r.Matchers,
 		opts:     &r.RouteOpts,
 		timeout:  to,
@@ -678,13 +683,15 @@ func newAggrGroup(
 		done:     make(chan struct{}),
 		flushIdx: 1,
 	}
+	ag.groupPath = fmt.Sprintf("%s:%s", r.Path(), labels)
+	ag.groupKey = keyHash(ag.groupPath, r.RouteOpts.Receiver)
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
 	if id, err := uuid.NewRandom(); err == nil {
 		ag.ctx = notify.WithAggrGroupID(ag.ctx, id.String())
 	}
 
-	ag.logger = logger.With("aggrGroup", ag.GroupKey())
+	ag.logger = logger.With("aggrGroup", ag.GroupPath())
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
@@ -697,12 +704,19 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
+// GroupKey returns the opaque identifier of the group. See aggrGroup.groupKey.
 func (ag *aggrGroup) GroupKey() string {
-	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
+	return ag.groupKey
+}
+
+// GroupPath returns the human readable identifier of the group. See
+// aggrGroup.groupPath.
+func (ag *aggrGroup) GroupPath() string {
+	return ag.groupPath
 }
 
 func (ag *aggrGroup) String() string {
-	return ag.GroupKey()
+	return ag.GroupPath()
 }
 
 // renderRouteLabels renders the route's labels as templates against the given
@@ -805,6 +819,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 			// Populate context with information needed along the pipeline.
 			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
+			ctx = notify.WithGroupPath(ctx, ag.GroupPath())
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithRouteLabels(ctx, ag.opts.Labels)
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
@@ -824,7 +839,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.flush(func(alerts ...*alert.Alert) bool {
 				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
 					trace.WithAttributes(
-						attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+						attribute.String("alerting.aggregation_group.key", ag.GroupPath()),
 						attribute.Int("alerting.alerts.count", len(alerts)),
 					),
 					trace.WithSpanKind(trace.SpanKindInternal),
@@ -874,7 +889,7 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		trace.WithAttributes(
 			attribute.String("alerting.alert.name", alrt.Name()),
 			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
-			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+			attribute.String("alerting.aggregation_group.key", ag.GroupPath()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -972,7 +987,7 @@ func (ag *aggrGroup) recordResolvedEvents(resolved alert.AlertSlice) {
 
 func (ag *aggrGroup) alertGroupInfo() eventrecorder.AlertGroup {
 	return eventrecorder.NewAlertGroup(
-		ag.GroupKey(), ag.labels, notify.Key(ag.GroupKey()).Hash(), ag.opts.Receiver, nil, "",
+		ag.GroupPath(), ag.labels, notify.Key(ag.GroupPath()).Hash(), ag.opts.Receiver, nil, "",
 	)
 }
 

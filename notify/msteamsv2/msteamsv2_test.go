@@ -90,7 +90,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				return resp.Result(), nil
 			}
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			alert1 := alert.New(model.Alert{
 				StartsAt: time.Now(),
@@ -157,7 +157,7 @@ func TestMSTeamsV2Templating(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := pd.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{

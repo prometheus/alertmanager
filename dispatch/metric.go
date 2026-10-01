@@ -58,7 +58,7 @@ func NewDispatcherMetrics(_ bool, r prometheus.Registerer, ff featurecontrol.Fla
 
 	labels := []string{"state"}
 	if ff.EnableGroupKeyInMetrics() {
-		labels = append(labels, "group_key")
+		labels = append(labels, "group_key", "group_path")
 	}
 
 	collector := &alertStateCollector{
@@ -130,12 +130,13 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	if c.enableGroupKey {
-		labelValues := make([]string, 2)
+		labelValues := make([]string, 3)
 		for i := range d.routeGroupsSlice {
 			d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 				ag := el.(*aggrGroup)
 				active, suppressed, unprocessed := ag.countAlertsByState()
 				labelValues[1] = ag.GroupKey()
+				labelValues[2] = ag.GroupPath()
 				labelValues[0] = string(alert.AlertStateActive)
 				c.emit(ch, float64(active), labelValues...)
 				labelValues[0] = string(alert.AlertStateSuppressed)

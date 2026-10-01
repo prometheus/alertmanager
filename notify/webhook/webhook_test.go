@@ -201,7 +201,7 @@ func TestWebhookURLTemplating(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "test-group")
+			ctx = notify.WithGroupPath(ctx, "test-group")
 			if tc.groupLabels != nil {
 				ctx = notify.WithGroupLabels(ctx, tc.groupLabels)
 			}
@@ -268,7 +268,7 @@ func TestWebhookDefaultPayload(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 	data := notify.GetTemplateData(ctx, tmpl, alerts, promslog.NewNopLogger())
 
@@ -326,7 +326,7 @@ func TestWebhookCustomPayloadMap(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
 	expectedContent := map[string]any{
@@ -388,7 +388,7 @@ func TestWebhookCustomPayloadList(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
@@ -442,7 +442,7 @@ func TestWebhookCustomPayloadStringList(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
@@ -501,7 +501,7 @@ func TestWebhookCustomPayloadString(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
@@ -566,7 +566,7 @@ func TestWebhookCustomPayloadPreservesYAMLLikeStrings(t *testing.T) {
 		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
-	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
+	ctx := notify.WithGroupPath(context.Background(), "{}:{alertname=\"test1\"}")
 	ctx = notify.WithReceiverName(ctx, "test_receiver")
 
 	n, err := New(conf, tmpl, promslog.NewNopLogger())

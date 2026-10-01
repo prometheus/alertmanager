@@ -135,7 +135,7 @@ func safeSplit(s, sep string) []string {
 
 // Create requests for a list of alerts.
 func (n *Notifier) createRequests(ctx context.Context, as ...*alert.Alert) ([]*http.Request, bool, error) {
-	key, err := notify.ExtractGroupKey(ctx)
+	key, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return nil, false, err
 	}

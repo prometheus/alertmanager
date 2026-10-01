@@ -120,7 +120,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*alert.Aler
 		"CRITICAL": true,
 	}
 
-	key, err := notify.ExtractGroupKey(ctx)
+	key, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return nil, err
 	}

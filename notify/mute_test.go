@@ -324,7 +324,7 @@ func TestTimeMuteStage(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, test.now)
-			ctx = WithGroupKey(ctx, "group1")
+			ctx = WithGroupPath(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, nil)
 			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
 			ctx = WithRouteID(ctx, "route1")
@@ -431,7 +431,7 @@ func TestTimeActiveStage(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, test.now)
-			ctx = WithGroupKey(ctx, "group1")
+			ctx = WithGroupPath(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
 			ctx = WithMuteTimeIntervals(ctx, nil)
 			ctx = WithRouteID(ctx, "route1")

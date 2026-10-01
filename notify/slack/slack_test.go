@@ -229,7 +229,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				return resp.Result(), nil
 			}
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			alert1 := alert.New(model.Alert{
 				StartsAt: time.Now(),
@@ -288,7 +288,7 @@ func TestSlackTimeout(t *testing.T) {
 				}
 			}
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			alrt := alert.New(model.Alert{
 				StartsAt: time.Now(),
@@ -353,7 +353,7 @@ func TestSlackMessageField(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "test-group-key")
+	ctx = notify.WithGroupPath(ctx, "test-group-key")
 
 	if err := notifier.Notify(ctx).Err(); err != nil {
 		t.Fatal("Notify failed:", err)
@@ -382,7 +382,7 @@ func TestNotifier_Notify_RetryAfterDelay(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 
 	alert1 := alert.New(model.Alert{
 		StartsAt: time.Now(),
@@ -431,7 +431,7 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 	}
 
 	newCtx := func(store *nflog.Store) context.Context {
-		ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+		ctx := notify.WithGroupPath(context.Background(), "test-group-key")
 		return notify.WithNflogStore(ctx, store)
 	}
 
@@ -537,7 +537,7 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		notifyGroup := func(a *alert.Alert) []capturedRequest {
 			t.Helper()
 			captured = nil
-			ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+			ctx := notify.WithGroupPath(context.Background(), "test-group-key")
 			ctx = notify.WithRepeatInterval(ctx, time.Hour)
 			ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), a)
 			require.NoError(t, err)

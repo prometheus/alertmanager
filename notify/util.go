@@ -173,9 +173,18 @@ func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 // Key is a string that can be hashed.
 type Key string
 
-// ExtractGroupKey gets the group key from the context.
+// ExtractGroupKey gets the opaque group key from the context.
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
+	if !ok {
+		return "", fmt.Errorf("group key missing")
+	}
+	return Key(key), nil
+}
+
+// ExtractGroupPath gets the path identifying the alert group from the context.
+func ExtractGroupPath(ctx context.Context) (Key, error) {
+	key, ok := GroupPath(ctx)
 	if !ok {
 		return "", fmt.Errorf("group key missing")
 	}

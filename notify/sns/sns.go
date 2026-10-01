@@ -258,7 +258,7 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 		publishInput.TopicArn = aws.String(topicARN)
 		// If we are using a topic ARN, it could be a FIFO topic specified by the topic's suffix ".fifo".
 		if strings.HasSuffix(topicARN, ".fifo") {
-			key, err := notify.ExtractGroupKey(ctx)
+			key, err := notify.ExtractGroupPath(ctx)
 			if err != nil {
 				return nil, err
 			}

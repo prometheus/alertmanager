@@ -46,6 +46,7 @@ const (
 	keyGroupMatchers
 	keyRouteLabels
 	keyMutedAlertDetails
+	keyGroupPath
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -53,9 +54,19 @@ func WithReceiverName(ctx context.Context, rcv string) context.Context {
 	return context.WithValue(ctx, keyReceiverName, rcv)
 }
 
-// WithGroupKey populates a context with a group key.
+// WithGroupKey populates a context with the group key, the opaque identifier
+// of an aggregation group. Groups only share a key if they have the same
+// labels and come from sibling routes with identical matchers and receiver.
 func WithGroupKey(ctx context.Context, s string) context.Context {
 	return context.WithValue(ctx, keyGroupKey, s)
+}
+
+// WithGroupPath populates a context with the group path, the human readable
+// identifier of an aggregation group made of the matchers of its route and
+// its group labels. Unlike the group key it is stable across Alertmanager
+// versions but not guaranteed to be unique.
+func WithGroupPath(ctx context.Context, s string) context.Context {
+	return context.WithValue(ctx, keyGroupPath, s)
 }
 
 // WithFiringAlerts populates a context with a slice of firing alerts.
@@ -126,6 +137,13 @@ func ReceiverName(ctx context.Context) (string, bool) {
 // second argument is false.
 func GroupKey(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(keyGroupKey).(string)
+	return v, ok
+}
+
+// GroupPath extracts a group path from the context. Iff none exists, the
+// second argument is false.
+func GroupPath(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyGroupPath).(string)
 	return v, ok
 }
 

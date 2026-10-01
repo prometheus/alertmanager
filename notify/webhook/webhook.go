@@ -80,7 +80,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*alert.Alert) notify.No
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
-	groupKey, err := notify.ExtractGroupKey(ctx)
+	groupKey, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
 	}

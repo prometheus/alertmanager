@@ -829,7 +829,7 @@ func TestEmailNotifyWithThreading(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create context with group key (required for threading).
-			ctx := notify.WithGroupKey(context.Background(), "test-group-key")
+			ctx := notify.WithGroupPath(context.Background(), "test-group-key")
 
 			emailCfg := &EmailConfig{
 				Smarthost: c.Smarthost,

@@ -274,7 +274,7 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 	}
 
 	if n.conf.Threading.Enabled {
-		key, err := notify.ExtractGroupKey(ctx)
+		key, err := notify.ExtractGroupPath(ctx)
 		if err != nil {
 			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
