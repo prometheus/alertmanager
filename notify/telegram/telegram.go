@@ -76,16 +76,15 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 }
 
 func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.NotifyVerdict {
-	key, ok := notify.GroupKey(ctx)
-	if !ok {
-		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
+	key, err := notify.ExtractGroupPath(ctx)
+	if err != nil {
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
 
 	var (
-		err         error
 		data        = notify.GetTemplateData(ctx, n.tmpl, alrt, logger)
 		tmpl        = notify.TmplText(n.tmpl, data, &err)
 		messageText string

@@ -62,7 +62,7 @@ func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
 
 // Exec implements the Stage interface.
 func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	gkey, ok := GroupKey(ctx)
+	gkey, ok := GroupPath(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}

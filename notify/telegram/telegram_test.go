@@ -260,7 +260,7 @@ func TestTelegramNotify(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := notifier.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{
@@ -368,7 +368,7 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := notifier.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{
@@ -408,7 +408,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		ctx = notify.WithGroupKey(ctx, "1")
+		ctx = notify.WithGroupPath(ctx, "1")
 
 		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
 		require.True(t, verdict.ShouldRetry())
@@ -443,7 +443,7 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		ctx = notify.WithGroupKey(ctx, "1")
+		ctx = notify.WithGroupPath(ctx, "1")
 
 		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
 		require.True(t, verdict.ShouldRetry())
@@ -499,7 +499,7 @@ func TestTelegramTimeout(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			testAlert := alert.New(model.Alert{
 				StartsAt: time.Now(),

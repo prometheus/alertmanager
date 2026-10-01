@@ -67,19 +67,16 @@ func New(c *PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...co
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
-	key, ok := notify.GroupKey(ctx)
-	if !ok {
-		return notify.Unrecoverable(fmt.Errorf("group key missing"), notify.DefaultReason)
+	key, err := notify.ExtractGroupPath(ctx)
+	if err != nil {
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
-	var (
-		err     error
-		message string
-	)
+	var message string
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 

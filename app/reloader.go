@@ -215,7 +215,7 @@ func (r *reloader) reload(conf *config.Config) error {
 				"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
 				"repeat_interval", rt.RouteOpts.RepeatInterval,
 				"retention", r.retention,
-				"route", rt.Key(),
+				"route", rt.Path(),
 			)
 		}
 		if rt.RouteOpts.RepeatInterval < rt.RouteOpts.GroupInterval {
@@ -223,7 +223,7 @@ func (r *reloader) reload(conf *config.Config) error {
 				"repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval.",
 				"repeat_interval", rt.RouteOpts.RepeatInterval,
 				"group_interval", rt.RouteOpts.GroupInterval,
-				"route", rt.Key(),
+				"route", rt.Path(),
 			)
 		}
 	})

@@ -193,16 +193,27 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
-// Key returns a key for the route. It does not uniquely identify the route in general.
-func (r *Route) Key() string {
+// Path returns the human readable path of the route: the matchers of every
+// route from the root down to this one, separated by slashes. It is stable
+// across Alertmanager versions but does not uniquely identify the route, as
+// sibling routes with identical matchers share a path.
+func (r *Route) Path() string {
 	b := strings.Builder{}
 
 	if r.parent != nil {
-		b.WriteString(r.parent.Key())
+		b.WriteString(r.parent.Path())
 		b.WriteRune('/')
 	}
 	b.WriteString(r.Matchers.String())
 	return b.String()
+}
+
+// Key returns an opaque identifier for the route derived from its path and
+// its effective receiver. It is stable under reordering of routes and under
+// changes to any other option, and it only collides for sibling routes with
+// identical matchers and receiver.
+func (r *Route) Key() string {
+	return keyHash(r.Path(), r.RouteOpts.Receiver)
 }
 
 // ID returns a unique identifier for the route.

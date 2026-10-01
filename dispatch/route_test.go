@@ -264,7 +264,7 @@ routes:
 
 		for _, r := range tree.Match(test.input) {
 			matches = append(matches, &r.RouteOpts)
-			keys = append(keys, r.Key())
+			keys = append(keys, r.Path())
 		}
 
 		if !reflect.DeepEqual(matches, test.result) {
@@ -623,7 +623,7 @@ routes:
 
 		for _, r := range tree.Match(test.input) {
 			matches = append(matches, &r.RouteOpts)
-			keys = append(keys, r.Key())
+			keys = append(keys, r.Path())
 		}
 
 		if !reflect.DeepEqual(matches, test.result) {
@@ -868,7 +868,7 @@ routes:
 
 		for _, r := range tree.Match(test.input) {
 			matches = append(matches, &r.RouteOpts)
-			keys = append(keys, r.Key())
+			keys = append(keys, r.Path())
 		}
 
 		if !reflect.DeepEqual(matches, test.result) {

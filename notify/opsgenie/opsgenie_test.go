@@ -216,7 +216,7 @@ func TestOpsGenie(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
@@ -275,7 +275,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	require.NoError(t, err)
 	tmpl := test.CreateTmpl(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 	opsGenieConfigWithUpdate := OpsGenieConfig{
 		Message:      `{{ .CommonLabels.Message }}`,
 		Description:  `{{ .CommonLabels.Description }}`,
@@ -302,7 +302,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	body0 := readBody(t, requests[0])
 	body1 := readBody(t, requests[1])
 	body2 := readBody(t, requests[2])
-	key, _ := notify.ExtractGroupKey(ctx)
+	key, _ := notify.ExtractGroupPath(ctx)
 	alias := key.Hash()
 
 	require.Equal(t, "https://test-opsgenie-url/v2/alerts", requests[0].URL.String())
@@ -325,7 +325,7 @@ func TestOpsGenieApiKeyFile(t *testing.T) {
 	require.NoError(t, err)
 	tmpl := test.CreateTmpl(t)
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 	opsGenieConfigWithUpdate := OpsGenieConfig{
 		APIKeyFile: `./api_key_file`,
 		APIURL:     &amcommoncfg.URL{URL: u},

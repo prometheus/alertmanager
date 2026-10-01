@@ -139,7 +139,7 @@ func getToken(c *RocketchatConfig) (string, error) {
 func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
 
-	key, err := notify.ExtractGroupKey(ctx)
+	key, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)
 	}

@@ -109,7 +109,7 @@ func TestDiscordTemplating(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 
 			verdict := pd.Notify(ctx, []*alert.Alert{
 				alert.New(model.Alert{
@@ -166,7 +166,7 @@ func TestDiscordFailureReason(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctx := notify.WithGroupKey(context.Background(), "1")
+			ctx := notify.WithGroupPath(context.Background(), "1")
 			alrt := alert.New(model.Alert{
 				Labels:   model.LabelSet{"lbl1": "val1"},
 				StartsAt: time.Now(),
@@ -258,7 +258,7 @@ func TestDiscord_Notify(t *testing.T) {
 
 	// Create a context and alerts
 	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 	alerts := []*alert.Alert{
 		alert.New(model.Alert{
 			Labels: model.LabelSet{

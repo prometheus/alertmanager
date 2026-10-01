@@ -141,7 +141,7 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 	t.Helper()
 	require.NotEmpty(t, secret)
 
-	ctx = notify.WithGroupKey(ctx, "1")
+	ctx = notify.WithGroupPath(ctx, "1")
 	verdict := n.Notify(ctx, []*alert.Alert{
 		alert.New(model.Alert{
 			Labels: model.LabelSet{

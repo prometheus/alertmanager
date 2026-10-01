@@ -252,7 +252,7 @@ func (n *Notifier) createRequest(tmpl func(string) string) *request {
 }
 
 func (n *Notifier) sanitizeRequest(ctx context.Context, r *request) error {
-	key, err := notify.ExtractGroupKey(ctx)
+	key, err := notify.ExtractGroupPath(ctx)
 	if err != nil {
 		return err
 	}

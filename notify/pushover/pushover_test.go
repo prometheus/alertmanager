@@ -141,7 +141,7 @@ func TestPushoverTrimsTrailingNewlineFromFiles(t *testing.T) {
 	require.NoError(t, err)
 	notifier.apiURL = apiURL.String()
 
-	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
+	require.NoError(t, notifier.Notify(notify.WithGroupPath(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
 }
 
 func TestPushoverMonospaceParameter(t *testing.T) {
@@ -164,5 +164,5 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
+	require.NoError(t, notifier.Notify(notify.WithGroupPath(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
 }

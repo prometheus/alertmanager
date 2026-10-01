@@ -235,7 +235,7 @@ func TestGetTemplateDataWithRouteLabels(t *testing.T) {
 	// than executing them a second time.
 	ctx := context.Background()
 	ctx = WithReceiverName(ctx, "test-receiver")
-	ctx = WithGroupKey(ctx, "test-key")
+	ctx = WithGroupPath(ctx, "test-key")
 	ctx = WithGroupLabels(ctx, model.LabelSet{"alertname": "Test"})
 	ctx = WithNotificationReason(ctx, ReasonFirstNotification)
 	ctx = WithRouteLabels(ctx, model.LabelSet{

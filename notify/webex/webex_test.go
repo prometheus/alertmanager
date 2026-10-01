@@ -129,7 +129,7 @@ func TestWebexTemplating(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
 			verdict := notifierWebex.Notify(ctx, []*alert.Alert{
@@ -183,7 +183,7 @@ func TestWebexRetryAfterDelay(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx := notify.WithGroupKey(context.Background(), "1")
+	ctx := notify.WithGroupPath(context.Background(), "1")
 	alrt := alert.New(model.Alert{
 		Labels:   model.LabelSet{"lbl1": "val1"},
 		StartsAt: time.Now(),
@@ -232,7 +232,7 @@ func TestWebexFailureReason(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctx := notify.WithGroupKey(context.Background(), "1")
+			ctx := notify.WithGroupPath(context.Background(), "1")
 			alrt := alert.New(model.Alert{
 				Labels:   model.LabelSet{"lbl1": "val1"},
 				StartsAt: time.Now(),

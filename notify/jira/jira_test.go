@@ -178,7 +178,7 @@ func TestSearchExistingIssue(t *testing.T) {
 			require.NoError(t, err)
 			logger := pd.logger.With("group_key", tc.groupKey)
 
-			ctx := notify.WithGroupKey(context.Background(), tc.groupKey)
+			ctx := notify.WithGroupPath(context.Background(), tc.groupKey)
 			data := notify.GetTemplateData(ctx, pd.tmpl, as, logger)
 
 			var tmplTextErr error
@@ -446,7 +446,7 @@ func TestJiraTemplating(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{
 				"lbl1":     "val1",
 				"hostname": "host1.example.com",
@@ -1024,7 +1024,7 @@ func TestJiraNotify(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupPath(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"alertname": "test"})
 
 			verdict := notifier.Notify(ctx, tc.alert)
@@ -1274,7 +1274,7 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 
 			ctx := context.Background()
 			groupID := "1"
-			ctx = notify.WithGroupKey(ctx, groupID)
+			ctx = notify.WithGroupPath(ctx, groupID)
 			ctx = notify.WithGroupLabels(ctx, alrt.Labels)
 
 			alerts := []*alert.Alert{alrt}

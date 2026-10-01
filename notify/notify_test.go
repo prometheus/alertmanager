@@ -241,7 +241,7 @@ func TestDedupStageUsesContextNow(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "group")
+	ctx = WithGroupPath(ctx, "group")
 	ctx = WithRepeatInterval(ctx, 30*time.Minute)
 	ctx = WithNow(ctx, base.Add(10*time.Minute))
 
@@ -272,7 +272,7 @@ func TestDedupStage(t *testing.T) {
 	_, _, err := s.Exec(ctx, promslog.NewNopLogger())
 	require.EqualError(t, err, "group key missing")
 
-	ctx = WithGroupKey(ctx, "1")
+	ctx = WithGroupPath(ctx, "1")
 
 	_, _, err = s.Exec(ctx, promslog.NewNopLogger())
 	require.EqualError(t, err, "repeat interval missing")
@@ -697,7 +697,7 @@ func TestRetryStageNotificationEventUsesDedupAlertState(t *testing.T) {
 	dedup := NewDedupStage(&integration, &testNflog{}, &nflogpb.Receiver{})
 	stage := NewRetryStage(integration, "test", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), recorder)
 	ctx := eventrecorder.WithEventRecording(context.Background())
-	ctx = WithGroupKey(ctx, "group")
+	ctx = WithGroupPath(ctx, "group")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 	ctx = withMutedAlertDetails(ctx, []*alert.Alert{muted})
 	ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), firing, resolved)
@@ -794,7 +794,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
 
-	ctx = WithGroupKey(ctx, "1")
+	ctx = WithGroupPath(ctx, "1")
 
 	resctx, res, err = s.Exec(ctx, promslog.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "firing alerts missing")
@@ -870,7 +870,7 @@ func TestSetNotifiesStageRecordsMutedAlerts(t *testing.T) {
 			s := NewSetNotifiesStage(tnflog, &nflogpb.Receiver{GroupName: "test"}, test.ff)
 
 			ctx := context.Background()
-			ctx = WithGroupKey(ctx, "1")
+			ctx = WithGroupPath(ctx, "1")
 			ctx = WithFiringAlerts(ctx, []uint64{0})
 			ctx = WithResolvedAlerts(ctx, []uint64{})
 			ctx = WithRepeatInterval(ctx, time.Hour)
@@ -955,7 +955,7 @@ func TestMutedGroupIsRecordedInNflog(t *testing.T) {
 			})
 
 			ctx := context.Background()
-			ctx = WithGroupKey(ctx, "testkey")
+			ctx = WithGroupPath(ctx, "testkey")
 			ctx = WithRepeatInterval(ctx, time.Hour)
 
 			_, res, err := stage.Exec(ctx, promslog.NewNopLogger(), alrt)
@@ -1010,7 +1010,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	setNotifiesStage := NewSetNotifiesStage(tnflog, recv, featurecontrol.NoopFlags{})
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithGroupPath(ctx, "testkey")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	alerts := []*alert.Alert{
@@ -1053,7 +1053,7 @@ func TestReceiverData_PreservationWhenNotifierDoesNotUpdate(t *testing.T) {
 	}
 
 	ctx = context.Background()
-	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithGroupPath(ctx, "testkey")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	ctx, _, err = dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
@@ -1100,7 +1100,7 @@ func TestDedupStageExtractsReceiverData_DataPresent(t *testing.T) {
 	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "key")
+	ctx = WithGroupPath(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	alerts := []*alert.Alert{
@@ -1140,7 +1140,7 @@ func TestDedupStageExtractsReceiverData_NilReceiverData(t *testing.T) {
 	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "key")
+	ctx = WithGroupPath(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	alerts := []*alert.Alert{
@@ -1165,7 +1165,7 @@ func TestDedupStageExtractsReceiverData_NoEntry(t *testing.T) {
 	stage := NewDedupStage(sendResolved(false), tnflog, &nflogpb.Receiver{GroupName: "test"})
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "key")
+	ctx = WithGroupPath(ctx, "key")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	alerts := []*alert.Alert{
@@ -1227,7 +1227,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	tnflog.qres = []*nflogpb.Entry{}
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithGroupPath(ctx, "testkey")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	ctx, _, err := dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)
@@ -1265,7 +1265,7 @@ func TestNflogStore_NoLeakBetweenNotificationSequences(t *testing.T) {
 	}
 
 	ctx = context.Background()
-	ctx = WithGroupKey(ctx, "testkey")
+	ctx = WithGroupPath(ctx, "testkey")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 
 	ctx, _, err = dedupStage.Exec(ctx, promslog.NewNopLogger(), alerts...)

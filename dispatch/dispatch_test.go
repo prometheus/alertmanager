@@ -709,14 +709,14 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	go aggrGroup1.run(func(context.Context, ...*alert.Alert) bool { return true })
 
 	// Insert a marker for the aggregation group's group key.
-	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
-	mutedBy, isMuted := marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	marker.SetMuted(route.ID(), aggrGroup1.GroupPath(), []string{"weekends"})
+	mutedBy, isMuted := marker.Muted(route.ID(), aggrGroup1.GroupPath())
 	require.True(t, isMuted)
 	require.Equal(t, []string{"weekends"}, mutedBy)
 
 	// Run the maintenance and the marker should be removed.
 	dispatcher.doMaintenance()
-	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
+	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupPath())
 	require.False(t, isMuted)
 	require.Empty(t, mutedBy)
 }

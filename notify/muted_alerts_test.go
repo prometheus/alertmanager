@@ -124,7 +124,7 @@ func (p *mutedPipeline) flush(now time.Time, alerts ...*alert.Alert) ([]*alert.A
 	p.now = now
 
 	ctx := context.Background()
-	ctx = WithGroupKey(ctx, "group")
+	ctx = WithGroupPath(ctx, "group")
 	ctx = WithRepeatInterval(ctx, time.Hour)
 	ctx = WithNow(ctx, now)
 
@@ -201,7 +201,7 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, utcNow())
-			ctx = WithGroupKey(ctx, "group1")
+			ctx = WithGroupPath(ctx, "group1")
 			ctx = WithRouteID(ctx, "route1")
 			ctx = WithMuteTimeIntervals(ctx, []string{"evenings"})
 			ctx = WithActiveTimeIntervals(ctx, []string{"weekdays"})

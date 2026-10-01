@@ -24,7 +24,7 @@ import (
 )
 
 func extractAlertGroupInfo(ctx context.Context) eventrecorder.AlertGroup {
-	groupKey, _ := ExtractGroupKey(ctx)
+	groupKey, _ := ExtractGroupPath(ctx)
 	receiverName, _ := ReceiverName(ctx)
 	groupLabels, _ := GroupLabels(ctx)
 	groupMatchers, _ := GroupMatchers(ctx)

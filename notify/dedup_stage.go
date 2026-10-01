@@ -117,7 +117,7 @@ func partitionAlertsByState(alerts []*alert.Alert, hashFn func(*alert.Alert) uin
 
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	gkey, ok := GroupKey(ctx)
+	gkey, ok := GroupPath(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}
