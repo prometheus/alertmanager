@@ -1,0 +1,19 @@
+global:
+  smtp_smarthost: 'localhost:25'
+
+templates:
+  - '/etc/alertmanager/template/*.tmpl'
+
+route:
+  receiver: default
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal:
+      - alertname
+
+receivers:
+  - name: default
