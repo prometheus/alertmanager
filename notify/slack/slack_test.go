@@ -430,6 +430,22 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		return notifier
 	}
 
+	// countingPostJSON responds to the n-th request with ts "n.000".
+	countingPostJSON := func(captured *[]capturedRequest) func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+		var posted int
+		return func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+			var decoded map[string]any
+			require.NoError(t, json.NewDecoder(body).Decode(&decoded))
+			*captured = append(*captured, capturedRequest{url: reqURL, body: decoded})
+			posted++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"ok": true, "channel": "C123", "ts": "%d.000"}`, posted))),
+			}, nil
+		}
+	}
+
 	newCtx := func(store *nflog.Store) context.Context {
 		ctx := notify.WithGroupKey(context.Background(), "test-group-key")
 		return notify.WithNflogStore(ctx, store)
@@ -437,7 +453,7 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 
 	t.Run("first notification posts to channel and stores thread ts", func(t *testing.T) {
 		var captured []capturedRequest
-		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "111.222")
+		notifier := newTestNotifier(t, &SlackConfig{PostUpdatesToThread: true}, &captured, "111.222")
 		store := nflog.NewStore(nil)
 
 		require.NoError(t, notifier.Notify(newCtx(store)).Err())
@@ -451,6 +467,78 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		channelId, _ := store.GetStr("channelId")
 		require.Equal(t, "111.222", threadTs)
 		require.Equal(t, "C123", channelId)
+	})
+
+	t.Run("first notification with update_message is also copied to its thread", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "")
+		notifier.postJSONFunc = countingPostJSON(&captured)
+		store := nflog.NewStore(nil)
+
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+
+		require.Len(t, captured, 2)
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[0].url)
+		require.Equal(t, "#test-channel", captured[0].body["channel"])
+		require.NotContains(t, captured[0].body, "ts")
+		require.NotContains(t, captured[0].body, "thread_ts")
+
+		require.Equal(t, "https://slack.com/api/chat.postMessage", captured[1].url)
+		require.Equal(t, "C123", captured[1].body["channel"])
+		require.Equal(t, "1.000", captured[1].body["thread_ts"])
+		require.NotContains(t, captured[1].body, "ts")
+		require.Equal(t, captured[0].body["attachments"], captured[1].body["attachments"])
+
+		// The thread copy's response must not overwrite the stored root message ts.
+		threadTs, _ := store.GetStr("threadTs")
+		channelId, _ := store.GetStr("channelId")
+		require.Equal(t, "1.000", threadTs)
+		require.Equal(t, "C123", channelId)
+	})
+
+	t.Run("failed thread copy keeps stored root ts so a retry takes the update path", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "")
+		postJSON := countingPostJSON(&captured)
+		var calls int
+		notifier.postJSONFunc = func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
+			resp, err := postJSON(ctx, client, reqURL, body)
+			calls++
+			// Only the thread copy of the initial message fails.
+			if calls == 2 {
+				resp.StatusCode = http.StatusTooManyRequests
+				resp.Body = io.NopCloser(strings.NewReader("ratelimited"))
+			}
+			return resp, err
+		}
+		store := nflog.NewStore(nil)
+
+		verdict := notifier.Notify(newCtx(store))
+		require.Error(t, verdict.Err())
+		require.True(t, verdict.ShouldRetry())
+		require.Len(t, captured, 2)
+		require.Equal(t, "1.000", captured[1].body["thread_ts"])
+
+		threadTs, _ := store.GetStr("threadTs")
+		require.Equal(t, "1.000", threadTs)
+
+		captured = nil
+		require.NoError(t, notifier.Notify(newCtx(store)).Err())
+		require.Len(t, captured, 2)
+		require.Equal(t, "https://slack.com/api/chat.update", captured[0].url)
+		require.Equal(t, "1.000", captured[0].body["ts"])
+		require.Equal(t, "1.000", captured[1].body["thread_ts"])
+	})
+
+	t.Run("first notification without nflog store is posted once", func(t *testing.T) {
+		var captured []capturedRequest
+		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "111.222")
+
+		require.NoError(t, notifier.Notify(notify.WithGroupKey(context.Background(), "test-group-key")).Err())
+
+		require.Len(t, captured, 1)
+		require.Equal(t, "#test-channel", captured[0].body["channel"])
+		require.NotContains(t, captured[0].body, "thread_ts")
 	})
 
 	t.Run("subsequent notification updates message and posts thread reply", func(t *testing.T) {
@@ -515,18 +603,7 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 	t.Run("new firing after resolution starts a new thread", func(t *testing.T) {
 		var captured []capturedRequest
 		notifier := newTestNotifier(t, &SlackConfig{UpdateMessage: true, PostUpdatesToThread: true}, &captured, "")
-		var posted int
-		notifier.postJSONFunc = func(ctx context.Context, client *http.Client, reqURL string, body io.Reader) (*http.Response, error) {
-			var decoded map[string]any
-			require.NoError(t, json.NewDecoder(body).Decode(&decoded))
-			captured = append(captured, capturedRequest{url: reqURL, body: decoded})
-			posted++
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{"Content-Type": []string{"application/json"}},
-				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"ok": true, "channel": "C123", "ts": "%d.000"}`, posted))),
-			}, nil
-		}
+		notifier.postJSONFunc = countingPostJSON(&captured)
 
 		nl, err := nflog.New(nflog.Options{Retention: time.Hour, Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
@@ -551,8 +628,9 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		resolved := alert.New(model.Alert{Labels: labels, StartsAt: time.Now(), EndsAt: time.Now().Add(-time.Minute)}, time.Now(), false)
 
 		reqs := notifyGroup(firing)
-		require.Len(t, reqs, 1)
+		require.Len(t, reqs, 2)
 		require.NotContains(t, reqs[0].body, "thread_ts")
+		require.Equal(t, "1.000", reqs[1].body["thread_ts"])
 
 		reqs = notifyGroup(resolved)
 		require.Len(t, reqs, 2)
@@ -561,14 +639,15 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 
 		// The resolved group's thread is never posted to again.
 		reqs = notifyGroup(firing)
-		require.Len(t, reqs, 1)
+		require.Len(t, reqs, 2)
 		require.Equal(t, "https://slack.com/api/chat.postMessage", reqs[0].url)
 		require.NotContains(t, reqs[0].body, "thread_ts")
 		require.NotContains(t, reqs[0].body, "ts")
+		require.Equal(t, "5.000", reqs[1].body["thread_ts"])
 
 		reqs = notifyGroup(resolved)
 		require.Len(t, reqs, 2)
-		require.Equal(t, "4.000", reqs[0].body["ts"])
-		require.Equal(t, "4.000", reqs[1].body["thread_ts"])
+		require.Equal(t, "5.000", reqs[0].body["ts"])
+		require.Equal(t, "5.000", reqs[1].body["thread_ts"])
 	})
 }

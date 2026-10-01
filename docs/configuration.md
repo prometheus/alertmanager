@@ -1769,6 +1769,8 @@ fields:
 # Posts subsequent notifications for an alert group as replies in the thread of the
 # initial message instead of new channel messages. When combined with update_message,
 # the initial message is updated in place and a reply is also posted to its thread.
+# Right after the initial message is posted, a copy of it is posted as the first reply,
+# so the original notification is preserved after updates.
 # Webhook URLs do not support threads.
 [ post_updates_to_thread: <boolean> | default = false ]
 ```
