@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -109,33 +108,7 @@ func newRoute(cr *config.Route, parent *Route, counter *int) *Route {
 		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
 	}
 
-	// Build matchers.
-	var matchers labels.Matchers
-
-	// cr.Match will be deprecated. This for loop appends matchers.
-	for ln, lv := range cr.Match {
-		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
-		}
-		matchers = append(matchers, matcher)
-	}
-
-	// cr.MatchRE will be deprecated. This for loop appends regex matchers.
-	for ln, lv := range cr.MatchRE {
-		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
-		if err != nil {
-			// This error must not happen because the config already validates the yaml.
-			panic(err)
-		}
-		matchers = append(matchers, matcher)
-	}
-
-	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
-	matchers = append(matchers, cr.Matchers...)
-
-	sort.Sort(matchers)
+	matchers := cr.AllMatchers()
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
 	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals

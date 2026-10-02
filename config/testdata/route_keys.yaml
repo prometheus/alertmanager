@@ -1,0 +1,269 @@
+# Routing trees for the check that rejects routes with the same matchers from
+# the root down, group_by and receiver. A case without an error is accepted.
+# receivers is appended to every config.
+receivers: |
+  receivers:
+  - name: team-X
+  - name: team-Y
+cases:
+  - name: identical siblings with the same receiver
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-Y"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          receiver: team-Y
+          continue: true
+        - matchers: [foo=bar]
+          receiver: team-Y
+  - name: identical siblings inheriting the receiver
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          continue: true
+        - matchers: [foo=bar]
+          receiver: team-X
+  - name: cousins under parents with identical matchers
+    error: 'routes {}/{foo="bar"}/0/{bar="baz"}/0 and {}/{foo="bar"}/1/{bar="baz"}/0 have the same matchers, group_by and receiver "team-Y"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          receiver: team-X
+          continue: true
+          routes:
+          - matchers: [bar=baz]
+            receiver: team-Y
+        - matchers: [foo=bar]
+          receiver: team-Y
+          routes:
+          - matchers: [bar=baz]
+  - name: same matchers in deprecated and current syntax
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - match:
+            foo: bar
+          continue: true
+        - matchers: ['foo="bar"']
+  - name: different timings and time intervals do not make routes distinct
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          group_wait: 1s
+          repeat_interval: 1h
+          continue: true
+        - matchers: [foo=bar]
+          group_wait: 10s
+          repeat_interval: 4h
+          mute_time_intervals: [weekends]
+  - name: group_by inherited on one side and repeated on the other
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        group_by: [cluster, alertname]
+        routes:
+        - matchers: [foo=bar]
+          continue: true
+        - matchers: [foo=bar]
+          group_by: [alertname, cluster]
+  - name: group_by all on both sides
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          group_by: ['...']
+          continue: true
+        - matchers: [foo=bar]
+          group_by: ['...']
+  - name: empty group_by on both sides
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        group_by: [alertname]
+        routes:
+        - matchers: [foo=bar]
+          group_by: []
+          continue: true
+        - matchers: [foo=bar]
+          group_by: []
+  - name: identical siblings without continue are unreachable but still rejected
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+        - matchers: [foo=bar]
+  - name: matcher order does not matter
+    error: 'routes {}/{a="1",b="2"}/0 and {}/{a="1",b="2"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [a=1, b=2]
+          continue: true
+        - matchers: [b=2, a=1]
+  - name: match and matchers combined in one route
+    error: 'routes {}/{a="1",b="2"}/0 and {}/{a="1",b="2"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - match:
+            a: 1
+          matchers: [b=2]
+          continue: true
+        - matchers: [a=1, b=2]
+  - name: children without matchers
+    error: 'routes {}/{}/0 and {}/{}/1 have the same matchers, group_by and receiver "team-Y"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - receiver: team-Y
+          continue: true
+        - receiver: team-Y
+  - name: three identical siblings report the first pair
+    error: 'routes {}/{foo="bar"}/0 and {}/{foo="bar"}/1 have the same matchers, group_by and receiver "team-X"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          continue: true
+        - matchers: [foo=bar]
+          continue: true
+        - matchers: [foo=bar]
+  - name: deep duplicate with the receiver inherited from a grandparent
+    error: 'routes {}/{a="1"}/0/{b="2"}/0/{c="3"}/0 and {}/{a="1"}/0/{b="2"}/0/{c="3"}/1 have the same matchers, group_by and receiver "team-Y"'
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [a=1]
+          receiver: team-Y
+          routes:
+          - matchers: [b=2]
+            routes:
+            - matchers: [c=3]
+              continue: true
+            - matchers: [c=3]
+  - name: different group_by with the same receiver
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [cluster=~".+"]
+          group_by: [alertname]
+          continue: true
+        - matchers: [cluster=~".+"]
+          group_by: [alertname, cluster]
+  - name: group_by all against an explicit group_by
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          group_by: ['...']
+          continue: true
+        - matchers: [foo=bar]
+          group_by: [alertname]
+  - name: empty group_by against the inherited one
+    config: |
+      route:
+        receiver: team-X
+        group_by: [alertname]
+        routes:
+        - matchers: [foo=bar]
+          group_by: []
+          continue: true
+        - matchers: [foo=bar]
+  - name: identical siblings with different receivers
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          receiver: team-X
+          continue: true
+        - matchers: [foo=bar]
+          receiver: team-Y
+  - name: asymmetric trees matching the same alerts
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [a=1]
+          continue: true
+          routes:
+          - matchers: [b=2]
+        - matchers: [b=2]
+          routes:
+          - matchers: [a=1]
+  - name: child with the same matchers as its parent
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [a=1]
+          routes:
+          - matchers: [a=1]
+  - name: equal and regex matchers for the same value
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [a=1]
+          continue: true
+        - matchers: [a=~"1"]
+  # match_re values are anchored when rendered, so the two routes
+  # have different keys, as they do in dispatch.
+  - name: deprecated match_re and a regex matcher
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - match_re:
+            env: prod|staging
+          continue: true
+        - matchers: ['env=~"prod|staging"']
+  # A matcher given twice in one route is rendered twice, so the key
+  # differs from the single matcher, as it does in dispatch.
+  - name: duplicated matcher within one route
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - match:
+            foo: bar
+          matchers: [foo=bar]
+          continue: true
+        - matchers: [foo=bar]
+  - name: same receiver on different paths
+    config: |
+      route:
+        receiver: team-X
+        routes:
+        - matchers: [foo=bar]
+          receiver: team-Y
+          routes:
+          - matchers: [bar=baz]
+        - matchers: [foo=baz]
+          receiver: team-Y
+        - matchers: [bar=baz]
+          receiver: team-Y
