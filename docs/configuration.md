@@ -211,6 +211,11 @@ If an alert does not match any children of a node (no matching child nodes, or
 none exist), the alert is handled based on the configuration parameters of the
 current node.
 
+Two routes with the same matchers from the root down, the same `group_by` and
+the same receiver are rejected, as their alert groups would share notification
+log entries. Merge such routes, or define a second receiver for the same
+destination.
+
 See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
 
 ```yaml

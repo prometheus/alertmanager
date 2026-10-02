@@ -27,4 +27,9 @@ func TestCheckConfig(t *testing.T) {
 	if err == nil {
 		t.Fatalf("failed to detect invalid file.")
 	}
+
+	err = CheckConfig([]string{"testdata/conf.routes-same-key.yml"})
+	if err == nil {
+		t.Fatalf("failed to detect routes with the same matchers and receiver.")
+	}
 }

@@ -1,0 +1,11 @@
+route:
+  receiver: default
+  routes:
+    - matchers: [service=api]
+      receiver: default
+      continue: true
+    - matchers: [service=api]
+      receiver: default
+
+receivers:
+  - name: default
