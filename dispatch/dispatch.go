@@ -279,11 +279,11 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 
 func (d *Dispatcher) doMaintenance() {
 	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+		d.routeGroupsSlice[i].groups.Range(func(key, el any) bool {
 			ag := el.(*aggrGroup)
 			if ag.destroyed() {
 				ag.stop()
-				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
+				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(key, ag)
 				if deleted {
 					// TODO(ultrotter, siavash):
 					// Deletion from the marker should only happen if we really deleted the group.
