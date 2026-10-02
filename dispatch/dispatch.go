@@ -614,7 +614,7 @@ type aggrGroup struct {
 	opts     *RouteOpts
 	logger   *slog.Logger
 	routeID  string
-	routeKey string
+	groupKey string
 	matchers labels.Matchers
 
 	alerts   *store.Alerts
@@ -667,7 +667,7 @@ func newAggrGroup(
 	ag := &aggrGroup{
 		labels:   labels,
 		routeID:  r.ID(),
-		routeKey: r.Key(),
+		groupKey: fmt.Sprintf("%s:%s", r.Key(), labels),
 		matchers: r.Matchers,
 		opts:     &r.RouteOpts,
 		timeout:  to,
@@ -697,8 +697,10 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
+// GroupKey returns the key built from the route and immutable group labels.
+// Note that multiple aggregation groups can have the same key.
 func (ag *aggrGroup) GroupKey() string {
-	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
+	return ag.groupKey
 }
 
 func (ag *aggrGroup) String() string {
