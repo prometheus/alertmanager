@@ -725,6 +725,57 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 	}
 }
 
+// TestRetry_TreatMuteAsResolvedOnMixedGroup covers the only close that can hold a
+// mix: the group is muted while still firing, so one of its alerts resolved out
+// of sight and the other did not. Both are delivered, but only the one still
+// firing has an end invented for it -- the other keeps its own.
+//
+// The resolved close cannot hold such a mix, because the dedup stage counts muted
+// alerts among the firing ones, so a group is only all-resolved when nothing in
+// it fires.
+func TestRetry_TreatMuteAsResolvedOnMixedGroup(t *testing.T) {
+	p := newMutedPipelineWithSender(t, muteActionSender{
+		resolved:              true,
+		sendResolvedWhenMuted: true,
+		treatsMuteAsResolved:  true,
+	}, true)
+	base := utcNow()
+
+	a, b := firingAlert("a"), firingAlert("b")
+	aResolved := resolvedAlert("a")
+
+	delivered, reason, _ := p.flush(base, a, b)
+	require.Equal(t, ReasonFirstNotification, reason)
+	require.Equal(t, []*alert.Alert{a, b}, delivered)
+
+	// Both are muted. a then resolves while muted; b keeps firing, so the group
+	// closes as muted rather than as resolved.
+	p.muted[a.Labels["alertname"]] = struct{}{}
+	p.muted[b.Labels["alertname"]] = struct{}{}
+
+	delivered, reason, _ = p.flush(base.Add(time.Minute), aResolved, b)
+	require.Equal(t, ReasonAllAlertsMuted, reason)
+	require.Equal(t, SequenceClosedMuted, p.sequence)
+
+	// Every muted alert is delivered, whatever its state.
+	require.Len(t, delivered, 2)
+	byName := map[model.LabelValue]*alert.Alert{}
+	for _, d := range delivered {
+		require.True(t, d.Resolved(), "the group is delivered as resolved")
+		byName[d.Labels["alertname"]] = d
+	}
+
+	// a resolved on its own, so it is delivered untouched.
+	require.Equal(t, aResolved.EndsAt, byName["a"].EndsAt,
+		"an alert that resolved keeps its own end")
+
+	// b is still firing, so it is the only one given an end.
+	require.NotEqual(t, b.EndsAt, byName["b"].EndsAt,
+		"an alert still firing is given the time the group went quiet")
+	require.WithinDuration(t, utcNow(), byName["b"].EndsAt, time.Minute)
+	require.False(t, b.Resolved(), "the alert in the group is left alone")
+}
+
 // TestRetry_MuteActionOnMutedResolution covers the other way a muted group ends:
 // the receiver was notified, muting hid the alerts, and they then resolved out of
 // its sight. Under ignore that resolution is dropped; this is #226. Both actions

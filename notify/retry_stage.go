@@ -91,17 +91,15 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	return ctx, alerts, err
 }
 
-// mutedGroupAsResolved returns the alerts of a group that muting has emptied,
-// as resolved copies, for an integration whose mute_action asks to be told the
-// group is over. It returns nothing on any flush but the one that closes the
-// group: the notification sequence is closed by the flush that ends it and
-// reports itself closed only then.
+// mutedGroupAsResolved returns the alerts of a group that muting has emptied, as
+// resolved, for an integration whose mute_action asks to be told the group is
+// over. It returns nothing on any flush but the one that closes the group: the
+// notification sequence is closed by the flush that ends it and reports itself
+// closed only then.
 //
-// Which closes count is what separates the two actions. Both deliver a group
-// every alert of which has resolved, whose resolution muting would otherwise
-// swallow. Only treat_mute_as_resolved also delivers a group that is still
-// firing: those alerts are copied with their end moved to now, because the
-// receiver cannot be shown them.
+// Every muted alert is returned either way. Which close counts is what separates
+// the two actions, and the two closes differ only in whether the group can still
+// hold an alert that needs an end invented for it.
 //
 // Whether the receiver was ever notified about the group is not checked here.
 func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
@@ -115,31 +113,39 @@ func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
 		if !r.integration.SendsResolvedWhenMuted() {
 			return nil
 		}
+		// The group closed because every alert in it resolved. The dedup stage
+		// counts muted alerts among the firing ones, so reaching this close means
+		// none is still firing and each already carries its own end.
+		return mutedAlertDetails(ctx)
+
 	case SequenceClosedMuted:
 		if !r.integration.TreatsMuteAsResolved() {
 			return nil
 		}
+		// The group closed because muting hid it while it was still firing, so it
+		// can hold a mix: alerts that resolved out of sight keep their own end,
+		// and those still firing are given the time the group went quiet.
+		return endedAt(mutedAlertDetails(ctx), utcNow())
+
 	default:
 		return nil
 	}
+}
 
-	muted := mutedAlertDetails(ctx)
-	if len(muted) == 0 {
-		return nil
-	}
-
-	now := utcNow()
-	resolved := make([]*alert.Alert, 0, len(muted))
-	for _, a := range muted {
-		if a.Resolved() {
-			resolved = append(resolved, a)
-			continue
+// endedAt returns alerts, with any that has not resolved replaced by a copy
+// ending at end. The originals are left alone: they are still firing in the
+// group, and only this integration is being told the group is over.
+func endedAt(alerts []*alert.Alert, end time.Time) []*alert.Alert {
+	out := make([]*alert.Alert, 0, len(alerts))
+	for _, a := range alerts {
+		if !a.Resolved() {
+			ended := *a
+			ended.EndsAt = end
+			a = &ended
 		}
-		ended := *a
-		ended.EndsAt = now
-		resolved = append(resolved, &ended)
+		out = append(out, a)
 	}
-	return resolved
+	return out
 }
 
 func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
