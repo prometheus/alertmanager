@@ -21,9 +21,8 @@ import (
 )
 
 // TestNotifierConfigMuteAction covers the two predicates mute_action answers,
-// including that treat_mute_as_resolved nests send_resolved_when_muted: a
-// receiver that wants the close of a still-firing group also wants the close of
-// one that resolved out of sight.
+// including the nesting: a receiver that wants a still-firing group closed also
+// wants one closed that resolved after muting hid it.
 func TestNotifierConfigMuteAction(t *testing.T) {
 	t.Parallel()
 

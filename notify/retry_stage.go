@@ -57,10 +57,10 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder e
 }
 
 func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	// Every alert in the group was muted, so there is nothing left of it to
-	// deliver. An integration whose mute_action asks for the close is told the
-	// group is over anyway; every other one is told nothing. The stages after
-	// this one run either way, to record the state of the group.
+	// Every alert in the group was muted, so there is nothing left to deliver.
+	// An integration whose mute_action asks for the close is told the group is
+	// over anyway; every other one is told nothing. Later stages run either way,
+	// to record the group's state.
 	closing := len(alerts) == 0
 	if closing {
 		resolved := r.mutedGroupAsResolved(ctx)
@@ -98,11 +98,12 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 // reports itself closed only then.
 //
 // Which closes count is what separates the two actions. Both deliver a group
-// every alert of which has resolved, which the receiver was never shown because
-// muting hid it. Only treat_mute_as_resolved also delivers a group that is
-// still firing: those alerts are copied with their end moved to now, because
-// the receiver cannot be shown them, so as far as this integration is
-// concerned the group is over, and saying so is the whole point of the option.
+// every alert of which has resolved, whose resolution muting would otherwise
+// swallow. Only treat_mute_as_resolved also delivers a group that is still
+// firing: those alerts are copied with their end moved to now, because the
+// receiver cannot be shown them.
+//
+// Whether the receiver was ever notified about the group is not checked here.
 func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
 	seq, ok := NotificationSequenceFor(ctx)
 	if !ok {
@@ -150,9 +151,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, aler
 	// left is decided by the alerts in hand rather than by the firing alerts in
 	// the context, which cover the whole group: with the muted alerts feature
 	// those include alerts a mute stage removed from this pipeline.
-	// The close of a muted group is delivered whole. The integration asked for
-	// it with mute_action, so the send_resolved filter, which would drop every
-	// alert in it, does not apply.
+	// The close of a muted group is delivered whole: the integration asked for it
+	// with mute_action, so the send_resolved filter does not apply.
 	if !closing && !r.integration.SendResolved() {
 		if _, ok := FiringAlerts(ctx); !ok {
 			return ctx, nil, DefaultReason, errors.New("firing alerts missing")

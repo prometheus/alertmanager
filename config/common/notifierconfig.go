@@ -17,23 +17,21 @@ import "fmt"
 
 // MuteAction decides what a receiver is told about an alert group that muting
 // has emptied, so that an integration which deduplicates can close what it
-// opened rather than leaving it open for as long as the mute lasts.
-//
-// The actions nest: MuteActionTreatMuteAsResolved delivers everything
-// MuteActionSendResolvedWhenMuted does, and the close of a group that is still
-// firing on top of it.
+// opened. The actions nest: MuteActionTreatMuteAsResolved delivers everything
+// MuteActionSendResolvedWhenMuted does, and a still-firing group on top.
 type MuteAction string
 
 const (
 	// MuteActionIgnore says nothing about a muted group, which is how
 	// Alertmanager has always behaved. It is the default.
 	MuteActionIgnore MuteAction = "ignore"
-	// MuteActionSendResolvedWhenMuted delivers the group as resolved once every
-	// alert in it has resolved, even though muting kept the receiver from ever
-	// being shown them. A group still holding a firing alert is not resolved.
+	// MuteActionSendResolvedWhenMuted always resolves a group the receiver was
+	// notified about, even if muting hid its alerts before they resolved, which
+	// previously swallowed the resolution. It needs a notification to close, so
+	// a group never shown stays silent, as does one still holding a firing alert.
 	MuteActionSendResolvedWhenMuted MuteAction = "send_resolved_when_muted"
-	// MuteActionTreatMuteAsResolved delivers the group as resolved as soon as
-	// every alert in it is muted, even if those alerts are still firing.
+	// MuteActionTreatMuteAsResolved resolves a group as soon as every alert in
+	// it is muted, even if those alerts are still firing.
 	MuteActionTreatMuteAsResolved MuteAction = "treat_mute_as_resolved"
 )
 
@@ -58,8 +56,8 @@ func (a *MuteAction) UnmarshalYAML(unmarshal func(any) error) error {
 type NotifierConfig struct {
 	VSendResolved bool `yaml:"send_resolved" json:"send_resolved"`
 	// VMuteAction decides what this receiver is told about a group that muting
-	// has emptied. It needs the muted-alerts-in-nflog feature, which is what
-	// lets the notification pipeline see such a group at all.
+	// has emptied. It needs the muted-alerts-in-nflog feature, without which the
+	// pipeline never sees such a group.
 	VMuteAction MuteAction `yaml:"mute_action,omitempty" json:"mute_action,omitempty"`
 }
 

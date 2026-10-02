@@ -661,12 +661,10 @@ func TestDedup_UnmutedAlertContinuesTheSequence(t *testing.T) {
 	require.Empty(t, p.entry.MutedAlerts)
 }
 
-// TestRetry_MuteActionOnStillFiringGroup covers the close that separates the
-// two actions: a group every alert of which is muted while still firing. Only
-// treat_mute_as_resolved calls that resolved, so that a deduplicating
-// integration can close what it opened rather than leave it open for the length
-// of the mute. The send_resolved_when_muted action declines it, because nothing
-// has actually resolved, and the default hears nothing, as it always has.
+// TestRetry_MuteActionOnStillFiringGroup covers the close that separates the two
+// actions: a group muted while still firing. Only treat_mute_as_resolved calls
+// that resolved; send_resolved_when_muted declines it, because nothing actually
+// resolved, and the default hears nothing, as it always has.
 func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -727,11 +725,10 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 	}
 }
 
-// TestRetry_MuteActionOnMutedResolution covers the other way a muted group
-// ends: its alerts genuinely resolve while nobody can be shown them. This is
-// #226, and both actions deliver it -- treat_mute_as_resolved nests
-// send_resolved_when_muted. The alerts are already resolved, so they are
-// delivered as they are, with their own end rather than a synthesized one.
+// TestRetry_MuteActionOnMutedResolution covers the other way a muted group ends:
+// the receiver was notified, muting hid the alerts, and they then resolved out of
+// its sight. That resolution was previously swallowed; this is #226. Both actions
+// deliver it, with the alerts' own end rather than a synthesized one.
 func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -775,6 +772,44 @@ func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 			require.Equal(t, []*alert.Alert{aResolved}, delivered)
 			require.Equal(t, aResolved.EndsAt, delivered[0].EndsAt,
 				"a genuine resolution keeps its own end")
+		})
+	}
+}
+
+// TestRetry_MuteActionNeedsAPriorNotification pins the precondition both actions
+// share: the receiver cannot be told a group is over when it was never told the
+// group began. TestDedup_NeedsUpdateMuteAware covers the same rule as a dedup
+// reason; this covers what the receiver gets.
+func TestRetry_MuteActionNeedsAPriorNotification(t *testing.T) {
+	tests := []struct {
+		name string
+		rs   ResolvedSender
+	}{{
+		name: "send_resolved_when_muted",
+		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+	}, {
+		name: "treat_mute_as_resolved",
+		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := newMutedPipelineWithSender(t, test.rs, true)
+			base := utcNow()
+			a, aResolved := firingAlert("a"), resolvedAlert("a")
+
+			// Muted before the receiver is ever shown it, so no sequence opens.
+			p.muted[a.Labels["alertname"]] = struct{}{}
+
+			delivered, reason, _ := p.flush(base, a)
+			require.Equal(t, ReasonDoNotNotify, reason)
+			require.Empty(t, delivered)
+
+			// It resolves while still muted. There is nothing to close.
+			delivered, reason, _ = p.flush(base.Add(time.Minute), aResolved)
+			require.Equal(t, ReasonDoNotNotify, reason)
+			require.Empty(t, delivered,
+				"a group the receiver was never shown is not resolved to it")
 		})
 	}
 }

@@ -49,17 +49,17 @@ type ResolvedSender interface {
 }
 
 // MuteActioner reports what a receiver asked to be told about an alert group
-// that muting has emptied. A ResolvedSender that does not implement it keeps
-// the behaviour Alertmanager has always had, which is to say nothing about such
-// a group.
+// that muting has emptied. A ResolvedSender that does not implement it says
+// nothing about such a group, as Alertmanager always has.
 type MuteActioner interface {
-	// SendsResolvedWhenMuted reports whether a group whose alerts have all
-	// resolved is delivered even though muting kept the receiver from being
-	// shown them.
+	// SendsResolvedWhenMuted reports whether a group the receiver was notified
+	// about is resolved to it even if muting hid its alerts before they
+	// resolved. The dedup stage decides whether there was a notification to
+	// close.
 	SendsResolvedWhenMuted() bool
-	// TreatsMuteAsResolved reports whether a group whose alerts are all muted
-	// is delivered as resolved even though those alerts are still firing. It
-	// implies SendsResolvedWhenMuted.
+	// TreatsMuteAsResolved reports whether a group whose alerts are all muted is
+	// resolved to the receiver while they are still firing. It implies
+	// SendsResolvedWhenMuted.
 	TreatsMuteAsResolved() bool
 }
 
@@ -177,15 +177,15 @@ func (i *Integration) SendResolved() bool {
 	return i.rs.SendResolved()
 }
 
-// SendsResolvedWhenMuted implements the MuteActioner interface. It is false for
-// an integration whose configuration does not know about the option.
+// SendsResolvedWhenMuted implements the MuteActioner interface. It is false for an
+// integration whose config does not know the option.
 func (i *Integration) SendsResolvedWhenMuted() bool {
 	ma, ok := i.rs.(MuteActioner)
 	return ok && ma.SendsResolvedWhenMuted()
 }
 
-// TreatsMuteAsResolved implements the MuteActioner interface. It is false for
-// an integration whose configuration does not know about the option.
+// TreatsMuteAsResolved implements the MuteActioner interface. It is false for an
+// integration whose config does not know the option.
 func (i *Integration) TreatsMuteAsResolved() bool {
 	ma, ok := i.rs.(MuteActioner)
 	return ok && ma.TreatsMuteAsResolved()
