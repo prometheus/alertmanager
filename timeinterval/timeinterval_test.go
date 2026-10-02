@@ -532,6 +532,64 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end month january is before start month december",
 	},
 	{
+		// Month number above 12.
+		in: `
+---
+- months: ['13']
+`,
+		expectError: true,
+		err:         "13 is not a valid month: out of range",
+	},
+	{
+		// Month number 0.
+		in: `
+---
+- months: ['0']
+`,
+		expectError: true,
+		err:         "0 is not a valid month: out of range",
+	},
+	{
+		// Negative start month.
+		in: `
+---
+- months: ['-1:3']
+`,
+		expectError: true,
+		err:         "-1 is not a valid month: out of range",
+	},
+	{
+		// End month above 12.
+		in: `
+---
+- months: ['october:14']
+`,
+		expectError: true,
+		err:         "14 is not a valid month: out of range",
+	},
+	{
+		// Out-of-range start month after end month.
+		in: `
+---
+- months: ['13:12']
+`,
+		expectError: true,
+		err:         "13 is not a valid month: out of range",
+	},
+	{
+		// Numeric months at both boundaries.
+		in: `
+---
+- months: ['1:12']
+`,
+		expectError: false,
+		intervals: []TimeInterval{
+			{
+				Months: []MonthRange{{InclusiveRange{1, 12}}},
+			},
+		},
+	},
+	{
 		// Start year after end year.
 		in: `
 ---
