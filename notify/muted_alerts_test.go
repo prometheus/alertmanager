@@ -727,7 +727,7 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 
 // TestRetry_MuteActionOnMutedResolution covers the other way a muted group ends:
 // the receiver was notified, muting hid the alerts, and they then resolved out of
-// its sight. That resolution was previously swallowed; this is #226. Both actions
+// its sight. Under ignore that resolution is dropped; this is #226. Both actions
 // deliver it, with the alerts' own end rather than a synthesized one.
 func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 	tests := []struct {

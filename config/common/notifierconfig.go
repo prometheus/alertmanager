@@ -27,8 +27,8 @@ const (
 	MuteActionIgnore MuteAction = "ignore"
 	// MuteActionSendResolvedWhenMuted always resolves a group the receiver was
 	// notified about, even if muting hid its alerts before they resolved, which
-	// previously swallowed the resolution. It needs a notification to close, so
-	// a group never shown stays silent, as does one still holding a firing alert.
+	// MuteActionIgnore drops. It needs a notification to close, so a group never
+	// shown stays silent, as does one still holding a firing alert.
 	MuteActionSendResolvedWhenMuted MuteAction = "send_resolved_when_muted"
 	// MuteActionTreatMuteAsResolved resolves a group as soon as every alert in
 	// it is muted, even if those alerts are still firing.

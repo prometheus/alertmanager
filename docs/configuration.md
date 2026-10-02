@@ -1042,9 +1042,9 @@ Every integration also takes `mute_action`, alongside its own `send_resolved`:
 
 ```yaml
 # What this integration is told about an alert group that is over because every
-# alert in it is muted by a silence, an inhibition or a time interval. Previously
-# such a group was delivered to nobody, so an integration that deduplicates, such
-# as PagerDuty, left an incident open for as long as the mute lasted.
+# alert in it is muted by a silence, an inhibition or a time interval. By default
+# such a group is delivered to nobody, so an integration that deduplicates, such
+# as PagerDuty, holds an incident open for as long as the mute lasts.
 #
 # This is about the group ending rather than individual alerts resolving, so
 # unlike `send_resolved` it applies even where `send_resolved` is false.
