@@ -135,5 +135,7 @@ func extendedFormatMatchers(matchers models.Matchers) string {
 	for _, matcher := range matchers {
 		lms = append(lms, labelsMatcher(*matcher))
 	}
+	// sort by Name field of Matcher
+	sort.Sort(lms)
 	return lms.String()
 }
