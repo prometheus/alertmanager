@@ -27,7 +27,7 @@ jobs:
         with:
           name: ui-dist
           path: ui/app/dist
-      - uses: prometheus/promci/build@370e8c15dcec50043cbe66f2f34633d9efc0a190 # v0.9.0
+      - uses: prometheus/promci/build@872d318d090d73df349cb6ed90aadd072ca478f7 # v0.10.0
         with:
           checkout: "false"
           parallelism: 12
@@ -40,7 +40,7 @@ jobs:
       packages: write  # push the image to GHCR via github.token
     needs: build
     steps:
-      - uses: prometheus/promci/publish_release@370e8c15dcec50043cbe66f2f34633d9efc0a190 # v0.9.0
+      - uses: prometheus/promci/publish_release@872d318d090d73df349cb6ed90aadd072ca478f7 # v0.10.0
         with:
           docker_hub_login: ${{ secrets.docker_hub_login }}
           docker_hub_password: ${{ secrets.docker_hub_password }}
