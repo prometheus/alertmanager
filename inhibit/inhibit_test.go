@@ -983,19 +983,19 @@ func TestMultipleSourcesTwoSidedNoMutualInhibition(t *testing.T) {
 	}
 
 	// Pure source-only alerts.
-	sourceA := &alert.Alert{Alert: model.Alert{
+	sourceA := alert.New(model.Alert{
 		Labels: model.LabelSet{"s": "a", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
-	}}
-	sourceB := &alert.Alert{Alert: model.Alert{
+	}, now, false)
+	sourceB := alert.New(model.Alert{
 		Labels: model.LabelSet{"s": "b", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
-	}}
+	}, now, false)
 	// Two-sided alerts: match both source and target.
-	alertX := &alert.Alert{Alert: model.Alert{
+	alertX := alert.New(model.Alert{
 		Labels: model.LabelSet{"s": "a", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
-	}}
-	alertY := &alert.Alert{Alert: model.Alert{
+	}, now, false)
+	alertY := alert.New(model.Alert{
 		Labels: model.LabelSet{"s": "b", "t": "1", "cluster": "us-east"}, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
-	}}
+	}, now, false)
 
 	// With only two-sided alerts, neither should inhibit the other.
 	ih := runInhibitor(t, rules, alertX, alertY)
