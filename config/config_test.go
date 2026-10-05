@@ -649,6 +649,37 @@ receivers:
 	}
 }
 
+type routeKeyCases struct {
+	Receivers string `yaml:"receivers"`
+	Cases     []struct {
+		Name   string `yaml:"name"`
+		Error  string `yaml:"error"`
+		Config string `yaml:"config"`
+	} `yaml:"cases"`
+}
+
+func TestRoutesWithSameKeyAndReceiver(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("testdata/route_keys.yaml")
+	require.NoError(t, err)
+	var cases routeKeyCases
+	require.NoError(t, yaml.UnmarshalStrict(data, &cases))
+	require.NotEmpty(t, cases.Cases)
+
+	for _, tc := range cases.Cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			_, err := Load(tc.Config + cases.Receivers)
+			if tc.Error == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.Error)
+		})
+	}
+}
+
 func TestGroupIntervalIsGreaterThanZero(t *testing.T) {
 	in := `
 route:

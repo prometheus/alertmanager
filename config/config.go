@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -49,6 +51,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -699,6 +702,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
+	if err := checkRouteKeys(c.Route); err != nil {
+		return err
+	}
+
 	tiNames := make(map[string]struct{})
 
 	// read mute time intervals until deprecated
@@ -734,6 +741,46 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 		return fmt.Errorf("undefined receiver %q used in route", r.Receiver)
 	}
 	return nil
+}
+
+// checkRouteKeys returns an error if two routes have the same matchers from
+// the root down and the same effective receiver: they have the same route key,
+// so alert groups with the same labels in both routes would have the same
+// group key.
+func checkRouteKeys(root *Route) error {
+	type routeKey struct {
+		key, receiver string
+	}
+	seen := map[routeKey]string{}
+
+	var walk func(r *Route, parentKey, parentID string, idx int, receiver string) error
+	walk = func(r *Route, parentKey, parentID string, idx int, receiver string) error {
+		// key and id mirror dispatch.Route.Key and dispatch.Route.ID, and the
+		// inheritance of receiver mirrors dispatch.newRoute.
+		matchers := r.AllMatchers().String()
+		key, id := matchers, matchers
+		if r != root {
+			key = parentKey + "/" + matchers
+			id = parentID + "/" + matchers + "/" + strconv.Itoa(idx)
+		}
+		if r.Receiver != "" {
+			receiver = r.Receiver
+		}
+
+		rk := routeKey{key: key, receiver: receiver}
+		if first, ok := seen[rk]; ok {
+			return fmt.Errorf("routes %s and %s have the same matchers and receiver %q", first, id, receiver)
+		}
+		seen[rk] = id
+
+		for i, sr := range r.Routes {
+			if err := walk(sr, key, id, i, receiver); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(root, "", "", 0, "")
 }
 
 func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
@@ -863,6 +910,39 @@ type Route struct {
 	// data. Notification-specific fields such as .NotificationReason are
 	// not available; use notification templates for reason-dependent content.
 	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
+}
+
+// AllMatchers returns the matchers of the route, from match, match_re and
+// matchers, sorted. Its string form is the route key, so dispatch and
+// configuration validation must both use it.
+func (r *Route) AllMatchers() labels.Matchers {
+	var matchers labels.Matchers
+
+	// r.Match will be deprecated. This for loop appends matchers.
+	for ln, lv := range r.Match {
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// r.MatchRE will be deprecated. This for loop appends regex matchers.
+	for ln, lv := range r.MatchRE {
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+	matchers = append(matchers, r.Matchers...)
+
+	sort.Sort(matchers)
+	return matchers
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
