@@ -23,8 +23,8 @@ import (
 
 // InhibitRuleSource defines a set of source matchers and equal labels for inhibition rules.
 type InhibitRuleSource struct {
-	SrcMatchers Matchers `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	Equal       []string `yaml:"equal,omitempty" json:"equal,omitempty"`
+	SourceMatchers Matchers `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	Equal          []string `yaml:"equal,omitempty" json:"equal,omitempty"`
 }
 
 // InhibitRule defines an inhibition rule that mutes alerts that match the
@@ -64,6 +64,10 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 		return err
 	}
 
+	if r.Sources != nil && len(r.Sources) == 0 {
+		return fmt.Errorf("sources must not be empty when specified")
+	}
+
 	if len(r.Sources) > 0 &&
 		(len(r.SourceMatch) > 0 || len(r.SourceMatchRE) > 0 ||
 			len(r.SourceMatchers) > 0 || len(r.Equal) > 0) {
@@ -71,11 +75,11 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	for i, src := range r.Sources {
-		if len(src.SrcMatchers) == 0 {
+		if len(src.SourceMatchers) == 0 {
 			return fmt.Errorf("source %d: matchers must not be empty", i)
 		}
 		allMatchEmpty := true
-		for _, m := range src.SrcMatchers {
+		for _, m := range src.SourceMatchers {
 			if !m.Matches("") {
 				allMatchEmpty = false
 				break

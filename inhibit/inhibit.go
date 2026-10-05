@@ -120,7 +120,7 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
 	// Update the inhibition rules' source caches.
 	for _, r := range ih.rules {
 		for _, src := range r.Sources {
-			if src.SrcMatchers.Matches(a.Labels) {
+			if src.SourceMatchers.Matches(a.Labels) {
 				attr := attribute.String("alerting.inhibit_rule.name", r.Name)
 				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
 				span.SetAttributes(attr)
@@ -212,7 +212,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 		// flag once: does this target alert match ANY source's matchers?
 		excludeTwoSidedMatch := false
 		for _, src := range r.Sources {
-			if src.SrcMatchers.Matches(lset.LabelSet) {
+			if src.SourceMatchers.Matches(lset.LabelSet) {
 				excludeTwoSidedMatch = true
 				break
 			}
@@ -247,7 +247,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				var rules []eventrecorder.InhibitRule
 				for _, src := range r.Sources {
-					rules = append(rules, eventrecorder.NewInhibitRule(r.Name, src.SrcMatchers, r.TargetMatchers, src.Equal))
+					rules = append(rules, eventrecorder.NewInhibitRule(r.Name, src.SourceMatchers, r.TargetMatchers, src.Equal))
 				}
 				return eventrecorder.NewInhibitionMutedAlertEvent(
 					rules,
@@ -266,9 +266,9 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 // Source represents a single source definition within an inhibition rule,
 // including its own matchers, equal labels, and cache.
 type Source struct {
-	SrcMatchers labels.Matchers
-	Equal       map[model.LabelName]struct{}
-	cache       *cache
+	SourceMatchers labels.Matchers
+	Equal          map[model.LabelName]struct{}
+	cache          *cache
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
@@ -297,15 +297,15 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	if len(cr.Sources) > 0 {
 		for _, sm := range cr.Sources {
 			var sourcesm labels.Matchers
-			sourcesm = append(sourcesm, sm.SrcMatchers...)
+			sourcesm = append(sourcesm, sm.SourceMatchers...)
 			equal := map[model.LabelName]struct{}{}
 			for _, ln := range sm.Equal {
 				equal[model.LabelName(ln)] = struct{}{}
 			}
 			sources = append(sources, Source{
-				SrcMatchers: sourcesm,
-				Equal:       equal,
-				cache:       newCache(equal),
+				SourceMatchers: sourcesm,
+				Equal:          equal,
+				cache:          newCache(equal),
 			})
 		}
 	} else {
@@ -337,9 +337,9 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 		}
 
 		sources = append(sources, Source{
-			SrcMatchers: sourcem,
-			Equal:       equal,
-			cache:       newCache(equal),
+			SourceMatchers: sourcem,
+			Equal:          equal,
+			cache:          newCache(equal),
 		})
 	}
 

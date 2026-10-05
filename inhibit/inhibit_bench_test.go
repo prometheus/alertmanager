@@ -255,7 +255,7 @@ func multipleSourcesBenchmark(b *testing.B, numSources, numInhibitionRules, numI
 			sources := make([]amcommoncfg.InhibitRuleSource, 0, numSources)
 			for i := range numSources {
 				sources = append(sources, amcommoncfg.InhibitRuleSource{
-					SrcMatchers: amcommoncfg.Matchers{
+					SourceMatchers: amcommoncfg.Matchers{
 						mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)+"-"+strconv.Itoa(i)),
 					},
 				})

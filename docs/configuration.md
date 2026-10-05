@@ -529,7 +529,16 @@ to reason about and does not trigger this special case.
 
 Multiple sources can be defined using the `sources` field. When `sources` is
 used, all source entries must have an active matching alert for the inhibition
-to take effect (AND logic). Each source has its own matchers and equal labels.
+to take effect (AND logic). A single alert that matches all source entries
+satisfies this requirement, as do multiple separate alerts. Each source has its
+own matchers and equal labels.
+
+The two-sided exclusion described above extends to multi-source rules: if an
+alert matches both the target and any source's matchers, it can only be
+inhibited by alerts that exclusively match the source side. This ensures that
+two-sided alerts never inhibit one another, regardless of how many sources the
+rule defines.
+
 The `sources` field cannot be combined with `source_match`, `source_match_re`,
 `source_matchers`, or `equal`.
 
