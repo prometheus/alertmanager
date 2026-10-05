@@ -90,6 +90,14 @@ func TestInhibitRuleSourcesValidation(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name: "empty sources list",
+			input: `
+sources: []
+target_matchers: ['x=y']
+`,
+			wantErr: "sources must not be empty when specified",
+		},
+		{
 			name: "sources cannot be combined with legacy fields",
 			input: `
 sources:

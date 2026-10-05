@@ -721,8 +721,8 @@ func TestInhibitRuleMatchersWithSources(t *testing.T) {
 	rule1 := amcommoncfg.InhibitRule{
 		Sources: []amcommoncfg.InhibitRuleSource{
 			{
-				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
-				Equal:       []string{"e"},
+				SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+				Equal:          []string{"e"},
 			},
 		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
@@ -730,8 +730,8 @@ func TestInhibitRuleMatchersWithSources(t *testing.T) {
 	rule2 := amcommoncfg.InhibitRule{
 		Sources: []amcommoncfg.InhibitRuleSource{
 			{
-				SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
-				Equal:       []string{"e"},
+				SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+				Equal:          []string{"e"},
 			},
 		},
 		TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
@@ -795,14 +795,14 @@ func TestInhibitByMultipleSources(t *testing.T) {
 			{
 				Sources: []amcommoncfg.InhibitRuleSource{
 					{
-						SrcMatchers: amcommoncfg.Matchers{
+						SourceMatchers: amcommoncfg.Matchers{
 							&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"},
 							&labels.Matcher{Type: labels.MatchEqual, Name: "s11", Value: "1"},
 						},
 						Equal: []string{"e"},
 					},
 					{
-						SrcMatchers: amcommoncfg.Matchers{
+						SourceMatchers: amcommoncfg.Matchers{
 							&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"},
 							&labels.Matcher{Type: labels.MatchEqual, Name: "s22", Value: "1"},
 						},
@@ -941,20 +941,7 @@ func TestInhibitByMultipleSources(t *testing.T) {
 			},
 		},
 	} {
-		ap := newFakeAlerts(tc.alerts)
-		inhibitor := NewInhibitor(ap, inhibitRules(), nopLogger, eventrecorder.NopRecorder())
-
-		go func() {
-			for ap.finished != nil {
-				select {
-				case <-ap.finished:
-					ap.finished = nil
-				default:
-				}
-			}
-			inhibitor.Stop()
-		}()
-		inhibitor.Run()
+		inhibitor := runInhibitor(t, inhibitRules(), tc.alerts...)
 
 		for _, expected := range tc.expected {
 			checkMutes(t, inhibitor, expected.lbls, expected.muted, "tc: %d, labels %q", i, expected.lbls)
@@ -970,12 +957,12 @@ func TestMultipleSourcesTwoSidedNoMutualInhibition(t *testing.T) {
 		{
 			Sources: []amcommoncfg.InhibitRuleSource{
 				{
-					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "a"}},
-					Equal:       []string{"cluster"},
+					SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "a"}},
+					Equal:          []string{"cluster"},
 				},
 				{
-					SrcMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "b"}},
-					Equal:       []string{"cluster"},
+					SourceMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s", Value: "b"}},
+					Equal:          []string{"cluster"},
 				},
 			},
 			TargetMatchers: amcommoncfg.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"}},
