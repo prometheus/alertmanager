@@ -50,7 +50,7 @@
     "prop-types": "^15.8.1",
     "rollup-plugin-license": "^3.7.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1",
+    "vite": "^8.3.2",
     "vite-plugin-compression2": "^2.5.3",
     "vitest": "^4.1.11"
   }
