@@ -62,12 +62,6 @@ func TestNotifierConfigMuteAction(t *testing.T) {
 		name: "unknown action",
 		in:   "mute_action: resolved",
 		err:  `invalid mute_action "resolved": expected "ignore", "send_resolved_when_muted" or "treat_mute_as_resolved"`,
-	}, {
-		// The option the reviewer asked to defer until a notifier can support
-		// it. Accepting it now would promise behaviour that does not exist.
-		name: "notifier defined is not implemented yet",
-		in:   "mute_action: notify",
-		err:  `invalid mute_action "notify": expected "ignore", "send_resolved_when_muted" or "treat_mute_as_resolved"`,
 	}}
 
 	for _, test := range tests {

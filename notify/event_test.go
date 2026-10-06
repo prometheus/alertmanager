@@ -26,10 +26,9 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 )
 
-// TestNotifyReasonToEvent pins the mapping, including the two reasons the muted
-// alerts feature adds. They have no event enum value of their own yet, so they
-// fall through to unspecified; this fails once the eventrecorder proto gains
-// them and this switch is not updated with it.
+// TestNotifyReasonToEvent checks every NotifyReason against the event enum it
+// is reported as. Five have a counterpart in the eventrecorder proto; the rest
+// fall through the switch's default to unspecified.
 func TestNotifyReasonToEvent(t *testing.T) {
 	tests := []struct {
 		reason NotifyReason

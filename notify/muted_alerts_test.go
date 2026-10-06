@@ -19,6 +19,7 @@ package notify
 import (
 	"context"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -417,7 +418,7 @@ func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
 	notified, reason, _ = p.flush(base.Add(10*time.Minute), a, b)
 	require.Equal(t, ReasonDoNotNotify, reason)
 	require.Empty(t, notified)
-	require.Equal(t, 1, p.writes, "a flush that notifies nobody should not write to the notification log")
+	require.Equal(t, 1, p.writes, "a flush the dedup stage found nothing to say about should not write")
 	require.Equal(t, firstWrite, p.entry.Timestamp.AsTime())
 
 	// Measured from the last notification, the repeat interval still elapses.
@@ -677,16 +678,18 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 	}, {
 		// The alert is still firing, so there is no resolution to send. This is
 		// the whole difference between the two actions.
-		name: "send_resolved_when_muted declines a group that is still firing",
-		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+		name:          "send_resolved_when_muted declines a group that is still firing",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: false},
+		wantDelivered: false,
 	}, {
-		name: "ignore",
-		rs:   muteActionSender{resolved: true},
+		name:          "ignore",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: false, treatsMuteAsResolved: false},
+		wantDelivered: false,
 	}, {
 		// The action is about the group being over, not about individual
 		// alerts resolving, so send_resolved does not gate it.
 		name:          "treat_mute_as_resolved without send_resolved",
-		rs:            muteActionSender{sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
+		rs:            muteActionSender{resolved: false, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
 		wantDelivered: true,
 	}}
 
@@ -734,11 +737,7 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 // alerts among the firing ones, so a group is only all-resolved when nothing in
 // it fires.
 func TestRetry_TreatMuteAsResolvedOnMixedGroup(t *testing.T) {
-	p := newMutedPipelineWithSender(t, muteActionSender{
-		resolved:              true,
-		sendResolvedWhenMuted: true,
-		treatsMuteAsResolved:  true,
-	}, true)
+	p := newMutedPipelineWithSender(t, muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true}, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -787,15 +786,16 @@ func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 		wantDelivered bool
 	}{{
 		name:          "send_resolved_when_muted",
-		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: false},
 		wantDelivered: true,
 	}, {
 		name:          "treat_mute_as_resolved",
 		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},
 		wantDelivered: true,
 	}, {
-		name: "ignore",
-		rs:   muteActionSender{resolved: true},
+		name:          "ignore",
+		rs:            muteActionSender{resolved: true, sendResolvedWhenMuted: false, treatsMuteAsResolved: false},
+		wantDelivered: false,
 	}}
 
 	for _, test := range tests {
@@ -837,7 +837,7 @@ func TestRetry_MuteActionNeedsAPriorNotification(t *testing.T) {
 		rs   ResolvedSender
 	}{{
 		name: "send_resolved_when_muted",
-		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true},
+		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: false},
 	}, {
 		name: "treat_mute_as_resolved",
 		rs:   muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true},

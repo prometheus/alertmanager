@@ -985,7 +985,7 @@ func TestMutedGroupReachesTheDedupStage(t *testing.T) {
 			_, deduped := NotificationReason(ctx)
 			require.Equal(t, test.deduped, deduped, "dedup stage reached")
 
-			require.False(t, logged, "a flush that notifies nobody should not write to the notification log")
+			require.False(t, logged, "a flush the dedup stage found nothing to say about should not write")
 		})
 	}
 }
