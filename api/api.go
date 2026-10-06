@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -47,6 +48,7 @@ type API struct {
 	v2                *apiv2.API
 	connect           *apiconnect.API
 	deprecationRouter *V1DeprecationRouter
+	reloadMu          sync.RWMutex
 
 	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
@@ -281,7 +283,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 			api.limitHandler(
 				http.StripPrefix(
 					apiPrefix,
-					api.v2.Handler,
+					api.reloadHandler(api.v2.Handler),
 				),
 			),
 		),
@@ -316,6 +318,29 @@ func isGRPCRequest(r *http.Request) bool {
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	return err == nil && (mediaType == "application/grpc" || strings.HasPrefix(mediaType, "application/grpc+"))
+}
+
+// LockReload waits for affected API requests and excludes new ones until UnlockReload.
+func (api *API) LockReload() {
+	api.reloadMu.Lock()
+}
+
+// UnlockReload allows affected API requests to resume after a reload.
+func (api *API) UnlockReload() {
+	api.reloadMu.Unlock()
+}
+
+func (api *API) reloadHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			switch r.URL.Path {
+			case "/api/v2/alerts", "/api/v2/alerts/groups", "/api/v2/status", "/api/v2/receivers":
+				api.reloadMu.RLock()
+				defer api.reloadMu.RUnlock()
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // Update config and resolve timeout of each API. APIv2 also needs
