@@ -83,6 +83,73 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 	})
 }
 
+func TestReloadHandler(t *testing.T) {
+	for _, path := range []string{"/api/v2/alerts", "/api/v2/alerts/groups", "/api/v2/status", "/api/v2/receivers"} {
+		t.Run(path, func(t *testing.T) {
+			api := &API{}
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			defer unblock()
+			handler := api.reloadHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				close(entered)
+				<-release
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			done := make(chan struct{})
+			go func() {
+				handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+				close(done)
+			}()
+			<-entered
+			acquired := api.reloadMu.TryLock()
+			if acquired {
+				api.reloadMu.Unlock()
+			}
+			require.False(t, acquired, "an in-flight request must exclude reload")
+			unblock()
+			<-done
+
+			api.LockReload()
+			unlock := sync.OnceFunc(api.UnlockReload)
+			defer unlock()
+			handler = api.reloadHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			for _, request := range []*http.Request{
+				httptest.NewRequest(http.MethodGet, "/api/v2/silences", nil),
+				httptest.NewRequest(http.MethodPost, "/api/v2/alerts", nil),
+			} {
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, request)
+				require.Equal(t, http.StatusNoContent, recorder.Code)
+			}
+
+			started := make(chan struct{})
+			response := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				close(started)
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path+"?inhibited=false", nil))
+				response <- recorder
+			}()
+			<-started
+			select {
+			case <-response:
+				t.Fatal("an affected request completed while reload held the lock")
+			case <-time.After(25 * time.Millisecond):
+			}
+			unlock()
+			select {
+			case recorder := <-response:
+				require.Equal(t, http.StatusNoContent, recorder.Code)
+			case <-time.After(5 * time.Second):
+				t.Fatal("request did not resume after reload unlocked")
+			}
+		})
+	}
+}
+
 func TestOptionsResolve(t *testing.T) {
 	effective := (Options{
 		Concurrency:                3,
