@@ -1145,11 +1145,15 @@ receivers:
 	type result struct {
 		groups open_api_models.AlertGroups
 		code   int
+		err    error
 	}
 	got := make(chan result, 1)
 	go func() {
 		r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
-		require.NoError(t, err)
+		if err != nil {
+			got <- result{err: err}
+			return
+		}
 		truePtr := true
 		responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
 			HTTPRequest: r,
@@ -1161,8 +1165,8 @@ receivers:
 		w := httptest.NewRecorder()
 		responder.WriteResponse(w, runtime.JSONProducer())
 		var groups open_api_models.AlertGroups
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &groups))
-		got <- result{groups: groups, code: w.Code}
+		err = json.Unmarshal(w.Body.Bytes(), &groups)
+		got <- result{groups: groups, code: w.Code, err: err}
 	}()
 
 	select {
@@ -1184,6 +1188,7 @@ receivers:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for the in-flight request")
 	}
+	require.NoError(t, res.err)
 	require.Equal(t, 200, res.code)
 	require.Len(t, res.groups, 1)
 	require.Equal(t, "team-old", *res.groups[0].Receiver.Name)
