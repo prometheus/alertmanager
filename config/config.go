@@ -560,80 +560,80 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
-		for _, sns := range rcv.SNSConfigs {
-			if sns == nil {
+		for _, snsCfg := range rcv.SNSConfigs {
+			if snsCfg == nil {
 				return errors.New("missing sns config")
 			}
-			sns.HTTPConfig = cmp.Or(sns.HTTPConfig, c.Global.HTTPConfig)
+			snsCfg.HTTPConfig = cmp.Or(snsCfg.HTTPConfig, c.Global.HTTPConfig)
 		}
 
-		for _, telegram := range rcv.TelegramConfigs {
-			if telegram == nil {
+		for _, telegramCfg := range rcv.TelegramConfigs {
+			if telegramCfg == nil {
 				return errors.New("missing telegram config")
 			}
-			telegram.HTTPConfig = cmp.Or(telegram.HTTPConfig, c.Global.HTTPConfig)
-			telegram.APIUrl = cmp.Or(telegram.APIUrl, c.Global.TelegramAPIUrl)
-			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
+			telegramCfg.HTTPConfig = cmp.Or(telegramCfg.HTTPConfig, c.Global.HTTPConfig)
+			telegramCfg.APIUrl = cmp.Or(telegramCfg.APIUrl, c.Global.TelegramAPIUrl)
+			if telegramCfg.BotToken == "" && len(telegramCfg.BotTokenFile) == 0 {
 				if c.Global.TelegramBotToken == "" && len(c.Global.TelegramBotTokenFile) == 0 {
 					return errors.New("missing bot_token or bot_token_file on telegram_config")
 				}
-				telegram.BotToken = c.Global.TelegramBotToken
-				telegram.BotTokenFile = c.Global.TelegramBotTokenFile
+				telegramCfg.BotToken = c.Global.TelegramBotToken
+				telegramCfg.BotTokenFile = c.Global.TelegramBotTokenFile
 			}
 		}
-		for _, discord := range rcv.DiscordConfigs {
-			if discord == nil {
+		for _, discordCfg := range rcv.DiscordConfigs {
+			if discordCfg == nil {
 				return errors.New("missing discord config")
 			}
-			discord.HTTPConfig = cmp.Or(discord.HTTPConfig, c.Global.HTTPConfig)
-			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
+			discordCfg.HTTPConfig = cmp.Or(discordCfg.HTTPConfig, c.Global.HTTPConfig)
+			if discordCfg.WebhookURL == nil && len(discordCfg.WebhookURLFile) == 0 {
 				return errors.New("no discord webhook URL or URLFile provided")
 			}
 		}
-		for _, webex := range rcv.WebexConfigs {
-			if webex == nil {
+		for _, webexCfg := range rcv.WebexConfigs {
+			if webexCfg == nil {
 				return errors.New("missing webex config")
 			}
-			webex.HTTPConfig = cmp.Or(webex.HTTPConfig, c.Global.HTTPConfig)
-			webex.APIURL = cmp.Or(webex.APIURL, c.Global.WebexAPIURL)
-			if webex.APIURL == nil {
+			webexCfg.HTTPConfig = cmp.Or(webexCfg.HTTPConfig, c.Global.HTTPConfig)
+			webexCfg.APIURL = cmp.Or(webexCfg.APIURL, c.Global.WebexAPIURL)
+			if webexCfg.APIURL == nil {
 				return errors.New("no global Webex URL set")
 			}
 		}
-		for _, msteams := range rcv.MSTeamsConfigs {
-			if msteams == nil {
+		for _, msteamsCfg := range rcv.MSTeamsConfigs {
+			if msteamsCfg == nil {
 				return errors.New("missing msteams config")
 			}
-			msteams.HTTPConfig = cmp.Or(msteams.HTTPConfig, c.Global.HTTPConfig)
-			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
+			msteamsCfg.HTTPConfig = cmp.Or(msteamsCfg.HTTPConfig, c.Global.HTTPConfig)
+			if msteamsCfg.WebhookURL == nil && len(msteamsCfg.WebhookURLFile) == 0 {
 				return errors.New("no msteams webhook URL or URLFile provided")
 			}
 		}
-		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
-			if msteamsv2 == nil {
+		for _, msteamsv2Cfg := range rcv.MSTeamsV2Configs {
+			if msteamsv2Cfg == nil {
 				return errors.New("missing msteamsv2 config")
 			}
-			if msteamsv2.HTTPConfig == nil {
+			if msteamsv2Cfg.HTTPConfig == nil {
 				// copy the global config so receiver-level mutations don't affect it
 				httpCfg := *c.Global.HTTPConfig
-				msteamsv2.HTTPConfig = &httpCfg
-			} else if msteamsv2.HTTPConfig.ProxyURL.URL == nil {
+				msteamsv2Cfg.HTTPConfig = &httpCfg
+			} else if msteamsv2Cfg.HTTPConfig.ProxyURL.URL == nil {
 				// receiver has a partial http_config but no proxy_url set,
 				// so inherit only the proxy_url from global, leaving any
 				// other proxy fields the receiver set (NoProxy, etc.) intact
-				msteamsv2.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
+				msteamsv2Cfg.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
 			}
-			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
+			if msteamsv2Cfg.WebhookURL == nil && len(msteamsv2Cfg.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
 			}
 		}
-		for _, jira := range rcv.JiraConfigs {
-			if jira == nil {
+		for _, jiraCfg := range rcv.JiraConfigs {
+			if jiraCfg == nil {
 				return errors.New("missing jira config")
 			}
-			jira.HTTPConfig = cmp.Or(jira.HTTPConfig, c.Global.HTTPConfig)
-			jira.APIURL = cmp.Or(jira.APIURL, c.Global.JiraAPIURL)
-			if jira.APIURL == nil {
+			jiraCfg.HTTPConfig = cmp.Or(jiraCfg.HTTPConfig, c.Global.HTTPConfig)
+			jiraCfg.APIURL = cmp.Or(jiraCfg.APIURL, c.Global.JiraAPIURL)
+			if jiraCfg.APIURL == nil {
 				return errors.New("no global Jira Cloud URL set")
 			}
 		}
@@ -658,17 +658,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				rocketchatcfg.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
-		for _, mattermost := range rcv.MattermostConfigs {
-			if mattermost == nil {
+		for _, mattermostCfg := range rcv.MattermostConfigs {
+			if mattermostCfg == nil {
 				return errors.New("missing mattermost config")
 			}
-			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
-			if mattermost.WebhookURL == nil && len(mattermost.WebhookURLFile) == 0 {
+			mattermostCfg.HTTPConfig = cmp.Or(mattermostCfg.HTTPConfig, c.Global.HTTPConfig)
+			if mattermostCfg.WebhookURL == nil && len(mattermostCfg.WebhookURLFile) == 0 {
 				if c.Global.MattermostWebhookURL == nil && len(c.Global.MattermostWebhookURLFile) == 0 {
 					return errors.New("missing webhook_url or webhook_url_file on mattermost_config")
 				}
-				mattermost.WebhookURL = c.Global.MattermostWebhookURL
-				mattermost.WebhookURLFile = c.Global.MattermostWebhookURLFile
+				mattermostCfg.WebhookURL = c.Global.MattermostWebhookURL
+				mattermostCfg.WebhookURLFile = c.Global.MattermostWebhookURLFile
 			}
 		}
 
