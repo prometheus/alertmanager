@@ -103,6 +103,47 @@ templates:
 
 This example is explained in further detail in this [blogpost](https://prometheus.io/blog/2016/03/03/custom-alertmanager-templates/).
 
+## Defining a Slack Block Kit template
+
+Slack [Block Kit](https://api.slack.com/block-kit) messages are optional. The regular Slack attachment configuration remains the default; define `block_kit_payload` only when a receiver should send blocks.
+
+Create `/etc/alertmanager/templates/slack-block-kit.tmpl` with a template that renders a JSON list of Slack block objects:
+
+```gotemplate
+{{ define "slack.myorg.blocks" }}
+[
+  {
+    "type": "header",
+    "text": {
+      "type": "plain_text",
+      "text": {{ .Status | toUpper | toJson }}
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": {{ .CommonAnnotations.summary | toJson }}
+    }
+  }
+]
+{{ end }}
+```
+
+Reference that template from the Slack receiver. `channel`, `message_text`, and other top-level Slack fields continue to be configured on the receiver. Alertmanager does not provide or validate Block Kit templates, so ensure the rendered block list conforms to Slack's Block Kit schema.
+
+```yaml
+receivers:
+- name: 'slack-block-kit'
+  slack_configs:
+  - channel: '#alerts'
+    message_text: 'Alertmanager notification'
+    block_kit_payload: '{{ template "slack.myorg.blocks" . }}'
+
+templates:
+- '/etc/alertmanager/templates/slack-block-kit.tmpl'
+```
+
 ## Defining a reusable HTML email template
 
 The HTML body of an email notification can use a named template from an external file.

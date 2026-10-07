@@ -1705,7 +1705,7 @@ If using an incoming webhook then `api_url` must be set to the URL of the incomi
 
 If using Bot tokens then `api_url` must be set to [`https://slack.com/api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage), the bot token must be set as the authorization credentials in `http_config`, and `channel` must contain either the name of the channel or Channel ID to send notifications to. If using the name of the channel the # is optional.
 
-The notification contains an [attachment](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
+By default, the notification contains an [attachment](https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments/).
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1735,6 +1735,16 @@ channel: <tmpl_string>
 # This is useful for simple notifications or compatibility with Slack Workflow Webhooks.
 [ message_text: <tmpl_string> ]
 [ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
+
+# Define custom Slack Block Kit blocks. When set, this replaces the default
+# attachment with the rendered blocks. Alertmanager does not validate the
+# rendered Block Kit payload; it is your responsibility to ensure that it
+# conforms to Slack's Block Kit schema.
+#
+# This can be a YAML list of block objects or a Go template that renders one.
+# There is no default Block Kit template.
+[ block_kit_payload: <tmpl_string> | [ <block_object>, ... ] ]
+
 # The following parameters define the attachment.
 actions:
   [ <action_config> ... ]
