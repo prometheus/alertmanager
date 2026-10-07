@@ -185,7 +185,10 @@ func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *EmailConfig,
 		return nil, false, err
 	}
 
-	email := New(cfg, tmpl, promslog.NewNopLogger())
+	email, err := New(cfg, tmpl, promslog.NewNopLogger())
+	if err != nil {
+		return nil, false, err
+	}
 
 	verdict := email.Notify(ctx, firingAlert)
 	if verdict.Err() != nil {
@@ -547,8 +550,8 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 				cfg.AuthPasswordFile = "/does/not/exist"
 			},
 
-			errMsg: "could not read",
-			retry:  true,
+			errMsg: "failed to read auth_password_file",
+			retry:  false,
 		},
 		{
 			title:  "no credentials",
@@ -727,7 +730,8 @@ func TestEmailRejected(t *testing.T) {
 	tmpl, firingAlert, err := prepare(cfg)
 	require.NoError(t, err)
 
-	e := New(cfg, tmpl, promslog.NewNopLogger())
+	e, err := New(cfg, tmpl, promslog.NewNopLogger())
+	require.NoError(t, err)
 
 	// Send the alert to mock SMTP server.
 	verdict := e.Notify(context.Background(), firingAlert)

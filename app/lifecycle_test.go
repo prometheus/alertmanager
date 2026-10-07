@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -324,6 +325,30 @@ func TestApp_Reload(t *testing.T) {
 	defer func() { _ = a.Stop(t.Context()) }()
 
 	require.NoError(t, a.Reload())
+}
+
+func TestApp_UnreadableFileFailsStartupAndReload(t *testing.T) {
+	// A receiver's *_file setting is read when the configuration is
+	// applied, so a missing file stops startup and a reload rather than
+	// only failing the first notification.
+	secret := filepath.Join(t.TempDir(), "webhook-url")
+	withWebhook := func(t *testing.T) Options {
+		opts := testOptions(t)
+		conf := minimalConfig + "    webhook_configs:\n      - url_file: " + strconv.Quote(secret) + "\n"
+		require.NoError(t, os.WriteFile(opts.ConfigFile, []byte(conf), 0o600))
+		return opts
+	}
+
+	_, err := New(withWebhook(t))
+	require.ErrorContains(t, err, "failed to read url_file")
+
+	require.NoError(t, os.WriteFile(secret, []byte("http://example.com"), 0o600))
+	a, err := New(withWebhook(t))
+	require.NoError(t, err)
+	defer func() { _ = a.Stop(t.Context()) }()
+
+	require.NoError(t, os.Remove(secret))
+	require.ErrorContains(t, a.Reload(), "failed to read url_file")
 }
 
 func TestApp_Reload_BeforeNewFails(t *testing.T) {
