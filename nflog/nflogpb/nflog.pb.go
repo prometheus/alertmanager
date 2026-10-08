@@ -109,8 +109,10 @@ type Entry struct {
 	// Data specific to the receiver which sent the notification
 	ReceiverData map[string]*ReceiverDataValue `protobuf:"bytes,8,rep,name=receiver_data,json=receiverData,proto3" json:"receiver_data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// MutedAlerts list of hashes of alerts that were muted at the last
-	// notification time, and therefore excluded from FiringAlerts and
-	// ResolvedAlerts.
+	// notification time, and so not delivered. This is a flag over the two lists
+	// above rather than a third state: a muted alert appears here and in
+	// FiringAlerts or ResolvedAlerts. The receiver was shown FiringAlerts minus
+	// MutedAlerts.
 	MutedAlerts   []uint64 `protobuf:"varint,9,rep,packed,name=muted_alerts,json=mutedAlerts,proto3" json:"muted_alerts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

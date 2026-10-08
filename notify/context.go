@@ -45,7 +45,7 @@ const (
 	keyFlushID
 	keyGroupMatchers
 	keyRouteLabels
-	keyMutedAlertDetails
+	keyNotificationSequence
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -191,27 +191,17 @@ func NotificationReason(ctx context.Context) (NotifyReason, bool) {
 	return v, ok
 }
 
-// WithMutedAlerts populates a context with a set of muted alert hashes.
-func WithMutedAlerts(ctx context.Context, alerts map[uint64]struct{}) context.Context {
+// WithMutedAlerts populates a context with the alerts a mute stage removed from
+// the pipeline, keyed by hash. The alerts are kept rather than just their
+// hashes because muting does not change whether an alert is firing or resolved,
+// and the stages downstream have no other way to find out.
+func WithMutedAlerts(ctx context.Context, alerts map[uint64]*alert.Alert) context.Context {
 	return context.WithValue(ctx, keyMutedAlerts, alerts)
 }
 
-// MutedAlerts extracts a set of muted alert hashes from the context.
-func MutedAlerts(ctx context.Context) (map[uint64]struct{}, bool) {
-	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]struct{})
-	return v, ok
-}
-
-func withMutedAlertDetails(ctx context.Context, alerts []*alert.Alert) context.Context {
-	existing, _ := mutedAlertDetails(ctx)
-	results := make([]*alert.Alert, 0, len(existing)+len(alerts))
-	results = append(results, existing...)
-	results = append(results, alerts...)
-	return context.WithValue(ctx, keyMutedAlertDetails, results)
-}
-
-func mutedAlertDetails(ctx context.Context) ([]*alert.Alert, bool) {
-	v, ok := ctx.Value(keyMutedAlertDetails).([]*alert.Alert)
+// MutedAlerts extracts the muted alerts from the context, keyed by hash.
+func MutedAlerts(ctx context.Context) (map[uint64]*alert.Alert, bool) {
+	v, ok := ctx.Value(keyMutedAlerts).(map[uint64]*alert.Alert)
 	return v, ok
 }
 
@@ -257,5 +247,18 @@ func WithNflogStore(ctx context.Context, store *nflog.Store) context.Context {
 // NflogStore is a pointer to a mutable store which remains in the context.
 func NflogStore(ctx context.Context) (*nflog.Store, bool) {
 	v, ok := ctx.Value(keyNflogStore).(*nflog.Store)
+	return v, ok
+}
+
+// WithNotificationSequence populates a context with the notification sequence
+// the group is in.
+func WithNotificationSequence(ctx context.Context, seq NotificationSequence) context.Context {
+	return context.WithValue(ctx, keyNotificationSequence, seq)
+}
+
+// NotificationSequenceFor extracts the notification sequence the group is in.
+// It is only populated when the muted alerts feature is enabled.
+func NotificationSequenceFor(ctx context.Context) (NotificationSequence, bool) {
+	v, ok := ctx.Value(keyNotificationSequence).(NotificationSequence)
 	return v, ok
 }

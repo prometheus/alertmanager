@@ -88,3 +88,46 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildReceiverIntegrationsMuteAction asserts that mute_action reaches the
+// integration, where the retry stage reads it. Each integration of a receiver
+// carries its own action.
+func TestBuildReceiverIntegrationsMuteAction(t *testing.T) {
+	receiver := config.Receiver{
+		Name: "foo",
+		WebhookConfigs: []*webhook.WebhookConfig{
+			{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			},
+			{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				NotifierConfig: amcommoncfg.NotifierConfig{
+					VMuteAction: amcommoncfg.MuteActionSendResolvedWhenMuted,
+				},
+			},
+			{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				NotifierConfig: amcommoncfg.NotifierConfig{
+					VMuteAction: amcommoncfg.MuteActionTreatMuteAsResolved,
+				},
+			},
+		},
+	}
+
+	integrations, err := BuildReceiverIntegrations(receiver, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, integrations, 3)
+
+	// Unset, so the legacy behaviour: the receiver is told nothing.
+	require.False(t, integrations[0].SendsResolvedWhenMuted())
+	require.False(t, integrations[0].TreatsMuteAsResolved())
+
+	// The close of a group that resolved after muting hid it, but not of one
+	// that is still firing.
+	require.True(t, integrations[1].SendsResolvedWhenMuted())
+	require.False(t, integrations[1].TreatsMuteAsResolved())
+
+	// Both closes.
+	require.True(t, integrations[2].SendsResolvedWhenMuted())
+	require.True(t, integrations[2].TreatsMuteAsResolved())
+}
