@@ -1,0 +1,17 @@
+scenarioKinds:
+  - id: primary
+    name: Primary
+    description: The main path through a Capability or Journey.
+    colorSlot: 1
+  - id: alternative
+    name: Alternative
+    description: Another successful path, started differently or reaching a different successful result.
+    colorSlot: 2
+  - id: validation
+    name: Validation
+    description: Input or a request the Product refuses, and what the Actor is told.
+    colorSlot: 3
+  - id: edge
+    name: Edge
+    description: A limit, a conflict or an unavailable dependency the Product handles.
+    colorSlot: 4
