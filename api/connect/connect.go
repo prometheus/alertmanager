@@ -20,6 +20,7 @@ package apiconnect
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"net/http"
 	"runtime"
@@ -31,14 +32,33 @@ import (
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/silence"
 )
 
 // Options configures the Connect API.
 type Options struct {
+	// Alerts provides the long-lived alert store.
+	Alerts provider.Alerts
+	// Silences provides the long-lived silence store.
+	Silences *silence.Silences
+	// GroupFunc returns groups from the current dispatcher.
+	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	// GroupMutedFunc returns the current mute state for one group.
+	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
+	// NotificationLog provides the current notification log. Future notification
+	// services must define its public semantics before they use this dependency.
+	NotificationLog notify.NotificationLog
+	// Flagger reports enabled capability flags.
+	Flagger featurecontrol.Flagger
 	// Peer provides cluster status. A nil value disables clustering.
 	Peer cluster.ClusterPeer
 	// Registerer registers API metrics. A nil value keeps usable metrics without
@@ -71,6 +91,12 @@ type Options struct {
 }
 
 type effectiveOptions struct {
+	alerts              provider.Alerts
+	silences            *silence.Silences
+	groupFunc           func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	groupMutedFunc      func(routeID, groupKey string) ([]string, bool)
+	notificationLog     notify.NotificationLog
+	flagger             featurecontrol.Flagger
 	peer                cluster.ClusterPeer
 	registerer          prometheus.Registerer
 	unaryConcurrency    int
@@ -84,6 +110,10 @@ type effectiveOptions struct {
 }
 
 func (o Options) resolve() effectiveOptions {
+	flagger := o.Flagger
+	if flagger == nil {
+		flagger = featurecontrol.NoopFlags{}
+	}
 	defaultConcurrency := max(runtime.GOMAXPROCS(0), 8)
 	unaryConcurrency := o.UnaryConcurrency
 	if unaryConcurrency < 1 {
@@ -94,6 +124,12 @@ func (o Options) resolve() effectiveOptions {
 		streamConcurrency = defaultConcurrency
 	}
 	return effectiveOptions{
+		alerts:              o.Alerts,
+		silences:            o.Silences,
+		groupFunc:           o.GroupFunc,
+		groupMutedFunc:      o.GroupMutedFunc,
+		notificationLog:     o.NotificationLog,
+		flagger:             flagger,
 		peer:                o.Peer,
 		registerer:          o.Registerer,
 		unaryConcurrency:    unaryConcurrency,
@@ -181,6 +217,12 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
+	alerts          provider.Alerts
+	silences        *silence.Silences
+	groupFunc       func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	groupMutedFunc  func(routeID, groupKey string) ([]string, bool)
+	notificationLog notify.NotificationLog
+	flagger         featurecontrol.Flagger
 	peer            cluster.ClusterPeer
 	uptime          time.Time
 	admission       *admissionInterceptor
@@ -193,8 +235,8 @@ type API struct {
 	activeMutex     sync.Mutex
 	activeRPCs      map[*rpcLifecycle]struct{}
 	draining        atomic.Bool
-
-	configSnapshot atomic.Pointer[string]
+	pageTokens      *pageTokenCodec
+	reloadSnapshot  atomic.Pointer[reloadSnapshot]
 }
 
 // NewAPI returns a new Connect API handler. Peer may be nil when clustering
@@ -203,6 +245,12 @@ func NewAPI(opts Options) *API {
 	effective := opts.resolve()
 	metrics := newRPCMetrics(effective.registerer)
 	api := &API{
+		alerts:          effective.alerts,
+		silences:        effective.silences,
+		groupFunc:       effective.groupFunc,
+		groupMutedFunc:  effective.groupMutedFunc,
+		notificationLog: effective.notificationLog,
+		flagger:         effective.flagger,
 		peer:            effective.peer,
 		uptime:          time.Now(),
 		peerSnapshotSem: make(chan struct{}, 1),
@@ -211,6 +259,7 @@ func NewAPI(opts Options) *API {
 		sendMaxBytes:    effective.sendMaxBytes,
 		maxRequestBytes: effective.maxRequestBodyBytes,
 		activeRPCs:      make(map[*rpcLifecycle]struct{}),
+		pageTokens:      newPageTokenCodec([]byte(rand.Text()), 15*time.Minute),
 	}
 	api.services = api.serviceDescriptors()
 	for _, service := range api.services {
@@ -460,7 +509,7 @@ func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFu
 			_ = state.lifecycle.controller.SetReadDeadline(time.Time{})
 		}
 		response, err := next(ctx, req)
-		err = normalizeContextError(ctx, err)
+		err = translateRPCError(ctx, err)
 		i.observe(desc, state.started, err)
 		state.observed.Store(true)
 		state.lifecycle.observed.Store(true)
@@ -568,7 +617,7 @@ func (i *admissionInterceptor) WrapStreamingHandler(next connect.StreamingHandle
 		if lifecycle.idleTimeout > 0 {
 			conn = &activityConn{StreamingHandlerConn: conn, lifecycle: lifecycle}
 		}
-		err := normalizeContextError(ctx, next(ctx, conn))
+		err := translateRPCError(ctx, next(ctx, conn))
 		i.observe(desc, lifecycle.started, err)
 		lifecycle.observed.Store(true)
 		return err
@@ -603,17 +652,6 @@ func (api *API) Shutdown() {
 	for _, lifecycle := range active {
 		lifecycle.terminate(context.Canceled)
 	}
-}
-
-// Update swaps in the currently loaded configuration. It is safe for
-// concurrent use with the RPC handlers.
-func (api *API) Update(cfg *config.Config) {
-	if cfg == nil {
-		api.configSnapshot.Store(nil)
-		return
-	}
-	original := cfg.String()
-	api.configSnapshot.Store(&original)
 }
 
 // Handler returns an http.Handler serving every ConnectRPC service exposed

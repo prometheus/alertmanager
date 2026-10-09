@@ -39,7 +39,7 @@ func TestStatusService(t *testing.T) {
 		t.Parallel()
 
 		api := NewAPI(Options{})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		resp, err := api.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestStatusService(t *testing.T) {
 		}
 
 		api := NewAPI(Options{Peer: peer})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		resp, err := api.GetStatus(t.Context(), connect.NewRequest(&statusv3alpha.GetStatusRequest{}))
 		require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		statusDone := make(chan error, 1)
 		go func() {
@@ -103,7 +103,7 @@ func TestStatusService(t *testing.T) {
 
 		updateDone := make(chan struct{})
 		go func() {
-			api.Update(&config.Config{})
+			api.Update(&config.Config{}, nil)
 			close(updateDone)
 		}()
 		requireClosed(t, updateDone, waitTimeout)
@@ -117,7 +117,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
 
@@ -139,7 +139,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer, Registerer: prometheus.NewRegistry(), UnaryConcurrency: 1, UnaryTimeout: 20 * time.Millisecond})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 
 		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(&http.Client{Timeout: time.Second}, srv.URL)
@@ -199,7 +199,7 @@ func TestStatusService(t *testing.T) {
 				t.Parallel()
 
 				api := NewAPI(Options{})
-				api.Update(&config.Config{})
+				api.Update(&config.Config{}, nil)
 
 				methods := make(chan string, 1)
 				handler := api.Handler()
@@ -230,7 +230,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer, ReadMaxBytes: 1, MaxRequestBodyBytes: 1024})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
@@ -245,7 +245,7 @@ func TestStatusService(t *testing.T) {
 		t.Parallel()
 
 		api := NewAPI(Options{ReadMaxBytes: 1, SendMaxBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(connect.WithReadMaxBytes(1024), connect.WithSendMaxBytes(1024*1024)), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
@@ -259,7 +259,7 @@ func TestStatusService(t *testing.T) {
 		t.Parallel()
 
 		api := NewAPI(Options{ReadMaxBytes: 1024, MaxRequestBodyBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 
 		request := &statusv3alpha.GetStatusRequest{}
@@ -273,7 +273,7 @@ func TestStatusService(t *testing.T) {
 		t.Parallel()
 
 		api := NewAPI(Options{SendMaxBytes: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 		client := statusv3alphaconnect.NewStatusServiceClient(srv.Client(), srv.URL)
 
@@ -286,7 +286,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1, UnaryTimeout: 500 * time.Millisecond})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		srv := newTestServer(t, api.Handler(), false)
 
 		reader, writer := io.Pipe()
@@ -321,7 +321,7 @@ func TestStatusService(t *testing.T) {
 
 		peer := newBlockingPeer(t)
 		api := NewAPI(Options{Peer: peer, UnaryConcurrency: 1})
-		api.Update(&config.Config{})
+		api.Update(&config.Config{}, nil)
 		handler := api.Handler()
 		srv := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handler.ServeHTTP(flushOnlyResponseWriter{ResponseWriter: w}, r)
