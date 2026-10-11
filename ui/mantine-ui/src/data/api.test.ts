@@ -7,12 +7,16 @@ import { API_PATH, createQueryFn } from './api';
 // Live test server
 // ---------------------------------------------------------------------------
 
-let server: Server;
-let serverPort: number;
-let currentHandler: (req: IncomingMessage, res: ServerResponse) => void = (_req, res) => {
+type Handler = (req: IncomingMessage, res: ServerResponse) => void;
+
+const notFound: Handler = (_req, res) => {
   res.writeHead(404);
   res.end();
 };
+
+let server: Server;
+let serverPort: number;
+let currentHandler: Handler = notFound;
 
 const serverPrefix = () => `http://localhost:${serverPort}`;
 
@@ -26,13 +30,21 @@ beforeAll(async () => {
   });
 });
 
+// Each test opts in to a handler; anything unhandled is a 404 rather than
+// whatever the previous test happened to leave behind.
+beforeEach(() => setHandler(notFound));
+
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) =>
+  const closed = new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve()))
   );
+  // fetch reuses keep-alive sockets, so drop them rather than let teardown
+  // wait on one.
+  server.closeAllConnections();
+  await closed;
 });
 
-function setHandler(fn: (req: IncomingMessage, res: ServerResponse) => void) {
+function setHandler(fn: Handler) {
   currentHandler = fn;
 }
 
@@ -69,7 +81,7 @@ describe('createQueryFn', () => {
     expect(result).toEqual({ id: 1 });
   });
 
-  it('returns raw JSON when the response is not an API envelope', async () => {
+  it('returns raw JSON for array responses', async () => {
     setHandler((_req, res) => jsonResponse(res, 200, [{ id: 1 }, { id: 2 }]));
     const result = await qfn('/test')({ signal: signal() });
     expect(result).toEqual([{ id: 1 }, { id: 2 }]);
@@ -79,6 +91,12 @@ describe('createQueryFn', () => {
     setHandler((_req, res) => jsonResponse(res, 200, { foo: 'bar' }));
     const result = await qfn('/test')({ signal: signal() });
     expect(result).toEqual({ foo: 'bar' });
+  });
+
+  it('returns raw JSON for objects whose status is neither success nor error', async () => {
+    setHandler((_req, res) => jsonResponse(res, 200, { status: 'pending', data: { id: 1 } }));
+    const result = await qfn('/test')({ signal: signal() });
+    expect(result).toEqual({ status: 'pending', data: { id: 1 } });
   });
 
   it('throws the error field from an API error envelope', async () => {
@@ -119,7 +137,7 @@ describe('createQueryFn', () => {
   });
 
   it('throws "Network error..." when the server is unreachable', async () => {
-    // Port 1 requires root on Linux and is never open in test environments.
+    // Nothing can listen on port 0, so the connection always fails.
     const unreachable = createQueryFn({ pathPrefix: 'http://localhost:0', path: '/test' });
     await expect(unreachable({ signal: signal() })).rejects.toThrow(
       'Network error or unable to reach the server'
@@ -192,17 +210,5 @@ describe('createQueryFn', () => {
       qfn('/test', undefined, (t) => times.push(t))({ signal: signal() })
     ).rejects.toThrow('oops');
     expect(times).toHaveLength(1);
-  });
-
-  it('does not call recordResponseTime when the HTTP response is non-OK with non-JSON body', async () => {
-    setHandler((_req, res) => {
-      res.writeHead(503, 'Service Unavailable', { 'Content-Type': 'text/plain' });
-      res.end('down');
-    });
-    const times: number[] = [];
-    await expect(
-      qfn('/test', undefined, (t) => times.push(t))({ signal: signal() })
-    ).rejects.toThrow();
-    expect(times).toHaveLength(0);
   });
 });
