@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"github.com/rs/cors"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -141,12 +140,7 @@ func NewAPI(
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
-	// Compared to `cors.Default() == cors.New(cors.Options{})`,
-	// additionally allow the `DELETE` request method.
-	handleCORS := cors.New(cors.Options{
-		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete},
-	}).Handler
-	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
+	api.Handler = setResponseHeaders(openAPI.Serve(nil))
 
 	return &api, nil
 }

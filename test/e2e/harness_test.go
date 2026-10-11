@@ -87,7 +87,7 @@ type instanceOptions struct {
 }
 
 // startInstance boots an Alertmanager and stops it when the test ends.
-func startInstance(t testing.TB, options instanceOptions) *instance {
+func startInstance(t testing.TB, options instanceOptions, configure ...func(*app.Options)) *instance {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -127,6 +127,9 @@ http_server_config:
 	opts.Logger = promslog.NewNopLogger()
 	opts.Registerer = prometheus.NewRegistry()
 	opts.Flagger = featureFlags
+	for _, c := range configure {
+		c(&opts)
+	}
 
 	a, err := app.New(opts)
 	require.NoError(t, err)
