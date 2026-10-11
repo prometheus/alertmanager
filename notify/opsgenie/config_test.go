@@ -16,7 +16,7 @@ package opsgenie
 import (
 	"testing"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestOpsGenieConfiguration(t *testing.T) {

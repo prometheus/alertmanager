@@ -26,7 +26,7 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
