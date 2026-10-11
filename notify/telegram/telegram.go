@@ -35,9 +35,8 @@ import (
 )
 
 const (
-	// telegramMessageIDKey and telegramChatIDKey are the notification-log keys of
-	// the Telegram message edited when update_message is enabled. Both are
-	// required: message ids are only unique within a chat.
+	// Message and chat identifiers for the Telegram message edited when update_message
+	// is enabled. Both are required, because message ids are only unique within a chat.
 	telegramMessageIDKey = "messageId"
 	telegramChatIDKey    = "chatId"
 	// Telegram rejects formatted input over 1 << 15 bytes before entity parsing.
@@ -226,7 +225,7 @@ func storedTelegramMessageID(store *nflog.Store, chatID int64, logger *slog.Logg
 }
 
 // telegramMessageNotEditable reports an edit that cannot succeed on a later
-// attempt. telebot has no sentinels for the "not found" and "MESSAGE_ID_INVALID"
+// attempt. Telebot has no sentinels for the "not found" and "MESSAGE_ID_INVALID"
 // Bot API descriptions.
 func telegramMessageNotEditable(err error) bool {
 	return errors.Is(err, telebot.ErrCantEditMessage) ||
