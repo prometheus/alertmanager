@@ -20,7 +20,7 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestJSONMarshalHideSecretURL(t *testing.T) {

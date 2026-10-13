@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // captureStdout replaces os.Stdout with a pipe for the duration of fn,

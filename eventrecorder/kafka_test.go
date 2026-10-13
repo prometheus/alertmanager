@@ -27,10 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.yaml.in/yaml/v2"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gopkg.in/yaml.v2"
 
 	events "github.com/prometheus/alertmanager/eventrecorder/events/v2"
 	"github.com/prometheus/alertmanager/kafka"

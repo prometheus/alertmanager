@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Intervener determines whether a given time and active route time interval should mute outgoing notifications.
