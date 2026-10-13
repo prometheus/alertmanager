@@ -31,9 +31,10 @@ import (
 type QueryParam func(*query) error
 
 type query struct {
-	ids     []string
-	since   *int
-	filters []silenceFilter
+	ids      []string
+	since    *int
+	filters  []silenceFilter
+	readOnly bool
 }
 
 // silenceFilter is a function that returns true if a silence
@@ -203,21 +204,38 @@ func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silen
 }
 
 // QueryAt evaluates query filters at the given time.
+// It returns copies that callers can modify.
 // It reads the current stored records, not a historical snapshot.
 func (s *Silences) QueryAt(ctx context.Context, at time.Time, params ...QueryParam) ([]*pb.Silence, int, error) {
+	return s.queryAt(ctx, at, &query{}, params...)
+}
+
+// QueryReadOnlyAt evaluates query filters at the given time without copying records.
+// Callers must not modify the returned silences or any data they reference.
+// Use QueryAt when the returned records must be modified.
+// The records remain valid after the store replaces or removes them.
+// It reads the current stored records, not a historical snapshot.
+func (s *Silences) QueryReadOnlyAt(ctx context.Context, at time.Time, params ...QueryParam) ([]*pb.Silence, int, error) {
+	return s.queryAt(ctx, at, &query{readOnly: true}, params...)
+}
+
+func (s *Silences) queryAt(ctx context.Context, at time.Time, q *query, params ...QueryParam) ([]*pb.Silence, int, error) {
 	_, span := tracer.Start(ctx, "silence.Silences.Query")
 	defer span.End()
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
-	q := &query{}
+	if err := ctx.Err(); err != nil {
+		s.metrics.queryErrorsTotal.Inc()
+		return nil, 0, err
+	}
 	for _, p := range params {
 		if err := p(q); err != nil {
 			s.metrics.queryErrorsTotal.Inc()
-			return nil, s.Version(), err
+			return nil, 0, err
 		}
 	}
-	sils, version, err := s.query(q, at)
+	sils, version, err := s.query(ctx, q, at)
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
 	}
@@ -251,7 +269,10 @@ func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int,
 }
 
 // query executes the given query and returns the resulting silences.
-func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
+func (s *Silences) query(ctx context.Context, q *query, now time.Time) ([]*pb.Silence, int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
 	var res []*pb.Silence
 	var err error
 
@@ -275,7 +296,10 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			}
 		}
 		// All filters matched, append the silence to the result.
-		return append(res, cloneSilence(sil)), nil
+		if !q.readOnly {
+			sil = cloneSilence(sil)
+		}
+		return append(res, sil), nil
 	}
 
 	// Preallocate result slice if we have IDs (if not this will be a no-op)
@@ -285,9 +309,16 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
+	if err := ctx.Err(); err != nil {
+		return nil, s.version, err
+	}
+
 	// If we have IDs, only consider the silences with the given IDs, if they exist.
 	if q.ids != nil {
 		for _, id := range q.ids {
+			if err := ctx.Err(); err != nil {
+				return nil, s.version, err
+			}
 			if sil, ok := s.st[id]; ok {
 				scannedCount++
 				// append the silence to the results if it satisfies the query.
@@ -314,6 +345,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		// otherwise we just allocate 64 and let it grow as needed.
 		res = make([]*pb.Silence, 0, min(64, len(s.vi)-start))
 		for _, sv := range s.vi[start:] {
+			if err := ctx.Err(); err != nil {
+				return nil, s.version, err
+			}
 			scannedCount++
 			sil := s.st[sv.id]
 			// append the silence to the results if it satisfies the query.
@@ -324,5 +358,8 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, s.version, err
+	}
 	return res, s.version, nil
 }

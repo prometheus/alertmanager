@@ -29,6 +29,7 @@ import (
 
 	apiconnect "github.com/prometheus/alertmanager/api/connect"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/silence"
 )
 
 func TestConcurrencyLimitHandler(t *testing.T) {
@@ -84,7 +85,9 @@ func TestConcurrencyLimitHandler(t *testing.T) {
 }
 
 func TestOptionsResolve(t *testing.T) {
+	store := &silence.Silences{}
 	effective := (Options{
+		Silences:                   store,
 		Concurrency:                3,
 		Timeout:                    time.Minute,
 		ConnectStreamIdleTimeout:   -time.Second,
@@ -95,6 +98,7 @@ func TestOptionsResolve(t *testing.T) {
 	}).resolve()
 	require.Equal(t, 3, effective.concurrency)
 	require.Equal(t, time.Minute, effective.timeout)
+	require.Same(t, store, effective.connect.Silences)
 	require.Equal(t, 3, effective.connect.UnaryConcurrency)
 	require.Equal(t, 3, effective.connect.StreamConcurrency)
 	require.Equal(t, time.Minute, effective.connect.UnaryTimeout)
@@ -119,7 +123,9 @@ func TestOptionsResolve(t *testing.T) {
 func TestConnectProceduresRegistered(t *testing.T) {
 	for _, routePrefix := range []string{"/", "/alertmanager"} {
 		t.Run(routePrefix, func(t *testing.T) {
-			connectAPI := apiconnect.NewAPI(apiconnect.Options{})
+			store, err := silence.New(silence.Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(t, err)
+			connectAPI := apiconnect.NewAPI(apiconnect.Options{Silences: store})
 			requestDuration := prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{Name: "test_registered_http_request_duration_seconds"},
 				[]string{"handler", "method", "code"},

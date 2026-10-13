@@ -64,9 +64,7 @@ func (api *API) GetStatus(ctx context.Context, _ *connect.Request[statusv3alpha.
 		status.Cluster = clusterStatus
 	}
 
-	resp := connect.NewResponse(&statusv3alpha.GetStatusResponse{Status: status})
-	resp.Header().Set("Cache-Control", "no-store")
-	return resp, nil
+	return connect.NewResponse(&statusv3alpha.GetStatusResponse{Status: status}), nil
 }
 
 func (api *API) snapshotClusterStatus(ctx context.Context) (*statusv3alpha.ClusterStatus, error) {
