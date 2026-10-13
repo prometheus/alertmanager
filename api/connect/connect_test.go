@@ -43,6 +43,7 @@ func TestConnectAPI(t *testing.T) {
 
 		require.Equal(t, []string{
 			"/status.v3alpha.StatusService/GetStatus",
+			"/silence.v3alpha.SilenceService/ListSilences",
 			"/grpc.health.v1.Health/Check",
 			"/grpc.health.v1.Health/Watch",
 			"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo",
@@ -124,9 +125,9 @@ func TestConnectAPI(t *testing.T) {
 		families, err := reg.Gather()
 		require.NoError(t, err)
 		expected := map[string]int{
-			"alertmanager_api_connect_unary_requests_in_flight":                2,
-			"alertmanager_api_connect_unary_concurrency_limit_exceeded_total":  2,
-			"alertmanager_api_connect_unary_deadline_exceeded_total":           2,
+			"alertmanager_api_connect_unary_requests_in_flight":                3,
+			"alertmanager_api_connect_unary_concurrency_limit_exceeded_total":  3,
+			"alertmanager_api_connect_unary_deadline_exceeded_total":           3,
 			"alertmanager_api_connect_stream_requests_in_flight":               3,
 			"alertmanager_api_connect_stream_concurrency_limit_exceeded_total": 3,
 		}

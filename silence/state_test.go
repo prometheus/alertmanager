@@ -16,12 +16,15 @@ import (
 	"bufio"
 	"bytes"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 )
@@ -43,6 +46,64 @@ func TestCurrentState(t *testing.T) {
 
 	expected = CurrentState(pastStartTime, pastEndTime)
 	require.Equal(t, SilenceStateExpired, expected)
+}
+
+func TestSilenceStateBoundaries(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	for _, tc := range []struct {
+		name string
+		now  time.Time
+		end  time.Time
+		want SilenceState
+	}{
+		{"before start", start.Add(-time.Nanosecond), end, SilenceStatePending},
+		{"at start", start, end, SilenceStateActive},
+		{"before end", end.Add(-time.Nanosecond), end, SilenceStateActive},
+		{"at end", end, end, SilenceStateExpired},
+		{"after end", end.Add(time.Nanosecond), end, SilenceStateExpired},
+		{"zero duration", start, start, SilenceStateExpired},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sil := &pb.Silence{StartsAt: timestamppb.New(start), EndsAt: timestamppb.New(tc.end)}
+			require.Equal(t, tc.want, getState(sil, tc.now))
+			require.Equal(t, tc.want, StateAt(start, tc.end, tc.now))
+			q := &query{}
+			require.NoError(t, QState(tc.want)(q))
+			matches, err := q.filters[0](sil, nil, tc.now)
+			require.NoError(t, err)
+			require.True(t, matches)
+		})
+	}
+}
+
+func TestSetAtEndBoundaryPreservesExpiredHistory(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now().UTC()
+		store, err := New(Options{Retention: time.Hour, Metrics: prometheus.NewRegistry()})
+		require.NoError(t, err)
+		original := &pb.Silence{
+			StartsAt: timestamppb.New(now), EndsAt: timestamppb.New(now.Add(time.Hour)),
+			MatcherSets: []*pb.MatcherSet{{Matchers: []*pb.Matcher{{Name: "alertname", Pattern: "Foo"}}}},
+		}
+		require.NoError(t, store.Set(t.Context(), original))
+		time.Sleep(time.Hour)
+		now = time.Now().UTC()
+		replacement := cloneSilence(original)
+		replacement.EndsAt = timestamppb.New(now.Add(time.Hour))
+		require.NoError(t, store.Set(t.Context(), replacement))
+		require.NotEqual(t, original.Id, replacement.Id)
+		stored, err := store.QueryOne(t.Context(), QIDs(original.Id), QState(SilenceStateExpired))
+		require.NoError(t, err)
+		require.Equal(t, now, stored.EndsAt.AsTime())
+		_, err = store.QueryOne(t.Context(), QIDs(replacement.Id), QState(SilenceStateActive))
+		require.NoError(t, err)
+	})
 }
 
 // TestStateMarshalBinaryPopulatesLegacyMatchers asserts that snapshots and

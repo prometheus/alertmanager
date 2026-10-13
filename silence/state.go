@@ -17,15 +17,19 @@ import "time"
 type SilenceState string
 
 const (
-	SilenceStateExpired SilenceState = "expired"
 	SilenceStateActive  SilenceState = "active"
+	SilenceStateExpired SilenceState = "expired"
 	SilenceStatePending SilenceState = "pending"
 )
 
 // CurrentState returns the SilenceState that a silence with the given start
 // and end time would have right now.
 func CurrentState(start, end time.Time) SilenceState {
-	current := time.Now()
+	return StateAt(start, end, time.Now())
+}
+
+// StateAt returns the silence state at the given evaluation time.
+func StateAt(start, end, current time.Time) SilenceState {
 	if current.Before(start) {
 		return SilenceStatePending
 	}

@@ -1059,13 +1059,7 @@ func QMatches(set model.LabelSet) QueryParam {
 
 // getState returns a silence's SilenceState at the given timestamp.
 func getState(sil *pb.Silence, ts time.Time) SilenceState {
-	if ts.Before(sil.StartsAt.AsTime()) {
-		return SilenceStatePending
-	}
-	if ts.After(sil.EndsAt.AsTime()) {
-		return SilenceStateExpired
-	}
-	return SilenceStateActive
+	return StateAt(sil.StartsAt.AsTime(), sil.EndsAt.AsTime(), ts)
 }
 
 // QState filters queried silences by the given states.
