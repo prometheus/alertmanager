@@ -138,7 +138,7 @@ func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 				if tc.zeroCount {
 					// Reproduce the window after publishing a group but before
 					// incrementing the count used to size the snapshot.
-					d.routeGroupsSlice[route.Routes[0].Idx].groupsLen.Store(0)
+					route.Routes[0].slot.groupsLen.Store(0)
 				}
 				for range 2 {
 					calls = 0
