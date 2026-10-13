@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/api/silence/v3alpha/silencev3alphaconnect"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/config"
 )
@@ -33,14 +34,14 @@ import (
 func TestGRPCHealth(t *testing.T) {
 	t.Parallel()
 
-	api := NewAPI(Options{})
+	api := newSilenceListAPI(t)
 	api.Update(&config.Config{})
 
 	srv := newTestServer(t, api.Handler(), false)
 	client := srv.Client()
 	client.Timeout = 5 * time.Second
 
-	for _, service := range []string{"", statusv3alphaconnect.StatusServiceName} {
+	for _, service := range []string{"", statusv3alphaconnect.StatusServiceName, silencev3alphaconnect.SilenceServiceName} {
 		t.Run("service="+service, func(t *testing.T) {
 			t.Parallel()
 

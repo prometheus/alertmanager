@@ -21,6 +21,7 @@ package apiconnect
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"sync"
@@ -31,14 +32,24 @@ import (
 	"connectrpc.com/grpchealth"
 	"connectrpc.com/grpcreflect"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promslog"
+	"google.golang.org/protobuf/proto"
 
+	silencev3alpha "github.com/prometheus/alertmanager/api/silence/v3alpha"
+	"github.com/prometheus/alertmanager/api/silence/v3alpha/silencev3alphaconnect"
+	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/silence"
 )
 
 // Options configures the Connect API.
 type Options struct {
+	// Silences provides the long-lived silence store. A nil value disables SilenceService.
+	Silences *silence.Silences
+	// Logger records API errors. A nil value disables logging.
+	Logger *slog.Logger
 	// Peer provides cluster status. A nil value disables clustering.
 	Peer cluster.ClusterPeer
 	// Registerer registers API metrics. A nil value keeps usable metrics without
@@ -71,6 +82,8 @@ type Options struct {
 }
 
 type effectiveOptions struct {
+	silences            *silence.Silences
+	logger              *slog.Logger
 	peer                cluster.ClusterPeer
 	registerer          prometheus.Registerer
 	unaryConcurrency    int
@@ -84,6 +97,10 @@ type effectiveOptions struct {
 }
 
 func (o Options) resolve() effectiveOptions {
+	logger := o.Logger
+	if logger == nil {
+		logger = promslog.NewNopLogger()
+	}
 	defaultConcurrency := max(runtime.GOMAXPROCS(0), 8)
 	unaryConcurrency := o.UnaryConcurrency
 	if unaryConcurrency < 1 {
@@ -94,6 +111,8 @@ func (o Options) resolve() effectiveOptions {
 		streamConcurrency = defaultConcurrency
 	}
 	return effectiveOptions{
+		silences:            o.Silences,
+		logger:              logger,
 		peer:                o.Peer,
 		registerer:          o.Registerer,
 		unaryConcurrency:    unaryConcurrency,
@@ -112,6 +131,7 @@ type procedureDescriptor struct {
 	service    string
 	procedure  string
 	streamType connect.StreamType
+	request    proto.Message
 }
 
 type serviceDescriptor struct {
@@ -181,9 +201,13 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
+	silences        *silence.Silences
+	logger          *slog.Logger
+	now             func() time.Time
 	peer            cluster.ClusterPeer
 	uptime          time.Time
 	admission       *admissionInterceptor
+	validation      connect.UnaryInterceptorFunc
 	peerSnapshotSem chan struct{}
 	services        []serviceDescriptor
 	procedures      map[string]procedureDescriptor
@@ -203,6 +227,9 @@ func NewAPI(opts Options) *API {
 	effective := opts.resolve()
 	metrics := newRPCMetrics(effective.registerer)
 	api := &API{
+		silences:        effective.silences,
+		logger:          effective.logger,
+		now:             time.Now,
 		peer:            effective.peer,
 		uptime:          time.Now(),
 		peerSnapshotSem: make(chan struct{}, 1),
@@ -213,9 +240,13 @@ func NewAPI(opts Options) *API {
 		activeRPCs:      make(map[*rpcLifecycle]struct{}),
 	}
 	api.services = api.serviceDescriptors()
+	var requests []proto.Message
 	for _, service := range api.services {
 		for _, procedure := range service.procedures {
 			api.procedures[procedure.path] = procedure
+			if procedure.request != nil {
+				requests = append(requests, procedure.request)
+			}
 			labels := prometheus.Labels{"service": procedure.service, "procedure": procedure.procedure}
 			if procedure.streamType == connect.StreamTypeUnary {
 				metrics.unaryInFlight.With(labels)
@@ -227,6 +258,7 @@ func NewAPI(opts Options) *API {
 			}
 		}
 	}
+	api.validation = newValidationInterceptor(api.logger, requests...)
 	api.admission = &admissionInterceptor{
 		unary:             make(chan struct{}, effective.unaryConcurrency),
 		streams:           make(chan struct{}, effective.streamConcurrency),
@@ -239,12 +271,13 @@ func NewAPI(opts Options) *API {
 	return api
 }
 
-func procedure(service, name string, streamType connect.StreamType) procedureDescriptor {
+func procedure(service, name string, streamType connect.StreamType, request proto.Message) procedureDescriptor {
 	return procedureDescriptor{
 		path:       "/" + service + "/" + name,
 		service:    service,
 		procedure:  name,
 		streamType: streamType,
+		request:    request,
 	}
 }
 
@@ -252,46 +285,60 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 	status := serviceDescriptor{
 		name: statusv3alphaconnect.StatusServiceName,
 		procedures: []procedureDescriptor{
-			procedure(statusv3alphaconnect.StatusServiceName, "GetStatus", connect.StreamTypeUnary),
+			procedure(statusv3alphaconnect.StatusServiceName, "GetStatus", connect.StreamTypeUnary, &statusv3alpha.GetStatusRequest{}),
 		},
 		handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 			return statusv3alphaconnect.NewStatusServiceHandler(api, opts...)
 		},
 	}
-	advertised := []string{status.name}
+	services := []serviceDescriptor{status}
+	if api.silences != nil {
+		services = append(services, serviceDescriptor{
+			name: silencev3alphaconnect.SilenceServiceName,
+			procedures: []procedureDescriptor{
+				procedure(silencev3alphaconnect.SilenceServiceName, "ListSilences", connect.StreamTypeUnary, &silencev3alpha.ListSilencesRequest{}),
+			},
+			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+				return silencev3alphaconnect.NewSilenceServiceHandler(api, opts...)
+			},
+		})
+	}
+	advertised := make([]string, 0, len(services))
+	for _, service := range services {
+		advertised = append(advertised, service.name)
+	}
 	checker := grpchealth.NewStaticChecker(advertised...)
 	reflector := grpcreflect.NewStaticReflector(advertised...)
-	return []serviceDescriptor{
-		status,
-		{
+	return append(services,
+		serviceDescriptor{
 			name: grpchealth.HealthV1ServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpchealth.HealthV1ServiceName, "Check", connect.StreamTypeUnary),
-				procedure(grpchealth.HealthV1ServiceName, "Watch", connect.StreamTypeServer),
+				procedure(grpchealth.HealthV1ServiceName, "Check", connect.StreamTypeUnary, nil),
+				procedure(grpchealth.HealthV1ServiceName, "Watch", connect.StreamTypeServer, nil),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpchealth.NewHandler(checker, opts...)
 			},
 		},
-		{
+		serviceDescriptor{
 			name: grpcreflect.ReflectV1ServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpcreflect.ReflectV1ServiceName, "ServerReflectionInfo", connect.StreamTypeBidi),
+				procedure(grpcreflect.ReflectV1ServiceName, "ServerReflectionInfo", connect.StreamTypeBidi, nil),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpcreflect.NewHandlerV1(reflector, opts...)
 			},
 		},
-		{
+		serviceDescriptor{
 			name: grpcreflect.ReflectV1AlphaServiceName,
 			procedures: []procedureDescriptor{
-				procedure(grpcreflect.ReflectV1AlphaServiceName, "ServerReflectionInfo", connect.StreamTypeBidi),
+				procedure(grpcreflect.ReflectV1AlphaServiceName, "ServerReflectionInfo", connect.StreamTypeBidi, nil),
 			},
 			handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
 				return grpcreflect.NewHandlerV1Alpha(reflector, opts...)
 			},
 		},
-	}
+	)
 }
 
 type rpcLifecycleContextKey struct{}
@@ -452,6 +499,14 @@ func (i *admissionInterceptor) observe(desc procedureDescriptor, started time.Ti
 	i.metrics.streamLifetime.With(labels).Observe(time.Since(started).Seconds())
 }
 
+func internalError(ctx context.Context, logger *slog.Logger, message string, cause error) error {
+	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
+		return normalizeContextError(ctx, cause)
+	}
+	logger.ErrorContext(ctx, message, "err", cause)
+	return connect.NewError(connect.CodeInternal, errors.New(message))
+}
+
 func normalizeContextError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
@@ -476,7 +531,19 @@ func (i *admissionInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFu
 		state := unaryRequestStateFromContext(ctx)
 		state.lifecycle.decoded.Store(true)
 		state.lifecycle.setReadDeadline(time.Time{})
-		response, err := next(ctx, req)
+		var response connect.AnyResponse
+		err := ctx.Err()
+		if err == nil {
+			response, err = next(ctx, req)
+		}
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			response = nil
+		} else if response != nil {
+			response.Header().Set("Cache-Control", "no-store")
+		}
 		err = normalizeContextError(ctx, err)
 		i.observe(desc, state.started, err)
 		state.observed.Store(true)
@@ -743,7 +810,7 @@ func (api *API) buildHandler(opts ...connect.HandlerOption) http.Handler {
 	opts = append([]connect.HandlerOption{
 		connect.WithReadMaxBytes(api.readMaxBytes),
 		connect.WithSendMaxBytes(api.sendMaxBytes),
-		connect.WithInterceptors(api.admission),
+		connect.WithInterceptors(api.admission, api.validation),
 	}, opts...)
 
 	mux := http.NewServeMux()

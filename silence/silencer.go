@@ -51,12 +51,14 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	ctx, span := tracer.StartSilencerMutes(ctx, fp)
 	defer span.End()
 
-	// Track the silences to set on marker
-	var markedSilences []string
+	// Keep the previous marker state if a silence query fails.
+	var (
+		markedSilences []string
+		queryFailed    bool
+	)
 	defer func() {
-		// Get the marker from context and set the silences on it if any.
 		m, ok := marker.FromContext(ctx)
-		if ok {
+		if ok && !queryFailed {
 			m.SetSilenced(fp, markedSilences)
 		}
 	}()
@@ -92,6 +94,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
+			queryFailed = true
 			tracing.RecordError(span, err)
 			s.logger.Error(
 				"Querying old silences failed, alerts might not get silenced correctly",
@@ -101,10 +104,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	}
 
 	if !cacheIsUpToDate {
-		// New silences have been added since the last time the marker was updated. Do a full
-		// query for any silences newer than the markerVersion that match the lset.
-		// On this branch we WILL update newVersion since we can be sure we've seen any silences
-		// newer than markerVersion.
+		// Query silences added since the cached version that match lset.
 		var err error
 		newSils, newVersion, err = s.silences.QueryAt(
 			ctx, now,
@@ -113,6 +113,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QMatches(lset.LabelSet),
 		)
 		if err != nil {
+			queryFailed = true
 			tracing.RecordError(span, err)
 			s.logger.Error(
 				"Querying silences failed, alerts might not get silenced correctly",
@@ -127,7 +128,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	totalSilences := len(oldSils) + len(newSils)
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
-		s.cache.set(fp, newCacheEntry(newVersion))
+		if !queryFailed {
+			s.cache.set(fp, newCacheEntry(newVersion))
+		}
 		tracing.EventNoSilences(span, totalSilences)
 		return false
 	}
@@ -174,7 +177,9 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 		"pending", len(allIDs)-len(activeIDs),
 	)
 
-	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
+	if !queryFailed {
+		s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
+	}
 
 	mutes := len(activeIDs) > 0
 	if mutes {
