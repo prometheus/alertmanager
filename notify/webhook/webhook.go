@@ -42,6 +42,9 @@ type Notifier struct {
 
 // New returns a new Webhook.
 func New(conf *WebhookConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("url_file", conf.URLFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err

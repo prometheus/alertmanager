@@ -86,6 +86,9 @@ type teamsMessage struct {
 
 // New returns a new notifier that uses the Microsoft Teams Power Platform connector.
 func New(c *MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("webhook_url_file", c.WebhookURLFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "msteamsv2", httpOpts...)
 	if err != nil {
 		return nil, err

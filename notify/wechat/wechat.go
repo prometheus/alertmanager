@@ -72,6 +72,9 @@ type weChatResponse struct {
 
 // New returns a new Wechat notifier.
 func New(c *WechatConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("api_secret_file", c.APISecretFile); err != nil {
+		return nil, err
+	}
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "wechat", httpOpts...)
 	if err != nil {
 		return nil, err

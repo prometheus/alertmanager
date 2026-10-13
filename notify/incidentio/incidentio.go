@@ -47,6 +47,10 @@ type Notifier struct {
 
 // New returns a new incident.io notifier.
 func New(conf *IncidentioConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if err := notify.CheckFileReadable("url_file", conf.URLFile); err != nil {
+		return nil, err
+	}
+
 	// conf.HTTPConfig is likely to be the global shared HTTPConfig, so we take a
 	// copy to avoid modifying it.
 	httpConfig := *conf.HTTPConfig
