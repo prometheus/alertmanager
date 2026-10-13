@@ -216,8 +216,9 @@ func (n *Notifier) notifyV2(
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
-	if n.conf.Severity == "" {
-		n.conf.Severity = "error"
+	severity := n.conf.Severity
+	if severity == "" {
+		severity = "error"
 	}
 
 	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
@@ -245,7 +246,7 @@ func (n *Notifier) notifyV2(
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
 			Source:        tmpl(n.conf.Source),
-			Severity:      tmpl(n.conf.Severity),
+			Severity:      tmpl(severity),
 			CustomDetails: details,
 			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
