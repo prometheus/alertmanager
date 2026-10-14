@@ -198,7 +198,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	// Start timer goroutine
 	d.finished.Go(func() {
-		<-d.startTimer.C
+		select {
+		case <-d.startTimer.C:
+		case <-d.ctx.Done():
+			// Stopped before the start time: Stop must not wait for it.
+			d.startTimer.Stop()
+			return
+		}
 
 		if d.state.CompareAndSwap(DispatcherStateWaitingToStart, DispatcherStateRunning) {
 			d.logger.Debug("started", "state", "running")
