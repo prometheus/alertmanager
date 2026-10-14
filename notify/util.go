@@ -301,6 +301,12 @@ const (
 	ContextDeadlineExceededReason
 	AuthErrorReason
 	RateLimitedReason
+	TemplateErrorReason
+	FileReadErrorReason
+	ConfigErrorReason
+	EncodingErrorReason
+	RequestErrorReason
+	MissingContextReason
 )
 
 func (s Reason) String() string {
@@ -319,6 +325,18 @@ func (s Reason) String() string {
 		return "authError"
 	case RateLimitedReason:
 		return "rateLimited"
+	case TemplateErrorReason:
+		return "templateError"
+	case FileReadErrorReason:
+		return "fileReadError"
+	case ConfigErrorReason:
+		return "configError"
+	case EncodingErrorReason:
+		return "encodingError"
+	case RequestErrorReason:
+		return "requestError"
+	case MissingContextReason:
+		return "missingContext"
 	default:
 		panic(fmt.Sprintf("unknown Reason: %d", s))
 	}
@@ -333,6 +351,12 @@ var possibleFailureReasonCategory = []string{
 	ContextDeadlineExceededReason.String(),
 	AuthErrorReason.String(),
 	RateLimitedReason.String(),
+	TemplateErrorReason.String(),
+	FileReadErrorReason.String(),
+	ConfigErrorReason.String(),
+	EncodingErrorReason.String(),
+	RequestErrorReason.String(),
+	MissingContextReason.String(),
 }
 
 // GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
