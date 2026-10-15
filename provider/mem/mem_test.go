@@ -359,7 +359,13 @@ func TestAlertsStoreCallback(t *testing.T) {
 		synctest.Wait()
 		require.Equal(t, int32(0), cb.alerts.Load(), "unexpected number of alerts in the store")
 
+		// With the limit freed up, the retry stores alert4: the callback
+		// counts it and it can be retrieved from the store.
 		require.NoError(t, alerts.Put(ctx, alert4))
+		require.Equal(t, int32(1), cb.alerts.Load(), "unexpected number of alerts in the store")
+		a, err = alerts.Get(alert4.Fingerprint())
+		require.NoError(t, err)
+		require.NoError(t, alertDiff(a, alert4))
 	})
 }
 
