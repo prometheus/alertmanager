@@ -303,6 +303,9 @@ route:
   - matchers: ['team=both']
     active_time_intervals: ['weekdays']
     mute_time_intervals: ['weekends']
+  - matchers: ['team=overlap']
+    active_time_intervals: ['weekdays', 'weekends']
+    mute_time_intervals: ['weekends']
   - matchers: ['team=none']
 
 time_intervals:
@@ -337,7 +340,7 @@ time_intervals:
 	// intervals are evaluated in UTC unless they set a location.
 	require.Equal(t, time.Saturday, time.Now().UTC().Weekday())
 
-	teams := []string{"mute", "active", "both", "none"}
+	teams := []string{"mute", "active", "both", "overlap", "none"}
 	inputAlerts := make([]*alert.Alert, 0, len(teams))
 	for _, team := range teams {
 		inputAlerts = append(inputAlerts, newAlert(model.LabelSet{"alertname": "Foo", "team": model.LabelValue(team)}))
@@ -369,12 +372,14 @@ time_intervals:
 
 	// Saturday: inside weekends, outside weekdays. The route with both kinds
 	// of time intervals reports the active ones, like the pipeline, which
-	// stops at the TimeActiveStage.
+	// stops at the TimeActiveStage. The overlapping route is active because
+	// one active interval matches, but is still muted by weekends.
 	require.Equal(t, map[string][]string{
-		"mute":   {"weekends"},
-		"active": {"weekdays"},
-		"both":   {"weekdays"},
-		"none":   nil,
+		"mute":    {"weekends"},
+		"active":  {"weekdays"},
+		"both":    {"weekdays"},
+		"overlap": {"weekends"},
+		"none":    nil,
 	}, mutedBy(t))
 
 	// Cross into Monday. Nothing is flushed, but the groups are not muted
@@ -384,10 +389,11 @@ time_intervals:
 	require.Equal(t, time.Monday, time.Now().UTC().Weekday())
 	require.Len(t, recorder.Alerts(), len(teams))
 	require.Equal(t, map[string][]string{
-		"mute":   nil,
-		"active": nil,
-		"both":   nil,
-		"none":   nil,
+		"mute":    nil,
+		"active":  nil,
+		"both":    nil,
+		"overlap": nil,
+		"none":    nil,
 	}, mutedBy(t))
 
 	// And back into the weekend.
@@ -396,10 +402,11 @@ time_intervals:
 	require.Equal(t, time.Saturday, time.Now().UTC().Weekday())
 	require.Len(t, recorder.Alerts(), len(teams))
 	require.Equal(t, map[string][]string{
-		"mute":   {"weekends"},
-		"active": {"weekdays"},
-		"both":   {"weekdays"},
-		"none":   nil,
+		"mute":    {"weekends"},
+		"active":  {"weekdays"},
+		"both":    {"weekdays"},
+		"overlap": {"weekends"},
+		"none":    nil,
 	}, mutedBy(t))
 }
 

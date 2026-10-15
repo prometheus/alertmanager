@@ -29,10 +29,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/labelset"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/timeinterval"
 )
 
 // firingAlert returns a firing alert identified by the given alertname.
@@ -216,6 +221,121 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 			require.True(t, ok, "MutedAlerts should be in the context")
 			require.Equal(t, alertHashSet(hashAlert(muted)), mutedHashes)
 		})
+	}
+}
+
+func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
+	t.Parallel()
+
+	for _, feature := range []struct {
+		name  string
+		flags featurecontrol.Flagger
+	}{
+		{name: "feature disabled", flags: featurecontrol.NoopFlags{}},
+		{name: "feature enabled", flags: mutedAlertsFlags{}},
+	} {
+		for _, test := range []struct {
+			name                    string
+			active, mute, wantMuted []string
+		}{
+			{name: "active interval only", active: []string{"business_hours"}, wantMuted: []string{"business_hours"}},
+			{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMuted: []string{"business_hours"}},
+			{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMuted: []string{"business_hours"}},
+			{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMuted: []string{"night"}},
+			{name: "mute interval only", mute: []string{"night"}, wantMuted: []string{"night"}},
+		} {
+			t.Run(feature.name+"/"+test.name, func(t *testing.T) {
+				t.Parallel()
+				logger := promslog.NewNopLogger()
+				reg := prometheus.NewRegistry()
+				recorder := eventrecorder.NopRecorder()
+				silences, err := silence.New(silence.Options{Logger: logger, Metrics: reg})
+				require.NoError(t, err)
+				intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
+					"business_hours": {{Times: []timeinterval.TimeRange{{StartMinute: 9 * 60, EndMinute: 17 * 60}}}},
+					"lunch":          {{Times: []timeinterval.TimeRange{{StartMinute: 12 * 60, EndMinute: 13 * 60}}}},
+					"night":          {{Times: []timeinterval.TimeRange{{StartMinute: 20 * 60, EndMinute: 21 * 60}}}},
+				})
+
+				var (
+					now      time.Time
+					logged   bool
+					notified []*alert.Alert
+				)
+				notificationLog := &testNflog{qerr: nflog.ErrNotFound}
+				notificationLog.logFunc = func(_ *nflogpb.Receiver, _ string, firing, resolved, muted []uint64, _ *nflog.Store, _ time.Duration) error {
+					logged = true
+					notificationLog.qerr = nil
+					notificationLog.qres = []*nflogpb.Entry{{
+						FiringAlerts: firing, ResolvedAlerts: resolved, MutedAlerts: muted, Timestamp: timestamppb.New(now),
+					}}
+					return nil
+				}
+				integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) NotifyVerdict {
+					notified = append(notified, alerts...)
+					return Success()
+				}), sendResolved(true), "test", 0, "test")
+				pipeline := NewPipelineBuilder(reg, feature.flags, recorder).New(
+					map[string][]Integration{"test": {integration}},
+					func() time.Duration { return 0 },
+					inhibit.NewInhibitor(nil, nil, logger, recorder),
+					silence.NewSilencer(silences, logger, recorder),
+					intervener, notificationLog, nil,
+				)
+				a := firingAlert("test")
+				am := marker.NewAlertMarker()
+
+				// Flush through two muted/unmuted cycles. Query-time reasons
+				// and delivery must agree regardless of the feature flag.
+				for _, flush := range []struct {
+					day, hour int
+					muted     bool
+				}{
+					{day: 1, hour: 20, muted: true},
+					{day: 2, hour: 10},
+					{day: 2, hour: 20, muted: true},
+					{day: 3, hour: 10},
+				} {
+					now = time.Date(2026, time.January, flush.day, flush.hour, 30, 0, 0, time.UTC)
+					logged = false
+					notified = nil
+					ctx := marker.WithContext(context.Background(), am)
+					ctx = WithNow(ctx, now)
+					ctx = WithReceiverName(ctx, "test")
+					ctx = WithGroupKey(ctx, "group")
+					ctx = WithRouteID(ctx, "route")
+					// Short enough that the unmuted flush on day 3 repeats the
+					// notification even when the feature-disabled pipeline did not
+					// touch nflog the night before.
+					ctx = WithRepeatInterval(ctx, time.Hour)
+					ctx = WithActiveTimeIntervals(ctx, test.active)
+					ctx = WithMuteTimeIntervals(ctx, test.mute)
+
+					_, remaining, err := pipeline.Exec(ctx, logger, a)
+					require.NoError(t, err)
+					names, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
+					require.NoError(t, err)
+					require.Equal(t, flush.muted, len(names) > 0)
+					// Muted flushes only reach nflog with the feature enabled.
+					wantLogged := !flush.muted || feature.flags.EnableMutedAlertsInNflog()
+					require.Equal(t, wantLogged, logged)
+					if flush.muted {
+						require.Equal(t, test.wantMuted, names)
+						require.Empty(t, remaining)
+						require.Empty(t, notified)
+						if logged {
+							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].MutedAlerts)
+							require.Empty(t, notificationLog.qres[0].FiringAlerts)
+						}
+					} else {
+						require.Empty(t, names)
+						require.Equal(t, []*alert.Alert{a}, notified)
+						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
+						require.Empty(t, notificationLog.qres[0].MutedAlerts)
+					}
+				}
+			})
+		}
 	}
 }
 
