@@ -57,10 +57,17 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics, recorder e
 }
 
 func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	// Every alert in the group was muted, so there is nothing to deliver. The
-	// stages after this one still run, to record the state of the group.
-	if len(alerts) == 0 {
-		return ctx, alerts, nil
+	// Every alert in the group was muted, so there is nothing left to deliver.
+	// An integration whose mute_action asks for the close is told the group is
+	// over anyway; every other one is told nothing. Later stages run either way,
+	// to record the group's state.
+	closing := len(alerts) == 0
+	if closing {
+		resolved := r.mutedGroupAsResolved(ctx)
+		if len(resolved) == 0 {
+			return ctx, alerts, nil
+		}
+		alerts = resolved
 	}
 
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
@@ -74,7 +81,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	)
 	defer span.End()
 
-	ctx, alerts, failureReason, err := r.exec(ctx, l, alerts...)
+	ctx, alerts, failureReason, err := r.exec(ctx, l, closing, alerts...)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
@@ -84,24 +91,85 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	return ctx, alerts, err
 }
 
-func (r RetryStage) exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
+// mutedGroupAsResolved returns the alerts of a group that muting has emptied, as
+// resolved, for an integration whose mute_action asks to be told the group is
+// over. It returns nothing on any flush but the one that closes the group: the
+// notification sequence is closed by the flush that ends it and reports itself
+// closed only then.
+//
+// Every muted alert is returned either way. Which close counts is what separates
+// the two actions, and the two closes differ only in whether the group can still
+// hold an alert that needs an end invented for it.
+//
+// Whether the receiver was ever notified about the group is not checked here.
+func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
+	seq, ok := NotificationSequenceFor(ctx)
+	if !ok {
+		return nil
+	}
+
+	switch seq {
+	case SequenceClosedResolved:
+		if !r.integration.SendsResolvedWhenMuted() {
+			return nil
+		}
+		// The group closed because every alert in it resolved. The dedup stage
+		// counts muted alerts among the firing ones, so reaching this close means
+		// none is still firing and each already carries its own end.
+		return mutedAlertDetails(ctx)
+
+	case SequenceClosedMuted:
+		if !r.integration.TreatsMuteAsResolved() {
+			return nil
+		}
+		// The group closed because muting hid it while it was still firing, so it
+		// can hold a mix: alerts that resolved out of sight keep their own end,
+		// and those still firing are given the time the group went quiet.
+		return endedAt(mutedAlertDetails(ctx), utcNow())
+
+	default:
+		return nil
+	}
+}
+
+// endedAt returns alerts, with any that has not resolved replaced by a copy
+// ending at end. The originals are left alone: they are still firing in the
+// group, and only this integration is being told the group is over.
+func endedAt(alerts []*alert.Alert, end time.Time) []*alert.Alert {
+	out := make([]*alert.Alert, 0, len(alerts))
+	for _, a := range alerts {
+		if !a.Resolved() {
+			ended := *a
+			ended.EndsAt = end
+			a = &ended
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, Reason, error) {
 	var sent alert.AlertSlice
 
-	// If we shouldn't send notifications for resolved alerts, but there are only
-	// resolved alerts, report them all as successfully notified (we still want the
-	// notification log to log them for the next run of DedupStage).
-	if !r.integration.SendResolved() {
-		firing, ok := FiringAlerts(ctx)
-		if !ok {
+	// If we shouldn't send notifications for resolved alerts, and that leaves
+	// nothing to send, report them all as successfully notified (we still want
+	// the notification log to log them for the next run of DedupStage). What is
+	// left is decided by the alerts in hand rather than by the firing alerts in
+	// the context, which cover the whole group: with the muted alerts feature
+	// those include alerts a mute stage removed from this pipeline.
+	// The close of a muted group is delivered whole: the integration asked for it
+	// with mute_action, so the send_resolved filter does not apply.
+	if !closing && !r.integration.SendResolved() {
+		if _, ok := FiringAlerts(ctx); !ok {
 			return ctx, nil, DefaultReason, errors.New("firing alerts missing")
-		}
-		if len(firing) == 0 {
-			return ctx, alerts, DefaultReason, nil
 		}
 		for _, a := range alerts {
 			if a.Status() != model.AlertResolved {
 				sent = append(sent, a)
 			}
+		}
+		if len(sent) == 0 {
+			return ctx, alerts, DefaultReason, nil
 		}
 	} else {
 		sent = alerts

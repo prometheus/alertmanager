@@ -16,26 +16,17 @@ package nflogpb
 // IsFiringSubset returns whether the given subset is a subset of the alerts
 // that were firing at the time of the last notification.
 func (m *Entry) IsFiringSubset(subset map[uint64]struct{}) bool {
-	set := map[uint64]struct{}{}
-	for i := range m.FiringAlerts {
-		set[m.FiringAlerts[i]] = struct{}{}
-	}
-
-	return isSubset(set, subset)
+	return IsSubset(m.FiringAlertSet(), subset)
 }
 
 // IsResolvedSubset returns whether the given subset is a subset of the alerts
 // that were resolved at the time of the last notification.
 func (m *Entry) IsResolvedSubset(subset map[uint64]struct{}) bool {
-	set := map[uint64]struct{}{}
-	for i := range m.ResolvedAlerts {
-		set[m.ResolvedAlerts[i]] = struct{}{}
-	}
-
-	return isSubset(set, subset)
+	return IsSubset(setOf(m.ResolvedAlerts, nil), subset)
 }
 
-func isSubset(set, subset map[uint64]struct{}) bool {
+// IsSubset returns whether every member of subset is a member of set.
+func IsSubset(set, subset map[uint64]struct{}) bool {
 	for k := range subset {
 		_, exists := set[k]
 		if !exists {
@@ -44,4 +35,34 @@ func isSubset(set, subset map[uint64]struct{}) bool {
 	}
 
 	return true
+}
+
+// NotifiedFiringAlerts returns the firing alerts the receiver was shown at the
+// last notification: those that were firing and not muted.
+func (m *Entry) NotifiedFiringAlerts() map[uint64]struct{} {
+	return setOf(m.FiringAlerts, m.MutedAlerts)
+}
+
+// NotifiedResolvedAlerts returns the resolved alerts the receiver was shown at
+// the last notification.
+func (m *Entry) NotifiedResolvedAlerts() map[uint64]struct{} {
+	return setOf(m.ResolvedAlerts, m.MutedAlerts)
+}
+
+// FiringAlertSet returns the alerts that were firing at the last notification,
+// muted ones included.
+func (m *Entry) FiringAlertSet() map[uint64]struct{} {
+	return setOf(m.FiringAlerts, nil)
+}
+
+// setOf turns hashes into a set, leaving out the ones in exclude.
+func setOf(hashes, exclude []uint64) map[uint64]struct{} {
+	set := make(map[uint64]struct{}, len(hashes))
+	for _, h := range hashes {
+		set[h] = struct{}{}
+	}
+	for _, h := range exclude {
+		delete(set, h)
+	}
+	return set
 }
