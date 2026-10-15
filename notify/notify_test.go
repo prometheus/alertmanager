@@ -14,7 +14,9 @@
 package notify
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -595,35 +597,47 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 }
 
 func TestRetryStageWithContextCanceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	t.Parallel()
 
-	i := Integration{
-		name: "test",
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) NotifyVerdict {
-			cancel()
-			return Retry(0, errors.New("request failed: context canceled"), DefaultReason)
-		}),
-		rs: sendResolved(false),
+	for _, tc := range []struct {
+		reason, expectedReason Reason
+		errMsg                 string
+	}{
+		{DefaultReason, ContextCanceledReason, "notify retry canceled after 1 attempts: context canceled"},
+		{RequestErrorReason, RequestErrorReason, "notify retry canceled after 1 attempts: request failed: context canceled"},
+	} {
+		t.Run(tc.reason.String(), func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			i := Integration{
+				name: "test",
+				notifier: notifierFunc(func(ctx context.Context, alerts ...*alert.Alert) NotifyVerdict {
+					cancel()
+					return Retry(0, errors.New("request failed: context canceled"), tc.reason)
+				}),
+				rs: sendResolved(false),
+			}
+			r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
+			alerts := []*alert.Alert{
+				alert.New(model.Alert{EndsAt: time.Now().Add(time.Hour)}, time.Time{}, false),
+			}
+			ctx = WithFiringAlerts(ctx, []uint64{0})
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+			// Notify with a non-recoverable error.
+			resctx, _, err := r.Exec(ctx, logger, alerts...)
+			require.ErrorContains(t, err, tc.errMsg)
+			require.NotNil(t, resctx)
+			require.Equal(t, 1.0, prom_testutil.ToFloat64(r.metrics.numTotalFailedNotifications.WithLabelValues(i.Name(), tc.expectedReason.String())))
+			var entry map[string]any
+			require.NoError(t, json.NewDecoder(&logs).Decode(&entry))
+			require.Equal(t, "DEBUG", entry["level"])
+			require.Equal(t, tc.expectedReason.String(), entry["reason"])
+		})
 	}
-	r := NewRetryStage(i, "", NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}), eventrecorder.NopRecorder())
-
-	alerts := []*alert.Alert{
-		alert.New(model.Alert{
-			EndsAt: time.Now().Add(time.Hour),
-		}, time.Time{}, false),
-	}
-
-	ctx = WithFiringAlerts(ctx, []uint64{0})
-
-	// Notify with a non-recoverable error.
-	resctx, _, err := r.Exec(ctx, promslog.NewNopLogger(), alerts...)
-	counter := r.metrics.numTotalFailedNotifications
-
-	require.Equal(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), ContextCanceledReason.String()))))
-	require.Contains(t, err.Error(), "notify retry canceled after 1 attempts: context canceled")
-
-	require.Error(t, err)
-	require.NotNil(t, resctx)
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
