@@ -15,6 +15,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,7 +33,6 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -67,8 +67,6 @@ func newTestReloader(t *testing.T) *reloader {
 	require.NoError(t, err)
 	silencer := silence.NewSilencer(silences, logger, rec)
 
-	groupMarker := marker.NewGroupMarker()
-
 	nflogger, err := nflog.New(nflog.Options{
 		SnapshotFile: filepath.Join(dir, "nflog"),
 		Logger:       logger,
@@ -83,7 +81,6 @@ func newTestReloader(t *testing.T) *reloader {
 	apih, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
-		GroupMutedFunc:  groupMarker.Muted,
 		Logger:          logger,
 		Registry:        reg,
 		RequestDuration: m.requestDuration,
@@ -100,7 +97,6 @@ func newTestReloader(t *testing.T) *reloader {
 		logger:                      logger,
 		alerts:                      alerts,
 		silencer:                    silencer,
-		groupMarker:                 groupMarker,
 		notificationLog:             nflogger,
 		eventRecorder:               rec,
 		apih:                        apih,
@@ -164,6 +160,63 @@ func TestReloader_ErrorLeavesPreviousStateIntact(t *testing.T) {
 	require.Error(t, r.reload(conf))
 	require.Same(t, dispatcher1, r.dispatcher.Load(), "dispatcher must be unchanged after a failed reload")
 	require.Same(t, inh1, r.inhibitor.Load(), "inhibitor must be unchanged after a failed reload")
+}
+
+// TestReloader_GroupMutedByFollowsConfig checks that whether a group is muted
+// is always evaluated against the time intervals of the same configuration
+// as the group's route, before and after a reload that renames the interval.
+func TestReloader_GroupMutedByFollowsConfig(t *testing.T) {
+	r := newTestReloader(t)
+	t.Cleanup(func() { _ = r.stop() })
+
+	const confTmpl = `
+route:
+  receiver: team-X
+  group_by: ['alertname']
+  group_wait: 1h
+  routes:
+  - receiver: team-X
+    mute_time_intervals: ['%s']
+receivers:
+- name: team-X
+time_intervals:
+- name: %s
+  time_intervals:
+  - weekdays: ['monday:sunday']
+`
+	load := func(name string) *config.Config {
+		conf, err := config.Load(fmt.Sprintf(confTmpl, name, name))
+		require.NoError(t, err)
+		return conf
+	}
+	mutedBy := func(t *testing.T) []string {
+		t.Helper()
+		var groups dispatch.AlertGroups
+		// The dispatcher ingests alerts asynchronously after each reload.
+		require.Eventually(t, func() bool {
+			var err error
+			groups, _, err = r.groups(context.Background(),
+				func(*dispatch.Route) bool { return true },
+				func(*alert.Alert, time.Time) bool { return true },
+			)
+			return err == nil && len(groups) == 1
+		}, 5*time.Second, 10*time.Millisecond)
+		return groups[0].MutedBy
+	}
+
+	require.NoError(t, r.reload(load("always_old")))
+	now := time.Now()
+	require.NoError(t, r.alerts.Put(context.Background(), alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "Foo"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, now, false)))
+	require.Equal(t, []string{"always_old"}, mutedBy(t))
+
+	// The reload renames the interval. The new dispatcher resolves the
+	// route's new interval name against the new definitions.
+	require.NoError(t, r.reload(load("always_new")))
+	require.Equal(t, []string{"always_new"}, mutedBy(t))
 }
 
 func TestReloader_StopIsNilSafe(t *testing.T) {

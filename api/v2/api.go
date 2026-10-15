@@ -65,12 +65,11 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	groupMutedFunc groupMutedFunc
-	uptime         time.Time
+	peer        cluster.ClusterPeer
+	silences    *silence.Silences
+	alerts      provider.Alerts
+	alertGroups groupsFn
+	uptime      time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -88,7 +87,6 @@ type API struct {
 
 type (
 	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
-	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	setAlertStatusFn func(ctx context.Context, labels labelset.LabelSet)
 )
 
@@ -96,21 +94,19 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l *slog.Logger,
 	r prometheus.Registerer,
 ) (*API, error) {
 	api := API{
-		alerts:         alerts,
-		alertGroups:    gf,
-		groupMutedFunc: gmf,
-		peer:           peer,
-		silences:       silences,
-		logger:         l,
-		m:              metrics.NewAlerts(r),
-		uptime:         time.Now(),
+		alerts:      alerts,
+		alertGroups: gf,
+		peer:        peer,
+		silences:    silences,
+		logger:      l,
+		m:           metrics.NewAlerts(r),
+		uptime:      time.Now(),
 	}
 
 	// Load embedded swagger file.
@@ -497,18 +493,19 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
-	// Snapshot setAlertStatus under the lock so we can predict the status
-	// for each alert without holding api.mtx. We predict at query time
-	// rather than reading the group's actual marker, so the response is
-	// stable across calls regardless of whether the notification pipeline
-	// has run in between (assuming no new alerts/silences/inhibits).
+	// Snapshot setAlertStatus under the lock so we can compute the status
+	// of each alert without holding api.mtx. Statuses are computed at query
+	// time rather than read from the notification pipeline, so the response
+	// reflects the current silences and inhibitions regardless of whether
+	// the pipeline has run in between. Likewise, the dispatcher computes
+	// MutedBy from the current time when it lists the groups.
 	api.mtx.RLock()
 	setAlertStatus := api.setAlertStatus
 	api.mtx.RUnlock()
 
 	for _, alertGroup := range alertGroups {
-		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
-		if !*params.Muted && isMuted {
+		mutedBy := alertGroup.MutedBy
+		if !*params.Muted && len(mutedBy) > 0 {
 			continue
 		}
 
@@ -522,7 +519,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		for _, alrt := range alertGroup.Alerts {
 			fp := alrt.Fingerprint()
 			receivers := allReceivers[fp]
-			// Predict status per (alert, group) using a fresh marker so
+			// Compute the status per (alert, group) using a fresh marker so
 			// writes don't leak across alerts or groups.
 			status := predictAlertStatus(ctx, setAlertStatus, alrt)
 			apiAlert := AlertToOpenAPIAlert(alrt, status, receivers, mutedBy)

@@ -55,17 +55,13 @@ type API struct {
 	inFlightSem              chan struct{}
 }
 
-// Options for the creation of an API object. Alerts, Silences, AlertStatusFunc
-// and GroupMutedFunc are mandatory. The zero value for everything else is a safe
-// default.
+// Options for the creation of an API object. Alerts, Silences and GroupFunc
+// are mandatory. The zero value for everything else is a safe default.
 type Options struct {
 	// Alerts to be used by the API. Mandatory.
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences
-	// GroupMutedFunc is used be the API to know if an alert is muted.
-	// Mandatory.
-	GroupMutedFunc func(routeID, groupKey string) ([]string, bool)
 	// Peer from the gossip cluster. If nil, no clustering will be used.
 	Peer cluster.ClusterPeer
 	// Timeout for HTTP requests and Connect unary RPCs. The zero value and
@@ -172,9 +168,6 @@ func (o Options) validate() error {
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
 	}
-	if o.GroupMutedFunc == nil {
-		return errors.New("mandatory field GroupMutedFunc not set")
-	}
 	if o.GroupFunc == nil {
 		return errors.New("mandatory field GroupFunc not set")
 	}
@@ -193,7 +186,6 @@ func New(opts Options) (*API, error) {
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
 		opts.GroupFunc,
-		opts.GroupMutedFunc,
 		opts.Silences,
 		opts.Peer,
 		effective.logger.With("version", "v2"),
