@@ -22,6 +22,9 @@ package e2e
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -73,11 +76,18 @@ type instance struct {
 	baseURL     string
 	routePrefix string
 	httpClient  *http.Client
-	h2cClient   *http.Client
+	rpcClient   *http.Client
+	tlsConfig   *tls.Config
+}
+
+type instanceOptions struct {
+	routePrefix  string
+	tlsEnabled   bool
+	disableHTTP2 bool
 }
 
 // startInstance boots an Alertmanager and stops it when the test ends.
-func startInstance(t testing.TB, routePrefix string) *instance {
+func startInstance(t testing.TB, options instanceOptions) *instance {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -87,11 +97,28 @@ func startInstance(t testing.TB, routePrefix string) *instance {
 	addrs := []string{"127.0.0.1:0"}
 	systemd := false
 	webCfg := ""
+	var clientTLS *tls.Config
+	if options.tlsEnabled {
+		certDir, err := filepath.Abs(filepath.Join("..", "..", "cluster", "testdata", "certs"))
+		require.NoError(t, err)
+		ca, err := os.ReadFile(filepath.Join(certDir, "ca.pem"))
+		require.NoError(t, err)
+		webCfg = filepath.Join(dir, "web.yml")
+		require.NoError(t, os.WriteFile(webCfg, []byte(fmt.Sprintf(`tls_server_config:
+  cert_file: %q
+  key_file: %q
+http_server_config:
+  http2: %t
+`, filepath.Join(certDir, "node1.pem"), filepath.Join(certDir, "node1-key.pem"), !options.disableHTTP2)), 0o600))
+		roots := x509.NewCertPool()
+		require.True(t, roots.AppendCertsFromPEM(ca))
+		clientTLS = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	}
 
 	opts := app.DefaultOptions()
 	opts.ConfigFile = configPath
 	opts.DataDir = dir
-	opts.RoutePrefix = routePrefix
+	opts.RoutePrefix = options.routePrefix
 	opts.WebConfig = &web.FlagConfig{
 		WebListenAddresses: &addrs,
 		WebSystemdSocket:   &systemd,
@@ -111,19 +138,33 @@ func startInstance(t testing.TB, routePrefix string) *instance {
 	require.NoError(t, a.Start())
 
 	client := &http.Client{Timeout: requestTimeout}
-	t.Cleanup(client.CloseIdleConnections)
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
-	h2cTransport := &http.Transport{Protocols: protocols}
-	h2cClient := &http.Client{Transport: h2cTransport, Timeout: requestTimeout}
-	t.Cleanup(h2cTransport.CloseIdleConnections)
+	var rpcClient *http.Client
+	scheme := "http://"
+	if options.tlsEnabled {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		transport := &http.Transport{TLSClientConfig: clientTLS, Protocols: protocols}
+		client = &http.Client{Transport: transport, Timeout: requestTimeout}
+		rpcClient = client
+		scheme = "https://"
+		t.Cleanup(transport.CloseIdleConnections)
+	} else {
+		t.Cleanup(client.CloseIdleConnections)
+		protocols := new(http.Protocols)
+		protocols.SetUnencryptedHTTP2(true)
+		transport := &http.Transport{Protocols: protocols}
+		rpcClient = &http.Client{Transport: transport, Timeout: requestTimeout}
+		t.Cleanup(transport.CloseIdleConnections)
+	}
 
 	inst := &instance{
 		app:         a,
-		baseURL:     "http://" + a.Addr(),
-		routePrefix: routePrefix,
+		baseURL:     scheme + a.Addr(),
+		routePrefix: options.routePrefix,
 		httpClient:  client,
-		h2cClient:   h2cClient,
+		rpcClient:   rpcClient,
+		tlsConfig:   clientTLS,
 	}
 	inst.waitHealthy(t)
 	return inst
