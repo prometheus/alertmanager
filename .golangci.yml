@@ -38,6 +38,9 @@ linters:
         - "^ ?scheme value"
       period: true
       capital: true
+    modernize:
+      disable:
+        - newexpr
     revive:
       rules:
         - name: blank-imports
