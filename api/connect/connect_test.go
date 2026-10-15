@@ -35,6 +35,84 @@ import (
 	"github.com/prometheus/alertmanager/config"
 )
 
+func TestRPCLifecycleTermination(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(context.Canceled)
+	writer := &blockingDeadlineResponseWriter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	lifecycle := &rpcLifecycle{
+		cancel:     cancel,
+		controller: http.NewResponseController(writer),
+		stream:     true,
+	}
+	done := make(chan struct{})
+	go func() {
+		lifecycle.terminate(context.DeadlineExceeded)
+		close(done)
+	}()
+	requireClosed(t, writer.entered, waitTimeout)
+	unlocked := lifecycle.mutex.TryLock()
+	if unlocked {
+		lifecycle.mutex.Unlock()
+	}
+	close(writer.release)
+	requireClosed(t, done, waitTimeout)
+	require.False(t, unlocked, "termination must hold the lifecycle mutex during controller updates")
+	require.False(t, writer.readDeadline.IsZero())
+	require.False(t, writer.writeDeadline.IsZero())
+
+	lifecycle.stop()
+	readDeadline, writeDeadline := writer.readDeadline, writer.writeDeadline
+	lifecycle.terminate(context.Canceled)
+	require.Equal(t, readDeadline, writer.readDeadline)
+	require.Equal(t, writeDeadline, writer.writeDeadline)
+	require.ErrorIs(t, context.Cause(ctx), context.DeadlineExceeded)
+}
+
+func TestRPCLifecycleReadDeadline(t *testing.T) {
+	t.Parallel()
+
+	writer := &blockingDeadlineResponseWriter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	lifecycle := &rpcLifecycle{controller: http.NewResponseController(writer)}
+	deadline := time.Now().Add(time.Minute)
+	done := make(chan struct{})
+	go func() {
+		lifecycle.setReadDeadline(deadline)
+		close(done)
+	}()
+	requireClosed(t, writer.entered, waitTimeout)
+	unlocked := lifecycle.mutex.TryLock()
+	if unlocked {
+		lifecycle.mutex.Unlock()
+	}
+	close(writer.release)
+	requireClosed(t, done, waitTimeout)
+	require.False(t, unlocked, "read deadline updates must hold the lifecycle mutex")
+	require.Equal(t, deadline, writer.readDeadline)
+
+	lifecycle.stop()
+	lifecycle.setReadDeadline(time.Time{})
+	require.Equal(t, deadline, writer.readDeadline)
+}
+
+func TestRPCLifecycleStopsIdleTimer(t *testing.T) {
+	t.Parallel()
+
+	lifecycle := &rpcLifecycle{idleTimeout: time.Hour}
+	lifecycle.idleTimer = time.AfterFunc(time.Hour, func() {})
+	t.Cleanup(func() { lifecycle.idleTimer.Stop() })
+	lifecycle.stop()
+	lifecycle.touch()
+	require.False(t, lifecycle.idleTimer.Stop())
+}
+
 func TestConnectAPI(t *testing.T) {
 	t.Parallel()
 
