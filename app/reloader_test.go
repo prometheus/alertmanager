@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -162,10 +163,15 @@ func TestReloader_ErrorLeavesPreviousStateIntact(t *testing.T) {
 	require.Same(t, inh1, r.inhibitor.Load(), "inhibitor must be unchanged after a failed reload")
 }
 
-// TestReloader_GroupMutedByFollowsConfig checks that whether a group is muted
-// is always evaluated against the time intervals of the same configuration
-// as the group's route, before and after a reload that renames the interval.
+// TestReloader_GroupMutedByFollowsConfig checks that queries use the time
+// intervals of their dispatcher's configuration even when a reload occurs
+// during the query.
 func TestReloader_GroupMutedByFollowsConfig(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testReloaderGroupMutedByFollowsConfig)
+}
+
+func testReloaderGroupMutedByFollowsConfig(t *testing.T) {
 	r := newTestReloader(t)
 	t.Cleanup(func() { _ = r.stop() })
 
@@ -189,18 +195,12 @@ time_intervals:
 		require.NoError(t, err)
 		return conf
 	}
+	alertFilter := func(*alert.Alert, time.Time) bool { return true }
 	mutedBy := func(t *testing.T) []string {
 		t.Helper()
-		var groups dispatch.AlertGroups
-		// The dispatcher ingests alerts asynchronously after each reload.
-		require.Eventually(t, func() bool {
-			var err error
-			groups, _, err = r.groups(context.Background(),
-				func(*dispatch.Route) bool { return true },
-				func(*alert.Alert, time.Time) bool { return true },
-			)
-			return err == nil && len(groups) == 1
-		}, 5*time.Second, 10*time.Millisecond)
+		groups, _, err := r.groups(t.Context(), func(*dispatch.Route) bool { return true }, alertFilter)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
 		return groups[0].MutedBy
 	}
 
@@ -211,12 +211,44 @@ time_intervals:
 		StartsAt: now.Add(-time.Minute),
 		EndsAt:   now.Add(time.Hour),
 	}, now, false)))
+	synctest.Wait()
 	require.Equal(t, []string{"always_old"}, mutedBy(t))
 
-	// The reload renames the interval. The new dispatcher resolves the
-	// route's new interval name against the new definitions.
+	// Pause a query after it has selected the old dispatcher's route but
+	// before it resolves the route's interval names.
+	ctx := t.Context()
+	resumeQuery := make(chan struct{})
+	var (
+		queryPaused bool
+		groups      dispatch.AlertGroups
+		queryErr    error
+	)
+	go func() {
+		groups, _, queryErr = r.groups(ctx, func(rt *dispatch.Route) bool {
+			if len(rt.RouteOpts.MuteTimeIntervals) > 0 {
+				queryPaused = true
+				select {
+				case <-resumeQuery:
+				case <-ctx.Done():
+				}
+			}
+			return true
+		}, alertFilter)
+	}()
+	synctest.Wait()
+	require.True(t, queryPaused)
+
+	// Rename the interval while the query is paused. A new query uses the
+	// new definitions, even though the in-flight query still needs the old ones.
 	require.NoError(t, r.reload(load("always_new")))
+	synctest.Wait()
 	require.Equal(t, []string{"always_new"}, mutedBy(t))
+
+	close(resumeQuery)
+	synctest.Wait()
+	require.NoError(t, queryErr)
+	require.Len(t, groups, 1)
+	require.Equal(t, []string{"always_old"}, groups[0].MutedBy)
 }
 
 func TestReloader_StopIsNilSafe(t *testing.T) {
