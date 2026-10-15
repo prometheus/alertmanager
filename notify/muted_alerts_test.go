@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/labelset"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 )
@@ -176,28 +175,28 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 	tests := []struct {
 		name  string
 		muter TimeMuter
-		stage func(TimeMuter, marker.GroupMarker, *Metrics) Stage
+		stage func(TimeMuter, *Metrics) Stage
 	}{{
 		// The mute stage mutes when the time is inside a mute time interval.
 		name:  "TimeMuteStage",
 		muter: stubTimeMuter{mutes: true, names: []string{"evenings"}},
-		stage: func(m TimeMuter, gm marker.GroupMarker, metrics *Metrics) Stage {
-			return NewTimeMuteStage(m, gm, metrics)
+		stage: func(m TimeMuter, metrics *Metrics) Stage {
+			return NewTimeMuteStage(m, metrics)
 		},
 	}, {
 		// The active stage mutes when the time is outside every active time
 		// interval.
 		name:  "TimeActiveStage",
 		muter: stubTimeMuter{mutes: false},
-		stage: func(m TimeMuter, gm marker.GroupMarker, metrics *Metrics) Stage {
-			return NewTimeActiveStage(m, gm, metrics)
+		stage: func(m TimeMuter, metrics *Metrics) Stage {
+			return NewTimeActiveStage(m, metrics)
 		},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
-			st := test.stage(test.muter, marker.NewGroupMarker(), metrics)
+			st := test.stage(test.muter, metrics)
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, utcNow())

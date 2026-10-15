@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/provider/mem"
 )
 
@@ -44,7 +43,7 @@ func TestDispatcherStopBeforeStart(t *testing.T) {
 		recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 		timeout := func(d time.Duration) time.Duration { return d }
 		route := NewRoute(&config.Route{Receiver: "team"}, nil)
-		dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+		dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 		go dispatcher.Run(time.Now().Add(time.Hour))
 		dispatcher.WaitForLoading()
 		synctest.Wait()

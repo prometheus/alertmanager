@@ -309,10 +309,9 @@ func TestTimeMuteStage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeMuteStage(intervener, marker, metrics)
+			st := NewTimeMuteStage(intervener, metrics)
 
 			// Get the names of all time intervals for the context.
 			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
@@ -332,12 +331,15 @@ func TestTimeMuteStage(t *testing.T) {
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
 
+			// The query-time computation used by the API must agree with
+			// the stage.
+			mutedBy, err := MutedByTimeIntervals(intervener, nil, muteTimeIntervalNames, test.now)
+			require.NoError(t, err)
+
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
+				// The group should not be muted.
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
@@ -345,9 +347,7 @@ func TestTimeMuteStage(t *testing.T) {
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
+				// The group should be muted.
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
@@ -416,10 +416,9 @@ func TestTimeActiveStage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeActiveStage(intervener, marker, metrics)
+			st := NewTimeActiveStage(intervener, metrics)
 
 			// Get the names of all time intervals for the context.
 			activeTimeIntervalNames := make([]string, 0, len(test.intervals))
@@ -439,12 +438,15 @@ func TestTimeActiveStage(t *testing.T) {
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
 
+			// The query-time computation used by the API must agree with
+			// the stage.
+			mutedBy, err := MutedByTimeIntervals(intervener, activeTimeIntervalNames, nil, test.now)
+			require.NoError(t, err)
+
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
+				// The group should not be muted.
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
@@ -452,9 +454,7 @@ func TestTimeActiveStage(t *testing.T) {
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
+				// The group should be muted.
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`

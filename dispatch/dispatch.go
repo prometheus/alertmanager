@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
 
@@ -55,10 +56,12 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/dispatch")
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route      *Route
-	alerts     provider.Alerts
-	stage      notify.Stage
-	marker     marker.GroupMarker
+	route  *Route
+	alerts provider.Alerts
+	stage  notify.Stage
+	// timeMuter resolves the time intervals referenced by route. It comes from
+	// the same configuration as route so that route names always resolve.
+	timeMuter  notify.TimeMuter
 	metrics    *DispatcherMetrics
 	limits     Limits
 	propagator propagation.TextMapPropagator
@@ -103,7 +106,7 @@ func NewDispatcher(
 	alerts provider.Alerts,
 	route *Route,
 	stage notify.Stage,
-	marker marker.GroupMarker,
+	timeMuter notify.TimeMuter,
 	timeout func(time.Duration) time.Duration,
 	maintenanceInterval time.Duration,
 	limits Limits,
@@ -118,6 +121,9 @@ func NewDispatcher(
 	if metrics == nil {
 		metrics = newNoopDispatcherMetrics()
 	}
+	if timeMuter == nil {
+		timeMuter = timeinterval.NewIntervener(nil)
+	}
 
 	// Calculate concurrency for ingestion.
 	concurrency := min(max(runtime.GOMAXPROCS(0)/2, 2), 8)
@@ -125,8 +131,8 @@ func NewDispatcher(
 	disp := &Dispatcher{
 		alerts:              alerts,
 		stage:               stage,
+		timeMuter:           timeMuter,
 		route:               route,
-		marker:              marker,
 		timeout:             timeout,
 		maintenanceInterval: maintenanceInterval,
 		concurrency:         concurrency,
@@ -291,12 +297,6 @@ func (d *Dispatcher) doMaintenance() {
 				ag.stop()
 				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(key, ag)
 				if deleted {
-					// TODO(ultrotter, siavash):
-					// Deletion from the marker should only happen if we really deleted the group.
-					// Fully fixing the case where a new group with the same fingerprint is created between
-					// CompareAndDelete and DeleteByGroupKey would require changes to the marker interface,
-					// so we leave it as a fix for after landing the pending marker changes.
-					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
 					d.routeGroupsSlice[i].groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
 					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
@@ -333,6 +333,10 @@ type AlertGroup struct {
 	// AlertStatuses holds the status returned by the AlertFilter for each
 	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
+	// MutedBy holds the names of the time intervals of the group's route that
+	// mute it at the time of the Groups call. It is computed at query time,
+	// like silences and inhibitions, and is empty if the group is not muted.
+	MutedBy []string
 }
 
 type AlertGroups []*AlertGroup
@@ -362,8 +366,16 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 
 	now := time.Now()
 	for i := range d.routeGroupsSlice {
-		if !routeFilter(d.routeGroupsSlice[i].route) {
+		rt := d.routeGroupsSlice[i].route
+		if !routeFilter(rt) {
 			continue
+		}
+
+		// Whether the route's time intervals mute its groups depends only on
+		// the route and the current time, so compute it once per route.
+		mutedBy, err := notify.MutedByTimeIntervals(d.timeMuter, rt.RouteOpts.ActiveTimeIntervals, rt.RouteOpts.MuteTimeIntervals, now)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compute time interval mutes for route %s: %w", rt.ID(), err)
 		}
 		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
 
@@ -417,6 +429,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
 				RouteID:     ag.routeID,
+				MutedBy:     mutedBy,
 			}
 			alertGroup.Alerts = filteredAlerts
 			alertGroup.AlertStatuses = statuses

@@ -64,12 +64,11 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	groupMutedFunc groupMutedFunc
-	uptime         time.Time
+	peer        cluster.ClusterPeer
+	silences    *silence.Silences
+	alerts      provider.Alerts
+	alertGroups groupsFn
+	uptime      time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -87,7 +86,6 @@ type API struct {
 
 type (
 	groupsFn         func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
-	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
 	setAlertStatusFn func(ctx context.Context, labels labelset.LabelSet)
 )
 
@@ -95,21 +93,19 @@ type (
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l *slog.Logger,
 	r prometheus.Registerer,
 ) (*API, error) {
 	api := API{
-		alerts:         alerts,
-		alertGroups:    gf,
-		groupMutedFunc: gmf,
-		peer:           peer,
-		silences:       silences,
-		logger:         l,
-		m:              metrics.NewAlerts(r),
-		uptime:         time.Now(),
+		alerts:      alerts,
+		alertGroups: gf,
+		peer:        peer,
+		silences:    silences,
+		logger:      l,
+		m:           metrics.NewAlerts(r),
+		uptime:      time.Now(),
 	}
 
 	// Load embedded swagger file.
@@ -496,8 +492,8 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
 	for _, alertGroup := range alertGroups {
-		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
-		if !*params.Muted && isMuted {
+		mutedBy := alertGroup.MutedBy
+		if !*params.Muted && len(mutedBy) > 0 {
 			continue
 		}
 

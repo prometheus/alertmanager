@@ -1117,9 +1117,6 @@ receivers:
 		alertGroups: func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
 		},
-		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
-			return nil, false
-		},
 	}
 	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
 
@@ -1184,9 +1181,6 @@ receivers:
 				}
 			}
 			return groups, map[model.Fingerprint][]string{}, nil
-		},
-		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
-			return nil, false
 		},
 	}
 
@@ -1318,6 +1312,100 @@ func TestStatusCollector(t *testing.T) {
 
 	c.Delete(fp)
 	require.Equal(t, unprocessedStatus(), c.Status(fp))
+}
+
+// TestGetAlertGroupsHandlerMuted checks that the muted filter and the mutedBy
+// annotation follow the MutedBy the dispatcher computed for each group.
+func TestGetAlertGroupsHandlerMuted(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	newGroup := func(team string, mutedBy []string) *dispatch.AlertGroup {
+		labels := model.LabelSet{"alertname": "Foo", "team": model.LabelValue(team)}
+		return &dispatch.AlertGroup{
+			Labels:   labels,
+			Receiver: "team-X",
+			GroupKey: team,
+			RouteID:  team,
+			MutedBy:  mutedBy,
+			Alerts: alert.AlertSlice{
+				alert.New(model.Alert{Labels: labels, StartsAt: time.Now().Add(-time.Minute)}, time.Time{}, false),
+			},
+		}
+	}
+	groups := dispatch.AlertGroups{
+		newGroup("muted", []string{"weekends"}),
+		newGroup("unmuted", nil),
+	}
+
+	api := API{
+		uptime: time.Now(),
+		logger: promslog.NewNopLogger(),
+		alertGroups: func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+			// Mimic dispatch.Groups: record the filter's status per alert.
+			now := time.Now()
+			for _, g := range groups {
+				g.AlertStatuses = map[model.Fingerprint]alert.AlertStatus{}
+				for _, al := range g.Alerts {
+					status, ok := af(al, now)
+					require.True(t, ok)
+					g.AlertStatuses[al.Fingerprint()] = status
+				}
+			}
+			return groups, map[model.Fingerprint][]string{}, nil
+		},
+	}
+	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
+
+	get := func(t *testing.T, muted bool) open_api_models.AlertGroups {
+		t.Helper()
+		r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
+		require.NoError(t, err)
+
+		responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+			HTTPRequest: r,
+			Active:      new(true),
+			Silenced:    new(true),
+			Inhibited:   new(true),
+			Muted:       &muted,
+		})
+
+		w := httptest.NewRecorder()
+		responder.WriteResponse(w, runtime.JSONProducer())
+		require.Equal(t, 200, w.Code)
+
+		body, _ := io.ReadAll(w.Result().Body)
+		var res open_api_models.AlertGroups
+		require.NoError(t, json.Unmarshal(body, &res))
+		return res
+	}
+
+	t.Run("muted groups are included and annotated", func(t *testing.T) {
+		res := get(t, true)
+		require.Len(t, res, 2)
+		mutedBy := map[string][]string{}
+		for _, g := range res {
+			require.Len(t, g.Alerts, 1)
+			mutedBy[string(g.Labels["team"])] = g.Alerts[0].Status.MutedBy
+		}
+		require.Equal(t, map[string][]string{
+			"muted":   {"weekends"},
+			"unmuted": {},
+		}, mutedBy)
+	})
+
+	t.Run("muted groups are filtered out", func(t *testing.T) {
+		res := get(t, false)
+		require.Len(t, res, 1)
+		require.Equal(t, open_api_models.LabelSet{"alertname": "Foo", "team": "unmuted"}, res[0].Labels)
+	})
 }
 
 // putRecorder is a provider.Alerts that only records what the API stores.
