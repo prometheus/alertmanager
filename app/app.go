@@ -39,7 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/httpserver"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -167,7 +166,7 @@ type App struct {
 // What remains here is the construction of the long-lived singletons.
 // It is deliberately one straight-line function rather than a chain of
 // helpers: nearly every step depends on locals produced by earlier ones
-// (peer, eventRec, silences, alerts, groupMarker, silencer,
+// (peer, eventRec, silences, alerts, silencer,
 // notificationLog, waitFunc, timeoutFunc, ...), so splitting it up would
 // only force us to thread a wide state struct between helpers or promote
 // those locals to App fields, obscuring the dataflow without simplifying
@@ -305,8 +304,6 @@ func (a *App) setup() error {
 		return nil
 	})
 
-	groupMarker := marker.NewGroupMarker()
-
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(opts.DataDir, "silences"),
 		Retention:    opts.Retention,
@@ -384,7 +381,6 @@ func (a *App) setup() error {
 	apih, err := api.New(api.Options{
 		Alerts:                     alerts,
 		Silences:                   silences,
-		GroupMutedFunc:             groupMarker.Muted,
 		Peer:                       clusterPeer,
 		Timeout:                    opts.HTTPTimeout,
 		Concurrency:                opts.GetConcurrency,
@@ -473,7 +469,6 @@ func (a *App) setup() error {
 		dispatchStartDelay:          opts.DispatchStartDelay,
 		eventRecorder:               eventRec,
 		externalURL:                 amURL,
-		groupMarker:                 groupMarker,
 		logger:                      logger,
 		metrics:                     m,
 		notificationLog:             notificationLog,

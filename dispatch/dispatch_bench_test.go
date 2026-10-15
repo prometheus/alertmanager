@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/provider/mem"
 )
 
@@ -138,7 +137,6 @@ func makeBenchAlertBatch(size, offset, numTeams, numClusters, numPriorities int)
 func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *recordStage) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	require.NoError(b, err)
@@ -148,7 +146,7 @@ func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *rec
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	metrics := NewDispatcherMetrics(false, reg, nil)
 
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
 
 	return dispatcher, alerts, recorder
 }

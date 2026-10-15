@@ -142,10 +142,9 @@ inhibit_rules:
 	}
 
 	api := API{
-		uptime:         time.Now(),
-		logger:         logger,
-		alertGroups:    benchGroupsFn(groups, receivers),
-		groupMutedFunc: func(string, string) ([]string, bool) { return nil, false },
+		uptime:      time.Now(),
+		logger:      logger,
+		alertGroups: benchGroupsFn(groups, receivers),
 	}
 	api.Update(cfg, func(ctx context.Context, lset labelset.LabelSet) {
 		inhibitor.Mutes(ctx, lset)
