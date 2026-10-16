@@ -108,9 +108,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.processAlert",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "inhibit.Inhibitor.processAlert")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {
@@ -183,9 +181,7 @@ func (ih *Inhibitor) Stop() {
 func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {

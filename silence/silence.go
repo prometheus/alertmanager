@@ -164,9 +164,7 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
-	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {
@@ -220,8 +218,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			if recording {
+				span.SetStatus(codes.Error, err.Error())
+				span.RecordError(err)
+			}
 			s.logger.Error(
 				"Querying old silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -242,8 +242,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QMatches(lset.LabelSet),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			if recording {
+				span.SetStatus(codes.Error, err.Error())
+				span.RecordError(err)
+			}
 			s.logger.Error(
 				"Querying silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -1083,9 +1085,7 @@ func QState(states ...SilenceState) QueryParam {
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
 func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Silence, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.QueryOne",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.QueryOne")
 	defer span.End()
 	res, _, err := s.Query(ctx, params...)
 	if err != nil {
@@ -1106,9 +1106,7 @@ func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silen
 // QueryAt evaluates query filters at the given time.
 // It reads the current stored records, not a historical snapshot.
 func (s *Silences) QueryAt(ctx context.Context, at time.Time, params ...QueryParam) ([]*pb.Silence, int, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.Query",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.Query")
 	defer span.End()
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
@@ -1136,9 +1134,7 @@ func (s *Silences) Version() int {
 
 // CountState counts silences by state.
 func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.CountState",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.CountState")
 	defer span.End()
 
 	now := s.nowUTC()

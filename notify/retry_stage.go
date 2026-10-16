@@ -22,7 +22,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -64,9 +63,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
 
-	ctx, span := tracer.Start(ctx, "notify.RetryStage.Exec",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.Start(ctx, "notify.RetryStage.Exec")
 	defer span.End()
 	if span.IsRecording() {
 		span.SetAttributes(
