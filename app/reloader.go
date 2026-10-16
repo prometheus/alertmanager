@@ -151,6 +151,9 @@ func (r *reloader) reload(conf *config.Config) error {
 	// Apply tracing first: it is the last step that can fail, and doing
 	// it before stopping the old components keeps them running if it
 	// errors.
+	r.apih.LockReload()
+	defer r.apih.UnlockReload()
+
 	if err := r.tracingMgr.ApplyConfig(conf.TracingConfig); err != nil {
 		return fmt.Errorf("failed to apply tracing config: %w", err)
 	}
