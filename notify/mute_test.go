@@ -326,7 +326,6 @@ func TestTimeMuteStage(t *testing.T) {
 			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, nil)
 			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
-			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
@@ -433,7 +432,6 @@ func TestTimeActiveStage(t *testing.T) {
 			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
 			ctx = WithMuteTimeIntervals(ctx, nil)
-			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)

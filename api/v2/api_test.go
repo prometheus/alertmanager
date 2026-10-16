@@ -1055,7 +1055,6 @@ receivers:
 		RouteLabels: model.LabelSet{"team": "X"},
 		Receiver:    "team-X",
 		GroupKey:    "key",
-		RouteID:     "route",
 	}
 
 	api := API{
@@ -1110,7 +1109,6 @@ receivers:
 			Labels:   labels,
 			Receiver: "team-X",
 			GroupKey: team,
-			RouteID:  team,
 			MutedBy:  mutedBy,
 			Alerts: alert.AlertSlice{
 				alert.New(model.Alert{Labels: labels, StartsAt: time.Now().Add(-time.Minute)}, time.Time{}, false),

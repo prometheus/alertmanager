@@ -196,15 +196,6 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*al
 	)
 	defer span.End()
 
-	routeID, ok := RouteID(ctx)
-	if !ok {
-		err := errors.New("route ID missing")
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-		return ctx, nil, err
-	}
-	span.SetAttributes(attribute.String("alerting.route.id", routeID))
-
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
@@ -247,13 +238,7 @@ func NewTimeActiveStage(muter TimeMuter, metrics *Metrics) *TimeActiveStage {
 // Exec implements the stage interface for TimeActiveStage.
 // TimeActiveStage is responsible for muting alerts whose route is not in an active time.
 func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	routeID, ok := RouteID(ctx)
-	if !ok {
-		return ctx, nil, errors.New("route ID missing")
-	}
-
 	ctx, span := tracer.Start(ctx, "notify.TimeActiveStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.route.id", routeID)),
 		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
