@@ -41,9 +41,9 @@ const serviceName = "alertmanager"
 
 var tracingEnabled atomic.Bool
 
-// noopSpan is boxed into the trace.Span interface once, at package init.
-// noop.Span is an 80-byte struct, so converting a fresh copy to the
-// interface on every Start call would heap-allocate even with tracing off.
+// noopSpan is boxed into the trace.Span interface here:
+// converting a fresh copy to the interface on every Start
+// call would heap-allocate even with tracing off.
 var noopSpan trace.Span = noop.Span{}
 
 // Enabled reports whether a tracer provider is currently installed. Hot
