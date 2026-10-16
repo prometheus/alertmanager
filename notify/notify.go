@@ -43,6 +43,9 @@ import (
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/notify")
 
+// Reuse the entire options slice to avoid allocating it on every Notify call.
+var clientSpanOptions = []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindClient)}
+
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
 	SendResolved() bool
@@ -139,14 +142,18 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdict NotifyVerdict) {
-	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
-		trace.WithAttributes(attribute.String("alerting.notify.integration.name", i.name)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindClient),
-	)
+	ctx, span := tracer.Start(ctx, "notify.Integration.Notify", clientSpanOptions...)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.notify.integration.name", i.name),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	defer func() {
-		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
+		if span.IsRecording() {
+			span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
+		}
 		if err := verdict.Err(); err != nil {
 			i.recordFailure(span, verdict.Reason(), err)
 		}
@@ -157,14 +164,16 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 }
 
 func (i *Integration) recordFailure(span trace.Span, reason Reason, err error) {
-	span.SetAttributes(
-		attribute.String("alerting.notify.error.reason", reason.String()),
-		attribute.String("alerting.notify.receiver.name", i.receiverName),
-		attribute.String("alerting.notify.integration.name", i.name),
-		attribute.Int("alerting.notify.integration.index", i.idx),
-	)
-	span.SetStatus(codes.Error, err.Error())
-	span.RecordError(err)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.notify.error.reason", reason.String()),
+			attribute.String("alerting.notify.receiver.name", i.receiverName),
+			attribute.String("alerting.notify.integration.name", i.name),
+			attribute.Int("alerting.notify.integration.index", i.idx),
+		)
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+	}
 }
 
 // SendResolved implements the ResolvedSender interface.
@@ -296,14 +305,14 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 		return ctx, nil, errors.New("receiver missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.RoutingStage.Exec",
-		trace.WithAttributes(
+	ctx, span := tracer.Start(ctx, "notify.RoutingStage.Exec")
+	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
 			attribute.String("alerting.notify.receiver.name", receiver),
 			attribute.Int("alerting.alerts.count", len(alerts)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
+		)
+	}
 
 	s, ok := rs[receiver]
 	if !ok {

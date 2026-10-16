@@ -41,7 +41,17 @@ const serviceName = "alertmanager"
 
 var tracingEnabled atomic.Bool
 
-var noopSpan = noop.Span{}
+// noopSpan is boxed into the trace.Span interface here:
+// converting a fresh copy to the interface on every Start
+// call would heap-allocate even with tracing off.
+var noopSpan trace.Span = noop.Span{}
+
+// Enabled reports whether a tracer provider is currently installed. Hot
+// paths use it to skip work that only exists to feed spans, such as
+// injecting propagation headers.
+func Enabled() bool {
+	return tracingEnabled.Load()
+}
 
 // conditionalTracer wraps the global OTel tracer and short-circuits
 // Start when tracing is disabled, avoiding allocations entirely.
@@ -52,6 +62,7 @@ type conditionalTracer struct {
 
 // NewTracer returns a trace.Tracer that skips span creation when
 // tracing is disabled. Use this instead of otel.Tracer().
+// Attributes set after Start are unavailable to samplers and SpanProcessor.OnStart.
 func NewTracer(name string) trace.Tracer {
 	return &conditionalTracer{name: name}
 }
@@ -200,6 +211,8 @@ func buildTracerProvider(ctx context.Context, tracingCfg TracingConfig) (trace.T
 		return nil, nil, err
 	}
 
+	// Attributes are populated after Start, so sampling must depend only on
+	// the parent and trace ID.
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithSampler(tracesdk.ParentBased(

@@ -256,22 +256,25 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	d.logger.Debug("Received alert", "alert", alrt)
 
-	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert",
-		trace.WithAttributes(
+	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert")
+	defer span.End()
+	recording := span.IsRecording()
+	if recording {
+		span.SetAttributes(
 			attribute.String("alerting.alert.name", alrt.Name()),
 			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
+		)
+	}
 
 	now := time.Now()
 	for _, r := range d.route.Match(alrt.Labels) {
-		span.AddEvent("dispatching alert to route",
-			trace.WithAttributes(
-				attribute.String("alerting.route.receiver.name", r.RouteOpts.Receiver),
-			),
-		)
+		if recording {
+			span.AddEvent("dispatching alert to route",
+				trace.WithAttributes(
+					attribute.String("alerting.route.receiver.name", r.RouteOpts.Receiver),
+				),
+			)
+		}
 		d.groupAlert(ctx, alrt, r)
 	}
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
@@ -438,15 +441,16 @@ type notifyFunc func(context.Context, ...*alert.Alert) bool
 // groupAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert",
-		trace.WithAttributes(
+	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert")
+	defer span.End()
+	recording := span.IsRecording()
+	if recording {
+		span.SetAttributes(
 			attribute.String("alerting.alert.name", alrt.Name()),
 			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
 			attribute.String("alerting.route.receiver.name", route.RouteOpts.Receiver),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
+		)
+	}
 
 	now := time.Now()
 	groupLabels := getGroupLabels(alrt, route)
@@ -475,13 +479,15 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		err := errors.New("too many aggregation groups, cannot create new group for alert")
 		message := "Failed to create aggregation group"
 		d.logger.Error(message, "err", err.Error(), "groups", current, "limit", limit, "alert", alrt.Name())
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err,
-			trace.WithAttributes(
-				attribute.Int("alerting.aggregation_group.count", current),
-				attribute.Int("alerting.aggregation_group.limit", limit),
-			),
-		)
+		if recording {
+			span.SetStatus(codes.Error, message)
+			span.RecordError(err,
+				trace.WithAttributes(
+					attribute.Int("alerting.aggregation_group.count", current),
+					attribute.Int("alerting.aggregation_group.limit", limit),
+				),
+			)
+		}
 		return
 	}
 
@@ -540,21 +546,25 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		}
 	}
 
-	span.AddEvent("new AggregationGroup created",
-		trace.WithAttributes(
-			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-			attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
-		),
-	)
+	if recording {
+		span.AddEvent("new AggregationGroup created",
+			trace.WithAttributes(
+				attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
+				attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
+			),
+		)
+	}
 
 	if alrt.StartsAt.Add(ag.opts.GroupWait).Before(now) {
 		message := "Alert is old enough for immediate flush, resetting timer to zero"
 		ag.logger.Debug(message, "alert", alrt.Name(), "fingerprint", alrt.Fingerprint(), "startsAt", alrt.StartsAt)
-		span.AddEvent(message,
-			trace.WithAttributes(
-				attribute.String("alerting.alert.StartsAt", alrt.StartsAt.Format(time.RFC3339)),
-			),
-		)
+		if recording {
+			span.AddEvent(message,
+				trace.WithAttributes(
+					attribute.String("alerting.alert.StartsAt", alrt.StartsAt.Format(time.RFC3339)),
+				),
+			)
+		}
 		ag.resetTimer(0)
 	}
 	// Check dispatcher and alert state to determine if we should run the AG now.
@@ -824,14 +834,14 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.resetTimer(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*alert.Alert) bool {
-				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
-					trace.WithAttributes(
+				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush")
+				defer span.End()
+				if span.IsRecording() {
+					span.SetAttributes(
 						attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
 						attribute.Int("alerting.alerts.count", len(alerts)),
-					),
-					trace.WithSpanKind(trace.SpanKindInternal),
-				)
-				defer span.End()
+					)
+				}
 
 				// Render route labels against the batch of alerts that we are
 				// about to notify about.
@@ -872,15 +882,15 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 // insert inserts the alert into the aggregation group.
 // Returns false if the aggregation group has been destroyed.
 func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
-	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
-		trace.WithAttributes(
+	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert")
+	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
 			attribute.String("alerting.alert.name", alrt.Name()),
 			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
 			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
-	defer span.End()
+		)
+	}
 	if err := ag.alerts.Set(alrt); err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
 			return false

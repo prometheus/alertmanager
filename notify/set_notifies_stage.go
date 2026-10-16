@@ -20,7 +20,6 @@ import (
 	"slices"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
@@ -67,12 +66,14 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 		return ctx, nil, errors.New("group key missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.SetNotifiesStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.group.key", gkey)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.Start(ctx, "notify.SetNotifiesStage.Exec")
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.group.key", gkey),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	firing, ok := FiringAlerts(ctx)
 	if !ok {
@@ -92,11 +93,13 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 
 	muted := n.mutedAlerts(ctx)
 
-	span.SetAttributes(
-		attribute.Int("alerting.alerts.firing.count", len(firing)),
-		attribute.Int("alerting.alerts.resolved.count", len(resolved)),
-		attribute.Int("alerting.alerts.muted.count", len(muted)),
-	)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.Int("alerting.alerts.firing.count", len(firing)),
+			attribute.Int("alerting.alerts.resolved.count", len(resolved)),
+			attribute.Int("alerting.alerts.muted.count", len(muted)),
+		)
+	}
 
 	// Extract receiver data from context if present (it's ok for it to be nil).
 	store, _ := NflogStore(ctx)
