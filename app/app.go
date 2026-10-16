@@ -401,6 +401,7 @@ func (a *App) setup() error {
 		Peer:            clusterPeer,
 		Timeout:         opts.HTTPTimeout,
 		Concurrency:     opts.GetConcurrency,
+		CORSHandler:     opts.CORSHandler,
 		Logger:          logger.With("component", "api"),
 		Registry:        reg,
 		RequestDuration: m.requestDuration,

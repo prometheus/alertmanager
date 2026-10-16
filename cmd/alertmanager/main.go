@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/common/version"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
+	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/app"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/featurecontrol"
@@ -63,6 +64,7 @@ func run() int {
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		corsOrigin     = kingpin.Flag("web.cors.origin", `Regex for CORS origin. It is fully anchored, so it must match the whole origin including scheme and port, and dots must be escaped. Browser pages from matching origins may call the API. Example: 'https?://(domain1|domain2)\.com'. If empty, no CORS headers are sent.`).String()
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
@@ -107,6 +109,12 @@ func run() int {
 		return 1
 	}
 	compat.InitFromFlags(logger, ff)
+
+	corsHandler, err := api.NewCORSHandler(*corsOrigin)
+	if err != nil {
+		logger.Error("error parsing --web.cors.origin", "err", err)
+		return 1
+	}
 
 	if ff.EnableAutoGOMEMLIMIT() {
 		if *memlimitRatio <= 0.0 || *memlimitRatio > 1.0 {
@@ -167,6 +175,7 @@ func run() int {
 		WebConfig:      webConfig,
 		ExternalURL:    *externalURL,
 		RoutePrefix:    *routePrefix,
+		CORSHandler:    corsHandler,
 		GetConcurrency: *getConcurrency,
 		HTTPTimeout:    *httpTimeout,
 

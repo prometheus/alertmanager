@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"github.com/rs/cors"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -140,8 +139,7 @@ func NewAPI(
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
-	handleCORS := cors.Default().Handler
-	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
+	api.Handler = setResponseHeaders(openAPI.Serve(nil))
 
 	return &api, nil
 }
