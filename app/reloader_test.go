@@ -15,10 +15,12 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,7 +34,6 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -67,8 +68,6 @@ func newTestReloader(t *testing.T) *reloader {
 	require.NoError(t, err)
 	silencer := silence.NewSilencer(silences, logger, rec)
 
-	groupMarker := marker.NewGroupMarker()
-
 	nflogger, err := nflog.New(nflog.Options{
 		SnapshotFile: filepath.Join(dir, "nflog"),
 		Logger:       logger,
@@ -83,7 +82,6 @@ func newTestReloader(t *testing.T) *reloader {
 	apih, err := api.New(api.Options{
 		Alerts:          alerts,
 		Silences:        silences,
-		GroupMutedFunc:  groupMarker.Muted,
 		Logger:          logger,
 		Registry:        reg,
 		RequestDuration: m.requestDuration,
@@ -100,7 +98,6 @@ func newTestReloader(t *testing.T) *reloader {
 		logger:                      logger,
 		alerts:                      alerts,
 		silencer:                    silencer,
-		groupMarker:                 groupMarker,
 		notificationLog:             nflogger,
 		eventRecorder:               rec,
 		apih:                        apih,
@@ -164,6 +161,94 @@ func TestReloader_ErrorLeavesPreviousStateIntact(t *testing.T) {
 	require.Error(t, r.reload(conf))
 	require.Same(t, dispatcher1, r.dispatcher.Load(), "dispatcher must be unchanged after a failed reload")
 	require.Same(t, inh1, r.inhibitor.Load(), "inhibitor must be unchanged after a failed reload")
+}
+
+// TestReloader_GroupMutedByFollowsConfig checks that queries use the time
+// intervals of their dispatcher's configuration even when a reload occurs
+// during the query.
+func TestReloader_GroupMutedByFollowsConfig(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testReloaderGroupMutedByFollowsConfig)
+}
+
+func testReloaderGroupMutedByFollowsConfig(t *testing.T) {
+	r := newTestReloader(t)
+	t.Cleanup(func() { _ = r.stop() })
+
+	const confTmpl = `
+route:
+  receiver: team-X
+  group_by: ['alertname']
+  group_wait: 1h
+  routes:
+  - receiver: team-X
+    mute_time_intervals: ['%s']
+receivers:
+- name: team-X
+time_intervals:
+- name: %s
+  time_intervals:
+  - weekdays: ['monday:sunday']
+`
+	load := func(name string) *config.Config {
+		conf, err := config.Load(fmt.Sprintf(confTmpl, name, name))
+		require.NoError(t, err)
+		return conf
+	}
+	alertFilter := func(*alert.Alert, time.Time) bool { return true }
+	mutedBy := func(t *testing.T) []string {
+		t.Helper()
+		groups, _, err := r.groups(t.Context(), func(*dispatch.Route) bool { return true }, alertFilter)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		return groups[0].MutedBy
+	}
+
+	require.NoError(t, r.reload(load("always_old")))
+	now := time.Now()
+	require.NoError(t, r.alerts.Put(context.Background(), alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "Foo"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, now, false)))
+	synctest.Wait()
+	require.Equal(t, []string{"always_old"}, mutedBy(t))
+
+	// Pause a query after it has selected the old dispatcher's route but
+	// before it resolves the route's interval names.
+	ctx := t.Context()
+	resumeQuery := make(chan struct{})
+	var (
+		queryPaused bool
+		groups      dispatch.AlertGroups
+		queryErr    error
+	)
+	go func() {
+		groups, _, queryErr = r.groups(ctx, func(rt *dispatch.Route) bool {
+			if len(rt.RouteOpts.MuteTimeIntervals) > 0 {
+				queryPaused = true
+				select {
+				case <-resumeQuery:
+				case <-ctx.Done():
+				}
+			}
+			return true
+		}, alertFilter)
+	}()
+	synctest.Wait()
+	require.True(t, queryPaused)
+
+	// Rename the interval while the query is paused. A new query uses the
+	// new definitions, even though the in-flight query still needs the old ones.
+	require.NoError(t, r.reload(load("always_new")))
+	synctest.Wait()
+	require.Equal(t, []string{"always_new"}, mutedBy(t))
+
+	close(resumeQuery)
+	synctest.Wait()
+	require.NoError(t, queryErr)
+	require.Len(t, groups, 1)
+	require.Equal(t, []string{"always_old"}, groups[0].MutedBy)
 }
 
 func TestReloader_StopIsNilSafe(t *testing.T) {
