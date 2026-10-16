@@ -275,6 +275,34 @@ func TestGetFailureReasonFromStatusCode(t *testing.T) {
 	}
 }
 
+func TestGetFailureReasonFromSMTPCode(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		code     int
+		expected Reason
+	}{
+		{"PasswordTransitionNeeded", 422, AuthErrorReason},
+		{"PasswordTransitionNeededAlt", 432, AuthErrorReason},
+		{"EncryptionNeeded", 523, AuthErrorReason},
+		{"EncryptionRequiredForAuthMechanism", 524, AuthErrorReason},
+		{"AccountDisabled", 525, AuthErrorReason},
+		{"AuthenticationRequired", 530, AuthErrorReason},
+		{"AuthenticationFailed", 535, AuthErrorReason},
+		{"AuthMechanismTooWeak", 534, AuthErrorReason},
+		{"EncryptionRequiredForAuth", 538, AuthErrorReason},
+		{"TransientMailboxUnavailable", 450, ServerErrorReason},
+		{"ServiceNotAvailable", 421, ServerErrorReason},
+		{"MailboxUnavailable", 550, ClientErrorReason},
+		{"SyntaxError", 501, ClientErrorReason},
+		{"Success", 250, DefaultReason},
+		{"IntermediateReply", 354, DefaultReason},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, GetFailureReasonFromSMTPCode(tc.code))
+		})
+	}
+}
+
 func TestParseRetryAfter(t *testing.T) {
 	received := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 	// A client whose clock trails the server's must still get the delay right.
