@@ -120,7 +120,6 @@ inhibit_rules:
 			Labels:   model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert%d", g))},
 			Receiver: "team",
 			GroupKey: fmt.Sprintf("{}:{alertname=\"Alert%d\"}", g),
-			RouteID:  "{}",
 		}
 		for m := range alertsPerGroup {
 			n := g*alertsPerGroup + m
@@ -182,7 +181,6 @@ func benchGroupsFn(groups dispatch.AlertGroups, receivers map[model.Fingerprint]
 				Labels:        g.Labels,
 				Receiver:      g.Receiver,
 				GroupKey:      g.GroupKey,
-				RouteID:       g.RouteID,
 				Alerts:        make(alert.AlertSlice, 0, len(g.Alerts)),
 				AlertStatuses: make(map[model.Fingerprint]alert.AlertStatus, len(g.Alerts)),
 			}

@@ -206,7 +206,6 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 			ctx := context.Background()
 			ctx = WithNow(ctx, utcNow())
 			ctx = WithGroupKey(ctx, "group1")
-			ctx = WithRouteID(ctx, "route1")
 			ctx = WithMuteTimeIntervals(ctx, []string{"evenings"})
 			ctx = WithActiveTimeIntervals(ctx, []string{"weekdays"})
 
@@ -303,7 +302,6 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 					ctx = WithNow(ctx, now)
 					ctx = WithReceiverName(ctx, "test")
 					ctx = WithGroupKey(ctx, "group")
-					ctx = WithRouteID(ctx, "route")
 					// Short enough that the unmuted flush on day 3 repeats the
 					// notification even when the feature-disabled pipeline did not
 					// touch nflog the night before.
