@@ -62,6 +62,7 @@ type conditionalTracer struct {
 
 // NewTracer returns a trace.Tracer that skips span creation when
 // tracing is disabled. Use this instead of otel.Tracer().
+// Attributes set after Start are unavailable to samplers and SpanProcessor.OnStart.
 func NewTracer(name string) trace.Tracer {
 	return &conditionalTracer{name: name}
 }
@@ -210,6 +211,8 @@ func buildTracerProvider(ctx context.Context, tracingCfg TracingConfig) (trace.T
 		return nil, nil, err
 	}
 
+	// Attributes are populated after Start, so sampling must depend only on
+	// the parent and trace ID.
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithSampler(tracesdk.ParentBased(
