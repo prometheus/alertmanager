@@ -1661,11 +1661,15 @@ token_id_file: <filepath>
 
 
 [ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
-[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
-[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
-[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
-[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
+[ emoji: <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}' ]
+[ icon_url: <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}' ]
+# Top-level message text, shown above the attachment and used in desktop
+# and push notifications. If unset, notifications show only a generic placeholder.
+[ message_text: <tmpl_string> ]
+# The text of the attachment used to display the main notification content.
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}' ]
+[ title_link: <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}' ]
+[ title: <tmpl_string | default = '{{ template "rocketchat.default.title" . }}' ]
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url: <tmpl_string> ]
