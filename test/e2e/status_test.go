@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/peer"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 
+	"github.com/prometheus/alertmanager/api/silence/v3alpha/silencev3alphaconnect"
 	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 )
@@ -173,6 +174,7 @@ func TestStatusService(t *testing.T) {
 					names = append(names, service.GetName())
 				}
 				require.Contains(t, names, statusv3alphaconnect.StatusServiceName)
+				require.Contains(t, names, silencev3alphaconnect.SilenceServiceName)
 			})
 		}
 	})

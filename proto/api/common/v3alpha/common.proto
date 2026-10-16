@@ -1,0 +1,49 @@
+// Copyright The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// common.v3alpha contains shared contracts consumed by public API endpoints.
+// Importing services define their resource-specific semantics.
+package common.v3alpha;
+
+option go_package = "github.com/prometheus/alertmanager/api/common/v3alpha;commonv3alpha";
+
+enum MatcherType {
+  MATCHER_TYPE_UNSPECIFIED = 0;
+  MATCHER_TYPE_EQUAL = 1;
+  MATCHER_TYPE_NOT_EQUAL = 2;
+  MATCHER_TYPE_REGEXP = 3;
+  MATCHER_TYPE_NOT_REGEXP = 4;
+}
+
+message Matcher {
+  string name = 1;
+  string value = 2;
+  MatcherType type = 3;
+}
+
+// MatcherSet combines matchers with AND. Lists of matcher sets use OR.
+message MatcherSet {
+  repeated Matcher matchers = 1;
+}
+
+message FieldViolation {
+  string field = 1;
+  string description = 2;
+}
+
+// ValidationErrorDetail accompanies an InvalidArgument response.
+message ValidationErrorDetail {
+  repeated FieldViolation violations = 1;
+}

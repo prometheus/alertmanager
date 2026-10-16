@@ -1,0 +1,76 @@
+// Copyright The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package silence.v3alpha;
+
+import "common/v3alpha/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/prometheus/alertmanager/api/silence/v3alpha;silencev3alpha";
+
+service SilenceService {
+  // ListSilences reads stored silences, including multiple alert matcher sets.
+  // Reads do not require a multi-set write capability flag.
+  // Ordering is active, pending, expired; then ascending end time for active,
+  // ascending start time for pending, and descending end time for expired.
+  // IDs break ties. State is calculated once per request. All matching stored
+  // silences are returned.
+  rpc ListSilences(ListSilencesRequest) returns (ListSilencesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message Silence {
+  string id = 1;
+  // OR across sets and AND within each set when matching alert labels.
+  repeated common.v3alpha.MatcherSet matcher_sets = 2;
+  google.protobuf.Timestamp starts_at = 3;
+  google.protobuf.Timestamp ends_at = 4;
+  string created_by = 5;
+  string comment = 6;
+  map<string, string> annotations = 7;
+}
+
+enum SilenceState {
+  SILENCE_STATE_UNSPECIFIED = 0;
+  SILENCE_STATE_ACTIVE = 1;
+  SILENCE_STATE_PENDING = 2;
+  SILENCE_STATE_EXPIRED = 3;
+}
+
+message SilenceStatus {
+  // Active means starts_at <= evaluation time < ends_at.
+  SilenceState state = 1;
+}
+
+message GettableSilence {
+  Silence silence = 1;
+  SilenceStatus status = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+message ListSilencesRequest {
+  // Definition filters, not predicates evaluated against alert labels.
+  // A requested set matches if every matcher occurs with identical name, type,
+  // and value in one stored matcher set. OR across requested sets, AND within
+  // each set. No sets or an empty set selects every definition.
+  repeated common.v3alpha.MatcherSet matcher_sets = 1;
+  // Empty selects all states. Unspecified and unknown values are invalid.
+  repeated SilenceState states = 2;
+}
+
+message ListSilencesResponse {
+  repeated GettableSilence silences = 1;
+}

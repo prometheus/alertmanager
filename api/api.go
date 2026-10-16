@@ -151,6 +151,7 @@ func (o Options) resolve() effectiveOptions {
 		timeout:     timeout,
 		concurrency: concurrency,
 		connect: apiconnect.Options{
+			Silences:            o.Silences,
 			Peer:                o.Peer,
 			Registerer:          o.Registry,
 			UnaryConcurrency:    unaryConcurrency,

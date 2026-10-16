@@ -32,13 +32,17 @@ import (
 	"connectrpc.com/grpcreflect"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/prometheus/alertmanager/api/silence/v3alpha/silencev3alphaconnect"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/silence"
 )
 
 // Options configures the Connect API.
 type Options struct {
+	// Silences provides the long-lived silence store.
+	Silences *silence.Silences
 	// Peer provides cluster status. A nil value disables clustering.
 	Peer cluster.ClusterPeer
 	// Registerer registers API metrics. A nil value keeps usable metrics without
@@ -71,6 +75,7 @@ type Options struct {
 }
 
 type effectiveOptions struct {
+	silences            *silence.Silences
 	peer                cluster.ClusterPeer
 	registerer          prometheus.Registerer
 	unaryConcurrency    int
@@ -94,6 +99,7 @@ func (o Options) resolve() effectiveOptions {
 		streamConcurrency = defaultConcurrency
 	}
 	return effectiveOptions{
+		silences:            o.Silences,
 		peer:                o.Peer,
 		registerer:          o.Registerer,
 		unaryConcurrency:    unaryConcurrency,
@@ -181,6 +187,8 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 
 // API implements the ConnectRPC service handlers for the Connect API.
 type API struct {
+	silences        *silence.Silences
+	now             func() time.Time
 	peer            cluster.ClusterPeer
 	uptime          time.Time
 	admission       *admissionInterceptor
@@ -203,6 +211,8 @@ func NewAPI(opts Options) *API {
 	effective := opts.resolve()
 	metrics := newRPCMetrics(effective.registerer)
 	api := &API{
+		silences:        effective.silences,
+		now:             time.Now,
 		peer:            effective.peer,
 		uptime:          time.Now(),
 		peerSnapshotSem: make(chan struct{}, 1),
@@ -258,11 +268,21 @@ func (api *API) serviceDescriptors() []serviceDescriptor {
 			return statusv3alphaconnect.NewStatusServiceHandler(api, opts...)
 		},
 	}
-	advertised := []string{status.name}
+	silences := serviceDescriptor{
+		name: silencev3alphaconnect.SilenceServiceName,
+		procedures: []procedureDescriptor{
+			procedure(silencev3alphaconnect.SilenceServiceName, "ListSilences", connect.StreamTypeUnary),
+		},
+		handler: func(opts ...connect.HandlerOption) (string, http.Handler) {
+			return silencev3alphaconnect.NewSilenceServiceHandler(api, opts...)
+		},
+	}
+	advertised := []string{status.name, silences.name}
 	checker := grpchealth.NewStaticChecker(advertised...)
 	reflector := grpcreflect.NewStaticReflector(advertised...)
 	return []serviceDescriptor{
 		status,
+		silences,
 		{
 			name: grpchealth.HealthV1ServiceName,
 			procedures: []procedureDescriptor{

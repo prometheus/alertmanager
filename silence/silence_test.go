@@ -756,7 +756,7 @@ func TestSilenceSet(t *testing.T) {
 
 		// Extend sil4 to expire at a later time. This should not expire the
 		// existing silence, and so should also keep the same ID.
-		time.Sleep(time.Minute)
+		time.Sleep(time.Minute - time.Nanosecond)
 		start5 := s.nowUTC()
 		sil5 := cloneSilence(sil4)
 		sil5.EndsAt = timestamppb.New(start5.Add(100 * time.Minute))
