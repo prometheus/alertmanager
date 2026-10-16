@@ -34,7 +34,6 @@ import (
 	"github.com/rs/cors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/prometheus/alertmanager/alert"
 	apiconnect "github.com/prometheus/alertmanager/api/connect"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
@@ -118,7 +117,7 @@ type Options struct {
 	// GroupFunc returns a list of alert groups. The alerts are grouped
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
-	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	GroupFunc func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
 }
 
 type effectiveOptions struct {

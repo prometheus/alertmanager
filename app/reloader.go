@@ -23,7 +23,6 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -84,7 +83,7 @@ type reloader struct {
 
 // groups returns the alert groups from the currently active dispatcher.
 // It is wired into the API as its GroupFunc.
-func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 	return r.dispatcher.Load().Groups(ctx, routeFilter, alertFilter)
 }
 

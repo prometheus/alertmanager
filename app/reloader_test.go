@@ -26,7 +26,6 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -87,7 +86,7 @@ func newTestReloader(t *testing.T) *reloader {
 		Logger:          logger,
 		Registry:        reg,
 		RequestDuration: m.requestDuration,
-		GroupFunc: func(ctx context.Context, rf func(*dispatch.Route) bool, af func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		GroupFunc: func(ctx context.Context, rf func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 			return r.groups(ctx, rf, af)
 		},
 	})
