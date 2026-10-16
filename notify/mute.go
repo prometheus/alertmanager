@@ -80,10 +80,12 @@ func NewMuteStage(m Muter, metrics *Metrics) *MuteStage {
 // Exec implements the Stage interface.
 func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	ctx, span := tracer.Start(ctx, "notify.MuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(attribute.Int("alerting.alerts.count", len(alerts)))
+	}
 
 	var (
 		filtered []*alert.Alert
@@ -146,10 +148,12 @@ func NewTimeMuteStage(muter TimeMuter, marker marker.GroupMarker, metrics *Metri
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	ctx, span := tracer.Start(ctx, "notify.TimeMuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(attribute.Int("alerting.alerts.count", len(alerts)))
+	}
 
 	routeID, ok := RouteID(ctx)
 	if !ok {
@@ -218,11 +222,15 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 	}
 
 	ctx, span := tracer.Start(ctx, "notify.TimeActiveStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.route.id", routeID)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.route.id", routeID),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	gkey, ok := GroupKey(ctx)
 	if !ok {

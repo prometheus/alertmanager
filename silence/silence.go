@@ -165,12 +165,13 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.fingerprint", fp.String()),
-		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	recording := span.IsRecording()
+	if recording {
+		span.SetAttributes(attribute.String("alerting.alert.fingerprint", fp.String()))
+	}
 
 	// Track the silences to set on marker
 	var markedSilences []string
@@ -195,11 +196,13 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	if cacheIsUpToDate && cachedEntry.count() == 0 {
 		// Very fast path: no new silences have been added and this lset was not
 		// silenced last time we checked.
-		span.AddEvent("No new silences to match since last check",
-			trace.WithAttributes(
-				attribute.Int("alerting.silences.cache.count", cachedEntry.count()),
-			),
-		)
+		if recording {
+			span.AddEvent("No new silences to match since last check",
+				trace.WithAttributes(
+					attribute.Int("alerting.silences.cache.count", cachedEntry.count()),
+				),
+			)
+		}
 		return false
 	}
 	// Either there are new silences and we need to check if those match lset or there were
@@ -255,9 +258,11 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.cache.set(fp, newCacheEntry(newVersion))
-		span.AddEvent("No silences to match", trace.WithAttributes(
-			attribute.Int("alerting.silences.count", totalSilences),
-		))
+		if recording {
+			span.AddEvent("No silences to match", trace.WithAttributes(
+				attribute.Int("alerting.silences.count", totalSilences),
+			))
+		}
 		return false
 	}
 
@@ -305,18 +310,21 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 
 	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
 
-	t := trace.WithAttributes(
-		attribute.Int("alerting.silences.active.count", len(activeIDs)),
-		attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
-		attribute.Int("alerting.silences.total.count", len(allIDs)),
-	)
-
 	mutes := len(activeIDs) > 0
 	if mutes {
 		markedSilences = activeIDs
-		span.AddEvent("Silencer mutes alert", t)
-	} else {
-		span.AddEvent("Silencer does not mute alert", t)
+	}
+	if recording {
+		t := trace.WithAttributes(
+			attribute.Int("alerting.silences.active.count", len(activeIDs)),
+			attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
+			attribute.Int("alerting.silences.total.count", len(allIDs)),
+		)
+		if mutes {
+			span.AddEvent("Silencer mutes alert", t)
+		} else {
+			span.AddEvent("Silencer does not mute alert", t)
+		}
 	}
 	return mutes
 }
@@ -965,10 +973,11 @@ func (s *Silences) Expire(ctx context.Context, id string) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	_, span := tracer.Start(ctx, "silences.Expire", trace.WithAttributes(
-		attribute.String("alerting.silence.id", id),
-	))
+	_, span := tracer.Start(ctx, "silences.Expire")
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(attribute.String("alerting.silence.id", id))
+	}
 
 	return s.expire(id, s.nowUTC())
 }
