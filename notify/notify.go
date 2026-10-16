@@ -139,10 +139,14 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdict NotifyVerdict) {
 	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
-		trace.WithAttributes(attribute.String("alerting.notify.integration.name", i.name)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindClient),
 	)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.notify.integration.name", i.name),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	defer func() {
 		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
@@ -295,13 +299,15 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 	}
 
 	ctx, span := tracer.Start(ctx, "notify.RoutingStage.Exec",
-		trace.WithAttributes(
-			attribute.String("alerting.notify.receiver.name", receiver),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.notify.receiver.name", receiver),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	s, ok := rs[receiver]
 	if !ok {

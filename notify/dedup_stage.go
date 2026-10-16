@@ -123,11 +123,15 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 	}
 
 	ctx, span := tracer.Start(ctx, "notify.DedupStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.group.key", gkey)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("alerting.group.key", gkey),
+			attribute.Int("alerting.alerts.count", len(alerts)),
+		)
+	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
