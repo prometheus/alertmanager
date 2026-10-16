@@ -1108,7 +1108,6 @@ receivers:
 		RouteLabels: model.LabelSet{"team": "X"},
 		Receiver:    "team-X",
 		GroupKey:    "key",
-		RouteID:     "route",
 	}
 
 	api := API{
@@ -1161,8 +1160,8 @@ receivers:
 
 	a := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Foo"}}, time.Now(), false)
 	groups := dispatch.AlertGroups{
-		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key1", RouteID: "route1", Alerts: []*alert.Alert{a}},
-		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key2", RouteID: "route2", Alerts: []*alert.Alert{a}},
+		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key1", Alerts: []*alert.Alert{a}},
+		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key2", Alerts: []*alert.Alert{a}},
 	}
 
 	api := API{
@@ -1333,7 +1332,6 @@ receivers:
 			Labels:   labels,
 			Receiver: "team-X",
 			GroupKey: team,
-			RouteID:  team,
 			MutedBy:  mutedBy,
 			Alerts: alert.AlertSlice{
 				alert.New(model.Alert{Labels: labels, StartsAt: time.Now().Add(-time.Minute)}, time.Time{}, false),

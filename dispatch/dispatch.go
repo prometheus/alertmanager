@@ -329,7 +329,6 @@ type AlertGroup struct {
 	RouteLabels model.LabelSet
 	Receiver    string
 	GroupKey    string
-	RouteID     string
 	// AlertStatuses holds the status returned by the AlertFilter for each
 	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
@@ -428,7 +427,6 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				RouteLabels: ag.RouteLabels(),
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
-				RouteID:     ag.routeID,
 				MutedBy:     mutedBy,
 			}
 			alertGroup.Alerts = filteredAlerts
@@ -641,7 +639,6 @@ type aggrGroup struct {
 	labels   model.LabelSet
 	opts     *RouteOpts
 	logger   *slog.Logger
-	routeID  string
 	groupKey string
 	matchers labels.Matchers
 
@@ -694,7 +691,6 @@ func newAggrGroup(
 	}
 	ag := &aggrGroup{
 		labels:   labels,
-		routeID:  r.ID(),
 		groupKey: fmt.Sprintf("%s:%s", r.Key(), labels),
 		matchers: r.Matchers,
 		opts:     &r.RouteOpts,
@@ -841,7 +837,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
-			ctx = notify.WithRouteID(ctx, ag.routeID)
 			ctx = notify.WithFlushID(ctx, ag.flushIdx)
 			ctx = notify.WithGroupMatchers(ctx, ag.matchers)
 			ctx = marker.WithContext(ctx, ag.marker)
