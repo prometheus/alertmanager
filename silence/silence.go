@@ -206,12 +206,13 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	// silences last time we queried so we need to see if those are still active/have become
 	// active. It's possible for there to be both old and new silences.
 
+	now := s.silences.nowUTC()
 	if cachedEntry.count() > 0 {
 		// there were old silences for this lset, we need to find them to check if they
 		// are still active/pending, or have ended.
 		var err error
-		oldSils, _, err = s.silences.Query(
-			ctx,
+		oldSils, _, err = s.silences.QueryAt(
+			ctx, now,
 			QIDs(cachedEntry.silenceIDs...),
 			QState(SilenceStateActive, SilenceStatePending),
 		)
@@ -231,8 +232,8 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 		// On this branch we WILL update newVersion since we can be sure we've seen any silences
 		// newer than markerVersion.
 		var err error
-		newSils, newVersion, err = s.silences.Query(
-			ctx,
+		newSils, newVersion, err = s.silences.QueryAt(
+			ctx, now,
 			QSince(cachedEntry.version),
 			QState(SilenceStateActive, SilenceStatePending),
 			QMatches(lset.LabelSet),
@@ -267,7 +268,6 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	activeIDs := make([]string, 0, totalSilences)
 	allIDs := make([]string, 0, totalSilences)
 	seen := make(map[string]struct{}, totalSilences)
-	now := s.silences.nowUTC()
 
 	// Categorize old and new silences by their current state.
 	// oldSils and newSils may overlap if a cached silence was updated
@@ -908,10 +908,10 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		return err
 	}
 
-	if ok && StateFromProtoAt(prev, s.nowUTC()) != SilenceStateExpired {
+	if ok && StateFromProtoAt(prev, now) != SilenceStateExpired {
 		// We cannot update the silence, expire the old one to leave a history of
 		// the silence before modification.
-		if err := s.expire(prev.Id); err != nil {
+		if err := s.expire(prev.Id, now); err != nil {
 			return fmt.Errorf("expire previous silence: %w", err)
 		}
 	}
@@ -970,20 +970,18 @@ func (s *Silences) Expire(ctx context.Context, id string) error {
 	))
 	defer span.End()
 
-	return s.expire(id)
+	return s.expire(id, s.nowUTC())
 }
 
 // Expire the silence with the given ID immediately.
 // It is idempotent, nil is returned if the silence already expired before it is GC'd.
 // If the silence is not found an error is returned.
-func (s *Silences) expire(id string) error {
+func (s *Silences) expire(id string, now time.Time) error {
 	sil, ok := s.getSilence(id)
 	if !ok {
 		return ErrNotFound
 	}
 	sil = cloneSilence(sil)
-	now := s.nowUTC()
-
 	switch StateFromProtoAt(sil, now) {
 	case SilenceStateExpired:
 		return nil
@@ -1093,6 +1091,12 @@ func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Sile
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silence, int, error) {
+	return s.QueryAt(ctx, s.nowUTC(), params...)
+}
+
+// QueryAt evaluates query filters at the given time.
+// It reads the current stored records, not a historical snapshot.
+func (s *Silences) QueryAt(ctx context.Context, at time.Time, params ...QueryParam) ([]*pb.Silence, int, error) {
 	_, span := tracer.Start(ctx, "silence.Silences.Query",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -1107,7 +1111,7 @@ func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silen
 			return nil, s.Version(), err
 		}
 	}
-	sils, version, err := s.query(q, s.nowUTC())
+	sils, version, err := s.query(q, at)
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
 	}

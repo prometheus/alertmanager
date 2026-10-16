@@ -284,6 +284,26 @@ func TestGetSilencesHandlerEndBoundary(t *testing.T) {
 	})
 }
 
+func TestGettableSilenceFromProtoAt(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		sil := &silencepb.Silence{
+			StartsAt:  timestamppb.New(now),
+			EndsAt:    timestamppb.New(now.Add(time.Minute)),
+			UpdatedAt: timestamppb.New(now),
+		}
+		time.Sleep(time.Hour)
+		current, err := GettableSilenceFromProto(sil)
+		require.NoError(t, err)
+		require.Equal(t, string(silence.SilenceStateExpired), *current.Status.State)
+		evaluated, err := gettableSilenceFromProtoAt(sil, now)
+		require.NoError(t, err)
+		require.Equal(t, string(silence.SilenceStateActive), *evaluated.Status.State)
+	})
+}
+
 func TestDeleteSilenceHandler(t *testing.T) {
 	now := timestamppb.Now()
 	silences := newSilences(t)
