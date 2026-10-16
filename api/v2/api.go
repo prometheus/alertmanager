@@ -697,7 +697,8 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		states = append(states, silence.SilenceStatePending)
 	}
 
-	psils, _, err := api.silences.Query(ctx, silence.QState(states...))
+	now := time.Now()
+	psils, _, err := api.silences.QueryAt(ctx, now, silence.QState(states...))
 	if err != nil {
 		logger.Error("Failed to get silences", "err", err)
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
@@ -708,7 +709,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
-		sil, err := GettableSilenceFromProto(ps)
+		sil, err := gettableSilenceFromProtoAt(ps, now)
 		if err != nil {
 			logger.Error("Failed to unmarshal silence from proto", "err", err)
 			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())

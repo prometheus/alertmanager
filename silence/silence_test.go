@@ -691,6 +691,69 @@ func TestSilenceSetEndBoundary(t *testing.T) {
 	})
 }
 
+// TestSilenceSetUsesOneEvaluationTime ensures that the evaluation time used
+// for determining silence state is consistent across all operations within
+// a single Set call, even if the system clock advances during processing.
+func TestSilenceSetUsesOneEvaluationTime(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		advance := false
+		store, err := New(Options{
+			Metrics:   prometheus.NewRegistry(),
+			Retention: time.Hour,
+			Limits: Limits{MaxSilenceSizeBytes: func() int {
+				if advance {
+					time.Sleep(2 * time.Nanosecond)
+				}
+				return 0
+			}},
+		})
+		require.NoError(t, err)
+		now := store.nowUTC()
+		original := newStateTestSilence(now, now.Add(time.Hour))
+		require.NoError(t, store.Set(t.Context(), original))
+		time.Sleep(time.Hour - time.Nanosecond)
+		evaluatedAt := store.nowUTC()
+		advance = true
+		updated := cloneSilence(original)
+		updated.MatcherSets[0].Matchers[0].Pattern = "Bar"
+		updated.EndsAt = timestamppb.New(evaluatedAt.Add(time.Hour))
+		require.NoError(t, store.Set(t.Context(), updated))
+		require.True(t, store.nowUTC().After(original.EndsAt.AsTime()))
+		require.NotEqual(t, original.Id, updated.Id)
+		previous, err := store.QueryOne(t.Context(), QIDs(original.Id))
+		require.NoError(t, err)
+		require.Equal(t, evaluatedAt, previous.EndsAt.AsTime())
+		require.Equal(t, evaluatedAt, previous.UpdatedAt.AsTime())
+		require.Equal(t, evaluatedAt, updated.StartsAt.AsTime())
+		require.Equal(t, evaluatedAt, updated.UpdatedAt.AsTime())
+	})
+}
+
+// TestSilenceQueryAt evaluates query filters at a specific point in time.
+// This test ensures that queries return the correct state of silences
+// based on when they were evaluated, not when the query was executed.
+func TestSilenceQueryAt(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		store, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: 24 * time.Hour})
+		require.NoError(t, err)
+		now := store.nowUTC()
+		sil := newStateTestSilence(now.Add(time.Hour), now.Add(2*time.Hour))
+		require.NoError(t, store.Set(t.Context(), sil))
+		time.Sleep(3 * time.Hour)
+		result, _, err := store.QueryAt(t.Context(), now.Add(time.Hour), QState(SilenceStateActive))
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, sil.Id, result[0].Id)
+		active, _, err := store.Query(t.Context(), QState(SilenceStateActive))
+		require.NoError(t, err)
+		require.Empty(t, active)
+	})
+}
+
 func TestSilenceSet(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, err := New(Options{
