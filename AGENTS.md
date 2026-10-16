@@ -95,6 +95,7 @@ goreman start
 - Formatting: `gofumpt` + `goimports` with local prefix `github.com/prometheus/alertmanager`. Run `make common-format` before committing.
 - Comments on exported identifiers must be full sentences ending in a period (`godot` lint).
 - Logging uses `log/slog` (`sloglint`). Prefer structured key/value logging.
+- Tracing: never pass computed attributes to `tracer.Start` (no `trace.WithAttributes` in the call). Its arguments are evaluated on every call even when tracing is disabled, so set attributes afterwards with `span.SetAttributes` behind `span.IsRecording()`, and guard `span.AddEvent` calls that build attributes the same way on hot paths. `TestNoAttributesPassedToTracerStart` in `tracing/` enforces this.
 - Errors: wrap with `fmt.Errorf("...: %w", err)` and check with `errors.Is`/`errors.As` (`errorlint`).
 - Keep package‑level documentation up to date (`revive: package-comments`).
 - Tests live next to the code as `*_test.go`. Larger integration tests live under `test/`. The `notify/test` package provides shared testing helpers for notifier integrations.
