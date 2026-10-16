@@ -50,9 +50,7 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
-	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {
@@ -106,8 +104,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			if recording {
+				span.SetStatus(codes.Error, err.Error())
+				span.RecordError(err)
+			}
 			s.logger.Error(
 				"Querying old silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -128,8 +128,10 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QMatches(lset.LabelSet),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			if recording {
+				span.SetStatus(codes.Error, err.Error())
+				span.RecordError(err)
+			}
 			s.logger.Error(
 				"Querying silences failed, alerts might not get silenced correctly",
 				"err", err,
