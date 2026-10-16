@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"runtime"
 	"sort"
 	"sync"
@@ -96,6 +97,9 @@ type routeAggrGroups struct {
 	route     *Route
 	groups    sync.Map // map[string]*aggrGroup
 	groupsLen atomic.Int64
+	// labels is the route's label classification, computed once per route and
+	// shared by all of its aggregation groups.
+	labels routeLabelSplit
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -162,7 +166,8 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.routeGroupsSlice = make([]routeAggrGroups, d.route.Idx+1)
 	d.route.Walk(func(r *Route) {
 		d.routeGroupsSlice[r.Idx] = routeAggrGroups{
-			route: r,
+			route:  r,
+			labels: splitRouteLabels(d.tmpl, r.RouteOpts.Labels),
 		}
 	})
 
@@ -413,7 +418,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			// groups filtered out above.
 			alertGroup := &AlertGroup{
 				Labels:      ag.labels,
-				RouteLabels: ag.RouteLabels(),
+				RouteLabels: ag.RouteLabels(now),
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
 				RouteID:     ag.routeID,
@@ -500,7 +505,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.recorder, d.logger, d.tmpl)
+	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.recorder, d.logger, d.tmpl, &d.routeGroupsSlice[route.Idx].labels)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -644,26 +649,62 @@ type aggrGroup struct {
 	running  atomic.Bool
 	flushIdx uint64
 
-	// routeLabels caches the route labels rendered against the group's current
-	// alerts, for the /api/v2/alerts/groups read path. It is rendered lazily and
-	// kept up to date with a generation counter rather than a lock, so that
-	// invalidation on the hot alert-ingestion path is a single atomic add.
+	// labelSplit partitions the route's labels into those whose rendered value
+	// is fixed for the group's lifetime (static) and those that can depend on
+	// the group's alerts (dynamic); see template.SplitRouteLabels.
+	// staticRouteLabels is the static part, rendered once at construction
+	// without any alert data. It is never invalidated and must not be mutated.
+	labelSplit        *routeLabelSplit
+	staticRouteLabels model.LabelSet
+
+	// routeLabels caches the full route label set (static plus dynamic)
+	// rendered against the group's current alerts, for the
+	// /api/v2/alerts/groups read path. It is only used when the route has
+	// dynamic labels. It is rendered lazily and kept up to date with a
+	// generation counter rather than a lock, so that invalidation on the hot
+	// alert-ingestion path is a single atomic add.
 	//
-	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert set
-	// changes. Each cached render is tagged with the generation it was computed
-	// at; RouteLabels() treats the cache as valid only if its tag still equals
-	// the current generation. A render that races an invalidation is therefore
-	// tagged with a now-stale generation: it may be stored, but the next reader
-	// sees the mismatch and re-renders, so a stale value is never served.
+	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert
+	// set changes in a way templates can observe. Each cached render is tagged
+	// with the generation it was computed at; RouteLabels() treats the cache
+	// as valid only if its tag still equals the current generation. A render
+	// that races an invalidation is therefore tagged with a now-stale
+	// generation: it may be stored, but the next reader sees the mismatch and
+	// re-renders, so a stale value is never served.
+	//
+	// Time is the other input: an alert's status flips from firing to resolved
+	// when its EndsAt passes, with no insert or delete, and templates observe
+	// that through .Status and .Alerts. Each render therefore also records the
+	// earliest such moment among the alerts it saw (validUntil) and is a miss
+	// from then on.
 	routeLabels    atomic.Pointer[renderedRouteLabels]
 	routeLabelsGen atomic.Uint64
 }
 
 // renderedRouteLabels is a cached route-label render tagged with the alert-set
-// generation it was computed at. See aggrGroup.routeLabels.
+// generation it was computed at and the time until which it is valid (zero
+// means indefinitely). See aggrGroup.routeLabels.
 type renderedRouteLabels struct {
-	gen    uint64
-	labels model.LabelSet
+	gen        uint64
+	validUntil time.Time
+	labels     model.LabelSet
+}
+
+// routeLabelSplit is a route's labels partitioned by whether their rendered
+// value can depend on the alerts of a group. See template.SplitRouteLabels.
+type routeLabelSplit struct {
+	static  model.LabelSet
+	dynamic model.LabelSet
+}
+
+// splitRouteLabels classifies labels with tmpl. Without a template nothing is
+// rendered at all, so every label counts as static (and renders to nothing).
+func splitRouteLabels(tmpl *template.Template, labels model.LabelSet) routeLabelSplit {
+	if tmpl == nil || len(labels) == 0 {
+		return routeLabelSplit{static: labels, dynamic: model.LabelSet{}}
+	}
+	static, dynamic := tmpl.SplitRouteLabels(labels)
+	return routeLabelSplit{static: static, dynamic: dynamic}
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -675,23 +716,29 @@ func newAggrGroup(
 	recorder eventrecorder.Recorder,
 	logger *slog.Logger,
 	tmpl *template.Template,
+	split *routeLabelSplit,
 ) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
+	if split == nil {
+		s := splitRouteLabels(tmpl, r.RouteOpts.Labels)
+		split = &s
+	}
 	ag := &aggrGroup{
-		labels:   labels,
-		routeID:  r.ID(),
-		groupKey: fmt.Sprintf("%s:%s", r.Key(), labels),
-		matchers: r.Matchers,
-		opts:     &r.RouteOpts,
-		timeout:  to,
-		alerts:   store.NewAlerts(),
-		marker:   marker.NewAlertMarker(),
-		recorder: recorder,
-		tmpl:     tmpl,
-		done:     make(chan struct{}),
-		flushIdx: 1,
+		labels:     labels,
+		routeID:    r.ID(),
+		groupKey:   fmt.Sprintf("%s:%s", r.Key(), labels),
+		matchers:   r.Matchers,
+		opts:       &r.RouteOpts,
+		timeout:    to,
+		alerts:     store.NewAlerts(),
+		marker:     marker.NewAlertMarker(),
+		recorder:   recorder,
+		tmpl:       tmpl,
+		labelSplit: split,
+		done:       make(chan struct{}),
+		flushIdx:   1,
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -700,6 +747,9 @@ func newAggrGroup(
 	}
 
 	ag.logger = logger.With("aggrGroup", ag.GroupKey())
+
+	// Static labels do not depend on alerts: render them once, now, with none.
+	ag.staticRouteLabels = ag.renderLabels(split.static)
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
@@ -722,19 +772,20 @@ func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
-// renderRouteLabels renders the route's labels as templates against the given
-// alerts and the group's data. A route label value may be a template, so this
-// allows it to reference group labels, other route labels, etc.
-func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
-	// Nothing to render when the route has no labels (the common case) or there
+// renderLabels renders the given subset of the route's labels as templates
+// against the given alerts and the group's data. A route label value may be a
+// template, so this allows it to reference group labels, other route labels,
+// etc. Labels that fail to render are logged and omitted.
+func (ag *aggrGroup) renderLabels(labels model.LabelSet, alerts ...*alert.Alert) model.LabelSet {
+	rendered := make(model.LabelSet, len(labels))
+	// Nothing to render when there are no labels (the common case) or there
 	// is no template engine. Skip building template data, which is O(n_alerts).
-	if len(ag.opts.Labels) == 0 || ag.tmpl == nil {
-		return model.LabelSet{}
+	if len(labels) == 0 || ag.tmpl == nil {
+		return rendered
 	}
 
-	renderedRouteLabels := make(model.LabelSet, len(ag.opts.Labels))
-
 	// The notification reason is not available to route labels and is passed as ReasonUnknown.
+	// The data carries every raw label so routeLabels cross-references resolve.
 	data := ag.tmpl.Data(ag.opts.Receiver, ag.labels, ag.opts.Labels, notify.ReasonUnknown.String(), alerts...)
 
 	logger := ag.logger.With("data", data)
@@ -743,35 +794,64 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 	// cross-references another (via {{ routeLabels "x" }}) reuses the rendered
 	// value instead of re-rendering it per loop iteration.
 	render := ag.tmpl.RouteLabelRenderer(data)
-	for label, value := range ag.opts.Labels {
-		if rendered, err := render(string(label)); err == nil {
-			renderedRouteLabels[label] = model.LabelValue(rendered)
-			logger.Debug("rendered route label", "label", label, "value", rendered)
+	for label, value := range labels {
+		if v, err := render(string(label)); err == nil {
+			rendered[label] = model.LabelValue(v)
+			logger.Debug("rendered route label", "label", label, "value", v)
 		} else {
 			logger.Error("failed to render route label", "label", label, "value", string(value), "err", err)
 		}
 	}
 
-	return renderedRouteLabels
+	return rendered
+}
+
+// hasDynamicRouteLabels reports whether any of the route's labels can depend
+// on the group's alerts. When none does, the route labels are fully described
+// by staticRouteLabels and no alert-dependent rendering or invalidation is
+// ever needed.
+func (ag *aggrGroup) hasDynamicRouteLabels() bool {
+	return len(ag.labelSplit.dynamic) > 0
+}
+
+// renderRouteLabels renders the route's labels against the given alerts: the
+// static labels come from the render done at construction, only the dynamic
+// ones are rendered now. It is used on the notification path with the batch
+// of alerts being flushed. The returned set must not be mutated.
+func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
+	if !ag.hasDynamicRouteLabels() {
+		return ag.staticRouteLabels
+	}
+	rendered := ag.renderLabels(ag.labelSplit.dynamic, alerts...)
+	maps.Copy(rendered, ag.staticRouteLabels)
+	return rendered
 }
 
 // RouteLabels returns the route labels rendered against the group's current
-// alerts, caching the result. Both the read and the cache update are lock-free.
-// The cache is invalidated by invalidateRouteLabels (a generation bump) after
-// the alert set changes.
+// alerts as of now, caching the result. Both the read and the cache update are
+// lock-free. The cache is invalidated by invalidateRouteLabels (a generation
+// bump) after the alert set changes, and expires on its own when an alert it
+// was rendered against resolves (see aggrGroup.routeLabels).
+//
+// Routes without dynamic labels never touch the cache or the alert store: the
+// static render is the answer.
 //
 // Concurrent callers that all miss may render redundantly; that is acceptable
 // because the only caller is the (cold) /alerts/groups API path. What must not
 // happen — serving a render that predates an invalidation — is prevented by the
-// generation tag.
-func (ag *aggrGroup) RouteLabels() model.LabelSet {
+// generation tag. The returned set must not be mutated.
+func (ag *aggrGroup) RouteLabels(now time.Time) model.LabelSet {
+	if !ag.hasDynamicRouteLabels() {
+		return ag.staticRouteLabels
+	}
+
 	// Load the cached value before the generation: if an invalidation happens
 	// between these two loads, we read the newer generation and treat the cache
 	// as a miss, which is safe. (Loading gen first could let us pair an old gen
 	// with a value cached for that gen and wrongly accept a stale render.)
 	cached := ag.routeLabels.Load()
 	gen := ag.routeLabelsGen.Load()
-	if cached != nil && cached.gen == gen {
+	if cached != nil && cached.gen == gen && (cached.validUntil.IsZero() || now.Before(cached.validUntil)) {
 		return cached.labels
 	}
 
@@ -779,11 +859,11 @@ func (ag *aggrGroup) RouteLabels() model.LabelSet {
 
 	var labels model.LabelSet
 	if len(alerts) == 0 {
-		// Nothing to render against: e.g. all alerts resolved and deleted and
-		// the group is awaiting GC. Rendering route-label templates that
+		// Nothing to render dynamic labels against: e.g. all alerts resolved
+		// and deleted and the group is awaiting GC. Rendering templates that
 		// reference .Alerts against an empty set would only log errors, and
 		// empty groups are excluded from the API response anyway.
-		labels = model.LabelSet{}
+		labels = ag.staticRouteLabels
 	} else {
 		labels = ag.renderRouteLabels(alerts...)
 	}
@@ -791,14 +871,47 @@ func (ag *aggrGroup) RouteLabels() model.LabelSet {
 	// Tag the render with the generation we observed before reading the alerts.
 	// If an invalidation raced this render, gen is already stale, so the next
 	// reader will see the mismatch and re-render rather than serve stale labels.
-	ag.routeLabels.Store(&renderedRouteLabels{gen: gen, labels: labels})
+	ag.routeLabels.Store(&renderedRouteLabels{
+		gen:        gen,
+		validUntil: nextResolution(alerts, now),
+		labels:     labels,
+	})
 	return labels
 }
 
+// nextResolution returns the earliest time after now at which one of alerts
+// resolves, or the zero time if no alert has a pending EndsAt. Until then the
+// alerts' statuses, and so any render that depends on them, cannot change
+// without an insert or a delete.
+func nextResolution(alerts []*alert.Alert, now time.Time) time.Time {
+	var next time.Time
+	for _, a := range alerts {
+		if a.EndsAt.IsZero() || !a.EndsAt.After(now) {
+			continue
+		}
+		if next.IsZero() || a.EndsAt.Before(next) {
+			next = a.EndsAt
+		}
+	}
+	return next
+}
+
+// sameTemplateInputs reports whether two versions of the same alert (same
+// fingerprint, hence same labels) are indistinguishable to route label
+// templates. Besides the labels, template.Alert exposes the annotations, the
+// timestamps (from which the status is derived) and the generator URL.
+func sameTemplateInputs(a, b *alert.Alert) bool {
+	return a.StartsAt.Equal(b.StartsAt) &&
+		a.EndsAt.Equal(b.EndsAt) &&
+		a.GeneratorURL == b.GeneratorURL &&
+		a.Annotations.Equal(b.Annotations)
+}
+
 // invalidateRouteLabels marks the cached route labels stale. It must be called
-// after the group's alert set has changed and the change is visible via
-// ag.alerts, so that any render still in flight is tagged with a generation
-// older than this one and will not be served.
+// after the group's alert set has changed in a way templates can observe and
+// the change is visible via ag.alerts, so that any render still in flight is
+// tagged with a generation older than this one and will not be served. It is
+// only needed for routes with dynamic labels.
 func (ag *aggrGroup) invalidateRouteLabels() {
 	ag.routeLabelsGen.Add(1)
 }
@@ -896,7 +1009,8 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-	if err := ag.alerts.Set(alrt); err != nil {
+	prev, err := ag.alerts.Swap(alrt)
+	if err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
 			return false
 		}
@@ -908,8 +1022,13 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alrt)
 		})
-		// The alert set changed; the alert is already visible via ag.alerts.
-		ag.invalidateRouteLabels()
+		// The alert is already visible via ag.alerts. Only routes with dynamic
+		// labels cache anything alert-dependent, and a re-sent alert that is
+		// identical in everything templates can see (the common case while an
+		// alert keeps firing) leaves the cached render correct.
+		if ag.hasDynamicRouteLabels() && (prev == nil || !sameTemplateInputs(prev, alrt)) {
+			ag.invalidateRouteLabels()
+		}
 	}
 	return true
 }
@@ -960,7 +1079,7 @@ func (ag *aggrGroup) flush(notify func(...*alert.Alert) bool) {
 		if err := ag.alerts.DeleteIfNotModified(resolvedSlice, true); err != nil {
 			ag.logger.Error("error on delete alerts", "err", err)
 		} else {
-			if len(resolvedSlice) > 0 {
+			if len(resolvedSlice) > 0 && ag.hasDynamicRouteLabels() {
 				// The alert set changed; the deletion is already visible via
 				// ag.alerts.
 				ag.invalidateRouteLabels()
