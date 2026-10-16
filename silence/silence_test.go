@@ -666,6 +666,31 @@ func TestSilencesSetSilence(t *testing.T) {
 	requireStatesEqual(t, want, s.st, "Unexpected silence state")
 }
 
+// TestSilenceSetEndBoundary verifies that silences are correctly expired
+// when their end time is reached, even if the system clock advances during
+// the processing of the Set operation.
+func TestSilenceSetEndBoundary(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		store, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: time.Hour})
+		require.NoError(t, err)
+		now := store.nowUTC()
+		original := newStateTestSilence(now, now.Add(time.Hour))
+		require.NoError(t, store.Set(t.Context(), original))
+		time.Sleep(time.Hour)
+		updated := cloneSilence(original)
+		updated.EndsAt = timestamppb.New(store.nowUTC().Add(time.Hour))
+		require.NoError(t, store.Set(t.Context(), updated))
+		require.NotEqual(t, original.Id, updated.Id)
+		_, err = store.QueryOne(t.Context(), QIDs(updated.Id), QState(SilenceStateActive))
+		require.NoError(t, err)
+		previous, err := store.QueryOne(t.Context(), QIDs(original.Id), QState(SilenceStateExpired))
+		require.NoError(t, err)
+		require.True(t, proto.Equal(original, previous))
+	})
+}
+
 func TestSilenceSet(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, err := New(Options{
@@ -756,7 +781,7 @@ func TestSilenceSet(t *testing.T) {
 
 		// Extend sil4 to expire at a later time. This should not expire the
 		// existing silence, and so should also keep the same ID.
-		time.Sleep(time.Minute)
+		time.Sleep(time.Minute - time.Nanosecond)
 		start5 := s.nowUTC()
 		sil5 := cloneSilence(sil4)
 		sil5.EndsAt = timestamppb.New(start5.Add(100 * time.Minute))
@@ -873,7 +898,7 @@ func TestSilenceSet(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		sil7, err = s.QueryOne(t.Context(), QIDs(sil7.Id))
 		require.NoError(t, err)
-		require.Equal(t, SilenceStateActive, getState(sil7, s.nowUTC()))
+		require.Equal(t, SilenceStateActive, StateFromProtoAt(sil7, s.nowUTC()))
 		require.Equal(t, versionBeforeOp, s.Version())
 	})
 }
@@ -978,7 +1003,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, StateFromProtoAt(sil6, s.nowUTC()))
 
 	// Should not be able to update with a comment that exceeds maximum size.
 	// Need to increase the maximum number of silences to test this.
@@ -990,7 +1015,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, StateFromProtoAt(sil6, s.nowUTC()))
 
 	// Should not be able to replace with a silence that exceeds maximum size.
 	// This is different from the previous assertion as unlike when adding or
@@ -1005,7 +1030,7 @@ func TestSilenceLimits(t *testing.T) {
 	// sil6 should not be expired because the update failed.
 	sil6, err = s.QueryOne(t.Context(), QIDs(sil6.Id))
 	require.NoError(t, err)
-	require.Equal(t, SilenceStateActive, getState(sil6, s.nowUTC()))
+	require.Equal(t, SilenceStateActive, StateFromProtoAt(sil6, s.nowUTC()))
 }
 
 func TestSilenceNoLimits(t *testing.T) {

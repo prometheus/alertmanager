@@ -33,7 +33,7 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
-	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
+	state := string(silence.StateFromProtoAt(s, time.Now()))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
 			StartsAt:    &start,
