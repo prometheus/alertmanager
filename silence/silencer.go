@@ -203,16 +203,15 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 		markedSilences = activeIDs
 	}
 	if recording {
-		t := trace.WithAttributes(
+		message := "Silencer does not mute alert"
+		if mutes {
+			message = "Silencer mutes alert"
+		}
+		span.AddEvent(message, trace.WithAttributes(
 			attribute.Int("alerting.silences.active.count", len(activeIDs)),
 			attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
 			attribute.Int("alerting.silences.total.count", len(allIDs)),
-		)
-		if mutes {
-			span.AddEvent("Silencer mutes alert", t)
-		} else {
-			span.AddEvent("Silencer does not mute alert", t)
-		}
+		))
 	}
 	return mutes
 }
