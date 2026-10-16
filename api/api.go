@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
+	"github.com/rs/cors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
@@ -43,6 +45,7 @@ import (
 type API struct {
 	v2                *apiv2.API
 	deprecationRouter *V1DeprecationRouter
+	corsHandler       func(http.Handler) http.Handler
 
 	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
@@ -72,6 +75,9 @@ type Options struct {
 	// larger. Status code 503 is served for GET requests that would exceed
 	// the concurrency limit.
 	Concurrency int
+	// CORSHandler is created by NewCORSHandler. If nil, no CORS headers are
+	// sent.
+	CORSHandler func(http.Handler) http.Handler
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
@@ -151,6 +157,7 @@ func New(opts Options) (*API, error) {
 	return &API{
 		deprecationRouter:        NewV1DeprecationRouter(l.With("version", "v1")),
 		v2:                       v2,
+		corsHandler:              opts.CORSHandler,
 		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -177,6 +184,12 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
+
+	v2Handler := api.v2.Handler
+	if api.corsHandler != nil {
+		v2Handler = api.corsHandler(v2Handler)
+	}
+
 	mux.Handle(
 		apiPrefix+"/api/v2/",
 		api.instrumentHandler(
@@ -184,13 +197,32 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 			api.limitHandler(
 				http.StripPrefix(
 					apiPrefix,
-					api.v2.Handler,
+					v2Handler,
 				),
 			),
 		),
 	)
 
 	return mux
+}
+
+// NewCORSHandler allows origins matching the fully anchored regex origin.
+func NewCORSHandler(origin string) (func(http.Handler) http.Handler, error) {
+	if origin == "" {
+		return nil, nil
+	}
+	re, err := regexp.Compile("^(?:" + origin + ")$")
+	if err != nil {
+		return nil, err
+	}
+	return cors.New(cors.Options{
+		AllowOriginFunc: re.MatchString,
+		AllowedMethods:  []string{http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowedHeaders:  []string{"*"},
+		// Browsers otherwise cache preflights for only 5s, adding an
+		// OPTIONS round trip to almost every non-simple request.
+		MaxAge: 600,
+	}).Handler, nil
 }
 
 // Update config and resolve timeout of each API. APIv2 also needs
