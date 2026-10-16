@@ -241,7 +241,11 @@ func (pb *PipelineBuilder) New(
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, pb.ff)
 		if pb.ff.EnableMutedAlertsInNflog() {
-			rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
+			// The inner MultiStage stops at the first stage that mutes every
+			// alert, so TimeMuteStage cannot rewrite the marker TimeActiveStage
+			// just set. The outer MutedMultiStage then still runs the receiver
+			// stage, which records the muted hashes in nflog.
+			rs[name] = MutedMultiStage{MultiStage{ms, is, tas, tms, ss}, st}
 			continue
 		}
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
