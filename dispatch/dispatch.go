@@ -262,9 +262,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	d.logger.Debug("Received alert", "alert", alrt)
 
-	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {
@@ -458,9 +456,7 @@ type notifyFunc func(context.Context, ...*alert.Alert) bool
 // groupAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert")
 	defer span.End()
 	recording := span.IsRecording()
 	if recording {
@@ -498,13 +494,15 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		err := errors.New("too many aggregation groups, cannot create new group for alert")
 		message := "Failed to create aggregation group"
 		d.logger.Error(message, "err", err.Error(), "groups", current, "limit", limit, "alert", alrt.Name())
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err,
-			trace.WithAttributes(
-				attribute.Int("alerting.aggregation_group.count", current),
-				attribute.Int("alerting.aggregation_group.limit", limit),
-			),
-		)
+		if recording {
+			span.SetStatus(codes.Error, message)
+			span.RecordError(err,
+				trace.WithAttributes(
+					attribute.Int("alerting.aggregation_group.count", current),
+					attribute.Int("alerting.aggregation_group.limit", limit),
+				),
+			)
+		}
 		return
 	}
 
@@ -851,9 +849,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.resetTimer(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*alert.Alert) bool {
-				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
-					trace.WithSpanKind(trace.SpanKindInternal),
-				)
+				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush")
 				defer span.End()
 				if span.IsRecording() {
 					span.SetAttributes(
@@ -901,9 +897,7 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 // insert inserts the alert into the aggregation group.
 // Returns false if the aggregation group has been destroyed.
 func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
-	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert")
 	defer span.End()
 	if span.IsRecording() {
 		span.SetAttributes(
