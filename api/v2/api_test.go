@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-openapi/runtime"
@@ -251,6 +252,36 @@ func TestGetSilencesHandlerStateFilter(t *testing.T) {
 
 	// all false - empty result.
 	require.Empty(t, callHandler(new(false), new(false), new(false)))
+}
+
+func TestGetSilencesHandlerEndBoundary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		store := newSilences(t)
+		now := time.Now().UTC()
+		sil := &silencepb.Silence{
+			MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{{Name: "alertname", Pattern: "Foo"}}}},
+			StartsAt:    timestamppb.New(now),
+			EndsAt:      timestamppb.New(now.Add(time.Minute)),
+		}
+		require.NoError(t, store.Set(t.Context(), sil))
+		api := API{silences: store, logger: promslog.NewNopLogger()}
+		time.Sleep(time.Minute)
+		for _, expired := range []bool{false, true} {
+			response := api.getSilencesHandler(silence_ops.GetSilencesParams{
+				HTTPRequest: httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v2/silences", nil),
+				Active:      new(!expired),
+				Expired:     new(expired),
+				Pending:     new(false),
+			}).(*silence_ops.GetSilencesOK)
+			if !expired {
+				require.Empty(t, response.Payload)
+				continue
+			}
+			require.Len(t, response.Payload, 1)
+			require.Equal(t, string(silence.SilenceStateExpired), *response.Payload[0].Status.State)
+			require.Equal(t, sil.Id, *response.Payload[0].ID)
+		}
+	})
 }
 
 func TestDeleteSilenceHandler(t *testing.T) {
