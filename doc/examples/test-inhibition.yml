@@ -1,0 +1,8 @@
+verify:
+  - given:
+      - [alertname="alert", severity="critical", cluster="main", service="prometheus"]
+      - [alertname="alert2", severity="critical", cluster="main", service="prometheus"]
+    inhibits:
+      - [alertname="alert", severity="warning", cluster="main", service="prometheus"]
+    alerts:
+      - [alertname="alert", severity="panic", cluster="main", service="prometheus"]
