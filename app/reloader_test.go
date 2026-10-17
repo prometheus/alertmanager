@@ -171,3 +171,33 @@ func TestReloader_StopIsNilSafe(t *testing.T) {
 	// stop before any reload (both pointers nil) must not panic.
 	require.NoError(t, r.stop())
 }
+
+type closeTrackingNotifier struct {
+	closes int
+}
+
+func (*closeTrackingNotifier) Notify(context.Context, ...*alert.Alert) (bool, error) {
+	return false, nil
+}
+
+func (n *closeTrackingNotifier) Close() error {
+	n.closes++
+	return nil
+}
+
+type resolvedSender bool
+
+func (r resolvedSender) SendResolved() bool { return bool(r) }
+
+func TestReloaderClosesIntegrations(t *testing.T) {
+	r := newTestReloader(t)
+	n := &closeTrackingNotifier{}
+	r.integrations = []notify.Integration{
+		notify.NewIntegration(n, resolvedSender(true), "test", 0, "receiver"),
+	}
+
+	require.NoError(t, r.reload(mustConfig(t)))
+	require.Equal(t, 1, n.closes)
+	require.NoError(t, r.stop())
+	require.Equal(t, 1, n.closes, "an integration should only be closed once")
+}
