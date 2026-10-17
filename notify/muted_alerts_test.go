@@ -19,7 +19,6 @@ package notify
 import (
 	"context"
 	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -827,6 +826,92 @@ func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 	}
 }
 
+// TestRetry_SendResolvedWhenMutedSurvivesAMutedFlush covers the case
+// where an alert has notified, is muted, and then is resolved while
+// muted. In this case, we expect to deliver a resolved notice
+// to the receiver when `mute_action` is set to SendResolvedWhenMuted.
+func TestRetry_SendResolvedWhenMutedSurvivesAMutedFlush(t *testing.T) {
+	p := newMutedPipelineWithSender(t, muteActionSender{
+		resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: false,
+	}, true)
+	base := utcNow()
+
+	a, b := firingAlert("a"), firingAlert("b")
+	aResolved, bResolved := resolvedAlert("a"), resolvedAlert("b")
+
+	// The receiver is shown both alerts firing, so a sequence is open.
+	delivered, reason, _ := p.flush(base, a, b)
+	require.Equal(t, ReasonFirstNotification, reason)
+	require.Equal(t, []*alert.Alert{a, b}, delivered)
+	require.Equal(t, alertHashSet(hashAlert(a), hashAlert(b)),
+		p.entry.NotifiedFiringAlerts(), "the receiver was shown both")
+
+	// Both are silenced while still firing. Nothing has resolved, so this
+	// action rightly declines -- but the flush records them as muted, and that
+	// is what empties the record of what the receiver was shown.
+	p.muted[a.Labels["alertname"]] = struct{}{}
+	p.muted[b.Labels["alertname"]] = struct{}{}
+
+	delivered, reason, _ = p.flush(base.Add(time.Minute), a, b)
+	require.Equal(t, ReasonAllAlertsMuted, reason)
+	require.Empty(t, delivered, "nothing has resolved yet, so nothing to send")
+	require.Empty(t, p.entry.NotifiedFiringAlerts(),
+		"muting has emptied the record of what the receiver was shown")
+
+	// The alerts now genuinely resolve, still muted. The receiver has an open
+	// notification from the first flush, so it is owed the close -- with the
+	// alerts' own end, which is the whole point of this action over
+	// treat_mute_as_resolved.
+	delivered, reason, _ = p.flush(base.Add(2*time.Minute), aResolved, bResolved)
+	require.Equal(t, ReasonAllAlertsResolved, reason,
+		"the group resolved, so the open sequence should close, got %q", reason)
+	require.Len(t, delivered, 2, "the receiver should be told the group is over")
+	for _, d := range delivered {
+		require.True(t, d.Resolved(), "delivered as resolved")
+	}
+}
+
+// TestRetry_TreatMuteAsResolvedClosesOnce validated that a muted group is closed
+// only once when `mute_action` is set to TreatMuteAsResolved.
+func TestRetry_TreatMuteAsResolvedClosesOnce(t *testing.T) {
+	p := newMutedPipelineWithSender(t, muteActionSender{
+		resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true,
+	}, true)
+	base := utcNow()
+
+	a, b := firingAlert("a"), firingAlert("b")
+	aResolved, bResolved := resolvedAlert("a"), resolvedAlert("b")
+
+	delivered, reason, _ := p.flush(base, a, b)
+	require.Equal(t, ReasonFirstNotification, reason)
+	require.Equal(t, []*alert.Alert{a, b}, delivered)
+
+	// Both are muted while still firing, so the group goes quiet and this
+	// action calls that resolved.
+	p.muted[a.Labels["alertname"]] = struct{}{}
+	p.muted[b.Labels["alertname"]] = struct{}{}
+
+	delivered, reason, _ = p.flush(base.Add(time.Minute), a, b)
+	require.Equal(t, ReasonAllAlertsMuted, reason)
+	require.Len(t, delivered, 2)
+	for _, d := range delivered {
+		require.True(t, d.Resolved(), "the group is delivered as resolved")
+	}
+
+	// The entry records what the receiver was told rather than the state of the
+	// alerts, which are still firing in the group.
+	require.Empty(t, p.entry.FiringAlerts, "the group is closed to this receiver")
+	require.ElementsMatch(t, []uint64{hashAlert(a), hashAlert(b)}, p.entry.ResolvedAlerts)
+	require.False(t, a.Resolved(), "the alerts in the group are left alone")
+
+	// They now resolve for real. The close went out when the group went quiet,
+	// so there is nothing left to say.
+	delivered, reason, _ = p.flush(base.Add(2*time.Minute), aResolved, bResolved)
+	require.Equal(t, ReasonDoNotNotify, reason,
+		"the group was closed already, got %q", reason)
+	require.Empty(t, delivered, "the receiver must not be told a second time")
+}
+
 // TestRetry_MuteActionNeedsAPriorNotification pins the precondition both actions
 // share: the receiver cannot be told a group is over when it was never told the
 // group began. TestDedup_NeedsUpdateMuteAware covers the same rule as a dedup
@@ -938,12 +1023,23 @@ func TestDedup_NeedsUpdateMuteAware(t *testing.T) {
 		resolved: []uint64{1, 2},
 		want:     ReasonAllAlertsResolved,
 	}, {
-		// Everything the entry recorded as firing was muted, so the receiver
-		// does not know the group ever fired.
-		name:     "group resolves without the receiver ever being shown it",
+		// An entry exists, so the group was notified about at some point, and
+		// muting is the only reason its shown set reads empty now. The group is
+		// over, so its sequence closes. Whether this one alert was shown before
+		// it was muted cannot be known from the log, and is not the question.
+		name:     "entirely muted group resolves",
 		entry:    entry([]uint64{1}, nil, []uint64{1}),
 		resolved: []uint64{1},
 		muted:    []uint64{1},
+		want:     ReasonAllAlertsResolved,
+	}, {
+		// Alert 1 resolved where the receiver can see it, so its resolution is
+		// delivered on its own merits and the group must not also be closed --
+		// that would be a second resolved notification for the same group.
+		name:     "partly visible group resolving does not close the group twice",
+		entry:    entry([]uint64{2}, []uint64{1}, []uint64{2}),
+		resolved: []uint64{1, 2},
+		muted:    []uint64{2},
 		want:     ReasonDoNotNotify,
 	}, {
 		// The group is not over: alert 2 is still firing, just muted.

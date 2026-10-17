@@ -68,6 +68,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 			return ctx, alerts, nil
 		}
 		alerts = resolved
+		ctx = withGroupClosed(ctx)
 	}
 
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
@@ -130,6 +131,20 @@ func (r RetryStage) mutedGroupAsResolved(ctx context.Context) []*alert.Alert {
 	default:
 		return nil
 	}
+}
+
+// withGroupClosed records a delivered close in the context the notification log
+// is written from: nothing firing, every alert in the group resolved.
+//
+// Only a group muting has emptied reaches this, so its alerts are exactly the
+// muted ones, whose hashes are already to hand and already sorted. The entry has
+// to say what the receiver was told: recording the alerts as still firing would
+// make the next flush read their real resolution as a fresh transition and close
+// the group a second time.
+func withGroupClosed(ctx context.Context) context.Context {
+	hashes, _ := sortedMutedAlerts(ctx)
+	ctx = WithFiringAlerts(ctx, nil)
+	return WithResolvedAlerts(ctx, hashes)
 }
 
 // endedAt returns alerts, with any that has not resolved replaced by a copy
