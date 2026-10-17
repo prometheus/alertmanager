@@ -871,7 +871,7 @@ func TestRetry_SendResolvedWhenMutedSurvivesAMutedFlush(t *testing.T) {
 	}
 }
 
-// TestRetry_TreatMuteAsResolvedClosesOnce validated that a muted group is closed
+// TestRetry_TreatMuteAsResolvedClosesOnce validates that a muted group is closed
 // only once when `mute_action` is set to TreatMuteAsResolved.
 func TestRetry_TreatMuteAsResolvedClosesOnce(t *testing.T) {
 	p := newMutedPipelineWithSender(t, muteActionSender{
