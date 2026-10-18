@@ -202,14 +202,11 @@ func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchma
 	}
 }
 
-// equalPairsBenchmark returns a benchmark where one inhibition rule combines
-// an equal label with an equal pair (the issue #2254 scenario), exercising
-// the slot-index path for the pair constraint.
+// equalPairsBenchmark: one rule combining equal [eq] and pair eq->rc (shared source label).
 func equalPairsBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions {
 	now := time.Now()
 
-	// Built once: in production the MuteStage passes the alert's precomputed
-	// fingerprint along with its labels, so hashing is not part of Mutes.
+	// Precomputed once: in production the fingerprint is handed to Mutes.
 	target := labelset.FromModel(model.LabelSet{"src": "1", "dst": "1", "eq": "1", "rc": "1"})
 	return benchmarkOptions{
 		n: 1,
@@ -250,9 +247,7 @@ func equalPairsBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions
 	}
 }
 
-// equalPairsRulesBenchmark returns a benchmark where every inhibition rule
-// combines an equal label with an equal pair; only the last rule matches and
-// inhibits dst=0.
+// equalPairsRulesBenchmark: every rule has equal + pair; only the last rule matches.
 func equalPairsRulesBenchmark(b *testing.B, numInhibitionRules int) benchmarkOptions {
 	return benchmarkOptions{
 		n: numInhibitionRules,
@@ -271,7 +266,7 @@ func equalPairsRulesBenchmark(b *testing.B, numInhibitionRules int) benchmarkOpt
 			}
 		},
 		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []*alert.Alert {
-			// Do not create an alert unless it is the last inhibition rule.
+			// Only the last rule is given a source alert.
 			if idx < numInhibitionRules-1 {
 				return nil
 			}
@@ -379,4 +374,198 @@ func mustNewMatcher(b *testing.B, op labels.MatchType, name, value string) *labe
 	m, err := labels.NewMatcher(op, name, value)
 	require.NoError(b, err)
 	return m
+}
+
+// BenchmarkExtremes brackets the time/memory/GC extremes of Mutes on the
+// slot index: a probe builds a K-entry key (O(K) + one map allocation),
+// probes O(1), then walks O(|set|) sources behind the probed key. All label
+// names and values are fixed; constraint values are "v" unless noted.
+//
+//	Best/Time_pure_equal_1src        K=3 equal-only hit; the legacy byte-identical-key path.
+//	Best/GC_pure_equal_10labels      K=10 equal-only hit; main-line 10-label parity.
+//	Worst/Time_K10_10k_set_twosided  K=10, |set|=10k, whole bucket two-sided-rejected; the O(|set|) ceiling.
+//	Worst/Time_K10_10k_nomatch       K=10, |set|=10k, one probe value off; empty-bucket reject.
+//	Worst/Time_K10_1src_keybuild     K=10, |set|=1; key build in isolation.
+//	Worst/GC_K10_keybuild_allocs     Same setup; the K=10 key's B/op & allocs.
+//	Worst/Time_collision_slots       equal [a] + pairs a->x,y,z; the #2..#4 collision slots.
+func BenchmarkExtremes(b *testing.B) {
+	b.Run("Best/Time_pure_equal_1src", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:     []string{"a", "b", "c"},
+			sources:   1,
+			wantMuted: true,
+		})
+	})
+	b.Run("Best/GC_pure_equal_10labels", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:     []string{"el0", "el1", "el2", "el3", "el4", "el5", "el6", "el7", "el8", "el9"},
+			sources:   1,
+			wantMuted: true,
+		})
+	})
+	b.Run("Worst/Time_K10_10k_set_twosided", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:              extremesEqual5,
+			pairs:              extremesPairs5,
+			sources:            10000,
+			targetMatchesSrc:   true,
+			sourcesMatchTarget: true,
+			wantMuted:          false,
+		})
+	})
+	b.Run("Worst/Time_K10_10k_nomatch", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:              extremesEqual5,
+			pairs:              extremesPairs5,
+			sources:            10000,
+			targetMatchesSrc:   true,
+			sourcesMatchTarget: true,
+			differ:             "pb4",
+			wantMuted:          false,
+		})
+	})
+	b.Run("Worst/Time_K10_1src_keybuild", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:     extremesEqual5,
+			pairs:     extremesPairs5,
+			sources:   1,
+			wantMuted: true,
+		})
+	})
+	b.Run("Worst/GC_K10_keybuild_allocs", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:     extremesEqual5,
+			pairs:     extremesPairs5,
+			sources:   1,
+			wantMuted: true,
+		})
+	})
+	b.Run("Worst/Time_collision_slots", func(b *testing.B) {
+		benchmarkExtremes(b, extremesScen{
+			equal:     []string{"a"},
+			pairs:     [][2]string{{"a", "x"}, {"a", "y"}, {"a", "z"}},
+			sources:   1000,
+			wantMuted: true,
+		})
+	})
+}
+
+// extremesEqual5/extremesPairs5: the K=10 set of the K10 subtests.
+var (
+	extremesEqual5 = []string{"eq0", "eq1", "eq2", "eq3", "eq4"}
+	extremesPairs5 = [][2]string{
+		{"pa0", "pb0"},
+		{"pa1", "pb1"},
+		{"pa2", "pb2"},
+		{"pa3", "pb3"},
+		{"pa4", "pb4"},
+	}
+)
+
+// extremesScen describes one subtest; all label values are fixed ("v").
+type extremesScen struct {
+	// `equal` label names (identity constraints).
+	equal []string
+	// `equal_pairs` as (source, target) label names.
+	pairs [][2]string
+	// Active sources sharing the rule's index key.
+	sources int
+	// Target also matches the source matcher: two-sided exclusion active.
+	targetMatchesSrc bool
+	// Every source matches the target matcher: whole bucket two-sided-rejected.
+	sourcesMatchTarget bool
+	// The one target-side constraint value set to "w" (empty bucket).
+	differ string
+	// Expected outcome, asserted each iteration.
+	wantMuted bool
+}
+
+// extremesRule builds the rule: src=1 / dst=1 matchers plus the constraints.
+func extremesRule(b *testing.B, scen extremesScen) amcommoncfg.InhibitRule {
+	rule := amcommoncfg.InhibitRule{
+		SourceMatchers: amcommoncfg.Matchers{mustNewMatcher(b, labels.MatchEqual, "src", "1")},
+		TargetMatchers: amcommoncfg.Matchers{mustNewMatcher(b, labels.MatchEqual, "dst", "1")},
+		Equal:          scen.equal,
+	}
+	for _, p := range scen.pairs {
+		rule.EqualPairs = append(rule.EqualPairs, amcommoncfg.LabelPair{
+			SourceLabel: model.LabelName(p[0]),
+			TargetLabel: model.LabelName(p[1]),
+		})
+	}
+	return rule
+}
+
+// sourceLabels builds one source alert's labels: src, idx, "v" on every
+// constraint source label (plus dst when set).
+func (s extremesScen) sourceLabels(i int) model.LabelSet {
+	lset := model.LabelSet{
+		"src": "1",
+		"idx": model.LabelValue(strconv.Itoa(i)),
+	}
+	if s.sourcesMatchTarget {
+		lset["dst"] = "1"
+	}
+	for _, name := range s.equal {
+		lset[model.LabelName(name)] = "v"
+	}
+	for _, p := range s.pairs {
+		lset[model.LabelName(p[0])] = "v"
+	}
+	return lset
+}
+
+// targetLabels builds the fixed target: dst, "v" on every constraint target
+// label (src when set, differ's label as "w").
+func (s extremesScen) targetLabels() model.LabelSet {
+	lset := model.LabelSet{"dst": "1"}
+	if s.targetMatchesSrc {
+		lset["src"] = "1"
+	}
+	for _, name := range s.equal {
+		if name == s.differ {
+			lset[model.LabelName(name)] = "w"
+		} else {
+			lset[model.LabelName(name)] = "v"
+		}
+	}
+	for _, p := range s.pairs {
+		if p[1] == s.differ {
+			lset[model.LabelName(p[1])] = "w"
+		} else {
+			lset[model.LabelName(p[1])] = "v"
+		}
+	}
+	return lset
+}
+
+// benchmarkExtremes seeds the alerts then times Mutes on the fixed target;
+// WaitForLoading stands in for the seed wait.
+func benchmarkExtremes(b *testing.B, scen extremesScen) {
+	r := prometheus.NewRegistry()
+	s, err := mem.NewAlerts(context.TODO(), time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), r, nil)
+	require.NoError(b, err)
+	defer s.Close()
+
+	rule := extremesRule(b, scen)
+	endsAt := time.Now().Add(time.Hour)
+	for i := range scen.sources {
+		a := alert.New(model.Alert{
+			Labels: scen.sourceLabels(i),
+			EndsAt: endsAt,
+		}, time.Time{}, false)
+		require.NoError(b, s.Put(context.Background(), a))
+	}
+
+	ih := NewInhibitor(s, []amcommoncfg.InhibitRule{rule}, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+	defer ih.Stop()
+	go ih.Run()
+	ih.WaitForLoading()
+
+	target := labelset.FromModel(scen.targetLabels())
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		require.Equal(b, scen.wantMuted, ih.Mutes(context.Background(), target))
+	}
 }
