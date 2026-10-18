@@ -66,6 +66,12 @@ func BenchmarkMutes(b *testing.B) {
 	b.Run("1 inhibition rule, 10000 same-equal alerts, source-only candidate", func(b *testing.B) {
 		benchmarkMutes(b, sameEqualSourceOnlyBenchmark(b, 10000))
 	})
+	b.Run("1 inhibition rule, 100 inhibiting alerts, equal_pairs", func(b *testing.B) {
+		benchmarkMutes(b, equalPairsBenchmark(b, 100))
+	})
+	b.Run("1000 inhibition rules, 1 inhibiting alert, equal_pairs", func(b *testing.B) {
+		benchmarkMutes(b, equalPairsRulesBenchmark(b, 1000))
+	})
 	b.Run("100 inhibition rules, 1000 inhibiting alerts", func(b *testing.B) {
 		benchmarkMutes(b, allRulesMatchBenchmark(b, 100, 1000))
 	})
@@ -190,6 +196,96 @@ func sameEqualSourceOnlyBenchmark(b *testing.B, numInhibitingAlerts int) benchma
 		benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
 			if ok := mutesFunc(context.Background(), target); !ok {
 				return errors.New("expected source-and-target alert to be muted by a source-only alert")
+			}
+			return nil
+		},
+	}
+}
+
+// equalPairsBenchmark returns a benchmark where one inhibition rule combines
+// an equal label with an equal pair (the issue #2254 scenario), exercising
+// the slot-index path for the pair constraint.
+func equalPairsBenchmark(b *testing.B, numInhibitingAlerts int) benchmarkOptions {
+	now := time.Now()
+
+	// Built once: in production the MuteStage passes the alert's precomputed
+	// fingerprint along with its labels, so hashing is not part of Mutes.
+	target := labelset.FromModel(model.LabelSet{"src": "1", "dst": "1", "eq": "1", "rc": "1"})
+	return benchmarkOptions{
+		n: 1,
+		newRuleFunc: func(_ int) amcommoncfg.InhibitRule {
+			return amcommoncfg.InhibitRule{
+				SourceMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "src", "1"),
+				},
+				TargetMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "1"),
+				},
+				Equal: []string{"eq"},
+				EqualPairs: []amcommoncfg.LabelPair{
+					{SourceLabel: "eq", TargetLabel: "rc"},
+				},
+			}
+		},
+		newAlertsFunc: func(_ int, _ amcommoncfg.InhibitRule) []*alert.Alert {
+			alerts := make([]*alert.Alert, 0, numInhibitingAlerts)
+			for i := range numInhibitingAlerts {
+				alerts = append(alerts, alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"src": model.LabelValue("1"),
+						"eq":  model.LabelValue("1"),
+						"idx": model.LabelValue(strconv.Itoa(i)),
+					},
+					EndsAt: now.Add(time.Hour),
+				}, time.Time{}, false))
+			}
+			return alerts
+		},
+		benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
+			if ok := mutesFunc(context.Background(), target); !ok {
+				return errors.New("expected dst=1 to be muted via the equal pair")
+			}
+			return nil
+		},
+	}
+}
+
+// equalPairsRulesBenchmark returns a benchmark where every inhibition rule
+// combines an equal label with an equal pair; only the last rule matches and
+// inhibits dst=0.
+func equalPairsRulesBenchmark(b *testing.B, numInhibitionRules int) benchmarkOptions {
+	return benchmarkOptions{
+		n: numInhibitionRules,
+		newRuleFunc: func(idx int) amcommoncfg.InhibitRule {
+			return amcommoncfg.InhibitRule{
+				SourceMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "src", strconv.Itoa(idx)),
+				},
+				TargetMatchers: amcommoncfg.Matchers{
+					mustNewMatcher(b, labels.MatchEqual, "dst", "0"),
+				},
+				Equal: []string{"eq"},
+				EqualPairs: []amcommoncfg.LabelPair{
+					{SourceLabel: "eq", TargetLabel: "rc"},
+				},
+			}
+		},
+		newAlertsFunc: func(idx int, _ amcommoncfg.InhibitRule) []*alert.Alert {
+			// Do not create an alert unless it is the last inhibition rule.
+			if idx < numInhibitionRules-1 {
+				return nil
+			}
+			return []*alert.Alert{alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"src": model.LabelValue(strconv.Itoa(idx)),
+					"eq":  model.LabelValue("0"),
+				},
+			}, time.Time{}, false)}
+		},
+		benchFunc: func(mutesFunc func(context.Context, labelset.LabelSet) bool) error {
+			target := model.LabelSet{"dst": "0", "eq": "0", "rc": "0"}
+			if ok := mutesFunc(context.Background(), labelset.FromModel(target)); !ok {
+				return errors.New("expected dst=0 to be muted via the equal pair")
 			}
 			return nil
 		},
