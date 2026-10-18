@@ -38,7 +38,7 @@ require (
 	github.com/mdlayher/vsock v1.3.0
 	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid/v2 v2.1.2
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.72.1
 	github.com/prometheus/exporter-toolkit v0.20.0
@@ -116,7 +116,7 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
-	github.com/prometheus/procfs v0.21.1 // indirect
+	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
