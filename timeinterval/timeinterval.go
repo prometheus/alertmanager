@@ -280,14 +280,15 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 		return fmt.Errorf("end day must be negative if start day is negative")
 	}
 	// Check begin <= end. We can't know this for sure when using negative indices
-	// but we can prevent cases where its always invalid (using 28 day minimum length).
+	// but we can prevent cases where its always invalid (using 31 day maximum length,
+	// where -1 is day 31).
 	checkBegin := r.Begin
 	checkEnd := r.End
 	if r.Begin < 0 {
-		checkBegin = 28 + r.Begin
+		checkBegin = 32 + r.Begin
 	}
 	if r.End < 0 {
-		checkEnd = 28 + r.End
+		checkEnd = 32 + r.End
 	}
 	if checkBegin > checkEnd {
 		return fmt.Errorf("end day %d is always before start day %d", r.End, r.Begin)
