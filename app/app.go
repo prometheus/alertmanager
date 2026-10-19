@@ -33,7 +33,6 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -370,7 +369,7 @@ func (a *App) setup() error {
 	// the API's GroupFunc closes over the r variable: it is only invoked
 	// once the server is serving, long after r is assigned.
 	var r *reloader
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return r.groups(ctx, routeFilter, alertFilter)
 	}
 

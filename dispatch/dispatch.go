@@ -315,14 +315,23 @@ func (d *Dispatcher) LoadingDone() <-chan struct{} {
 	return d.loaded
 }
 
+// AlertFilter decides whether an alert belongs in a Groups result and returns
+// the status to report for it. Groups calls the filter once per alert per
+// aggregation group and records the returned status in
+// AlertGroup.AlertStatuses, so the same alert may legitimately be reported
+// with a different status in different groups.
+type AlertFilter func(a *alert.Alert, now time.Time) (alert.AlertStatus, bool)
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
-	Alerts        alert.AlertSlice
-	Labels        model.LabelSet
-	RouteLabels   model.LabelSet
-	Receiver      string
-	GroupKey      string
-	RouteID       string
+	Alerts      alert.AlertSlice
+	Labels      model.LabelSet
+	RouteLabels model.LabelSet
+	Receiver    string
+	GroupKey    string
+	RouteID     string
+	// AlertStatuses holds the status returned by the AlertFilter for each
+	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
 }
 
@@ -338,7 +347,7 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter AlertFilter) (AlertGroups, map[model.Fingerprint][]string, error) {
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
@@ -374,12 +383,15 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		for _, ag := range snapshot {
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*alert.Alert, 0, len(alerts))
+			statuses := make(map[model.Fingerprint]alert.AlertStatus, len(alerts))
 			for _, a := range alerts {
-				if !alertFilter(a, now) {
+				status, ok := alertFilter(a, now)
+				if !ok {
 					continue
 				}
 
 				fp := a.Fingerprint()
+				statuses[fp] = status
 				if r, ok := receivers[fp]; ok {
 					// Receivers slice already exists. Add
 					// the current receiver to the slice.
@@ -407,10 +419,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				RouteID:     ag.routeID,
 			}
 			alertGroup.Alerts = filteredAlerts
-			alertGroup.AlertStatuses = make(map[model.Fingerprint]alert.AlertStatus, len(filteredAlerts))
-			for _, a := range filteredAlerts {
-				alertGroup.AlertStatuses[a.Fingerprint()] = ag.marker.Status(a.Fingerprint())
-			}
+			alertGroup.AlertStatuses = statuses
 
 			groups = append(groups, alertGroup)
 		}
