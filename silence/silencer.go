@@ -50,12 +50,9 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
-	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes")
+	ctx, span := tracer.StartSilencerMutes(ctx, fp)
 	defer span.End()
 	recording := span.IsRecording()
-	if recording {
-		span.SetAttributes(attribute.String("alerting.alert.fingerprint", fp.String()))
-	}
 
 	// Track the silences to set on marker
 	var markedSilences []string

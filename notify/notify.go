@@ -43,9 +43,6 @@ import (
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/notify")
 
-// Reuse the entire options slice to avoid allocating it on every Notify call.
-var clientSpanOptions = []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindClient)}
-
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
 	SendResolved() bool
@@ -142,13 +139,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdict NotifyVerdict) {
-	ctx, span := tracer.Start(ctx, "notify.Integration.Notify", clientSpanOptions...)
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("alerting.notify.integration.name", i.name),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		)
-	}
+	ctx, span := tracer.StartIntegrationNotify(ctx, i.name, len(alerts))
 
 	defer func() {
 		if span.IsRecording() {
@@ -305,14 +296,8 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 		return ctx, nil, errors.New("receiver missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.RoutingStage.Exec")
+	ctx, span := tracer.StartRoutingStage(ctx, receiver, len(alerts))
 	defer span.End()
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("alerting.notify.receiver.name", receiver),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		)
-	}
 
 	s, ok := rs[receiver]
 	if !ok {

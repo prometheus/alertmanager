@@ -108,15 +108,9 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.processAlert")
+	_, span := tracer.StartInhibitorProcessAlert(ctx, a.Name(), a.Fingerprint())
 	defer span.End()
 	recording := span.IsRecording()
-	if recording {
-		span.SetAttributes(
-			attribute.String("alerting.alert.name", a.Name()),
-			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
-		)
-	}
 
 	// Update the inhibition rules' cache.
 	for _, r := range ih.rules {
@@ -181,12 +175,9 @@ func (ih *Inhibitor) Stop() {
 func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes")
+	_, span := tracer.StartInhibitorMutes(ctx, fp)
 	defer span.End()
 	recording := span.IsRecording()
-	if recording {
-		span.SetAttributes(attribute.String("alerting.alert.fingerprint", fp.String()))
-	}
 
 	var inhibitedBy []string
 	defer func() {
