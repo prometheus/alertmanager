@@ -24,9 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -39,9 +37,6 @@ import (
 const alertChannelLength = 200
 
 var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/provider/mem")
-
-// Reuse the entire options slice to avoid allocating it on every Put call.
-var producerSpanOptions = []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindProducer)}
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
@@ -299,11 +294,8 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
-	ctx, span := tracer.Start(ctx, "provider.mem.Put", producerSpanOptions...)
+	ctx, span := tracer.StartAlertsPut(ctx, len(alerts))
 	defer span.End()
-	if span.IsRecording() {
-		span.SetAttributes(attribute.Int("alerting.alerts.count", len(alerts)))
-	}
 
 	for _, alrt := range alerts {
 		fp := alrt.Fingerprint()

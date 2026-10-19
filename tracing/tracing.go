@@ -53,21 +53,24 @@ func Enabled() bool {
 	return tracingEnabled.Load()
 }
 
-// conditionalTracer wraps the global OTel tracer and short-circuits
-// Start when tracing is disabled, avoiding allocations entirely.
-type conditionalTracer struct {
-	noop.Tracer
+// Tracer starts spans for one instrumentation scope and short-circuits
+// when tracing is disabled, avoiding allocations entirely. Spans that
+// carry attributes have a dedicated Start method in spans.go so that
+// callers never build attributes on the disabled path.
+type Tracer struct {
 	name string
 }
 
-// NewTracer returns a trace.Tracer that skips span creation when
-// tracing is disabled. Use this instead of otel.Tracer().
-// Attributes set after Start are unavailable to samplers and SpanProcessor.OnStart.
-func NewTracer(name string) trace.Tracer {
-	return &conditionalTracer{name: name}
+// NewTracer returns a Tracer that skips span creation when tracing is
+// disabled. Use this instead of otel.Tracer(). Attributes set after Start
+// are unavailable to samplers and SpanProcessor.OnStart.
+func NewTracer(name string) Tracer {
+	return Tracer{name: name}
 }
 
-func (t *conditionalTracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+// Start starts a span without attributes. Use the span-specific Start
+// methods when the span carries attributes.
+func (t Tracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	if !tracingEnabled.Load() {
 		return ctx, noopSpan
 	}

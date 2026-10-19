@@ -19,8 +19,6 @@ import (
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -121,14 +119,8 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 		return ctx, nil, errors.New("group key missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.DedupStage.Exec")
+	ctx, span := tracer.StartDedupStage(ctx, gkey, len(alerts))
 	defer span.End()
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("alerting.group.key", gkey),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		)
-	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {

@@ -66,14 +66,8 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 		return ctx, nil, errors.New("group key missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.SetNotifiesStage.Exec")
+	ctx, span := tracer.StartSetNotifiesStage(ctx, gkey, len(alerts))
 	defer span.End()
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("alerting.group.key", gkey),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		)
-	}
 
 	firing, ok := FiringAlerts(ctx)
 	if !ok {
