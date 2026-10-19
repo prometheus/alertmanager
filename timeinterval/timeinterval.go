@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Intervener determines whether a given time and active route time interval should mute outgoing notifications.
@@ -309,6 +309,12 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if err := stringableRangeFromString(str, r); err != nil {
 		return err
+	}
+	if r.Begin < 1 || r.Begin > 12 {
+		return fmt.Errorf("%d is not a valid month: out of range", r.Begin)
+	}
+	if r.End < 1 || r.End > 12 {
+		return fmt.Errorf("%d is not a valid month: out of range", r.End)
 	}
 	if r.Begin > r.End {
 		begin := monthsInv[r.Begin]

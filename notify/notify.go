@@ -163,13 +163,23 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 	defer func() {
 		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
 		if err := verdict.Err(); err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			i.recordFailure(span, verdict.Reason(), err)
 		}
 		span.End()
 	}()
 
 	return i.notifier.Notify(ctx, alerts...)
+}
+
+func (i *Integration) recordFailure(span trace.Span, reason Reason, err error) {
+	span.SetAttributes(
+		attribute.String("alerting.notify.error.reason", reason.String()),
+		attribute.String("alerting.notify.receiver.name", i.receiverName),
+		attribute.String("alerting.notify.integration.name", i.name),
+		attribute.Int("alerting.notify.integration.index", i.idx),
+	)
+	span.SetStatus(codes.Error, err.Error())
+	span.RecordError(err)
 }
 
 // SendResolved implements the ResolvedSender interface.

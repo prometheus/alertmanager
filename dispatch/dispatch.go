@@ -198,7 +198,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	// Start timer goroutine
 	d.finished.Go(func() {
-		<-d.startTimer.C
+		select {
+		case <-d.startTimer.C:
+		case <-d.ctx.Done():
+			// Stopped before the start time: Stop must not wait for it.
+			d.startTimer.Stop()
+			return
+		}
 
 		if d.state.CompareAndSwap(DispatcherStateWaitingToStart, DispatcherStateRunning) {
 			d.logger.Debug("started", "state", "running")
@@ -279,11 +285,11 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 
 func (d *Dispatcher) doMaintenance() {
 	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+		d.routeGroupsSlice[i].groups.Range(func(key, el any) bool {
 			ag := el.(*aggrGroup)
 			if ag.destroyed() {
 				ag.stop()
-				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(ag.fingerprint(), ag)
+				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(key, ag)
 				if deleted {
 					// TODO(ultrotter, siavash):
 					// Deletion from the marker should only happen if we really deleted the group.
@@ -309,14 +315,23 @@ func (d *Dispatcher) LoadingDone() <-chan struct{} {
 	return d.loaded
 }
 
+// AlertFilter decides whether an alert belongs in a Groups result and returns
+// the status to report for it. Groups calls the filter once per alert per
+// aggregation group and records the returned status in
+// AlertGroup.AlertStatuses, so the same alert may legitimately be reported
+// with a different status in different groups.
+type AlertFilter func(a *alert.Alert, now time.Time) (alert.AlertStatus, bool)
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
-	Alerts        alert.AlertSlice
-	Labels        model.LabelSet
-	RouteLabels   model.LabelSet
-	Receiver      string
-	GroupKey      string
-	RouteID       string
+	Alerts      alert.AlertSlice
+	Labels      model.LabelSet
+	RouteLabels model.LabelSet
+	Receiver    string
+	GroupKey    string
+	RouteID     string
+	// AlertStatuses holds the status returned by the AlertFilter for each
+	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
 }
 
@@ -332,7 +347,7 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter AlertFilter) (AlertGroups, map[model.Fingerprint][]string, error) {
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
@@ -368,12 +383,15 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		for _, ag := range snapshot {
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*alert.Alert, 0, len(alerts))
+			statuses := make(map[model.Fingerprint]alert.AlertStatus, len(alerts))
 			for _, a := range alerts {
-				if !alertFilter(a, now) {
+				status, ok := alertFilter(a, now)
+				if !ok {
 					continue
 				}
 
 				fp := a.Fingerprint()
+				statuses[fp] = status
 				if r, ok := receivers[fp]; ok {
 					// Receivers slice already exists. Add
 					// the current receiver to the slice.
@@ -401,10 +419,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				RouteID:     ag.routeID,
 			}
 			alertGroup.Alerts = filteredAlerts
-			alertGroup.AlertStatuses = make(map[model.Fingerprint]alert.AlertStatus, len(filteredAlerts))
-			for _, a := range filteredAlerts {
-				alertGroup.AlertStatuses[a.Fingerprint()] = ag.marker.Status(a.Fingerprint())
-			}
+			alertGroup.AlertStatuses = statuses
 
 			groups = append(groups, alertGroup)
 		}
@@ -614,7 +629,7 @@ type aggrGroup struct {
 	opts     *RouteOpts
 	logger   *slog.Logger
 	routeID  string
-	routeKey string
+	groupKey string
 	matchers labels.Matchers
 
 	alerts   *store.Alerts
@@ -667,7 +682,7 @@ func newAggrGroup(
 	ag := &aggrGroup{
 		labels:   labels,
 		routeID:  r.ID(),
-		routeKey: r.Key(),
+		groupKey: fmt.Sprintf("%s:%s", r.Key(), labels),
 		matchers: r.Matchers,
 		opts:     &r.RouteOpts,
 		timeout:  to,
@@ -697,8 +712,10 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
+// GroupKey returns the key built from the route and immutable group labels.
+// Note that multiple aggregation groups can have the same key.
 func (ag *aggrGroup) GroupKey() string {
-	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
+	return ag.groupKey
 }
 
 func (ag *aggrGroup) String() string {

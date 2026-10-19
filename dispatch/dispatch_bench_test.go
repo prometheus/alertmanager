@@ -181,7 +181,7 @@ func populateGroups(b *testing.B, d *Dispatcher, alerts *mem.Alerts, numGroups, 
 	require.Eventually(b, func() bool {
 		groups, _, _ := d.Groups(ctx,
 			func(*Route) bool { return true },
-			func(*alert.Alert, time.Time) bool { return true },
+			func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
 		)
 		return len(groups) >= expectedMinGroups
 	}, 30*time.Second, 10*time.Millisecond, "expected %d groups to be created", expectedMinGroups)
@@ -219,7 +219,7 @@ func benchmarkGroups(b *testing.B, numGroups, alertsPerGroup, numTeams, numClust
 	ctx := context.Background()
 
 	routeFilter := func(*Route) bool { return true }
-	alertFilter := func(*alert.Alert, time.Time) bool { return true }
+	alertFilter := func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true }
 
 	b.ResetTimer()
 
@@ -288,7 +288,7 @@ func benchmarkIngestionUnderGroupsLoad(b *testing.B, numGroupsCallers int, group
 				case <-ticker.C:
 					dispatcher.Groups(ctx,
 						func(*Route) bool { return true },
-						func(*alert.Alert, time.Time) bool { return true })
+						func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true })
 				case <-stopCh:
 					return
 				}

@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 
 	promconfig "github.com/prometheus/common/config"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file.

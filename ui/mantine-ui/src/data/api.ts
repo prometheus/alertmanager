@@ -28,7 +28,7 @@ const isAPIEnvelope = <T>(value: unknown): value is APIResponse<T> => {
   );
 };
 
-const createQueryFn =
+export const createQueryFn =
   <T>({
     pathPrefix,
     path,

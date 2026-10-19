@@ -23,6 +23,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -272,6 +273,10 @@ func TestGroupByAllLabels(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
+	synctest.Test(t, testGroups)
+}
+
+func testGroups(t *testing.T) {
 	confData := `receivers:
 - name: 'kafka'
 - name: 'prod'
@@ -333,17 +338,17 @@ route:
 	}
 	alerts.Put(context.Background(), inputAlerts...)
 
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	// Let alerts get processed: the routes use a 10ms group_wait and time is
+	// virtual inside the bubble, so this returns as soon as the groups flushed.
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Len(t, recorder.Alerts(), 7)
 
 	alertGroups, receivers, _ := dispatcher.Groups(context.Background(),
 		func(*Route) bool {
 			return true
-		}, func(*alert.Alert, time.Time) bool {
-			return true
+		}, func(*alert.Alert, time.Time) (alert.AlertStatus, bool) {
+			return alert.AlertStatus{}, true
 		},
 	)
 
@@ -433,6 +438,10 @@ route:
 }
 
 func TestGroupsWithLimits(t *testing.T) {
+	synctest.Test(t, testGroupsWithLimits)
+}
+
+func testGroupsWithLimits(t *testing.T) {
 	confData := `receivers:
 - name: 'kafka'
 - name: 'prod'
@@ -499,14 +508,14 @@ route:
 		t.Fatal(err)
 	}
 
-	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	// Let alerts get processed: the routes use a 10ms group_wait and time is
+	// virtual inside the bubble, so this returns as soon as the groups flushed.
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Len(t, recorder.Alerts(), 7)
 
 	routeFilter := func(*Route) bool { return true }
-	alertFilter := func(*alert.Alert, time.Time) bool { return true }
+	alertFilter := func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true }
 
 	alertGroups, _, _ := dispatcher.Groups(context.Background(), routeFilter, alertFilter)
 	require.Len(t, alertGroups, 6)
@@ -520,9 +529,8 @@ route:
 	}
 
 	// Let alert get processed.
-	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-	}
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
@@ -563,14 +571,90 @@ func (r *recordStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert
 	return ctx, nil, nil
 }
 
-var (
-	// Set the start time in the past to trigger a flush immediately.
-	t0 = time.Now().Add(-time.Minute)
-	// Set the end time in the future to avoid deleting the alert.
-	t1 = t0.Add(2 * time.Minute)
-)
+// TestGroupsRecordsFilterStatus checks the Groups contract with its
+// AlertFilter: the filter is called exactly once per alert per group, the
+// status it returns is recorded per group under the alert's fingerprint, and
+// alerts it rejects are left out together with their status.
+func TestGroupsRecordsFilterStatus(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		confData := `receivers:
+- name: 'prod'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'prod'`
+		conf, err := config.Load(confData)
+		require.NoError(t, err)
+
+		logger := promslog.NewNopLogger()
+		route := NewRoute(conf.Route, nil)
+		reg := prometheus.NewRegistry()
+		alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+		require.NoError(t, err)
+		defer alerts.Close()
+
+		timeout := func(d time.Duration) time.Duration { return 0 }
+		recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
+		dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+		go dispatcher.Run(time.Now())
+		defer dispatcher.Stop()
+
+		// Two groups of two alerts; "Rejected" is dropped by the filter.
+		inputAlerts := []*alert.Alert{
+			newAlert(model.LabelSet{"alertname": "A", "instance": "1"}),
+			newAlert(model.LabelSet{"alertname": "A", "instance": "2"}),
+			newAlert(model.LabelSet{"alertname": "B", "instance": "1"}),
+			newAlert(model.LabelSet{"alertname": "B", "instance": "2"}),
+			newAlert(model.LabelSet{"alertname": "Rejected"}),
+		}
+		require.NoError(t, alerts.Put(context.Background(), inputAlerts...))
+		time.Sleep(50 * time.Millisecond)
+		synctest.Wait()
+		require.Len(t, recorder.Alerts(), 5)
+
+		// Every call reports a distinct silence ID so the recorded statuses can
+		// be traced back to individual filter calls.
+		calls := 0
+		filter := func(a *alert.Alert, _ time.Time) (alert.AlertStatus, bool) {
+			calls++
+			if a.Labels["alertname"] == "Rejected" {
+				return alert.AlertStatus{}, false
+			}
+			return alert.AlertStatus{State: alert.AlertStateSuppressed, SilencedBy: []string{fmt.Sprintf("sil-%d", calls)}}, true
+		}
+		groups, _, err := dispatcher.Groups(context.Background(), func(*Route) bool { return true }, filter)
+		require.NoError(t, err)
+
+		require.Equal(t, 5, calls, "filter must run once per alert per group")
+		require.Len(t, groups, 2, "the rejected alert's group must be left out")
+
+		var recorded []string
+		for _, g := range groups {
+			require.Len(t, g.Alerts, 2)
+			require.Len(t, g.AlertStatuses, 2)
+			for _, a := range g.Alerts {
+				status, ok := g.AlertStatuses[a.Fingerprint()]
+				require.True(t, ok, "every returned alert has a recorded status")
+				require.Equal(t, alert.AlertStateSuppressed, status.State)
+				recorded = append(recorded, status.SilencedBy...)
+			}
+		}
+		// Four accepted calls, each recorded exactly once; the rejected call's
+		// status is not recorded anywhere.
+		require.Len(t, recorded, 4)
+		require.Subset(t, []string{"sil-1", "sil-2", "sil-3", "sil-4", "sil-5"}, recorded)
+		require.Len(t, map[string]struct{}{recorded[0]: {}, recorded[1]: {}, recorded[2]: {}, recorded[3]: {}}, 4)
+	})
+}
 
 func newAlert(labels model.LabelSet) *alert.Alert {
+	// Set the start time in the past to trigger a flush immediately and the
+	// end time in the future to avoid deleting the alert. The times are taken
+	// at call time so that tests inside a synctest bubble use its clock.
+	t0 := time.Now().Add(-time.Minute)
+	t1 := t0.Add(2 * time.Minute)
 	return alert.New(model.Alert{
 		Labels:       labels,
 		Annotations:  model.LabelSet{"foo": "bar"},
@@ -598,6 +682,10 @@ func TestDispatcherRace(t *testing.T) {
 }
 
 func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
+	synctest.Test(t, testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero)
+}
+
+func testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
 	const numAlerts = 5000
 
 	logger := promslog.NewNopLogger()
@@ -631,15 +719,9 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 		require.NoError(t, alerts.Put(context.Background(), alrt))
 	}
 
-	// Wait until the alerts have been notified or the waiting timeout expires.
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-		if len(recorder.Alerts()) >= numAlerts {
-			break
-		}
-
-		// Throttle.
-		time.Sleep(10 * time.Millisecond)
-	}
+	// Wait until every goroutine in the bubble is blocked, i.e. the
+	// dispatcher has processed everything it was given.
+	synctest.Wait()
 
 	// We expect all alerts to be notified immediately, since they all belong to different groups.
 	require.Len(t, recorder.Alerts(), numAlerts)

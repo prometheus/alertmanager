@@ -20,18 +20,20 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
+	connectcors "connectrpc.com/cors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/route"
+	"github.com/rs/cors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/prometheus/alertmanager/alert"
 	apiconnect "github.com/prometheus/alertmanager/api/connect"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
@@ -47,6 +49,7 @@ type API struct {
 	v2                *apiv2.API
 	connect           *apiconnect.API
 	deprecationRouter *V1DeprecationRouter
+	corsHandler       func(http.Handler) http.Handler
 
 	requestDuration          *prometheus.HistogramVec
 	requestsInFlight         prometheus.Gauge
@@ -101,6 +104,9 @@ type Options struct {
 	// ConnectMaxRequestBodyBytes limits the wire size of a Connect unary request
 	// body before decoding. Non-positive values do not set a limit.
 	ConnectMaxRequestBodyBytes int64
+	// CORSHandler is created by NewCORSHandler. If nil, no CORS headers are
+	// sent.
+	CORSHandler func(http.Handler) http.Handler
 	// Logger is used for logging, if nil, no logging will happen.
 	Logger *slog.Logger
 	// Registry is used to register Prometheus metrics. If nil, no metrics
@@ -111,7 +117,7 @@ type Options struct {
 	// GroupFunc returns a list of alert groups. The alerts are grouped
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
-	GroupFunc func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
+	GroupFunc func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error)
 }
 
 type effectiveOptions struct {
@@ -227,6 +233,7 @@ func New(opts Options) (*API, error) {
 		deprecationRouter:        NewV1DeprecationRouter(effective.logger.With("version", "v1")),
 		v2:                       v2,
 		connect:                  connect,
+		corsHandler:              opts.CORSHandler,
 		requestDuration:          opts.RequestDuration,
 		requestsInFlight:         requestsInFlight,
 		concurrencyLimitExceeded: concurrencyLimitExceeded,
@@ -274,6 +281,19 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	// version-neutral Connect /api/ catch-all below does not shadow them.
 	mux.Handle(apiPrefix+"/api/v1/", api.limitHandler(r))
 
+	v2Handler := api.v2.Handler
+	var connectWebHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isGRPCRequest(r) {
+			http.NotFound(w, r)
+			return
+		}
+		connectHandler.ServeHTTP(w, r)
+	})
+	if api.corsHandler != nil {
+		v2Handler = api.corsHandler(v2Handler)
+		connectWebHandler = api.corsHandler(connectWebHandler)
+	}
+
 	mux.Handle(
 		apiPrefix+"/api/v2/",
 		api.instrumentHandler(
@@ -281,7 +301,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 			api.limitHandler(
 				http.StripPrefix(
 					apiPrefix,
-					api.v2.Handler,
+					v2Handler,
 				),
 			),
 		),
@@ -297,17 +317,31 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 		api.instrumentConnectHandler(
 			apiPrefix+"/api",
 			procedures,
-			http.StripPrefix(apiPrefix+"/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if isGRPCRequest(r) {
-					http.NotFound(w, r)
-					return
-				}
-				connectHandler.ServeHTTP(w, r)
-			})),
+			http.StripPrefix(apiPrefix+"/api", connectWebHandler),
 		),
 	)
 
 	return mux
+}
+
+// NewCORSHandler allows origins matching the fully anchored regex origin.
+func NewCORSHandler(origin string) (func(http.Handler) http.Handler, error) {
+	if origin == "" {
+		return nil, nil
+	}
+	re, err := regexp.Compile("^(?:" + origin + ")$")
+	if err != nil {
+		return nil, err
+	}
+	return cors.New(cors.Options{
+		AllowOriginFunc: re.MatchString,
+		AllowedMethods:  []string{http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowedHeaders:  []string{"*"},
+		ExposedHeaders:  connectcors.ExposedHeaders(),
+		// Browsers otherwise cache preflights for only 5s, adding an
+		// OPTIONS round trip to almost every non-simple request.
+		MaxAge: 600,
+	}).Handler, nil
 }
 
 func isGRPCRequest(r *http.Request) bool {

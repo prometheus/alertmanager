@@ -17,11 +17,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-openapi/runtime"
@@ -46,6 +48,7 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/labelset"
+	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
@@ -251,6 +254,56 @@ func TestGetSilencesHandlerStateFilter(t *testing.T) {
 
 	// all false - empty result.
 	require.Empty(t, callHandler(new(false), new(false), new(false)))
+}
+
+func TestGetSilencesHandlerEndBoundary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		store := newSilences(t)
+		now := time.Now().UTC()
+		sil := &silencepb.Silence{
+			MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{{Name: "alertname", Pattern: "Foo"}}}},
+			StartsAt:    timestamppb.New(now),
+			EndsAt:      timestamppb.New(now.Add(time.Minute)),
+		}
+		require.NoError(t, store.Set(t.Context(), sil))
+		api := API{silences: store, logger: promslog.NewNopLogger()}
+		time.Sleep(time.Minute)
+		for _, expired := range []bool{false, true} {
+			response := api.getSilencesHandler(silence_ops.GetSilencesParams{
+				HTTPRequest: httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v2/silences", nil),
+				Active:      new(!expired),
+				Expired:     new(expired),
+				Pending:     new(false),
+			}).(*silence_ops.GetSilencesOK)
+			if !expired {
+				require.Empty(t, response.Payload)
+				continue
+			}
+			require.Len(t, response.Payload, 1)
+			require.Equal(t, string(silence.SilenceStateExpired), *response.Payload[0].Status.State)
+			require.Equal(t, sil.Id, *response.Payload[0].ID)
+		}
+	})
+}
+
+func TestGettableSilenceFromProtoAt(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		sil := &silencepb.Silence{
+			StartsAt:  timestamppb.New(now),
+			EndsAt:    timestamppb.New(now.Add(time.Minute)),
+			UpdatedAt: timestamppb.New(now),
+		}
+		time.Sleep(time.Hour)
+		current, err := GettableSilenceFromProto(sil)
+		require.NoError(t, err)
+		require.Equal(t, string(silence.SilenceStateExpired), *current.Status.State)
+		evaluated, err := gettableSilenceFromProtoAt(sil, now)
+		require.NoError(t, err)
+		require.Equal(t, string(silence.SilenceStateActive), *evaluated.Status.State)
+	})
 }
 
 func TestDeleteSilenceHandler(t *testing.T) {
@@ -1061,7 +1114,7 @@ receivers:
 	api := API{
 		uptime: time.Now(),
 		logger: promslog.NewNopLogger(),
-		alertGroups: func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		alertGroups: func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
 		},
 		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
@@ -1092,6 +1145,179 @@ receivers:
 	require.NoError(t, json.Unmarshal(body, &groups))
 	require.Len(t, groups, 1)
 	require.Equal(t, open_api_models.LabelSet{"team": "X"}, groups[0].RouteLabels)
+}
+
+// TestGetAlertGroupsHandlerPredictsStatusPerGroup checks that the handler
+// runs the inhibitor/silencer pipeline exactly once per alert per group (not
+// twice, and not shared across groups) and that each group reports the status
+// from its own evaluation.
+func TestGetAlertGroupsHandlerPredictsStatusPerGroup(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+`
+	cfg, err := config.Load(in)
+	require.NoError(t, err)
+
+	a := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Foo"}}, time.Now(), false)
+	groups := dispatch.AlertGroups{
+		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key1", RouteID: "route1", Alerts: []*alert.Alert{a}},
+		{Labels: model.LabelSet{"alertname": "Foo"}, Receiver: "team-X", GroupKey: "key2", RouteID: "route2", Alerts: []*alert.Alert{a}},
+	}
+
+	api := API{
+		uptime: time.Now(),
+		logger: promslog.NewNopLogger(),
+		alertGroups: func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+			// Mimic dispatch.Groups: call the filter per alert per group and
+			// record the returned status on the group.
+			now := time.Now()
+			for _, g := range groups {
+				g.AlertStatuses = map[model.Fingerprint]alert.AlertStatus{}
+				for _, al := range g.Alerts {
+					status, ok := af(al, now)
+					require.True(t, ok)
+					g.AlertStatuses[al.Fingerprint()] = status
+				}
+			}
+			return groups, map[model.Fingerprint][]string{}, nil
+		},
+		groupMutedFunc: func(routeID, groupKey string) ([]string, bool) {
+			return nil, false
+		},
+	}
+
+	// Each pipeline run reports a distinct silence ID so the response shows
+	// which evaluation each group's status came from.
+	calls := 0
+	api.Update(cfg, func(ctx context.Context, lset labelset.LabelSet) {
+		calls++
+		m, ok := marker.FromContext(ctx)
+		require.True(t, ok)
+		m.SetSilenced(lset.Fingerprint(), []string{fmt.Sprintf("sil-%d", calls)})
+		m.SetInhibited(lset.Fingerprint(), nil)
+	})
+
+	r, err := http.NewRequest("GET", "/api/v2/alerts/groups", nil)
+	require.NoError(t, err)
+
+	truePtr := true
+	responder := api.getAlertGroupsHandler(alertgroup_ops.GetAlertGroupsParams{
+		HTTPRequest: r,
+		Active:      &truePtr,
+		Silenced:    &truePtr,
+		Inhibited:   &truePtr,
+		Muted:       &truePtr,
+	})
+
+	w := httptest.NewRecorder()
+	responder.WriteResponse(w, runtime.JSONProducer())
+	require.Equal(t, 200, w.Code)
+
+	body, _ := io.ReadAll(w.Result().Body)
+
+	var got open_api_models.AlertGroups
+	require.NoError(t, json.Unmarshal(body, &got))
+	require.Len(t, got, 2)
+	var silencedBy []string
+	for _, g := range got {
+		require.Len(t, g.Alerts, 1)
+		require.Equal(t, open_api_models.AlertStatusStateSuppressed, *g.Alerts[0].Status.State)
+		require.Len(t, g.Alerts[0].Status.SilencedBy, 1)
+		require.Empty(t, g.Alerts[0].Status.InhibitedBy)
+		silencedBy = append(silencedBy, g.Alerts[0].Status.SilencedBy...)
+	}
+	require.Equal(t, 2, calls, "pipeline must run exactly once per alert per group")
+	require.ElementsMatch(t, []string{"sil-1", "sil-2"}, silencedBy, "each group must report its own evaluation")
+}
+
+// TestAlertFilter checks the filter built by alertFilter: expired alerts and
+// label mismatches are dropped before the pipeline runs, and the
+// active/silenced/inhibited parameters apply to the predicted status, which is
+// returned alongside the decision.
+func TestAlertFilter(t *testing.T) {
+	now := time.Now()
+	firing := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Foo"}, EndsAt: now.Add(time.Hour)}, now, false)
+	expired := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Foo"}, EndsAt: now.Add(-time.Hour)}, now, false)
+	fooMatcher, err := labels.NewMatcher(labels.MatchEqual, "alertname", "Foo")
+	require.NoError(t, err)
+	barMatcher, err := labels.NewMatcher(labels.MatchEqual, "alertname", "Bar")
+	require.NoError(t, err)
+
+	type report struct{ silencedBy, inhibitedBy []string }
+	for _, tc := range []struct {
+		name                        string
+		alert                       *alert.Alert
+		matchers                    []*labels.Matcher
+		report                      *report // nil: the pipeline does not report at all.
+		silenced, inhibited, active bool
+		wantCalls                   int
+		wantOK                      bool
+		wantState                   alert.AlertState
+	}{
+		{name: "expired alert is dropped before the pipeline", alert: expired, active: true, wantCalls: 0, wantOK: false},
+		{name: "label mismatch is dropped before the pipeline", alert: firing, matchers: []*labels.Matcher{barMatcher}, active: true, wantCalls: 0, wantOK: false},
+		{name: "active alert kept", alert: firing, matchers: []*labels.Matcher{fooMatcher}, report: &report{}, active: true, wantCalls: 1, wantOK: true, wantState: alert.AlertStateActive},
+		{name: "active alert excluded", alert: firing, report: &report{}, active: false, silenced: true, inhibited: true, wantCalls: 1, wantOK: false, wantState: alert.AlertStateActive},
+		{name: "silenced alert kept", alert: firing, report: &report{silencedBy: []string{"s1"}}, silenced: true, wantCalls: 1, wantOK: true, wantState: alert.AlertStateSuppressed},
+		{name: "silenced alert excluded", alert: firing, report: &report{silencedBy: []string{"s1"}}, active: true, inhibited: true, wantCalls: 1, wantOK: false, wantState: alert.AlertStateSuppressed},
+		{name: "inhibited alert kept", alert: firing, report: &report{inhibitedBy: []string{"i1"}}, inhibited: true, wantCalls: 1, wantOK: true, wantState: alert.AlertStateSuppressed},
+		{name: "inhibited alert excluded", alert: firing, report: &report{inhibitedBy: []string{"i1"}}, active: true, silenced: true, wantCalls: 1, wantOK: false, wantState: alert.AlertStateSuppressed},
+		{name: "unprocessed when the pipeline does not report", alert: firing, report: nil, active: false, wantCalls: 1, wantOK: true, wantState: alert.AlertStateUnprocessed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			api := API{logger: promslog.NewNopLogger()}
+			api.setAlertStatus = func(ctx context.Context, lset labelset.LabelSet) {
+				calls++
+				if tc.report == nil {
+					return
+				}
+				m, ok := marker.FromContext(ctx)
+				require.True(t, ok)
+				m.SetSilenced(lset.Fingerprint(), tc.report.silencedBy)
+				m.SetInhibited(lset.Fingerprint(), tc.report.inhibitedBy)
+			}
+
+			status, ok := api.alertFilter(context.Background(), tc.matchers, tc.silenced, tc.inhibited, tc.active)(tc.alert, now)
+
+			require.Equal(t, tc.wantCalls, calls)
+			require.Equal(t, tc.wantOK, ok)
+			if tc.wantCalls == 0 {
+				return
+			}
+			require.Equal(t, tc.wantState, status.State)
+			require.NotNil(t, status.SilencedBy)
+			require.NotNil(t, status.InhibitedBy)
+			if tc.report != nil {
+				require.ElementsMatch(t, tc.report.silencedBy, status.SilencedBy)
+				require.ElementsMatch(t, tc.report.inhibitedBy, status.InhibitedBy)
+			}
+		})
+	}
+}
+
+// TestStatusCollector checks the single-alert marker used on the read path:
+// it mirrors marker.AlertMarker.Status, including the empty (never nil)
+// slices, and reports an alert as unprocessed until the pipeline sets it.
+func TestStatusCollector(t *testing.T) {
+	var c statusCollector
+	fp := model.Fingerprint(1)
+
+	require.Equal(t, unprocessedStatus(), c.Status(fp))
+
+	c.SetSilenced(fp, nil)
+	c.SetInhibited(fp, nil)
+	require.Equal(t, alert.AlertStatus{State: alert.AlertStateActive, SilencedBy: []string{}, InhibitedBy: []string{}}, c.Status(fp))
+
+	c.SetSilenced(fp, []string{"s1"})
+	require.Equal(t, alert.AlertStatus{State: alert.AlertStateSuppressed, SilencedBy: []string{"s1"}, InhibitedBy: []string{}}, c.Status(fp))
+
+	c.Delete(fp)
+	require.Equal(t, unprocessedStatus(), c.Status(fp))
 }
 
 // putRecorder is a provider.Alerts that only records what the API stores.

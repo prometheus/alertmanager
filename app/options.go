@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,6 +68,7 @@ type Options struct {
 	WebConfig                  *web.FlagConfig
 	ExternalURL                string
 	RoutePrefix                string
+	CORSHandler                func(http.Handler) http.Handler
 	GetConcurrency             int
 	HTTPTimeout                time.Duration
 	ConnectUnaryConcurrency    int

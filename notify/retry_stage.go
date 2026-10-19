@@ -22,7 +22,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -82,12 +81,21 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	)
 	defer span.End()
 
-	ctx, alerts, failureReason, err := r.exec(ctx, l, closing, alerts...)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
+	l = l.With("receiver", r.groupName, "integration", r.integration.String())
+	if groupKey, ok := GroupKey(ctx); ok {
+		l = l.With("aggrGroup", groupKey)
+	}
 
+	ctx, alerts, failureReason, err := r.exec(ctx, l, closing, alerts...)
+
+	if err != nil {
+		r.integration.recordFailure(span, failureReason, err)
 		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason.String())...).Inc()
+		if errors.Is(ctx.Err(), context.Canceled) {
+			l.Debug("Notify failed", "reason", failureReason.String(), "err", err)
+		} else {
+			l.Error("Notify failed", "reason", failureReason.String(), "err", err)
+		}
 	}
 	return ctx, alerts, err
 }
@@ -207,11 +215,6 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, aler
 		iReason Reason
 	)
 
-	l = l.With("receiver", r.groupName, "integration", r.integration.String())
-	if groupKey, ok := GroupKey(ctx); ok {
-		l = l.With("aggrGroup", groupKey)
-	}
-
 	for {
 
 		// Always check the context first to not notify again.
@@ -250,12 +253,14 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, aler
 					return ctx, alerts, verdict.Reason(), fmt.Errorf("%s/%s: notify retry canceled due to unrecoverable error after %d attempts: %w", r.groupName, r.integration.String(), i, err)
 				}
 				if ctx.Err() == nil {
-					if iErr == nil || err.Error() != iErr.Error() {
+					if iErr == nil || err.Error() != iErr.Error() || verdict.Reason() != iReason {
 						// Log the error if the context isn't done and the error isn't the same as before.
-						l.Warn("Notify attempt failed, will retry later", "attempts", i, "err", err)
+						l.Warn("Notify attempt failed, will retry later", "attempts", i, "reason", verdict.Reason().String(), "err", err)
 					}
 					// Save this error to be able to return the last seen error by an
 					// integration upon context timeout.
+					iErr, iReason = err, verdict.Reason()
+				} else if iErr == nil && verdict.Reason() != DefaultReason {
 					iErr, iReason = err, verdict.Reason()
 				}
 			} else {

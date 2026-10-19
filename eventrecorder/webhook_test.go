@@ -29,8 +29,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 	"google.golang.org/protobuf/encoding/protojson"
-	"gopkg.in/yaml.v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )

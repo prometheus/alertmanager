@@ -20,7 +20,7 @@ import (
 
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type TLSTransportConfig struct {

@@ -49,7 +49,7 @@ import (
 	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#T.FailNow
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"

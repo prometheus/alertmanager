@@ -32,9 +32,9 @@ import (
 
 	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
+	"go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/alert"
 )

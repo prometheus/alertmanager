@@ -13,6 +13,9 @@ updates:
         patterns:
           - "github.com/aws/*"
           - "github.com/go-openapi/*"
+      connect:
+        patterns:
+          - "connectrpc.com/*"
       go.opentelemetry.io:
         patterns:
           - "go.opentelemetry.io/*"
@@ -47,6 +50,10 @@ updates:
     schedule:
       interval: "monthly"
     groups:
+      connect:
+        patterns:
+          - "@connectrpc/*"
+          - "@bufbuild/*"
       mantine:
         patterns:
           - "@mantine/*"

@@ -34,7 +34,7 @@ import (
 // exporter-toolkit/web.ListenAndServe so that the binary keeps support
 // for systemd socket activation and vsock addresses after the extraction
 // into this package. The resulting listeners are later served by
-// web.ServeMultiple in Start.
+// web.Serve in Start.
 func listenAll(flags *web.FlagConfig) ([]net.Listener, error) {
 	if flags.WebSystemdSocket != nil && *flags.WebSystemdSocket {
 		listeners, err := activation.Listeners()
