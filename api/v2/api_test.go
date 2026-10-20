@@ -1359,7 +1359,13 @@ receivers:
 		logger:      promslog.NewNopLogger(),
 		alertGroups: staticAlertGroups(groups, nil),
 	}
-	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
+	// Neither silenced nor inhibited, so any suppression comes from mutedBy.
+	api.Update(cfg, func(ctx context.Context, lset labelset.LabelSet) {
+		m, ok := marker.FromContext(ctx)
+		require.True(t, ok)
+		m.SetSilenced(lset.Fingerprint(), nil)
+		m.SetInhibited(lset.Fingerprint(), nil)
+	})
 
 	get := func(t *testing.T, muted bool) open_api_models.AlertGroups {
 		t.Helper()
@@ -1388,14 +1394,22 @@ receivers:
 		res := get(t, true)
 		require.Len(t, res, 2)
 		mutedBy := map[string][]string{}
+		states := map[string]string{}
 		for _, g := range res {
 			require.Len(t, g.Alerts, 1)
 			mutedBy[string(g.Labels["team"])] = g.Alerts[0].Status.MutedBy
+			states[string(g.Labels["team"])] = *g.Alerts[0].Status.State
 		}
 		require.Equal(t, map[string][]string{
 			"muted":   {"weekends"},
 			"unmuted": {},
 		}, mutedBy)
+		// A muted group's alerts are reported as suppressed even though the
+		// silencer and inhibitor left them active.
+		require.Equal(t, map[string]string{
+			"muted":   open_api_models.AlertStatusStateSuppressed,
+			"unmuted": open_api_models.AlertStatusStateActive,
+		}, states)
 	})
 
 	t.Run("muted groups are filtered out", func(t *testing.T) {

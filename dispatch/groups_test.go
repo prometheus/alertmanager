@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 )
 
@@ -37,12 +38,24 @@ func (f timeMuterFunc) Mutes(names []string, now time.Time) (bool, []string, err
 	return f(names, now)
 }
 
+// timeContainerFunc is a TimeMuter that also offers the ContainsTime
+// predicate, like timeinterval.Intervener does.
+type timeContainerFunc struct {
+	timeMuterFunc
+	contains func([]string, time.Time) (bool, error)
+}
+
+func (f timeContainerFunc) ContainsTime(names []string, now time.Time) (bool, error) {
+	return f.contains(names, now)
+}
+
 func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		alerts       int
+		active       bool
 		rejectRoute  bool
 		rejectAlerts bool
 		muted        bool
@@ -58,6 +71,9 @@ func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 		{name: "muted groups", alerts: 3, muted: true, wantGroups: 3, wantCalls: 1},
 		{name: "published groups before count update", alerts: 3, zeroCount: true, wantGroups: 3, wantCalls: 1},
 		{name: "interval error", alerts: 3, fail: true, wantCalls: 1},
+		{name: "active unmuted groups", alerts: 3, active: true, wantGroups: 3, wantCalls: 1},
+		{name: "active muted groups", alerts: 3, active: true, muted: true, wantGroups: 3, wantCalls: 1},
+		{name: "active interval error", alerts: 3, active: true, fail: true, wantCalls: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -70,28 +86,52 @@ func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 				for i := range tc.alerts {
 					require.NoError(t, alerts.Put(t.Context(), newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert%d", i))})))
 				}
+				child := &config.Route{MuteTimeIntervals: []string{"maintenance"}}
+				if tc.active {
+					child = &config.Route{ActiveTimeIntervals: []string{"maintenance"}}
+				}
 				route := NewRoute(&config.Route{
 					Receiver: "test",
 					GroupBy:  []model.LabelName{"alertname"},
-					Routes:   []*config.Route{{MuteTimeIntervals: []string{"maintenance"}}},
+					Routes:   []*config.Route{child},
 				}, nil)
 				var (
 					calls     int
 					queryTime time.Time
 				)
 				intervalErr := errors.New("cannot evaluate intervals")
-				muter := timeMuterFunc(func(names []string, now time.Time) (bool, []string, error) {
+				check := func(names []string, now time.Time) error {
 					calls++
 					require.Equal(t, []string{"maintenance"}, names)
 					require.Equal(t, queryTime, now)
 					if tc.fail {
-						return false, nil, intervalErr
+						return intervalErr
+					}
+					return nil
+				}
+				mutes := timeMuterFunc(func(names []string, now time.Time) (bool, []string, error) {
+					// Active intervals only need the predicate, so Mutes must
+					// not be called when ContainsTime is available.
+					require.False(t, tc.active, "Mutes called for active time intervals")
+					if err := check(names, now); err != nil {
+						return false, nil, err
 					}
 					if tc.muted {
 						return true, names, nil
 					}
 					return false, nil, nil
 				})
+				var muter notify.TimeMuter = mutes
+				if tc.active {
+					muter = timeContainerFunc{mutes, func(names []string, now time.Time) (bool, error) {
+						if err := check(names, now); err != nil {
+							return false, err
+						}
+						// A group is muted by its active intervals when now is
+						// outside all of them.
+						return !tc.muted, nil
+					}}
+				}
 				d := NewDispatcher(alerts, route, nil, muter, nil, testMaintenanceInterval, nil, logger, recorder, nil, nil)
 				// Populate groups without running the notification pipeline.
 				go d.Run(time.Now().Add(time.Hour))
