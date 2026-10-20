@@ -143,7 +143,7 @@ inhibit_rules:
 	api := API{
 		uptime:      time.Now(),
 		logger:      logger,
-		alertGroups: benchGroupsFn(groups, receivers),
+		alertGroups: staticAlertGroups(groups, receivers),
 	}
 	api.Update(cfg, func(ctx context.Context, lset labelset.LabelSet) {
 		inhibitor.Mutes(ctx, lset)
@@ -167,33 +167,5 @@ inhibit_rules:
 		if !ok || len(resp.Payload) != numGroups {
 			b.Fatalf("unexpected response %T", resp)
 		}
-	}
-}
-
-// benchGroupsFn mimics dispatch.Groups over a fixed set of groups: it calls
-// the filter once per alert per group and records the returned status.
-func benchGroupsFn(groups dispatch.AlertGroups, receivers map[model.Fingerprint][]string) groupsFn {
-	return func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-		now := time.Now()
-		res := make(dispatch.AlertGroups, 0, len(groups))
-		for _, g := range groups {
-			out := &dispatch.AlertGroup{
-				Labels:        g.Labels,
-				Receiver:      g.Receiver,
-				GroupKey:      g.GroupKey,
-				Alerts:        make(alert.AlertSlice, 0, len(g.Alerts)),
-				AlertStatuses: make(map[model.Fingerprint]alert.AlertStatus, len(g.Alerts)),
-			}
-			for _, a := range g.Alerts {
-				status, ok := af(a, now)
-				if !ok {
-					continue
-				}
-				out.Alerts = append(out.Alerts, a)
-				out.AlertStatuses[a.Fingerprint()] = status
-			}
-			res = append(res, out)
-		}
-		return res, receivers, nil
 	}
 }
