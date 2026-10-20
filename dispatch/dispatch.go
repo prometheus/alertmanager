@@ -269,7 +269,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	d.logger.Debug("Received alert", "alert", alrt)
 
-	ctx, span := tracer.StartRouteAlert(ctx, alrt.Name(), alrt.Fingerprint())
+	ctx, span := tracer.StartRouteAlert(ctx, alrt)
 	defer span.End()
 	recording := span.IsRecording()
 
@@ -490,7 +490,7 @@ type notifyFunc func(context.Context, ...*alert.Alert) bool
 // groupAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	_, span := tracer.StartGroupAlert(ctx, alrt.Name(), alrt.Fingerprint(), route.RouteOpts.Receiver)
+	_, span := tracer.StartGroupAlert(ctx, alrt, route.RouteOpts.Receiver)
 	defer span.End()
 	recording := span.IsRecording()
 
@@ -915,7 +915,7 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 // insert inserts the alert into the aggregation group.
 // Returns false if the aggregation group has been destroyed.
 func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
-	_, span := tracer.StartAggregationGroupInsert(ctx, alrt.Name(), alrt.Fingerprint(), ag.GroupKey())
+	_, span := tracer.StartAggregationGroupInsert(ctx, alrt, ag.GroupKey())
 	defer span.End()
 	if err := ag.alerts.Set(alrt); err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
