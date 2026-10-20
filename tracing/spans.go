@@ -27,6 +27,16 @@ import (
 // disabled or the span is not sampled. Events and errors recorded later in
 // a span's lifetime stay at the call site behind span.IsRecording().
 
+// Alert is the subset of alert.Alert that alert-scoped spans record. It
+// lets the helpers read the alert name only once the span is recording,
+// without importing Alertmanager types into this package. Implementations
+// must be pointers: converting a pointer to this interface does not
+// allocate, converting a struct value would.
+type Alert interface {
+	Name() string
+	Fingerprint() model.Fingerprint
+}
+
 // Span kind options are built once: constructing them per call allocates.
 var (
 	clientSpanOptions   = []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindClient)}
@@ -34,24 +44,24 @@ var (
 )
 
 // StartRouteAlert starts the span for dispatch.Dispatcher.routeAlert.
-func (t Tracer) StartRouteAlert(ctx context.Context, alertName string, fp model.Fingerprint) (context.Context, trace.Span) {
+func (t Tracer) StartRouteAlert(ctx context.Context, a Alert) (context.Context, trace.Span) {
 	ctx, span := t.Start(ctx, "dispatch.Dispatcher.routeAlert")
 	if span.IsRecording() {
 		span.SetAttributes(
-			attribute.String("alerting.alert.name", alertName),
-			attribute.String("alerting.alert.fingerprint", fp.String()),
+			attribute.String("alerting.alert.name", a.Name()),
+			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
 		)
 	}
 	return ctx, span
 }
 
 // StartGroupAlert starts the span for dispatch.Dispatcher.groupAlert.
-func (t Tracer) StartGroupAlert(ctx context.Context, alertName string, fp model.Fingerprint, receiver string) (context.Context, trace.Span) {
+func (t Tracer) StartGroupAlert(ctx context.Context, a Alert, receiver string) (context.Context, trace.Span) {
 	ctx, span := t.Start(ctx, "dispatch.Dispatcher.groupAlert")
 	if span.IsRecording() {
 		span.SetAttributes(
-			attribute.String("alerting.alert.name", alertName),
-			attribute.String("alerting.alert.fingerprint", fp.String()),
+			attribute.String("alerting.alert.name", a.Name()),
+			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
 			attribute.String("alerting.route.receiver.name", receiver),
 		)
 	}
@@ -71,12 +81,12 @@ func (t Tracer) StartAggregationGroupFlush(ctx context.Context, groupKey string,
 }
 
 // StartAggregationGroupInsert starts the span for dispatch.AggregationGroup.insert.
-func (t Tracer) StartAggregationGroupInsert(ctx context.Context, alertName string, fp model.Fingerprint, groupKey string) (context.Context, trace.Span) {
+func (t Tracer) StartAggregationGroupInsert(ctx context.Context, a Alert, groupKey string) (context.Context, trace.Span) {
 	ctx, span := t.Start(ctx, "dispatch.AggregationGroup.insert")
 	if span.IsRecording() {
 		span.SetAttributes(
-			attribute.String("alerting.alert.name", alertName),
-			attribute.String("alerting.alert.fingerprint", fp.String()),
+			attribute.String("alerting.alert.name", a.Name()),
+			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
 			attribute.String("alerting.aggregation_group.key", groupKey),
 		)
 	}
@@ -176,12 +186,12 @@ func (t Tracer) StartSetNotifiesStage(ctx context.Context, groupKey string, aler
 }
 
 // StartInhibitorProcessAlert starts the span for inhibit.Inhibitor.processAlert.
-func (t Tracer) StartInhibitorProcessAlert(ctx context.Context, alertName string, fp model.Fingerprint) (context.Context, trace.Span) {
+func (t Tracer) StartInhibitorProcessAlert(ctx context.Context, a Alert) (context.Context, trace.Span) {
 	ctx, span := t.Start(ctx, "inhibit.Inhibitor.processAlert")
 	if span.IsRecording() {
 		span.SetAttributes(
-			attribute.String("alerting.alert.name", alertName),
-			attribute.String("alerting.alert.fingerprint", fp.String()),
+			attribute.String("alerting.alert.name", a.Name()),
+			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
 		)
 	}
 	return ctx, span

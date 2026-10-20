@@ -108,7 +108,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
-	_, span := tracer.StartInhibitorProcessAlert(ctx, a.Name(), a.Fingerprint())
+	_, span := tracer.StartInhibitorProcessAlert(ctx, a)
 	defer span.End()
 	recording := span.IsRecording()
 
