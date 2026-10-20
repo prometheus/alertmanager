@@ -125,6 +125,8 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*al
 // A TimeMuter determines if the time is muted by one or more active or mute
 // time intervals. If the time is muted, it returns true and the names of the
 // time intervals that muted it. Otherwise, it returns false and a nil slice.
+// Implementations may also provide ContainsTime([]string, time.Time) (bool, error)
+// for the same membership check without collecting matching names.
 type TimeMuter interface {
 	Mutes(timeIntervalNames []string, now time.Time) (bool, []string, error)
 }
@@ -137,7 +139,19 @@ func mutedByActiveTimeIntervals(muter TimeMuter, activeTimeIntervalNames []strin
 	if len(activeTimeIntervalNames) == 0 {
 		return nil, nil
 	}
-	active, _, err := muter.Mutes(activeTimeIntervalNames, now)
+	var (
+		active bool
+		err    error
+	)
+	// Active intervals need only a predicate. Use it when available to avoid
+	// allocating matching names that would immediately be discarded.
+	if matcher, ok := muter.(interface {
+		ContainsTime([]string, time.Time) (bool, error)
+	}); ok {
+		active, err = matcher.ContainsTime(activeTimeIntervalNames, now)
+	} else {
+		active, _, err = muter.Mutes(activeTimeIntervalNames, now)
+	}
 	if err != nil {
 		return nil, err
 	}

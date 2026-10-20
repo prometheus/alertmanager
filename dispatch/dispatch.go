@@ -370,21 +370,21 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			continue
 		}
 
-		// Whether the route's time intervals mute its groups depends only on
-		// the route and the current time, so compute it once per route.
-		mutedBy, err := notify.MutedByTimeIntervals(d.timeMuter, rt.RouteOpts.ActiveTimeIntervals, rt.RouteOpts.MuteTimeIntervals, now)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to compute time interval mutes for route %s: %w", rt.ID(), err)
-		}
-		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
+		receiver := rt.RouteOpts.Receiver
+		var mutedBy []string
+		mutedBySet := len(rt.RouteOpts.ActiveTimeIntervals) == 0 && len(rt.RouteOpts.MuteTimeIntervals) == 0
 
 		// Make a snapshot of the aggregation groups in each route to avoid holding
 		// sync.Map locks while we process alerts or acquiring leaf locks in the alert
 		// store.
 
-		// Estimate capacity based on total groups and number of routes.
-		// We overallocate a bit to avoid copying in most cases.
-		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+32)
+		// Preallocate only for populated routes, allowing some room for new
+		// groups. Still range when the count is zero: a group may have been
+		// published before its count is incremented.
+		var snapshot []*aggrGroup
+		if n := d.routeGroupsSlice[i].groupsLen.Load(); n > 0 {
+			snapshot = make([]*aggrGroup, 0, n+32)
+		}
 		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
 			snapshot = append(snapshot, el.(*aggrGroup))
 			return true
@@ -417,6 +417,17 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			}
 			if len(filteredAlerts) == 0 {
 				continue
+			}
+
+			// All groups on a route share its time intervals. Evaluate them
+			// once, only when the route contributes a group to the response.
+			if !mutedBySet {
+				var err error
+				mutedBy, err = notify.MutedByTimeIntervals(d.timeMuter, rt.RouteOpts.ActiveTimeIntervals, rt.RouteOpts.MuteTimeIntervals, now)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to compute time interval mutes for route %s: %w", rt.ID(), err)
+				}
+				mutedBySet = true
 			}
 
 			// Compute RouteLabels() only now that the group will be returned:
