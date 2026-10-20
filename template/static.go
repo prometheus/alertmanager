@@ -14,6 +14,7 @@
 package template
 
 import (
+	"maps"
 	"text/template/parse"
 
 	"github.com/prometheus/common/model"
@@ -142,7 +143,7 @@ func (c *routeLabelClassifier) textIsStatic(text string) bool {
 		return true
 	}
 	w := &staticWalker{c: c}
-	return w.list(tmpl.Tree.Root, staticScope{})
+	return w.list(tmpl.Root, staticScope{})
 }
 
 // staticScope tracks, while walking a template tree, whether dot currently
@@ -162,9 +163,7 @@ func (s staticScope) withVars(decl []*parse.VariableNode, static bool) staticSco
 		return s
 	}
 	vars := make(map[string]bool, len(s.vars)+len(decl))
-	for k, v := range s.vars {
-		vars[k] = v
-	}
+	maps.Copy(vars, s.vars)
 	for _, d := range decl {
 		vars[d.Ident[0]] = static
 	}
