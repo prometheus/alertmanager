@@ -1088,6 +1088,32 @@ func TestPostSilences_QuotedMatchers(t *testing.T) {
 	require.Equal(t, "\"bar\"", silProto.MatcherSets[0].Matchers[0].Pattern)
 }
 
+// staticAlertGroups returns a groupsFn that serves a fixed set of groups the
+// way dispatch.Groups does: it calls the filter once per alert per group,
+// drops the alerts the filter rejects and records the status it returns in
+// AlertStatuses. The groups passed in are not modified.
+func staticAlertGroups(groups dispatch.AlertGroups, receivers map[model.Fingerprint][]string) groupsFn {
+	return func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+		now := time.Now()
+		res := make(dispatch.AlertGroups, 0, len(groups))
+		for _, g := range groups {
+			out := *g
+			out.Alerts = make(alert.AlertSlice, 0, len(g.Alerts))
+			out.AlertStatuses = make(map[model.Fingerprint]alert.AlertStatus, len(g.Alerts))
+			for _, a := range g.Alerts {
+				status, ok := af(a, now)
+				if !ok {
+					continue
+				}
+				out.Alerts = append(out.Alerts, a)
+				out.AlertStatuses[a.Fingerprint()] = status
+			}
+			res = append(res, &out)
+		}
+		return res, receivers, nil
+	}
+}
+
 func TestGetAlertGroupsHandlerRouteLabels(t *testing.T) {
 	in := `
 route:
@@ -1111,11 +1137,9 @@ receivers:
 	}
 
 	api := API{
-		uptime: time.Now(),
-		logger: promslog.NewNopLogger(),
-		alertGroups: func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			return dispatch.AlertGroups{group}, map[model.Fingerprint][]string{}, nil
-		},
+		uptime:      time.Now(),
+		logger:      promslog.NewNopLogger(),
+		alertGroups: staticAlertGroups(dispatch.AlertGroups{group}, nil),
 	}
 	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
 
@@ -1165,22 +1189,9 @@ receivers:
 	}
 
 	api := API{
-		uptime: time.Now(),
-		logger: promslog.NewNopLogger(),
-		alertGroups: func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			// Mimic dispatch.Groups: call the filter per alert per group and
-			// record the returned status on the group.
-			now := time.Now()
-			for _, g := range groups {
-				g.AlertStatuses = map[model.Fingerprint]alert.AlertStatus{}
-				for _, al := range g.Alerts {
-					status, ok := af(al, now)
-					require.True(t, ok)
-					g.AlertStatuses[al.Fingerprint()] = status
-				}
-			}
-			return groups, map[model.Fingerprint][]string{}, nil
-		},
+		uptime:      time.Now(),
+		logger:      promslog.NewNopLogger(),
+		alertGroups: staticAlertGroups(groups, nil),
 	}
 
 	// Each pipeline run reports a distinct silence ID so the response shows
@@ -1344,21 +1355,9 @@ receivers:
 	}
 
 	api := API{
-		uptime: time.Now(),
-		logger: promslog.NewNopLogger(),
-		alertGroups: func(_ context.Context, _ func(*dispatch.Route) bool, af dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
-			// Mimic dispatch.Groups: record the filter's status per alert.
-			now := time.Now()
-			for _, g := range groups {
-				g.AlertStatuses = map[model.Fingerprint]alert.AlertStatus{}
-				for _, al := range g.Alerts {
-					status, ok := af(al, now)
-					require.True(t, ok)
-					g.AlertStatuses[al.Fingerprint()] = status
-				}
-			}
-			return groups, map[model.Fingerprint][]string{}, nil
-		},
+		uptime:      time.Now(),
+		logger:      promslog.NewNopLogger(),
+		alertGroups: staticAlertGroups(groups, nil),
 	}
 	api.Update(cfg, func(context.Context, labelset.LabelSet) {})
 
