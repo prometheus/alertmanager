@@ -183,7 +183,14 @@ func (w *staticWalker) list(l *parse.ListNode, s staticScope) bool {
 		// it in the same list. The action itself emits nothing, so a dynamic
 		// declaration only taints uses of the variable.
 		if a, ok := n.(*parse.ActionNode); ok && a.Pipe != nil && len(a.Pipe.Decl) > 0 {
-			s = s.withVars(a.Pipe.Decl, w.pipe(a.Pipe, s))
+			static := w.pipe(a.Pipe, s)
+			// Assignments can update variables in an enclosing scope, which
+			// outlives this list's local scope. Treat a dynamic assignment as
+			// dynamic for the whole label.
+			if a.Pipe.IsAssign && !static {
+				return false
+			}
+			s = s.withVars(a.Pipe.Decl, static)
 			continue
 		}
 		if !w.node(n, s) {
