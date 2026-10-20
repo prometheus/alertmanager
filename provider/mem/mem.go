@@ -24,9 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -234,10 +232,7 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	)
 
 	for _, a := range alerts {
-		ch <- &provider.Alert{
-			Header: map[string]string{},
-			Data:   a,
-		}
+		ch <- &provider.Alert{Data: a}
 	}
 
 	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
@@ -277,10 +272,7 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 		defer close(ch)
 		for _, a := range alerts {
 			select {
-			case ch <- &provider.Alert{
-				Header: map[string]string{},
-				Data:   a,
-			}:
+			case ch <- &provider.Alert{Data: a}:
 			case <-done:
 				return
 			}
@@ -302,12 +294,7 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
-	ctx, span := tracer.Start(ctx, "provider.mem.Put",
-		trace.WithAttributes(
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		),
-		trace.WithSpanKind(trace.SpanKindProducer),
-	)
+	ctx, span := tracer.StartAlertsPut(ctx, len(alerts))
 	defer span.End()
 
 	for _, alrt := range alerts {
@@ -352,11 +339,14 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 			})
 		}
 
-		metadata := map[string]string{}
-		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
-		msg := &provider.Alert{
-			Data:   alrt,
-			Header: metadata,
+		msg := &provider.Alert{Data: alrt}
+		// Only carry propagation headers when tracing is on: allocating and
+		// filling the map for every alert is wasted work otherwise, and
+		// consumers treat a nil Header as "nothing to extract".
+		if tracing.Enabled() {
+			metadata := map[string]string{}
+			a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
+			msg.Header = metadata
 		}
 
 		for _, l := range a.listeners {

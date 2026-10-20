@@ -30,8 +30,6 @@ import (
 	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -327,9 +325,7 @@ func (s *Silences) Expire(ctx context.Context, id string) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	_, span := tracer.Start(ctx, "silences.Expire", trace.WithAttributes(
-		attribute.String("alerting.silence.id", id),
-	))
+	_, span := tracer.StartSilencesExpire(ctx, id)
 	defer span.End()
 
 	return s.expire(id, s.nowUTC())

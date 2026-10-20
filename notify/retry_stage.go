@@ -21,8 +21,6 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -64,13 +62,7 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 
 	r.metrics.numNotifications.WithLabelValues(r.labelValues...).Inc()
 
-	ctx, span := tracer.Start(ctx, "notify.RetryStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.group.name", r.groupName)),
-		trace.WithAttributes(attribute.String("alerting.integration.name", r.integration.name)),
-		trace.WithAttributes(attribute.StringSlice("alerting.label.values", r.labelValues)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartRetryStage(ctx, r.groupName, r.integration.name, r.labelValues, len(alerts))
 	defer span.End()
 
 	l = l.With("receiver", r.groupName, "integration", r.integration.String())

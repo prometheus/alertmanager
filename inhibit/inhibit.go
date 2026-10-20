@@ -108,21 +108,18 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.processAlert",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.name", a.Name()),
-			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.StartInhibitorProcessAlert(ctx, a)
 	defer span.End()
+	recording := span.IsRecording()
 
 	// Update the inhibition rules' cache.
 	for _, r := range ih.rules {
 		if r.SourceMatchers.Matches(a.Labels) {
-			attr := attribute.String("alerting.inhibit_rule.name", r.Name)
-			span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
-			span.SetAttributes(attr)
+			if recording {
+				attr := attribute.String("alerting.inhibit_rule.name", r.Name)
+				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
+				span.SetAttributes(attr)
+			}
 			r.cache.set(a)
 		}
 	}
@@ -178,11 +175,9 @@ func (ih *Inhibitor) Stop() {
 func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes",
-		trace.WithAttributes(attribute.String("alerting.alert.fingerprint", fp.String())),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.StartInhibitorMutes(ctx, fp)
 	defer span.End()
+	recording := span.IsRecording()
 
 	var inhibitedBy []string
 	defer func() {
@@ -199,20 +194,24 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
 		}
-		span.AddEvent("alert matched rule target",
-			trace.WithAttributes(
-				attribute.String("alerting.inhibit_rule.name", r.Name),
-			),
-		)
+		if recording {
+			span.AddEvent("alert matched rule target",
+				trace.WithAttributes(
+					attribute.String("alerting.inhibit_rule.name", r.Name),
+				),
+			)
+		}
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
 		if inhibitedByFP, eq := r.hasEqual(lset.LabelSet, r.SourceMatchers.Matches(lset.LabelSet), now); eq {
 			inhibitedBy = append(inhibitedBy, inhibitedByFP.String())
-			span.AddEvent("alert inhibited",
-				trace.WithAttributes(
-					attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
-				),
-			)
+			if recording {
+				span.AddEvent("alert inhibited",
+					trace.WithAttributes(
+						attribute.String("alerting.inhibit_rule.source.fingerprint", inhibitedByFP.String()),
+					),
+				)
+			}
 
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				return eventrecorder.NewInhibitionMutedAlertEvent(
