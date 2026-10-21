@@ -87,7 +87,6 @@ func (r RetryStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.A
 	}
 
 	ctx, alerts, failureReason, err := r.exec(ctx, l, closing, alerts...)
-
 	if err != nil {
 		r.integration.recordFailure(span, failureReason, err)
 		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.labelValues, failureReason.String())...).Inc()
