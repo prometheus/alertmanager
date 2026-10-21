@@ -157,7 +157,7 @@ func TestAggrGroup(t *testing.T) {
 
 	// Test regular situation where we wait for group_wait to send out alerts.
 	createdAt := time.Now()
-	ag := newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	ag := newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil, nil)
 	go ag.run(ntfy)
 
 	ctx := context.Background()
@@ -176,7 +176,7 @@ func TestAggrGroup(t *testing.T) {
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
 	createdAt = time.Now()
-	ag = newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	ag = newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil, nil)
 	go ag.run(ntfy)
 
 	ag.insert(ctx, a1)
@@ -765,7 +765,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil, nil)
 	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 
 	// Add a resolved alert
@@ -849,7 +849,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	rounds := 0
 	for rounds < maxRounds && testutil.ToFloat64(metrics.aggrGroupCreationRetries) == 0 {
 		groupLabels := model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("shared-%d", rounds))}
-		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil, nil)
 		// Mark the store destroyed: empty store + destroyIfEmpty=true.
 		require.NoError(t, destroyedAg.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
 		require.True(t, destroyedAg.destroyed())
@@ -932,7 +932,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	dispatcher.state.Store(DispatcherStateWaitingToStart)
 
 	groupLabels := model.LabelSet{"alertname": "displaced"}
-	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil, nil)
 	// Mark destroyed so groupAlert can't insert into it and is forced down
 	// the CAS-replace path.
 	require.NoError(t, displaced.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
@@ -976,7 +976,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil, nil)
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
@@ -1038,7 +1038,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1088,7 +1088,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1336,7 +1336,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
 	ag := newAggrGroup(context.Background(), lset, route, nil,
-		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl, nil)
 
 	alertsCh := make(chan alert.AlertSlice)
 	ntfy := func(ctx context.Context, alerts ...*alert.Alert) bool {
@@ -1363,7 +1363,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	}
 
 	// Route labels should be rendered from the alert.
-	rl := ag.RouteLabels()
+	rl := ag.RouteLabels(time.Now())
 	require.Equal(t, model.LabelValue("test"), rl["description"],
 		"route label should be rendered from alert")
 
@@ -1388,7 +1388,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	// render is observable; require.Eventually also fails the test if any call
 	// panics.
 	require.Eventually(t, func() bool {
-		rl = ag.RouteLabels()
+		rl = ag.RouteLabels(time.Now())
 		return rl["description"] == ""
 	}, 2*time.Second, 10*time.Millisecond,
 		"route label should render empty once the group has no alerts")
@@ -1417,7 +1417,7 @@ func TestRouteLabelsInNotifyContext(t *testing.T) {
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
 	ag := newAggrGroup(context.Background(), lset, route, nil,
-		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl, nil)
 
 	type result struct {
 		labels model.LabelSet
@@ -1463,6 +1463,8 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 		RepeatInterval: 1 * time.Hour,
 		Labels: model.LabelSet{
 			"info": "static-value",
+			// A dynamic label so the alert-dependent cache is exercised.
+			"count": "{{ len .Alerts }}",
 		},
 	}
 	route := &Route{RouteOpts: *opts}
@@ -1472,7 +1474,7 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
 	ag := newAggrGroup(context.Background(), lset, route, nil,
-		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl, nil)
 
 	ctx := context.Background()
 
@@ -1501,7 +1503,7 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			for range iterations {
-				ag.RouteLabels()
+				ag.RouteLabels(time.Now())
 			}
 		})
 	}
@@ -1531,7 +1533,7 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 			},
 		}}
 		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "x"},
-			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl, nil)
 		ag.insert(context.Background(), alert.New(model.Alert{
 			Labels:   model.LabelSet{"alertname": "x"},
 			StartsAt: time.Now(),
@@ -1545,11 +1547,182 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 
 	// Render the child first, then the parent, to make sure neither group's
 	// resolution is influenced by the other's.
-	childLabels := child.RouteLabels()
-	parentLabels := parent.RouteLabels()
+	childLabels := child.RouteLabels(time.Now())
+	parentLabels := parent.RouteLabels(time.Now())
 
 	require.Equal(t, model.LabelValue("B"), childLabels["team"])
 	require.Equal(t, model.LabelValue("team is B"), childLabels["description"])
 	require.Equal(t, model.LabelValue("A"), parentLabels["team"])
 	require.Equal(t, model.LabelValue("team is A"), parentLabels["description"])
+}
+
+// newRouteLabelsGroup builds an aggregation group with the given route labels
+// and a template engine, for the route label tests below.
+func newRouteLabelsGroup(t *testing.T, labels model.LabelSet) *aggrGroup {
+	t.Helper()
+	route := &Route{RouteOpts: RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      1 * time.Hour, // don't flush
+		GroupInterval:  1 * time.Hour,
+		RepeatInterval: 1 * time.Hour,
+		Labels:         labels,
+	}}
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+	return newAggrGroup(context.Background(), model.LabelSet{"alertname": "test", "team": "ops"},
+		route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl, nil)
+}
+
+// TestRouteLabelsStaticRenderedOnce verifies that a route whose labels do not
+// depend on alerts is rendered once at group creation and never again: inserts
+// do not invalidate anything, the alert-dependent cache stays unused, and both
+// the read path and the flush path return the same render.
+func TestRouteLabelsStaticRenderedOnce(t *testing.T) {
+	t.Parallel()
+
+	ag := newRouteLabelsGroup(t, model.LabelSet{
+		"const": "static-value",
+		"team":  "{{ .GroupLabels.team | toUpper }}",
+		"desc":  `team {{ routeLabels "team" }} via {{ .Receiver }}`,
+	})
+	require.Empty(t, ag.labelSplit.dynamic)
+
+	want := model.LabelSet{
+		"const": "static-value",
+		"team":  "OPS",
+		"desc":  "team OPS via test-receiver",
+	}
+	first := ag.RouteLabels(time.Now())
+	require.Equal(t, want, first)
+
+	ctx := context.Background()
+	for i := range 5 {
+		ag.insert(ctx, alert.New(model.Alert{
+			Labels:      model.LabelSet{"alertname": "test", "i": model.LabelValue(fmt.Sprint(i))},
+			Annotations: model.LabelSet{"summary": model.LabelValue(fmt.Sprint(i))},
+			StartsAt:    time.Now(),
+			EndsAt:      time.Now().Add(time.Hour),
+		}, time.Now(), false))
+	}
+
+	again := ag.RouteLabels(time.Now())
+	require.Equal(t, want, again)
+	require.Equal(t, reflect.ValueOf(first).Pointer(), reflect.ValueOf(again).Pointer(),
+		"static route labels must be served from the one render done at construction")
+	require.Equal(t, uint64(0), ag.routeLabelsGen.Load(), "inserts must not invalidate static route labels")
+	require.Nil(t, ag.routeLabels.Load(), "static route labels must not use the alert-dependent cache")
+
+	flushed := ag.renderRouteLabels(ag.alerts.List()...)
+	require.Equal(t, reflect.ValueOf(first).Pointer(), reflect.ValueOf(flushed).Pointer(),
+		"the flush path must reuse the static render")
+}
+
+// TestRouteLabelsMixedStaticAndDynamic verifies that only the dynamic labels
+// are re-rendered against the alerts while the static ones keep the value
+// rendered at construction, on both the read and the flush path.
+func TestRouteLabelsMixedStaticAndDynamic(t *testing.T) {
+	t.Parallel()
+
+	ag := newRouteLabelsGroup(t, model.LabelSet{
+		"team":    "{{ .GroupLabels.team }}",
+		"summary": "{{ .CommonAnnotations.summary }}",
+	})
+	require.Equal(t, model.LabelSet{"team": "{{ .GroupLabels.team }}"}, ag.labelSplit.static)
+	require.Equal(t, model.LabelSet{"summary": "{{ .CommonAnnotations.summary }}"}, ag.labelSplit.dynamic)
+
+	ag.insert(context.Background(), alert.New(model.Alert{
+		Labels:      model.LabelSet{"alertname": "test"},
+		Annotations: model.LabelSet{"summary": "disk full"},
+		StartsAt:    time.Now(),
+		EndsAt:      time.Now().Add(time.Hour),
+	}, time.Now(), false))
+
+	want := model.LabelSet{"team": "ops", "summary": "disk full"}
+	require.Equal(t, want, ag.RouteLabels(time.Now()))
+	require.Equal(t, want, ag.renderRouteLabels(ag.alerts.List()...))
+}
+
+// TestRouteLabelsExpireWhenAlertResolves verifies that a cached render that
+// depends on alert status is not served past the moment an alert resolves,
+// even though no insert or delete happens: the status of an alert flips when
+// its EndsAt passes, and templates can observe that.
+func TestRouteLabelsExpireWhenAlertResolves(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ag := newRouteLabelsGroup(t, model.LabelSet{
+			"status": "{{ .Status }}",
+			"firing": "{{ len .Alerts.Firing }}",
+		})
+
+		now := time.Now()
+		endsAt := now.Add(30 * time.Minute)
+		ag.insert(context.Background(), alert.New(model.Alert{
+			Labels:   model.LabelSet{"alertname": "test"},
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   endsAt,
+		}, now, false))
+
+		require.Equal(t, model.LabelSet{"status": "firing", "firing": "1"}, ag.RouteLabels(time.Now()))
+		cached := ag.routeLabels.Load()
+		require.NotNil(t, cached)
+		require.True(t, endsAt.Equal(cached.validUntil), "render must be valid exactly until the alert resolves")
+
+		// Still firing a bit later: the cached render is reused as is.
+		time.Sleep(10 * time.Minute)
+		require.Equal(t, model.LabelSet{"status": "firing", "firing": "1"}, ag.RouteLabels(time.Now()))
+		require.Same(t, cached, ag.routeLabels.Load(), "render must be served from cache while nothing changed")
+
+		// Past EndsAt the alert is resolved: the cache must miss and re-render
+		// although the generation did not move.
+		time.Sleep(30 * time.Minute)
+		gen := ag.routeLabelsGen.Load()
+		require.Equal(t, model.LabelSet{"status": "resolved", "firing": "0"}, ag.RouteLabels(time.Now()))
+		require.Equal(t, gen, ag.routeLabelsGen.Load())
+
+		// Nothing left to resolve: the new render is valid indefinitely.
+		require.True(t, ag.routeLabels.Load().validUntil.IsZero())
+	})
+}
+
+// TestRouteLabelsInsertInvalidatesOnlyOnChange verifies that re-inserting an
+// alert that is identical in everything templates can see does not invalidate
+// the cached render, while a change to an annotation or a timestamp does.
+func TestRouteLabelsInsertInvalidatesOnlyOnChange(t *testing.T) {
+	t.Parallel()
+
+	ag := newRouteLabelsGroup(t, model.LabelSet{
+		"summary": "{{ .CommonAnnotations.summary }}",
+	})
+	ctx := context.Background()
+	now := time.Now()
+	mk := func(summary string, endsAt time.Time) *alert.Alert {
+		return alert.New(model.Alert{
+			Labels:      model.LabelSet{"alertname": "test"},
+			Annotations: model.LabelSet{"summary": model.LabelValue(summary)},
+			StartsAt:    now.Add(-time.Hour),
+			EndsAt:      endsAt,
+		}, now, false)
+	}
+
+	ag.insert(ctx, mk("s1", now.Add(time.Hour)))
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "a new alert invalidates")
+	require.Equal(t, model.LabelSet{"summary": "s1"}, ag.RouteLabels(now))
+	cached := ag.routeLabels.Load()
+
+	// A re-send of the same alert (fresh pointer, later UpdatedAt) changes
+	// nothing a template can observe.
+	resent := mk("s1", now.Add(time.Hour))
+	resent.UpdatedAt = now.Add(time.Minute)
+	ag.insert(ctx, resent)
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "an identical re-insert must not invalidate")
+	require.Equal(t, model.LabelSet{"summary": "s1"}, ag.RouteLabels(now))
+	require.Same(t, cached, ag.routeLabels.Load(), "cached render must be reused after an identical re-insert")
+
+	ag.insert(ctx, mk("s2", now.Add(time.Hour)))
+	require.Equal(t, uint64(2), ag.routeLabelsGen.Load(), "a changed annotation invalidates")
+	require.Equal(t, model.LabelSet{"summary": "s2"}, ag.RouteLabels(now))
+
+	ag.insert(ctx, mk("s2", now.Add(2*time.Hour)))
+	require.Equal(t, uint64(3), ag.routeLabelsGen.Load(), "a changed EndsAt invalidates")
 }
