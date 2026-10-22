@@ -239,14 +239,16 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 		{name: "feature enabled", flags: mutedAlertsFlags{}},
 	} {
 		for _, test := range []struct {
-			name                    string
-			active, mute, wantMuted []string
+			name                     string
+			active, mute             []string
+			wantMutedByActive        []string
+			wantMutedByMuteIntervals []string
 		}{
-			{name: "active interval only", active: []string{"business_hours"}, wantMuted: []string{"business_hours"}},
-			{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMuted: []string{"business_hours"}},
-			{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMuted: []string{"business_hours"}},
-			{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMuted: []string{"night"}},
-			{name: "mute interval only", mute: []string{"night"}, wantMuted: []string{"night"}},
+			{name: "active interval only", active: []string{"business_hours"}, wantMutedByActive: []string{"business_hours"}},
+			{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMutedByActive: []string{"business_hours"}},
+			{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMutedByActive: []string{"business_hours"}, wantMutedByMuteIntervals: []string{"night"}},
+			{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
+			{name: "mute interval only", mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
 		} {
 			t.Run(feature.name+"/"+test.name, func(t *testing.T) {
 				t.Parallel()
@@ -316,14 +318,15 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 
 					_, remaining, err := pipeline.Exec(ctx, logger, a)
 					require.NoError(t, err)
-					names, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
+					mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
 					require.NoError(t, err)
-					require.Equal(t, flush.muted, len(names) > 0)
+					require.Equal(t, flush.muted, len(mutedByActive)+len(mutedByMute) > 0)
 					// Muted flushes only reach nflog with the feature enabled.
 					wantLogged := !flush.muted || feature.flags.EnableMutedAlertsInNflog()
 					require.Equal(t, wantLogged, logged)
 					if flush.muted {
-						require.Equal(t, test.wantMuted, names)
+						require.Equal(t, test.wantMutedByActive, mutedByActive)
+						require.Equal(t, test.wantMutedByMuteIntervals, mutedByMute)
 						require.Empty(t, remaining)
 						require.Empty(t, notified)
 						if logged {
@@ -331,7 +334,8 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 							require.Empty(t, notificationLog.qres[0].FiringAlerts)
 						}
 					} else {
-						require.Empty(t, names)
+						require.Empty(t, mutedByActive)
+						require.Empty(t, mutedByMute)
 						require.Equal(t, []*alert.Alert{a}, notified)
 						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
 						require.Empty(t, notificationLog.qres[0].MutedAlerts)

@@ -201,7 +201,7 @@ time_intervals:
 		groups, _, err := r.groups(t.Context(), func(*dispatch.Route) bool { return true }, alertFilter)
 		require.NoError(t, err)
 		require.Len(t, groups, 1)
-		return groups[0].MutedBy
+		return groups[0].MutedBy()
 	}
 
 	require.NoError(t, r.reload(load("always_old")))
@@ -248,7 +248,7 @@ time_intervals:
 	synctest.Wait()
 	require.NoError(t, queryErr)
 	require.Len(t, groups, 1)
-	require.Equal(t, []string{"always_old"}, groups[0].MutedBy)
+	require.Equal(t, []string{"always_old"}, groups[0].MutedBy())
 }
 
 func TestReloader_StopIsNilSafe(t *testing.T) {

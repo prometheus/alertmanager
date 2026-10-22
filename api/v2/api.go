@@ -492,7 +492,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
 	for _, alertGroup := range alertGroups {
-		mutedBy := alertGroup.MutedBy
+		mutedBy := alertGroup.MutedBy()
 		if !*params.Muted && len(mutedBy) > 0 {
 			continue
 		}
