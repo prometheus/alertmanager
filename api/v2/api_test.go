@@ -539,6 +539,8 @@ func postSilences(
 }
 
 func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
+	t.Parallel()
+
 	type test struct {
 		silenceMatchers []*silencepb.Matcher
 		filterMatchers  []*labels.Matcher
@@ -615,6 +617,11 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
 			true,
 		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{{Name: "label", Value: "value", Type: -1}},
+			false,
+		},
 	}
 
 	for _, test := range tests {
@@ -628,6 +635,12 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
 		}
 	}
+
+	t.Run("empty filter", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, CheckSilenceMatchesFilterLabels(&silencepb.Silence{}, nil))
+		require.True(t, CheckSilenceMatchesFilterLabels(&silencepb.Silence{MatcherSets: []*silencepb.MatcherSet{{}}}, nil))
+	})
 }
 
 func convertDateTime(ts time.Time) *strfmt.DateTime {

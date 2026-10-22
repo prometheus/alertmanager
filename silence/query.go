@@ -82,6 +82,48 @@ func QMatches(set model.LabelSet) QueryParam {
 	}
 }
 
+// HasMatchers reports whether one stored matcher set contains every matcher
+// from one of the requested sets. Matchers must have the same name, type, and pattern.
+// No requested sets or an empty requested set matches every silence.
+func HasMatchers(sil *pb.Silence, sets ...*pb.MatcherSet) bool {
+	if len(sets) == 0 {
+		return true
+	}
+	for _, requested := range sets {
+		if len(requested.GetMatchers()) == 0 {
+			return true
+		}
+		for _, stored := range sil.MatcherSets {
+			if containsMatchers(stored.Matchers, requested.Matchers) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func containsMatchers(stored, requested []*pb.Matcher) bool {
+	for _, matcher := range requested {
+		if !slices.ContainsFunc(stored, func(candidate *pb.Matcher) bool {
+			return matcher.Name == candidate.Name && matcher.Type == candidate.Type && matcher.Pattern == candidate.Pattern
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
+// QHasMatchers filters silences by matcher definitions using HasMatchers.
+// It compares names, types, and patterns without evaluating label values.
+func QHasMatchers(sets ...*pb.MatcherSet) QueryParam {
+	return func(q *query) error {
+		q.filters = append(q.filters, func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
+			return HasMatchers(sil, sets...), nil
+		})
+		return nil
+	}
+}
+
 // QState filters queried silences by the given states.
 func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
