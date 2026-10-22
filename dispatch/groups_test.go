@@ -28,24 +28,20 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
-	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 )
 
-type timeMuterFunc func([]string, time.Time) (bool, []string, error)
-
-func (f timeMuterFunc) Mutes(names []string, now time.Time) (bool, []string, error) {
-	return f(names, now)
-}
-
-// timeContainerFunc is a TimeMuter that also offers the ContainsTime
-// predicate, like timeinterval.Intervener does.
-type timeContainerFunc struct {
-	timeMuterFunc
+// timeMuterFuncs is a TimeMuter backed by functions.
+type timeMuterFuncs struct {
+	mutes    func([]string, time.Time) (bool, []string, error)
 	contains func([]string, time.Time) (bool, error)
 }
 
-func (f timeContainerFunc) ContainsTime(names []string, now time.Time) (bool, error) {
+func (f timeMuterFuncs) Mutes(names []string, now time.Time) (bool, []string, error) {
+	return f.mutes(names, now)
+}
+
+func (f timeMuterFuncs) ContainsTime(names []string, now time.Time) (bool, error) {
 	return f.contains(names, now)
 }
 
@@ -109,28 +105,30 @@ func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 					}
 					return nil
 				}
-				mutes := timeMuterFunc(func(names []string, now time.Time) (bool, []string, error) {
-					// Active intervals only need the predicate, so Mutes must
-					// not be called when ContainsTime is available.
-					require.False(t, tc.active, "Mutes called for active time intervals")
-					if err := check(names, now); err != nil {
-						return false, nil, err
-					}
-					if tc.muted {
-						return true, names, nil
-					}
-					return false, nil, nil
-				})
-				var muter notify.TimeMuter = mutes
-				if tc.active {
-					muter = timeContainerFunc{mutes, func(names []string, now time.Time) (bool, error) {
+				muter := timeMuterFuncs{
+					mutes: func(names []string, now time.Time) (bool, []string, error) {
+						// Active intervals only need the predicate, so Mutes
+						// must not be called for them.
+						require.False(t, tc.active, "Mutes called for active time intervals")
+						if err := check(names, now); err != nil {
+							return false, nil, err
+						}
+						if tc.muted {
+							return true, names, nil
+						}
+						return false, nil, nil
+					},
+					contains: func(names []string, now time.Time) (bool, error) {
+						// Mute intervals need the matching names, so
+						// ContainsTime must not be called for them.
+						require.True(t, tc.active, "ContainsTime called for mute time intervals")
 						if err := check(names, now); err != nil {
 							return false, err
 						}
 						// A group is muted by its active intervals when now is
 						// outside all of them.
 						return !tc.muted, nil
-					}}
+					},
 				}
 				d := NewDispatcher(alerts, route, nil, muter, nil, testMaintenanceInterval, nil, logger, recorder, nil, nil)
 				// Populate groups without running the notification pipeline.

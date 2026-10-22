@@ -440,10 +440,6 @@ func TestTimeActiveStage(t *testing.T) {
 			// the stage.
 			mutedBy, err := MutedByTimeIntervals(intervener, activeTimeIntervalNames, nil, test.now)
 			require.NoError(t, err)
-			// Custom TimeMuters without ContainsTime must give the same result.
-			fallbackMutedBy, err := MutedByTimeIntervals(struct{ TimeMuter }{intervener}, activeTimeIntervalNames, nil, test.now)
-			require.NoError(t, err)
-			require.Equal(t, test.mutedBy, fallbackMutedBy)
 
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
