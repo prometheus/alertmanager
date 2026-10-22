@@ -492,10 +492,10 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
 	for _, alertGroup := range alertGroups {
-		mutedBy := alertGroup.MutedBy()
-		if !*params.Muted && len(mutedBy) > 0 {
+		if !*params.Muted && (len(alertGroup.MutedByActiveTimeIntervals) > 0 || len(alertGroup.MutedByMuteTimeIntervals) > 0) {
 			continue
 		}
+		mutedBy := alertGroup.MutedBy()
 
 		ag := &open_api_models.AlertGroup{
 			Receiver:    &open_api_models.ReceiverReference{Name: &alertGroup.Receiver},
