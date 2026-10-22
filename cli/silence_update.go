@@ -123,7 +123,7 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 
 	if c.quiet {
 		for _, silence := range updatedSilences {
-			fmt.Println(silence.ID)
+			fmt.Println(*silence.ID)
 		}
 	} else {
 		formatter, found := format.Formatters[output]
