@@ -1325,7 +1325,8 @@ func TestStatusCollector(t *testing.T) {
 }
 
 // TestGetAlertGroupsHandlerMuted checks that the muted filter and the mutedBy
-// annotation follow the MutedBy the dispatcher computed for each group.
+// annotation follow the time intervals the dispatcher computed for each group,
+// with both kinds flattened into a single list.
 func TestGetAlertGroupsHandlerMuted(t *testing.T) {
 	in := `
 route:
@@ -1337,21 +1338,22 @@ receivers:
 	cfg, err := config.Load(in)
 	require.NoError(t, err)
 
-	newGroup := func(team string, mutedBy []string) *dispatch.AlertGroup {
+	newGroup := func(team string, mutedByActive, mutedByMute []string) *dispatch.AlertGroup {
 		labels := model.LabelSet{"alertname": "Foo", "team": model.LabelValue(team)}
 		return &dispatch.AlertGroup{
-			Labels:   labels,
-			Receiver: "team-X",
-			GroupKey: team,
-			MutedBy:  mutedBy,
+			Labels:                     labels,
+			Receiver:                   "team-X",
+			GroupKey:                   team,
+			MutedByActiveTimeIntervals: mutedByActive,
+			MutedByMuteTimeIntervals:   mutedByMute,
 			Alerts: alert.AlertSlice{
 				alert.New(model.Alert{Labels: labels, StartsAt: time.Now().Add(-time.Minute)}, time.Time{}, false),
 			},
 		}
 	}
 	groups := dispatch.AlertGroups{
-		newGroup("muted", []string{"weekends"}),
-		newGroup("unmuted", nil),
+		newGroup("muted", []string{"weekdays"}, []string{"weekends"}),
+		newGroup("unmuted", nil, nil),
 	}
 
 	api := API{
@@ -1401,7 +1403,7 @@ receivers:
 			states[string(g.Labels["team"])] = *g.Alerts[0].Status.State
 		}
 		require.Equal(t, map[string][]string{
-			"muted":   {"weekends"},
+			"muted":   {"weekdays", "weekends"},
 			"unmuted": {},
 		}, mutedBy)
 		// A muted group's alerts are reported as suppressed even though the

@@ -280,10 +280,10 @@ func TestGroupsMutedBy(t *testing.T) {
 	synctest.Test(t, testGroupsMutedBy)
 }
 
-// testGroupsMutedBy checks that Groups computes MutedBy from the current time
-// and the route's time intervals, without the notification pipeline having to
-// run, and that active time intervals take precedence over mute ones, as in
-// the pipeline.
+// testGroupsMutedBy checks that Groups computes the muting time intervals
+// from the current time and the route's time intervals, without the
+// notification pipeline having to run, and that it reports the active and
+// the mute time intervals that mute a group separately.
 func testGroupsMutedBy(t *testing.T) {
 	// group_interval is long enough that no flush happens after the initial
 	// one, so the changes in MutedBy below are purely query-time.
@@ -352,7 +352,10 @@ time_intervals:
 	synctest.Wait()
 	require.Len(t, recorder.Alerts(), len(teams))
 
-	mutedBy := func(t *testing.T) map[string][]string {
+	type kinds struct {
+		active, mute []string
+	}
+	mutedBy := func(t *testing.T) map[string]kinds {
 		t.Helper()
 		alertGroups, _, err := dispatcher.Groups(context.Background(),
 			func(*Route) bool { return true },
@@ -360,26 +363,26 @@ time_intervals:
 		)
 		require.NoError(t, err)
 		require.Len(t, alertGroups, len(teams))
-		res := make(map[string][]string, len(alertGroups))
+		res := make(map[string]kinds, len(alertGroups))
 		for _, ag := range alertGroups {
 			// Groups are keyed by alertname only, so tell them apart by
 			// the team label of their single alert.
 			require.Len(t, ag.Alerts, 1)
-			res[string(ag.Alerts[0].Labels["team"])] = ag.MutedBy
+			res[string(ag.Alerts[0].Labels["team"])] = kinds{ag.MutedByActiveTimeIntervals, ag.MutedByMuteTimeIntervals}
 		}
 		return res
 	}
 
 	// Saturday: inside weekends, outside weekdays. The route with both kinds
-	// of time intervals reports the active ones, like the pipeline, which
-	// stops at the TimeActiveStage. The overlapping route is active because
-	// one active interval matches, but is still muted by weekends.
-	require.Equal(t, map[string][]string{
-		"mute":    {"weekends"},
-		"active":  {"weekdays"},
-		"both":    {"weekdays"},
-		"overlap": {"weekends"},
-		"none":    nil,
+	// of time intervals reports both, even though the pipeline would stop at
+	// the TimeActiveStage. The overlapping route is active because one active
+	// interval matches, but is still muted by weekends.
+	require.Equal(t, map[string]kinds{
+		"mute":    {mute: []string{"weekends"}},
+		"active":  {active: []string{"weekdays"}},
+		"both":    {active: []string{"weekdays"}, mute: []string{"weekends"}},
+		"overlap": {mute: []string{"weekends"}},
+		"none":    {},
 	}, mutedBy(t))
 
 	// Cross into Monday. Nothing is flushed, but the groups are not muted
@@ -388,12 +391,12 @@ time_intervals:
 	synctest.Wait()
 	require.Equal(t, time.Monday, time.Now().UTC().Weekday())
 	require.Len(t, recorder.Alerts(), len(teams))
-	require.Equal(t, map[string][]string{
-		"mute":    nil,
-		"active":  nil,
-		"both":    nil,
-		"overlap": nil,
-		"none":    nil,
+	require.Equal(t, map[string]kinds{
+		"mute":    {},
+		"active":  {},
+		"both":    {},
+		"overlap": {},
+		"none":    {},
 	}, mutedBy(t))
 
 	// And back into the weekend.
@@ -401,13 +404,43 @@ time_intervals:
 	synctest.Wait()
 	require.Equal(t, time.Saturday, time.Now().UTC().Weekday())
 	require.Len(t, recorder.Alerts(), len(teams))
-	require.Equal(t, map[string][]string{
-		"mute":    {"weekends"},
-		"active":  {"weekdays"},
-		"both":    {"weekdays"},
-		"overlap": {"weekends"},
-		"none":    nil,
+	require.Equal(t, map[string]kinds{
+		"mute":    {mute: []string{"weekends"}},
+		"active":  {active: []string{"weekdays"}},
+		"both":    {active: []string{"weekdays"}, mute: []string{"weekends"}},
+		"overlap": {mute: []string{"weekends"}},
+		"none":    {},
 	}, mutedBy(t))
+}
+
+func TestAlertGroupMutedBy(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		active, mute []string
+		want         []string
+	}{
+		{name: "neither"},
+		{name: "active only", active: []string{"weekdays"}, want: []string{"weekdays"}},
+		{name: "mute only", mute: []string{"weekends"}, want: []string{"weekends"}},
+		{name: "both", active: []string{"weekdays"}, mute: []string{"weekends", "holidays"}, want: []string{"weekdays", "weekends", "holidays"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Give the active names spare capacity, like a route's slice may
+			// have, to check that the result does not append into it.
+			active := tc.active
+			if len(active) > 0 {
+				active = append(make([]string, 0, len(active)+8), active...)
+			}
+			ag := &AlertGroup{MutedByActiveTimeIntervals: active, MutedByMuteTimeIntervals: tc.mute}
+			require.Equal(t, tc.want, ag.MutedBy())
+			if len(active) > 0 {
+				require.Empty(t, active[len(active):cap(active)][0])
+			}
+		})
+	}
 }
 
 func testGroups(t *testing.T) {

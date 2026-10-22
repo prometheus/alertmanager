@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -332,10 +333,25 @@ type AlertGroup struct {
 	// AlertStatuses holds the status returned by the AlertFilter for each
 	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
-	// MutedBy holds the names of the time intervals of the group's route that
-	// mute it at the time of the Groups call. It is computed at query time,
-	// like silences and inhibitions, and is empty if the group is not muted.
-	MutedBy []string
+	// MutedByActiveTimeIntervals and MutedByMuteTimeIntervals hold the names
+	// of the time intervals of the group's route that mute it at the time of
+	// the Groups call, one per kind. They are computed at query time, like
+	// silences and inhibitions, and are both empty if the group is not muted.
+	MutedByActiveTimeIntervals []string
+	MutedByMuteTimeIntervals   []string
+}
+
+// MutedBy returns the names of all the time intervals that mute the group,
+// the active ones first. The group is muted if the result is not empty.
+func (ag *AlertGroup) MutedBy() []string {
+	switch {
+	case len(ag.MutedByActiveTimeIntervals) == 0:
+		return ag.MutedByMuteTimeIntervals
+	case len(ag.MutedByMuteTimeIntervals) == 0:
+		return ag.MutedByActiveTimeIntervals
+	}
+	// The active names alias the route's own slice, so never append to them.
+	return slices.Concat(ag.MutedByActiveTimeIntervals, ag.MutedByMuteTimeIntervals)
 }
 
 type AlertGroups []*AlertGroup
@@ -371,7 +387,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		}
 
 		receiver := rt.RouteOpts.Receiver
-		var mutedBy []string
+		var mutedByActive, mutedByMute []string
 		mutedBySet := len(rt.RouteOpts.ActiveTimeIntervals) == 0 && len(rt.RouteOpts.MuteTimeIntervals) == 0
 
 		// Make a snapshot of the aggregation groups in each route to avoid holding
@@ -423,7 +439,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			// once, only when the route contributes a group to the response.
 			if !mutedBySet {
 				var err error
-				mutedBy, err = notify.MutedByTimeIntervals(d.timeMuter, rt.RouteOpts.ActiveTimeIntervals, rt.RouteOpts.MuteTimeIntervals, now)
+				mutedByActive, mutedByMute, err = notify.MutedByTimeIntervals(d.timeMuter, rt.RouteOpts.ActiveTimeIntervals, rt.RouteOpts.MuteTimeIntervals, now)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to compute time interval mutes for route %s: %w", rt.ID(), err)
 				}
@@ -438,7 +454,9 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				RouteLabels: ag.RouteLabels(),
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
-				MutedBy:     mutedBy,
+
+				MutedByActiveTimeIntervals: mutedByActive,
+				MutedByMuteTimeIntervals:   mutedByMute,
 			}
 			alertGroup.Alerts = filteredAlerts
 			alertGroup.AlertStatuses = statuses

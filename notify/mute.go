@@ -167,18 +167,24 @@ func mutedByMuteTimeIntervals(muter TimeMuter, muteTimeIntervalNames []string, n
 }
 
 // MutedByTimeIntervals returns the names of the time intervals that mute a
-// group with the given active and mute time intervals at time now. The group
-// is muted if the returned slice is not empty. It computes the same result
-// the TimeActiveStage and TimeMuteStage would produce for a flush at that
-// time: active time intervals are checked first and, only if the group is in
-// an active time, mute time intervals are checked next. The names must be
-// resolvable by muter, so both must come from the same configuration.
-func MutedByTimeIntervals(muter TimeMuter, activeTimeIntervalNames, muteTimeIntervalNames []string, now time.Time) ([]string, error) {
-	mutedBy, err := mutedByActiveTimeIntervals(muter, activeTimeIntervalNames, now)
-	if err != nil || len(mutedBy) > 0 {
-		return mutedBy, err
+// group with the given active and mute time intervals at time now, one slice
+// per kind: the active time intervals if now is outside all of them, and the
+// mute time intervals that contain now. The group is muted if either slice
+// is not empty, which is exactly when the TimeActiveStage or the
+// TimeMuteStage would mute a flush at that time. Unlike the pipeline, which
+// stops at the first stage that mutes, both kinds are always evaluated so
+// that every muting interval is reported. The names must be resolvable by
+// muter, so both must come from the same configuration.
+func MutedByTimeIntervals(muter TimeMuter, activeTimeIntervalNames, muteTimeIntervalNames []string, now time.Time) (mutedByActive, mutedByMute []string, err error) {
+	mutedByActive, err = mutedByActiveTimeIntervals(muter, activeTimeIntervalNames, now)
+	if err != nil {
+		return nil, nil, err
 	}
-	return mutedByMuteTimeIntervals(muter, muteTimeIntervalNames, now)
+	mutedByMute, err = mutedByMuteTimeIntervals(muter, muteTimeIntervalNames, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mutedByActive, mutedByMute, nil
 }
 
 type timeStage struct {

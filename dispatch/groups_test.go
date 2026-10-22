@@ -155,10 +155,17 @@ func TestGroupsTimeIntervalEvaluation(t *testing.T) {
 					require.Equal(t, tc.wantCalls, calls)
 					require.Len(t, groups, tc.wantGroups)
 					for _, group := range groups {
+						// The route has intervals of one kind only, so only
+						// that kind can mute its groups.
+						mutedBy, otherKind := group.MutedByMuteTimeIntervals, group.MutedByActiveTimeIntervals
+						if tc.active {
+							mutedBy, otherKind = otherKind, mutedBy
+						}
+						require.Empty(t, otherKind)
 						if tc.muted {
-							require.Equal(t, []string{"maintenance"}, group.MutedBy)
+							require.Equal(t, []string{"maintenance"}, mutedBy)
 						} else {
-							require.Empty(t, group.MutedBy)
+							require.Empty(t, mutedBy)
 						}
 					}
 					// Each query must evaluate intervals using its own timestamp.

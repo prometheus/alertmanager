@@ -332,8 +332,9 @@ func TestTimeMuteStage(t *testing.T) {
 
 			// The query-time computation used by the API must agree with
 			// the stage.
-			mutedBy, err := MutedByTimeIntervals(intervener, nil, muteTimeIntervalNames, test.now)
+			mutedByActive, mutedBy, err := MutedByTimeIntervals(intervener, nil, muteTimeIntervalNames, test.now)
 			require.NoError(t, err)
+			require.Empty(t, mutedByActive)
 
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
@@ -355,6 +356,126 @@ func TestTimeMuteStage(t *testing.T) {
 alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
 `, len(test.alerts)))))
 			}
+		})
+	}
+}
+
+func TestMutedByTimeIntervals(t *testing.T) {
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	require.NoError(t, err)
+	intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
+		"weekdays": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 1, End: 5}, // Monday to Friday
+			}},
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 540,  // 09:00
+				EndMinute:   1020, // 17:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+		"evenings": {{
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+	})
+	// Monday 2024-01-01 and Saturday 2024-01-06.
+	mondayNoon := time.Date(2024, 1, 1, 12, 0, 0, 0, sydney)
+	mondayEvening := time.Date(2024, 1, 1, 18, 0, 0, 0, sydney)
+	saturdayNoon := time.Date(2024, 1, 6, 12, 0, 0, 0, sydney)
+	saturdayEvening := time.Date(2024, 1, 6, 18, 0, 0, 0, sydney)
+
+	tests := []struct {
+		name          string
+		active        []string
+		mute          []string
+		now           time.Time
+		mutedByActive []string
+		mutedByMute   []string
+		err           string
+	}{{
+		name: "no intervals",
+		now:  mondayEvening,
+	}, {
+		name:   "inside active, outside mute",
+		active: []string{"weekdays"},
+		mute:   []string{"evenings", "weekends"},
+		now:    mondayNoon,
+	}, {
+		name:          "outside active, outside mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"weekends"},
+		now:           mondayEvening,
+		mutedByActive: []string{"weekdays"},
+	}, {
+		name:        "inside active, inside mute",
+		active:      []string{"weekdays", "evenings"},
+		mute:        []string{"evenings"},
+		now:         mondayEvening,
+		mutedByMute: []string{"evenings"},
+	}, {
+		name:          "outside active, inside one mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"evenings", "weekends"},
+		now:           mondayEvening,
+		mutedByActive: []string{"weekdays"},
+		mutedByMute:   []string{"evenings"},
+	}, {
+		name:          "outside active, inside every mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"evenings", "weekends"},
+		now:           saturdayEvening,
+		mutedByActive: []string{"weekdays"},
+		mutedByMute:   []string{"evenings", "weekends"},
+	}, {
+		name:        "only mute intervals",
+		mute:        []string{"evenings", "weekends"},
+		now:         saturdayNoon,
+		mutedByMute: []string{"weekends"},
+	}, {
+		name:          "only active intervals",
+		active:        []string{"weekdays"},
+		now:           saturdayNoon,
+		mutedByActive: []string{"weekdays"},
+	}, {
+		name:   "unknown active interval",
+		active: []string{"holidays"},
+		mute:   []string{"evenings"},
+		now:    mondayEvening,
+		err:    "time interval holidays doesn't exist in config",
+	}, {
+		// Mute intervals are resolved even when the active ones already
+		// mute the group.
+		name:   "unknown mute interval while outside active",
+		active: []string{"weekdays"},
+		mute:   []string{"holidays"},
+		now:    mondayEvening,
+		err:    "time interval holidays doesn't exist in config",
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, test.now)
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				require.Nil(t, mutedByActive)
+				require.Nil(t, mutedByMute)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.mutedByActive, mutedByActive)
+			require.Equal(t, test.mutedByMute, mutedByMute)
 		})
 	}
 }
@@ -438,8 +559,9 @@ func TestTimeActiveStage(t *testing.T) {
 
 			// The query-time computation used by the API must agree with
 			// the stage.
-			mutedBy, err := MutedByTimeIntervals(intervener, activeTimeIntervalNames, nil, test.now)
+			mutedBy, mutedByMute, err := MutedByTimeIntervals(intervener, activeTimeIntervalNames, nil, test.now)
 			require.NoError(t, err)
+			require.Empty(t, mutedByMute)
 
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
