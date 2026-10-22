@@ -244,10 +244,11 @@ type InhibitRule struct {
 	// inhibited by the source alerts).
 	TargetMatchers labels.Matchers
 	// A set of label names whose label values need to be identical in source and
-	// target alerts in order for the inhibition to take effect.
+	// target alerts in order for the inhibition to take effect. Identity
+	// constraints only; eventrecorder snapshots this map.
 	Equal map[model.LabelName]struct{}
 
-	// Cache of alerts matching source labels.
+	// Source alert cache; its index also knows the equal pairs.
 	cache *cache
 }
 
@@ -301,8 +302,11 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 	targetm = append(targetm, cr.TargetMatchers...)
 
 	equal := map[model.LabelName]struct{}{}
+	equalNames := make([]model.LabelName, 0, len(cr.Equal))
 	for _, ln := range cr.Equal {
-		equal[model.LabelName(ln)] = struct{}{}
+		name := model.LabelName(ln)
+		equal[name] = struct{}{}
+		equalNames = append(equalNames, name)
 	}
 
 	return &InhibitRule{
@@ -310,14 +314,15 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		cache:          newCache(equal),
+		// The index covers all constraints; Mutes still records the
+		// identity-only map, so event payloads are unchanged.
+		cache: newCache(constraintsFor(equalNames, cr.EqualPairs)),
 	}
 }
 
-// hasEqual checks whether the source cache contains alerts matching the equal
-// labels for the given label set. If so, the fingerprint of one of those alerts
-// is returned. If excludeTwoSidedMatch is true, alerts that match both the
-// source and the target side of the rule are disregarded.
+// hasEqual finds a cached source alert matching all constraints (equal
+// labels and pairs); with excludeTwoSidedMatch, two-sided matches are
+// skipped.
 func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool, now time.Time) (model.Fingerprint, bool) {
 	return r.cache.find(lset, now, func(a *alert.Alert) bool {
 		return !excludeTwoSidedMatch || !r.TargetMatchers.Matches(a.Labels)
