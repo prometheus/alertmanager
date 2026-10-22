@@ -33,7 +33,6 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/inhibit"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
@@ -255,7 +254,6 @@ func (pb *PipelineBuilder) New(
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
 	intervener *timeinterval.Intervener,
-	marker marker.GroupMarker,
 	notificationLog NotificationLog,
 	peer Peer,
 ) RoutingStage {
@@ -269,8 +267,8 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewClusterGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
-	tas := NewTimeActiveStage(intervener, marker, pb.metrics)
-	tms := NewTimeMuteStage(intervener, marker, pb.metrics)
+	tas := NewTimeActiveStage(intervener, pb.metrics)
+	tms := NewTimeMuteStage(intervener, pb.metrics)
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {

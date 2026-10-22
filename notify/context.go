@@ -37,7 +37,6 @@ const (
 	keyNow
 	keyMuteTimeIntervals
 	keyActiveTimeIntervals
-	keyRouteID
 	keyNflogStore
 	keyNotificationReason
 	keyMutedAlerts
@@ -96,11 +95,6 @@ func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 // WithActiveTimeIntervals populates a context with a slice of active time names.
 func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 	return context.WithValue(ctx, keyActiveTimeIntervals, at)
-}
-
-// WithRouteID populates a context with the route ID.
-func WithRouteID(ctx context.Context, routeID string) context.Context {
-	return context.WithValue(ctx, keyRouteID, routeID)
 }
 
 // WithNotificationReason populates a context with a NotifyReason.
@@ -175,13 +169,6 @@ func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
 // second argument is false.
 func ActiveTimeIntervalNames(ctx context.Context) ([]string, bool) {
 	v, ok := ctx.Value(keyActiveTimeIntervals).([]string)
-	return v, ok
-}
-
-// RouteID extracts a RouteID from the context. Iff none exists, the
-// // second argument is false.
-func RouteID(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(keyRouteID).(string)
 	return v, ok
 }
 

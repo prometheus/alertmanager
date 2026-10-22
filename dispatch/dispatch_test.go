@@ -36,10 +36,10 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/timeinterval"
 )
 
 const testMaintenanceInterval = 30 * time.Second
@@ -276,6 +276,173 @@ func TestGroups(t *testing.T) {
 	synctest.Test(t, testGroups)
 }
 
+func TestGroupsMutedBy(t *testing.T) {
+	synctest.Test(t, testGroupsMutedBy)
+}
+
+// testGroupsMutedBy checks that Groups computes the muting time intervals
+// from the current time and the route's time intervals, without the
+// notification pipeline having to run, and that it reports the active and
+// the mute time intervals that mute a group separately.
+func testGroupsMutedBy(t *testing.T) {
+	// group_interval is long enough that no flush happens after the initial
+	// one, so the changes in MutedBy below are purely query-time.
+	confData := `receivers:
+- name: 'prod'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10000h
+  receiver: 'prod'
+  routes:
+  - matchers: ['team=mute']
+    mute_time_intervals: ['weekends']
+  - matchers: ['team=active']
+    active_time_intervals: ['weekdays']
+  - matchers: ['team=both']
+    active_time_intervals: ['weekdays']
+    mute_time_intervals: ['weekends']
+  - matchers: ['team=overlap']
+    active_time_intervals: ['weekdays', 'weekends']
+    mute_time_intervals: ['weekends']
+  - matchers: ['team=none']
+
+time_intervals:
+- name: weekends
+  time_intervals:
+  - weekdays: ['saturday', 'sunday']
+- name: weekdays
+  time_intervals:
+  - weekdays: ['monday:friday']`
+	conf, err := config.Load(confData)
+	require.NoError(t, err)
+
+	timeIntervals := make(map[string][]timeinterval.TimeInterval, len(conf.TimeIntervals))
+	for _, ti := range conf.TimeIntervals {
+		timeIntervals[ti.Name] = ti.TimeIntervals
+	}
+
+	logger := promslog.NewNopLogger()
+	route := NewRoute(conf.Route, nil)
+	reg := prometheus.NewRegistry()
+	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+	require.NoError(t, err)
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, timeinterval.NewIntervener(timeIntervals), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	go dispatcher.Run(time.Now())
+	defer dispatcher.Stop()
+
+	// The synctest clock starts on Saturday 2000-01-01 00:00 UTC. Time
+	// intervals are evaluated in UTC unless they set a location.
+	require.Equal(t, time.Saturday, time.Now().UTC().Weekday())
+
+	teams := []string{"mute", "active", "both", "overlap", "none"}
+	inputAlerts := make([]*alert.Alert, 0, len(teams))
+	for _, team := range teams {
+		inputAlerts = append(inputAlerts, newAlert(model.LabelSet{"alertname": "Foo", "team": model.LabelValue(team)}))
+	}
+	require.NoError(t, alerts.Put(context.Background(), inputAlerts...))
+
+	// Let the groups be created and flushed once.
+	time.Sleep(50 * time.Millisecond)
+	synctest.Wait()
+	require.Len(t, recorder.Alerts(), len(teams))
+
+	type kinds struct {
+		active, mute []string
+	}
+	mutedBy := func(t *testing.T) map[string]kinds {
+		t.Helper()
+		alertGroups, _, err := dispatcher.Groups(context.Background(),
+			func(*Route) bool { return true },
+			func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
+		)
+		require.NoError(t, err)
+		require.Len(t, alertGroups, len(teams))
+		res := make(map[string]kinds, len(alertGroups))
+		for _, ag := range alertGroups {
+			// Groups are keyed by alertname only, so tell them apart by
+			// the team label of their single alert.
+			require.Len(t, ag.Alerts, 1)
+			res[string(ag.Alerts[0].Labels["team"])] = kinds{ag.MutedByActiveTimeIntervals, ag.MutedByMuteTimeIntervals}
+		}
+		return res
+	}
+
+	// Saturday: inside weekends, outside weekdays. The route with both kinds
+	// of time intervals reports both, even though the pipeline would stop at
+	// the TimeActiveStage. The overlapping route is active because one active
+	// interval matches, but is still muted by weekends.
+	require.Equal(t, map[string]kinds{
+		"mute":    {mute: []string{"weekends"}},
+		"active":  {active: []string{"weekdays"}},
+		"both":    {active: []string{"weekdays"}, mute: []string{"weekends"}},
+		"overlap": {mute: []string{"weekends"}},
+		"none":    {},
+	}, mutedBy(t))
+
+	// Cross into Monday. Nothing is flushed, but the groups are not muted
+	// anymore.
+	time.Sleep(48 * time.Hour)
+	synctest.Wait()
+	require.Equal(t, time.Monday, time.Now().UTC().Weekday())
+	require.Len(t, recorder.Alerts(), len(teams))
+	require.Equal(t, map[string]kinds{
+		"mute":    {},
+		"active":  {},
+		"both":    {},
+		"overlap": {},
+		"none":    {},
+	}, mutedBy(t))
+
+	// And back into the weekend.
+	time.Sleep(5 * 24 * time.Hour)
+	synctest.Wait()
+	require.Equal(t, time.Saturday, time.Now().UTC().Weekday())
+	require.Len(t, recorder.Alerts(), len(teams))
+	require.Equal(t, map[string]kinds{
+		"mute":    {mute: []string{"weekends"}},
+		"active":  {active: []string{"weekdays"}},
+		"both":    {active: []string{"weekdays"}, mute: []string{"weekends"}},
+		"overlap": {mute: []string{"weekends"}},
+		"none":    {},
+	}, mutedBy(t))
+}
+
+func TestAlertGroupMutedBy(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		active, mute []string
+		want         []string
+	}{
+		{name: "neither"},
+		{name: "active only", active: []string{"weekdays"}, want: []string{"weekdays"}},
+		{name: "mute only", mute: []string{"weekends"}, want: []string{"weekends"}},
+		{name: "both", active: []string{"weekdays"}, mute: []string{"weekends", "holidays"}, want: []string{"weekdays", "weekends", "holidays"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Give the active names spare capacity, like a route's slice may
+			// have, to check that the result does not append into it.
+			active := tc.active
+			if len(active) > 0 {
+				active = append(make([]string, 0, len(active)+8), active...)
+			}
+			ag := &AlertGroup{MutedByActiveTimeIntervals: active, MutedByMuteTimeIntervals: tc.mute}
+			require.Equal(t, tc.want, ag.MutedBy())
+			if len(active) > 0 {
+				require.Empty(t, active[len(active):cap(active)][0])
+			}
+		})
+	}
+}
+
 func testGroups(t *testing.T) {
 	confData := `receivers:
 - name: 'kafka'
@@ -309,7 +476,6 @@ route:
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -318,7 +484,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -370,7 +536,6 @@ route:
 			},
 			Receiver: "prod",
 			GroupKey: "{}:{alertname=\"OtherAlert\"}",
-			RouteID:  "{}",
 		},
 		&AlertGroup{
 			Alerts: []*alert.Alert{inputAlerts[1]},
@@ -380,7 +545,6 @@ route:
 			},
 			Receiver: "testing",
 			GroupKey: "{}/{env=\"testing\"}:{alertname=\"TestingAlert\", service=\"api\"}",
-			RouteID:  "{}/{env=\"testing\"}/0",
 		},
 		&AlertGroup{
 			Alerts: []*alert.Alert{inputAlerts[2], inputAlerts[3]},
@@ -391,7 +555,6 @@ route:
 			},
 			Receiver: "prod",
 			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"aa\", service=\"api\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*alert.Alert{inputAlerts[4]},
@@ -402,7 +565,6 @@ route:
 			},
 			Receiver: "prod",
 			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighErrorRate\", cluster=\"bb\", service=\"api\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 		&AlertGroup{
 			Alerts: []*alert.Alert{inputAlerts[5]},
@@ -413,7 +575,6 @@ route:
 			},
 			Receiver: "kafka",
 			GroupKey: "{}/{kafka=\"yes\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
-			RouteID:  "{}/{kafka=\"yes\"}/2",
 		},
 		&AlertGroup{
 			Alerts: []*alert.Alert{inputAlerts[5]},
@@ -424,7 +585,6 @@ route:
 			},
 			Receiver: "prod",
 			GroupKey: "{}/{env=\"prod\"}:{alertname=\"HighLatency\", cluster=\"bb\", service=\"db\"}",
-			RouteID:  "{}/{env=\"prod\"}/1",
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]string{
@@ -474,7 +634,6 @@ route:
 	logger := promslog.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -485,7 +644,7 @@ route:
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	lim := limits{groups: 6}
 	m := NewDispatcherMetrics(true, reg, nil)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, lim, logger, eventrecorder.NopRecorder(), m, nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, lim, logger, eventrecorder.NopRecorder(), m, nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -597,7 +756,7 @@ route:
 
 		timeout := func(d time.Duration) time.Duration { return 0 }
 		recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-		dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+		dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 		go dispatcher.Run(time.Now())
 		defer dispatcher.Stop()
 
@@ -667,7 +826,6 @@ func newAlert(labels model.LabelSet) *alert.Alert {
 func TestDispatcherRace(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -676,7 +834,7 @@ func TestDispatcherRace(t *testing.T) {
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	route := &Route{}
-	dispatcher := NewDispatcher(alerts, route, nil, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	dispatcher := NewDispatcher(alerts, route, nil, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	dispatcher.Stop()
 }
@@ -690,7 +848,6 @@ func testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -709,7 +866,7 @@ func testDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(time.Now())
 	defer dispatcher.Stop()
 
@@ -737,7 +894,6 @@ func (l limits) MaxNumberOfAggregationGroups() int {
 
 func TestDispatcher_DoMaintenance(t *testing.T) {
 	r := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 
 	alerts, err := mem.NewAlerts(context.Background(), time.Minute, 0, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), r, nil)
 	if err != nil {
@@ -756,7 +912,7 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 
 	ctx := context.Background()
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r, nil), nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r, nil), nil)
 	// Manually create the routeAggrGroups structure since we are not calling Run().
 	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
 	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
@@ -790,17 +946,13 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*alert.Alert) bool { return true })
 
-	// Insert a marker for the aggregation group's group key.
-	marker.SetMuted(route.ID(), aggrGroup1.GroupKey(), []string{"weekends"})
-	mutedBy, isMuted := marker.Muted(route.ID(), aggrGroup1.GroupKey())
-	require.True(t, isMuted)
-	require.Equal(t, []string{"weekends"}, mutedBy)
+	_, ok := dispatcher.routeGroupsSlice[route.Idx].groups.Load(aggrGroup1.fingerprint())
+	require.True(t, ok)
 
-	// Run the maintenance and the marker should be removed.
+	// Run the maintenance and the empty group should be removed.
 	dispatcher.doMaintenance()
-	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
-	require.False(t, isMuted)
-	require.Empty(t, mutedBy)
+	_, ok = dispatcher.routeGroupsSlice[route.Idx].groups.Load(aggrGroup1.fingerprint())
+	require.False(t, ok)
 }
 
 // TestGroupAlert_RecoversWhenCASFails reproduces a bug where groupAlert would
@@ -840,7 +992,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	metrics := NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{})
-	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
 	// Don't call Run — put the dispatcher manually in  the DispatcherStateWaitingToStart
 	// state so groupAlert's final switch falls through the default branch and the
 	// aggregation group's run goroutine is never started.
@@ -925,7 +1077,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	}
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker.NewGroupMarker(), timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{}), nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{}), nil)
 	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
 	// WaitingToStart so groupAlert won't auto-start the new ag — keeps the
 	// test focused on the displaced group.
@@ -1138,7 +1290,6 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 func TestDispatchOnStartup(t *testing.T) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	marker := marker.NewGroupMarker()
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1163,7 +1314,7 @@ func TestDispatchOnStartup(t *testing.T) {
 	now := time.Now()
 	startDelay := 2 * time.Second
 	startTime := time.Now().Add(startDelay)
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
 	go dispatcher.Run(startTime)
 	defer dispatcher.Stop()
 
