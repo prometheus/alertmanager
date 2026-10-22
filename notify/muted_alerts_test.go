@@ -333,10 +333,12 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 				for _, flush := range []struct {
 					day, hour int
 					muted     bool
+					// logWhenMuted needs a sequence open for the mute to close.
+					logWhenMuted bool
 				}{
 					{day: 1, hour: 20, muted: true},
 					{day: 2, hour: 10},
-					{day: 2, hour: 20, muted: true},
+					{day: 2, hour: 20, muted: true, logWhenMuted: true},
 					{day: 3, hour: 10},
 				} {
 					now = time.Date(2026, time.January, flush.day, flush.hour, 30, 0, 0, time.UTC)
@@ -359,7 +361,8 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, flush.muted, len(mutedByActive)+len(mutedByMute) > 0)
 					// Muted flushes only reach nflog with the feature enabled.
-					wantLogged := !flush.muted || feature.flags.EnableMutedAlertsInNflog()
+					wantLogged := !flush.muted ||
+						(feature.flags.EnableMutedAlertsInNflog() && flush.logWhenMuted)
 					require.Equal(t, wantLogged, logged)
 					if flush.muted {
 						require.Equal(t, test.wantMutedByActive, mutedByActive)
@@ -368,7 +371,9 @@ func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 						require.Empty(t, notified)
 						if logged {
 							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].MutedAlerts)
-							require.Empty(t, notificationLog.qres[0].FiringAlerts)
+							// Recorded as firing, since a muted alert keeps the group open.
+							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
+							require.Empty(t, notificationLog.qres[0].NotifiedFiringAlerts())
 						}
 					} else {
 						require.Empty(t, mutedByActive)

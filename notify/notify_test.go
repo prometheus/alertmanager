@@ -1036,7 +1036,7 @@ func TestPipelineBuilderAppliesMutedAlertsFeature(t *testing.T) {
 			rs := pb.New(
 				map[string][]Integration{"receiver": {integration}},
 				func() time.Duration { return 0 },
-				nil, nil, nil, nil, &testNflog{}, nil,
+				nil, nil, nil, &testNflog{}, nil,
 			)
 
 			// The receiver chain, and the per-integration chain inside it.
