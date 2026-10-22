@@ -173,6 +173,11 @@ func (m stubTimeMuter) Mutes(_ []string, _ time.Time) (bool, []string, error) {
 	return m.mutes, m.names, nil
 }
 
+// ContainsTime implements the TimeMuter interface.
+func (m stubTimeMuter) ContainsTime(_ []string, _ time.Time) (bool, error) {
+	return m.mutes, nil
+}
+
 // TestTimeStagesRecordMutedAlerts asserts that the time interval stages record
 // the alerts they mute in the context, in the same way MuteStage does for
 // silences and inhibitions.

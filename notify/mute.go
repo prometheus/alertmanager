@@ -123,12 +123,13 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*al
 }
 
 // A TimeMuter determines if the time is muted by one or more active or mute
-// time intervals. If the time is muted, it returns true and the names of the
-// time intervals that muted it. Otherwise, it returns false and a nil slice.
-// Implementations may also provide ContainsTime([]string, time.Time) (bool, error)
-// for the same membership check without collecting matching names.
+// time intervals. Mutes reports whether now is inside any of the named time
+// intervals and returns the names of those that contain it, or a nil slice
+// if none does. ContainsTime answers the same question without collecting
+// the names. Both return an error if a name cannot be resolved.
 type TimeMuter interface {
 	Mutes(timeIntervalNames []string, now time.Time) (bool, []string, error)
+	ContainsTime(timeIntervalNames []string, now time.Time) (bool, error)
 }
 
 // mutedByActiveTimeIntervals returns the names of the active time intervals
@@ -139,19 +140,9 @@ func mutedByActiveTimeIntervals(muter TimeMuter, activeTimeIntervalNames []strin
 	if len(activeTimeIntervalNames) == 0 {
 		return nil, nil
 	}
-	var (
-		active bool
-		err    error
-	)
-	// Active intervals need only a predicate. Use it when available to avoid
-	// allocating matching names that would immediately be discarded.
-	if matcher, ok := muter.(interface {
-		ContainsTime([]string, time.Time) (bool, error)
-	}); ok {
-		active, err = matcher.ContainsTime(activeTimeIntervalNames, now)
-	} else {
-		active, _, err = muter.Mutes(activeTimeIntervalNames, now)
-	}
+	// Active intervals need only a predicate: the matching names would be
+	// discarded, so avoid collecting them.
+	active, err := muter.ContainsTime(activeTimeIntervalNames, now)
 	if err != nil {
 		return nil, err
 	}
