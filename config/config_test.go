@@ -945,19 +945,19 @@ receivers:
 		},
 		{
 			integration: "slack_configs",
-			expectedErr: "no Slack API URL nor App token set either inline or in a file",
+			expectedErr: "missing slack config",
 		},
 		{
 			integration: "opsgenie_configs",
-			expectedErr: "no global OpsGenie API Key set either inline or in a file",
+			expectedErr: "missing opsgenie config",
 		},
 		{
 			integration: "wechat_configs",
-			expectedErr: "no global Wechat Api Secret set either inline or in a file",
+			expectedErr: "missing wechat config",
 		},
 		{
 			integration: "rocketchat_configs",
-			expectedErr: "no global Rocketchat TokenID set either inline or in a file",
+			expectedErr: "missing rocketchat config",
 		},
 	}
 
@@ -967,6 +967,36 @@ receivers:
 			_, err := Load(in)
 			require.Error(t, err, "Expected empty configuration to be an error for %s", tc.integration)
 			require.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
+}
+
+// TestEmptyConfigOfIntegrationWithGlobals ensures that an empty integration
+// entry is rejected even when the global section provides everything that
+// the integration would otherwise need. Previously the validation ran on a
+// throwaway struct, the nil entry was kept in the receiver and building the
+// notifier panicked with a nil pointer dereference.
+func TestEmptyConfigOfIntegrationWithGlobals(t *testing.T) {
+	baseConfigTmpl := `
+global:
+  slack_api_url: 'https://hooks.slack.com/services/XXX'
+  opsgenie_api_key: 'key'
+  wechat_api_secret: 'secret'
+  wechat_api_corp_id: 'corp'
+  rocketchat_token_id: 'token-id'
+  rocketchat_token: 'token'
+route:
+  receiver: 'test-receiver'
+receivers:
+- name: 'test-receiver'
+  %s:
+  -
+`
+
+	for _, integration := range []string{"slack", "opsgenie", "wechat", "rocketchat"} {
+		t.Run(integration, func(t *testing.T) {
+			_, err := Load(fmt.Sprintf(baseConfigTmpl, integration+"_configs"))
+			require.EqualError(t, err, "missing "+integration+" config")
 		})
 	}
 }
