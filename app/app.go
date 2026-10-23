@@ -273,10 +273,11 @@ func (a *App) setup() error {
 	})
 
 	notificationLogOpts := nflog.Options{
-		SnapshotFile: filepath.Join(opts.DataDir, "nflog"),
-		Retention:    opts.Retention,
-		Logger:       logger.With("component", "nflog"),
-		Metrics:      reg,
+		SnapshotFile:       filepath.Join(opts.DataDir, "nflog"),
+		Retention:          opts.Retention,
+		RetainFiringAlerts: ff.EnableRetainFiringAlertsOnMerge(),
+		Logger:             logger.With("component", "nflog"),
+		Metrics:            reg,
 	}
 	notificationLog, err := nflog.New(notificationLogOpts)
 	if err != nil {

@@ -177,6 +177,10 @@ type Log struct {
 	metrics   *metrics
 	retention time.Duration
 
+	// retainFiringAlerts keeps firing alerts recorded by the existing entry
+	// when a merged entry does not know about them.
+	retainFiringAlerts bool
+
 	// For now we only store the most recently added log entry.
 	// The key is a serialized concatenation of group key and receiver.
 	mtx       sync.RWMutex
@@ -320,6 +324,10 @@ type Options struct {
 
 	Retention time.Duration
 
+	// RetainFiringAlerts keeps firing alerts recorded by the existing entry
+	// when a merged entry lists them as neither firing nor resolved.
+	RetainFiringAlerts bool
+
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
 }
@@ -344,11 +352,12 @@ func New(o Options) (*Log, error) {
 	}
 
 	l := &Log{
-		retention: o.Retention,
-		logger:    promslog.NewNopLogger(),
-		st:        state{},
-		broadcast: func([]byte) {},
-		metrics:   newMetrics(o.Metrics),
+		retention:          o.Retention,
+		retainFiringAlerts: o.RetainFiringAlerts,
+		logger:             promslog.NewNopLogger(),
+		st:                 state{},
+		broadcast:          func([]byte) {},
+		metrics:            newMetrics(o.Metrics),
 	}
 
 	if o.Logger != nil {
