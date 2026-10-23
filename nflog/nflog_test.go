@@ -472,13 +472,14 @@ func TestStateDecodingError(t *testing.T) {
 func TestStateMergeFiringAlertsRegression(t *testing.T) {
 	now := time.Now()
 
-	newEntry := func(ts time.Time, firing []uint64) *pb.MeshEntry {
+	newEntry := func(ts time.Time, firing, resolved []uint64) *pb.MeshEntry {
 		return &pb.MeshEntry{
 			Entry: &pb.Entry{
-				Timestamp:    timestamppb.New(ts),
-				GroupKey:     []byte("key"),
-				Receiver:     &pb.Receiver{GroupName: "a1", Idx: 1, Integration: "integr"},
-				FiringAlerts: firing,
+				Timestamp:      timestamppb.New(ts),
+				GroupKey:       []byte("key"),
+				Receiver:       &pb.Receiver{GroupName: "a1", Idx: 1, Integration: "integr"},
+				FiringAlerts:   firing,
+				ResolvedAlerts: resolved,
 			},
 			ExpiresAt: timestamppb.New(now.Add(time.Hour)),
 		}
@@ -486,12 +487,45 @@ func TestStateMergeFiringAlertsRegression(t *testing.T) {
 
 	const key = "key:a1/integr/1"
 
-	// A peer that knows about only a subset of the group's alerts must not be
-	// able to drop the alerts already recorded by a better informed peer.
-	// Losing them makes DedupStage see those alerts as new on the next flush
-	// and notify for them a second time.
-	res := state{key: newEntry(now, []uint64{1, 2, 3})}
-	res.merge(newEntry(now.Add(time.Minute), []uint64{1, 2}), now, true)
+	cases := []struct {
+		name               string
+		retainFiringAlerts bool
+		incoming           *pb.MeshEntry
+		expected           []uint64
+	}{
+		{
+			// Without the option a peer that knows about fewer alerts drops
+			// them, which makes DedupStage see them as new and notify again.
+			name:               "alerts the merged entry does not know about are dropped",
+			retainFiringAlerts: false,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil),
+			expected:           []uint64{1, 2},
+		},
+		{
+			name:               "alerts the merged entry does not know about are retained",
+			retainFiringAlerts: true,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil),
+			expected:           []uint64{1, 2, 3},
+		},
+		{
+			// An alert the merged entry reports as resolved is no longer
+			// firing, so it is dropped rather than retained.
+			name:               "alerts the merged entry resolved are dropped",
+			retainFiringAlerts: true,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, []uint64{3}),
+			expected:           []uint64{1, 2},
+		},
+	}
 
-	require.ElementsMatch(t, []uint64{1, 2, 3}, res[key].Entry.FiringAlerts)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := state{key: newEntry(now, []uint64{1, 2, 3}, nil)}
+			before := append([]uint64(nil), c.incoming.Entry.FiringAlerts...)
+
+			res.merge(c.incoming, now, c.retainFiringAlerts)
+
+			require.ElementsMatch(t, c.expected, res[key].Entry.FiringAlerts)
+			require.Equal(t, before, c.incoming.Entry.FiringAlerts, "Merged entry should remain unmodified")
+		})
+	}
 }
