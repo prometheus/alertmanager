@@ -274,7 +274,7 @@ func TestStateMerge(t *testing.T) {
 
 		res := c.a.clone()
 		for _, e := range cb {
-			res.merge(e, now)
+			res.merge(e, now, false)
 		}
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
@@ -449,12 +449,12 @@ func TestStateMergeMutedAlerts(t *testing.T) {
 
 	// A newer entry without muted alerts replaces an older one that has them.
 	res := state{key: newEntry(now, []uint64{1, 2})}
-	res.merge(newEntry(now.Add(time.Minute), nil), now)
+	res.merge(newEntry(now.Add(time.Minute), nil), now, false)
 	require.Empty(t, res[key].Entry.MutedAlerts)
 
 	// An older entry is dropped, so its muted alerts do not resurface.
 	res = state{key: newEntry(now, nil)}
-	res.merge(newEntry(now.Add(-time.Minute), []uint64{1, 2}), now)
+	res.merge(newEntry(now.Add(-time.Minute), []uint64{1, 2}), now, false)
 	require.Empty(t, res[key].Entry.MutedAlerts)
 }
 
@@ -467,4 +467,74 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+func TestStateMergeFiringAlertsRegression(t *testing.T) {
+	now := time.Now()
+
+	newEntry := func(ts time.Time, firing, resolved, muted []uint64) *pb.MeshEntry {
+		return &pb.MeshEntry{
+			Entry: &pb.Entry{
+				Timestamp:      timestamppb.New(ts),
+				GroupKey:       []byte("key"),
+				Receiver:       &pb.Receiver{GroupName: "a1", Idx: 1, Integration: "integr"},
+				FiringAlerts:   firing,
+				ResolvedAlerts: resolved,
+				MutedAlerts:    muted,
+			},
+			ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+		}
+	}
+
+	const key = "key:a1/integr/1"
+
+	cases := []struct {
+		name               string
+		retainFiringAlerts bool
+		incoming           *pb.MeshEntry
+		expected           []uint64
+	}{
+		{
+			// Without the option a peer that knows about fewer alerts drops
+			// them, which makes DedupStage see them as new and notify again.
+			name:               "alerts the merged entry does not know about are dropped",
+			retainFiringAlerts: false,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil, nil),
+			expected:           []uint64{1, 2},
+		},
+		{
+			name:               "alerts the merged entry does not know about are retained",
+			retainFiringAlerts: true,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil, nil),
+			expected:           []uint64{1, 2, 3},
+		},
+		{
+			// An alert the merged entry reports as resolved is no longer
+			// firing, so it is dropped rather than retained.
+			name:               "alerts the merged entry resolved are dropped",
+			retainFiringAlerts: true,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, []uint64{3}, nil),
+			expected:           []uint64{1, 2},
+		},
+		{
+			// Muted alerts are excluded from both the firing and resolved
+			// sets, so they must not look unknown to the merged entry.
+			name:               "alerts the merged entry muted are dropped",
+			retainFiringAlerts: true,
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil, []uint64{3}),
+			expected:           []uint64{1, 2},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := state{key: newEntry(now, []uint64{1, 2, 3}, nil, nil)}
+			before := append([]uint64(nil), c.incoming.Entry.FiringAlerts...)
+
+			res.merge(c.incoming, now, c.retainFiringAlerts)
+
+			require.ElementsMatch(t, c.expected, res[key].Entry.FiringAlerts)
+			require.Equal(t, before, c.incoming.Entry.FiringAlerts, "Merged entry should remain unmodified")
+		})
+	}
 }

@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/alertmanager/featurecontrol"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 
@@ -124,4 +125,76 @@ receivers:
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// nflogMergeConf is a single aggregation group notifying through one webhook,
+// used to observe what the notification log merge does to dedup state.
+const nflogMergeConf = `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+// pushUnevenly gives every instance alert1 and alert2, gives alert3 to all but
+// the last instance, and gives alert4 only to that last instance. The last
+// instance then notifies for alert4 and records an entry whose firing set omits
+// alert3, which is newer than what its peers hold.
+func pushUnevenly(amc *a.AlertmanagerCluster) {
+	ams := amc.Members()
+
+	amc.Push(a.At(1), a.Alert("alertname", "alert1"), a.Alert("alertname", "alert2"))
+
+	for _, am := range ams[:len(ams)-1] {
+		am.Push(a.At(4), a.Alert("alertname", "alert3"))
+	}
+
+	ams[len(ams)-1].Push(a.At(8), a.Alert("alertname", "alert4"))
+}
+
+func wantInitialNotifications(co *a.Collector) {
+	co.Want(a.Between(2, 4),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+	)
+	co.Want(a.Between(4, 6),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+		a.Alert("alertname", "alert3").Active(4),
+	)
+	co.Want(a.Between(9, 12),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+		a.Alert("alertname", "alert4").Active(8),
+	)
+}
+
+// TestClusterNflogMergeRetainsFiringAlerts covers the same sequence with
+// retain-firing-alerts-on-merge enabled. The peers keep alert3, which the entry
+// for alert4 lists as neither firing nor resolved, so they do not notify again.
+func TestClusterNflogMergeRetainsFiringAlerts(t *testing.T) {
+	t.Parallel()
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		Tolerance:    2 * time.Second,
+		FeatureFlags: []string{featurecontrol.FeatureRetainFiringAlertsOnMerge},
+	})
+	co := at.Collector("webhook")
+	wh := a.NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(nflogMergeConf, wh.Address()), 3)
+	pushUnevenly(amc)
+
+	wantInitialNotifications(co)
+
+	at.Run("--cluster.peer-timeout=1s")
+
+	t.Log(co.Check())
 }

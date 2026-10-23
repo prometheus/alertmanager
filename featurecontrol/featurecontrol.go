@@ -21,14 +21,15 @@ import (
 )
 
 const (
-	FeatureAlertNamesInMetrics   = "alert-names-in-metrics"
-	FeatureReceiverNameInMetrics = "receiver-name-in-metrics"
-	FeatureGroupKeyInMetrics     = "group-key-in-metrics"
-	FeatureClassicMode           = "classic-mode"
-	FeatureUTF8StrictMode        = "utf8-strict-mode"
-	FeatureAutoGOMEMLIMIT        = "auto-gomemlimit"
-	FeatureEventRecorder         = "event-recorder"
-	FeatureMutedAlertsInNflog    = "muted-alerts-in-nflog"
+	FeatureAlertNamesInMetrics       = "alert-names-in-metrics"
+	FeatureReceiverNameInMetrics     = "receiver-name-in-metrics"
+	FeatureGroupKeyInMetrics         = "group-key-in-metrics"
+	FeatureClassicMode               = "classic-mode"
+	FeatureUTF8StrictMode            = "utf8-strict-mode"
+	FeatureAutoGOMEMLIMIT            = "auto-gomemlimit"
+	FeatureEventRecorder             = "event-recorder"
+	FeatureMutedAlertsInNflog        = "muted-alerts-in-nflog"
+	FeatureRetainFiringAlertsOnMerge = "retain-firing-alerts-on-merge"
 )
 
 var AllowedFlags = []string{
@@ -40,6 +41,7 @@ var AllowedFlags = []string{
 	FeatureAutoGOMEMLIMIT,
 	FeatureEventRecorder,
 	FeatureMutedAlertsInNflog,
+	FeatureRetainFiringAlertsOnMerge,
 }
 
 type Flagger interface {
@@ -51,18 +53,20 @@ type Flagger interface {
 	EnableAutoGOMEMLIMIT() bool
 	EnableEventRecorder() bool
 	EnableMutedAlertsInNflog() bool
+	EnableRetainFiringAlertsOnMerge() bool
 }
 
 type Flags struct {
-	logger                       *slog.Logger
-	enableAlertNamesInMetrics    bool
-	enableReceiverNamesInMetrics bool
-	enableGroupKeyInMetrics      bool
-	classicMode                  bool
-	utf8StrictMode               bool
-	enableAutoGOMEMLIMIT         bool
-	enableEventRecorder          bool
-	enableMutedAlertsInNflog     bool
+	logger                          *slog.Logger
+	enableAlertNamesInMetrics       bool
+	enableReceiverNamesInMetrics    bool
+	enableGroupKeyInMetrics         bool
+	classicMode                     bool
+	utf8StrictMode                  bool
+	enableAutoGOMEMLIMIT            bool
+	enableEventRecorder             bool
+	enableMutedAlertsInNflog        bool
+	enableRetainFiringAlertsOnMerge bool
 }
 
 func (f *Flags) EnableAlertNamesInMetrics() bool {
@@ -95,6 +99,10 @@ func (f *Flags) EnableEventRecorder() bool {
 
 func (f *Flags) EnableMutedAlertsInNflog() bool {
 	return f.enableMutedAlertsInNflog
+}
+
+func (f *Flags) EnableRetainFiringAlertsOnMerge() bool {
+	return f.enableRetainFiringAlertsOnMerge
 }
 
 type flagOption func(flags *Flags)
@@ -141,6 +149,12 @@ func enableMutedAlertsInNflog() flagOption {
 	}
 }
 
+func enableRetainFiringAlertsOnMerge() flagOption {
+	return func(configs *Flags) {
+		configs.enableRetainFiringAlertsOnMerge = true
+	}
+}
+
 func enableAlertNamesInMetrics() flagOption {
 	return func(configs *Flags) {
 		configs.enableAlertNamesInMetrics = true
@@ -181,6 +195,9 @@ func NewFlags(logger *slog.Logger, features string) (Flagger, error) {
 		case FeatureMutedAlertsInNflog:
 			opts = append(opts, enableMutedAlertsInNflog())
 			logger.Warn("Experimental muted alerts in the notification log enabled")
+		case FeatureRetainFiringAlertsOnMerge:
+			opts = append(opts, enableRetainFiringAlertsOnMerge())
+			logger.Warn("Experimental retention of firing alerts unknown to a merged notification log entry enabled")
 		default:
 			return nil, fmt.Errorf("unknown option '%s' for --enable-feature", feature)
 		}
@@ -214,3 +231,5 @@ func (n NoopFlags) EnableAutoGOMEMLIMIT() bool { return false }
 func (n NoopFlags) EnableEventRecorder() bool { return false }
 
 func (n NoopFlags) EnableMutedAlertsInNflog() bool { return false }
+
+func (n NoopFlags) EnableRetainFiringAlertsOnMerge() bool { return false }
