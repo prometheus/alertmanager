@@ -170,7 +170,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 
 	// If a notification for this alert group has already been sent, `update_message`
 	// edits the initial message instead of sending a new one and `post_updates_to_thread`
-	// posts the notification as a reply in the initial message's thread.
+	// posts the notification as a reply in the initial message's thread. With both set,
+	// the initial message is also posted as the first reply in its own thread.
 	var store *nflog.Store
 	var threadTs, channelId string
 
@@ -187,7 +188,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	}
 
 	if threadTs == "" || channelId == "" {
-		return n.postRequest(ctx, u, &request{message: msg, Channel: tmplText(n.conf.Channel)}, store)
+		if verdict := n.postRequest(ctx, u, &request{message: msg, Channel: tmplText(n.conf.Channel)}, store); verdict.Err() != nil {
+			return verdict
+		}
+		// With both options set, later updates overwrite the initial message in place and
+		// its original content would be lost. Keep it by posting a copy as the first reply.
+		if !n.conf.UpdateMessage || !n.conf.PostUpdatesToThread || store == nil {
+			return notify.Success()
+		}
+		threadTs, _ = store.GetStr("threadTs")
+		channelId, _ = store.GetStr("channelId")
+		if threadTs == "" || channelId == "" {
+			logger.Warn("threadTs or channelId missing after posting initial message, cannot copy it to its thread")
+			return notify.Success()
+		}
+		logger.Debug("copying initial message to its thread", "threadTs", threadTs, "channelId", channelId)
+		copyReq := &request{message: msg, Channel: channelId, ThreadTimestamp: threadTs}
+		return n.postRequest(ctx, u, copyReq, nil)
 	}
 
 	// Requests targeting the initial message get no store, so its identifiers are never overwritten.
