@@ -1704,3 +1704,50 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 	require.Equal(t, model.LabelValue("A"), parentLabels["team"])
 	require.Equal(t, model.LabelValue("team is A"), parentLabels["description"])
 }
+
+func TestRouteLabelsReinsertDoesNotInvalidate(t *testing.T) {
+	t.Parallel()
+
+	route := &Route{RouteOpts: RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      1 * time.Hour, // don't flush
+		GroupInterval:  1 * time.Hour,
+		RepeatInterval: 1 * time.Hour,
+		Labels:         model.LabelSet{"count": "{{ len .Alerts }}"},
+	}}
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+	ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "test"},
+		route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+	ctx := context.Background()
+	now := time.Now()
+	mk := func(instance string) *alert.Alert {
+		return alert.New(model.Alert{
+			Labels:   model.LabelSet{"alertname": "test", "instance": model.LabelValue(instance)},
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(time.Hour),
+		}, now, false)
+	}
+
+	ag.insert(ctx, mk("a"))
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "a new alert invalidates")
+	require.Equal(t, model.LabelSet{"count": "1"}, ag.RouteLabels())
+	cached := ag.routeLabels.Load()
+
+	// A re-send of an alert the group already holds (fresh pointer, later
+	// UpdatedAt and EndsAt) is the steady state while an alert keeps firing
+	// and must reuse the cached render.
+	resent := mk("a")
+	resent.UpdatedAt = now.Add(time.Minute)
+	resent.EndsAt = now.Add(2 * time.Hour)
+	ag.insert(ctx, resent)
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "a re-insert must not invalidate")
+	require.Same(t, cached, ag.routeLabels.Load(), "cached render must be reused after a re-insert")
+
+	ag.insert(ctx, mk("b"))
+	require.Equal(t, uint64(2), ag.routeLabelsGen.Load(), "a second new alert invalidates")
+	require.Equal(t, model.LabelSet{"count": "2"}, ag.RouteLabels())
+}

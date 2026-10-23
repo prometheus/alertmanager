@@ -688,20 +688,18 @@ type aggrGroup struct {
 	// kept up to date with a generation counter rather than a lock, so that
 	// invalidation on the hot alert-ingestion path is a single atomic add.
 	//
-	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert set
-	// changes. Each cached render is tagged with the generation it was computed
-	// at; RouteLabels() treats the cache as valid only if its tag still equals
-	// the current generation. A render that races an invalidation is therefore
-	// tagged with a now-stale generation: it may be stored, but the next reader
-	// sees the mismatch and re-renders, so a stale value is never served.
+	// routeLabelsGen is bumped by invalidateRouteLabels when an alert is added
+	// or deleted; a re-send of a known fingerprint is not a change. A render is
+	// tagged with the generation it saw and is only served while that still
+	// matches, so a render that raced an invalidation may be stored but is
+	// never served.
 	routeLabels    atomic.Pointer[renderedRouteLabels]
 	routeLabelsGen atomic.Uint64
 }
 
-// renderedRouteLabels is a cached route-label render tagged with the alert-set
-// generation it was computed at. See aggrGroup.routeLabels.
+// renderedRouteLabels is a cached route-label render. See aggrGroup.routeLabels.
 type renderedRouteLabels struct {
-	gen    uint64
+	gen    uint64 // routeLabelsGen at render time
 	labels model.LabelSet
 }
 
@@ -933,7 +931,8 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-	if err := ag.alerts.Set(alrt); err != nil {
+	prev, err := ag.alerts.Swap(alrt)
+	if err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
 			return false
 		}
@@ -945,8 +944,12 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alrt)
 		})
-		// The alert set changed; the alert is already visible via ag.alerts.
-		ag.invalidateRouteLabels()
+		// The alert is already visible via ag.alerts. A re-send of a known
+		// fingerprint (the common case while an alert keeps firing) does not
+		// change what templates render against.
+		if prev == nil {
+			ag.invalidateRouteLabels()
+		}
 	}
 	return true
 }
