@@ -1750,4 +1750,16 @@ func TestRouteLabelsReinsertDoesNotInvalidate(t *testing.T) {
 	ag.insert(ctx, mk("b"))
 	require.Equal(t, uint64(2), ag.routeLabelsGen.Load(), "a second new alert invalidates")
 	require.Equal(t, model.LabelSet{"count": "2"}, ag.RouteLabels())
+
+	// Changes a template can observe do invalidate, even for a known fingerprint.
+	annotated := mk("b")
+	annotated.Annotations = model.LabelSet{"summary": "changed"}
+	ag.insert(ctx, annotated)
+	require.Equal(t, uint64(3), ag.routeLabelsGen.Load(), "changed annotations invalidate")
+
+	resolved := mk("b")
+	resolved.Annotations = annotated.Annotations
+	resolved.EndsAt = now.Add(-time.Minute)
+	ag.insert(ctx, resolved)
+	require.Equal(t, uint64(4), ag.routeLabelsGen.Load(), "a firing alert re-sent as resolved invalidates")
 }
