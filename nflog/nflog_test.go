@@ -468,3 +468,30 @@ func TestStateDecodingError(t *testing.T) {
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
 }
+
+func TestStateMergeFiringAlertsRegression(t *testing.T) {
+	now := time.Now()
+
+	newEntry := func(ts time.Time, firing []uint64) *pb.MeshEntry {
+		return &pb.MeshEntry{
+			Entry: &pb.Entry{
+				Timestamp:    timestamppb.New(ts),
+				GroupKey:     []byte("key"),
+				Receiver:     &pb.Receiver{GroupName: "a1", Idx: 1, Integration: "integr"},
+				FiringAlerts: firing,
+			},
+			ExpiresAt: timestamppb.New(now.Add(time.Hour)),
+		}
+	}
+
+	const key = "key:a1/integr/1"
+
+	// A peer that knows about only a subset of the group's alerts must not be
+	// able to drop the alerts already recorded by a better informed peer.
+	// Losing them makes DedupStage see those alerts as new on the next flush
+	// and notify for them a second time.
+	res := state{key: newEntry(now, []uint64{1, 2, 3})}
+	res.merge(newEntry(now.Add(time.Minute), []uint64{1, 2}), now)
+
+	require.ElementsMatch(t, []uint64{1, 2, 3}, res[key].Entry.FiringAlerts)
+}

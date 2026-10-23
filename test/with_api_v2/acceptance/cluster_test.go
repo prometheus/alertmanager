@@ -125,3 +125,68 @@ receivers:
 		t.Fatal(err)
 	}
 }
+
+// TestClusterNflogMergeDropsFiringAlerts reproduces a duplicate notification
+// caused by the notification log's gossip merge accepting an entry that is
+// newer but knows about fewer firing alerts than the entry it replaces.
+//
+// The instance that never learns about alert3 notifies for alert4 and records
+// an entry whose firing set omits alert3. That entry wins the merge on the
+// peers that do know about alert3, which then treat alert3 as new and notify
+// for it a second time.
+func TestClusterNflogMergeDropsFiringAlerts(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		Tolerance: 2 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := a.NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 3)
+	ams := amc.Members()
+
+	// Every instance learns about alert1 and alert2.
+	amc.Push(a.At(1), a.Alert("alertname", "alert1"), a.Alert("alertname", "alert2"))
+
+	// Only two instances learn about alert3, mirroring an instance that is out
+	// of sync with the Prometheus servers feeding the cluster.
+	ams[0].Push(a.At(4), a.Alert("alertname", "alert3"))
+	ams[1].Push(a.At(4), a.Alert("alertname", "alert3"))
+
+	// The instance that never saw alert3 learns about alert4.
+	ams[2].Push(a.At(8), a.Alert("alertname", "alert4"))
+
+	co.Want(a.Between(2, 4),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+	)
+	co.Want(a.Between(5, 7),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+		a.Alert("alertname", "alert3").Active(4),
+	)
+	co.Want(a.Between(9, 12),
+		a.Alert("alertname", "alert1").Active(1),
+		a.Alert("alertname", "alert2").Active(1),
+		a.Alert("alertname", "alert4").Active(8),
+	)
+
+	at.Run("--cluster.peer-timeout=1s")
+
+	t.Log(co.Check())
+}
