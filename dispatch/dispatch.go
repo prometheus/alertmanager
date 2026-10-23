@@ -696,13 +696,16 @@ type aggrGroup struct {
 	//
 	// A render also expires at the earliest EndsAt of the alerts it saw
 	// (validUntil), since an alert resolving changes .Status without an insert.
+	// If nothing has actually resolved by then (re-sends pushed EndsAt out),
+	// RouteLabels keeps the labels and only advances validUntil.
 	routeLabels    atomic.Pointer[renderedRouteLabels]
 	routeLabelsGen atomic.Uint64
 }
 
 // renderedRouteLabels is a cached route-label render. See aggrGroup.routeLabels.
 type renderedRouteLabels struct {
-	gen        uint64    // routeLabelsGen at render time
+	gen        uint64 // routeLabelsGen at render time
+	renderedAt time.Time
 	validUntil time.Time // zero means indefinitely
 	labels     model.LabelSet
 }
@@ -811,11 +814,25 @@ func (ag *aggrGroup) RouteLabels(now time.Time) model.LabelSet {
 	// with a value cached for that gen and wrongly accept a stale render.)
 	cached := ag.routeLabels.Load()
 	gen := ag.routeLabelsGen.Load()
-	if cached != nil && cached.gen == gen && (cached.validUntil.IsZero() || now.Before(cached.validUntil)) {
+	current := cached != nil && cached.gen == gen
+	if current && (cached.validUntil.IsZero() || now.Before(cached.validUntil)) {
 		return cached.labels
 	}
 
 	alerts := ag.alerts.List()
+
+	if current && !resolvedBetween(alerts, cached.renderedAt, now) {
+		// Expired, but nothing resolved since the render (re-sends extended
+		// EndsAt): keep the labels, only advance validUntil. renderedAt stays
+		// so the next expiry checks the whole window since the render.
+		ag.routeLabels.Store(&renderedRouteLabels{
+			gen:        gen,
+			renderedAt: cached.renderedAt,
+			validUntil: nextResolution(alerts, now),
+			labels:     cached.labels,
+		})
+		return cached.labels
+	}
 
 	var labels model.LabelSet
 	if len(alerts) == 0 {
@@ -833,10 +850,24 @@ func (ag *aggrGroup) RouteLabels(now time.Time) model.LabelSet {
 	// reader will see the mismatch and re-render rather than serve stale labels.
 	ag.routeLabels.Store(&renderedRouteLabels{
 		gen:        gen,
+		renderedAt: now,
 		validUntil: nextResolution(alerts, now),
 		labels:     labels,
 	})
 	return labels
+}
+
+// resolvedBetween reports whether any alert has an EndsAt in (since, now], i.e.
+// may have resolved in that window without an insert. A re-send that changes
+// the status, or the EndsAt of a resolved alert, bumps the generation (see
+// templateInputsChanged), so under an unchanged generation this is exact.
+func resolvedBetween(alerts []*alert.Alert, since, now time.Time) bool {
+	for _, a := range alerts {
+		if a.EndsAt.After(since) && !a.EndsAt.After(now) {
+			return true
+		}
+	}
+	return false
 }
 
 // nextResolution returns the earliest EndsAt after now, or the zero time if
@@ -857,12 +888,14 @@ func nextResolution(alerts []*alert.Alert, now time.Time) time.Time {
 
 // templateInputsChanged reports whether cur, replacing prev for the same
 // fingerprint, differs in something route label templates can observe:
-// annotations, StartsAt, GeneratorURL or resolved status at now. EndsAt itself
-// is not compared: clients extend it on every re-send and templates cannot
-// see it while the alert stays firing.
+// annotations, StartsAt, GeneratorURL, resolved status at now and, once
+// resolved, EndsAt. The EndsAt of a firing alert is not compared: clients
+// extend it on every re-send and templates cannot see it.
 func templateInputsChanged(prev, cur *alert.Alert, now time.Time) bool {
-	return prev.ResolvedAt(now) != cur.ResolvedAt(now) ||
-		!prev.StartsAt.Equal(cur.StartsAt) ||
+	if resolved := cur.ResolvedAt(now); resolved != prev.ResolvedAt(now) || (resolved && !prev.EndsAt.Equal(cur.EndsAt)) {
+		return true
+	}
+	return !prev.StartsAt.Equal(cur.StartsAt) ||
 		prev.GeneratorURL != cur.GeneratorURL ||
 		!prev.Annotations.Equal(cur.Annotations)
 }
