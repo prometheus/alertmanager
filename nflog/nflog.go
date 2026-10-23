@@ -282,15 +282,20 @@ func (s state) merge(e *pb.MeshEntry, now time.Time, retainFiringAlerts bool) bo
 }
 
 // withRetainedFiringAlerts returns next with the firing alerts of prev that next
-// lists as neither firing nor resolved appended to its firing alerts. Those are
-// the alerts the sender of next never knew about, as opposed to the ones that
-// resolved. next is left unmodified.
+// lists as neither firing, resolved nor muted appended to its firing alerts.
+// Those are the alerts the sender of next never knew about, as opposed to the
+// ones it reports as resolved or muted. next is left unmodified.
 func withRetainedFiringAlerts(prev *pb.Entry, next *pb.MeshEntry) *pb.MeshEntry {
-	known := make(map[uint64]struct{}, len(next.Entry.FiringAlerts)+len(next.Entry.ResolvedAlerts))
+	known := make(map[uint64]struct{}, len(next.Entry.FiringAlerts)+len(next.Entry.ResolvedAlerts)+len(next.Entry.MutedAlerts))
 	for _, id := range next.Entry.FiringAlerts {
 		known[id] = struct{}{}
 	}
 	for _, id := range next.Entry.ResolvedAlerts {
+		known[id] = struct{}{}
+	}
+	// Muted alerts are excluded from the firing and resolved sets, so without
+	// this they would look unknown to next and be retained as firing.
+	for _, id := range next.Entry.MutedAlerts {
 		known[id] = struct{}{}
 	}
 
