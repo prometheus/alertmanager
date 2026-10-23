@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/promslog"
 	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/cluster"
@@ -263,7 +264,7 @@ func (s state) clone() state {
 
 // merge returns true or false whether the MeshEntry was merged or
 // not. This information is used to decide to gossip the message further.
-func (s state) merge(e *pb.MeshEntry, now time.Time) bool {
+func (s state) merge(e *pb.MeshEntry, now time.Time, retainFiringAlerts bool) bool {
 	if e.ExpiresAt.AsTime().Before(now) {
 		return false
 	}
@@ -271,10 +272,41 @@ func (s state) merge(e *pb.MeshEntry, now time.Time) bool {
 
 	prev, ok := s[k]
 	if !ok || prev.Entry.Timestamp.AsTime().Before(e.Entry.Timestamp.AsTime()) {
+		if ok && retainFiringAlerts {
+			e = withRetainedFiringAlerts(prev.Entry, e)
+		}
 		s[k] = e
 		return true
 	}
 	return false
+}
+
+// withRetainedFiringAlerts returns next with the firing alerts of prev that next
+// lists as neither firing nor resolved appended to its firing alerts. Those are
+// the alerts the sender of next never knew about, as opposed to the ones that
+// resolved. next is left unmodified.
+func withRetainedFiringAlerts(prev *pb.Entry, next *pb.MeshEntry) *pb.MeshEntry {
+	known := make(map[uint64]struct{}, len(next.Entry.FiringAlerts)+len(next.Entry.ResolvedAlerts))
+	for _, id := range next.Entry.FiringAlerts {
+		known[id] = struct{}{}
+	}
+	for _, id := range next.Entry.ResolvedAlerts {
+		known[id] = struct{}{}
+	}
+
+	var retained []uint64
+	for _, id := range prev.FiringAlerts {
+		if _, ok := known[id]; !ok {
+			retained = append(retained, id)
+		}
+	}
+	if len(retained) == 0 {
+		return next
+	}
+
+	merged := proto.Clone(next).(*pb.MeshEntry)
+	merged.Entry.FiringAlerts = append(merged.Entry.FiringAlerts, retained...)
+	return merged
 }
 
 func (s state) MarshalBinary() ([]byte, error) {
@@ -513,7 +545,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts, mut
 	if err != nil {
 		return err
 	}
-	l.st.merge(e, l.now())
+	l.st.merge(e, l.now(), false)
 	l.broadcast(b)
 
 	return nil
@@ -627,7 +659,7 @@ func (l *Log) Merge(b []byte) error {
 	now := l.now()
 
 	for _, e := range st {
-		if merged := l.st.merge(e, now); merged && !cluster.OversizedMessage(b) {
+		if merged := l.st.merge(e, now, l.retainFiringAlerts); merged && !cluster.OversizedMessage(b) {
 			// If this is the first we've seen the message and it's
 			// not oversized, gossip it to other nodes. We don't
 			// propagate oversized messages because they're sent to

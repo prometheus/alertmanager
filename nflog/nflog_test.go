@@ -274,7 +274,7 @@ func TestStateMerge(t *testing.T) {
 
 		res := c.a.clone()
 		for _, e := range cb {
-			res.merge(e, now)
+			res.merge(e, now, false)
 		}
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
@@ -449,12 +449,12 @@ func TestStateMergeMutedAlerts(t *testing.T) {
 
 	// A newer entry without muted alerts replaces an older one that has them.
 	res := state{key: newEntry(now, []uint64{1, 2})}
-	res.merge(newEntry(now.Add(time.Minute), nil), now)
+	res.merge(newEntry(now.Add(time.Minute), nil), now, false)
 	require.Empty(t, res[key].Entry.MutedAlerts)
 
 	// An older entry is dropped, so its muted alerts do not resurface.
 	res = state{key: newEntry(now, nil)}
-	res.merge(newEntry(now.Add(-time.Minute), []uint64{1, 2}), now)
+	res.merge(newEntry(now.Add(-time.Minute), []uint64{1, 2}), now, false)
 	require.Empty(t, res[key].Entry.MutedAlerts)
 }
 
@@ -491,7 +491,7 @@ func TestStateMergeFiringAlertsRegression(t *testing.T) {
 	// Losing them makes DedupStage see those alerts as new on the next flush
 	// and notify for them a second time.
 	res := state{key: newEntry(now, []uint64{1, 2, 3})}
-	res.merge(newEntry(now.Add(time.Minute), []uint64{1, 2}), now)
+	res.merge(newEntry(now.Add(time.Minute), []uint64{1, 2}), now, true)
 
 	require.ElementsMatch(t, []uint64{1, 2, 3}, res[key].Entry.FiringAlerts)
 }
