@@ -1,5 +1,10 @@
 ## main / (unreleased)
 
+## 0.34.2 / 2026-10-29
+
+* [SECURITY] api: Alertmanager no longer sends CORS headers by default. This means `api/v2` now disallows cross-origin requests. This is a breaking change. The new `--web.cors.origin` flag can be used to restore the previous behaviour. #5664
+* [SECURITY] Build with Go 1.26.10, which distrusts the eight compromised eMudhra intermediate CA certificates in `crypto/x509`. CVE-2026-111943
+
 ## 0.34.1 / 2026-09-17
 
 * [BUGFIX] inhibit: Fix several issues related to inhibitions that caused alerts to be improperly un-muted in some cases. #5542, #5449, #5559
