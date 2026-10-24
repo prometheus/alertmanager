@@ -14,17 +14,25 @@
 package wechat
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
@@ -91,6 +99,40 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret, token)
+}
+
+func TestWechatTokenRequestTemplateError(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, `{"errcode":40013,"errmsg":"invalid corpid"}`)
+	}))
+	defer srv.Close()
+	u, err := url.Parse(srv.URL + "/")
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&WechatConfig{
+			APIURL:     &amcommoncfg.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			CorpID:     `{{ template "missing" . }}`,
+			APISecret:  commoncfg.Secret("secret"),
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
+	require.False(t, verdict.ShouldRetry())
+	require.ErrorContains(t, verdict.Err(), "templating error")
+	require.Zero(t, requests.Load(), "no token request should be sent when templating fails")
 }
 
 func TestGetApiSecretFromSecret(t *testing.T) {

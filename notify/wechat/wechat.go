@@ -100,7 +100,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
-		apiSecret, err := n.getApiSecret()
+		var apiSecret string
+		apiSecret, err = n.getApiSecret()
 		if err != nil {
 			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
