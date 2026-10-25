@@ -104,35 +104,56 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 func TestWechatTokenRequestTemplateError(t *testing.T) {
 	t.Parallel()
 
-	var requests atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		fmt.Fprint(w, `{"errcode":40013,"errmsg":"invalid corpid"}`)
-	}))
-	defer srv.Close()
-	u, err := url.Parse(srv.URL + "/")
-	require.NoError(t, err)
-
-	notifier, err := New(
-		&WechatConfig{
-			APIURL:     &amcommoncfg.URL{URL: u},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			CorpID:     `{{ template "missing" . }}`,
-			APISecret:  commoncfg.Secret("secret"),
+	for _, tc := range []struct {
+		name      string
+		corpID    string
+		apiSecret commoncfg.Secret
+	}{
+		{
+			name:      "corp id",
+			corpID:    `{{ template "missing" . }}`,
+			apiSecret: commoncfg.Secret("secret"),
 		},
-		test.CreateTmpl(t),
-		promslog.NewNopLogger(),
-	)
-	require.NoError(t, err)
+		{
+			name:      "api secret",
+			corpID:    "corpid",
+			apiSecret: commoncfg.Secret(`{{ template "missing" . }}`),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	ctx = notify.WithGroupKey(ctx, "1")
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				fmt.Fprint(w, `{"errcode":40013,"errmsg":"invalid corpid"}`)
+			}))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL + "/")
+			require.NoError(t, err)
 
-	verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
-	require.False(t, verdict.ShouldRetry())
-	require.ErrorContains(t, verdict.Err(), "templating error")
-	require.Zero(t, requests.Load(), "no token request should be sent when templating fails")
+			notifier, err := New(
+				&WechatConfig{
+					APIURL:     &amcommoncfg.URL{URL: u},
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					CorpID:     tc.corpID,
+					APISecret:  tc.apiSecret,
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
+			require.False(t, verdict.ShouldRetry())
+			require.ErrorContains(t, verdict.Err(), "templating error")
+			require.Zero(t, requests.Load(), "no token request should be sent when templating fails")
+		})
+	}
 }
 
 func TestGetApiSecretFromSecret(t *testing.T) {
