@@ -3,6 +3,10 @@ name: CI
 on:  # yamllint disable-line rule:truthy
   pull_request:
   workflow_call:
+
+permissions:
+  contents: read
+
 jobs:
   test_frontend:
     name: Test alertmanager frontend
@@ -28,7 +32,7 @@ jobs:
       - uses: prometheus/promci-artifacts/save@9ca3252d07f230d5f923452b4df5697eba4a5bee # v0.1.1
         with:
           directory: .tarballs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ui-dist
           path: ui/app/dist

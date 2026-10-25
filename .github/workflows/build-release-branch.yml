@@ -11,7 +11,7 @@ permissions:
 jobs:
   ci:
     name: Run ci
-    uses: ./.github/workflows/ci.yml
+    uses: $/.github/workflows/ci.yml
 
   build:
     name: Build Alertmanager for all architectures
